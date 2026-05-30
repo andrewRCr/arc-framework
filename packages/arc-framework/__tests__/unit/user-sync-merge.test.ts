@@ -46,7 +46,7 @@ describe("mergeEntries", () => {
     expect(merged[0]?.raw).not.toContain("stale body");
   });
 
-  it("scopes identity by section so the same lead-in survives in different sections", () => {
+  it("scopes identity by section so the same key survives in different sections", () => {
     const recent: CrossWuEntry[] = [{ section: "Atomic", key: "X", raw: "- **X** — recent atomic" }];
     const older: CrossWuEntry[] = [
       { section: "Backlog", key: "X", raw: "- **X** — backlog" },
@@ -142,20 +142,28 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
 
 ## Atomic
 
-<!-- guidance comment -->
+<!-- ### \`[ ]\` **commented-shape** — shape example, not a real entry -->
 
-- **Lead A** — atomic text
+### \`[ ]\` **Lead A**
+
+- atomic text
     - nested detail line
-- plain item with no bold lead-in
+
+### no bold title here
+
+- malformed atomic entry
 
 ## Backlog
 
-- **Lead B** — backlog text
+### \`[ ]\` **Lead B**
+
+- backlog text
+- WU_Target: some-wu (provisional)
 
 ---
 `;
 
-  it("parses list items scoped to their section, keeping multi-line bodies", () => {
+  it("parses each entry keyed by the H3 bold title, scoped to its section", () => {
     const parsed = parseCrossWuEntries(content, "user-inbox");
     const ok = parsed.flatMap((p) => (p.ok ? [p.entry] : []));
 
@@ -163,10 +171,24 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
     expect(ok[0]?.raw).toContain("nested detail line");
   });
 
-  it("surfaces a list item with no bold lead-in as a failure", () => {
+  it("preserves a Backlog entry's WU_Target line verbatim in raw", () => {
+    const backlog = parseCrossWuEntries(content, "user-inbox").flatMap((p) =>
+      p.ok && p.entry.section === "Backlog" ? [p.entry] : [],
+    );
+
+    expect(backlog[0]?.raw).toContain("WU_Target: some-wu (provisional)");
+  });
+
+  it("surfaces an H3 entry with no bold title as a failure", () => {
     const failures = parseCrossWuEntries(content, "user-inbox").filter((p) => !p.ok);
 
     expect(failures).toHaveLength(1);
+  });
+
+  it("ignores the commented-out shape example so a seeded template parses as empty", () => {
+    const keys = parseCrossWuEntries(content, "user-inbox").flatMap((p) => (p.ok ? [p.entry.key] : []));
+
+    expect(keys).not.toContain("commented-shape");
   });
 });
 
@@ -252,21 +274,29 @@ Older body.
   it("folds older USER-INBOX items into their own section, keeping boundaries", () => {
     const recent = `## Atomic
 
-- **atomic recent** — recent atomic item
+### \`[ ]\` **atomic recent**
+
+- recent atomic item
 
 ## Backlog
 
-- **backlog recent** — recent backlog item
+### \`[ ]\` **backlog recent**
+
+- recent backlog item
 
 ---
 `;
     const older = `## Atomic
 
-- **atomic older** — older atomic item
+### \`[ ]\` **atomic older**
+
+- older atomic item
 
 ## Backlog
 
-- **backlog older** — older backlog item
+### \`[ ]\` **backlog older**
+
+- older backlog item
 
 ---
 `;
@@ -346,11 +376,11 @@ describe("appendRemovalTombstones", () => {
     expect(result).toBe(current);
   });
 
-  it("keys the tombstone to (section, key) so a removal spares the same lead-in elsewhere", () => {
+  it("keys the tombstone to (section, key) so a removal spares the same title elsewhere", () => {
     const uiFile = (atomic: string, backlog: string): string =>
       `# User Inbox\n\n## Atomic\n\n${atomic}\n\n## Backlog\n\n${backlog}\n\n---\n`;
-    const prior = uiFile("- **Shared** — atomic body", "- **Shared** — backlog body");
-    const current = uiFile("- **Shared** — atomic body", "");
+    const prior = uiFile("### `[ ]` **Shared**\n\n- atomic body", "### `[ ]` **Shared**\n\n- backlog body");
+    const current = uiFile("### `[ ]` **Shared**\n\n- atomic body", "");
 
     const result = appendRemovalTombstones("USER-INBOX.md", current, [{ content: prior }], NOW);
 

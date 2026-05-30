@@ -15,9 +15,9 @@
  * A parsed cross-WU entry, the unit of list-union merge.
  *
  * Identity is `(section, key)`: `WORKING-MEMORY` keys on the bold-field header
- * within its single `## Memories` section; `USER-INBOX` keys on the list-item
- * lead-in scoped to its `## Atomic` / `## Backlog` section, so the same lead-in
- * under different sections stays distinct; `ERRANDS` keys on the H3 bold slug
+ * within its single `## Memories` section; `USER-INBOX` keys on the H3 bold
+ * title scoped to its `## Atomic` / `## Backlog` section, so the same title
+ * under different sections stays distinct; `ERRANDS` keys on the H3 bold title
  * within its single `## Queue` section. `raw` is the verbatim entry block —
  * preserved for divergent-body resolution (most-recent note wins) and for
  * lossless reconstruction into the merged file.
@@ -25,9 +25,9 @@
 export interface CrossWuEntry {
   /** Containing H2 heading text — `Memories`, `Atomic`, `Backlog`, or `Queue`. */
   section: string;
-  /** Merge identity within the section — header (WM), list-item lead-in (UI), or H3 slug (errands). */
+  /** Merge identity within the section — bold-field header (WM) or H3 bold title (UI / errands). */
   key: string;
-  /** Verbatim entry block text (header/lead-in through body), trailing blanks trimmed. */
+  /** Verbatim entry block text (header / H3 heading through body), trailing blanks trimmed. */
   raw: string;
 }
 

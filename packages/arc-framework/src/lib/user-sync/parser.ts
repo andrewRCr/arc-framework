@@ -3,14 +3,13 @@
  *
  * The cross-WU files carry entries in different shapes. `WORKING-MEMORY.md`
  * entries are a bold-field header (`**…:**`) followed by a `_Remove when:_`
- * trigger and a body, all under `## Memories`. `USER-INBOX.md` entries are
- * top-level markdown list items (`- **lead-in** — text`, possibly multi-line)
- * within `## Atomic` / `## Backlog` sections. `ERRANDS.md` entries are H3
- * headings (`### \`[ ]\` **slug**`, an optional checkbox before the bold slug)
- * followed by descriptor bullets, under `## Queue`. Each parser splits a file
- * into entry blocks and returns one discriminated outcome per block: a block
- * that doesn't match its shape becomes `{ ok: false, reason }` instead of being
- * dropped.
+ * trigger and a body, all under `## Memories`. `USER-INBOX.md` and `ERRANDS.md`
+ * share the H3 managed-entry shape — an `### \`[ ]\` **title**` heading (an
+ * optional checkbox before the bold title) followed by descriptor bullets,
+ * keyed on the bold title — USER-INBOX under `## Atomic` / `## Backlog`,
+ * ERRANDS under `## Queue`. Each parser splits a file into entry blocks and
+ * returns one discriminated outcome per block: a block that doesn't match its
+ * shape becomes `{ ok: false, reason }` instead of being dropped.
  *
  * @module
  */
@@ -21,12 +20,10 @@ import type { CrossWuShape, EntryParse } from "./types.js";
 const WM_HEADER = /^\*\*.+:\*\*\s*$/;
 /** The required removal-trigger line within a WORKING-MEMORY entry (italic via `_` or `*`). */
 const WM_REMOVE_WHEN = /^[_*]Remove when:/;
-/** A top-level USER-INBOX list item with a bold lead-in. */
-const UI_LEAD_IN = /^-\s+\*\*(.+?)\*\*/;
-/** An ERRANDS Queue entry boundary — any `###` heading. */
-const ERRAND_BOUNDARY = /^###\s/;
-/** The bold `<slug>` of an ERRANDS H3 heading, after an optional (backtick-wrapped) checkbox. */
-const ERRAND_SLUG = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
+/** An H3 managed-entry boundary — any `###` heading. */
+const H3_BOUNDARY = /^###\s/;
+/** The bold title of an H3 managed-entry heading, after an optional (backtick-wrapped) checkbox. */
+const H3_KEY = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
 /** HTML comment block — guidance and shape examples that are not entries. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 
@@ -114,64 +111,40 @@ function parseWorkingMemory(content: string): EntryParse[] {
 function parseUserInbox(content: string): EntryParse[] {
   const out: EntryParse[] = [];
   for (const section of ["Atomic", "Backlog"]) {
-    parseUserInboxSection(sectionLines(content, section), section, out);
+    parseH3Section(sectionLines(content, section), section, `USER-INBOX ${section}`, out);
   }
   return out;
 }
 
-function parseUserInboxSection(lines: readonly string[], section: string, out: EntryParse[]): void {
-  let block: string[] = [];
-
-  const flush = (): void => {
-    if (block.length === 0) return;
-    const raw = trimBlock(block);
-    const leadIn = block[0]?.match(UI_LEAD_IN)?.[1];
-    if (leadIn !== undefined) {
-      out.push({ ok: true, entry: { section, key: leadIn.trim(), raw } });
-    } else {
-      out.push({ ok: false, reason: `USER-INBOX ${section} item missing bold lead-in: ${raw.split("\n")[0] ?? ""}` });
-    }
-    block = [];
-  };
-
-  for (const line of lines) {
-    if (/^-\s/.test(line)) {
-      flush();
-      block = [line];
-    } else if (block.length > 0) {
-      block.push(line);
-    }
-  }
-  flush();
-}
-
 /**
- * Parse `ERRANDS.md` Queue entries. Each entry is an `### \`[ ]\` **slug**`
- * heading (the checkbox is optional and may be backtick-wrapped) followed by
- * descriptor bullets, keyed on the bold slug within the single `## Queue`
- * section. An H3 heading with no bold slug surfaces as a failure.
+ * Parse one section's lines into H3 managed-entry outcomes. Each entry is an
+ * `### \`[ ]\` **title**` heading (the checkbox is optional and may be
+ * backtick-wrapped) followed by descriptor bullets, keyed on the bold title.
+ * Descriptor fields that ride the body — e.g. a USER-INBOX `WU_Target` line —
+ * stay verbatim in `raw`; they are never extracted as fields. An H3 heading
+ * with no bold title surfaces as a failure rather than a silent drop. Shared by
+ * USER-INBOX (`## Atomic` / `## Backlog`) and ERRANDS (`## Queue`).
+ *
+ * @param label - File + section name for the failure reason (e.g. `ERRANDS Queue`).
  */
-function parseErrands(content: string): EntryParse[] {
-  const lines = sectionLines(content, "Queue");
-  const out: EntryParse[] = [];
-
+function parseH3Section(lines: readonly string[], section: string, label: string, out: EntryParse[]): void {
   let block: string[] = [];
   let started = false;
 
   const flush = (): void => {
     if (!started) return;
     const raw = trimBlock(block);
-    const slug = block[0]?.match(ERRAND_SLUG)?.[1];
-    if (slug !== undefined) {
-      out.push({ ok: true, entry: { section: "Queue", key: slug.trim(), raw } });
+    const key = block[0]?.match(H3_KEY)?.[1];
+    if (key !== undefined) {
+      out.push({ ok: true, entry: { section, key: key.trim(), raw } });
     } else {
-      out.push({ ok: false, reason: `ERRANDS Queue entry missing bold slug: ${(block[0] ?? "").trim()}` });
+      out.push({ ok: false, reason: `${label} entry missing bold title: ${(block[0] ?? "").trim()}` });
     }
     block = [];
   };
 
   for (const line of lines) {
-    if (ERRAND_BOUNDARY.test(line)) {
+    if (H3_BOUNDARY.test(line)) {
       flush();
       started = true;
       block = [line];
@@ -180,5 +153,10 @@ function parseErrands(content: string): EntryParse[] {
     }
   }
   flush();
+}
+
+function parseErrands(content: string): EntryParse[] {
+  const out: EntryParse[] = [];
+  parseH3Section(sectionLines(content, "Queue"), "Queue", "ERRANDS Queue", out);
   return out;
 }

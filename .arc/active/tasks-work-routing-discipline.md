@@ -42,30 +42,19 @@ map per its naming banner).
   pointer to the retiring `BACKLOG-INBOX` (Task 1.3 completes that retirement). Heading kept as `## Backlog` per
   the naming banner — the `→ ## Work Unit` rename stays `doc-naming-convention`'s.
 
-### `[ ]` **1.2 `parseUserInboxSection` ↔ template reconcile (test-first)**
+### `[x]` **1.2 `parseUserInboxSection` ↔ template reconcile (test-first)**
 
 - _Goal:_ The `USER-INBOX` parser reads the template's current H3+checkbox managed-entry shape — so an entry
   authored per the template parses to its `{section, key, raw}` envelope instead of being silently dropped at
   merge.
-- _Context:_ The template and `ERRANDS.md` already use the H3+checkbox / bold-slug managed-entry grammar, but
-  `parseUserInboxSection` (`packages/arc-framework/src/lib/user-sync/parser.ts`) still keys on the stale flat
-  `- **lead-in**` boundary, so template-authored entries parse malformed. Converge the parser onto the
-  H3+checkbox shape — the `key` is the bold title; `WU_Target` and other descriptors ride in `raw`, not parsed
-  as fields.
-- _Note:_ Post-convergence `parseUserInboxSection` is structurally near-identical to `parseErrands` (an H3
-  boundary plus a bold-slug key) — unify or keep parallel at the implementer's discretion.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Files: `parser.ts` (`parseUserInboxSection` line ~122; the `UI_LEAD_IN` regex retires), template
-      `templates/user/USER-INBOX.md`, tests `__tests__/unit/user-sync-merge.test.ts` (flat-shape cases
-      replaced).
-    - Build `test-first` (one behavior at a time):
-        - An H3+checkbox `## Atomic` entry parses to `{section: "Atomic", key: <bold title>, raw}`.
-        - An H3+checkbox `## Backlog` entry parses with its bold title as `key`; its `WU_Target` line is
-          preserved verbatim in `raw` (not extracted).
-        - An H3 heading with no bold title yields `{ok:false}` with a reason — not a silent drop.
-        - Existing cross-WU merge behavior (union-by-key on the bold-title key, recency) is preserved
-          (regression); the retired flat-shape cases are replaced, not kept.
+- _Outcome:_ Converged the `USER-INBOX` parser onto the H3+checkbox grammar: the `UI_LEAD_IN` flat-list regex
+  retired, and the section parser now keys on the bold title via the same H3 boundary as errands. Took the
+  unify path the `_Note:_` sanctioned — extracted a shared `parseH3Section(lines, section, label, out)` helper
+  (generic `H3_BOUNDARY` / `H3_KEY` regexes) that both `parseUserInbox` (Atomic/Backlog) and `parseErrands`
+  (Queue) delegate to; `WU_Target` and other descriptors ride verbatim in `raw`, never parsed as fields. Test
+  fixtures across the parse, merge-fold, and tombstone cases were reshaped flat → H3 (merge identity / recency
+  behavior unchanged). Doc comments in `parser.ts` / `types.ts` / `merge.ts` updated off the stale "lead-in"
+  vocabulary. Files: `parser.ts`, `types.ts`, `merge.ts`, `__tests__/unit/user-sync-merge.test.ts`.
 
 ### `[ ]` **1.3 Shared inbox atomic-only + `BACKLOG-INBOX` structural retirement**
 
