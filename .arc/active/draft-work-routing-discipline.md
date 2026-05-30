@@ -55,52 +55,120 @@ hold only the genuinely homeless.
 
 ## Model — deferred-capture routing
 
+**The sorting axis is isolation: where is it safe to write X's home right now?** On a WU branch, only this WU's
+own concerns are safe to write — every other write needs *isolation* (an isolated branch) so it never pollutes
+the current PR. An **errand** pays that isolation cost *now*; the **inbox** defers it to the next cheap batched
+moment (`arc-housekeep`, between WUs, where the base branch makes shared-planning writes native again). The inbox
+earns its keep precisely as that deferral — it lets you wait for the free batched moment instead of paying
+per-item isolation mid-WU. So capture splits cleanly into two phases: a **capture-time** routing call and a
+**drain-time** home resolution.
+
 ### Capture decision (at the moment of noticing X)
 
-| X is… | Can you write its home now? | Action |
+| X is… | Safe to write its home now? | Action |
 | --- | --- | --- |
-| This WU's own concern | Yes — your branch | Inline / task. **Never capture.** |
-| Another *existing* artifact (a WU stub, strategy, ADR) | No on your branch — **yes via errand** | Errand to it (now if urgent / target in-flight; else batch to WU-end) |
-| A *new* unit, scope emerged | No — does not exist | Graduate to a stub |
-| Genuinely homeless / undecided | No — no home exists | Capture (the only legitimate inbox resident) |
+| This WU's own concern | Yes — your branch | Inline. **Never capture.** |
+| Anything else, and urgent | No — needs isolation now | **Errand** now (executes a fix, or writes the note into its stub) |
+| Anything else, not urgent | No — defer the isolated write | **Capture to INBOX.USER**; housekeep routes it next between-WUs |
+
+The capture-time call is just *inline / errand-now / inbox-defer* — an urgency × isolation judgment. The finer
+destination (existing stub · new stub · standalone errand · flush to shared) is a **drain-time** resolution, not
+a capture-time one.
+
+**Transit lounge, not resting place.** `INBOX.USER` holds known-home and homeless items alike — but only because
+housekeep drains it *every* WU. A known-home item may **transit** the personal inbox; it may never **rest** in the
+shared inbox, which has no forcing drain (see Surface roles). That distinction is what keeps the core invariant
+true rather than aspirational.
 
 **Discovery re-triage.** The home can be discovered *after* capture. Draining is not only "flush by section" —
 it re-evaluates each entry; any that now have a known home leave the buffer for it.
 
+### Holding vs. execution (the enforced boundary)
+
+The inbox **holds**; it is never an execution surface. Two leaks are closed:
+
+- **Behavioral (dev-rule, in `§ Leave it cleaner`).** Executing any out-of-current-WU work goes through
+  `arc-errand` — never hand-rolled in place (that is the anti-rider violation), never a manual branch that
+  bypasses the skill. Promotion inbox→errand is the commitment event and the only execution path.
+- **Mechanical (move, not copy).** When `arc-errand` is seeded from an inbox entry it **removes that entry** as
+  part of errand creation — both are personal notes-synced docs in the same `user/{identity}/` tree, so it is one
+  atomic move. This makes the executed-but-still-listed orphan structurally impossible on the blessed path, so no
+  duplicate-detection hook is needed. Housekeep is the catch-all that *surfaces* any residual stale entry (the
+  only way to get one is to violate the dev-rule).
+
+**Execution ≠ routing.** The "execution via `arc-errand`" rule governs *executing atomic work*. Routing a
+multi-step note to its stub is **not** execution: between-WUs, housekeep writes it **directly** to the stub on its
+own auto-merge branch — never inbox→`ERRANDS.md`→stub. A mid-WU errand is the *only* time note-routing needs
+isolation; even then the content moves inbox→stub in one step and the `ERRANDS.md` line is an audit record, not a
+resting home.
+
 ### Drain timing and ownership
 
-- **Between-WUs (primary sweep).** The lowest-isolation-cost moment — no active branch blocks anything. Routed
-  captures errand to their homes; scope-emerged captures graduate to stubs; genuinely-homeless captures flush to
-  the shared inbox for project visibility. INBOX.USER ends empty. This is `arc-housekeep` (below). It lives
-  **off** the integration ceremony.
-- **WU-start (backstop + forcing function).** Session-init checks INBOX.USER for routable entries and **soft-
-  offers** housekeep (see below). Activation-absorption *from INBOX.USER* becomes the degenerate case — by the
-  time a WU activates, its concerns are already in its stub. Absorption *from the shared inbox* (homeless items
-  whose home turns out to be this WU) stays legitimate.
-- **Planning-kickoff (home-discovery for the homeless).** When a WU's planning starts, shared-inbox items that
-  belong to it pull into its plan. Unchanged.
+- **Between-WUs (primary sweep).** The lowest-isolation-cost moment — the base branch makes shared-planning writes
+  native. Routed captures go **directly** to their homes (stub edits written straight in; standalone errands for
+  atomic execution); scope-emerged captures graduate to stubs; genuinely-homeless captures flush to the shared
+  inbox for project visibility. `INBOX.USER` ends empty. This is `arc-housekeep` (below), and it lives **off** the
+  integration ceremony.
+- **WU-start (backstop + forcing function).** Session-init checks `INBOX.USER` for routable entries and
+  **soft-offers** housekeep. Absorption *from `INBOX.USER`* is the degenerate case (empty post-housekeep);
+  absorption *from the shared inbox* (homeless items whose home turns out to be this WU) stays legitimate.
+- **Planning-kickoff / activation (home-discovery for the homeless).** Shared-inbox items whose home is *now
+  discoverable* as this WU pull into it. This is a **discovery judgment** ("does this homeless item belong to
+  me?"), not a `WU_Target` field-match — a known-target item would never be in the shared inbox to begin with.
 
 ### Surface roles and the bucket trajectory
 
-The axes that sort all of this are load-bearing — **committed vs uncommitted**, **atomic vs multi-step**,
-**personal vs shared**. The redundancy is a fourth, weak axis (**maturity/structure**): there are three surfaces
-for `{multi-step, uncommitted}` — personal §Backlog, shared BACKLOG-INBOX, and `provisional/` stubs — differing
-only by scope and bullet-vs-directory.
+The load-bearing axes: **committed vs uncommitted**, **atomic vs multi-step**, **personal vs shared**. The two
+inboxes are *not* symmetric in shape, and that asymmetry encodes a real principle — each exists for a different
+job:
 
-- **INBOX.USER** — personal, transient write-deferral buffer. **Flatten to a single list** (entries may carry an
-  optional character tag; housekeep classifies authoritatively at drain). Sorting at capture is premature
-  cognitive load on a buffer emptied every WU-end. Trends to empty.
-- **Shared project inbox** — project-visible holding for *homeless-but-acknowledged* items awaiting a home.
-  Drained on home-discovery (errand / graduate / pull-in at kickoff).
-- **WU stubs** — authoritative domain home. Fed continuously by errands; fed at kickoff from the shared inbox.
+- **`INBOX.USER`** — personal, transient, drained every WU by housekeep. Exists for **branch-safety deferral**: it
+  must hold *every* character you can't safely write right now, so it keeps **two sections** — `## Atomic` and
+  `## Work Unit`. (This *un-flattens* the earlier single-list proposal: picking one of two sections, with a TBD
+  escape hatch, is trivial friction and a useful forcing function — the section *is* the routing fate. It also
+  re-aligns `INBOX.USER` with `doc-naming-convention`'s settled two-section shape.) Survives post-AWL too: mid-WU
+  you still can't create a stub from a WU branch, so the Work-Unit transit lounge stays.
+- **Shared project inbox (`INBOX.PROJECT`)** — project-visible, tracked. Exists for **homeless-only visibility**:
+  it holds only what has *no* better home. Multi-step work *always* has a better home (a stub), so it is
+  **atomic-only from day one** — the absence of a Work-Unit section is itself the statement "make a stub." Drained
+  by **pull** at ceremonies (it can't push-drain — homeless items have nowhere to push *to*), not by housekeep.
+- **WU stubs** — the authoritative domain home. Fed by errands (mid-WU) and by direct housekeep routing
+  (between-WUs); fed at kickoff by pull-in from the shared inbox.
 
-**Bucket trajectory (4 → 3 → 2):** today's four inbox buckets (USER §Atomic/§Backlog + ATOMIC-INBOX +
-BACKLOG-INBOX) collapse to **three now** (single-list INBOX.USER + the shared inbox's two character sections) and
-**two eventually** (atomic-only shared inbox; multi-step folded entirely into `provisional/` stubs). The full
-collapse depends on **cheap-stub-creation tooling** (Agile WU Lifecycle's `arc start` create-new mode) — until
-that lands, a thin multi-step holding section is the pressure-relief valve for embryonic-multistep-homeless
-items. Do not force the collapse before its enabler exists. Note: this **conflicts with `doc-naming-convention`**,
-which (pre-errand) settled a symmetric two-section INBOX.USER / INBOX.PROJECT; see Coordination.
+**Section shape (both inboxes).** Headings are the **stable character token** (`## Atomic` / `## Work Unit`) — the
+anchor and reference key; routing destinations stay out of the heading (they evolve, and compressing them invites
+imprecision — e.g. "born provisional" is wrong: most stubs start `planned/`). The destination story rides a
+one-line preamble callout:
+
+> *Atomic — Single-step captures. Drain to execution — folded into a WU (inline absorption), or run standalone
+> via `arc-errand`. Never executed directly from here.*
+>
+> *Work Unit — Multi-step captures bound for a backlog stub. Route to an existing stub, or graduate to a new
+> one — directly at housekeep; `arc-errand` only if needed mid-WU. Carries `WU_Target` (TBD ok); an optional
+> `(planned|provisional)` parenthetical sets a new stub's dir (decided at drain if omitted).*
+
+**Uniform entry grammar.** Both inboxes share one entry shape — the mental-model coherence lives here, not in
+identical sections. Every Work-Unit-character entry carries `WU_Target:`:
+
+- `WU_Target: <slug>` — exists → route there; doesn't exist → create it (dir decided at drain).
+- `WU_Target: <slug> (planned|provisional)` — the parenthetical is a **new-stub dir hint**; ignored if the target
+  already exists (its dir is a fact, not a capture-field assertion — housekeep may surface the mismatch).
+- `WU_Target: TBD` — target undecided; resolved at drain.
+
+No `new` keyword: existence-at-drain decides route-vs-create. (`Atomic` entries take no `WU_Target`.)
+
+**Terminal shape now (no trajectory).** Land the end-state directly, not a transitional valve. `INBOX.USER` is
+two-section (`Atomic` / `Work Unit`); the shared inbox is **atomic-only from day one** — there is no shared
+Work-Unit section, ever. The earlier "carry a shared multi-step valve until AWL" idea is **dropped**: a shared
+Work-Unit append and a `provisional/` stub are the *same* base-branch write behind the *same* isolation, so the
+valve never saved isolation cost — only meta-file authoring effort, which `arc start`'s create-new mode erases
+anyway. So the valve is pure redundancy with `provisional/` stubs (already the project-visible home for
+under-evaluated multi-step), and it is cut now: homeless multi-step parks free in `INBOX.USER` §Work Unit and
+graduates to a provisional stub at housekeep. Concretely, this WU **retires `BACKLOG-INBOX`** — its contents drain
+to provisional stubs (component-b cleanup) and it stops being written; `ATOMIC-INBOX` survives as the atomic-only
+shared inbox (the `→ INBOX.PROJECT` *rename* stays `doc-naming-convention`'s job — now a simple rename, not a
+collapse). AWL's create-new is a scaffolding-friction improvement, not a structural dependency: the interim cost
+is hand-scaffolded provisional stubs, paid at housekeep (batched, on base) per the documented manual path.
 
 **Holding ≠ commitment.** Inbox entries are *uncommitted holding* (no staleness pressure). An entry becomes an
 errand only at the moment of commitment; `ERRANDS.md` is the *committed* queue that drains by execution and is
@@ -127,11 +195,23 @@ The operational form of the between-WU drain. Matches ARC's codified skill/workf
 `prepare-commits`, `arc-session` → `session-init`): a **thin `arc-housekeep` skill** dispatches a **drain/route
 workflow** carrying the logic.
 
-- **Preconditions: primary worktree + no active WU.** Draining writes to shared paths (stubs, shared inbox,
-  `ERRANDS.md`) that belong on the primary tree's base branch, never a WU worktree. Mirrors the Errand
-  cold-entry constraint.
+- **Precondition: a base-branch write context — *not* "no active WU."** Draining writes shared base-branch paths
+  (stubs, shared inbox), so it must run from the primary worktree / a base-branch context, never a WU worktree's
+  branch. That is the constraint it shares with errands (which queue mid-WU and execute from the primary
+  worktree) — *not* a no-active-WU gate. So housekeep is invokable **mid-WU on demand** (notice the inbox filling,
+  hop to primary, run the sweep as a batched errand, return — your WU worktree untouched) as well as
+  **between-WUs** (the default rhythm, where the empty-`INBOX.USER`-at-WU-start invariant + session-init soft-offer
+  land). Guidance, not a gate: let a few captures stack before a mid-WU sweep — per-item hops thrash.
+- **Make the precondition a machine-checked guard, not prose.** The skill/command resolves its context
+  (`currentWorktreePath`, current branch, base branch — the same resolution `arc errand` already does) and
+  **refuses or offers to relocate** when invoked from a WU worktree's branch, rather than writing where it
+  shouldn't. The pre-commit hook layer is the catch-all backstop for hand-edits that bypass the command (see
+  Coordination — isolation guards).
 - **Logic:** read INBOX.USER → classify each entry (existing-stub home? new stub? atomic errand? homeless?) →
-  route via a batched drain → INBOX.USER ends empty. Also surface the `ERRANDS.md` staleness sweep while there.
+  route via a **batched, direct** drain on housekeep's own auto-merge branch — stub edits written straight in (no
+  per-item errand for note-routing); standalone atomic execution still gets its own reviewed errand; homeless
+  items flush to the shared inbox. Promotion drains the source entry (move, not copy) → INBOX.USER ends empty.
+  Also surface the `ERRANDS.md` staleness sweep and shared-inbox aging while there.
 - **DRY across two entry points:** the standalone `arc-housekeep` skill, and `session-handoff`'s between-WUs
   path. One workflow, two doors.
 - **session-init integration = the soft-gate, made concrete.** An `inboxState` / `housekeepNeeded` probe field
@@ -157,11 +237,19 @@ Define housekeep's routing against the **logical** model (entry · character · 
 - **`init-work-unit` → warns** (backstop): invoked with a non-empty INBOX.USER, emit a non-blocking "starting
   new work with N pending captures — consider housekeep first." Init, not activate — init is the begin-new-WU
   moment the invariant targets; activate is mid-WU.
-- **`DEV-RULES.ARC § Leave it cleaner` → rewritten** for both faces of the thesis (capture routing table +
-  anti-rider). **Strategies** (`planning-module` §Inbox Family / §Ceremony-Only Writes / §How Work Flows;
-  `work-organization` §Incidental Work Model; `session-operations` §USER-INBOX) → aligned.
-- **Templates** (inbox shapes) + **`parseUserInboxSection`** parser → reconciled to the flattened shape (folds
-  USER-INBOX §Atomic item; the template↔parser mismatch must be fixed onto the managed-entry grammar anyway).
+- **`DEV-RULES.ARC § Leave it cleaner` → rewritten** for both faces of the thesis: capture routing table + the
+  holding-vs-execution boundary + anti-rider, plus the **planning-artifacts-aren't-capture-surfaces**
+  anti-pattern — generalizing the existing completion-notes/session-notes clause to *all* WU planning artifacts
+  (draft/spec/notes/meta/`Coordination §`): cross-*referencing* another WU is fine, holding its work-item as the
+  record-of-record is not (it orphans — no sweep — and pollutes the doc's PR/archive with foreign intermediate
+  state). This is the **dual of the core invariant** — together they give every item one right place (capture
+  surface if homeless/in-transit; its own domain's authoritative doc if homed). **Strategies**
+  (`planning-module` §Inbox Family / §Ceremony-Only Writes / §How Work Flows; `work-organization`
+  §Incidental Work Model; `session-operations` §USER-INBOX) → aligned.
+- **Templates** (inbox shapes) + **`parseUserInboxSection`** parser → reconciled to the **two-section shape and
+  uniform entry grammar** (`Atomic` / `Work Unit` headings; slug-keyed `WU_Target` with the optional maturity
+  parenthetical; folds USER-INBOX §Atomic item — the template↔parser mismatch must be fixed onto the
+  managed-entry grammar anyway).
 - **CLI** → the `inboxState` probe slot.
 
 ## Scope
@@ -171,20 +259,23 @@ Define housekeep's routing against the **logical** model (entry · character · 
 1. The errand-era work-routing doctrine — both faces — codified across the surfaces above.
 2. `arc-housekeep` skill + drain/route workflow + the session-init probe field/offer + the `session-handoff`
    between-WUs path + the `init-work-unit` backstop warning.
-3. INBOX.USER flatten-to-single-list; the shared-inbox role sharpening; the bucket trajectory (with the AWL
-   collapse-gate noted, not forced).
-4. The `parseUserInboxSection` ↔ template reconcile onto the managed-entry grammar (mandatory consequence of the
-   reshape).
+3. INBOX.USER two-section sharpening (`Atomic` / `Work Unit`) + the uniform entry grammar (`WU_Target` with the
+   optional maturity parenthetical); the shared-inbox role sharpening to **atomic-only now** — retire
+   `BACKLOG-INBOX`, draining its contents to provisional stubs; no transitional multi-step valve.
+4. The `parseUserInboxSection` ↔ template reconcile onto the managed-entry grammar incl. `WU_Target` (mandatory
+   consequence of the reshape).
 5. The graduation-threshold codification (USER-INBOX §Backlog item — the "bypass the inbox, make a stub
-   directly" threshold; here it becomes the bucket trajectory).
+   directly" threshold; here it becomes the terminal-shape decision — provisional stub directly, no shared
+   multi-step valve).
 6. Three forward-compat write-backs (Coordination): `doc-naming-convention`, `operational-state-docs`, the CWC
    de-scope.
 
 ### Out of scope
 
-- **File renames** (`USER-INBOX → INBOX.USER`, the `ATOMIC/BACKLOG → INBOX.PROJECT` collapse, section renames) —
-  `doc-naming-convention` owns these; we land shape + behavior on current names and write back. Full doc-surface
-  uniformity waits for that WU.
+- **File renames** (`USER-INBOX → INBOX.USER`, `ATOMIC-INBOX → INBOX.PROJECT`, section renames) —
+  `doc-naming-convention` owns these; we land shape + behavior on current names and write back. (`BACKLOG-INBOX`
+  is *retired* here, not renamed — so its former "collapse into `INBOX.PROJECT`" becomes a simple rename of the
+  surviving `ATOMIC-INBOX`.) Full doc-surface uniformity waits for that WU.
 - **Structured-record storage** for the inboxes — `operational-state-docs` (Move B), downstream of
   `cli-substrate-adoption`. We stay markdown-canonical and keep the shape schematizable.
 - **The general errand↔PR packaging convention** — see Open Questions; durable home is likely Concurrent Work
@@ -194,20 +285,21 @@ Define housekeep's routing against the **logical** model (entry · character · 
 
 - USER-INBOX §Atomic: *dedicated between-WUs path in `session-handoff`* — built here.
 - USER-INBOX §Atomic: *reconcile USER-INBOX template↔parser* — mandatory consequence of the reshape.
-- USER-INBOX §Backlog: *codify the inbox→stub graduation threshold* — becomes the bucket trajectory.
+- USER-INBOX §Backlog: *codify the inbox→stub graduation threshold* — becomes the terminal-shape decision
+  (provisional stub directly; no shared multi-step valve).
 
 ## Coordination
 
-- **`doc-naming-convention` (write-back + conflict reconcile).** Its pre-errand design keeps a symmetric
-  two-section INBOX.USER / INBOX.PROJECT and pre-rejects restructuring ("growth is a drain-discipline signal").
-  Reconcile: that is the correct *pre-AWL* shape; ours is the *post-AWL* shape — same trajectory, separated by
-  cheap-stub tooling. Write back: flatten INBOX.USER to a single list; mark the multi-step shared section
-  deprecating-to-atomic-only post-AWL; note the `Backlog → Work Unit` section rename may be moot for a section
-  being deleted. The file/section *renames* stay that WU's job.
-- **`operational-state-docs` (write-back).** Killing the multi-step shared section and flattening INBOX.USER
-  *removes a surface/section* from its managed-doc member list — a simplification. The interim
-  `parseUserInboxSection` fix here should adopt the slug-keyed managed-entry grammar so OSD's structured-record
-  swap is clean. Subsumes the USER-INBOX "structured-storage + routed-write" capture (that stays OSD's).
+- **`doc-naming-convention` (write-back + reshape).** It adopts `INBOX.USER`'s two-section shape (the earlier
+  flatten is dropped — no conflict there; the `Atomic` / `Work Unit` section semantics are ours, the *renames*
+  stay its job). The reshape: **`INBOX.PROJECT` is atomic-only** (single section), because this WU retires
+  `BACKLOG-INBOX` rather than collapsing it — so doc-naming's "collapse two shared files into a two-section
+  `INBOX.PROJECT`" becomes a **simple rename of the surviving `ATOMIC-INBOX`**, no Work-Unit section. Also write
+  back the uniform `WU_Target` entry grammar so the rename cascade carries it.
+- **`operational-state-docs` (write-back).** Retiring the shared multi-step section *removes a surface/section*
+  from its managed-doc member list — a simplification. The interim `parseUserInboxSection` fix here should adopt
+  the slug-keyed managed-entry grammar **including `WU_Target`** so OSD's structured-record swap is clean.
+  Subsumes the USER-INBOX "structured-storage + routed-write" capture (that stays OSD's).
 - **`concurrent-work-conventions` (de-scope).** CWC's charter already owns the isolation doctrine ("capture
   surfaces are for not-yet-actionable pointers only; stub-ready or non-trivial work goes to its real home
   directly"). This WU pulls that slice forward (the pipeline must be trustworthy before `in-flight-awareness`),
@@ -219,6 +311,12 @@ Define housekeep's routing against the **logical** model (entry · character · 
 - **`composable-workflows` (consume interim).** Our new cross-file workflow references (session-init ↔ housekeep
   ↔ session-handoff) use stable heading-slug anchors, never ordinal `Step N` refs, per the interim convention
   that WU will later codify.
+- **Worktree Foundation / CWC (de-scope — isolation-write guards).** This WU hardens only its *own* command's
+  precondition (housekeep refuses/relocates off a WU branch, reusing `arc errand`'s context resolution). The
+  *general* guard — any base-branch-writing command (incl. AWL's `arc start`) guarding its context, plus a
+  pre-commit backstop — is isolation enforcement, WF/CWC territory; **de-scoped there.** The design detail (the
+  command-guard and the hook sharing one write-context-classifier primitive) is **captured to `INBOX.USER` for
+  routing to CWC** — not held here.
 
 ### Routed elsewhere (not folded — recorded so they reach their homes)
 
@@ -238,8 +336,9 @@ Define housekeep's routing against the **logical** model (entry · character · 
   rests on. Conceptual basis, not a blocking dependency.
 - **Intended before `in-flight-awareness`** — so that WU starts from a clean, trustworthy capture pipeline.
   Soft sequencing preference, not a hard dependency (IFA does not block on this).
-- **Agile WU Lifecycle** (downstream) — its `arc start` create-new mode is the enabler that retires the thin
-  multi-step shared section (the 3 → 2 bucket collapse). This WU lands the trajectory; AWL completes it.
+- **Agile WU Lifecycle** (downstream, non-blocking) — its `arc start` create-new mode makes provisional-stub
+  *scaffolding* cheap. That is a friction improvement, **not** a structural dependency: this WU already lands the
+  terminal shape (atomic-only shared inbox); the interim hand-scaffold tax at housekeep is what AWL later removes.
 - **Two-component delivery:** (a) codify the doctrine + build housekeep; (b) clear current state by running the
   new housekeep flow against the real backlog. Component (b) is the first live run of (a) — the cleanup *is* the
   validation.
@@ -290,16 +389,35 @@ WUs generalize.
   coherent). A planning-doc routing sweep is a coherent operation → **one auto-merge PR per drain** (chunked
   only for review-reachability if very large); **code-errands stay 1:1**; **lanes never mix**. See § Merge-lane
   interaction. The general two-lane convention routes to CWC for durable codification.
-- **Strict-empty INBOX.USER — resolved.** Strict-empty is the target state housekeep nudges toward (flush even
-  homeless items to the shared inbox at WU-end; trivial emptiness gate), with the thin multi-step shared section
-  as the homeless-multistep valve, converging to "fold homeless-multistep into cheap provisional stubs once AWL
-  lands."
-- **Bucket-collapse AWL-gating — open.** Confirm the 3 → 2 collapse (retire the thin multi-step shared section)
-  is gated on AWL's cheap-stub tooling, and pin the exact trigger.
-- **Merge-lane sub-questions — open (settle at spec; coordinate with CWC).** (a) Is housekeep a *reviewed*
-  ceremony for the shared inbox, or does its discipline earn auto-merge there? Lean auto-merge. (b) For
-  foreign-owner edits: review (approval-to-merge) vs notification, and granularity (substantive routing vs
-  trivial fix).
+- **Strict-empty INBOX.USER — resolved.** Strict-empty is the target state housekeep nudges toward (homeless
+  atomics flush to the shared inbox, homeless multi-step graduates to a provisional stub; trivial emptiness gate).
+- **Inbox structure — resolved (this round).** `INBOX.USER` keeps **two sections** (`Atomic` / `Work Unit`) —
+  un-flattened; it is a branch-safety transit lounge that must hold both characters. The **shared** inbox is
+  **homeless-only**, terminal atomic-only (multi-step always has a stub home). Mental-model coherence rides a
+  **uniform entry grammar** (shared `WU_Target` shape), not identical sections. Headings stay the stable character
+  token; routing destinations live in the preamble. See § Surface roles.
+- **Holding-vs-execution boundary — resolved.** The inbox never executes; execution of out-of-WU atomic work
+  always goes through `arc-errand` (dev-rule), and `arc-errand` *moves* its inbox source out on creation (no
+  orphan, no dedup hook). Note-routing is **not** execution — housekeep writes stubs directly between-WUs. See
+  § Holding vs. execution.
+- **Planning artifacts as capture surfaces — resolved (codify).** Generalize § Leave it cleaner's
+  completion-notes/session-notes anti-pattern to *all* WU planning artifacts (draft/spec/notes/meta/`Coordination
+  §`): cross-ref yes, capture-of-record no (it orphans and pollutes the PR/archive). The dual of the core
+  invariant; behavioral, not mechanical. Surfaced by near-repeating errand-enablement's Coordination-as-capture
+  failure this session.
+- **`WU_Target` in the shared inbox — resolved (moot).** The shared inbox is atomic-only, so it has no
+  `WU_Target`-bearing entries at all. (And in principle a known-target item has a home — its stub — and must not
+  rest in a capture surface; route it there via errand.) Invariant-driven; do not re-raise.
+- **Maturity field — resolved.** Folded into `WU_Target` as an optional `(planned|provisional)` parenthetical,
+  meaningful only for a *new* stub (existing stubs already have a dir); existence-at-drain decides route-vs-create.
+- **Bucket-collapse AWL-gating — resolved (moot).** No collapse to gate: the terminal shape (atomic-only shared
+  inbox) lands now, not via a trajectory. `BACKLOG-INBOX` retires this WU; AWL's cheap-stub tooling is a later
+  scaffolding-friction improvement, structurally irrelevant. See § Surface roles.
+- **Merge-lane sub-questions — resolved (interim; general doctrine → CWC).** (a) Housekeep's shared-inbox writes
+  **auto-merge** — a homeless-atomic flush has no owner and no design authority (strengthened by atomic-only); the
+  carve-out reasoning holds. (b) Foreign-owner routing rides the **reviewed lane** as the conservative interim
+  (rare in solo); review-vs-notification and trivial-vs-substantive granularity are CWC's general owner-gate
+  doctrine, not this WU's to decide. See § Merge-lane interaction.
 - **Name — resolved.** `work-routing-discipline` (broad concern, both faces); standalone (no cohort).
 
 ---
