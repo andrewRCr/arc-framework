@@ -11,15 +11,15 @@
 - **Cohort:** [none]
 
 - **Task List:** [none]
-- **Last Completed:** Design elicited and `draft-work-routing-discipline.md` authored (pre-spec) — capture
-  model (both faces), housekeep mechanism, lifecycle deltas, merge-lane interaction; key open questions
-  resolved (errand↔PR, merge-threshold, strict-empty, standalone).
+- **Last Completed:** Draft `draft-work-routing-discipline.md` refined — inbox/errand routing model fully
+  settled (isolation principle, holding-vs-execution boundary + move-on-promotion, two-section INBOX.USER +
+  `WU_Target` grammar, terminal atomic-only shared inbox / retire BACKLOG-INBOX, mid-WU housekeep guard,
+  planning-artifacts-aren't-capture anti-pattern); all open questions closed.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `1_create-spec` to synthesize the spec from `draft-work-routing-discipline.md` (design
-  settled; draft comprehensive). Open at spec-time: bucket-collapse AWL-gating + the two merge-lane
-  sub-questions (coordinate with CWC). Lands before `in-flight-awareness` so that WU starts from a clean,
-  trustworthy capture pipeline.
+- **Next Action:** Run `1_create-spec` to synthesize the spec from `draft-work-routing-discipline.md` — design
+  fully settled, all open questions closed (no spec-time opens remaining). Lands before `in-flight-awareness`
+  so that WU starts from a clean, trustworthy capture pipeline.
 
 ---
