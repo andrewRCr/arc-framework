@@ -98,34 +98,36 @@ refs); splittable if review prefers. See `notes-work-routing-discipline.md` § M
 § Coordination write-back
 specifics.
 
-### `[ ]` **2.1 `DEV-RULES.ARC § Leave it cleaner` rewrite (both faces)**
+### `[x]` **2.1 `DEV-RULES.ARC § Leave it cleaner` rewrite (both faces)**
 
 - _Goal:_ `§ Leave it cleaner` states the errand-era routing doctrine in full, so the rule a developer reads
   matches the surfaces and mechanism this WU ships.
-- _Note:_ Preserve the still-valid parts of the current section — the inline-fix / issue-triage guidance and the
-  commitment boundary — and update its drain-timing clause (the drain moves off the integration ceremony to
-  housekeep), not just the routing table.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Replace the routing table with the capture decision table**
-        - Inline / errand-now / inbox-defer as an urgency × isolation call; plus the capture-time vs drain-time
-          split. Source: `notes-work-routing-discipline.md` § Capture decision table.
+    - `[x]` **2.1.a Replace the routing table with the capture decision table**
+        - Commitment table replaced by the 3-row urgency × isolation table (inline / errand-now / inbox-defer),
+          with the capture-time-coarse / drain-time-fine split stated above it; the `Express lanes, never forced`
+          block carries the committed-work direct-to-stub/errand path and the queuing-is-free rationale.
 
-    - `[ ]` **2.1.b Add the holding-vs-execution boundary**
-        - The inbox holds, never executes; out-of-WU atomic execution always goes through `arc-errand`;
-          promotion moves the source entry (no orphan, no dedup hook). Note-routing ≠ execution.
+    - `[x]` **2.1.b Add the holding-vs-execution boundary**
+        - `Holding ≠ execution`: the inbox holds, never executes; out-of-WU execution always via `arc-errand`
+          (no hand-rolled fix, no bypass branch); promotion moves the source entry; note-routing-to-a-stub is not
+          execution.
 
-    - `[ ]` **2.1.c Add the anti-rider rule**
-        - Distinguished by concern-identity, not file-identity: same-concern micro-cleanup inline; distinct
-          concern sharing a file errands, never rides.
-        - State the PR-packaging consequence so an agent can redirect on sight (this is the agent-facing citation
-          surface for the merge-lane rule, 2.3): distinct concerns never share a PR even on a shared file — two
-          distinct same-file concerns are sequenced (rebase B on A), not merged. The same concern-identity test,
-          applied to packaging.
+    - `[x]` **2.1.c Add the anti-rider rule**
+        - `Anti-rider`: concern-identity, not file-identity — same-concern micro-cleanup inline, distinct
+          same-file concern errands. PR-packaging consequence stated (distinct concerns never share a PR; two
+          same-file concerns sequenced, not merged) as the agent-facing citation surface for 2.3.
 
-    - `[ ]` **2.1.d Add the planning-artifacts-aren't-capture anti-pattern**
-        - Generalize the completion-notes/session-notes clause to all WU planning artifacts (draft / spec /
-          notes / meta / `Coordination §`): cross-ref yes, record-of-record no. The dual of the core invariant.
+    - `[x]` **2.1.d Add the planning-artifacts-aren't-capture anti-pattern**
+        - `Planning artifacts aren't capture surfaces`: generalized to draft / spec / notes / meta /
+          `Coordination §` — cross-ref yes, record-of-record no; framed as the dual of the core invariant.
+
+- _Outcome:_ Section rewritten on both copies, on the current `### Leave it cleaner` heading (2.5 promotes it to
+  `§ Discovered Work Routing`). Beyond the four faces, the rewrite opens with the **core invariant** (a WU's stub
+  is the single authoritative home; no known-home item rests in a capture surface) and folds the drain-timing
+  shift (housekeep, not the integration ceremony; `BACKLOG-INBOX` gone; homeless multi-step → provisional stub)
+  plus the express-lanes synthesis settled this session.
 
 ### `[ ]` **2.2 Strategy alignments (planning-module, work-organization, session-operations)**
 
@@ -141,6 +143,9 @@ specifics.
 
     - `[ ]` **2.2.b `work-organization § Incidental Work Model`**
         - Align to anti-rider + errand-era routing (the merge-lane edit is 2.3, same file, different section).
+          Absorb the express-lane cost rationale trimmed from `§ Leave it cleaner` for brevity (queuing to either
+          inbox is free; only execution costs isolation) — full version in `notes-work-routing-discipline.md`
+          § Express lanes, never forced.
 
     - `[ ]` **2.2.c `session-operations § USER-INBOX`**
         - Align to the sharpened preambles + `WU_Target` grammar + housekeep drain timing.
