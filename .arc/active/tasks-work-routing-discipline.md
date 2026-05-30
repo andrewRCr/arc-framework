@@ -185,29 +185,32 @@ specifics.
   classification's "shared inboxes change only at reviewed ceremonies" parenthetical was reconciled to point at
   the new carve-out, resolving the contradiction the carve-out would otherwise create.
 
-### `[ ]` **2.4 Forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC)**
+### `[x]` **2.4 Forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC)**
 
 - _Goal:_ The downstream WUs whose plans this work shifts carry the updated assumptions in their own artifacts,
   so each is correctly informed when next iterated and no foreign work-item rests here as record-of-record.
-- _Note:_ Write-back specifics in `notes-work-routing-discipline.md` § Coordination write-back specifics. The
-  `operational-state-docs` artifact path is grounded in 2.4.b.
 
-    - `[ ]` **2.4.a `doc-naming-convention` write-back**
-        - Its inbox _collapse_ becomes a _simple rename_ of the surviving `ATOMIC-INBOX` (atomic-only, one
-          section); `BACKLOG-INBOX` retired, not collapsed; carry the uniform `WU_Target` grammar into the
-          rename cascade. Edit `.arc/backlog/provisional/doc-naming-convention/draft-doc-naming-convention.md`
-          (resolves part of its § Open Questions — the shared-inbox section rename is now moot).
+    - `[x]` **2.4.a `doc-naming-convention` write-back**
+        - Rewrote the shared-inbox _collapse_ to a _simple rename_ of the surviving `ATOMIC-INBOX` (atomic-only,
+          one section): Renames table row, the renamed `Design decisions` block, the section-anchors note (the
+          two-section shape is now `INBOX.USER`-only), the motivation inbox list, and a new
+          `work-routing-discipline` coordination bullet carrying the uniform `WU_Target` grammar into the rename
+          cascade. Removed the now-moot § Open Questions bullet (shared-inbox section rename dissolved).
 
-    - `[ ]` **2.4.b `operational-state-docs` write-back**
-        - Retiring the shared multi-step section removes a managed-doc surface/section; adopt the slug-keyed
-          managed-entry grammar including `WU_Target` so the structured-record swap stays clean. Edit
-          `.arc/backlog/planned/operational-state-docs/draft-operational-state-docs.md`; verify at execution
-          whether `adr-022-managed-operational-state-documents.md`'s managed-doc list needs the `BACKLOG-INBOX`
-          removal too (role-based, not rename-driven).
+    - `[x]` **2.4.b `operational-state-docs` write-back**
+        - Dropped `BACKLOG-INBOX` from the managed-doc member list (Purpose + Scope → singular shared
+          `ATOMIC-INBOX`); inbox schemas adopt the slug-keyed managed-entry grammar including `WU_Target`; added
+          an Open Question flagging the `adr-022` member-list `BACKLOG-INBOX` reconciliation as verify-at-execution
+          (role-based, not rename-driven). No `adr-022` edit (out of scope; rename-agnostic record).
 
-    - `[ ]` **2.4.c CWC de-scope record**
-        - Confirm the general base-branch-write-guard capture (the shared write-context classifier) is recorded
-          and CWC-targeted; it routes to CWC's stub at the Phase 6 drain rather than being authored here.
+    - `[x]` **2.4.c CWC de-scope record**
+        - Confirmed: the general base-branch-write-guard + commit-hook backstop (shared write-context classifier)
+          is already recorded in `USER-INBOX § Atomic`, routed from this WU's design session and home-targeted to
+          Concurrent Work Conventions. No new authoring — it drains to CWC's stub at the Phase 6 pass.
+
+- _Outcome:_ All three downstream artifacts now reflect the `BACKLOG-INBOX` retirement and the uniform
+  `WU_Target` grammar; single-copy (`backlog/` drafts, no package mirror). No foreign work-item rests in this
+  WU's artifacts as record-of-record.
 
 ### `[ ]` **2.5 Promote to `DEV-RULES.ARC § Discovered Work Routing` (H2) + decompose + ref cascade**
 

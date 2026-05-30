@@ -19,11 +19,10 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 ## Problem / Motivation
 
 ARC already uses `{TYPE}.{QUALIFIER}` for two paired doc families — `DEV-RULES.{ARC,PROJECT}` and
-`AGENT-BRIEF.{ARC,PROJECT}` — but the pattern is half-applied. The inboxes (`USER-INBOX`, `ATOMIC-INBOX`,
-`BACKLOG-INBOX`), the readiness view (`ROADMAP`), and the personal-context files (`SESSION-NOTES`,
-`WORKING-MEMORY`) do not follow it, and WF is about to add another surface (its user-scoped in-flight
-view). Naming that surface in isolation would entrench the inconsistency; naming the whole system makes
-every surface legible at a glance.
+`AGENT-BRIEF.{ARC,PROJECT}` — but the pattern is half-applied. The inboxes (`USER-INBOX`, `ATOMIC-INBOX`),
+the readiness view (`ROADMAP`), and the personal-context files (`SESSION-NOTES`, `WORKING-MEMORY`) do not
+follow it, and WF is about to add another surface (its user-scoped in-flight view). Naming that surface in
+isolation would entrench the inconsistency; naming the whole system makes every surface legible at a glance.
 
 ## The convention
 
@@ -46,27 +45,31 @@ sibling tells you the axis. Not worth solving.
 | Current                                 | Renamed                       | Scope            | Location           |
 | --------------------------------------- | ----------------------------- | ---------------- | ------------------ |
 | `USER-INBOX.md`                         | `INBOX.USER.md`               | user             | `user/{id}/`       |
-| `ATOMIC-INBOX.md` + `BACKLOG-INBOX.md`  | `INBOX.PROJECT.md` (collapse) | project (shared) | `backlog/`         |
+| `ATOMIC-INBOX.md`                       | `INBOX.PROJECT.md` (rename)   | project (shared) | `backlog/`         |
 | `ROADMAP.md`                            | `STATUS.PROJECT.md`           | project          | `backlog/`         |
 | *(new — WF builds)*                     | `STATUS.USER.md`              | user             | `user/{id}/`       |
 | `WORKING-MEMORY.md`                     | `MEMORY.USER.md`              | user             | `user/{id}/`       |
 | `SESSION-NOTES.md`                      | `NOTES.SESSION.md`            | session/per-WU   | `user/{id}/<wu>/`  |
 
-Section anchors inside both inboxes rename from `## Atomic` / `## Backlog` to **`## Atomic` / `## Work
-Unit`** — the character axis ARC already routes on ("inboxes route by character, not wrapper presence"),
-retiring the bad "backlog" section name (it collides with the `backlog/` directory). Errand is *routing
-language* inside `## Atomic` (an atomic capture becomes an Errand or folds into current work), not a
+Section anchors rename from `## Atomic` / `## Backlog` to **`## Atomic` / `## Work Unit`** — the character
+axis ARC already routes on ("inboxes route by character, not wrapper presence"), retiring the bad "backlog"
+section name (it collides with the `backlog/` directory). This two-section shape now applies to the personal
+`INBOX.USER` only: `work-routing-discipline` retired the shared multi-step surface (homeless multi-step
+captures graduate to a provisional stub), so the shared `INBOX.PROJECT` carries `## Atomic` alone. Errand is
+*routing language* inside `## Atomic` (an atomic capture becomes an Errand or folds into current work), not a
 section name — name by character, not vehicle.
 
 ## Design decisions
 
-**Collapse the two shared inboxes.** `INBOX.PROJECT` (two character sections) mirrors `INBOX.USER` (two
-sections) — symmetric, and it makes the qualifier a *pure scope axis* (`USER` / `PROJECT`) instead of the
-mixed scope+character axis a three-file `INBOX.{USER,ATOMIC,BACKLOG}` would carry. The growth concern (a
-shared project surface accumulating) is a *drain-discipline signal*, not a structural defect — both
-sections are designed to empty (atomics done/folded; WU-candidates graduated to stubs). The one real cost
-is marginally more append-contention on a single file (atomic + WU appends can collide), pre-existing
-mutated-state territory per ADR-020, mitigated by `merge=union` and low in solo/small-team use.
+**Rename the surviving shared inbox — there's nothing to collapse.** `work-routing-discipline` retired
+`BACKLOG-INBOX` (no shared multi-step surface; homeless multi-step graduates to a provisional stub), so the
+shared inbox is atomic-only and `ATOMIC-INBOX → INBOX.PROJECT` is a simple rename. This *strengthens* the
+qualifier as a *pure scope axis* (`USER` / `PROJECT`): the shared surface carries one character section
+(`## Atomic`), the personal `INBOX.USER` carries two, and neither mixes scope with character the way a
+three-file `INBOX.{USER,ATOMIC,BACKLOG}` would have. The growth concern (a shared surface accumulating) is a
+*drain-discipline signal*, not a structural defect — `## Atomic` is designed to empty (atomics done/folded).
+Append-contention shrinks to atomic appends alone — pre-existing mutated-state territory per ADR-020,
+mitigated by `merge=union` and low in solo/small-team use.
 
 **Why `MEMORY` ≠ `NOTES` (don't unify to `MEMORY.SESSION`).** They have different *update models*, and the
 TYPE encodes it: `MEMORY` is an accumulating store of discrete entries, each individually conditioned
@@ -89,6 +92,10 @@ component.
 
 ## Coordination and dependencies
 
+- **`work-routing-discipline`** (upstream, landed) retired `BACKLOG-INBOX` and settled the inbox shape on
+  current names: the personal `USER-INBOX` keeps two character sections, the shared inbox is atomic-only, and
+  inbox entries use a uniform `WU_Target` entry grammar. This WU adopts that shape and carries the `WU_Target`
+  grammar unchanged through the rename cascade — it renames, it does not reshape.
 - **`roadmap-tooling`** owns the `ROADMAP → STATUS.PROJECT` rename (it parked the ROADMAP rename and builds
   the renderer). This WU and roadmap-tooling must agree on `STATUS.PROJECT` and sequence the rename once
   (avoid a double cascade). WF's planning routed the `STATUS` lean there.
@@ -121,7 +128,6 @@ untouched as off-axis (inbox rename, not companion-type).
 - `STATUS` vs `DASHBOARD` was settled to `STATUS`; confirm no live collision with the `arc status`
   command (different namespace — command vs. file — but the *render command* should not be named
   `status`).
-- Whether the `## Atomic` / `## Work Unit` section rename ships with the inbox collapse or separately.
 
 ## Scope Estimate
 
