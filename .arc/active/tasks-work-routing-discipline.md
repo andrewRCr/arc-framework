@@ -92,8 +92,10 @@ _Design decisions:_ Placed after Phase 1 so the doctrine documents the just-buil
 shape, and before Phase 3 so the contract precedes the mechanism that implements it. Doctrine uses current
 names (`USER-INBOX` / `ATOMIC-INBOX`). All edits are dual-copy (`.arc/` + `packages/arc-framework/arc/`) per
 package-project-sync. The `doc-naming-convention` write-back rewrites its inbox _collapse_ into a _simple
-rename_ of the surviving `ATOMIC-INBOX` (atomic-only). Heaviest doc phase — four parents; splittable if review
-prefers. See `notes-work-routing-discipline.md` § Merge-lane reasoning detail and § Coordination write-back
+rename_ of the surviving `ATOMIC-INBOX` (atomic-only). Heaviest doc phase — five parents (2.1–2.4 author the
+doctrine on the current `### Leave it cleaner` heading; 2.5 promotes it to a top-level section and cascades the
+refs); splittable if review prefers. See `notes-work-routing-discipline.md` § Merge-lane reasoning detail and
+§ Coordination write-back
 specifics.
 
 ### `[ ]` **2.1 `DEV-RULES.ARC § Leave it cleaner` rewrite (both faces)**
@@ -189,6 +191,34 @@ specifics.
     - `[ ]` **2.4.c CWC de-scope record**
         - Confirm the general base-branch-write-guard capture (the shared write-context classifier) is recorded
           and CWC-targeted; it routes to CWC's stub at the Phase 6 drain rather than being authored here.
+
+### `[ ]` **2.5 Promote to `DEV-RULES.ARC § Discovered Work Routing` (H2) + decompose + ref cascade**
+
+- _Goal:_ The routing doctrine sits at its true altitude — a top-level `§ Discovered Work Routing` governing
+  capture during _any_ work, with `Leave it cleaner` preserved as its behavioral-floor subsection — and every
+  cross-reference resolves to the new structure.
+- _Note:_ Content is authored by 2.1–2.4 under the current `### Leave it cleaner` H3; this task is the structural
+  promote (H3 → H2), the internal decomposition, and the mechanical ref cascade — kept separate so the doctrine
+  rewrite and the rename churn review independently. Source: `notes-work-routing-discipline.md`.
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **2.5.a Restructure `DEV-RULES.ARC` (dual-copy)**
+        - Promote `### Leave it cleaner` (under `## Task Execution`) to a top-level `## Discovered Work Routing`;
+          keep `### Leave it cleaner` as the behavioral-floor subsection (anchor `#leave-it-cleaner` preserved);
+          split the routing table, holding-vs-execution, anti-rider, and planning-artifacts content into sibling
+          subsections. Update the document TOC bullet.
+
+    - `[ ]` **2.5.b Retarget the routing-table cross-refs (dual-copy + harness skills)**
+        - Refs meaning _the routing table_ point to `§ Discovered Work Routing`; refs meaning _the behavioral
+          rule_ (e.g. `issue-triage`, `arc-task-review`) stay on `§ Leave it cleaner`. Covers `3_process-task-loop`,
+          `integrate-work-unit`, `activate-work-unit`, the `arc-errand` / `arc-task-review` skills,
+          `DEV-RULES.PROJECT`, and the strategies (`work-organization`, `planning-module`,
+          `configurability-architecture`).
+
+    - `[ ]` **2.5.c Internal-record handling**
+        - Leave `adr-001` / `adr-013` naming the rule as it stood at decision time (historical record); update
+          live internal pointers (`analysis-cross-cutting-dependencies`, `docs-content-sweep` notes) only where
+          they cite the routing role rather than the historical name.
 
 ## **Phase 3:** `arc-housekeep` mechanism
 

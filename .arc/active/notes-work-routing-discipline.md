@@ -58,7 +58,7 @@ not a capture-time one.
 | --------------------------- | ----------------------------- | --------------------------------------------------------------------- |
 | This WU's own concern       | Yes — your branch             | Inline. **Never capture.**                                            |
 | Anything else, and urgent   | No — needs isolation now      | **Errand** now (executes a fix, or writes the note into its stub)     |
-| Anything else, not urgent   | No — defer the isolated write | **Capture to INBOX.USER**; housekeep routes it next between-WUs       |
+| Anything else, not urgent   | No — defer the isolated write | **Capture to INBOX.USER**; housekeep routes it at its next drain      |
 
 **Transit lounge, not resting place.** `INBOX.USER` holds known-home and homeless items alike — but only because
 housekeep drains it *every* WU. A known-home item may **transit** the personal inbox; it may never **rest** in
@@ -67,6 +67,14 @@ aspirational.
 
 **Discovery re-triage.** The home can be discovered *after* capture. Draining is not only "flush by section" —
 it re-evaluates each entry; any that now have a known home leave the buffer for it.
+
+**Express lanes, never forced.** The inbox is the always-available, zero-friction default — and because both
+`INBOX.USER` and `ERRANDS.md` live under gitignored `user/{identity}/`, *queuing* to either is equally free
+mid-task on any branch (neither touches the tracked tree or the current PR). What costs isolation is *execution*
+— running an errand, creating a stub — never capture. So "no bandwidth right now" never forces the inbox to save
+cost; it only defers the routing *decision* to the drain, which is reliable. Take an express lane — the errand
+queue for atomic work, a stub for multi-step — when you already hold the commitment and it's worth the execution
+cost; otherwise capture and let housekeep route it. Nothing is lost either way.
 
 ## Entry-grammar subtleties
 
@@ -125,9 +133,11 @@ stubs (already the project-visible home for under-evaluated multi-step), so it i
 AWL. Homeless multi-step parks free in `INBOX.USER` § Work Unit and graduates to a provisional stub at
 housekeep.
 
-**Holding ≠ commitment.** Inbox entries are *uncommitted holding* (no staleness pressure). An entry becomes an
-errand only at the moment of commitment; `ERRANDS.md` is the *committed* queue that drains by execution and is
-staleness-checked. A fuller atomic inbox does not mean more stale errands.
+**Holding ≠ commitment.** Inbox entries are *commitment-untracked holding* (no staleness pressure) — an entry
+may in fact be committed-but-parked, but the inbox neither tracks nor enforces that. Commitment is *expressed*,
+not presumed: at capture by taking an express lane (`ERRANDS.md` for atomic work, a stub for multi-step), or at
+drain when housekeep promotes a now-committed entry into one. `ERRANDS.md` is the *committed* queue — it drains
+by execution and is staleness-checked; the inbox is not. A fuller atomic inbox does not mean more stale errands.
 
 ## Merge-lane reasoning detail
 
@@ -192,5 +202,7 @@ The inbox-triage captures that spawned this WU and where each lands:
 - USER-INBOX § Atomic: *dedicated between-WUs path in `session-handoff`* — built here (spec Req 15).
 - USER-INBOX § Atomic: *reconcile USER-INBOX template↔parser* — mandatory consequence of the reshape (spec
   Req 6).
-- USER-INBOX § Backlog: *codify the inbox→stub graduation threshold* — becomes the terminal-shape decision
-  (provisional stub directly; no shared multi-step valve) (spec Req 7).
+- USER-INBOX § Backlog: *codify the inbox→stub graduation threshold* — **settled (this session):** no
+  depth-keyed shortcut. The direct stub is an *express lane* for committed multi-step work — never forced; inbox
+  entries hold up to ~a paragraph, and volume past that *nudges* toward a stub rather than gating. Terminal
+  shape: provisional stub directly; no shared multi-step valve (spec Req 7).
