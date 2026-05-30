@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cb30d32a`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27a5e4f7`.
 
 This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
 canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
@@ -11,7 +11,9 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 
 ## In Flight
 
-_None in flight._
+| Work unit                     | Owner  | Depends on               | Cohort                     |
+| ----------------------------- | ------ | ------------------------ | -------------------------- |
+| work-routing-discipline       | andrew | —                        | —                          |
 
 ## Ready
 
