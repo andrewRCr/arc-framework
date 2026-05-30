@@ -812,22 +812,26 @@ USER-INBOX.md is the developer's personal capture surface for items to handle la
 single-step (`## Atomic` section) or multi-step (`## Backlog` section). Gitignored, cross-WU,
 branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, discard at
 integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
-live-write capture surface — entries land any time, drain at lifecycle boundaries.
+live-write capture surface — entries land any time, drain at the between-WUs housekeep flow.
 
 **Location.** `user/{identity}/USER-INBOX.md` — flat at the workspace root, cross-WU scope.
 
 **Section structure.**
 
 - **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
-- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling.
+  No `WU_Target`.
+- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling. Each
+  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
+  destination stub — existence at drain decides route-vs-create.
 
-**Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle
-boundaries; destinations vary by PM mode:
+**Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
+between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:
 
-- **`pm.mode: arc-in-git`** — entries flow to the project-shared backlog inboxes
-  (`backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md`) at WU ceremony fire-points. See
-  `strategy-planning-module.md` § Inbox Family and § Ceremony-Only Writes to Shared Inboxes
-  for operational details.
+- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Atomic` items to their
+  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Backlog` items to an
+  existing stub or a new *provisional* stub (there is no shared multi-step inbox). See
+  `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
+  details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration
   model. See `strategy-team-coordination.md` § External Tracker Integration.
 - **`pm.mode: none`** — drain destination follows project convention (DEV-RULES.PROJECT may

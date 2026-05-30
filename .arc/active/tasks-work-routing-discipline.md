@@ -129,26 +129,33 @@ specifics.
   shift (housekeep, not the integration ceremony; `BACKLOG-INBOX` gone; homeless multi-step → provisional stub)
   plus the express-lanes synthesis settled this session.
 
-### `[ ]` **2.2 Strategy alignments (planning-module, work-organization, session-operations)**
+### `[x]` **2.2 Strategy alignments (planning-module, work-organization, session-operations)**
 
 - _Goal:_ The strategies documenting capture / incidental / inbox behavior agree with the rewritten
   `§ Leave it cleaner` — none still describes the pre-errand drain-at-integration model.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.2.a `planning-module` — § Inbox Family, § How Work Flows Through, § Ceremony-Only Writes**
-        - Align to the two-section `USER-INBOX`, the atomic-only shared inbox, and the housekeep drain. Remove
-          the `### backlog/BACKLOG-INBOX.md` subsection (retired in 1.3), sharpen `### backlog/ATOMIC-INBOX.md`
-          to the atomic-only role, and update § How Work Flows Through so the drain path is housekeep, not the
-          integration ceremony.
+    - `[x]` **2.2.a `planning-module` — § Inbox Family, § How Work Flows Through, § Ceremony-Only Writes**
+        - Swept `BACKLOG-INBOX` from the whole file (the three named sections plus § What It Installs table +
+          surface count, and the tracked/absent-artifact enumerations); sharpened `### backlog/ATOMIC-INBOX.md` to
+          the homeless-atomic-only role (housekeep writes, ceremonies read); reframed + renamed
+          `## Ceremony-Only Writes` → `## Shared-Inbox Write Discipline` (the push/pull split); drain path is now
+          the between-WUs housekeep flow, not integration. TOC updated.
 
-    - `[ ]` **2.2.b `work-organization § Incidental Work Model`**
-        - Align to anti-rider + errand-era routing (the merge-lane edit is 2.3, same file, different section).
-          Absorb the express-lane cost rationale trimmed from `§ Leave it cleaner` for brevity (queuing to either
-          inbox is free; only execution costs isolation) — full version in `notes-work-routing-discipline.md`
-          § Express lanes, never forced.
+    - `[x]` **2.2.b `work-organization § Incidental Work Model`**
+        - Added an anti-rider pointer (concern-identity; cross-refs `§ Leave it cleaner` + `§ Auto-Merge Lane`)
+          and absorbed the express-lane cost rationale trimmed from the rule (queuing to either inbox is free;
+          only execution costs isolation).
 
-    - `[ ]` **2.2.c `session-operations § USER-INBOX`**
-        - Align to the sharpened preambles + `WU_Target` grammar + housekeep drain timing.
+    - `[x]` **2.2.c `session-operations § USER-INBOX`**
+        - Drain timing → between-WUs housekeep (off integration); dropped `BACKLOG-INBOX` (atomic → `ATOMIC-INBOX`,
+          multi-step → provisional stub); added the `WU_Target` grammar to the section structure; retargeted the
+          renamed `§ Shared-Inbox Write Discipline` cross-ref.
+
+- _Outcome:_ All three strategies agree with `§ Leave it cleaner`; both copies identical, lint clean. The (A)
+  rename of planning-module's `§ Ceremony-Only Writes` leaves `integrate-work-unit`'s now-stale reference to it
+  dangling until Task 5.1 removes Step 10 wholesale (breadcrumbed on 5.1) — consistent with the plan's Phase 2→5
+  migration window.
 
 ### `[ ]` **2.3 Merge-lane codification (`strategy-work-organization § Auto-Merge Lane`)**
 
@@ -373,9 +380,10 @@ package source.
 - _Goal:_ Integration ships only the WU — the `USER-INBOX` → shared-inbox drain no longer rides the integration
   commit — so the failure mode (deferred under PR-leanness pressure) is structurally removed.
 - _Note:_ Removing Step 10 also stops the `## Backlog` → `BACKLOG-INBOX` write — the write-stop leg of the
-  `BACKLOG-INBOX` retirement (1.3 template, 6.2 content). Renumber the subsequent steps; the
-  `strategy-planning-module § Ceremony-Only Writes` fire-point list (2.2.a) drops integration in favor of
-  housekeep. Both copies.
+  `BACKLOG-INBOX` retirement (1.3 template, 6.2 content). Renumber the subsequent steps. 2.2.a already reframed
+  and renamed the planning-module section to `§ Shared-Inbox Write Discipline` (housekeep writes, ceremonies
+  read); removing Step 10 here also drops `integrate-work-unit`'s now-stale `[planning-ceremony]` reference +
+  link def to it (dangling since 2.2.a). Both copies.
 
 ### `[ ]` **5.2 Reframe `activate-work-unit` Step 6 (absorption narrowing)**
 

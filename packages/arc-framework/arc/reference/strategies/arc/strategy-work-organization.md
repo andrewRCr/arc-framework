@@ -504,6 +504,19 @@ a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt
 capture interrupt work on the current branch with clear commit boundaries separating
 interrupt commits from primary task commits.
 
+**Anti-rider, briefly.** Whether a discovered fix may ride the current change is a
+*concern-identity* test, not a file-identity one: a same-concern micro-cleanup in a file you're
+already editing folds in; a distinct concern that merely shares the file errands (or is captured)
+rather than riding the PR. § Leave it cleaner states the rule and its PR-packaging consequence;
+§ Auto-Merge Lane (below) governs how a housekeep drain packages the resulting PRs.
+
+**Why capture is cheap.** Deferring an out-of-WU concern to `USER-INBOX` is not a productivity
+tax: both `USER-INBOX` and `ERRANDS.md` are personal notes-synced files, so *queuing* to either is
+free from any branch — it pollutes no PR. Only *execution* (running an errand, scaffolding a stub)
+pays an isolation cost. Capture freely mid-task and let the between-WUs housekeep drain route the
+backlog; reach for an express lane (a direct stub or a queued errand) only when the commitment is
+already firm.
+
 ---
 
 ## Branch Protection Modes
