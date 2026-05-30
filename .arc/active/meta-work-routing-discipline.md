@@ -1,8 +1,8 @@
 # Metadata: Work-Routing Discipline
 
-- **State:** Planning
+- **State:** Active
 - **Owner:** andrew
-- **Branch:** `plan/work-routing-discipline`
+- **Branch:** `feat/work-routing-discipline`
 
 - **Origin:** [internal]
 - **Design:** `spec-work-routing-discipline.md`
@@ -18,8 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` when ready to begin implementation — flips State → Active and
-  renames `plan/` → the work branch. Phase 1 (capture surfaces + parser) is the entry point. Lands before
-  `in-flight-awareness` so that WU starts from a clean, trustworthy capture pipeline.
+- **Next Action:** Begin Task 1.1 — `USER-INBOX` section-preamble sharpening + uniform entry grammar (Phase 1,
+  `tasks-work-routing-discipline.md`). Load `3_process-task-loop.md` for the execution loop.
 
 ---
