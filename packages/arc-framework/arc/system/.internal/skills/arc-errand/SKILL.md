@@ -15,7 +15,7 @@ it only queues.
 
    - The commitment boundary gates entry: only work you are committing to do yourself, soon belongs
      here. If you are not committing now, capture it to `USER-INBOX` instead (triaged at a ceremony).
-     See `system/rules/DEV-RULES.ARC.md` § Leave it cleaner.
+     See `system/rules/DEV-RULES.ARC.md` § Discovered Work Routing.
    - Classify against the decision matrix in
      `reference/strategies/arc/strategy-work-organization.md` § Errand Work Class:
      - **Create** a new tracked unit of work, or work spanning more than one review increment or

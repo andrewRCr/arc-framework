@@ -85,7 +85,7 @@ the override path.
 | --- | --- | --- | --- |
 | `commit-format` | `prepare-commits.md` | DEV-RULES.ARC § Commit format | `arc-commit` SKILL |
 | `commit-context-format` | `prepare-commits.md` | DEV-RULES.ARC § Commit format | `arc-commit` SKILL |
-| `issue-triage` | `3_process-task-loop.md` | DEV-RULES.ARC § Leave it cleaner | — |
+| `issue-triage` | `3_process-task-loop.md` | DEV-RULES.ARC § Discovered Work Routing | — |
 | `test-first` | `3_process-task-loop.md` | DEV-RULES.ARC § Test-first | `2_generate-tasks.md`, `manage-incidental-work.md` |
 | `session-state` | `session-init.md`, `session-handoff.md` | DEV-RULES.ARC § Session state | Templates, `integrate-external-content.md` |
 | `diff-review` | `integrate-work-unit.md` | — | `pre-merge-review.md`, `arc-config.yml` (gated) |

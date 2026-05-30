@@ -17,7 +17,8 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, leave-it-cleaner, test-first
+- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
+- [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
 - [Session Management](#session-management) — state control, handoff, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
@@ -200,7 +201,14 @@ If quality gates fail after task completion:
 3. **Ask for guidance** on whether to fix immediately or defer
 4. **Never proceed** to the next task until resolved or the user approves
 
-### Leave it cleaner
+### Test-first assessment · `[configurable]`
+
+Before implementing any task, assess whether tests should be written first — see the
+[test-first method][arc-methods-tf] for the decision tree.
+
+---
+
+## Discovered Work Routing
 
 When you encounter an issue — in a file you're editing, during analysis, anywhere in the course of work —
 take responsibility for it. Never silently drop an observation that should be fixed or captured.
@@ -209,9 +217,17 @@ take responsibility for it. Never silently drop an observation that should be fi
 capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
 item with a known home may rest in a capture surface.**
 
+### Leave it cleaner
+
+The behavioral floor for everything below — what to do with a concern the moment it surfaces.
+
 **Fixing it inline** (a file you're already changing, manageable scope) · `[configurable]`: assess severity
 via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
-*same-concern* cleanup (see Anti-rider), not merely because the file is open.
+*same-concern* cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
+
+**Always propose placement to the user before acting** — the agent suggests, the user decides.
+
+### Route by urgency × isolation
 
 **Otherwise, route by urgency × isolation** — a coarse *inline / errand-now / inbox-defer* call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
@@ -230,34 +246,32 @@ whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classi
 home directly — queue an errand (atomic) or scaffold a `backlog/` stub (multi-step) — but never must:
 capture-plus-drain reaches the same place. Lack of time is never a reason to lose a thought.
 
-**Holding ≠ execution.** The inbox *holds*; it never *executes*. Executing any out-of-current-WU work goes
-through `arc-errand` — never hand-rolled in place, never a manual bypass branch. Promotion inbox→errand is the
-only execution path and **moves** the source entry. Routing a multi-step note *to its stub* is not execution —
-the housekeep drain writes it straight in.
-
-**Anti-rider.** Whether a fix may ride the current change is decided by **concern-identity, not
-file-identity**. A *same-concern* micro-cleanup in a file you're already editing is always fine inline; a
-*distinct* concern that merely shares the file does not ride the current PR — errand or capture it instead.
-Same test for PR packaging: distinct concerns never share a PR even on a shared file — sequence them (rebase B
-on A), don't merge.
-
 **Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow,
 **not** at the integration ceremony: homeless atomic items flush to the shared `ATOMIC-INBOX`, homeless
 multi-step items graduate to a *provisional* stub (there is no shared multi-step inbox). Under PM modes other
 than arc-in-git, captures route per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); the
 inline, holding, and anti-rider rules are mode-independent.
 
-**Always propose placement to the user before acting** — the agent suggests, the user decides.
+### Holding ≠ execution
 
-**Planning artifacts aren't capture surfaces.** A WU's planning artifacts — draft, spec, notes, meta, a
-`Coordination §` — may *cross-reference* another WU's concern but must never hold it as their
-**record-of-record** (completion and session notes record what was done; they aren't actionable-work queues).
-The dual of the core invariant: no foreign work-item rests in a planning artifact.
+The inbox *holds*; it never *executes*. Executing any out-of-current-WU work goes through `arc-errand` — never
+hand-rolled in place, never a manual bypass branch. Promotion inbox→errand is the only execution path and
+**moves** the source entry. Routing a multi-step note *to its stub* is not execution — the housekeep drain
+writes it straight in.
 
-### Test-first assessment · `[configurable]`
+### Anti-rider
 
-Before implementing any task, assess whether tests should be written first — see the
-[test-first method][arc-methods-tf] for the decision tree.
+Whether a fix may ride the current change is decided by **concern-identity, not file-identity**. A
+*same-concern* micro-cleanup in a file you're already editing is always fine inline; a *distinct* concern that
+merely shares the file does not ride the current PR — errand or capture it instead. Same test for PR packaging:
+distinct concerns never share a PR even on a shared file — sequence them (rebase B on A), don't merge.
+
+### Planning artifacts aren't capture surfaces
+
+A WU's planning artifacts — draft, spec, notes, meta, a `Coordination §` — may *cross-reference* another WU's
+concern but must never hold it as their **record-of-record** (completion and session notes record what was
+done; they aren't actionable-work queues). The dual of the core invariant: no foreign work-item rests in a
+planning artifact.
 
 ---
 

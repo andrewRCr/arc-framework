@@ -126,7 +126,7 @@ finalize absorption now. Delete the source entries; record routing in the commit
 The absorbing-artifact edits (task list) typically already landed during planning; this step
 lands the source deletions as the ceremony write (`workflowCommit`).
 
-See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture-routing table.
+See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for the capture-routing table.
 
 ### 7) ROADMAP regen · `arc-in-git` only
 
@@ -165,5 +165,5 @@ With activation complete, proceed to task execution:
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[dev-rules-leave-cleaner]: ../../../../system/rules/DEV-RULES.ARC.md#leave-it-cleaner
+[dev-rules-discovered-routing]: ../../../../system/rules/DEV-RULES.ARC.md#discovered-work-routing
 [dev-rules-atomicity]: ../../../../system/rules/DEV-RULES.ARC.md#atomicity

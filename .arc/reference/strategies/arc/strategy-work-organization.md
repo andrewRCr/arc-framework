@@ -53,7 +53,7 @@ behavior change, `hotfix` for production-issue response) and supports overriding
 itself.
 
 For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
-[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
 
 ---
 
@@ -74,7 +74,7 @@ distinction sorts inbox items, individual tasks, and whole work units.
 **Route by character, not by wrapper.** Capture surfaces sort on this axis directly — on what the work *is*, not
 on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
 surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
-during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
 
 ---
 
@@ -499,7 +499,7 @@ ROADMAP back into agreement with meta-file state.
 
 Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and
 mid-execution interrupts requiring their own WU shape — follows the routing rules in
-[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner. For mid-execution interrupts that warrant
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing. For mid-execution interrupts that warrant
 a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt protocol;
 capture interrupt work on the current branch with clear commit boundaries separating
 interrupt commits from primary task commits.
@@ -507,7 +507,7 @@ interrupt commits from primary task commits.
 **Anti-rider, briefly.** Whether a discovered fix may ride the current change is a
 *concern-identity* test, not a file-identity one: a same-concern micro-cleanup in a file you're
 already editing folds in; a distinct concern that merely shares the file errands (or is captured)
-rather than riding the PR. § Leave it cleaner states the rule and its PR-packaging consequence;
+rather than riding the PR. § Discovered Work Routing states the rule and its PR-packaging consequence;
 § Auto-Merge Lane (below) governs how a housekeep drain packages the resulting PRs.
 
 **Why capture is cheap.** Deferring an out-of-WU concern to `USER-INBOX` is not a productivity
@@ -594,7 +594,7 @@ a reviewer of uniform competence — so it batches into one auto-merge PR. A cod
 and takes its own PR (1:1; "one concern" may still span many files). Distinct concerns never share a PR: two
 that happen to touch the same file are still two PRs, sequenced (rebase the second on the first), not merged —
 batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
-of [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner applied to packaging; see it for the rule itself. A freshly
+of [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing applied to packaging; see it for the rule itself. A freshly
 scaffolded *provisional* stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
 
 **The review threshold.** The prefix split above is the fast path; the principle beneath it is a four-condition
@@ -662,7 +662,7 @@ ARC defines two work classes that share commit and review machinery but differ i
 Incidental work you have **committed to do yourself, soon** routes through this matrix, which selects its
 path. Work you are not committing to now is an inbox capture — triaged at a later ceremony, never routed here
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
-§ Leave it cleaner). Two axes govern the choice: **create vs. maintain** decides whether the work needs the
+§ Discovered Work Routing). Two axes govern the choice: **create vs. maintain** decides whether the work needs the
 Work-Unit wrapper at all; **self-contained vs. cross-cutting** decides how an Errand routes once it does not.
 
 | Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |

@@ -170,7 +170,7 @@ this developer's surviving personal captures to the shared surfaces so they beco
 
 Dedup against existing shared-inbox entries (keep the most complete); USER-INBOX § Atomic and § Backlog end
 empty. Absorbed entries are deleted, not marked — the routing record is the deletion commit plus the absorbing
-artifact (see [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner).
+artifact (see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing).
 
 **De-contextualize as you flush.** USER-INBOX captures carry the originating WU's framing; the shared inboxes
 are read cold, project-wide, long after that WU ships. Rewrite each flushed entry to stand on its own — expand

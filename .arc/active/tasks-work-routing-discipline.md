@@ -92,10 +92,10 @@ _Design decisions:_ Placed after Phase 1 so the doctrine documents the just-buil
 shape, and before Phase 3 so the contract precedes the mechanism that implements it. Doctrine uses current
 names (`USER-INBOX` / `ATOMIC-INBOX`). All edits are dual-copy (`.arc/` + `packages/arc-framework/arc/`) per
 package-project-sync. The `doc-naming-convention` write-back rewrites its inbox _collapse_ into a _simple
-rename_ of the surviving `ATOMIC-INBOX` (atomic-only). Heaviest doc phase — five parents (2.1–2.4 author the
+rename_ of the surviving `ATOMIC-INBOX` (atomic-only). Heaviest doc phase — six parents (2.1–2.4 author the
 doctrine on the current `### Leave it cleaner` heading; 2.5 promotes it to a top-level section and cascades the
-refs); splittable if review prefers. See `notes-work-routing-discipline.md` § Merge-lane reasoning detail and
-§ Coordination write-back
+refs; 2.6 names the coordination-write-back routing seam, discovered while executing 2.4); splittable if review
+prefers. See `notes-work-routing-discipline.md` § Merge-lane reasoning detail and § Coordination write-back
 specifics.
 
 ### `[x]` **2.1 `DEV-RULES.ARC § Leave it cleaner` rewrite (both faces)**
@@ -212,33 +212,70 @@ specifics.
   `WU_Target` grammar; single-copy (`backlog/` drafts, no package mirror). No foreign work-item rests in this
   WU's artifacts as record-of-record.
 
-### `[ ]` **2.5 Promote to `DEV-RULES.ARC § Discovered Work Routing` (H2) + decompose + ref cascade**
+### `[x]` **2.5 Promote to `DEV-RULES.ARC § Discovered Work Routing` (H2) + decompose + ref cascade**
 
 - _Goal:_ The routing doctrine sits at its true altitude — a top-level `§ Discovered Work Routing` governing
   capture during _any_ work, with `Leave it cleaner` preserved as its behavioral-floor subsection — and every
   cross-reference resolves to the new structure.
-- _Note:_ Content is authored by 2.1–2.4 under the current `### Leave it cleaner` H3; this task is the structural
-  promote (H3 → H2), the internal decomposition, and the mechanical ref cascade — kept separate so the doctrine
-  rewrite and the rename churn review independently. Source: `notes-work-routing-discipline.md`.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.5.a Restructure `DEV-RULES.ARC` (dual-copy)**
-        - Promote `### Leave it cleaner` (under `## Task Execution`) to a top-level `## Discovered Work Routing`;
-          keep `### Leave it cleaner` as the behavioral-floor subsection (anchor `#leave-it-cleaner` preserved);
-          split the routing table, holding-vs-execution, anti-rider, and planning-artifacts content into sibling
-          subsections. Update the document TOC bullet.
+    - `[x]` **2.5.a Restructure `DEV-RULES.ARC` (dual-copy)**
+        - Promoted `### Leave it cleaner` out of `## Task Execution` to a top-level `## Discovered Work Routing`
+          (placed between Task Execution and Session Management); core-invariant + take-responsibility framing lifted
+          to the H2 preamble; decomposed into `### Leave it cleaner` (behavioral floor — `#leave-it-cleaner`
+          preserved), `### Route by urgency × isolation` (the table), `### Holding ≠ execution`, `### Anti-rider`,
+          `### Planning artifacts aren't capture surfaces`. TOC bullet added; Task Execution descriptor trimmed.
 
-    - `[ ]` **2.5.b Retarget the routing-table cross-refs (dual-copy + harness skills)**
-        - Refs meaning _the routing table_ point to `§ Discovered Work Routing`; refs meaning _the behavioral
-          rule_ (e.g. `issue-triage`, `arc-task-review`) stay on `§ Leave it cleaner`. Covers `3_process-task-loop`,
-          `integrate-work-unit`, `activate-work-unit`, the `arc-errand` / `arc-task-review` skills,
-          `DEV-RULES.PROJECT`, and the strategies (`work-organization`, `planning-module`,
-          `configurability-architecture`).
+    - `[x]` **2.5.b Retarget the routing-table cross-refs (dual-copy + harness skills)**
+        - Retargeted 33 routing/anti-rider/commitment refs across 17 files (dual-copy + the `.claude` `arc-errand`
+          harness copy) to `§ Discovered Work Routing`: `3_process-task-loop`, `integrate-work-unit`,
+          `activate-work-unit` (prose + the one hard anchor link, label renamed `dev-rules-leave-cleaner` →
+          `dev-rules-discovered-routing` → `#discovered-work-routing`), `DEV-RULES.PROJECT`, `issue-triage` (both
+          refs), `arc-errand`, `initial-setup/03` (package-only), and the strategies (`work-organization` ×6,
+          `planning-module` ×3). _Stay on `§ Leave it cleaner`:_ `configurability-architecture` (names the
+          capture-floor configurable method) and `docs/reference/skills.md` (concept name) — both unchanged.
+          `arc-task-review` carries no such ref.
 
-    - `[ ]` **2.5.c Internal-record handling**
-        - Leave `adr-001` / `adr-013` naming the rule as it stood at decision time (historical record); update
-          live internal pointers (`analysis-cross-cutting-dependencies`, `docs-content-sweep` notes) only where
-          they cite the routing role rather than the historical name.
+    - `[x]` **2.5.c Internal-record handling**
+        - Left `adr-001` / `adr-013` at the decision-time name (historical record). Updated
+          `analysis-cross-cutting-dependencies` (cites the routing role → retargeted). Left `docs-content-sweep`
+          notes (a section-inventory row naming the surviving subsection, not a routing-role pointer).
+
+- _Outcome:_ `§ Discovered Work Routing` is a top-level constitutional section across both copies; the
+  `#leave-it-cleaner` anchor survives (now unreferenced — every hard link meant the routing table and retargeted).
+  Behavioral-rule refs reduced on inspection to two name-references that legitimately stay; everything else routes
+  to the new H2. Lint clean, framework parity holds (`DEV-RULES.PROJECT` template/instance divergence is
+  pre-existing).
+
+### `[ ]` **2.6 Coordination-write-back routing rule (`strategy-work-organization § Errand Work Class`)**
+
+- _Goal:_ The doctrine names the seam that decides whether a cross-WU edit rides the active WU or routes out —
+  so the 2.4-shaped case (a spec-scoped write-back into a foreign WU's artifact) is covered, not left to be
+  re-derived. Discovered in-WU while executing 2.4; folded in per `§ Leave it cleaner` (in-WU discovery → new
+  task).
+- _Note:_ The components exist (anti-rider concern-identity; `§ Leave it cleaner` planning-artifacts-aren't-capture
+  dual; the Errand matrix's cross-cutting column) but none names the **spec-scoping seam**. Read literally, the
+  Errand matrix's "Cross-cutting (foreign-owned artifact) → Errand" row mis-flags a spec-scoped write-back. Placed
+  after 2.5 so it can cross-ref the new `§ Discovered Work Routing` H2. Kept separate from 2.5 (mechanical
+  promote + cascade) to preserve that task's concern isolation.
+
+    - `[ ]` **2.6.a Add the third category to the Errand decision-matrix preamble**
+        - The matrix gates on "incidental work committed to now" vs. "not-now → capture"; add the third: work
+          your **own WU's spec already claims** is WU scope (rides the WU's PR), not an Errand. The matrix governs
+          _incidental_ cross-cutting work only.
+
+    - `[ ]` **2.6.b State the ride-vs-route test (the spec seam)**
+        - A coordination write-back rides iff it is (1) scoped into your WU's spec, (2) a mechanical propagation
+          of _your_ decision, (3) recording it into the foreign artifact's own record-of-record. It routes (Errand
+          or capture) when it is an unrelated same-file fix (rider) or requires _foreign design authoring_. The
+          push-direction complement to `§ Leave it cleaner`'s planning-artifacts-aren't-capture dual; optional
+          one-line nod from `DEV-RULES.ARC § Discovered Work Routing`.
+
+    - `[ ]` **2.6.c Confirm the CWC de-scope boundary at audit**
+        - Verify the rule clarifies the _matrix-entry boundary_ (this WU's surfaces — the matrix gate + anti-rider)
+          and does not drift into the general errand↔PR packaging convention de-scoped to Concurrent Work
+          Conventions (spec § Non-Goals). Settle whether a spec requirement should anchor this (generalize R20–22,
+          or a new R) at the pre-implementation audit.
 
 ## **Phase 3:** `arc-housekeep` mechanism
 

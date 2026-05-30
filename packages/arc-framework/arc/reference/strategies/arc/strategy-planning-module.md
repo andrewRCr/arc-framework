@@ -90,7 +90,7 @@ Off-WU work is committed with the `standalone (...)` footer; browse that history
 Personal capture (`USER-INBOX.md`) accepts writes any time (live capture). The shared
 `backlog/ATOMIC-INBOX.md` is written only at the between-WUs housekeep drain (write isolation),
 trading write immediacy for elimination of multi-writer merge conflicts on the shared file. See
-[DEV-RULES.ARC][dev-rules] § Leave it cleaner for the constitutional rule statement.
+[DEV-RULES.ARC][dev-rules] § Discovered Work Routing for the constitutional rule statement.
 
 ---
 
@@ -117,7 +117,7 @@ ready) `prd-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the p
 and discovery checklist.
 
 For the full intent × mode routing table (including `pm.mode: external` and `pm.mode: none`),
-see [DEV-RULES.ARC][dev-rules] § Leave it cleaner.
+see [DEV-RULES.ARC][dev-rules] § Discovered Work Routing.
 
 ---
 
@@ -249,7 +249,7 @@ events to external trackers.
 
 - [Work Planning][work-planning] — Planning pipeline, plan/PRD conventions, discovery checklist
 - [Work Organization][work-org] — Branching, archival, ROADMAP render algorithm, state semantics
-- [DEV-RULES.ARC][dev-rules] § Leave it cleaner — Full intent × mode capture routing table
+- [DEV-RULES.ARC][dev-rules] § Discovered Work Routing — Full intent × mode capture routing table
 - [Process Task Loop][process-loop] § Atomic Task Completion — atomic task execution and routing
 - [Team Coordination][team-coord] § External Tracker Integration — external PM integration model
 

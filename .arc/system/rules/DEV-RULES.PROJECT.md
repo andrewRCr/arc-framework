@@ -196,7 +196,7 @@ surfaces. Both apply.
 ## Capture Routing
 
 Using `pm.mode: arc-in-git` — deferred work routes through ARC's built-in capture surfaces.
-See [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner for the full routing table.
+See [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full routing table.
 
 ## Architecture Documentation
 
