@@ -157,28 +157,33 @@ specifics.
   dangling until Task 5.1 removes Step 10 wholesale (breadcrumbed on 5.1) — consistent with the plan's Phase 2→5
   migration window.
 
-### `[ ]` **2.3 Merge-lane codification (`strategy-work-organization § Auto-Merge Lane`)**
+### `[x]` **2.3 Merge-lane codification (`strategy-work-organization § Auto-Merge Lane`)**
 
 - _Goal:_ `§ Auto-Merge Lane` governs how an `arc-housekeep` drain hits the lanes, so a drain's PR structure is
   prescribed rather than improvised.
-- _Note:_ Reasoning detail in `notes-work-routing-discipline.md` § Merge-lane reasoning detail.
 
-    - `[ ]` **2.3.a One PR per lane + concern-coherence batching**
-        - A drain is one PR per lane (lanes never mix); a new provisional stub auto-merges (`meta-*`/`draft-*`
-          under `backlog/`, no design authority).
-        - What batches is concern-coherence, not file or destination: a planning-routing sweep is one coherent
-          concern → one batched auto-merge PR; code-execution errands stay 1:1 (one concern per PR, may span many
-          files). Same-file is not an exception — distinct same-file concerns are sequenced, not merged (the
-          anti-rider rule applied to packaging; cross-ref 2.1.c).
+    - `[x]` **2.3.a One PR per lane + concern-coherence batching**
+        - Added `### The housekeep drain` (after `### Path classification`): one PR per lane (lanes never mix);
+          concern-coherence — not file/destination — bounds a PR (routing sweep → one batched auto-merge PR;
+          code-execution errand stays 1:1, may span files); distinct same-file concerns sequenced, not merged;
+          provisional stub auto-merges. Anti-rider cross-referenced to `DEV-RULES.ARC § Leave it cleaner`, not
+          restated.
 
-    - `[ ]` **2.3.b The four-condition review threshold + housekeep carve-out**
-        - Review iff: foreign-owner artifact / design authority / constitutional surface / unverifiable
-          hand-edit of a derived surface (a sunset trigger). Housekeep's own homeless-flush + disciplined
-          ROADMAP regen auto-merge.
+    - `[x]` **2.3.b The four-condition review threshold + housekeep carve-out**
+        - Four-condition threshold (foreign-owner / design authority / constitutional / unverifiable derived-surface
+          hand-edit, a sunset trigger) framed as the principle beneath the prefix fast-path — conditions 2–4 map to
+          the reviewed-lane prefixes, condition 1 (ownership) is what a prefix can't see. Carve-out: the drain's own
+          homeless-flush + disciplined `ROADMAP` regen auto-merge.
 
-    - `[ ]` **2.3.c CWC coordination note (P1)**
-        - Note for CWC that the stewardship concern argues for gating dormant foreign edits too;
-          review-vs-notification + granularity stay CWC's general owner-gate doctrine.
+    - `[x]` **2.3.c CWC coordination note (P1)**
+        - `**Foreign edits beyond the in-flight gate**` paragraph: condition 1 classifies foreign-owned artifacts
+          (any state) as reviewed, but the mechanism catches only in-flight edits; gating dormant foreign edits is
+          the project's concurrent-work discipline's concern (audience-neutral — CWC not named in adopter-facing
+          surface).
+
+- _Outcome:_ `§ Auto-Merge Lane` now carries the drain-interaction layer (both copies). The pre-existing Path
+  classification's "shared inboxes change only at reviewed ceremonies" parenthetical was reconciled to point at
+  the new carve-out, resolving the contradiction the carve-out would otherwise create.
 
 ### `[ ]` **2.4 Forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC)**
 

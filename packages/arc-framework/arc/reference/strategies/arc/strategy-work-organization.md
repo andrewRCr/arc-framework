@@ -569,8 +569,9 @@ Two lanes, by what the PR touches — classified by artifact **prefix**, not by 
 - **Reviewed lane** — everything else. Explicitly: **design-authority** artifacts (`spec-*`, `prd-*`); the
   **constitutional** surfaces — rules (`DEV-RULES.*`), ADRs (`reference/adr/**`), strategies
   (`reference/strategies/**`); the **derived or shared project surfaces** — `ROADMAP` (rendered from metas, so a
-  hand-edit must not silently diverge from its source) and the shared backlog inboxes (which change only at
-  reviewed ceremonies); and all code. Always requires owner review before merge.
+  hand-edit must not silently diverge from its source) and the shared backlog inboxes (a hand-edit to one
+  is reviewed; the between-WUs drain's own disciplined flush is the carve-out below); and all code. Always
+  requires owner review before merge.
 
 A PR that touches any reviewed-lane path is reviewed-lane as a whole — the lanes never split a single PR. Keep
 grooming PRs path-pure to stay on the auto-merge lane.
@@ -579,6 +580,44 @@ The lane classifies by **content type, not concurrency**: it decides whether a c
 not whether two branches edit the same artifact at once. Concurrent edits to a shared record — a multi-owner
 coordination doc, say — are a separate axis; gate those with the project's concurrent-work discipline, not this
 lane.
+
+### The housekeep drain
+
+A between-WUs `arc-housekeep` drain flushes captured work to its homes — routing inbox entries to their stubs,
+scaffolding provisional stubs, flushing homeless items to the shared inbox. Under full protection each such
+write ships as a PR, so the drain follows a packaging discipline.
+
+**One PR per lane.** A drain produces *one PR per lane* — not one per sweep, nor one per destination; lanes
+never mix in a single PR. What bounds a PR is *concern-coherence*, not file or destination count. A
+planning-artifact routing sweep is one coherent concern — "route these entries to their homes," certifiable by
+a reviewer of uniform competence — so it batches into one auto-merge PR. A code-execution errand is one concern
+and takes its own PR (1:1; "one concern" may still span many files). Distinct concerns never share a PR: two
+that happen to touch the same file are still two PRs, sequenced (rebase the second on the first), not merged —
+batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
+of [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner applied to packaging; see it for the rule itself. A freshly
+scaffolded *provisional* stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
+
+**The review threshold.** The prefix split above is the fast path; the principle beneath it is a four-condition
+threshold. A planning-artifact change needs review iff it (1) touches a **foreign owner's** artifact, in any
+state; (2) carries **design authority** (`spec-*`/`prd-*`); (3) hits a **constitutional** surface (rules, ADRs,
+strategies); or (4) is an **unverifiable hand-edit of a derived surface**. Otherwise it auto-merges. Conditions
+2–4 are why the reviewed-lane prefixes are what they are; condition 1 is the one a prefix can't see — a `draft-*`
+or `tasks-*` that would auto-merge by prefix is reviewed-lane when its owner is not the author. Condition 4 is a
+*sunset* trigger: a hand-edit of a rendered surface (`ROADMAP`, and any other source-derived doc) is
+unverifiable only while that surface is hand-maintained; once a renderer produces it with a verify-against-source
+check, the derivation is verifiable and the change auto-merges. The same sunset applies to every derived surface
+as its renderer lands.
+
+**Carve-out.** The drain's own mechanical writes — flushing homeless items to the shared inbox, and a
+disciplined `ROADMAP` regen — auto-merge despite touching shared or derived surfaces: they trip none of the four
+conditions (no foreign owner, no design authority, not constitutional; the ceremony's own discipline and a
+regen-matches-source check stand in for condition 4).
+
+**Foreign edits beyond the in-flight gate.** Condition 1 classifies a foreign-owned artifact as reviewed in any
+state, but the mechanism below catches a foreign edit only while its PR is *in flight* — the code-owners gate and
+the advisory bot both key on an open PR. Gating a *dormant* foreign edit — one already merged, or written
+directly to the base branch — is a stewardship question for the project's concurrent-work discipline, not this
+lane: whether it warrants a hard gate or only a notification, and at what granularity, is settled there.
 
 ### The mechanism (host-agnostic)
 
