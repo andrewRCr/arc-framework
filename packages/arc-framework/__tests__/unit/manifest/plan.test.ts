@@ -62,8 +62,8 @@ describe("buildChangePlan", () => {
 
     test("classifies added arc-in-git files with correct layer", () => {
       const manifest = makeManifest({});
-      const templateFiles = ["backlog/BACKLOG-INBOX.template.md"];
-      const arcInGitFiles = new Set(["backlog/BACKLOG-INBOX.template.md"]);
+      const templateFiles = ["backlog/ATOMIC-INBOX.template.md"];
+      const arcInGitFiles = new Set(["backlog/ATOMIC-INBOX.template.md"]);
 
       const plan = buildChangePlan(manifest, templateFiles, {}, arcInGitFiles);
 

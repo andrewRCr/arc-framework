@@ -253,7 +253,6 @@ arc-in-git files are annotated explicitly.
 ### Template counterparts (package `.template.md` → `.arc/` `.md`)
 
 - `backlog/ROADMAP.template.md` → `backlog/ROADMAP.md` (Scaffolded · arc-in-git)
-- `backlog/BACKLOG-INBOX.template.md` → `backlog/BACKLOG-INBOX.md` (Scaffolded · arc-in-git)
 - `reference/PROJECT-PRD.template.md` → `reference/PROJECT-PRD.md` (Scaffolded)
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)

@@ -56,28 +56,31 @@ map per its naming banner).
   behavior unchanged). Doc comments in `parser.ts` / `types.ts` / `merge.ts` updated off the stale "lead-in"
   vocabulary. Files: `parser.ts`, `types.ts`, `merge.ts`, `__tests__/unit/user-sync-merge.test.ts`.
 
-### `[ ]` **1.3 Shared inbox atomic-only + `BACKLOG-INBOX` structural retirement**
+### `[x]` **1.3 Shared inbox atomic-only + `BACKLOG-INBOX` structural retirement**
 
 - _Goal:_ The shared project inbox is atomic-only — `ATOMIC-INBOX` survives as the homeless-atomic surface and
   `BACKLOG-INBOX` is no longer a write target — so homeless multi-step work has no shared resting place and must
   graduate to a provisional stub.
-- _Note:_ `BACKLOG-INBOX` retirement spans three phases: template removal + role docs here, write-stop at
-  Phase 5.1 (integrate Step 10), content-drain + live-file deletion at Phase 6.2.
 
-    - `[ ]` **1.3.a Sharpen `ATOMIC-INBOX` to the atomic-only homeless role**
-        - Update its preamble/purpose to state homeless-atomic-only; multi-step → provisional stub. Both copies:
-          `.arc/backlog/ATOMIC-INBOX.md` + `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md`.
-        - Add a concise shape-rationale line so the asymmetry with `USER-INBOX` stays legible once this file is
-          renamed `INBOX.PROJECT` (a reader then expects a parallel two-section shape): no WU stub passes through
-          here — multi-step work always has a stub home, so only genuinely homeless single-step items rest in
-          this shared surface.
+    - `[x]` **1.3.a Sharpen `ATOMIC-INBOX` to the atomic-only homeless role**
+        - Rewrote the preamble (both copies: `.arc/backlog/ATOMIC-INBOX.md` +
+          `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md`) to state the homeless-atomic-only role,
+          multi-step → provisional stub, and the asymmetry-legibility rationale (no work-unit stub passes through;
+          only genuinely homeless single-step items rest here). Kept the rationale timeless — no transitional
+          rename framing in the adopter-facing template.
 
-    - `[ ]` **1.3.b Retire the `BACKLOG-INBOX` template + references**
-        - Remove `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md` and update any docs/templates
-          that name `BACKLOG-INBOX` as a drain destination. Live `.arc/backlog/BACKLOG-INBOX.md` stays until its
-          content drains (Phase 6.2).
-        - The `strategy-planning-module § Inbox Family` / `§ Backlog Inbox` references to `BACKLOG-INBOX` are
-          dropped in 2.2.a (both inbox templates point there) — coordinate so the retirement is complete.
+    - `[x]` **1.3.b Retire the `BACKLOG-INBOX` template + references**
+        - Deleted `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md` and removed its scaffold wiring:
+          `SCAFFOLDED_FILES` (`classification.ts`), the `pm.mode == arc-in-git` include (`init-recipe.json`),
+          the scaffold-map row (`strategy-package-project-sync.md`), and the four referencing tests
+          (`init`/`init.e2e`/`reconfigure` drop the entry; `manifest/plan` swaps to `ATOMIC-INBOX` to keep the
+          arc-in-git-layer coverage).
+        - Folded in two stale source-refs: `commit-footer.md` queue-shaping examples (`BACKLOG-INBOX` →
+          `ATOMIC-INBOX`, both copies) and `1_create-spec.md`'s Promotion-write conditional — removed (both
+          copies), since the retirement eliminates the shared multi-step inbox that was its only promotion source.
+        - Deferred per the WU's phase split (untouched here): `DEV-RULES.ARC` (2.1), `strategy-planning-module` +
+          `session-operations` (2.2), `integrate` write-stop (5.1), `activate` absorption (5.2); live
+          `.arc/backlog/BACKLOG-INBOX.md` content-drain + deletion (6.2). ADRs left as immutable records.
 
 ## **Phase 2:** Work-routing doctrine + merge-lane + coordination
 

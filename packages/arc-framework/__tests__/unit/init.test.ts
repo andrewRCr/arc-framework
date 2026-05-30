@@ -298,7 +298,6 @@ describe("classifyFile", () => {
     expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ATOMIC-INBOX.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/BACKLOG-INBOX.template.md")).toBe("Scaffolded");
   });
 
   it("classifies Configurable files", () => {
