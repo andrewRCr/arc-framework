@@ -18,28 +18,29 @@ creates sections. Parser reconcile is test-first (existing coverage in `user-syn
 `notes-work-routing-discipline.md` § Inbox section preambles and § Entry-grammar subtleties (target-vocabulary;
 map per its naming banner).
 
-### `[ ]` **1.1 `USER-INBOX` section-preamble sharpening + uniform entry grammar**
+### `[x]` **1.1 `USER-INBOX` section-preamble sharpening + uniform entry grammar**
 
 - _Goal:_ `USER-INBOX`'s two sections fully determine a capture's drain fate — the `## Atomic` and `## Backlog`
   preambles state the inline / errand-now / inbox-defer destinations, and every `## Backlog` entry carries a
   `WU_Target` field — so the section plus fields, not memory, route the entry.
-- _Note:_ The template already carries the H3+checkbox managed-entry shape, so this sharpens the preambles and
-  adds the `WU_Target` descriptor rather than redefining the shape. Land the settled preamble wording from
-  `notes-work-routing-discipline.md` § Inbox section preambles, adapting the `## Work Unit` lead to the current
-  `## Backlog` heading per its naming banner.
 
-    - `[ ]` **1.1.a Rewrite the `## Atomic` / `## Backlog` preamble callouts**
-        - Replace the current one-line section descriptions with the routing-model callouts (destination story
-          in the preamble, character token in the heading).
-        - Edit the template `packages/arc-framework/templates/user/USER-INBOX.md` (canonical shape for new
-          installs); align the live `.arc/user/andrew/USER-INBOX.md` preambles to match (entry reshape +
-          content-drain are Phase 6.1).
+    - `[x]` **1.1.a Rewrite the `## Atomic` / `## Backlog` preamble callouts**
+        - Landed the routing-model callouts (destination story in the preamble, character token in the heading)
+          under each section, replacing the prior one-line descriptions.
+        - Edited the template `packages/arc-framework/templates/user/USER-INBOX.md` (canonical shape for new
+          installs) and aligned the live `.arc/user/andrew/USER-INBOX.md` preambles to match; existing entries
+          left in the flat shape for Phase 6.1 reshape.
 
-    - `[ ]` **1.1.b Add the `WU_Target` descriptor to the `## Backlog` entry grammar**
-        - `## Backlog` entries carry `WU_Target: <slug>` / `<slug> (planned|provisional)` / `TBD`; `## Atomic`
-          entries take none. Existence-at-drain decides route-vs-create (no `new` keyword).
-        - Add `WU_Target` to the template's `## Backlog` entry-shape comment. It rides the entry body —
-          housekeep routing (3.1) reads it; the merge parser keeps it in `raw`, never parsed as a field.
+    - `[x]` **1.1.b Add the `WU_Target` descriptor to the `## Backlog` entry grammar**
+        - `## Backlog` entry-shape comment now documents the `WU_Target: <slug>` / `<slug>
+          (planned|provisional)` / `TBD` field with the existence-at-drain route-vs-create rule (no `new`
+          keyword); `## Atomic` takes none. The field rides the entry body (housekeep reads it; the merge parser
+          keeps it in `raw`).
+
+- _Outcome:_ Both `USER-INBOX` copies (template + live) carry the routing-model section callouts; the
+  `## Backlog` entry-shape comment self-defines the H3+checkbox grammar with the `WU_Target` field, dropping the
+  pointer to the retiring `BACKLOG-INBOX` (Task 1.3 completes that retirement). Heading kept as `## Backlog` per
+  the naming banner — the `→ ## Work Unit` rename stays `doc-naming-convention`'s.
 
 ### `[ ]` **1.2 `parseUserInboxSection` ↔ template reconcile (test-first)**
 
