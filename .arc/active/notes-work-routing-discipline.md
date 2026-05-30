@@ -5,6 +5,20 @@ the capture decision table, entry-grammar subtleties), design rationale the spec
 for concerns whose home is elsewhere. Cross-reference by filename + section heading from task descriptions
 rather than re-deriving — the wording below is settled, not to be reinvented.
 
+> **Naming — current vs. target.** This WU lands shape + behavior on the **current** file/section names; the
+> renames are owned by `doc-naming-convention` (its draft § Renames) and are out of scope here. The design text
+> below uses the **target** vocabulary for clarity — when authoring concrete edits, map to the current names:
+>
+> | Target (design vocabulary)     | Current (use in edits)                                                   |
+> | ------------------------------ | ------------------------------------------------------------------------ |
+> | `INBOX.USER`                   | `USER-INBOX.md` (`user/{identity}/`)                                     |
+> | `INBOX.PROJECT`                | `ATOMIC-INBOX.md` (the surviving shared inbox; `BACKLOG-INBOX` retired)  |
+> | `## Work Unit` (section)       | `## Backlog` (the current multi-step section in `USER-INBOX`)            |
+>
+> So the `## Work Unit` preamble below lands under the current `## Backlog` heading — same behavioral text, the
+> lead word adapts. `USER-INBOX` already carries `## Atomic` / `## Backlog`, so this WU sharpens their preambles
+> and adds the `WU_Target` grammar rather than creating the sections.
+
 ## Contents
 
 - [Inbox section preambles (verbatim — do not re-derive)](#inbox-section-preambles-verbatim--do-not-re-derive)

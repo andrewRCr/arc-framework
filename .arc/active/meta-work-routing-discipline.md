@@ -10,16 +10,16 @@
 - **Depends On:** [none]
 - **Cohort:** [none]
 
-- **Task List:** [none]
-- **Last Completed:** Spec `spec-work-routing-discipline.md` synthesized from the (now retired) draft —
-  PROJECT-PRD (*Operational friction down, judgment friction up*) + TECHNICAL-OVERVIEW (§ 2) alignment checks
-  passed; pre-decided reference detail (verbatim section preambles, capture decision table, entry-grammar
-  subtleties, merge-lane reasoning, routing records) migrated to `notes-work-routing-discipline.md`.
+- **Task List:** `tasks-work-routing-discipline.md`
+- **Last Completed:** Task list `tasks-work-routing-discipline.md` generated (7 phases; three-pass: structural →
+  content → per-phase grounding audit). Spec reconciled to current inbox names (`USER-INBOX` / `ATOMIC-INBOX`)
+  and the errand↔PR batching doctrine made explicit (planning sweeps batch, code 1:1, same-file not an
+  exception); two ARC-improvement captures filed to `USER-INBOX`.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-work-routing-discipline.md` into a task list —
-  cross-reference `notes-work-routing-discipline.md` by section for the settled, do-not-re-derive artifacts.
-  Lands before `in-flight-awareness` so that WU starts from a clean, trustworthy capture pipeline.
+- **Next Action:** Run `activate-work-unit.md` when ready to begin implementation — flips State → Active and
+  renames `plan/` → the work branch. Phase 1 (capture surfaces + parser) is the entry point. Lands before
+  `in-flight-awareness` so that WU starts from a clean, trustworthy capture pipeline.
 
 ---

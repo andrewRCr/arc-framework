@@ -1,0 +1,458 @@
+# Task List: Work-Routing Discipline
+
+- **Design:** `spec-work-routing-discipline.md`
+
+---
+
+## **Phase 1:** Capture surfaces + parser
+
+_Purpose:_ Land the foundational data shapes everything downstream consumes — the sharpened `USER-INBOX` section
+preambles + uniform `WU_Target` entry grammar, the atomic-only shared inbox, and the `parseUserInboxSection`
+reconcile — so the probe (Phase 4) and `arc-housekeep` (Phase 3) read a settled surface.
+
+_Design decisions:_ Lands shape + behavior on **current names** — `USER-INBOX` (`## Atomic` / `## Backlog`),
+`ATOMIC-INBOX`; file/section renames (`→ INBOX.USER` / `INBOX.PROJECT` / `## Work Unit`) stay
+`doc-naming-convention`'s. `USER-INBOX` already has both sections, so this sharpens preambles + adds grammar, not
+creates sections. Parser reconcile is test-first (existing coverage in `user-sync-merge.test.ts`).
+`BACKLOG-INBOX` is _retired_ (structural removal here; its content-drain is Phase 6). See
+`notes-work-routing-discipline.md` § Inbox section preambles and § Entry-grammar subtleties (target-vocabulary;
+map per its naming banner).
+
+### `[ ]` **1.1 `USER-INBOX` section-preamble sharpening + uniform entry grammar**
+
+- _Goal:_ `USER-INBOX`'s two sections fully determine a capture's drain fate — the `## Atomic` and `## Backlog`
+  preambles state the inline / errand-now / inbox-defer destinations, and every `## Backlog` entry carries a
+  `WU_Target` field — so the section plus fields, not memory, route the entry.
+- _Note:_ The template already carries the H3+checkbox managed-entry shape, so this sharpens the preambles and
+  adds the `WU_Target` descriptor rather than redefining the shape. Land the settled preamble wording from
+  `notes-work-routing-discipline.md` § Inbox section preambles, adapting the `## Work Unit` lead to the current
+  `## Backlog` heading per its naming banner.
+
+    - `[ ]` **1.1.a Rewrite the `## Atomic` / `## Backlog` preamble callouts**
+        - Replace the current one-line section descriptions with the routing-model callouts (destination story
+          in the preamble, character token in the heading).
+        - Edit the template `packages/arc-framework/templates/user/USER-INBOX.md` (canonical shape for new
+          installs); align the live `.arc/user/andrew/USER-INBOX.md` preambles to match (entry reshape +
+          content-drain are Phase 6.1).
+
+    - `[ ]` **1.1.b Add the `WU_Target` descriptor to the `## Backlog` entry grammar**
+        - `## Backlog` entries carry `WU_Target: <slug>` / `<slug> (planned|provisional)` / `TBD`; `## Atomic`
+          entries take none. Existence-at-drain decides route-vs-create (no `new` keyword).
+        - Add `WU_Target` to the template's `## Backlog` entry-shape comment. It rides the entry body —
+          housekeep routing (3.1) reads it; the merge parser keeps it in `raw`, never parsed as a field.
+
+### `[ ]` **1.2 `parseUserInboxSection` ↔ template reconcile (test-first)**
+
+- _Goal:_ The `USER-INBOX` parser reads the template's current H3+checkbox managed-entry shape — so an entry
+  authored per the template parses to its `{section, key, raw}` envelope instead of being silently dropped at
+  merge.
+- _Context:_ The template and `ERRANDS.md` already use the H3+checkbox / bold-slug managed-entry grammar, but
+  `parseUserInboxSection` (`packages/arc-framework/src/lib/user-sync/parser.ts`) still keys on the stale flat
+  `- **lead-in**` boundary, so template-authored entries parse malformed. Converge the parser onto the
+  H3+checkbox shape — the `key` is the bold title; `WU_Target` and other descriptors ride in `raw`, not parsed
+  as fields.
+- _Note:_ Post-convergence `parseUserInboxSection` is structurally near-identical to `parseErrands` (an H3
+  boundary plus a bold-slug key) — unify or keep parallel at the implementer's discretion.
+- **Strategies:** strategy-testing-methodology.md
+
+    - Files: `parser.ts` (`parseUserInboxSection` line ~122; the `UI_LEAD_IN` regex retires), template
+      `templates/user/USER-INBOX.md`, tests `__tests__/unit/user-sync-merge.test.ts` (flat-shape cases
+      replaced).
+    - Build `test-first` (one behavior at a time):
+        - An H3+checkbox `## Atomic` entry parses to `{section: "Atomic", key: <bold title>, raw}`.
+        - An H3+checkbox `## Backlog` entry parses with its bold title as `key`; its `WU_Target` line is
+          preserved verbatim in `raw` (not extracted).
+        - An H3 heading with no bold title yields `{ok:false}` with a reason — not a silent drop.
+        - Existing cross-WU merge behavior (union-by-key on the bold-title key, recency) is preserved
+          (regression); the retired flat-shape cases are replaced, not kept.
+
+### `[ ]` **1.3 Shared inbox atomic-only + `BACKLOG-INBOX` structural retirement**
+
+- _Goal:_ The shared project inbox is atomic-only — `ATOMIC-INBOX` survives as the homeless-atomic surface and
+  `BACKLOG-INBOX` is no longer a write target — so homeless multi-step work has no shared resting place and must
+  graduate to a provisional stub.
+- _Note:_ `BACKLOG-INBOX` retirement spans three phases: template removal + role docs here, write-stop at
+  Phase 5.1 (integrate Step 10), content-drain + live-file deletion at Phase 6.2.
+
+    - `[ ]` **1.3.a Sharpen `ATOMIC-INBOX` to the atomic-only homeless role**
+        - Update its preamble/purpose to state homeless-atomic-only; multi-step → provisional stub. Both copies:
+          `.arc/backlog/ATOMIC-INBOX.md` + `packages/arc-framework/arc/backlog/ATOMIC-INBOX.template.md`.
+        - Add a concise shape-rationale line so the asymmetry with `USER-INBOX` stays legible once this file is
+          renamed `INBOX.PROJECT` (a reader then expects a parallel two-section shape): no WU stub passes through
+          here — multi-step work always has a stub home, so only genuinely homeless single-step items rest in
+          this shared surface.
+
+    - `[ ]` **1.3.b Retire the `BACKLOG-INBOX` template + references**
+        - Remove `packages/arc-framework/arc/backlog/BACKLOG-INBOX.template.md` and update any docs/templates
+          that name `BACKLOG-INBOX` as a drain destination. Live `.arc/backlog/BACKLOG-INBOX.md` stays until its
+          content drains (Phase 6.2).
+        - The `strategy-planning-module § Inbox Family` / `§ Backlog Inbox` references to `BACKLOG-INBOX` are
+          dropped in 2.2.a (both inbox templates point there) — coordinate so the retirement is complete.
+
+## **Phase 2:** Work-routing doctrine + merge-lane + coordination
+
+_Purpose:_ Codify the errand-era doctrine across the constitutional and strategy surfaces, set the merge-lane
+rules the `arc-housekeep` drain must obey, and record the forward-compat write-backs into downstream WUs — the
+durable-documentation layer that makes the surfaces (Phase 1) and mechanism (Phase 3) authoritative.
+
+_Design decisions:_ Placed after Phase 1 so the doctrine documents the just-built surfaces by their settled
+shape, and before Phase 3 so the contract precedes the mechanism that implements it. Doctrine uses current
+names (`USER-INBOX` / `ATOMIC-INBOX`). All edits are dual-copy (`.arc/` + `packages/arc-framework/arc/`) per
+package-project-sync. The `doc-naming-convention` write-back rewrites its inbox _collapse_ into a _simple
+rename_ of the surviving `ATOMIC-INBOX` (atomic-only). Heaviest doc phase — four parents; splittable if review
+prefers. See `notes-work-routing-discipline.md` § Merge-lane reasoning detail and § Coordination write-back
+specifics.
+
+### `[ ]` **2.1 `DEV-RULES.ARC § Leave it cleaner` rewrite (both faces)**
+
+- _Goal:_ `§ Leave it cleaner` states the errand-era routing doctrine in full, so the rule a developer reads
+  matches the surfaces and mechanism this WU ships.
+- _Note:_ Preserve the still-valid parts of the current section — the inline-fix / issue-triage guidance and the
+  commitment boundary — and update its drain-timing clause (the drain moves off the integration ceremony to
+  housekeep), not just the routing table.
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **2.1.a Replace the routing table with the capture decision table**
+        - Inline / errand-now / inbox-defer as an urgency × isolation call; plus the capture-time vs drain-time
+          split. Source: `notes-work-routing-discipline.md` § Capture decision table.
+
+    - `[ ]` **2.1.b Add the holding-vs-execution boundary**
+        - The inbox holds, never executes; out-of-WU atomic execution always goes through `arc-errand`;
+          promotion moves the source entry (no orphan, no dedup hook). Note-routing ≠ execution.
+
+    - `[ ]` **2.1.c Add the anti-rider rule**
+        - Distinguished by concern-identity, not file-identity: same-concern micro-cleanup inline; distinct
+          concern sharing a file errands, never rides.
+        - State the PR-packaging consequence so an agent can redirect on sight (this is the agent-facing citation
+          surface for the merge-lane rule, 2.3): distinct concerns never share a PR even on a shared file — two
+          distinct same-file concerns are sequenced (rebase B on A), not merged. The same concern-identity test,
+          applied to packaging.
+
+    - `[ ]` **2.1.d Add the planning-artifacts-aren't-capture anti-pattern**
+        - Generalize the completion-notes/session-notes clause to all WU planning artifacts (draft / spec /
+          notes / meta / `Coordination §`): cross-ref yes, record-of-record no. The dual of the core invariant.
+
+### `[ ]` **2.2 Strategy alignments (planning-module, work-organization, session-operations)**
+
+- _Goal:_ The strategies documenting capture / incidental / inbox behavior agree with the rewritten
+  `§ Leave it cleaner` — none still describes the pre-errand drain-at-integration model.
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **2.2.a `planning-module` — § Inbox Family, § How Work Flows Through, § Ceremony-Only Writes**
+        - Align to the two-section `USER-INBOX`, the atomic-only shared inbox, and the housekeep drain. Remove
+          the `### backlog/BACKLOG-INBOX.md` subsection (retired in 1.3), sharpen `### backlog/ATOMIC-INBOX.md`
+          to the atomic-only role, and update § How Work Flows Through so the drain path is housekeep, not the
+          integration ceremony.
+
+    - `[ ]` **2.2.b `work-organization § Incidental Work Model`**
+        - Align to anti-rider + errand-era routing (the merge-lane edit is 2.3, same file, different section).
+
+    - `[ ]` **2.2.c `session-operations § USER-INBOX`**
+        - Align to the sharpened preambles + `WU_Target` grammar + housekeep drain timing.
+
+### `[ ]` **2.3 Merge-lane codification (`strategy-work-organization § Auto-Merge Lane`)**
+
+- _Goal:_ `§ Auto-Merge Lane` governs how an `arc-housekeep` drain hits the lanes, so a drain's PR structure is
+  prescribed rather than improvised.
+- _Note:_ Reasoning detail in `notes-work-routing-discipline.md` § Merge-lane reasoning detail.
+
+    - `[ ]` **2.3.a One PR per lane + concern-coherence batching**
+        - A drain is one PR per lane (lanes never mix); a new provisional stub auto-merges (`meta-*`/`draft-*`
+          under `backlog/`, no design authority).
+        - What batches is concern-coherence, not file or destination: a planning-routing sweep is one coherent
+          concern → one batched auto-merge PR; code-execution errands stay 1:1 (one concern per PR, may span many
+          files). Same-file is not an exception — distinct same-file concerns are sequenced, not merged (the
+          anti-rider rule applied to packaging; cross-ref 2.1.c).
+
+    - `[ ]` **2.3.b The four-condition review threshold + housekeep carve-out**
+        - Review iff: foreign-owner artifact / design authority / constitutional surface / unverifiable
+          hand-edit of a derived surface (a sunset trigger). Housekeep's own homeless-flush + disciplined
+          ROADMAP regen auto-merge.
+
+    - `[ ]` **2.3.c CWC coordination note (P1)**
+        - Note for CWC that the stewardship concern argues for gating dormant foreign edits too;
+          review-vs-notification + granularity stay CWC's general owner-gate doctrine.
+
+### `[ ]` **2.4 Forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC)**
+
+- _Goal:_ The downstream WUs whose plans this work shifts carry the updated assumptions in their own artifacts,
+  so each is correctly informed when next iterated and no foreign work-item rests here as record-of-record.
+- _Note:_ Write-back specifics in `notes-work-routing-discipline.md` § Coordination write-back specifics. The
+  `operational-state-docs` artifact path is grounded in 2.4.b.
+
+    - `[ ]` **2.4.a `doc-naming-convention` write-back**
+        - Its inbox _collapse_ becomes a _simple rename_ of the surviving `ATOMIC-INBOX` (atomic-only, one
+          section); `BACKLOG-INBOX` retired, not collapsed; carry the uniform `WU_Target` grammar into the
+          rename cascade. Edit `.arc/backlog/provisional/doc-naming-convention/draft-doc-naming-convention.md`
+          (resolves part of its § Open Questions — the shared-inbox section rename is now moot).
+
+    - `[ ]` **2.4.b `operational-state-docs` write-back**
+        - Retiring the shared multi-step section removes a managed-doc surface/section; adopt the slug-keyed
+          managed-entry grammar including `WU_Target` so the structured-record swap stays clean. Edit
+          `.arc/backlog/planned/operational-state-docs/draft-operational-state-docs.md`; verify at execution
+          whether `adr-022-managed-operational-state-documents.md`'s managed-doc list needs the `BACKLOG-INBOX`
+          removal too (role-based, not rename-driven).
+
+    - `[ ]` **2.4.c CWC de-scope record**
+        - Confirm the general base-branch-write-guard capture (the shared write-context classifier) is recorded
+          and CWC-targeted; it routes to CWC's stub at the Phase 6 drain rather than being authored here.
+
+## **Phase 3:** `arc-housekeep` mechanism
+
+_Purpose:_ Build the between-WU drain — a thin `arc-housekeep` skill dispatching a drain/route workflow — plus
+the machine-checked write-context guard that refuses/relocates off a base-branch context, reusing `arc errand`'s
+resolution.
+
+_Design decisions:_ Skill/workflow split mirrors `arc-commit → prepare-commits`. The guard's context classifier
+is test-first (reuses `resolvePrimaryWorktreePath`; the new logic is the on-WU-branch refusal). Routing is
+defined against the logical model (entry · character · home), not markdown format, so a later structured-record
+swap doesn't break it. _Open question pinned here (resolve at authoring):_ the presentation of the `ERRANDS.md`
+staleness + shared-inbox aging surfacing (spec § Open Questions, item b) — default a brief advisory line; settle
+when authoring the surfacing step. See `notes-work-routing-discipline.md` § Drain timing and ownership.
+
+### `[ ]` **3.1 Drain/route workflow (logical-model routing)**
+
+- _Goal:_ A drain/route workflow reads `USER-INBOX`, classifies each entry by character and home, and routes it
+  in one batched pass — leaving `USER-INBOX` empty — so the between-WU drain is a repeatable mechanism, not
+  manual discipline.
+- _Approach:_ classify each entry (existing-stub home / new stub / atomic errand / homeless), then route on
+  housekeep's own auto-merge branch: stub edits written straight in; standalone atomic execution via a reviewed
+  errand; homeless atomics flush to `ATOMIC-INBOX`; homeless multi-step graduates to a provisional stub. PR
+  structure follows § Auto-Merge Lane (2.3).
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+    - `[ ]` **3.1.a Author the workflow skeleton + precondition**
+        - Frontmatter, steps, and the base-branch write-context precondition (gated by the 3.3 guard). New
+          Framework workflow (both copies) under `supplemental/`, matching `prepare-commits` (the closest
+          skill+workflow analog).
+
+    - `[ ]` **3.1.b Classification + routing logic (logical model)**
+        - The four routes, defined against entry · character · home (not markdown format), so a later
+          structured-record swap doesn't break it.
+        - Group planning-routing writes into one auto-merge PR (one coherent concern); keep each code-execution
+          errand standalone (1:1) — never auto-batch code. Lanes never mix (§ Auto-Merge Lane, 2.3).
+
+    - `[ ]` **3.1.c Move-not-copy promotion**
+        - Routing removes the source `USER-INBOX` entry as part of the write → the inbox ends empty.
+
+    - `[ ]` **3.1.d Staleness + aging surfacing**
+        - Surface the `ERRANDS.md` staleness sweep and shared-inbox aging. _Resolves open question (b):_ default
+          a brief advisory line; finalize the presentation here.
+
+### `[ ]` **3.2 Thin `arc-housekeep` skill (dual entry point)**
+
+- _Goal:_ `arc-housekeep` is invokable as a thin skill that dispatches the drain/route workflow, and the same
+  logic is reachable from `session-handoff`'s between-WUs path — one workflow, two doors.
+- **Strategies:** strategy-workflow-authoring.md
+
+    - `[ ]` **3.2.a Author the `arc-housekeep` SKILL.md**
+        - Thin skill mirroring `arc-commit`'s shape. Canonical `.arc/system/.internal/skills/arc-housekeep/` +
+          package mirror; hand-sync the harness copy if exercised this session (self-hosting skill drift).
+
+    - `[ ]` **3.2.b Keep the mechanism DRY**
+        - The workflow is the single logic home; the skill and the `session-handoff` between-WUs path (Phase 5.3)
+          both dispatch it — factor, don't duplicate.
+
+### `[ ]` **3.3 Machine-checked write-context guard (test-first)**
+
+- _Goal:_ Invoked off a base-branch write context, `arc-housekeep` refuses or offers to relocate rather than
+  writing shared base-branch paths from a WU branch — the precondition enforced mechanically, not by prose.
+- _Shape:_ A new read-only `arc housekeep check` subcommand mirroring `arc errand check` — emits a
+  machine-consumable classification (with `--json`) the skill/workflow consults. Adds an `arc housekeep` command
+  group in `cli.ts` + `src/handlers/housekeep.ts` (+ command/lib), mirroring the errand file layout.
+- _Note:_ Reuses `resolvePrimaryWorktreePath` (`src/lib/git/worktree-roster.ts`), `readConfigSettings`
+  (`branch.base`), and current-branch resolution — the same context `arc errand` resolves; the existing
+  `isProtectedBaseBranch` (`lib/release/interlock-validation.ts`) is a candidate building block.
+- **Strategies:** strategy-testing-methodology.md
+
+    - Build `test-first` (one behavior at a time):
+        - On the configured `branch.base` (primary-worktree base context) → the guard passes (proceed).
+        - On a WU branch (`plan/<name>` or `<type>/<name>`, i.e. not `branch.base`) → the guard refuses with a
+          relocate offer.
+        - Context resolution matches `arc errand`'s (primary worktree path, current branch, `branch.base`).
+        - Degenerate state (detached HEAD / no base) → safe refusal, not a silent write.
+        - `--json` emits the classification shape the skill consumes.
+
+## **Phase 4:** CLI probe + session-init wiring
+
+_Purpose:_ Add the `inboxState`/`housekeepNeeded` probe field to the session-init envelope and wire the
+session-init workflow's soft-offer — making the empty-`USER-INBOX`-at-WU-start invariant a real forcing
+function.
+
+_Design decisions:_ Probe lib is test-first, modeled on `errand-staleness-sweep.ts` and slotted into
+`SessionInitProbeResult` parallel to `errandSweep`. The session-init workflow gains the `housekeep` intent (the
+third Orient-arm intent beside discovery and errand). Soft-encourage, never hard-block.
+
+### `[ ]` **4.1 `inboxState` probe lib (test-first)**
+
+- _Goal:_ A probe computes the routable-entry count in `USER-INBOX` and a `housekeepNeeded` flag — so
+  session-init offers housekeep from a machine-resolved signal, not an agent re-scan.
+- _Shape:_ A pure function `runInboxState({ content })` over `USER-INBOX` text, returning
+  `{ routableCount, housekeepNeeded }` — parallel to `runErrandStalenessSweep`. New lib
+  `src/lib/session-init/inbox-state.ts`. Counts `parse.ok` entries from
+  `parseCrossWuEntries(content, "user-inbox")`, so "routable" = well-formed entries (depends on the 1.2 parser).
+- _Note:_ Identity-gating and the file read live in the orchestrator (4.2), not this pure lib.
+- **Strategies:** strategy-testing-methodology.md
+
+    - Build `test-first` (one behavior at a time):
+        - Counts `parse.ok` entries across `## Atomic` + `## Backlog`.
+        - `housekeepNeeded` is true when the count > 0, false on an empty inbox (trivial emptiness gate).
+        - Empty content → count 0, `housekeepNeeded` false.
+        - Malformed (`{ok:false}`) entries aren't counted — mirrors the sweep skipping unageable entries.
+
+### `[ ]` **4.2 Wire probe into the session-init status envelope**
+
+- _Goal:_ The `arc status --session-init --json` envelope carries an `inboxState` slot parallel to `errandSweep`,
+  so the workflow reads `housekeepNeeded` without re-scanning.
+
+    - `[ ]` **4.2.a Add the `inboxState` slot to the probe types**
+        - Extend `SessionInitProbeResult` and the `SessionInitProbes` interface (`src/commands/status/types.ts`).
+
+    - `[ ]` **4.2.b Orchestrate + bind the probe**
+        - Read `USER-INBOX` and call the probe in `runSessionInitStatus` (`src/commands/status/run.ts`); bind in
+          the handler (`src/handlers/status.ts`), gated on identity present (like `errandSweep`) — identity
+          absent resolves the slot to skip/empty. The slot rides the envelope as
+          `inboxState.value.{routableCount, housekeepNeeded}`. Cover with an integration test (present, empty,
+          identity-absent).
+
+### `[ ]` **4.3 session-init `housekeep` intent + soft-offer**
+
+- _Goal:_ Session-init's Orient arm offers housekeep when `USER-INBOX` has routable entries — a third intent
+  beside discovery and errand — soft-encouraging the empty-at-WU-start invariant without blocking.
+- _Note:_ Cross-file refs (session-init ↔ housekeep ↔ session-handoff) use stable heading-slug anchors, never
+  ordinal `Step N` refs (composable-workflows interim convention).
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **4.3.a Add the `housekeep` intent to the entry dispatch**
+        - Step 2 Orient arm reads `inboxState.housekeepNeeded` and carries the housekeep intent.
+
+    - `[ ]` **4.3.b Add the soft-offer to orientation**
+        - Step 6: "No active WU. `USER-INBOX`: N pending — housekeep?" Soft-encourage, never hard-block. Both
+          copies (`session-init` is `.template.md` in the package).
+
+## **Phase 5:** Lifecycle-workflow deltas
+
+_Purpose:_ Wire the mechanism into the remaining lifecycle workflows — remove the integration-ceremony drain,
+reframe activation absorption, add the dedicated between-WUs handoff path, and add the init backstop warning —
+so the drain failure is structurally designed out.
+
+_Design decisions:_ `session-handoff`'s between-WUs path wires to the same drain logic as the standalone skill
+(DRY, two doors). All workflow edits dual-copy; `session-init`/`session-handoff` are `.template.md` in the
+package source.
+
+### `[ ]` **5.1 Remove `integrate-work-unit` Step 10 (drain leaves integration)**
+
+- _Goal:_ Integration ships only the WU — the `USER-INBOX` → shared-inbox drain no longer rides the integration
+  commit — so the failure mode (deferred under PR-leanness pressure) is structurally removed.
+- _Note:_ Removing Step 10 also stops the `## Backlog` → `BACKLOG-INBOX` write — the write-stop leg of the
+  `BACKLOG-INBOX` retirement (1.3 template, 6.2 content). Renumber the subsequent steps; the
+  `strategy-planning-module § Ceremony-Only Writes` fire-point list (2.2.a) drops integration in favor of
+  housekeep. Both copies.
+
+### `[ ]` **5.2 Reframe `activate-work-unit` Step 6 (absorption narrowing)**
+
+- _Goal:_ Activation absorbs only from the shared inbox (homeless items whose home turns out to be this WU);
+  `USER-INBOX` absorption is dropped as degenerate (empty post-housekeep) — so the step matches reality.
+- _Note:_ Drop the `BACKLOG-INBOX` reference (retired); the shared inbox is now atomic-only `ATOMIC-INBOX`. Both
+  copies.
+
+### `[ ]` **5.3 `session-handoff` dedicated between-WUs path**
+
+- _Goal:_ Session-handoff has a streamlined between-WUs branch — no SESSION-NOTES write, no meta commit, review
+  WORKING-MEMORY removals, offer housekeep if captures pending, sync, confirm — wired to the same drain logic as
+  the standalone skill.
+- _Note:_ Folds the standing `USER-INBOX § Atomic` capture (the between-WUs-path request). Compose as a
+  resolve-then-load fragment (composable-workflows forward-compat), not a parallel copy. SESSION-NOTES
+  _content_ cleanup stays `handoff-optimization`'s — adjacent concern, coordinate.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+    - `[ ]` **5.3.a Add the between-WUs branch (DRY)**
+        - Factor the shared steps rather than duplicating the active-WU path; the branch skips SESSION-NOTES /
+          meta-commit and reviews WORKING-MEMORY removals. Replaces the scattered `(if an active WU exists)`
+          conditionals and the "next-session pointer" marker — durable captures route to existing surfaces
+          (`USER-INBOX` / `WORKING-MEMORY` / `ROADMAP`), not a phantom pointer file.
+
+    - `[ ]` **5.3.b Wire the housekeep offer**
+        - Reuse the Phase 3 drain logic (the second of the two doors); offer housekeep when captures pend.
+
+### `[ ]` **5.4 `init-work-unit` non-blocking backstop warning**
+
+- _Goal:_ Starting a new WU with a non-empty `USER-INBOX` emits a non-blocking warning ("starting new work with
+  N pending captures — consider housekeep first") — a backstop reinforcing the empty-at-WU-start invariant at
+  the init moment.
+- _Note:_ Init, not activate — init is the begin-new-WU moment the invariant targets. Fires at Step 1/2 (before
+  scaffolding), reading the `inboxState` probe. Both copies.
+
+## **Phase 6:** Live validation (component b)
+
+_Purpose:_ Run the new `arc-housekeep` flow against the real backlog — drain `andrew`'s long-deferred
+`USER-INBOX` captures to their homes and retire `BACKLOG-INBOX`'s contents into provisional stubs. The first
+live run _is_ the mechanism's validation; the next WU begins with an empty `USER-INBOX`.
+
+_Design decisions:_ Exercises Phases 1-5 end to end. Run from the primary worktree / base-branch context per the
+guard. _Open question pinned here (resolve at run):_ the errand↔PR chunking heuristic (spec § Open Questions,
+item a) — default one PR per lane, chunk only if a drain is too large for one reviewable PR; the actual backlog
+volume at run time decides.
+
+### `[ ]` **6.1 Drain `andrew`'s `USER-INBOX` to homes**
+
+- _Goal:_ `andrew`'s pending `USER-INBOX` captures are routed to their real homes by an actual `arc-housekeep`
+  run — the mechanism's first live exercise, proving the drain end to end.
+- _Approach:_ run the housekeep flow; classify + route each entry (existing-stub edits, new provisional stubs,
+  standalone errands, homeless flush to `ATOMIC-INBOX`). PRs follow § Auto-Merge Lane; the chunking heuristic
+  (open question a) settles against the actual volume.
+- _Note:_ ~17 entries as of planning (8 § Atomic + 9 § Backlog). The live `.arc/user/andrew/USER-INBOX.md` is
+  still flat-shape here — the Phase 1 parser switch doesn't reshape it (a harmless interim probe miscount).
+  Reshape its entries to the H3+checkbox grammar, or read them directly, as the drain's first step.
+
+    - `[ ]` **6.1.a Execute the drain over `USER-INBOX`**
+        - Classify and route every `## Atomic` + `## Backlog` entry to its home.
+
+    - `[ ]` **6.1.b Confirm the invariant holds**
+        - `USER-INBOX` ends empty; the next WU starts clean.
+
+### `[ ]` **6.2 Retire `BACKLOG-INBOX` contents to provisional stubs**
+
+- _Goal:_ `BACKLOG-INBOX`'s accumulated entries reach durable homes and the file is deleted — completing the
+  retirement begun in 1.3 (template) and 5.1 (write-stop).
+- _Note:_ A one-time retirement migration, not a housekeep run (housekeep drains the personal `USER-INBOX`, not
+  shared inboxes). ~13 entries, already in the managed-entry grammar (no reshape needed).
+
+    - `[ ]` **6.2.a Route each entry to a durable home**
+        - Triage each `BACKLOG-INBOX` entry: graduate to a `backlog/provisional/<wu-name>/` stub (`meta-*` +
+          `draft-*` as scope warrants), merge into an existing WU where one fits, or dismiss if obsolete.
+
+    - `[ ]` **6.2.b Delete the live `BACKLOG-INBOX.md`**
+        - Remove the file and confirm no remaining references across docs/workflows/templates.
+
+## **Phase 7:** Verification
+
+### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+---
+
+## Success Criteria
+
+- `[ ]` `DEV-RULES.ARC § Leave it cleaner` states the core invariant, the capture decision table, the
+  holding-vs-execution boundary, the anti-rider concern-identity test, and the planning-artifacts-aren't-capture
+  anti-pattern; the three strategies align with no contradiction.
+- `[ ]` `USER-INBOX`'s `## Atomic` / `## Backlog` preambles carry the routing model and `## Backlog` entries
+  carry `WU_Target`; `parseUserInboxSection` parses the shape with no silent drops (tests green).
+- `[ ]` `BACKLOG-INBOX` is retired (template removed, writes stopped, contents drained, file deleted);
+  `ATOMIC-INBOX` is the atomic-only shared inbox.
+- `[ ]` `arc-housekeep` exists as a thin skill + drain/route workflow, refuses/relocates off a base-branch write
+  context, drains `USER-INBOX` to empty, and is reachable from both the standalone skill and `session-handoff`'s
+  between-WUs path.
+- `[ ]` The session-init envelope exposes `inboxState`/`housekeepNeeded`; session-init carries the `housekeep`
+  intent + soft-offer; `init-work-unit` warns on a non-empty `USER-INBOX`; `integrate-work-unit` Step 10 is
+  removed; `activate-work-unit` Step 6 is narrowed.
+- `[ ]` `strategy-work-organization § Auto-Merge Lane` codifies one-PR-per-lane, provisional-stub auto-merge, the
+  four-condition review threshold, and the housekeep carve-out.
+- `[ ]` The three forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC de-scope) are
+  recorded in their destinations.
+- `[ ]` A live `arc-housekeep` run cleared `andrew`'s `USER-INBOX` and retired `BACKLOG-INBOX`; the next WU
+  begins with an empty `USER-INBOX`.
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration
+
+[verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
