@@ -175,6 +175,13 @@ before `in-flight-awareness` so that WU starts from a clean, trustworthy capture
 
 ### Forward-compat write-backs (Coordination)
 
+These write-backs **ride this work unit** rather than routing as separate Errands: each is a *spec-scoped
+coordination write-back* — a mechanical propagation of this WU's own decisions into the downstream artifacts
+they shift, not an incidental edit of foreign-owned work. That is the general seam: a spec-claimed write-back
+rides; an unscoped incidental foreign edit (or foreign *design* authoring) routes through the Errand matrix or a
+capture. The general rule is codified in `strategy-work-organization § Errand Work Class`, extending the R18
+anti-rider test (concern-identity, not file-identity) to the cross-WU write-back case.
+
 20. **(P0)** Write back to `doc-naming-convention`: it adopts `USER-INBOX`'s two-section shape and the uniform
     `WU_Target` entry grammar; because this WU *retires* `BACKLOG-INBOX` rather than collapsing it, doc-naming's
     "collapse two shared files into a two-section `INBOX.PROJECT`" becomes a **simple rename** of the surviving

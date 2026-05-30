@@ -662,8 +662,11 @@ ARC defines two work classes that share commit and review machinery but differ i
 Incidental work you have **committed to do yourself, soon** routes through this matrix, which selects its
 path. Work you are not committing to now is an inbox capture — triaged at a later ceremony, never routed here
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
-§ Discovered Work Routing). Two axes govern the choice: **create vs. maintain** decides whether the work needs the
-Work-Unit wrapper at all; **self-contained vs. cross-cutting** decides how an Errand routes once it does not.
+§ Discovered Work Routing). A third case sits outside the matrix entirely: work your **own work unit's spec
+already claims** — a coordination write-back it scoped in — is WU scope and rides the WU's PR, never an Errand;
+the matrix governs *incidental* cross-cutting work only. For that incidental case, two axes govern the choice:
+**create vs. maintain** decides whether the work needs the Work-Unit wrapper at all; **self-contained vs.
+cross-cutting** decides how an Errand routes once it does not.
 
 | Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
 | ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
@@ -697,6 +700,17 @@ flight**, the edit is advisory-gated — coordinate with it, or sequence the Err
 than editing the shared artifact in parallel (parallel edits on an in-flight artifact plant a latent
 cross-branch conflict). The check is **advisory and judgment-based** — it records a caveat, never a hard
 block; when no in-flight work unit owns the target, the Errand proceeds unchanged.
+
+**Coordination write-backs ride; incidental foreign edits route.** A cross-cutting edit that your *own* work
+unit's spec scoped in — propagating a decision you are shipping into the downstream artifact it shifts — is a
+*coordination write-back*: it rides your WU's PR, not this matrix. It qualifies on three counts: it is (1)
+scoped into your WU's spec, (2) a mechanical propagation of *your* decision, and (3) recorded into the foreign
+artifact's own record-of-record. It *routes* instead — Errand or capture — when it is an unrelated fix that
+merely shares a file (the rider anti-pattern) or requires *foreign design authoring*, a decision that belongs to
+the downstream work unit. This is the same concern-identity-not-file-identity test as the anti-rider rule
+([DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing), here deciding WU-scope-vs-route rather than
+inline-vs-defer. Gating a *dormant* foreign edit more broadly is the project's concurrent-work discipline's
+concern, not this matrix's.
 
 ### Cheap-branch path
 

@@ -247,35 +247,37 @@ specifics.
   to the new H2. Lint clean, framework parity holds (`DEV-RULES.PROJECT` template/instance divergence is
   pre-existing).
 
-### `[ ]` **2.6 Coordination-write-back routing rule (`strategy-work-organization § Errand Work Class`)**
+### `[x]` **2.6 Coordination-write-back routing rule (`strategy-work-organization § Errand Work Class`)**
 
 - _Goal:_ The doctrine names the seam that decides whether a cross-WU edit rides the active WU or routes out —
   so the 2.4-shaped case (a spec-scoped write-back into a foreign WU's artifact) is covered, not left to be
-  re-derived. Discovered in-WU while executing 2.4; folded in per `§ Leave it cleaner` (in-WU discovery → new
-  task).
-- _Note:_ The components exist (anti-rider concern-identity; `§ Leave it cleaner` planning-artifacts-aren't-capture
-  dual; the Errand matrix's cross-cutting column) but none names the **spec-scoping seam**. Read literally, the
-  Errand matrix's "Cross-cutting (foreign-owned artifact) → Errand" row mis-flags a spec-scoped write-back. Placed
-  after 2.5 so it can cross-ref the new `§ Discovered Work Routing` H2. Kept separate from 2.5 (mechanical
-  promote + cascade) to preserve that task's concern isolation.
+  re-derived. Discovered in-WU while executing 2.4; folded in per `§ Discovered Work Routing` (in-WU discovery →
+  new task).
 
-    - `[ ]` **2.6.a Add the third category to the Errand decision-matrix preamble**
-        - The matrix gates on "incidental work committed to now" vs. "not-now → capture"; add the third: work
-          your **own WU's spec already claims** is WU scope (rides the WU's PR), not an Errand. The matrix governs
-          _incidental_ cross-cutting work only.
+    - `[x]` **2.6.a Add the third category to the Errand decision-matrix preamble**
+        - Added to the matrix preamble: beyond "incidental-now → matrix" and "not-now → capture," a third case
+          sits _outside_ the matrix — work your own WU's spec already claims (a scoped-in coordination write-back)
+          is WU scope and rides the WU's PR, never an Errand; the matrix governs _incidental_ cross-cutting work
+          only. The two axes were re-scoped to "that incidental case."
 
-    - `[ ]` **2.6.b State the ride-vs-route test (the spec seam)**
-        - A coordination write-back rides iff it is (1) scoped into your WU's spec, (2) a mechanical propagation
-          of _your_ decision, (3) recording it into the foreign artifact's own record-of-record. It routes (Errand
-          or capture) when it is an unrelated same-file fix (rider) or requires _foreign design authoring_. The
-          push-direction complement to `§ Leave it cleaner`'s planning-artifacts-aren't-capture dual; optional
-          one-line nod from `DEV-RULES.ARC § Discovered Work Routing`.
+    - `[x]` **2.6.b State the ride-vs-route test (the spec seam)**
+        - Added `**Coordination write-backs ride; incidental foreign edits route**` after the cross-cutting axis:
+          the three-count ride test (scoped into your spec / mechanical propagation of _your_ decision / recorded
+          into the foreign artifact's record-of-record) vs. routes-out (unrelated same-file fix = rider, or
+          _foreign design authoring_). Framed as the same concern-identity test as anti-rider, deciding
+          WU-scope-vs-route rather than inline-vs-defer.
 
-    - `[ ]` **2.6.c Confirm the CWC de-scope boundary at audit**
-        - Verify the rule clarifies the _matrix-entry boundary_ (this WU's surfaces — the matrix gate + anti-rider)
-          and does not drift into the general errand↔PR packaging convention de-scoped to Concurrent Work
-          Conventions (spec § Non-Goals). Settle whether a spec requirement should anchor this (generalize R20–22,
-          or a new R) at the pre-implementation audit.
+    - `[x]` **2.6.c Confirm the CWC de-scope boundary at audit**
+        - Confirmed the rule stays on the matrix-entry boundary (this WU's surfaces); the dormant-foreign-edit
+          gating is deferred to "the project's concurrent-work discipline" in audience-neutral terms (no internal
+          WU named in the adopter-facing surface). Spec-anchored per the **fold-into-existing** decision: a framing
+          note under spec `§ Forward-compat write-backs (Coordination)` binds the general rule to its R20–22
+          instances + the R18 anti-rider test (no standalone requirement).
+
+- _Outcome:_ The spec-scoping seam is now codified in `§ Errand Work Class` (both copies) and spec-anchored. The
+  Errand matrix no longer reads as "any foreign-artifact edit → Errand"; a spec-scoped coordination write-back is
+  recognized as WU scope. Single new doctrine of this WU beyond the planned 2.1–2.5; the rest was restructure +
+  alignment.
 
 ## **Phase 3:** `arc-housekeep` mechanism
 
