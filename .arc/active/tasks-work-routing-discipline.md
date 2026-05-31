@@ -526,27 +526,41 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   review extensions (`post-task-quality`, `pre-pr-review`, `pre-push-review`, `pre-merge-review`) fire at their
   points. Dispatch wiring + Materialize/in-flight (Phase 4) and the WU-side promote path (Phase 5) follow.
 
-### `[ ]` **3.5 `arc-inbox` capture entrypoint (model-first)**
+### `[x]` **3.5 `arc-inbox` capture entrypoint (model-first)**
 
 - _Goal:_ A single `arc-inbox` skill is the unified capture entrypoint — routing + entry construction for
   `§ Atomic` (with/without the reminder flag), `§ Backlog` (with `WU_Target`), and homeless flush — so capture is
   consistent and the doctrine's actionable specifics live in one action-focused place.
-- _Shape:_ Thin skill (canonical `.arc/system/.internal/skills/arc-inbox/` + package mirror). Write is
-  **hand-managed markdown now**, structured to swap to `operational-state-docs`' `arc inbox add` later —
-  interface + entry grammar stable across the swap (the `ROADMAP`-before-its-renderer pattern). Scoped to
-  capture; drain is `arc-housekeep`'s, execution is `arc-session`'s.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.5.a Author the `arc-inbox` SKILL.md**
-        - Mirror `arc-commit`'s thin shape; route per `DEV-RULES.ARC § Discovered Work Routing`; construct the
-          managed-entry grammar for each section. The `§ Atomic` **reminder flag** is defined by 2.R.4 (spec R30):
-          the skill sets the `_Remind:_` flag on user intent and stamps the `_Created:_` date anchor — parsed
-          fields backtick-delimit their value (key bare-italic), distinct from prose descriptors.
+    - `[x]` **3.5.a Author the `arc-inbox` SKILL.md**
+        - `arc-inbox/SKILL.md` authored (canonical + byte-identical package mirror) mirroring `arc-commit`'s thin
+          numbered-step shape: a confirm-capture-is-the-route gate (defers the inline / errand-now / capture call
+          to `DEV-RULES.ARC § Discovered Work Routing`), character→section classification, the shared
+          H3 + checkbox + italic-descriptor entry grammar with the `WU_Target` line for `§ Backlog`, and the
+          optional `_Remind:_` / `_Created:_` reminder flag (parsed values backtick-delimited, key bare-italic;
+          current-date stamp). Registered in the skills `README.md` (both copies).
 
-    - `[ ]` **3.5.b Doc-boundary divide**
-        - Move actionable construction specifics out of the inbox templates into the skill — templates clean down
-          to surface-only; ambient discipline (the routing decision, the core invariant) stays in
+    - `[x]` **3.5.b Doc-boundary divide**
+        - Stripped the construction `<!-- Entry shape -->` comments from the inbox templates
+          (`templates/user/USER-INBOX.md`, `ATOMIC-INBOX.template.md`, and the live `.arc/backlog/ATOMIC-INBOX.md`)
+          down to surface-only — headings + destination preambles; refreshed the USER-INBOX preambles to the
+          execution-only model (`arc-errand` → `run-errand`) and added a one-line `arc-inbox` capture pointer.
+          Replaced the stale `§ Atomic` "never executed directly from here" line (a relic of the retired
+          `ERRANDS.md` intermediate surface) with an execution-locus nudge — run via `arc-session --errand`, from
+          the primary worktree's base, never a WU branch — doubling as new-user orientation; aligned the
+          `§ Backlog` mid-WU reference to
+          the same user-facing invocation (the `run-errand` lifecycle name stays in the agent-facing doctrine).
+          Propagated the preamble changes to the live `.arc/user/andrew/USER-INBOX.md` and the notes' verbatim
+          preamble block. Ambient discipline (the routing decision, the core invariant) stays in
           `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation awareness.
+
+- _Outcome:_ Capture is now a single skill: `arc-inbox` owns entry construction (the doc-boundary divide
+  deliverable), the inbox templates carry only destination surface, and ambient routing discipline stays
+  constitutional in `DEV-RULES.ARC`. Homeless atomics capture to `§ Atomic` and transit to the shared inbox at
+  drain — the skill writes only the personal `USER-INBOX`, refusing direct shared-inbox writes (drain-write
+  isolation). Model-first per R29: hand-managed markdown over a stable interface + entry grammar, swap-ready for
+  `operational-state-docs`' `arc inbox add` backend.
 
 ### `[ ]` **3.6 Retire the queue + capture-flavored `arc-errand` (sequenced last)**
 

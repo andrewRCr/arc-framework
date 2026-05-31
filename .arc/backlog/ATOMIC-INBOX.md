@@ -8,9 +8,6 @@
 
 ## Inbox
 
-<!-- Entry shape: H3 + checkbox + bold title (`### `[ ]` **Title**`) + italic-descriptor bullets
-(_Observation:_, _Approach:_, _Files:_, _Scope:_, _Captured during:_). -->
-
 ### `[ ]` **Audit interlock-marker convention adoption across remaining workflows**
 
 - _Observation:_ `strategy-workflow-authoring.md` § Interlock markers codifies the workflow-interlock

@@ -8,7 +8,4 @@
 
 ## Inbox
 
-<!-- Entry shape: H3 + checkbox + bold title (`### `[ ]` **Title**`) + italic-descriptor bullets
-(_Observation:_, _Approach:_, _Files:_, _Scope:_, _Captured during:_). -->
-
 ---

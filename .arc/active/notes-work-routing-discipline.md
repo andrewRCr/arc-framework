@@ -83,10 +83,10 @@ in the preamble (they evolve, and compressing them into the heading invites impr
 provisional" is wrong: most stubs start `planned/`).
 
 > *Atomic — Single-step captures. Drain to execution — folded into a WU (inline absorption), or run as an errand
-> (`run-errand`). Never executed directly from here.*
+> via `arc-session --errand`, from the primary worktree's base, never a WU branch.*
 >
 > *Work Unit — Multi-step captures bound for a backlog stub. Route to an existing stub, or graduate to a new
-> one — directly at housekeep; `run-errand` only if needed mid-WU. Carries `WU_Target` (TBD ok); an optional
+> one — directly at housekeep; `arc-session --errand` only if needed mid-WU. Carries `WU_Target` (TBD ok); an optional
 > `(planned|provisional)` parenthetical sets a new stub's dir (decided at drain if omitted).*
 
 The **shared inbox** (`ATOMIC-INBOX`, atomic-only) uses only the `## Atomic` heading + its preamble — there is
