@@ -39,6 +39,7 @@ import type { CascadeResolution } from "../../lib/session-init/branch-gone-casca
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
+import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -161,6 +162,14 @@ export interface SessionInitProbeResult {
    * worktree sweep it is not worktree-gated.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
+  /**
+   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
+   * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
+   * machine-resolved signal rather than an agent re-scan. Present whenever
+   * identity resolved (the source is identity-scoped); omitted only when
+   * identity is absent.
+   */
+  inboxState?: Probe<InboxStateResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -327,6 +336,12 @@ export interface SessionInitProbes {
    * advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
+  /**
+   * Inbox-state resolver. Receives the resolved identity; the handler reads
+   * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in
+   * the eager phase whenever identity resolved; advisory, read-only.
+   */
+  inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

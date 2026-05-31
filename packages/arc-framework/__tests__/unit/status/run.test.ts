@@ -52,6 +52,7 @@ import type { CascadeResolution } from "../../../src/lib/session-init/branch-gon
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -288,6 +289,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
+    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
 }
@@ -827,6 +829,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "errandSweep",
       "extensions",
       "identity",
+      "inboxState",
       "mode",
       "recommendedCombinedPrompt",
       "releaseRouting",
@@ -1302,6 +1305,39 @@ describe("runSessionInitStatus — errand-staleness sweep slot", () => {
     expect(result.errandSweep?.ok).toBe(false);
     if (result.errandSweep && !result.errandSweep.ok) {
       expect(result.errandSweep.error.message).toBe("sweep boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — inbox-state slot", () => {
+  it("fires the probe when identity resolved, passing the identity", async () => {
+    const probes = sessionInitProbes({
+      inboxState: vi.fn(async () => ({ routableCount: 3, housekeepNeeded: true })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.inboxState).toHaveBeenCalledWith("andrew");
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 3, housekeepNeeded: true });
+    }
+  });
+
+  it("omits the slot when identity is absent", async () => {
+    const probes = sessionInitProbes();
+    const result = await runSessionInitStatus({ identity: null, role: null, probes });
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("inboxState" in result).toBe(false);
+  });
+
+  it("wraps a rejecting probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      inboxState: async () => { throw new Error("inbox boom"); },
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.inboxState?.ok).toBe(false);
+    if (result.inboxState && !result.inboxState.ok) {
+      expect(result.inboxState.error.message).toBe("inbox boom");
     }
     expect(result.worktree.ok).toBe(true);
   });

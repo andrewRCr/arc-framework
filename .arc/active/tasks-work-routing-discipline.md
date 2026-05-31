@@ -624,20 +624,23 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   counts `parse.ok` entries (well-formed across `## Atomic` + `## Backlog`; malformed blocks skipped) and sets
   `housekeepNeeded` on count > 0. Identity-gating and the file read stay with the 4.2 orchestrator.
 
-### `[ ]` **4.2 Wire probe into the session-init status envelope**
+### `[x]` **4.2 Wire probe into the session-init status envelope**
 
 - _Goal:_ The `arc status --session-init --json` envelope carries an `inboxState` slot parallel to `errandSweep`,
   so the workflow reads `housekeepNeeded` without re-scanning.
 
-    - `[ ]` **4.2.a Add the `inboxState` slot to the probe types**
-        - Extend `SessionInitProbeResult` and the `SessionInitProbes` interface (`src/commands/status/types.ts`).
+    - `[x]` **4.2.a Add the `inboxState` slot to the probe types**
+        - Added `inboxState?: Probe<InboxStateResult>` to `SessionInitProbeResult` and the `inboxState` resolver
+          to the `SessionInitProbes` interface (`src/commands/status/types.ts`).
 
-    - `[ ]` **4.2.b Orchestrate + bind the probe**
-        - Read `USER-INBOX` and call the probe in `runSessionInitStatus` (`src/commands/status/run.ts`); bind in
-          the handler (`src/handlers/status.ts`), gated on identity present (like `errandSweep`) — identity
-          absent resolves the slot to skip/empty. The slot rides the envelope as
-          `inboxState.value.{routableCount, housekeepNeeded}`. Cover with an integration test (present, empty,
-          identity-absent).
+    - `[x]` **4.2.b Orchestrate + bind the probe**
+        - Added the identity-gated `inboxState` task to `runSessionInitStatus` (`src/commands/status/run.ts`) —
+          omitted from the envelope when identity is absent, like `errandSweep`. The handler
+          (`src/handlers/status.ts`) binds it to read `.arc/user/{identity}/USER-INBOX.md` (empty string on
+          miss) and call `runInboxState`; the slot rides as `inboxState.value.{routableCount, housekeepNeeded}`.
+- _Outcome:_ Orchestrator + integration coverage added (present / empty / identity-absent). Making `inboxState`
+  required on `SessionInitProbes` rippled into every probe-literal test fixture — surfaced only by
+  `typecheck:test`, not the src-only Tier-1 check.
 
 ### `[ ]` **4.3 session-init `housekeep` intent + soft-offer**
 
