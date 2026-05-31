@@ -615,22 +615,14 @@ _Design decisions:_ Probe lib is test-first, modeled on `errand-staleness-sweep.
 `SessionInitProbeResult` parallel to `errandSweep`. The session-init workflow gains the `housekeep` intent (the
 third Orient-arm intent beside discovery and errand). Soft-encourage, never hard-block.
 
-### `[ ]` **4.1 `inboxState` probe lib (test-first)**
+### `[x]` **4.1 `inboxState` probe lib (test-first)**
 
 - _Goal:_ A probe computes the routable-entry count in `USER-INBOX` and a `housekeepNeeded` flag — so
   session-init offers housekeep from a machine-resolved signal, not an agent re-scan.
-- _Shape:_ A pure function `runInboxState({ content })` over `USER-INBOX` text, returning
-  `{ routableCount, housekeepNeeded }` — parallel to `runErrandStalenessSweep`. New lib
-  `src/lib/session-init/inbox-state.ts`. Counts `parse.ok` entries from
-  `parseCrossWuEntries(content, "user-inbox")`, so "routable" = well-formed entries (depends on the 1.2 parser).
-- _Note:_ Identity-gating and the file read live in the orchestrator (4.2), not this pure lib.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - Counts `parse.ok` entries across `## Atomic` + `## Backlog`.
-        - `housekeepNeeded` is true when the count > 0, false on an empty inbox (trivial emptiness gate).
-        - Empty content → count 0, `housekeepNeeded` false.
-        - Malformed (`{ok:false}`) entries aren't counted — mirrors the sweep skipping unageable entries.
+- _Outcome:_ New `src/lib/session-init/inbox-state.ts` — pure `runInboxState({ content })` returning
+  `{ routableCount, housekeepNeeded }`, a thin filter over `parseCrossWuEntries(content, "user-inbox")` that
+  counts `parse.ok` entries (well-formed across `## Atomic` + `## Backlog`; malformed blocks skipped) and sets
+  `housekeepNeeded` on count > 0. Identity-gating and the file read stay with the 4.2 orchestrator.
 
 ### `[ ]` **4.2 Wire probe into the session-init status envelope**
 
