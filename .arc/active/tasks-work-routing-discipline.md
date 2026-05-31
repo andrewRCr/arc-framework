@@ -435,10 +435,12 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   provisional stub. PR structure follows § Auto-Merge Lane (2.3).
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.1.a Author the workflow skeleton + precondition**
-        - Frontmatter, steps, and the base-branch write-context precondition (gated by the 3.3 guard). New
-          Framework workflow (both copies) under `supplemental/`, matching `prepare-commits` (the closest
-          skill+workflow analog).
+    - `[x]` **3.1.a Author the workflow skeleton + precondition**
+        - `drain-inbox.md` authored in both copies under `supplemental/` (mirrors `prepare-commits`):
+          frontmatter, the five-step drain scaffold, and the full base-branch write-context precondition — a
+          machine-checked guard (via the `arc housekeep check` command, 3.3) that refuses or relocates a
+          WU-branch invocation, keyed on **write context** rather than absence of an active WU, so mid-WU
+          on-demand sweeps are supported. No `arc:` deps declared yet (the skeleton loads no method/extension).
 
     - `[ ]` **3.1.b Classification + routing logic (logical model)**
         - The four routes, defined against entry · character · home (not markdown format), so a later
