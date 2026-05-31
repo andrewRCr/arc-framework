@@ -424,15 +424,11 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
 `notes-work-routing-discipline.md` § Errand-model re-pivot + § Drain timing and ownership, and spec
 § Errand-model re-pivot.
 
-### `[ ]` **3.1 Drain/route workflow (logical-model routing)**
+### `[x]` **3.1 Drain/route workflow (logical-model routing)**
 
 - _Goal:_ A drain/route workflow reads `USER-INBOX`, classifies each entry by character and home, and routes it
   in one batched pass — leaving `USER-INBOX` empty — so the between-WU drain is a repeatable mechanism, not
   manual discipline.
-- _Approach:_ classify each entry (existing-stub home / new stub / atomic errand / homeless), then route on
-  housekeep's own auto-merge branch: stub edits written straight in; standalone atomic execution via `run-errand`
-  (a reviewed-lane code errand, 1:1); homeless atomics flush to `ATOMIC-INBOX`; homeless multi-step graduates to a
-  provisional stub. PR structure follows § Auto-Merge Lane (2.3).
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
     - `[x]` **3.1.a Author the workflow skeleton + precondition**
@@ -442,18 +438,26 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
           WU-branch invocation, keyed on **write context** rather than absence of an active WU, so mid-WU
           on-demand sweeps are supported. No `arc:` deps declared yet (the skeleton loads no method/extension).
 
-    - `[ ]` **3.1.b Classification + routing logic (logical model)**
-        - The four routes, defined against entry · character · home (not markdown format), so a later
-          structured-record swap doesn't break it.
-        - Group planning-routing writes into one auto-merge PR (one coherent concern); keep each code-execution
-          errand standalone (1:1) — never auto-batch code. Lanes never mix (§ Auto-Merge Lane, 2.3).
+    - `[x]` **3.1.b Classification + routing logic (logical model)**
+        - Steps 2–3 author the four routes against the logical model (entry · character · home): existing-stub
+          write-in, new `provisional/` stub, atomic → `run-errand` (1:1), and homeless (atomic → `ATOMIC-INBOX`,
+          multi-step → provisional stub). Planning-routing writes batch into one auto-merge PR; each code errand
+          stays 1:1; lanes never mix; a foreign-owned write splits to the reviewed lane. The full/partial split
+          defers to § Branch Protection Modes.
 
-    - `[ ]` **3.1.c Move-not-copy promotion**
-        - Routing removes the source `USER-INBOX` entry as part of the write → the inbox ends empty.
+    - `[x]` **3.1.c Move-not-copy promotion**
+        - Step 3 makes the move explicit: routing removes the source `USER-INBOX` line in the same write. A
+          route-3 errand is the one deferral — removal at errand **completion** (slug-matched), so the line
+          doubles as the in-flight record and an abandoned errand never orphans the capture.
 
-    - `[ ]` **3.1.d Shared-inbox aging note**
-        - During the drain, optionally note shared-inbox (`ATOMIC-INBOX`) aging. Errand / flagged-item staleness
-          surfacing moved to Phase 4 (session-init orient) with the queue retirement — not housekeep's job.
+    - `[x]` **3.1.d Shared-inbox aging note**
+        - Step 4 surfaces `ATOMIC-INBOX` aging as an advisory observation only; per-capture reminder and
+          in-flight-errand staleness nudges are scoped to session-init orientation, not the drain.
+
+- _Outcome:_ `drain-inbox.md` (both copies) now fully specifies the between-WU / mid-WU capture drain —
+  base-branch write-context precondition, four-route logical-model classification, auto-merge-lane PR packaging,
+  and move-not-copy promotion. Dispatched by the `arc-housekeep` skill and the `session-handoff` between-WUs path
+  (one workflow, two doors); routing keys on the logical model so a later structured-record swap leaves it intact.
 
 ### `[ ]` **3.2 Thin `arc-housekeep` skill (dual entry point)**
 

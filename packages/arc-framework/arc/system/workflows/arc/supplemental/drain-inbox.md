@@ -62,25 +62,59 @@ source.
 
 ### 2. Classify each entry
 
-Classify against the **logical model** — *entry · character · home* — not the entry's markdown shape, so
-a later structured-record swap leaves the routing intact. Each entry resolves to a route from its
-**character** (atomic single-step vs. multi-step work) and whether its **authoritative home** is writable
-from here.
+Classify against the **logical model** — *entry · character · home* — not the entry's markdown shape, so a
+later structured-record swap leaves the routing intact. Two questions resolve the route:
+
+- **Character** — *atomic* (single-step work, drained to execution) or *multi-step* (design-bearing or
+  trackable work, which belongs in a stub).
+- **Home** — the authoritative destination: an **existing** stub, a **new** stub identifiable now, or
+  **none** (homeless).
+
+Character and home together select one of the four routes below.
 
 ### 3. Route in one batched pass
 
-Route every classified entry to its home in one pass, packaged per
-[strategy-work-organization § Auto-Merge Lane][work-org]. Promotion **moves** the source entry rather than
-copying it, so `USER-INBOX` ends empty.
+Each entry takes exactly one route:
+
+1. **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the
+   note **straight into** that stub's `draft-*` / `notes-*`. This is routing, not execution: the content
+   moves inbox → stub in a single write.
+2. **New stub** — a multi-step entry with no existing home. Scaffold a `provisional/` stub (`meta-*`, plus
+   `draft-*` when scope warrants) and write the note in. A provisional stub carries no design authority.
+3. **Atomic errand** — an atomic entry that is a committed standalone execution. Dispatch it to
+   `run-errand`; the drain **never executes atomic work itself**, it hands the item off as its own errand.
+4. **Homeless** — no determinable home. A homeless **atomic** flushes to the shared `ATOMIC-INBOX`; a
+   homeless **multi-step** graduates to a `provisional/` stub (route 2). The shared inbox is atomic-only,
+   so multi-step never lands there.
+
+**PR packaging.** Lane assignment follows [strategy-work-organization § Auto-Merge Lane][work-org] and
+applies under full protection only — under partial protection every route is a direct base-branch commit
+with no merge-wait ([§ Branch Protection Modes][work-org]). Under full protection:
+
+- The planning-routing writes — routes 1, 2, and the homeless-atomic flush — are **one coherent concern**
+  ("route these captures to their homes") and batch into a **single auto-merge PR** off a short-lived
+  grooming branch: one PR per lane, bounded by concern-coherence, not destination count. A write that
+  touches a **foreign owner's** artifact is reviewed-lane per the threshold and ships on its own, outside
+  the batch.
+- Each code errand (route 3) is its **own concern → its own PR (1:1)**, carried by `run-errand`. Code is
+  never auto-batched, and the two lanes **never mix** in one PR.
+
+**Move, not copy.** Routing **removes the source line from `USER-INBOX`**, never duplicates it. For routes
+1, 2, and the homeless flush the removal rides the same write. A route-3 errand is the one deferral: it
+removes its slug-matched line at errand **completion**, not at dispatch — so the line doubles as the
+in-flight record and an abandoned errand never orphans the capture. Once the batch lands and its errands
+merge, `USER-INBOX` is empty.
 
 ### 4. Note shared-inbox aging
 
-While draining, surface shared-inbox (`ATOMIC-INBOX`) aging as an advisory observation.
+While draining, surface shared-inbox (`ATOMIC-INBOX`) aging — items long-resident there — as an advisory
+observation. Reminder nudges for personal captures and staleness of in-flight errands belong to
+session-init orientation, not the drain.
 
 ### 5. Confirm the drain is complete
 
-Verify `USER-INBOX` holds no routable entries — every capture has moved to its home or flushed to the
-shared inbox — and report what routed where.
+Verify `USER-INBOX` holds no entry still awaiting routing — every capture has been written to a stub,
+flushed to the shared inbox, or dispatched as an errand — and report what routed where.
 
 ---
 
