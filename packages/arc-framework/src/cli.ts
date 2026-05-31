@@ -22,6 +22,7 @@ import {
   type ErrandQueueOptions,
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
+import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -113,6 +114,19 @@ errand
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+
+const housekeep = program
+  .command("housekeep")
+  .description(
+    "Between-WU drain operations. `check` classifies the write context (base-branch vs. "
+    + "work-unit branch) so the drain's base-branch-write precondition is enforced mechanically.",
+  );
+
+housekeep
+  .command("check")
+  .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
+  .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
+  .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
 
 // --- Lifecycle ---
 

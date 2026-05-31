@@ -119,6 +119,14 @@ export {
 } from "./identity.js";
 
 export {
+  classifyWriteContext,
+  resolveWriteContext,
+  type WriteContext,
+  type WriteContextInput,
+  type ResolveWriteContextOptions,
+} from "./write-context.js";
+
+export {
   isAllowedFile,
   isExcludedFile,
   isSafeManifestPath,

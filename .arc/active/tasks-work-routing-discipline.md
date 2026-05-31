@@ -479,27 +479,18 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   home, leaving the standalone skill and the (future) `session-handoff` between-WUs path as two thin doors onto
   one mechanism.
 
-### `[ ]` **3.3 Machine-checked write-context guard (test-first)**
+### `[x]` **3.3 Machine-checked write-context guard (test-first)**
 
 - _Goal:_ Invoked off a base-branch write context, `arc-housekeep` refuses or offers to relocate rather than
   writing shared base-branch paths from a WU branch — the precondition enforced mechanically, not by prose.
-- _Shape:_ A new read-only `arc housekeep check` subcommand mirroring `arc errand check` — emits a
-  machine-consumable classification (with `--json`) the skill/workflow consults. Adds an `arc housekeep` command
-  group in `cli.ts` + `src/handlers/housekeep.ts` (+ command/lib), mirroring the errand file layout.
-- _Note:_ Reuses `resolvePrimaryWorktreePath` (`src/lib/git/worktree-roster.ts`), `readConfigSettings`
-  (`branch.base`), and current-branch resolution — the same context `arc errand` resolves; the existing
-  `isProtectedBaseBranch` (`lib/release/interlock-validation.ts`) is a candidate building block. **`run-errand`
-  Launch (3.4) reuses this same write-context primitive** — build it once here; consume in three places (this
-  guard, `arc errand check`, `run-errand`).
 - **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - On the configured `branch.base` (primary-worktree base context) → the guard passes (proceed).
-        - On a WU branch (`plan/<name>` or `<type>/<name>`, i.e. not `branch.base`) → the guard refuses with a
-          relocate offer.
-        - Context resolution matches `arc errand`'s (primary worktree path, current branch, `branch.base`).
-        - Degenerate state (detached HEAD / no base) → safe refusal, not a silent write.
-        - `--json` emits the classification shape the skill consumes.
+- _Outcome:_ `arc housekeep check [--json]` added (`src/handlers/housekeep.ts` + the `housekeep` command group in
+  `cli.ts`), backed by a shared `src/lib/git/write-context.ts` primitive. Pure `classifyWriteContext` decides on
+  current branch vs `branch.base` (mirroring `isProtectedBranch`): base → `proceed`, WU branch → `relocate`,
+  detached HEAD / unset base → safe `refuse`. The `resolveWriteContext` I/O wrapper reuses `getCurrentBranch` +
+  `resolvePrimaryWorktreePath`, resolving the same context `arc errand` does. Built shared-ready so `run-errand`
+  Launch (3.4) reuses the primitive rather than re-deriving it; `--json` emits the verdict shape `drain-inbox.md`
+  consumes.
 
 ### `[ ]` **3.4 `run-errand` workflow (errand execution lifecycle)**
 
