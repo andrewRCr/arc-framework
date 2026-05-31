@@ -562,36 +562,48 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   isolation). Model-first per R29: hand-managed markdown over a stable interface + entry grammar, swap-ready for
   `operational-state-docs`' `arc inbox add` backend.
 
-### `[ ]` **3.6 Retire the queue + capture-flavored `arc-errand` (sequenced last)**
+### `[x]` **3.6 Retire the queue + capture-flavored `arc-errand` (sequenced last)**
 
 - _Goal:_ The `ERRANDS.md` queue substrate and the capture-flavored `arc-errand` skill are removed — capture is
   `arc-inbox` / inbox, execution is `run-errand` — leaving no stale queue mechanism. Sequenced after 3.4/3.5 so
   capture and execution always have a home.
-- _Note:_ Touches the same `lib/user-sync` parser Phase 1 reshaped + the seeding loops + a session-init sweep —
-  test-first care; **keep `arc errand check`** (it moves to `run-errand` execution time).
 - **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.6.a Retire the `arc-errand` (capture) skill**
-        - Remove the capture-flavored skill (canonical + package mirror + harness copy); its execution intent is
-          now `run-errand` via `arc-session`.
+    - `[x]` **3.6.a Retire the `arc-errand` (capture) skill**
+        - Removed the canonical + package-mirror skill source and the stale local `.claude/skills/arc-errand`
+          real dir (gitignored, not a `dotfiles-ai`-managed symlink → no dotfiles/chezmoi change; `.codex` had
+          none). Retiring the skill orphaned the session-init workflow's errand references, so repointed them
+          (both copies) onto the forward model: in-session out-of-WU work → `§ Discovered Work Routing`
+          (`arc-inbox` capture / fresh `arc-session --errand`); cold-entry classify + `arc errand check` +
+          execute → the `run-errand` workflow. Structural errand-arm wiring stays Phase 4.5.
 
-    - `[ ]` **3.6.b Remove the `arc errand queue` CLI command**
-        - Drop `arc errand queue` (`cli.ts` + handler/command + tests); keep `arc errand check` (used by
-          `run-errand`).
+    - `[x]` **3.6.b Remove the `arc errand queue` CLI command**
+        - Deleted `src/commands/errand.ts` (the `runErrand` queue orchestrator) + its unit test; dropped the
+          `queue` subcommand from `cli.ts` and `handleErrandQueue` / `ErrandQueueOptions` from
+          `handlers/errand.ts`; trimmed the e2e to the surviving `check` path. `arc errand check` retained.
 
-    - `[ ]` **3.6.c Retire the `ERRANDS.md` template + seeding**
-        - Remove `templates/user/ERRANDS.md` and its seeding from `runPostInitSetup()` / `arc user add` (+ the
-          init / add / e2e tests that assert it).
+    - `[x]` **3.6.c Retire the `ERRANDS.md` template + seeding**
+        - Deleted `templates/user/ERRANDS.md` and dropped `ERRANDS.md` from `CROSS_WU_INSTANCE_FILES` (the single
+          seeding source `runPostInitSetup` / `arc user add` both read); updated the init / join / user seeding
+          tests + doc comments.
 
-    - `[ ]` **3.6.d Retire the errands parser entry-type + the sweep's queue source**
-        - Remove the `errands` parser entry-type (`lib/user-sync`) and the staleness sweep's queue source.
-          Coordinate with Phase 4: the sweep code survives but **repoints** at flagged `§ Atomic` items +
-          in-flight chore branches — don't leave it dangling.
-        - **Config + field coordination (2.R.4):** the `errands.staleness_days` → `inbox.remind_after_days` rename
-          and the sweep's read of the new key ride **4.4.d** (with the repoint), not here — renaming the key while
-          the live sweep still reads the old name would break it mid-phase. The `_Created:_` stamped-date field
-          carries forward — only the queue _source_ retires; `_Created:_` stays the aging anchor on flagged inbox
-          entries (the sweep's date regex reused unchanged).
+    - `[x]` **3.6.d Retire the errands parser entry-type + the sweep's queue source**
+        - Removed the `errands` shape from the parser and `CrossWuShape` (`shapeForFile` now returns `null` for
+          `ERRANDS.md`, so merge degrades to unmanaged passthrough); deleted the ERRANDS parse/merge tests.
+          Severed the staleness sweep's queue source: `runErrandStalenessSweep` now ages caller-supplied dated
+          entries (no parser-shape or file coupling), with the probe feeding an empty set — the aging machinery
+          survives, inert, for the 4.4.d repoint.
+        - **Config + field coordination (2.R.4):** kept `errands.staleness_days` and the resolver's threshold
+          plumbing untouched — the `errands.staleness_days` → `inbox.remind_after_days` rename and the sweep's
+          repoint at flagged `§ Atomic` items + in-flight chore branches ride **4.4.d** (renaming the key here
+          would orphan it before its new reader exists). `_Created:_` stays the aging anchor.
+
+- _Outcome:_ The errand model is now execution-only end-to-end — no queue substrate, capture-flavored skill,
+  `queue` CLI, `ERRANDS.md` template/seeding, parser shape, or sweep queue-source remains; capture is `arc-inbox`,
+  execution is `run-errand`, and `arc errand check` survives (it moves to `run-errand` Launch). Two coordinated
+  carry-forwards: the staleness sweep survives inert (caller-injected entries, empty for now) pending its 4.4.d
+  repoint + config-key rename; and retiring the skill forced a forward-consistent repoint of the session-init
+  errand prose (both copies, folded into 3.6.a), with the structural errand-arm wiring left to Phase 4.5.
 
 ## **Phase 4:** CLI probe + session-init wiring
 

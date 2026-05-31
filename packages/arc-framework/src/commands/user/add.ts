@@ -8,7 +8,7 @@ import type { UserAddOptions } from "./types.js";
  * Create a new user directory for a team member.
  *
  * Populates with the cross-WU instance file set (WORKING-MEMORY.md,
- * USER-INBOX.md, ERRANDS.md) seeded from the internal templates. SESSION-NOTES is
+ * USER-INBOX.md) seeded from the internal templates. SESSION-NOTES is
  * per-WU and seeded lazily by `arc user open` once a work unit is anchored.
  * Per R65b, the personal-workspace surface is cross-PM-mode — `pm.mode`
  * does not gate user-directory seeding. The wildcard gitignore block

@@ -157,8 +157,8 @@ export async function runSessionInitStatus(
   const retiredSubdirsTask: Promise<RawRetired | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.retiredSubdirs(identity));
-  // Errand-staleness sweep rides the same eager / identity-gated phase: the
-  // queue is identity-scoped, so it is omitted when identity is absent.
+  // Errand-staleness sweep rides the same eager / identity-gated phase: its
+  // source is identity-scoped, so it is omitted when identity is absent.
   const errandSweepTask: Promise<RawErrandSweep | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.errandSweep(identity));

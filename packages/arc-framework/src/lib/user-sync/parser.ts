@@ -3,13 +3,13 @@
  *
  * The cross-WU files carry entries in different shapes. `WORKING-MEMORY.md`
  * entries are a bold-field header (`**…:**`) followed by a `_Remove when:_`
- * trigger and a body, all under `## Memories`. `USER-INBOX.md` and `ERRANDS.md`
- * share the H3 managed-entry shape — an `### \`[ ]\` **title**` heading (an
- * optional checkbox before the bold title) followed by descriptor bullets,
- * keyed on the bold title — USER-INBOX under `## Atomic` / `## Backlog`,
- * ERRANDS under `## Queue`. Each parser splits a file into entry blocks and
- * returns one discriminated outcome per block: a block that doesn't match its
- * shape becomes `{ ok: false, reason }` instead of being dropped.
+ * trigger and a body, all under `## Memories`. `USER-INBOX.md` entries use the
+ * H3 managed-entry shape — an `### \`[ ]\` **title**` heading (an optional
+ * checkbox before the bold title) followed by descriptor bullets, keyed on the
+ * bold title, under `## Atomic` / `## Backlog`. Each parser splits a file into
+ * entry blocks and returns one discriminated outcome per block: a block that
+ * doesn't match its shape becomes `{ ok: false, reason }` instead of being
+ * dropped.
  *
  * @module
  */
@@ -32,7 +32,6 @@ export function shapeForFile(filename: string): CrossWuShape | null {
   const base = filename.split("/").pop() ?? filename;
   if (base === "WORKING-MEMORY.md") return "working-memory";
   if (base === "USER-INBOX.md") return "user-inbox";
-  if (base === "ERRANDS.md") return "errands";
   return null;
 }
 
@@ -49,8 +48,7 @@ export function parseCrossWuEntries(content: string, shape: CrossWuShape): Entry
   // malformed entries.
   const body = content.replace(HTML_COMMENT, "");
   if (shape === "working-memory") return parseWorkingMemory(body);
-  if (shape === "user-inbox") return parseUserInbox(body);
-  return parseErrands(body);
+  return parseUserInbox(body);
 }
 
 /**
@@ -122,10 +120,10 @@ function parseUserInbox(content: string): EntryParse[] {
  * backtick-wrapped) followed by descriptor bullets, keyed on the bold title.
  * Descriptor fields that ride the body — e.g. a USER-INBOX `WU_Target` line —
  * stay verbatim in `raw`; they are never extracted as fields. An H3 heading
- * with no bold title surfaces as a failure rather than a silent drop. Shared by
- * USER-INBOX (`## Atomic` / `## Backlog`) and ERRANDS (`## Queue`).
+ * with no bold title surfaces as a failure rather than a silent drop. Used by
+ * USER-INBOX for both its `## Atomic` and `## Backlog` sections.
  *
- * @param label - File + section name for the failure reason (e.g. `ERRANDS Queue`).
+ * @param label - File + section name for the failure reason (e.g. `USER-INBOX Atomic`).
  */
 function parseH3Section(lines: readonly string[], section: string, label: string, out: EntryParse[]): void {
   let block: string[] = [];
@@ -153,10 +151,4 @@ function parseH3Section(lines: readonly string[], section: string, label: string
     }
   }
   flush();
-}
-
-function parseErrands(content: string): EntryParse[] {
-  const out: EntryParse[] = [];
-  parseH3Section(sectionLines(content, "Queue"), "Queue", "ERRANDS Queue", out);
-  return out;
 }

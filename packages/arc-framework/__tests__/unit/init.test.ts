@@ -388,7 +388,6 @@ function userTemplateFiles(internalDir: string): Record<string, string> {
     [`${internalDir}/user/SESSION-NOTES.md`]: "# Session Notes\n",
     [`${internalDir}/user/WORKING-MEMORY.md`]: "# Working Memory\n",
     [`${internalDir}/user/USER-INBOX.md`]: "# User Inbox\n",
-    [`${internalDir}/user/ERRANDS.md`]: "# Errand Queue\n",
   };
 }
 

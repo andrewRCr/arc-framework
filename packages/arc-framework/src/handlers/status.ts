@@ -15,7 +15,6 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -253,15 +252,11 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readDir: io.readDir,
         fs: { readdir: (path) => readdir(path) },
       }),
-      errandSweep: async (id) => {
+      errandSweep: async () => {
         const resolved = await resolvedSettingsP;
         const parsed = Number.parseInt(resolved.settings["errands.staleness_days"], 10);
         const thresholdDays = Number.isInteger(parsed) && parsed >= 0 ? parsed : 3;
-        const content = await readFile(
-          join(cwd, ".arc", "user", id, "ERRANDS.md"),
-          "utf8",
-        ).catch(() => "");
-        return runErrandStalenessSweep({ content, thresholdDays });
+        return runErrandStalenessSweep({ entries: [], thresholdDays });
       },
     };
     const result = await runSessionInitStatus({ identity, role, probes });

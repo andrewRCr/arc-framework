@@ -61,7 +61,6 @@ describe("user add", () => {
     expect(await pathExists(userDir)).toBe(true);
     expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
-    expect(await pathExists(join(userDir, "ERRANDS.md"))).toBe(true);
   });
 
   it("seeds the same per-user file set under arc-in-git PM mode (no user/ATOMIC-INBOX)", async () => {
@@ -81,7 +80,6 @@ describe("user add", () => {
       const userDir = join(tmpDir2, ".arc", "user", "bob");
       expect(await pathExists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
       expect(await pathExists(join(userDir, "USER-INBOX.md"))).toBe(true);
-      expect(await pathExists(join(userDir, "ERRANDS.md"))).toBe(true);
       // Legacy user/ATOMIC-INBOX seed path retired in WOR.
       expect(await pathExists(join(userDir, "ATOMIC-INBOX.md"))).toBe(false);
     } finally {

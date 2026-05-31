@@ -1,6 +1,6 @@
 /**
  * Unit tests for cross-WU entry parsing and merge — list-union of
- * `WORKING-MEMORY` / `USER-INBOX` / `ERRANDS` entries across the N most-recent
+ * `WORKING-MEMORY` / `USER-INBOX` entries across the N most-recent
  * notes, with divergent bodies resolving to the most-recent note and
  * unknown-shape files falling back to whole-file most-recent-wins.
  */
@@ -187,51 +187,6 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
 
   it("ignores the commented-out shape example so a seeded template parses as empty", () => {
     const keys = parseCrossWuEntries(content, "user-inbox").flatMap((p) => (p.ok ? [p.entry.key] : []));
-
-    expect(keys).not.toContain("commented-shape");
-  });
-});
-
-describe("parseCrossWuEntries — ERRANDS", () => {
-  const content = `# Errand Queue
-
-## Queue
-
-<!-- ### \`[ ]\` **commented-shape** — shape example, not a real entry -->
-
-### \`[ ]\` **fix-flaky-test**
-
-- _Goal:_ deflake the retry test
-- _Branch:_ \`chore/fix-flaky-test\`
-- _Created:_ 2026-05-20
-
-### \`[ ]\` **tidy-readme**
-
-- _Goal:_ tighten the intro
-
-### no bold slug here
-
-- _Goal:_ malformed entry
-
----
-`;
-
-  it("parses each Queue entry keyed by the H3 bold slug", () => {
-    const parsed = parseCrossWuEntries(content, "errands");
-    const ok = parsed.flatMap((p) => (p.ok ? [p.entry] : []));
-
-    expect(ok.map((e) => `${e.section}:${e.key}`)).toEqual(["Queue:fix-flaky-test", "Queue:tidy-readme"]);
-    expect(ok[0]?.raw).toContain("deflake the retry test");
-  });
-
-  it("surfaces an H3 entry with no bold slug as a failure", () => {
-    const failures = parseCrossWuEntries(content, "errands").filter((p) => !p.ok);
-
-    expect(failures).toHaveLength(1);
-  });
-
-  it("ignores the commented-out shape example so a seeded template parses as empty", () => {
-    const keys = parseCrossWuEntries(content, "errands").flatMap((p) => (p.ok ? [p.entry.key] : []));
 
     expect(keys).not.toContain("commented-shape");
   });
@@ -451,57 +406,3 @@ describe("mergeCrossWuFile — tombstones", () => {
   });
 });
 
-describe("mergeCrossWuFile — ERRANDS", () => {
-  const NOW = "2026-05-25T12:00:00.000Z";
-  const daysAgo = (n: number): string => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
-
-  const erEntry = (slug: string, goal: string): string =>
-    `### \`[ ]\` **${slug}**\n\n- _Goal:_ ${goal}\n- _Branch:_ \`chore/${slug}\`\n- _Created:_ 2026-05-20`;
-  const erTomb = (slug: string, removedAt: string): string =>
-    `## Removed: ${slug}\n\n- _Section:_ Queue\n- _Removed:_ ${removedAt}`;
-  const note = (entries: string, tombstones: string[] = []): string => {
-    const head = `# Errand Queue\n\n## Queue\n\n${entries}\n\n---\n`;
-    return tombstones.length > 0 ? `${head}\n${tombstones.join("\n\n")}\n` : head;
-  };
-
-  it("converges two worktrees' queues, folding an older-only entry into Queue", () => {
-    const recent = note(erEntry("recent-errand", "recent goal"));
-    const older = note(erEntry("older-errand", "older goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("**recent-errand**");
-    expect(result.content).toContain("**older-errand**");
-    expect(result.content.indexOf("**older-errand**")).toBeLessThan(result.content.indexOf("\n---"));
-  });
-
-  it("keeps the most-recent note's body when an errand entry diverges", () => {
-    const recent = note(erEntry("dup", "recent goal"));
-    const older = note(erEntry("dup", "stale goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("recent goal");
-    expect(result.content).not.toContain("stale goal");
-  });
-
-  it("suppresses an earlier errand when a more-recent note tombstones it", () => {
-    const recent = note("", [erTomb("dropped", daysAgo(1))]);
-    const older = note(erEntry("dropped", "dropped goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).not.toContain("dropped goal");
-    expect(result.content).toContain("## Removed: dropped");
-  });
-
-  it("drops a TTL-expired errand tombstone, letting the entry propagate again", () => {
-    const recent = note("", [erTomb("old", daysAgo(200))]);
-    const older = note(erEntry("old", "old goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("old goal");
-    expect(result.content).not.toContain("## Removed:");
-  });
-});

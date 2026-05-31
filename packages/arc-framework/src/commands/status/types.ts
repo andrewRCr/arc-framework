@@ -154,12 +154,11 @@ export interface SessionInitProbeResult {
    */
   retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
   /**
-   * Pre-computed errand-staleness sweep — errand-queue entries pending past the
-   * configured threshold (`errands.staleness_days`, default 3), surfaced for
+   * Pre-computed errand-staleness sweep — errands pending past the configured
+   * threshold (`errands.staleness_days`, default 3), surfaced for
    * execute-or-demote. Advisory only. Present whenever identity resolved (the
-   * queue is identity-scoped); omitted only when identity is absent. Unlike the
-   * worktree sweep it is not worktree-gated — the queue is present in every
-   * worktree.
+   * source is identity-scoped); omitted only when identity is absent. Unlike the
+   * worktree sweep it is not worktree-gated.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
   /**
@@ -323,8 +322,9 @@ export interface SessionInitProbes {
   retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
   /**
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
-   * reads `user/{identity}/ERRANDS.md` and the `errands.staleness_days` threshold.
-   * Fired in the eager phase whenever identity resolved; advisory, read-only.
+   * resolves the candidate entries and the `errands.staleness_days` threshold,
+   * then ages them. Fired in the eager phase whenever identity resolved;
+   * advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
 }

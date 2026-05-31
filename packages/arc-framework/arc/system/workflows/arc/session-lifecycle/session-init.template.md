@@ -150,9 +150,11 @@ the seed was not consumed; starting fresh work from it means spawning or checkin
 re-entering there.
 
 **Errand signal not consumed (non-Orient arms).** `--errand` feeds only the Orient arm's errand mode. On a
-Resume arm (an active WU session), an in-session Errand uses the [arc-errand skill][arc-errand-skill] instead —
-it queues and returns without disrupting the worktree; surface that pointer in orientation. On cold-start or
-materialize, note the signal was not consumed.
+Resume arm (an active WU session), out-of-WU work that surfaces mid-session follows
+[DEV-RULES.ARC § Discovered Work Routing][dev-rules-routing] — capture it to `USER-INBOX` via the
+[arc-inbox skill][arc-inbox-skill] to drain later, or run it as its own errand from the primary worktree via a
+fresh `arc-session --errand`; surface that pointer in orientation. On cold-start or materialize, note the signal
+was not consumed.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -219,13 +221,11 @@ Errand in place — no cross-worktree hop, since the primary worktree is where a
    the active task list (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
 2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
    replaces next-work-unit discovery (that is the *discovery* intent, not the Errand one).
-3. **Classify, gate, set up in place.** Follow the [arc-errand skill][arc-errand-skill] for the
-   classify-against-the-matrix and advisory-check halves (`arc errand check`) — including its stop-and-route exit
-   when the work is really a Work Unit, not an Errand. Then **diverge on the tail:** the cold path **executes
-   immediately by default** — cut the `chore/<slug>` branch off the configured base branch (`branch.base`,
-   default `main`) in this worktree and do the Errand as a normal review increment. The queue entry is
-   **optional** here, earning its keep only for deferral or cross-machine handoff — unlike in-session
-   `arc-errand`, which always queues and returns.
+3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] — its Launch phase classifies
+   errand-vs-Work-Unit (with the stop-and-route exit when the work is really a Work Unit), runs the advisory
+   `arc errand check` overlap, and resolves the base + relocates by cutting the `chore/<slug>` branch off
+   `branch.base` (default `main`) in this worktree; its Execute phase runs the Errand as a normal review
+   increment.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 
@@ -618,7 +618,9 @@ source's view with specific details and wait for explicit direction before any c
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
-[arc-errand-skill]: ../../../.internal/skills/arc-errand/SKILL.md
+[run-errand]: ../supplemental/run-errand.md
+[arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
+[dev-rules-routing]: ../../../rules/DEV-RULES.ARC.md#discovered-work-routing
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

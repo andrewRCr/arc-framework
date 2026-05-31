@@ -195,15 +195,12 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
 
   // --- User Directory ---
 
-  it("seeds WORKING-MEMORY.md, USER-INBOX.md, and ERRANDS.md in user directory (cross-PM-mode)", async () => {
+  it("seeds WORKING-MEMORY.md and USER-INBOX.md in user directory (cross-PM-mode)", async () => {
     const workingMemory = await stat(join(arcDir, "user/test-user/WORKING-MEMORY.md"));
     expect(workingMemory.isFile()).toBe(true);
 
     const userInbox = await stat(join(arcDir, "user/test-user/USER-INBOX.md"));
     expect(userInbox.isFile()).toBe(true);
-
-    const errands = await stat(join(arcDir, "user/test-user/ERRANDS.md"));
-    expect(errands.isFile()).toBe(true);
   });
 
   it("does not install user/ATOMIC-INBOX.md at user root (seed path retired)", async () => {
@@ -515,7 +512,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     expect(config).toContain("pm.mode: arc-in-git");
   });
 
-  it("installs the per-user file set (WORKING-MEMORY, USER-INBOX, ERRANDS) under arc-in-git", async () => {
+  it("installs the per-user file set (WORKING-MEMORY, USER-INBOX) under arc-in-git", async () => {
     const recipe = await loadRecipe();
     const io = makeIOContext(tempDir);
 
@@ -530,7 +527,7 @@ describe("init integration (fresh mode, pm.mode=arc-in-git)", () => {
     });
 
     const userDir = join(tempDir, ".arc/user/test-user");
-    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md", "ERRANDS.md"]) {
+    for (const filename of ["WORKING-MEMORY.md", "USER-INBOX.md"]) {
       const stats = await stat(join(userDir, filename));
       expect(stats.isFile()).toBe(true);
       // Each seeded file matches the internal template byte-for-byte
