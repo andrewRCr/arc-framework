@@ -492,34 +492,39 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   Launch (3.4) reuses the primitive rather than re-deriving it; `--json` emits the verdict shape `drain-inbox.md`
   consumes.
 
-### `[ ]` **3.4 `run-errand` workflow (errand execution lifecycle)**
+### `[x]` **3.4 `run-errand` workflow (errand execution lifecycle)**
 
 - _Goal:_ Out-of-WU work executes through one `run-errand` workflow — Launch → Execute → Integrate,
   re-enterable, dispatched by `arc-session` — so an errand _is_ its execution (chore branch / direct base
   commit), with no queue, no `errand-*` file, and no State field.
-- _Shape:_ A new Framework workflow (both copies) under `system/workflows/arc/` (beside the WU lifecycle, or
-  `supplemental/` — decide at authoring). Honors `DEV-RULES.ARC § Review-Increment Invariant` directly; does
-  **not** load `process-task-loop` (no task list).
-- _Note:_ This authors the workflow; the `arc-session --errand` dispatch + the errand-resume / Materialize /
-  in-flight arms are Phase 4 (session-init wiring), and the promote-to-WU path is Phase 5.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.4.a Launch phase**
-        - Classify (errand vs WU) → `arc errand check` (overlap, now at execution time) → resolve base and
-          relocate the locus (spawn an ephemeral `chore/<slug>` worktree under full + Worktree Foundation; target
-          the primary base checkout under partial), reusing 3.3's write-context primitive. Launching from any
-          worktree is not a blocker.
+    - `[x]` **3.4.a Launch phase**
+        - Classify (errand vs WU) → advisory `arc errand check --target ... --json` overlap → resolve base +
+          primary worktree via the shared write-context resolution (read from `arc housekeep check --json`) and
+          relocate per protection mode (full: ephemeral `chore/<slug>` worktree where spawning is available, else
+          the primary base checkout; partial: direct base checkout). Branch cut lazily; launch from any worktree.
 
-    - `[ ]` **3.4.b Execute phase**
-        - Do the errand as one review increment; carry the promote-to-WU primer (points at the `init-work-unit`
-          path, Phase 5) for scope explosion.
+    - `[x]` **3.4.b Execute phase**
+        - Errand runs as one review increment (Review-Increment Invariant, not `process-task-loop`), with Tier 1
+          gates and the `post-task-quality` extension, closing at a `workflow-interlock`; promote-to-WU primer
+          points at `init-work-unit` for scope explosion.
 
-    - `[ ]` **3.4.c Integrate phase + errand PR body**
-        - Commit → (full) push + open PR with a lean errand PR body (`template-pull-request` assumes a WU — author
-          a variant or inline a minimal body) → arm auto-merge (auto lane) or leave for review (reviewed lane);
-          (partial) direct base commit. On completion: tear down branch/worktree **and remove the slug-matched
-          originating inbox entry** (the one place removal is ensured). Pause = commit WIP + push.
-        - _Resolves open question (spec):_ eager-vs-on-completion PR — lean on-completion; settle here.
+    - `[x]` **3.4.c Integrate phase + errand PR body**
+        - Commit (`standalone (...)` footer; `commit-interlock` release as `taskCommit`); under full, the
+          `pre-push-review` / `workflowPush` push, a lean inline errand PR body with `pre-pr-review`, then the
+          `integration-interlock` and `pre-merge-review` before arming auto-merge (auto lane) or leaving for
+          review (reviewed lane); under partial, a direct base commit with no PR. Completion removes the
+          slug-matched `USER-INBOX` entry (the one ensured removal).
+        - _Resolves open question (spec):_ eager-vs-on-completion PR — settled lean on-completion.
+
+- _Outcome:_ `run-errand.md` authored in both copies under `supplemental/` (an errand is not a WU, so beside
+  `drain-inbox`, not in `work-unit-lifecycle/`). Re-enterable Launch → Execute → Integrate dispatched by
+  `arc-session`, honoring the Review-Increment Invariant directly (no `process-task-loop`); the conceptual model
+  cross-refs `§ Errand Work Class` rather than re-explaining it. Interlocks: `workflow-interlock` (increment
+  close), `commit-interlock` / `push-interlock` releases (commit / PR-push), `integration-interlock` (pre-merge);
+  review extensions (`post-task-quality`, `pre-pr-review`, `pre-push-review`, `pre-merge-review`) fire at their
+  points. Dispatch wiring + Materialize/in-flight (Phase 4) and the WU-side promote path (Phase 5) follow.
 
 ### `[ ]` **3.5 `arc-inbox` capture entrypoint (model-first)**
 
