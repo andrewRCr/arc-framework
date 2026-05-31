@@ -21,6 +21,7 @@ rather than re-deriving — the wording below is settled, not to be reinvented.
 
 ## Contents
 
+- [Errand-model re-pivot (supersedes pre-pivot errand/queue refs below)](#errand-model-re-pivot)
 - [Inbox section preambles (verbatim — do not re-derive)](#inbox-section-preambles-verbatim--do-not-re-derive)
 - [Capture decision table (verbatim)](#capture-decision-table-verbatim)
 - [Entry-grammar subtleties](#entry-grammar-subtleties)
@@ -30,6 +31,49 @@ rather than re-deriving — the wording below is settled, not to be reinvented.
 - [Coordination write-back specifics](#coordination-write-back-specifics)
 - [Routed elsewhere (records, not folded into this WU)](#routed-elsewhere-records-not-folded-into-this-wu)
 - [Folded-capture provenance](#folded-capture-provenance)
+
+## Errand-model re-pivot
+
+> **Supersession.** This section reflects the corrected model (spec § Errand-model re-pivot, R24–31;
+> ADR-021 Amendment 2026-05-31). Where the sections below mention the `ERRANDS.md` *queue* or a
+> capture-flavored `arc-errand` (Capture decision table, Drain timing, Express lanes), read them as
+> superseded: the queue retires, capture is inbox-only, and errands are execution-only. The reasoning
+> in those sections about *capture/routing* (the inbox, the drain, the merge lane) still stands — only
+> the errand *mechanism* changes.
+
+**The fault.** Codifying the doctrine exposed that the errand *queue* is itself a capture surface holding
+execution-bound items — the dual of the core invariant ("no known-home item rests in a capture surface"). A
+committed errand's home *is* execution, which is writable now; letting it rest in a queue is exactly the smell
+the invariant forbids, and the queue needed a bolted-on staleness sweep to keep it from rotting. The queue's
+`chore/<slug>` key was also `branch.protection: full`-shaped (under partial an errand is a direct base commit,
+no branch).
+
+**The model.** An errand *is* its execution — `chore/<slug>` (full) / direct base commit (partial), tracked by
+git history + the `standalone (...)` footer. **No queue, no `errand-*` file, no State field.** State is
+*derived*: active = a `chore/` branch with no PR; awaiting-merge = an open PR; done = merged (teardown). Capture
+is **inbox-only** — a committed-near-term errand-class concern is an urgency-flagged `§ Atomic` capture (entered
+via `arc-inbox`), executed later.
+
+**Orphans can't hide.** Every errand artifact is attached to a surface a sweep already sees — a notes-synced
+inbox entry or a pushed branch — never a free-floating file. So an abandoned errand is a dangling `chore/`
+branch (swept at orient), and a forgotten capture is a stale inbox item (swept at housekeep). Cross-session /
+cross-machine continuity rides those two synced artifacts: the inbox entry (goal, retained until completion) +
+the pushed branch commits (progress); handoff = `commit WIP + push`, resume via the Materialize arm extended to
+`chore/` remote branches. No SESSION-NOTES for an errand.
+
+**The shape.** One `run-errand` workflow (Launch → Execute → Integrate, re-enterable), dispatched by
+`arc-session` (`--errand <blurb|slug>` or discovery), honoring the Review-Increment Invariant directly — *not*
+`process-task-loop` (no task list). Launch resolves base and relocates the locus itself (reusing
+`resolvePrimaryWorktreePath`), so launching from any worktree works. Integrate removes the slug-matched inbox
+entry at **completion** (not start). Scope explosion → promote-to-WU via `init-work-unit`. The capture entry
+point is `arc-inbox` (model-first: hand-managed markdown now, `operational-state-docs`' managed-write CLI later
+— the `ROADMAP`-before-its-renderer pattern); `arc-session` stays the sole *execution* entrypoint. Net skill
+ledger: retire `arc-errand`, add `arc-inbox`.
+
+**Doc-boundary divide (the `arc-inbox` value).** Ambient always-relevant discipline (the routing decision, the
+core invariant, holding-vs-execution) stays in `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation
+awareness; actionable construction specifics move into the `arc-inbox` skill; the inbox templates clean down to
+surface-only.
 
 ## Inbox section preambles (verbatim — do not re-derive)
 

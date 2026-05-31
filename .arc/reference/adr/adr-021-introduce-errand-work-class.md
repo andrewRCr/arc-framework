@@ -192,6 +192,29 @@ protection / direct commit under partial, tracked by the `standalone (...)` cont
 documented in `strategy-work-organization.md` § Errand Work Class. Status remains **Proposed** pending
 Concurrent Work Conventions and Agile WU Lifecycle.
 
+**Amendment (2026-05-31):** Work-Routing Discipline re-pivots the Errand *realization* (the taxonomy and
+threshold above are unchanged). Two faults surfaced while codifying the work-routing doctrine:
+
+1. **The errand queue is a capture surface holding execution-bound items** — the dual of the core invariant
+   that doctrine establishes ("no item with a known home rests in a capture surface"). Errand Enablement's
+   interim `ERRANDS.md` queue let a committed errand *rest* rather than execute, blurring capture (inbox) and
+   execution (errand) and requiring a bolted-on staleness sweep to keep it from rotting.
+2. **The queue's model was `branch.protection: full`-shaped** — the `chore/<slug>` queue key presumes the
+   ephemeral-branch path, but under partial protection an errand is a direct base commit with no branch.
+
+The corrected model: **an Errand is execution-only.** Capture is inbox-only; an Errand *is* its execution — a
+`chore/<slug>` branch (full) or a direct base commit (partial), tracked by git history + the `standalone (...)`
+footer, with **no queue, no `errand-*` file, and no State field.** Errand state is *derived* — active = a
+`chore/` branch with no PR; awaiting-merge = an open PR; done = merged — and cross-session/cross-machine
+continuity rides the notes-synced originating inbox entry (the goal, retained until completion) plus the pushed
+branch (the progress). The **`errand-launch` entry primitive** named under § Operational conventions is
+delivered as a single **`run-errand`** lifecycle (Launch → Execute → Integrate) dispatched by `arc-session`,
+honoring the review-increment invariant rather than the task loop; a committed-but-not-yet-executed errand-class
+concern is an urgency-flagged `USER-INBOX § Atomic` capture (entered via the new `arc-inbox` skill), and the
+capture-flavored `arc-errand` skill + `ERRANDS.md` queue substrate retire. Full requirements and rationale:
+`spec-work-routing-discipline.md` § Errand-model re-pivot. Status remains **Proposed** pending Concurrent Work
+Conventions and Agile WU Lifecycle.
+
 ---
 
 [adr-019]: adr-019-work-unit-lifecycle-reform.md

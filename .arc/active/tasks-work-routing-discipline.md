@@ -279,6 +279,104 @@ specifics.
   recognized as WU scope. Single new doctrine of this WU beyond the planned 2.1–2.5; the rest was restructure +
   alignment.
 
+## **Phase 2.R:** Errand-model re-pivot + protection-mode correction
+
+_Purpose:_ Re-baseline the Phase 1–2 doctrine to the corrected errand model — errands are execution-only (the
+`ERRANDS.md` queue retired), capture is inbox-only, and protection-mode (`partial` vs `full`) is threaded
+through — so Phases 3–7 build on a correct foundation rather than the `full`-biased, queue-muddied one. Remedial
+by character: it corrects shipped surfaces and amends the design authority; it builds no new mechanism (the
+errand lifecycle, `arc-inbox`, the probe arms, and the code/skill retirements are slotted into the later phases
+by this phase's closing audit, 2.R.6).
+
+_Design decisions:_ The spec (`§ Errand-model re-pivot`, R24–31) and ADR-021 (Amendment 2026-05-31) are amended
+as the re-planning act that opens this phase. Doctrine corrections are prose-level and dual-copy where the
+surface ships; the partial-vs-full split is expressed as clean blocks deferring to
+`strategy-work-organization § Cheap-branch path` (the one localized split), never scattered conditionals, and
+authored fragment-extractable for `composable-workflows`. Doctrine-before-mechanism mirrors Phase 2 → 3 (the
+contract describes `run-errand` / `arc-inbox` before they are built). See `notes-work-routing-discipline.md`
+§ Errand-model re-pivot.
+
+### `[x]` **2.R.1 Amend the design authority (spec + ADR-021)**
+
+- _Goal:_ The spec and the constitutional record carry the execution-only errand model and queue retirement, so
+  every downstream correction and build cites a settled design.
+- _Outcome:_ `spec-work-routing-discipline.md` gained `§ Errand-model re-pivot` (R24–31) plus Purpose /
+  Introduction / Use-Case / Technical-Consideration / Success-Criteria / Open-Question revisions; `adr-021`
+  gained Amendment (2026-05-31) recording the queue-as-capture-surface fault, the protection-mode bias, and the
+  execution-only model (taxonomy unchanged, realization re-pivoted). Done as the re-planning act.
+
+### `[ ]` **2.R.2 `DEV-RULES.ARC § Discovered Work Routing` correction (both copies)**
+
+- _Goal:_ The constitutional routing rule states the execution-only errand model and is protection-mode-aware,
+  so the rule a developer reads matches the corrected mechanism.
+- _Approach:_ recast `### Holding ≠ execution` — out-of-WU execution is the `run-errand` lifecycle, not
+  capture-then-queue; "never a manual bypass branch" is reframed protection-aware (full = `chore/<slug>`; partial
+  = direct base commit) deferring to `§ Cheap-branch path`; capture is inbox-only via `arc-inbox`. Keep the
+  ambient discipline here (the routing decision, the core invariant); actionable construction specifics go to the
+  `arc-inbox` skill (the doc-boundary divide, R29).
+- **Strategies:** strategy-package-project-sync.md
+
+### `[ ]` **2.R.3 `strategy-work-organization` correction (both copies)**
+
+- _Goal:_ `§ Errand Work Class`, `§ Cheap-branch path`, and `§ Entry path` describe the execution-only model with
+  no queue, so the strategy is the single coherent home of the protection-mode split.
+- _Approach:_ errands are execution-only (no queue, no `errand-*` file, no State field — state is derived from
+  branch/PR); `§ Cheap-branch path` becomes the canonical partial-vs-full block the rest defers to; `§ Entry
+  path` points at `run-errand` (launch from any worktree; base resolved, not pre-switched); retire `ERRANDS.md`
+  queue language. Cheap-branch / launch blocks authored fragment-extractable (`composable-workflows`).
+- **Strategies:** strategy-package-project-sync.md
+
+### `[ ]` **2.R.4 `USER-INBOX` + `session-operations § USER-INBOX` correction + urgency flag**
+
+- _Goal:_ The capture surfaces describe the collapsed model and carry the urgency flag, so a committed-near-term
+  errand-class concern has a home (a flagged `§ Atomic` capture) and the staleness signal survives without a
+  queue.
+- _Approach:_ rewrite the `§ Atomic` preamble for the collapsed model (capture-only; execution is `run-errand`,
+  not "run standalone via `arc-errand`"); add the optional urgency flag to the `§ Atomic` managed-entry grammar
+  (absent by default, reads `errands.staleness_days`); prep the doc-boundary divide (ambient discipline cross-refs
+  `DEV-RULES.ARC`; actionable specifics defer to `arc-inbox`). Update `session-operations § USER-INBOX` to match.
+- **Strategies:** strategy-package-project-sync.md
+
+### `[ ]` **2.R.5 Downstream cascade write-backs (errand-model re-pivot)**
+
+- _Goal:_ The downstream WUs whose assumptions the re-pivot shifts carry the change in their own artifacts, so
+  none is silently stale and no foreign work-item rests here.
+- _Approach:_ extend the `operational-state-docs` write-back (the `arc-inbox` managed-write CLI is its backend;
+  the urgency flag is a managed `§ Atomic` field; model-first-here → CLI-later intent). Add cascade-notes to the
+  agile-parallelism cohort drafts (`concurrent-work-conventions`, `agile-wu-lifecycle`, `in-flight-awareness`, the
+  cohort doc) flagging the errand-model change (queue retired; errands = execution-only `chore/` branches;
+  `run-errand`; in-flight-errand detection) to cascade when next iterated. Informational write-backs only —
+  foreign design authoring routes, not authored here.
+
+### `[ ]` **2.R.6 Audit remainder of the task list (per remaining phase)**
+
+- _Goal:_ Each remaining phase is reconciled against the amended spec + corrected baseline, with the errand
+  lifecycle build slotted into the right phase — so execution proceeds against a coherent, current plan, not a
+  pre-pivot one.
+- _Approach:_ a per-phase audit pass (stop at each per the workflow-interlock); reshape stale tasks and author the
+  new build tasks (the `run-errand` lifecycle; `arc-inbox`; the `arc-errand` skill + `ERRANDS.md` queue
+  retirements; the probe errand-resume / Materialize-extension / in-flight-sweep arms; promote-to-WU; the errand
+  PR body; the repointed staleness sweep) into their homes — a dedicated errand-lifecycle phase or folds, per the
+  audit's call.
+
+    - `[ ]` **2.R.6.a Audit Phase 3 (`arc-housekeep`)**
+        - Drain routes atomic execution to `run-errand` (not "a reviewed errand" / queue); 3.1.d staleness
+          surfacing repoints off `ERRANDS.md`; 3.3's guard shares the base-resolution primitive with `run-errand`
+          Launch. Slot `run-errand` + `arc-inbox` authoring here or as a sibling phase.
+
+    - `[ ]` **2.R.6.b Audit Phase 4 (probe + session-init)**
+        - Add the errand-resume arm (orthogonal to `sessionType`), the Materialize extension to `chore/` remote
+          branches, and the orient-only in-flight-errand sweep beside `inboxState`; rate-limit the nudge.
+
+    - `[ ]` **2.R.6.c Audit Phase 5 (lifecycle deltas)**
+        - Add the errand-session handoff (commit-WIP + push, no SESSION-NOTES), the `--errand` dispatch + the
+          session-init errand arm, and the promote-to-WU path in `init-work-unit`; confirm other handoffs don't
+          police errand branches.
+
+    - `[ ]` **2.R.6.d Audit Phase 6 (live validation)**
+        - Confirm any live `ERRANDS.md` (seeded but unused) retires and its entries — if any — migrate to flagged
+          `§ Atomic` captures; the drain run uses the collapsed model.
+
 ## **Phase 3:** `arc-housekeep` mechanism
 
 _Purpose:_ Build the between-WU drain — a thin `arc-housekeep` skill dispatching a drain/route workflow — plus
@@ -535,6 +633,18 @@ volume at run time decides.
   recorded in their destinations.
 - `[ ]` A live `arc-housekeep` run cleared `andrew`'s `USER-INBOX` and retired `BACKLOG-INBOX`; the next WU
   begins with an empty `USER-INBOX`.
+- `[ ]` Errands are execution-only: the `ERRANDS.md` queue, the capture-flavored `arc-errand` skill, and
+  `arc errand queue` are retired (no `errand-*` file, no State field); `arc errand check` survives at execution
+  time; ADR-021 carries the amendment.
+- `[ ]` `run-errand` exists (one workflow, Launch → Execute → Integrate, dispatched by `arc-session`, honoring the
+  Review-Increment Invariant — not `process-task-loop`); Integrate removes the slug-matched inbox entry at
+  completion; promote-to-WU is reachable from Execute.
+- `[ ]` Session-init carries the errand-resume arm, the Materialize extension to `chore/` remote branches, and the
+  orient-only in-flight-errand sweep with a rate-limited nudge.
+- `[ ]` `arc-inbox` exists as the model-first unified capture entrypoint; the doc-boundary divide holds and
+  `§ Atomic` carries the optional urgency flag; `arc-session` is the sole execution entrypoint.
+- `[ ]` Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path`; the
+  `operational-state-docs` write-back is extended and the cohort cascade-notes are recorded.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
 

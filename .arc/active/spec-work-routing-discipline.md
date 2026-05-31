@@ -5,6 +5,9 @@
 - **Purpose:** Modernize ARC's work-routing doctrine for the errand era — capture surfaces become transient
   write-deferral buffers drained by a between-WU `arc-housekeep` flow, and the opportunistic "rider" pattern
   retires in favor of errands — so a WU's stub is the single authoritative source for its domain concerns.
+  Codifying that doctrine surfaced two corrections folded in here (see § Errand-model re-pivot): the errand
+  *queue* muddied capture-vs-execution and the doctrine carried a `branch.protection: full` bias. This WU
+  re-pivots errands to **execution-only** (capture is inbox-only) and threads protection-mode awareness through.
 
 ---
 
@@ -31,6 +34,17 @@ planning lane), which obsoletes that role. The doctrine has not caught up, and t
 errands and no longer fits. The primitive that obsoletes it has shipped; the corrective doctrine should land
 before `in-flight-awareness` so that WU starts from a clean, trustworthy capture pipeline.
 
+**Amendment — errand-model re-pivot (in-WU).** Codifying the doctrine (Phase 2) surfaced that the errand
+*queue* shipped by Errand Enablement is itself a capture surface holding execution-bound items — the dual of
+the core invariant above — and that the doctrine inherited a `branch.protection: full` bias (the queue's
+`chore/<slug>` branch model is full-only; under partial an errand is a direct base commit). This WU absorbs the
+correction, since its thesis *is* work-routing discipline and the holding-vs-execution boundary is R1.2:
+errands collapse to **execution-only** (capture is inbox-only; an errand *is* a `chore/<slug>` branch under
+full / a direct base commit under partial, never a queued artifact), the queue retires, a single `run-errand`
+lifecycle plus an `arc-inbox` capture entrypoint replace the capture-flavored `arc-errand` skill, and
+protection-mode awareness threads throughout. The full requirements are in § Errand-model re-pivot; the
+constitutional record is ADR-021's amendment.
+
 ## Goals
 
 - Establish and codify the **core invariant**: a WU's stub/draft is the single authoritative source for its
@@ -50,9 +64,15 @@ before `in-flight-awareness` so that WU starts from a clean, trustworthy capture
 - **Mid-WU capture (deferral).** On branch X, the developer notices a non-urgent concern about a different
   artifact. Rather than polluting X's PR, they capture it to `USER-INBOX` (§ Atomic or § Backlog) and keep
   working. The write is deferred to the next cheap batched moment.
-- **Mid-WU execution (errand).** On branch X, an urgent out-of-WU fix is needed. It goes through `arc-errand`,
-  which pays the isolation cost now and **moves** any seeding inbox entry out as part of errand creation — no
-  executed-but-still-listed orphan.
+- **Errand execution (own session).** Executing an out-of-WU fix is always its own session — never on branch
+  X. `arc-session --errand <blurb|slug>` cold-starts a fresh errand or picks up a flagged capture; bare
+  `arc-session` from the primary worktree surfaces it as a discovery route. `run-errand` cuts `chore/<slug>`
+  (full) / commits direct to base (partial) as one review increment; the originating inbox entry (if any) is
+  removed at **completion** (slug-matched), not at start, so an abandoned errand never orphans the intent.
+- **Cross-machine errand resume.** A part-done errand handed off mid-flight = `commit WIP + push chore/<slug>`.
+  On another machine, session-init's Materialize arm (extended to `chore/`-prefixed remote branches with no
+  meta) adds a worktree and resumes; the goal carries via the notes-synced inbox entry (if any) + the WIP
+  commit message — no tracked errand artifact, no SESSION-NOTES.
 - **Between-WUs drain (housekeep).** With no active WU, the developer runs `arc-housekeep` from a base-branch
   context. It reads `USER-INBOX`, classifies each entry, routes directly to homes (stub edits written straight
   in; standalone atomic execution via reviewed errands; genuinely-homeless items flushed to the shared inbox),
@@ -200,13 +220,78 @@ anti-rider test (concern-identity, not file-identity) to the cross-WU write-back
     `andrew`'s long-deferred `USER-INBOX` captures to their homes and retire `BACKLOG-INBOX` into provisional
     stubs. This first live run *is* the mechanism's validation.
 
+### Errand-model re-pivot
+
+Folded in after the Phase 2 doctrine surfaced the queue's capture-vs-execution muddle and the protection-mode
+bias (see Introduction § Amendment). Requirements 24–31 re-baseline the errand model; the task list lands them
+as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
+
+24. **(P0)** **Collapse errands to execution-only.** Capture is inbox-only; an errand *is* its execution — a
+    `chore/<slug>` branch (full) or a direct base commit (partial), tracked by git history + the
+    `standalone (...)` footer, never a queued or seeded artifact. **No `errand-*` file, no State field, no
+    queue.** Errand state is derived: active = a `chore/` branch with no PR; awaiting-merge = an open PR;
+    done = merged (branch teardown). Retire the `ERRANDS.md` queue substrate (template, parser entry-type,
+    seeding, the staleness sweep's queue source), the capture-flavored `arc-errand` skill, and the
+    `arc errand queue` CLI. **Keep `arc errand check`**, moved to *execution* time (fresher overlap facts).
+    Amend **ADR-021** to record the queue retirement and the execution-only model (supersedes its
+    "errand-launch entry primitive" as delivered).
+25. **(P0)** **Thread protection-mode awareness** through the doctrine — `DEV-RULES.ARC § Discovered Work
+    Routing` (the "Holding ≠ execution" boundary's "manual bypass branch" framing is full-only),
+    `strategy-work-organization § Errand Work Class` / `§ Cheap-branch path` / `§ Entry path`, and the
+    `USER-INBOX` preamble. Express the partial-vs-full split as **clean whole blocks deferring to § Cheap-branch
+    path** (the one localized split), not conditionals scattered across surfaces. Authored fragment-extractable
+    for `composable-workflows`; cross-workflow refs use stable heading-slug anchors, never ordinals.
+26. **(P0)** **`run-errand` workflow** — one workflow, re-enterable phases **Launch → Execute → Integrate**,
+    dispatched by `arc-session`. Honors `DEV-RULES.ARC § Review-Increment Invariant` directly (it is one
+    increment) — **not** `process-task-loop` (no task list). **Launch** resolves base and relocates the
+    execution locus itself (spawn an ephemeral `chore/<slug>` worktree under full + Worktree Foundation; target
+    the primary-worktree base checkout under partial) — reusing `resolvePrimaryWorktreePath`, so launching from
+    any worktree is not a blocker. **Execute** carries the promote-to-WU primer (R28). **Integrate** opens the
+    PR (errand PR body — `template-pull-request` assumes a WU, so a lean errand variant or inline minimal body),
+    arms auto-merge (auto lane) or leaves for review (reviewed lane), and on merge tears down the branch/worktree
+    **and removes the slug-matched originating inbox entry** (the single place that removal is ensured;
+    backstopped by the in-flight sweep). Pause = `commit WIP + push`.
+27. **(P0)** **Session-boundary errand awareness** — (a) an **errand-resume arm** in the probe/session-init,
+    orthogonal to `sessionType` (current/materializing `chore/`-branch with no meta → load `run-errand`, not
+    `process-task-loop`); (b) extend the **Materialize** arm to `chore/`-prefixed remote branches (cross-machine
+    resume, R-cross-machine use case); (c) an **in-flight-errand sweep** — advisory, *orient-only* — over chore
+    branches (resume / awaiting-merge / merged-cleanup / stale-promote), mirroring the stale-worktree sweep;
+    (d) **rate-limited** staleness/urgency nudge (≈once/day, not every session — a new improvement over the
+    current sweep); (e) **errand-session handoff** = `commit WIP + push`, ceremony-light, no SESSION-NOTES — and
+    other handoffs do **not** police errand branches (flow protection).
+28. **(P0)** **Promote-errand-to-WU** — a path in `init-work-unit` (mint `meta-*`, rename `chore/<slug>` →
+    `<type>/<name>`, preserve commits), pointed to from `run-errand`'s Execute phase, for an errand that exceeds
+    one review increment. Authored as a clean extractable block (`composable-workflows` forward-compat).
+29. **(P0)** **`arc-inbox` skill (model-first)** — a thin, unified capture entrypoint (the noun, like
+    `arc-session`); routing + entry construction for `§ Atomic` (with/without urgency flag), `§ Backlog` (with
+    `WU_Target`), and homeless flush. Write is **hand-managed markdown now**, structured to swap to
+    `operational-state-docs`' managed-write CLI later — interface and entry grammar stable across the swap
+    (mirrors how `ROADMAP` was modeled before its renderer). **Doc-boundary divide is the deliverable:** ambient
+    always-relevant discipline (the routing decision, the core invariant, holding-vs-execution) stays in
+    `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation awareness; actionable construction specifics move
+    into the skill; templates clean down to surface-only. Scoped to capture (drain is `arc-housekeep`'s).
+    `arc-session` stays the sole *execution* entrypoint. Net skill ledger: retire `arc-errand`, add `arc-inbox`.
+30. **(P0)** **`USER-INBOX § Atomic` urgency flag** — an optional managed field (absent by default) marking an
+    entry committed-near-term, reading the existing `errands.staleness_days` config. **Repoint** the
+    (queue-retired) staleness sweep at flagged inbox items + in-flight chore branches — preserving the queue's
+    discoverability ("here are your committed errands") as an inbox filter, not a second surface.
+31. **(P0)** **Downstream write-backs for the re-pivot** — extend the `operational-state-docs` write-back: the
+    `arc-inbox` deterministic managed-write CLI is *its* backend (model-first here → CLI later), and the urgency
+    flag is a managed `§ Atomic` field. Cascade-notes to the agile-parallelism cohort drafts
+    (`concurrent-work-conventions`, `agile-wu-lifecycle`, `in-flight-awareness`, the cohort doc) flagging the
+    errand-model change (queue retired; errands = execution-only chore branches; `run-errand` lifecycle;
+    in-flight-errand detection) to cascade into their errand assumptions when next iterated. Foreign *design
+    authoring* routes — these are informational write-backs, not redesigns of their scope.
+
 ## Non-Goals
 
 - **File renames** (`USER-INBOX → INBOX.USER`, `ATOMIC-INBOX → INBOX.PROJECT`, section renames) — owned by
   `doc-naming-convention`. This WU lands shape + behavior on current names and writes back. (`BACKLOG-INBOX` is
   *retired* here, not renamed.)
 - **Structured-record storage** for the inboxes — `operational-state-docs` (downstream of
-  `cli-substrate-adoption`). Stay markdown-canonical; keep the shape schematizable.
+  `cli-substrate-adoption`). Stay markdown-canonical; keep the shape schematizable. **`arc-inbox`'s deterministic
+  managed-write CLI backend** lives there too: this WU ships `arc-inbox` model-first over hand-managed markdown
+  (R29); the `arc inbox add` CLI it swaps onto is `operational-state-docs`'.
 - **The general errand↔PR packaging convention** and the general owner-graded merge doctrine — durable home is
   Concurrent Work Conventions. This WU adopts only an interim working answer for housekeep.
 - **The general isolation-write guard** (any base-branch-writing command guarding its context; pre-commit
@@ -225,9 +310,21 @@ anti-rider test (concern-identity, not file-identity) to the cross-WU write-back
 - **Cross-file workflow references.** New references (session-init ↔ housekeep ↔ session-handoff) use stable
   heading-slug anchors, never ordinal `Step N` refs, per the interim convention `composable-workflows` will
   later codify.
-- **Move-not-copy atomicity.** Both `USER-INBOX` and `ERRANDS.md` are personal notes-synced docs in the same
-  `user/{identity}/` tree, so seeding an errand from an inbox entry is one atomic local move — no
-  duplicate-detection hook needed on the blessed path.
+- **Errand state is derived, not stored.** No `errand-*` file, no State field, no queue (R24). Active = a
+  `chore/` branch with no PR; awaiting-merge = an open PR; done = merged. Cross-session/cross-machine continuity
+  rides the two artifacts that already sync: the notes-synced originating inbox entry (goal, retained until
+  completion) + the pushed `chore/<slug>` branch commits (progress). Orphans can't *hide* — every errand artifact
+  is attached to a swept surface (inbox entry / pushed branch), never a free-floating file.
+- **`run-errand` honors the invariant, not the task loop.** An errand is one review increment, so `run-errand`
+  applies `DEV-RULES.ARC § Review-Increment Invariant` directly and must **not** load `process-task-loop` (which
+  assumes a task list). The shared core is the *rule*; extracting a composed execution-core workflow is
+  `composable-workflows`' call, not this WU's.
+- **Context-resolution reuse (one primitive).** `run-errand`'s Launch base-resolution, the housekeep
+  write-context guard, and `arc errand check` all reuse `resolvePrimaryWorktreePath` + `branch.base` resolution —
+  one primitive, not parallel implementations.
+- **`arc-inbox` write-mechanism is pluggable.** Hand-managed markdown now, `arc inbox add` later; the skill
+  interface and the managed-entry grammar stay stable across the swap (the `ROADMAP`-modeled-before-its-renderer
+  pattern). The grammar `operational-state-docs` adopts is the one this WU defines.
 - **Two-component delivery.** (a) codify the doctrine + build housekeep; (b) clear current state by running the
   new flow against the real backlog. Component (b) is the first live run of (a).
 
@@ -264,6 +361,22 @@ anti-rider test (concern-identity, not file-identity) to the cross-WU write-back
 - A live `arc-housekeep` run has cleared `andrew`'s pending `USER-INBOX` captures and retired `BACKLOG-INBOX`;
   the next WU begins with an empty `USER-INBOX`.
 
+Errand-model re-pivot (R24–31):
+
+- Errands are execution-only: no `ERRANDS.md` queue, no `errand-*` file, no State field; the queue substrate,
+  the capture-flavored `arc-errand` skill, and `arc errand queue` are retired; `arc errand check` survives at
+  execution time; **ADR-021 carries the amendment**.
+- `run-errand` exists as one workflow (Launch → Execute → Integrate), dispatched by `arc-session`, honoring the
+  Review-Increment Invariant (not `process-task-loop`); the Integrate phase removes the slug-matched inbox entry
+  at completion; promote-to-WU is reachable from Execute via `init-work-unit`.
+- Session-init carries the errand-resume arm (orthogonal to `sessionType`), the Materialize extension to
+  `chore/` remote branches, and the orient-only in-flight-errand sweep with a rate-limited nudge.
+- `arc-inbox` exists as the model-first unified capture entrypoint; the doc-boundary divide holds (ambient
+  discipline in `DEV-RULES.ARC § Discovered Work Routing`, actionable specifics in the skill, templates
+  surface-only); `§ Atomic` carries the optional urgency flag; `arc-session` is the sole execution entrypoint.
+- Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path` (no scattered
+  conditionals); the `operational-state-docs` write-back is extended and the cohort cascade-notes are recorded.
+
 ## Open Questions
 
 All design-level questions are resolved in upstream planning (no spec-time blockers). Items to resolve **during
@@ -273,5 +386,10 @@ work**:
   into one PR, code errands stay 1:1, same-file is not an exception, lanes never mix. What remains open is only
   the chunking heuristic for a *very large* planning sweep (when one auto-merge PR exceeds review-reachability);
   that settles against actual volume during the live run (component b).
-- **`ERRANDS.md` staleness / shared-inbox aging surfacing.** Housekeep surfaces both; the exact presentation
-  (and whether aging warrants more than a notice) settles during workflow authoring.
+- **Staleness / aging surfacing + nudge rate-limiting.** With the queue retired (R24), the staleness sweep
+  repoints at urgency-flagged `§ Atomic` items + in-flight `chore/` branches (R27/R30). The exact presentation,
+  whether aging warrants more than a notice, and the **rate-limit mechanism** (≈once/day vs. until-acted/dismissed
+  — there is no rate-limit today) settle during workflow authoring.
+- **`run-errand` Integrate: eager vs. on-completion PR, and the errand PR body.** Lean is PR-at-completion
+  (ceremony-light) with a lean errand body or inline minimal body; a draft-PR-eager variant only if cross-machine
+  paused-resume proves common. Settles when authoring `run-errand`.
