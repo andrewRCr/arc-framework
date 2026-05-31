@@ -511,11 +511,10 @@ rather than riding the PR. § Discovered Work Routing states the rule and its PR
 § Auto-Merge Lane (below) governs how a housekeep drain packages the resulting PRs.
 
 **Why capture is cheap.** Deferring an out-of-WU concern to `USER-INBOX` is not a productivity
-tax: both `USER-INBOX` and `ERRANDS.md` are personal notes-synced files, so *queuing* to either is
-free from any branch — it pollutes no PR. Only *execution* (running an errand, scaffolding a stub)
-pays an isolation cost. Capture freely mid-task and let the between-WUs housekeep drain route the
-backlog; reach for an express lane (a direct stub or a queued errand) only when the commitment is
-already firm.
+tax: `USER-INBOX` is a personal notes-synced file, so capturing to it is free from any branch — it
+pollutes no PR. Only *execution* (running an errand, scaffolding a stub) pays an isolation cost.
+Capture freely mid-task and let the between-WUs housekeep drain route the backlog; reach for an
+express lane (a direct stub, or running an errand) only when the commitment is already firm.
 
 ---
 
@@ -729,12 +728,13 @@ by an `active/` entry.
 
 ### Entry path
 
-An Errand launches from the **primary worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
-Errand is initiated by starting a fresh session there on a new `chore`-type branch (under full protection)
-or directly against the base branch (under partial). It does
-not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
-neither of. The Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded
-by git history through its commit footer, and tears down.
+An Errand runs through the `run-errand` workflow, dispatched by `arc-session` (via `--errand`, or surfaced at
+between-WU orientation). It launches from **any worktree**: the workflow's Launch phase resolves the base branch
+and relocates the execution locus itself onto the cheap-branch path (see
+[§ Cheap-branch path](#cheap-branch-path)), so the caller need not pre-switch worktrees. It does not invoke
+planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has neither of. The
+Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded by git history
+through its commit footer, and tears down.
 
 ---
 

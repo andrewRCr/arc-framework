@@ -819,10 +819,25 @@ live-write capture surface — entries land any time, drain at the between-WUs h
 **Section structure.**
 
 - **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
-  No `WU_Target`.
+  No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below).
 - **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling. Each
   carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
   destination stub — existence at drain decides route-vs-create.
+
+**Reminder flag.** A `## Atomic` entry may carry an optional `_Remind:_` descriptor — a low-friction
+"don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
+When set, session-init surfaces the capture as an advisory orientation line after a delay. It renders as
+an italic descriptor bullet like the entry's others, but a *parsed* field marks itself by
+backtick-delimiting its value: the `_Remind:_` key stays bare-italic and its value (`true`) is a code
+span — the backticks signalling data the sweep reads, not prose. It is boolean (default `false`) and
+renders only when `true`; the parser reads its absence as `false` — the same render rule `WU_Target`
+follows, where a managed field appears only at its non-default value. Flagged entries carry a
+tool-stamped `_Created:_` date descriptor (value backtick-delimited) as the aging anchor;
+`inbox.remind_after_days` (default 1) sets the delay before the first
+nudge (never the same day), and the nudge is rate-limited to once per calendar day until a housekeep
+drain clears the entry. The reminder is personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits
+the same field grammar but is never nudged (it has no singular owner). How `arc-inbox` constructs the
+field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
 
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:

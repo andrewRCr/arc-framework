@@ -256,14 +256,14 @@ as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
     `process-task-loop`); (b) extend the **Materialize** arm to `chore/`-prefixed remote branches (cross-machine
     resume, R-cross-machine use case); (c) an **in-flight-errand sweep** — advisory, *orient-only* — over chore
     branches (resume / awaiting-merge / merged-cleanup / stale-promote), mirroring the stale-worktree sweep;
-    (d) **rate-limited** staleness/urgency nudge (≈once/day, not every session — a new improvement over the
+    (d) **rate-limited** staleness / reminder nudge (≈once/day, not every session — a new improvement over the
     current sweep); (e) **errand-session handoff** = `commit WIP + push`, ceremony-light, no SESSION-NOTES — and
     other handoffs do **not** police errand branches (flow protection).
 28. **(P0)** **Promote-errand-to-WU** — a path in `init-work-unit` (mint `meta-*`, rename `chore/<slug>` →
     `<type>/<name>`, preserve commits), pointed to from `run-errand`'s Execute phase, for an errand that exceeds
     one review increment. Authored as a clean extractable block (`composable-workflows` forward-compat).
 29. **(P0)** **`arc-inbox` skill (model-first)** — a thin, unified capture entrypoint (the noun, like
-    `arc-session`); routing + entry construction for `§ Atomic` (with/without urgency flag), `§ Backlog` (with
+    `arc-session`); routing + entry construction for `§ Atomic` (with/without the reminder flag), `§ Backlog` (with
     `WU_Target`), and homeless flush. Write is **hand-managed markdown now**, structured to swap to
     `operational-state-docs`' managed-write CLI later — interface and entry grammar stable across the swap
     (mirrors how `ROADMAP` was modeled before its renderer). **Doc-boundary divide is the deliverable:** ambient
@@ -271,12 +271,36 @@ as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
     `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation awareness; actionable construction specifics move
     into the skill; templates clean down to surface-only. Scoped to capture (drain is `arc-housekeep`'s).
     `arc-session` stays the sole *execution* entrypoint. Net skill ledger: retire `arc-errand`, add `arc-inbox`.
-30. **(P0)** **`USER-INBOX § Atomic` urgency flag** — an optional managed field (absent by default) marking an
-    entry committed-near-term, reading the existing `errands.staleness_days` config. **Repoint** the
-    (queue-retired) staleness sweep at flagged inbox items + in-flight chore branches — preserving the queue's
-    discoverability ("here are your committed errands") as an inbox filter, not a second surface.
+30. **(P0)** **`USER-INBOX § Atomic` reminder flag + cadence.** An optional managed field named for its
+    *effect*, not an "urgency" reading: the `_Remind:_` descriptor (`true` when set) makes session-init nudge the
+    developer about the capture after a delay. Entry fields render as **italic descriptor bullets** alongside the
+    existing `_Observation:_` / `_Approach:_` family, but a *parsed* field marks itself by **backtick-delimiting
+    its value**: the key stays bare-italic
+    (`_Remind:_`, `_Created:_`) and the value is a code span (`true`, the date). Those backticks are the
+    visual + machine signal that the sweep reads the token as data, not prose — prose descriptors (e.g.
+    `_Captured during:_` provenance) keep bare values. (`_Created:_` is the errand sweep's stamped-date field,
+    reused here; the go-forward convention backtick-delimits its value, where the legacy queue form was bare.)
+    `Remind` is boolean, default `false`; under the **managed-field render rule** (generalizing `WU_Target`),
+    markdown renders a field only at its non-default value and the parser reads absence as the default — so
+    `_Remind:_` shows only when `true`, while the structured model (the eventual `operational-state-docs` schema)
+    always carries it. The aging anchor is a **tool-stamped capture date** (the reused `_Created:_` date
+    descriptor, emitted by `arc-inbox`, not hand-written — flagged-entry-minimum now, universal once structured
+    storage lands). Rename
+    `errands.staleness_days` → **`inbox.remind_after_days`** (default **1**; a project-level temp default that
+    keeps the existing "→ user-scoped" note, relocated by `config-storage-architecture`). The first nudge fires
+    at the first session-init on or after `Captured + N days` (floor: never the same day); thereafter it is
+    **rate-limited to once per calendar day** — a single batched, advisory orientation line listing all due
+    captures, recurring until a housekeep drain clears them. Once/day is a **framework constant**, not a user
+    knob; only the threshold is config-exposed. Mechanism: a per-user gitignored last-nudge marker gates the
+    daily batch (no per-entry mutation). The flag is **personal-`USER-INBOX`-only** in mechanism — the shared
+    `ATOMIC-INBOX` permits the same field grammar but is never nudged (no singular owner, no per-user
+    seen-tracking); its staleness is the separate shared-inbox-aging concern. **Repoint** the (queue-retired)
+    staleness sweep to read `Remind`-flagged `USER-INBOX` entries + in-flight `chore/` branches, preserving the
+    retired queue's discoverability ("here are your committed errands") as an inbox filter, not a second surface.
+    Doctrine and grammar land in the re-pivot phase; the sweep repoint, the config code-rename, and the
+    rate-limit mechanism land with the probe / session-init phase.
 31. **(P0)** **Downstream write-backs for the re-pivot** — extend the `operational-state-docs` write-back: the
-    `arc-inbox` deterministic managed-write CLI is *its* backend (model-first here → CLI later), and the urgency
+    `arc-inbox` deterministic managed-write CLI is *its* backend (model-first here → CLI later), and the reminder
     flag is a managed `§ Atomic` field. Cascade-notes to the agile-parallelism cohort drafts
     (`concurrent-work-conventions`, `agile-wu-lifecycle`, `in-flight-awareness`, the cohort doc) flagging the
     errand-model change (queue retired; errands = execution-only chore branches; `run-errand` lifecycle;
@@ -373,7 +397,7 @@ Errand-model re-pivot (R24–31):
   `chore/` remote branches, and the orient-only in-flight-errand sweep with a rate-limited nudge.
 - `arc-inbox` exists as the model-first unified capture entrypoint; the doc-boundary divide holds (ambient
   discipline in `DEV-RULES.ARC § Discovered Work Routing`, actionable specifics in the skill, templates
-  surface-only); `§ Atomic` carries the optional urgency flag; `arc-session` is the sole execution entrypoint.
+  surface-only); `§ Atomic` carries the optional reminder flag; `arc-session` is the sole execution entrypoint.
 - Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path` (no scattered
   conditionals); the `operational-state-docs` write-back is extended and the cohort cascade-notes are recorded.
 
@@ -387,7 +411,7 @@ work**:
   the chunking heuristic for a *very large* planning sweep (when one auto-merge PR exceeds review-reachability);
   that settles against actual volume during the live run (component b).
 - **Staleness / aging surfacing + nudge rate-limiting.** With the queue retired (R24), the staleness sweep
-  repoints at urgency-flagged `§ Atomic` items + in-flight `chore/` branches (R27/R30). The exact presentation,
+  repoints at reminder-flagged `§ Atomic` items + in-flight `chore/` branches (R27/R30). The exact presentation,
   whether aging warrants more than a notice, and the **rate-limit mechanism** (≈once/day vs. until-acted/dismissed
   — there is no rate-limit today) settle during workflow authoring.
 - **`run-errand` Integrate: eager vs. on-completion PR, and the errand PR body.** Lean is PR-at-completion

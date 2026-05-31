@@ -250,6 +250,12 @@ the posture as "tolerated" or "principled at modest scale."
    workflows — merge-position is folded into State, so no separate `**Integration:**` field or new
    enum value is needed. Coordinate with `draft-agile-wu-lifecycle.md`'s state-machine rollout.
 
+**Errand-model re-pivot (`work-routing-discipline`, 2026-05-31):** errands are now execution-only `chore/<slug>`
+branches (full) / direct base commits (partial) via `run-errand`, not queued artifacts — so concurrent errands
+are mini-PRs that ride the same rebase / merge and async-merge discipline this WU codifies. Their integration
+ordering and in-flight coordination are CWC territory; fold errand (`chore/`) branches into the concurrency
+rubrics when next iterated.
+
 ### Out of scope
 
 - **Focus-role field model** — explicitly rejected per § Why no formal focus-role model. Strategy

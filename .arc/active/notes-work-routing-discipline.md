@@ -51,7 +51,7 @@ no branch).
 **The model.** An errand *is* its execution — `chore/<slug>` (full) / direct base commit (partial), tracked by
 git history + the `standalone (...)` footer. **No queue, no `errand-*` file, no State field.** State is
 *derived*: active = a `chore/` branch with no PR; awaiting-merge = an open PR; done = merged (teardown). Capture
-is **inbox-only** — a committed-near-term errand-class concern is an urgency-flagged `§ Atomic` capture (entered
+is **inbox-only** — a committed-near-term errand-class concern is a reminder-flagged `§ Atomic` capture (entered
 via `arc-inbox`), executed later.
 
 **Orphans can't hide.** Every errand artifact is attached to a surface a sweep already sees — a notes-synced
@@ -82,11 +82,11 @@ stable character token (`## Atomic` / `## Work Unit`) — the anchor and referen
 in the preamble (they evolve, and compressing them into the heading invites imprecision — e.g. "born
 provisional" is wrong: most stubs start `planned/`).
 
-> *Atomic — Single-step captures. Drain to execution — folded into a WU (inline absorption), or run standalone
-> via `arc-errand`. Never executed directly from here.*
+> *Atomic — Single-step captures. Drain to execution — folded into a WU (inline absorption), or run as an errand
+> (`run-errand`). Never executed directly from here.*
 >
 > *Work Unit — Multi-step captures bound for a backlog stub. Route to an existing stub, or graduate to a new
-> one — directly at housekeep; `arc-errand` only if needed mid-WU. Carries `WU_Target` (TBD ok); an optional
+> one — directly at housekeep; `run-errand` only if needed mid-WU. Carries `WU_Target` (TBD ok); an optional
 > `(planned|provisional)` parenthetical sets a new stub's dir (decided at drain if omitted).*
 
 The **shared inbox** (`ATOMIC-INBOX`, atomic-only) uses only the `## Atomic` heading + its preamble — there is
