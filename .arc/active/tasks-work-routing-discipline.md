@@ -313,7 +313,7 @@ contract describes `run-errand` / `arc-inbox` before they are built). See `notes
 - _Outcome:_ Recast `§ Discovered Work Routing` for the execution-only, protection-mode-aware model (both
   copies, byte-identical): the urgency / capture routing-table routes now point at `arc-session --errand` and
   `arc-inbox`; "Express lanes" drops "queue an errand" (→ "run an errand"); `### Holding ≠ execution` rewritten —
-  capture is inbox-only (via `arc-inbox`), an errand *is* its execution (the `run-errand` lifecycle), the
+  capture is inbox-only (via `arc-inbox`), an errand _is_ its execution (the `run-errand` lifecycle), the
   isolation rule is universal but its shape (full `chore/<slug>` branch vs. partial direct base commit) defers to
   `§ Cheap-branch path`, no queue / `errand-*` file / State field, and a captured item's inbox entry is removed
   at completion (slug-matched). Ambient discipline stays here; actionable specifics route to `arc-inbox` (R29).
@@ -350,47 +350,61 @@ contract describes `run-errand` / `arc-inbox` before they are built). See `notes
   `run-errand`; in-flight-errand detection) to cascade when next iterated. Informational write-backs only —
   foreign design authoring routes, not authored here.
 
-### `[ ]` **2.R.6 Audit remainder of the task list (per remaining phase)**
+### `[x]` **2.R.6 Audit remainder of the task list (per remaining phase)**
 
 - _Goal:_ Each remaining phase is reconciled against the amended spec + corrected baseline, with the errand
   lifecycle build slotted into the right phase — so execution proceeds against a coherent, current plan, not a
   pre-pivot one.
-- _Approach:_ a per-phase audit pass (stop at each per the workflow-interlock); reshape stale tasks and author the
-  new build tasks (the `run-errand` lifecycle; `arc-inbox`; the `arc-errand` skill + `ERRANDS.md` queue
-  retirements; the probe errand-resume / Materialize-extension / in-flight-sweep arms; promote-to-WU; the errand
-  PR body; the repointed staleness sweep) into their homes — a dedicated errand-lifecycle phase or folds, per the
-  audit's call.
+- _Outcome:_ Reconciled Phases 3–6 against the re-pivot, folding the errand-lifecycle build in (no new phase):
+  **Phase 3** renamed "Between-WU + errand mechanism" + tasks 3.4 (`run-errand`), 3.5 (`arc-inbox`), 3.6
+  (retirements); **Phase 4** + tasks 4.4 (errand-state probe) / 4.5 (session-init errand arms, incl. the moved
+  `--errand` dispatch); **Phase 5** + tasks 5.5 (errand-session handoff) / 5.6 (promote-to-WU); **Phase 6** route
+  recast + no-live-queue note. The build inventory (spec R24–31) is now concrete, sequenced tasks — a fresh
+  session executes a plan rather than re-deriving one.
 
-    - `[ ]` **2.R.6.a Audit Phase 3 (`arc-housekeep`)**
-        - Drain routes atomic execution to `run-errand` (not "a reviewed errand" / queue); 3.1.d staleness
-          surfacing repoints off `ERRANDS.md`; 3.3's guard shares the base-resolution primitive with `run-errand`
-          Launch. Slot `run-errand` + `arc-inbox` authoring here or as a sibling phase.
+    - `[x]` **2.R.6.a Audit Phase 3 (`arc-housekeep`)**
+        - Folded the errand-lifecycle build into Phase 3 (renamed "Between-WU + errand mechanism"): added 3.4
+          `run-errand` (Launch/Execute/Integrate + errand PR body), 3.5 `arc-inbox` (model-first + doc-boundary
+          divide), 3.6 retirements (one parent; per-target subtasks, sequenced last; keep `arc errand check`).
+          Recast 3.1 (→ `run-errand`), 3.1.d (→ shared-inbox aging; errand staleness → Phase 4), and the 3.3 note
+          (the base-resolution primitive is shared three ways).
 
-    - `[ ]` **2.R.6.b Audit Phase 4 (probe + session-init)**
-        - Add the errand-resume arm (orthogonal to `sessionType`), the Materialize extension to `chore/` remote
-          branches, and the orient-only in-flight-errand sweep beside `inboxState`; rate-limit the nudge.
+    - `[x]` **2.R.6.b Audit Phase 4 (probe + session-init)**
+        - Added 4.4 errand-state probe (errand-resume detection, in-flight-errand sweep, Materialize-candidate
+          extension to `chore/` remote branches, repointed staleness sweep) and 4.5 session-init errand arms
+          (orthogonal errand-resume arm → `run-errand`; `--errand` cold dispatch + discovery surfacing; Materialize
+          consumption + orient-only in-flight advisory with the rate-limited nudge). Existing 4.1–4.3 unchanged.
+          Moved the `--errand` dispatch into Phase 4 (was mis-scoped to Phase 5).
 
-    - `[ ]` **2.R.6.c Audit Phase 5 (lifecycle deltas)**
-        - Add the errand-session handoff (commit-WIP + push, no SESSION-NOTES), the `--errand` dispatch + the
-          session-init errand arm, and the promote-to-WU path in `init-work-unit`; confirm other handoffs don't
-          police errand branches.
+    - `[x]` **2.R.6.c Audit Phase 5 (lifecycle deltas)**
+        - Added 5.5 errand-session handoff path (commit-WIP + push, no SESSION-NOTES; + the "other handoffs don't
+          police errand branches" guardrail) and 5.6 promote-errand-to-WU path in `init-work-unit`. Existing
+          5.1–5.4 unchanged. The `--errand` dispatch + session-init errand arm went to Phase 4 (4.5), not here, per
+          the 6.b scope correction.
 
-    - `[ ]` **2.R.6.d Audit Phase 6 (live validation)**
-        - Confirm any live `ERRANDS.md` (seeded but unused) retires and its entries — if any — migrate to flagged
-          `§ Atomic` captures; the drain run uses the collapsed model.
+    - `[x]` **2.R.6.d Audit Phase 6 (live validation)**
+        - Recast 6.1 `_Approach:_` (standalone errands → `run-errand`) and noted the drain itself validates
+          `run-errand` live. Confirmed no live `.arc/user/andrew/ERRANDS.md` exists → queue retirement is
+          template/code-only (3.6.c), no live-data migration. 6.2 unaffected.
 
-## **Phase 3:** `arc-housekeep` mechanism
+## **Phase 3:** Between-WU + errand mechanism
 
-_Purpose:_ Build the between-WU drain — a thin `arc-housekeep` skill dispatching a drain/route workflow — plus
-the machine-checked write-context guard that refuses/relocates off a base-branch context, reusing `arc errand`'s
-resolution.
+_Purpose:_ Build the between-WU drain (a thin `arc-housekeep` skill dispatching a drain/route workflow) and the
+machine-checked write-context guard, **plus the errand-lifecycle mechanism the collapsed model needs** — the
+`run-errand` workflow, the `arc-inbox` capture entrypoint, and the retirement of the `ERRANDS.md` queue +
+capture-flavored `arc-errand` skill. One coherent mechanism cluster: the drain routes atomic execution to
+`run-errand`, and the guard, `arc errand check`, and `run-errand` Launch share one write-context primitive.
 
-_Design decisions:_ Skill/workflow split mirrors `arc-commit → prepare-commits`. The guard's context classifier
-is test-first (reuses `resolvePrimaryWorktreePath`; the new logic is the on-WU-branch refusal). Routing is
-defined against the logical model (entry · character · home), not markdown format, so a later structured-record
-swap doesn't break it. _Open question pinned here (resolve at authoring):_ the presentation of the `ERRANDS.md`
-staleness + shared-inbox aging surfacing (spec § Open Questions, item b) — default a brief advisory line; settle
-when authoring the surfacing step. See `notes-work-routing-discipline.md` § Drain timing and ownership.
+_Design decisions:_ Skill/workflow splits mirror `arc-commit → prepare-commits` (both `arc-housekeep` and
+`run-errand` / `arc-inbox`). The guard's context classifier is test-first (reuses `resolvePrimaryWorktreePath`;
+the new logic is the on-WU-branch refusal) and that primitive is shared three ways — guard, `arc errand check`,
+`run-errand` Launch — so build it once. Routing is defined against the logical model (entry · character · home),
+not markdown format, so a later structured-record swap doesn't break it. `arc-inbox` is **model-first**:
+hand-managed markdown now, `operational-state-docs`' managed-write CLI later (R29). Retirements (3.6) sequence
+**last**, after `run-errand` / `arc-inbox` exist, so capture and execution never lack a home. Errand /
+flagged-item staleness surfacing is a session-init (orient) concern — Phase 4, not here. See
+`notes-work-routing-discipline.md` § Errand-model re-pivot + § Drain timing and ownership, and spec
+§ Errand-model re-pivot.
 
 ### `[ ]` **3.1 Drain/route workflow (logical-model routing)**
 
@@ -398,9 +412,9 @@ when authoring the surfacing step. See `notes-work-routing-discipline.md` § Dra
   in one batched pass — leaving `USER-INBOX` empty — so the between-WU drain is a repeatable mechanism, not
   manual discipline.
 - _Approach:_ classify each entry (existing-stub home / new stub / atomic errand / homeless), then route on
-  housekeep's own auto-merge branch: stub edits written straight in; standalone atomic execution via a reviewed
-  errand; homeless atomics flush to `ATOMIC-INBOX`; homeless multi-step graduates to a provisional stub. PR
-  structure follows § Auto-Merge Lane (2.3).
+  housekeep's own auto-merge branch: stub edits written straight in; standalone atomic execution via `run-errand`
+  (a reviewed-lane code errand, 1:1); homeless atomics flush to `ATOMIC-INBOX`; homeless multi-step graduates to a
+  provisional stub. PR structure follows § Auto-Merge Lane (2.3).
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
     - `[ ]` **3.1.a Author the workflow skeleton + precondition**
@@ -417,9 +431,9 @@ when authoring the surfacing step. See `notes-work-routing-discipline.md` § Dra
     - `[ ]` **3.1.c Move-not-copy promotion**
         - Routing removes the source `USER-INBOX` entry as part of the write → the inbox ends empty.
 
-    - `[ ]` **3.1.d Staleness + aging surfacing**
-        - Surface the `ERRANDS.md` staleness sweep and shared-inbox aging. _Resolves open question (b):_ default
-          a brief advisory line; finalize the presentation here.
+    - `[ ]` **3.1.d Shared-inbox aging note**
+        - During the drain, optionally note shared-inbox (`ATOMIC-INBOX`) aging. Errand / flagged-item staleness
+          surfacing moved to Phase 4 (session-init orient) with the queue retirement — not housekeep's job.
 
 ### `[ ]` **3.2 Thin `arc-housekeep` skill (dual entry point)**
 
@@ -444,7 +458,9 @@ when authoring the surfacing step. See `notes-work-routing-discipline.md` § Dra
   group in `cli.ts` + `src/handlers/housekeep.ts` (+ command/lib), mirroring the errand file layout.
 - _Note:_ Reuses `resolvePrimaryWorktreePath` (`src/lib/git/worktree-roster.ts`), `readConfigSettings`
   (`branch.base`), and current-branch resolution — the same context `arc errand` resolves; the existing
-  `isProtectedBaseBranch` (`lib/release/interlock-validation.ts`) is a candidate building block.
+  `isProtectedBaseBranch` (`lib/release/interlock-validation.ts`) is a candidate building block. **`run-errand`
+  Launch (3.4) reuses this same write-context primitive** — build it once here; consume in three places (this
+  guard, `arc errand check`, `run-errand`).
 - **Strategies:** strategy-testing-methodology.md
 
     - Build `test-first` (one behavior at a time):
@@ -454,6 +470,82 @@ when authoring the surfacing step. See `notes-work-routing-discipline.md` § Dra
         - Context resolution matches `arc errand`'s (primary worktree path, current branch, `branch.base`).
         - Degenerate state (detached HEAD / no base) → safe refusal, not a silent write.
         - `--json` emits the classification shape the skill consumes.
+
+### `[ ]` **3.4 `run-errand` workflow (errand execution lifecycle)**
+
+- _Goal:_ Out-of-WU work executes through one `run-errand` workflow — Launch → Execute → Integrate,
+  re-enterable, dispatched by `arc-session` — so an errand _is_ its execution (chore branch / direct base
+  commit), with no queue, no `errand-*` file, and no State field.
+- _Shape:_ A new Framework workflow (both copies) under `system/workflows/arc/` (beside the WU lifecycle, or
+  `supplemental/` — decide at authoring). Honors `DEV-RULES.ARC § Review-Increment Invariant` directly; does
+  **not** load `process-task-loop` (no task list).
+- _Note:_ This authors the workflow; the `arc-session --errand` dispatch + the errand-resume / Materialize /
+  in-flight arms are Phase 4 (session-init wiring), and the promote-to-WU path is Phase 5.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+    - `[ ]` **3.4.a Launch phase**
+        - Classify (errand vs WU) → `arc errand check` (overlap, now at execution time) → resolve base and
+          relocate the locus (spawn an ephemeral `chore/<slug>` worktree under full + Worktree Foundation; target
+          the primary base checkout under partial), reusing 3.3's write-context primitive. Launching from any
+          worktree is not a blocker.
+
+    - `[ ]` **3.4.b Execute phase**
+        - Do the errand as one review increment; carry the promote-to-WU primer (points at the `init-work-unit`
+          path, Phase 5) for scope explosion.
+
+    - `[ ]` **3.4.c Integrate phase + errand PR body**
+        - Commit → (full) push + open PR with a lean errand PR body (`template-pull-request` assumes a WU — author
+          a variant or inline a minimal body) → arm auto-merge (auto lane) or leave for review (reviewed lane);
+          (partial) direct base commit. On completion: tear down branch/worktree **and remove the slug-matched
+          originating inbox entry** (the one place removal is ensured). Pause = commit WIP + push.
+        - _Resolves open question (spec):_ eager-vs-on-completion PR — lean on-completion; settle here.
+
+### `[ ]` **3.5 `arc-inbox` capture entrypoint (model-first)**
+
+- _Goal:_ A single `arc-inbox` skill is the unified capture entrypoint — routing + entry construction for
+  `§ Atomic` (with/without urgency flag), `§ Backlog` (with `WU_Target`), and homeless flush — so capture is
+  consistent and the doctrine's actionable specifics live in one action-focused place.
+- _Shape:_ Thin skill (canonical `.arc/system/.internal/skills/arc-inbox/` + package mirror). Write is
+  **hand-managed markdown now**, structured to swap to `operational-state-docs`' `arc inbox add` later —
+  interface + entry grammar stable across the swap (the `ROADMAP`-before-its-renderer pattern). Scoped to
+  capture; drain is `arc-housekeep`'s, execution is `arc-session`'s.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+    - `[ ]` **3.5.a Author the `arc-inbox` SKILL.md**
+        - Mirror `arc-commit`'s thin shape; route per `DEV-RULES.ARC § Discovered Work Routing`; construct the
+          managed-entry grammar for each section (the `§ Atomic` urgency flag is defined in the grammar by 2.R.4;
+          the skill writes it).
+
+    - `[ ]` **3.5.b Doc-boundary divide**
+        - Move actionable construction specifics out of the inbox templates into the skill — templates clean down
+          to surface-only; ambient discipline (the routing decision, the core invariant) stays in
+          `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation awareness.
+
+### `[ ]` **3.6 Retire the queue + capture-flavored `arc-errand` (sequenced last)**
+
+- _Goal:_ The `ERRANDS.md` queue substrate and the capture-flavored `arc-errand` skill are removed — capture is
+  `arc-inbox` / inbox, execution is `run-errand` — leaving no stale queue mechanism. Sequenced after 3.4/3.5 so
+  capture and execution always have a home.
+- _Note:_ Touches the same `lib/user-sync` parser Phase 1 reshaped + the seeding loops + a session-init sweep —
+  test-first care; **keep `arc errand check`** (it moves to `run-errand` execution time).
+- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
+
+    - `[ ]` **3.6.a Retire the `arc-errand` (capture) skill**
+        - Remove the capture-flavored skill (canonical + package mirror + harness copy); its execution intent is
+          now `run-errand` via `arc-session`.
+
+    - `[ ]` **3.6.b Remove the `arc errand queue` CLI command**
+        - Drop `arc errand queue` (`cli.ts` + handler/command + tests); keep `arc errand check` (used by
+          `run-errand`).
+
+    - `[ ]` **3.6.c Retire the `ERRANDS.md` template + seeding**
+        - Remove `templates/user/ERRANDS.md` and its seeding from `runPostInitSetup()` / `arc user add` (+ the
+          init / add / e2e tests that assert it).
+
+    - `[ ]` **3.6.d Retire the errands parser entry-type + the sweep's queue source**
+        - Remove the `errands` parser entry-type (`lib/user-sync`) and the staleness sweep's queue source.
+          Coordinate with Phase 4: the sweep code survives but **repoints** at flagged `§ Atomic` items +
+          in-flight chore branches — don't leave it dangling.
 
 ## **Phase 4:** CLI probe + session-init wiring
 
@@ -512,6 +604,54 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
         - Step 6: "No active WU. `USER-INBOX`: N pending — housekeep?" Soft-encourage, never hard-block. Both
           copies (`session-init` is `.template.md` in the package).
 
+### `[ ]` **4.4 Errand-state probe (test-first)**
+
+- _Goal:_ The session-init envelope surfaces errand state — so session-init dispatches and advises from a
+  machine-resolved signal, not an agent scan — covering errand-resume, the in-flight sweep, and cross-machine
+  materialization.
+- _Shape:_ Probe additions modeled on `errand-staleness-sweep.ts` / the roster, slotted into
+  `SessionInitProbeResult` (e.g. an `errandState` slot beside `active` / `errandSweep`). New / repointed libs
+  under `src/lib/session-init/`.
+- **Strategies:** strategy-testing-methodology.md
+
+    - `[ ]` **4.4.a Errand-resume detection**
+        - Resolve "current branch is `chore/`-prefixed AND no backing meta" → an errand to resume. The signal the
+          orthogonal resolution arm (4.5) dispatches on.
+
+    - `[ ]` **4.4.b In-flight-errand sweep**
+        - Enumerate `chore/` branches (local + open PRs) with no meta; classify in-progress / awaiting-merge /
+          merged-cleanup / stale. Mirrors the stale-worktree sweep's advisory role.
+
+    - `[ ]` **4.4.c Materialize-candidate extension**
+        - Recognize `chore/`-prefixed _remote_ branches (no local worktree, no meta) as materializable errands —
+          the cross-machine-resume path.
+
+    - `[ ]` **4.4.d Repoint the staleness sweep**
+        - The staleness sweep survives 3.6.d's queue-source removal by reading flagged `§ Atomic` items +
+          in-flight chore branches instead of `ERRANDS.md`. Coordinate with 3.6.d so it is never left dangling.
+
+### `[ ]` **4.5 session-init errand arms (workflow wiring)**
+
+- _Goal:_ session-init dispatches and advises on errands — execution is `arc-session`-driven, resume is
+  automatic, and committed errands stay discoverable — without disturbing the WU-resume path.
+- _Note:_ Cross-file refs use stable heading-slug anchors, never ordinal `Step N` (composable-workflows interim
+  convention). Both copies (`session-init` is `.template.md` in the package).
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **4.5.a Errand-resume arm (orthogonal to `sessionType`)**
+        - On the 4.4.a signal, load `run-errand` (resume mode) — **not** `process-task-loop`. Resolved as its own
+          arm beside the existing entry dispatch, ahead of the `sessionType` → lifecycle-workflow mapping.
+
+    - `[ ]` **4.5.b `--errand` cold dispatch + discovery surfacing**
+        - `arc-session --errand <blurb|slug>` cold-starts a fresh errand or picks up a flagged capture (dispatches
+          `run-errand` Launch); bare `arc-session` (orient) surfaces recorded errands (flagged `§ Atomic` items +
+          in-flight chore branches) as a route.
+
+    - `[ ]` **4.5.c Materialize consumption + in-flight advisory**
+        - Consume the 4.4.c materialize candidates (remote chore branch → `git worktree add` → resume); surface
+          the 4.4.b in-flight sweep as an **orient-only** advisory with the **rate-limited** nudge (lean: a
+          lightweight last-nudged timestamp in user state — needs deeper evaluation at impl).
+
 ## **Phase 5:** Lifecycle-workflow deltas
 
 _Purpose:_ Wire the mechanism into the remaining lifecycle workflows — remove the integration-ceremony drain,
@@ -566,24 +706,48 @@ package source.
 - _Note:_ Init, not activate — init is the begin-new-WU moment the invariant targets. Fires at Step 1/2 (before
   scaffolding), reading the `inboxState` probe. Both copies.
 
+### `[ ]` **5.5 Errand-session handoff path (`session-handoff`)**
+
+- _Goal:_ Pausing an in-flight errand has a ceremony-light path — `commit WIP + push` the `chore/<slug>` branch,
+  no SESSION-NOTES — so the pushed branch is the cross-machine resume anchor and an errand never needs WU-handoff
+  ceremony it has no artifacts for.
+- _Note:_ A distinct path from 5.3's no-active-WU branch (this one fires when on a `chore/` branch). Carries the
+  guardrail that **other handoffs do not police errand branches** — dangling errands surface at orient (the 4.4
+  in-flight sweep), not at every handoff (flow protection). No SESSION-NOTES per ADR-021 (errands have no
+  orientation surface). Both copies (`session-handoff` is `.template.md` in the package).
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+### `[ ]` **5.6 Promote-errand-to-WU path (`init-work-unit`)**
+
+- _Goal:_ An errand that exceeds one review increment promotes cleanly — `chore/<slug>` → mint `meta-*`, rename
+  branch `chore/<slug>` → `<type>/<name>`, preserve commits — so scope explosion has a sanctioned conversion
+  rather than an abandon-and-restart.
+- _Note:_ A new `init-work-unit` entry path, sibling to the backlog-graduation path; pointed to from
+  `run-errand`'s Execute phase (3.4.b). Authored as a clean extractable block (`composable-workflows`
+  forward-compat). Both copies.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
 ## **Phase 6:** Live validation (component b)
 
 _Purpose:_ Run the new `arc-housekeep` flow against the real backlog — drain `andrew`'s long-deferred
 `USER-INBOX` captures to their homes and retire `BACKLOG-INBOX`'s contents into provisional stubs. The first
 live run _is_ the mechanism's validation; the next WU begins with an empty `USER-INBOX`.
 
-_Design decisions:_ Exercises Phases 1-5 end to end. Run from the primary worktree / base-branch context per the
-guard. _Open question pinned here (resolve at run):_ the errand↔PR chunking heuristic (spec § Open Questions,
-item a) — default one PR per lane, chunk only if a drain is too large for one reviewable PR; the actual backlog
-volume at run time decides.
+_Design decisions:_ Exercises Phases 1-5 end to end — the drain itself is the live validation of `run-errand`
+(any atomic entry draining to standalone execution goes through it). Run from the primary worktree / base-branch
+context per the guard. The `ERRANDS.md` queue retirement is **template/code-only** (3.6.c): no live
+`.arc/user/andrew/ERRANDS.md` exists, so there is no live errand-queue migration here. `arc-inbox` and the
+session-init errand arms are exercised organically in use, not by the drain. _Open question pinned here (resolve
+at run):_ the errand↔PR chunking heuristic (spec § Open Questions, item a) — default one PR per lane, chunk only
+if a drain is too large for one reviewable PR; the actual backlog volume at run time decides.
 
 ### `[ ]` **6.1 Drain `andrew`'s `USER-INBOX` to homes**
 
 - _Goal:_ `andrew`'s pending `USER-INBOX` captures are routed to their real homes by an actual `arc-housekeep`
   run — the mechanism's first live exercise, proving the drain end to end.
 - _Approach:_ run the housekeep flow; classify + route each entry (existing-stub edits, new provisional stubs,
-  standalone errands, homeless flush to `ATOMIC-INBOX`). PRs follow § Auto-Merge Lane; the chunking heuristic
-  (open question a) settles against the actual volume.
+  standalone execution via `run-errand`, homeless flush to `ATOMIC-INBOX`). PRs follow § Auto-Merge Lane; the
+  chunking heuristic (open question a) settles against the actual volume.
 - _Note:_ ~17 entries as of planning (8 § Atomic + 9 § Backlog). The live `.arc/user/andrew/USER-INBOX.md` is
   still flat-shape here — the Phase 1 parser switch doesn't reshape it (a harmless interim probe miscount).
   Reshape its entries to the H3+checkbox grammar, or read them directly, as the drain's first step.
