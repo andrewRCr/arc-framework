@@ -459,19 +459,25 @@ flagged-item staleness surfacing is a session-init (orient) concern — Phase 4,
   and move-not-copy promotion. Dispatched by the `arc-housekeep` skill and the `session-handoff` between-WUs path
   (one workflow, two doors); routing keys on the logical model so a later structured-record swap leaves it intact.
 
-### `[ ]` **3.2 Thin `arc-housekeep` skill (dual entry point)**
+### `[x]` **3.2 Thin `arc-housekeep` skill (dual entry point)**
 
 - _Goal:_ `arc-housekeep` is invokable as a thin skill that dispatches the drain/route workflow, and the same
   logic is reachable from `session-handoff`'s between-WUs path — one workflow, two doors.
 - **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **3.2.a Author the `arc-housekeep` SKILL.md**
-        - Thin skill mirroring `arc-commit`'s shape. Canonical `.arc/system/.internal/skills/arc-housekeep/` +
-          package mirror; hand-sync the harness copy if exercised this session (self-hosting skill drift).
+    - `[x]` **3.2.a Author the `arc-housekeep` SKILL.md**
+        - Thin dispatcher (canonical + package mirror) mirroring `arc-handoff`'s shape: frontmatter +
+          one-line `Apply` pointer at `drain-inbox.md`, with a one-sentence gloss. No logic in the skill.
+          Harness availability rides the established symlink-to-canonical pattern (the harness skill dir links
+          back to this `.internal/skills/` source), so there is no separate copy to drift.
 
-    - `[ ]` **3.2.b Keep the mechanism DRY**
-        - The workflow is the single logic home; the skill and the `session-handoff` between-WUs path (Phase 5.3)
-          both dispatch it — factor, don't duplicate.
+    - `[x]` **3.2.b Keep the mechanism DRY**
+        - Satisfied by construction: all logic lives in `drain-inbox.md`; the skill only dispatches it, so the
+          Phase 5.3 `session-handoff` between-WUs path can dispatch the same workflow with nothing to duplicate.
+
+- _Outcome:_ `arc-housekeep` is a pure dispatcher over `drain-inbox.md` — the workflow is the single logic
+  home, leaving the standalone skill and the (future) `session-handoff` between-WUs path as two thin doors onto
+  one mechanism.
 
 ### `[ ]` **3.3 Machine-checked write-context guard (test-first)**
 
