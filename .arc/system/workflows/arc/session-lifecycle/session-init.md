@@ -42,6 +42,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                          |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
 | `errandSweep`               | Pre-computed errand-staleness sweep. `value.stale`: errand-queue entries (`user/{identity}/ERRANDS.md`) pending past `errands.staleness_days` (default 3), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the queue is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 — execute or demote to the inbox; never auto-removed                                                                                                                                           |
+| `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                        |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -118,13 +119,18 @@ acted on.
 - **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
   sync channels below, then Step 3.
 - **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
-  units). Two intents, disambiguated by the explicit `--errand` signal (never "any arg" — the positional seed
-  stays orthogonal):
+  units). Discovery and errand are the dispatch intents, disambiguated by the explicit `--errand` signal (never
+  "any arg" — the positional seed stays orthogonal); housekeep overlays either as a soft-offer when the inbox
+  holds routable captures:
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction.
     - **Errand** (`--errand` present, primary worktree): enter **errand mode** — see
       [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
       surface that an Errand runs from the primary worktree and fall through to discovery.
+    - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
+      captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
+      dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
+      drains via the [arc-housekeep skill][arc-housekeep-skill]. Soft-encourage, never hard-block.
 - **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
   scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
@@ -548,6 +554,14 @@ tracked source documents the work.
   - `{slug}` — created {created} ({ageDays}d ago)
   ```
 
+- `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer
+  the between-WU drain; never hard-block. A Resume session (active WU) carries the probe but does not surface this
+  — housekeep drains from a base-branch context, not mid-WU.
+
+  ```text
+  **Housekeep:** no active WU; `USER-INBOX` has {inboxState.value.routableCount} pending capture(s) — housekeep?
+  ```
+
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
 clean, environment checks passed.
 
@@ -592,6 +606,7 @@ source's view with specific details and wait for explicit direction before any c
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
 [run-errand]: ../supplemental/run-errand.md
 [arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
+[arc-housekeep-skill]: ../../../.internal/skills/arc-housekeep/SKILL.md
 [dev-rules-routing]: ../../../rules/DEV-RULES.ARC.md#discovered-work-routing
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md

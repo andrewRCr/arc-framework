@@ -642,7 +642,7 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   required on `SessionInitProbes` rippled into every probe-literal test fixture — surfaced only by
   `typecheck:test`, not the src-only Tier-1 check.
 
-### `[ ]` **4.3 session-init `housekeep` intent + soft-offer**
+### `[x]` **4.3 session-init `housekeep` intent + soft-offer**
 
 - _Goal:_ Session-init's Orient arm offers housekeep when `USER-INBOX` has routable entries — a third intent
   beside discovery and errand — soft-encouraging the empty-at-WU-start invariant without blocking.
@@ -650,12 +650,17 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   ordinal `Step N` refs (composable-workflows interim convention).
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **4.3.a Add the `housekeep` intent to the entry dispatch**
-        - Step 2 Orient arm reads `inboxState.housekeepNeeded` and carries the housekeep intent.
+    - `[x]` **4.3.a Add the `housekeep` intent to the entry dispatch**
+        - Orient arm now reframes discovery/errand as the dispatch intents and adds **Housekeep** as a third —
+          gated on `inboxState.value.housekeepNeeded`, an overlay (not a hard arm) that points at the
+          `arc-housekeep` skill. Added an `inboxState` row to the Step 1 envelope table.
 
-    - `[ ]` **4.3.b Add the soft-offer to orientation**
-        - Step 6: "No active WU. `USER-INBOX`: N pending — housekeep?" Soft-encourage, never hard-block. Both
-          copies (`session-init` is `.template.md` in the package).
+    - `[x]` **4.3.b Add the soft-offer to orientation**
+        - Step 6 conditional surface: `**Housekeep:** no active WU; USER-INBOX has {routableCount} pending —
+          housekeep?` — gated to the Orient arm (a Resume session carries the probe but doesn't surface it).
+- _Outcome:_ Both copies edited symmetrically (the `housekeep`/`inboxState` additions are ungated, matching the
+  existing errand/USER-INBOX treatment — only the pre-existing `arc:if` blocks still differ); new
+  `[arc-housekeep-skill]` link ref added to each.
 
 ### `[ ]` **4.4 Errand-state probe (test-first)**
 
