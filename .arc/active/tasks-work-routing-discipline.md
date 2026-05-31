@@ -305,16 +305,18 @@ contract describes `run-errand` / `arc-inbox` before they are built). See `notes
   gained Amendment (2026-05-31) recording the queue-as-capture-surface fault, the protection-mode bias, and the
   execution-only model (taxonomy unchanged, realization re-pivoted). Done as the re-planning act.
 
-### `[ ]` **2.R.2 `DEV-RULES.ARC § Discovered Work Routing` correction (both copies)**
+### `[x]` **2.R.2 `DEV-RULES.ARC § Discovered Work Routing` correction (both copies)**
 
 - _Goal:_ The constitutional routing rule states the execution-only errand model and is protection-mode-aware,
   so the rule a developer reads matches the corrected mechanism.
-- _Approach:_ recast `### Holding ≠ execution` — out-of-WU execution is the `run-errand` lifecycle, not
-  capture-then-queue; "never a manual bypass branch" is reframed protection-aware (full = `chore/<slug>`; partial
-  = direct base commit) deferring to `§ Cheap-branch path`; capture is inbox-only via `arc-inbox`. Keep the
-  ambient discipline here (the routing decision, the core invariant); actionable construction specifics go to the
-  `arc-inbox` skill (the doc-boundary divide, R29).
 - **Strategies:** strategy-package-project-sync.md
+- _Outcome:_ Recast `§ Discovered Work Routing` for the execution-only, protection-mode-aware model (both
+  copies, byte-identical): the urgency / capture routing-table routes now point at `arc-session --errand` and
+  `arc-inbox`; "Express lanes" drops "queue an errand" (→ "run an errand"); `### Holding ≠ execution` rewritten —
+  capture is inbox-only (via `arc-inbox`), an errand *is* its execution (the `run-errand` lifecycle), the
+  isolation rule is universal but its shape (full `chore/<slug>` branch vs. partial direct base commit) defers to
+  `§ Cheap-branch path`, no queue / `errand-*` file / State field, and a captured item's inbox entry is removed
+  at completion (slug-matched). Ambient discipline stays here; actionable specifics route to `arc-inbox` (R29).
 
 ### `[ ]` **2.R.3 `strategy-work-organization` correction (both copies)**
 

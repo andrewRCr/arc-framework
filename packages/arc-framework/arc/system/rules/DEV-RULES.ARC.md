@@ -232,18 +232,18 @@ via the [issue-triage method][arc-methods-it] and fold the fix into the work in 
 **Otherwise, route by urgency × isolation** — a coarse *inline / errand-now / inbox-defer* call. The finer
 destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
 
-| The concern is…       | Can I write its home here? | Route                                              |
-| --------------------- | -------------------------- | -------------------------------------------------- |
-| The current WU's own  | Yes — you're on its branch | Fix **inline**. Never capture.                     |
-| Out-of-WU, **urgent** | No — isolation needed now  | **Errand now** (`arc-errand`).                     |
-| Out-of-WU, not urgent | No — defer the write       | **Capture** to `USER-INBOX`; housekeep drains it.  |
+| The concern is…       | Can I write its home here? | Route                                                  |
+| --------------------- | -------------------------- | ------------------------------------------------------ |
+| The current WU's own  | Yes — you're on its branch | Fix **inline**. Never capture.                         |
+| Out-of-WU, **urgent** | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
+| Out-of-WU, not urgent | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
 
 In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
 whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classification follows
 [strategy-work-organization][work-org] § Errand Work Class.
 
-**Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and write the
-home directly — queue an errand (atomic) or scaffold a `backlog/` stub (multi-step) — but never must:
+**Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and act
+directly — run an errand (atomic) or scaffold a `backlog/` stub (multi-step) — but never must:
 capture-plus-drain reaches the same place. Lack of time is never a reason to lose a thought.
 
 **Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow,
@@ -254,10 +254,17 @@ inline, holding, and anti-rider rules are mode-independent.
 
 ### Holding ≠ execution
 
-The inbox *holds*; it never *executes*. Executing any out-of-current-WU work goes through `arc-errand` — never
-hand-rolled in place, never a manual bypass branch. Promotion inbox→errand is the only execution path and
-**moves** the source entry. Routing a multi-step note *to its stub* is not execution — the housekeep drain
-writes it straight in.
+Capture *holds*; it never *executes*. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
+`arc-inbox`), never as a queued or seeded errand. **An errand *is* its execution:** out-of-WU work runs in its
+own session through the `run-errand` lifecycle (`arc-session --errand`), never hand-rolled on your current WU
+branch. The isolation rule is universal — get off the WU branch — but its *shape* follows protection mode: a
+`chore/<slug>` branch + PR under full, a direct base commit under partial (see
+[strategy-work-organization][work-org] § Cheap-branch path). There is no errand *queue*, no `errand-*` file, and
+no State field — an errand's state is derived from its branch and PR.
+
+Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
+errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so
+an abandoned errand never orphans the intent.
 
 ### Anti-rider
 
