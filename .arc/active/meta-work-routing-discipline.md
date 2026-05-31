@@ -11,14 +11,14 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-routing-discipline.md`
-- **Last Completed:** Task 2.R.6 — crystallized the errand-lifecycle build into Phases 3–6 (`run-errand`,
-  `arc-inbox`, retirements, probe errand arms, errand-session handoff, promote-to-WU); also 2.R.2 (DEV-RULES.ARC
-  § Discovered Work Routing recast to the execution-only, protection-mode model).
-- **Next Task:** Task 2.R.3 — `strategy-work-organization` correction (both copies) (line ~321)
+- **Last Completed:** Phase 2.R complete — Task 2.R.5 (downstream cascade write-backs) closed it, after 2.R.3
+  (`strategy-work-organization` correction) and 2.R.4 (capture surfaces + spec R30 reminder-flag design) this
+  session.
+- **Next Task:** Task 3.1 — Drain/route workflow (logical-model routing) (line ~427)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.R.3 — recast `strategy-work-organization` (§ Errand Work Class / § Cheap-branch
-  path / § Entry path) to the execution-only, no-queue model (mechanical, spec-guided; spec § Errand-model
-  re-pivot).
+- **Next Action:** Start Task 3.1 — author the `arc-housekeep` drain/route workflow; opens Phase 3, the
+  errand-mechanism build (`run-errand`, `arc-inbox`, queue / `arc-errand` retirements). Mode shift: doctrine →
+  TypeScript + workflow construction.
 
 ---
