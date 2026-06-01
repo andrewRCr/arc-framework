@@ -11,13 +11,12 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-routing-discipline.md`
-- **Last Completed:** Task 6.1 — Drain `andrew`'s `USER-INBOX` to homes (first live housekeep, 26 entries);
-  Phase 6.R (drain integration-mode + `Inbound Buffer` convention) folded in and complete.
-- **Next Task:** Task 6.2 — Retire `BACKLOG-INBOX` contents to provisional stubs (line ~980)
+- **Last Completed:** Task 6.2 — Retire `BACKLOG-INBOX` to durable homes (second-pass triage → 7 new stubs +
+  5 folds + 2 cohorts; file deleted). Phase 6 complete.
+- **Next Task:** Task 7.1 — Complete verification (line ~1046)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.2 — retire `BACKLOG-INBOX`'s 13 entries to `backlog/provisional/` stubs (a
-  first-pass triage plan is in SESSION-NOTES), then delete `BACKLOG-INBOX.md` and sweep its references. Runs
-  on-branch under the same documented bootstrap exception as 6.1.
+- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md` to verify the whole WU against its
+  Success Criteria; final phase before integration.
 
 ---
