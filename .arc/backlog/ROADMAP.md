@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `27a5e4f7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cee5fe86`.
 
 This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
 canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
@@ -44,6 +44,8 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 | review-method-family          | andrew | —                        | —                          |
 | roadmap-tooling               | andrew | —                        | —                          |
 | rules-restructure             | andrew | —                        | —                          |
+| skill-infrastructure-cleanup  | andrew | —                        | —                          |
+| task-list-conventions         | andrew | —                        | —                          |
 
 ## Blocked
 
@@ -58,6 +60,7 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 | docs-content-sweep            | andrew | docs-site-refresh        | release-readiness          |
 | arc-plan-conductor            | andrew | loadset-composition      | —                          |
 | contributor-path              | andrew | agile-wu-lifecycle       | —                          |
+| doc-naming-convention         | andrew | work-routing-discipline  | —                          |
 | operational-state-docs        | andrew | cli-substrate-adoption   | —                          |
 | quality-gate-hooks            | andrew | agile-wu-lifecycle       | —                          |
 

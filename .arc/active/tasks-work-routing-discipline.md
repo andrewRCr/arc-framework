@@ -953,28 +953,29 @@ review-reachability — one auto-merge PR per lane, split only past a reviewer's
 commit boundaries. The dry run (5.R) already produced the first-pass classification, so the live run resumes
 from the confirmation interlock.
 
-### `[ ]` **6.1 Drain `andrew`'s `USER-INBOX` to homes**
+### `[x]` **6.1 Drain `andrew`'s `USER-INBOX` to homes**
 
 - _Goal:_ `andrew`'s pending `USER-INBOX` captures are routed to their real homes by an actual `arc-housekeep`
   run — the mechanism's first live exercise, proving the drain end to end.
-- _Approach:_ run the corrected gated, phased drain (`drain-inbox`): first-pass classify (no writes) →
-  confirmation interlock on the full routing plan → chunk if large → route (existing-stub edits, grouped new
-  stubs at chosen maturity, homeless flush to `ATOMIC-INBOX`, retain via `_Hold:_`) → execution transition
-  (committed atomics → `run-errand`) → confirm no un-triaged entries. PRs / chunking follow § Auto-Merge Lane
-  per the now-resolved heuristic.
-- _Note:_ The dry run (5.R) already produced the first-pass classification — ~26 entries (12 § Atomic +
-  14 § Backlog), well past the ~17 planning estimate; most § Atomic entries are legacy and reclassify to
-  quick-tier stubs. The live run resumes from the confirmation interlock against that classification. The live
-  `.arc/user/andrew/USER-INBOX.md` is still flat-shape — reshape its entries to the H3+checkbox grammar, or read
-  them directly, as the first step.
 
-    - `[ ]` **6.1.a Run the gated, phased drain over `USER-INBOX`**
-        - Classify (with tier re-triage + concern-grouping), confirm the plan at the interlock, then route every
-          `## Atomic` + `## Backlog` entry to its home; transition committed atomics to `run-errand`.
+    - `[x]` **6.1.a Run the gated, phased drain over `USER-INBOX`**
+        - Classified all 26 entries, confirmed the full routing plan at the interlock, then routed in
+          buffer-mode (Phase 6.R's default) to homes. Routing-only bootstrap: no inline execution — committed
+          atomics held execute-bound for post-merge `arc-session --errand` (run-errand off `main`, no nested
+          bootstrap).
 
-    - `[ ]` **6.1.b Confirm the invariant holds**
-        - `USER-INBOX` ends with no un-triaged entries (empty but for any explicitly retained `_Hold:_`
-          captures); the next WU starts clean.
+    - `[x]` **6.1.b Confirm the invariant holds**
+        - `USER-INBOX` ends with no un-triaged entries: 4 execute-bound `_Remind:_` stayers, reshaped to the H3
+          managed grammar with `_Slug:_`; `§ Backlog` empty. Probe confirms `routableCount: 4` (all well-formed
+          — dogfoods the R6 parser↔grammar reconciliation on the live file).
+
+- _Outcome:_ First live drain complete — the mechanism's end-to-end validation. 26 entries (12 § Atomic +
+  14 § Backlog) → **4 dismissed** as resolved on-branch (R6/R7/R15, R21-subsumed), **~16 routed** as
+  `Inbound Buffer` notes into 9 existing planned stubs + **2 new planned stubs** (`skill-infrastructure-cleanup`,
+  `task-list-conventions`), with `doc-naming-convention` **promoted** provisional→planned (broaden/rename
+  deferred to its own iteration). **4 atomics held execute-bound** (`_Remind:_`) for post-merge errands; **nothing
+  flushed to `ATOMIC-INBOX`** — every atomic found a stub home or an errand. ROADMAP re-rendered for the three
+  newly-planned WUs. The run surfaced and folded Phase 6.R (drain integration-mode) before completing.
 
 ### `[ ]` **6.2 Retire `BACKLOG-INBOX` contents to provisional stubs**
 

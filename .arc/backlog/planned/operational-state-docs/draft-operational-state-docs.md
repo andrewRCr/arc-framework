@@ -6,6 +6,29 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
+
+- _Routed from:_ work-routing-discipline housekeep drain (2026-06-01) — surfaced classifying the live inbox.
+- _Concern:_ this draft (§ Scope) already states the inbox schemas adopt the "slug-keyed managed-entry grammar,"
+  but the interim parser (`parseUserInboxSection`) work-routing-discipline shipped keys entries on the bold
+  **title** (`H3_KEY`), not an explicit slug — while `run-errand` removes the "slug-matched" originating entry.
+  The deprecated `ERRANDS.md` `Branch: chore/<slug>` field that previously served as the parse key did not
+  survive the errand re-pivot, and an inbox entry may never become a `chore/<slug>` branch (and wouldn't under
+  partial protection), so the key must be entry-intrinsic.
+- _Reconcile (at the structured-record swap):_ codify an explicit `_Slug:_` field (= slugified title;
+  protection-mode-agnostic) as the structured key. work-routing-discipline hand-applies `_Slug:_` on its
+  execute-bound stayers now, ahead of codification.
+- _Also codify:_ the entry field-ordering convention — parsed/managed fields (`_Slug:_` / `_Remind:_` /
+  `_Created:_` / `_Hold:_` / `WU_Target:`) grouped and blank-line-separated from the prose descriptors, so the
+  render engine emits a stable shape.
+
+---
+
 ## Purpose
 
 Build the cross-cutting substrate that realizes ADR-022's structured-record model for the managed

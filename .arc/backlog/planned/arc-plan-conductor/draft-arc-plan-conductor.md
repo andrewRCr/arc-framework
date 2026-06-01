@@ -14,6 +14,46 @@ freeform exploration.
 
 - **Created:** 2026-04-10 (revised 2026-04-29, terminology refresh 2026-05-19)
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Forward-compat / cross-WU coordination as a standard planning consideration**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* make "does other planned backlog work bear on this?" a built-in step during pre-impl planning
+  (create-spec, generate-tasks, arc-plan) and the pre-impl audit (`arc-task-audit`), not an after-the-fact
+  execution discovery. Bidirectional: pull downstream planned designs *into* current work where they should
+  inform it; push refinements *back out* when current work changes assumptions a downstream WU rests on. The
+  write-back half is the one most easily dropped.
+- *Motivation:* recurring manual pattern — `worktree-foundation`'s 2026-05-26 cohort/downstream forward-compat
+  cross-check hand-did exactly this (reserving extension points for `cross-machine-sync-coherence`, keeping
+  logic extractable for `user-sync-module-split`).
+- *Open:* efficiency — needs a cheap relevance filter (most WUs won't relate) + a bounded read; may key off
+  `Depends On` / `Cohort` to scope the candidate set before any design read.
+- *Routing:* candidate homes — this conductor (orchestration owner), the planning workflows (codified step),
+  `arc-task-audit` (surfacing point), or a new WU; likely also a `strategy-work-planning` convention regardless.
+  Related to but distinct from `in-flight-awareness` (active WUs vs. planned backlog WUs).
+
+### `[ ]` **Iteration-time `Inbound Buffer` integration ceremony (drain integration-mode ceiling)**
+
+- *Routed from:* work-routing-discipline Phase 6.R (drain integration-mode floor), 2026-06-01.
+- *Concern:* work-routing-discipline landed the **floor** — the two-mode routing rule, the `## Inbound Buffer —
+  Pending Integration` convention, and a minimal forcing hook in `1_create-spec.md` Step 1 (integrate the buffer
+  before the plan feeds the PRD). The **ceiling** is this conductor's: a first-class buffer-drain step in the
+  refine-plan loop / iteration moment that mandatorily integrates a draft's `Inbound Buffer` into the body and
+  **supersedes** the minimal create-spec hook.
+- *Also:* placement/visibility refinement (the buffer is an interstitial after Origin/Purpose, set off by `---`)
+  and any structured-buffer schema belong here.
+- *Why here:* the conductor owns the planning-iteration moment (and already carries the "Backlog Inbox
+  Absorption" precedent). See spec `§ Drain integration-mode` (R38–R39), `drain-inbox § 5`, and
+  `notes § Drain integration-mode` in work-routing-discipline.
+
+---
+
 ## WOR alignment note (2026-05-19)
 
 This plan was authored when WU artifact prefixes were `plan-*` (exploration) and `prd-*` (spec)

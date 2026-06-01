@@ -18,6 +18,43 @@ optimization WUs in the series. Third sibling to Session-Init Optimization and H
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **CLI helper for the session-init strategic partial-read of the task list (concretizes Pillar 3 / D3.2)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: instruction-optimization`), work-routing-discipline
+  housekeep drain (2026-06-01).
+- *Concern:* session-init item 9 has the agent extract three task-list blocks (header, current-phase preamble,
+  current-task section) by hand — one phase grep + offset math + a 4-step graduated lookup + a preamble-boundary
+  contract. A purpose-built subcommand could return those blocks off the stable anchors, turning agent judgment
+  into deterministic parsing — of-a-piece with the probe-as-pre-resolver philosophy.
+- *Tension to reconcile:* Pillar 3 D3.2 (currentTask slot) frames this as "fold into the probe envelope," but the
+  design caution argues for a separate `sessionType`-gated subcommand (e.g. `arc task show --current`) over
+  embedding task content in the probe JSON — the probe is already large + runs every session-init, and item 9 is
+  skipped for planning sessions. Reconcile embed-vs-subcommand when scoped.
+- *Caution:* a parser couples to the task-list format — code the title-fragment fallback so drift *degrades
+  gracefully*; round-trip-test against `template-tasks.md`. Files: new CLI command + extraction lib (+ tests);
+  rewire session-init item 9 (Framework, two-copy).
+
+### `[ ]` **Add session-init Step 2 entry-dispatch arms to Pillar 4 surface candidates**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: instruction-optimization`), work-routing-discipline
+  housekeep drain (2026-06-01).
+- *Concern:* Pillar 4 (conditional section loading via a probe-rendered `applicableSections` routing card)
+  enumerates session-init Steps 1, 5, 6, 7 as candidates but omits **Step 2's entry-dispatch arms** (cold-start /
+  materialize / branch-gone recovery / errand cold-entry) — now the densest carry-and-skip cluster, read every
+  session regardless of which arm the probe selects. Add them to Pillar 4's candidate list at PRD; the errand
+  cold-entry block is a clean self-contained instance (gated on `--errand` + Orient + primary worktree), so it
+  extracts cheaply.
+- *Note:* the cross-cohort seam (fragment extraction per `composable-workflows` / P4.2 vs. one-file routing card
+  per P4.1) is already captured in both drafts; this is only the missing surface candidate, not the routing
+  decision.
+
+---
+
 ## Problem / Motivation
 
 ARC has been actively pursuing token-efficiency improvements at session-init (shipped April 2026,

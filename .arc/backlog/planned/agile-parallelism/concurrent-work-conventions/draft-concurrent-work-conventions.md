@@ -38,6 +38,47 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Make the WU lifecycle workflows merge-gate-aware**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* errand-enablement shipped the auto-merge lane (`merge-ok` classify gate, CODEOWNERS, native
+  auto-merge) but never reconciled the lifecycle workflows that drive PRs through it; `integrate-work-unit.md`
+  still encodes a pre-gate merge model.
+    - *Auto-lane failure mode:* Step 13's final human gate is the integration-interlock ("stop before merge, then
+      `gh pr merge`"). On the auto lane there is no discrete merge step — arming auto-merge + pushing green *is*
+      the authorization; the merge then happens unattended. So the integration-interlock is structurally moot and
+      its final-go intent evaporates. Fix: relocate that intent onto the **pre-push interlock** for the auto lane
+      (harden the `workflowPush` fire-site with awareness that, on this lane, the push authorizes an unattended
+      merge). Do **not** add a merge-time step.
+    - *Open — who arms `--auto`, and when:* native auto-merge is two-level — repo-level `allow_auto_merge`
+      (one-time; `setup-merge-gate` did it) + per-PR `gh pr merge --auto` (nothing automates it). An un-armed
+      planning PR sits green-but-unmerged. The workflow that opens planning PRs should own arming at PR-open.
+    - *Reviewed lane:* Step 13 doesn't mention `merge-ok` is now a *required* check (enforce_admins on) nor the
+      lane classification.
+- *Sequencing:* capture-not-fold was deliberate — work-routing-discipline's own integration PR is the gate's
+  first live traversal. Likely home CWC; touches `integrate-work-unit.md` (+ planning PR-open paths), two-copy.
+
+### `[ ]` **General base-branch-write guard + commit-hook backstop (shared write-context primitive)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`; pre-decided for CWC in work-routing-discipline's
+  notes), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* work-routing-discipline hardens only `arc-housekeep`'s *own* precondition (refuse/relocate off a WU
+  branch, reusing `arc errand`'s context resolution). The general case is isolation enforcement: any
+  base-branch-writing command (incl. AWL's `arc start` create-new) should guard its context, plus a pre-commit
+  backstop flagging a shared base-branch surface (`backlog/`, `active/` stubs, shared inbox) staged on a
+  non-base, non-`chore/` branch.
+- *DRY:* the command-time guard and the commit-time hook answer the same question (WU branch vs. base/`chore` ×
+  is this path a shared base-branch surface?) — share one **write-context-classifier** primitive (extending the
+  resolution `arc errand` and the session probe already carry).
+- *Home:* CWC owns the isolation/concurrency doctrine; possibly Worktree Foundation for the primitive itself.
+
+---
+
 ## Problem / Motivation
 
 `draft-worktree-foundation.md` ships the mechanism for parallel work — worktrees, shift, session-init

@@ -16,6 +16,40 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Broaden scope to prose/vocabulary conventions; rename `doc-naming-convention` → `naming-conventions`**
+
+- *Routed from:* decided at the work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* this WU's current scope is file/section *renames* (the `TYPE.QUALIFIER` cascade). The two
+  vocabulary captures below — prose word-choice conventions, not file names — broaden it into a general
+  **naming-conventions** WU. Rename `doc-naming-convention` → `naming-conventions` to reflect the broadened
+  scope: a cascade across the dir + `meta-*`/`draft-*` filenames + cross-references (work-routing-discipline's
+  spec/notes, other backlog drafts). Deferred from the drain (a design-bearing rename sweep belongs to this
+  WU's own iteration, not a mid-drain bulk edit) — execute it as this WU's first iteration act.
+
+### `[ ]` **Spell out "work unit" on user-facing surfaces**
+
+- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* add a DEV-RULES.PROJECT § Documentation Standards rule — write "work unit" in full on user- /
+  adopter-facing surfaces; reserve `WU` for internal-dev shorthand and dense internal notes. Cheaper than
+  renaming the class; resolves the `WU`-on-user-surfaces aesthetic. (Touches a rules doc — quick-tier.)
+
+### `[ ]` **Evaluate a `housekeep` → `housekeeping` prose-form sweep**
+
+- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* `arc-housekeep` is the command/skill name (imperative, like `arc-commit`), but as a bare prose
+  modifier the doctrine uniformly uses "housekeep drain / flow" (DEV-RULES.ARC § Discovered Work Routing + the
+  strategies, ~8 usages). "Housekeeping" reads more naturally as an English adjective; the question is whether to
+  standardize the prose form to "housekeeping" (keeping the command `arc-housekeep`) in a deliberate cross-surface
+  sweep, or leave the established compound. Held during work-routing-discipline (Auto-Merge Lane work — decided to
+  keep "housekeep drain" for consistency then). Low priority; a vocabulary/doc-convention sweep, dual-copy.
+
+---
+
 ## Problem / Motivation
 
 ARC already uses `{TYPE}.{QUALIFIER}` for two paired doc families — `DEV-RULES.{ARC,PROJECT}` and

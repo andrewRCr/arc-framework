@@ -1,5 +1,26 @@
 # Draft: Per-Developer Configuration Storage Architecture
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **User-scoped inbox-clean-start policy**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* emptying `USER-INBOX` before starting a work unit is recommended practice, not a hard gate. Some
+  users may want ARC to require a clean personal inbox at `init-work-unit`; teams may find that paternalistic as
+  a default.
+- *Approach:* a user-scoped setting such as `inbox.init_policy = warn | require-clean` (or equivalent),
+  defaulting to advisory behavior while allowing stricter personal discipline.
+- *Captured during:* work-routing-discipline Task 5.2.
+- *Note:* landing here as the per-user config-settings home; if it reads more as an `init-work-unit` /
+  planning-module policy than a storage concern, re-route at integration.
+
+---
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,

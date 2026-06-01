@@ -18,6 +18,27 @@ atomic companion and the personal atomic inbox.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Teach `arc release` to accept the archival commit/push (`no-active-wu`, code 10)**
+
+- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* the archive ceremony's `workflowCommit` + final `workflowPush` route to the wrapper per release
+  routing, but the archival commit is the one that sweeps `meta-*` out of `active/`, so by commit/push time the
+  wrapper's active-WU precondition cannot resolve and it refuses (code 10) — forcing a raw-`git` fallback for a
+  routine ceremony.
+- *Resolution (decided at drain — wrapper-teaching):* teach the wrapper to recognize the archival context (the
+  commit moving `active/ → completed/`, or an explicit flag) and accept it; the wrapper should carry the routine
+  archival commit/push, not refuse it. The doc-only alternative (codifying archival-class fire-sites as
+  raw-routed) was set aside in favor of wrapper support. CLI change to the release wrapper's precondition check.
+- *Coordination:* dedups with a `BACKLOG-INBOX` archival-ceremony-tooling entry (the hook + `archive-work-unit`
+  facet); reconcile when `BACKLOG-INBOX` is retired.
+
+---
+
 ## Problem / Motivation
 
 The core simplification ARC is reaching for: **one approval per unit of work; routing follows

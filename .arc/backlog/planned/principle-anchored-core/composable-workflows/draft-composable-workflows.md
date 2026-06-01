@@ -9,6 +9,47 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Stable-anchor convention for cross-file workflow step references (ordinals → anchors)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), work-routing-discipline housekeep
+  drain (2026-06-01).
+- *Concern:* cross-file citations of workflow *step numbers* are silently brittle — a target renumber breaks the
+  citer with no error (`session-init.md` carries 23 `Step N` refs, `2_generate-tasks.md` 19;
+  `extensions/post-context-load.md` + `extensions/README.md` are already stale).
+- *Two concepts to separate:* (i) *anchor* — a stable cross-file reference target (pointed-at, no backing file);
+  (ii) *fire-point* — a validated load-point where an extension's actions execute (today's `· #name` marker,
+  `point-scanner`-validated against `system/extensions/<name>.md`). The `#name` marker reads generic but is
+  extension-reserved (a WF session tripped the validator reaching for it as an anchor).
+- *Convention:* cross-file refs target a stable anchor, never an ordinal; intra-file "see Step N" can stay. Two
+  orthogonal axes: disambiguate the extension marker (e.g. `#ext:name`, validated) AND/OR give anchors an
+  explicit form (the freed plain `#name`, a new sigil, or formalize the existing `§ SectionName` prose
+  convention — likely lowest-friction). Heading slugs are the zero-marker fallback (what WF used).
+- *Coupling:* includes fixing the stale extension-doc refs + the DEV-RULES.ARC "item 10" ref; coupled to this
+  WU's named-fire-point design (ADR-020 §9 defers the marker mechanism here).
+
+### `[ ]` **Codify how to reference external / harness skills from ARC content**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* a user wanting to invoke a non-ARC harness skill (a team's own `code-review`, or `research` /
+  `optimize-doc`) from a project workflow / method / extension *can* — by name, in prose — and ARC needs no
+  awareness (the harness owns skill discovery; ARC references its own skills the same way). There is just no
+  documented convention, so users guess.
+- *Codify:* (a) prose, not frontmatter (`arc.methods` / `arc.extensions` resolve to ARC files, not harness
+  skills — declaring one there fails the loader); (b) project-level only, never adopter-facing (a named ref
+  resolves only where that skill is installed under that name on that harness — fine for project surfaces, wrong
+  for shipped `system/**` / `strategies/arc/**`); (c) author for graceful degradation ("if available, invoke X;
+  otherwise fall back"). Doc-only; pairs with the PR-review case (teams swapping in their own review skill).
+- *Note:* home may instead be `strategy-workflow-authoring` (body conventions) or
+  `strategy-configurability-architecture` (customization framing) — landing here as the adjacent
+  workflow-reference owner; decide at integration.
+
+---
+
 ## Problem / Motivation
 
 ARC's lifecycle workflows scale across modes and tiers today via **carry-and-skip**: inline conditionals
