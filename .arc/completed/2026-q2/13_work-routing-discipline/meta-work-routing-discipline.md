@@ -1,6 +1,6 @@
 # Metadata: Work-Routing Discipline
 
-- **State:** Integrating
+- **State:** Shipped
 - **Owner:** andrew
 - **Branch:** `feat/work-routing-discipline`
 
