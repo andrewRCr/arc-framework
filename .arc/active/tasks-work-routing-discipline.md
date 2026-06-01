@@ -687,9 +687,11 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
           Extracted the shared `chore/` identity (`errand-branch.ts`: `ERRAND_BRANCH_PREFIX` + `errandSlugOf`)
           and repointed 4.4.a's lib onto it.
 
-    - `[ ]` **4.4.c Materialize-candidate extension**
-        - Recognize `chore/`-prefixed _remote_ branches (no local worktree, no meta) as materializable errands —
-          the cross-machine-resume path.
+    - `[x]` **4.4.c Materialize-candidate extension**
+        - New pure `findMaterializableErrands` (`src/lib/session-init/materializable-errands.ts`): filters
+          caller-enumerated remote-branch facts (`hasLocalWorktree` / `hasMeta`) to `chore/` branches with
+          neither — the cross-machine-resume candidates (already-local → resume; meta-backed → WU). Reuses the
+          shared `errandSlugOf`. Git enumeration is caller-side (wired later).
 
     - `[ ]` **4.4.d Repoint the staleness sweep**
         - The staleness sweep survives 3.6.d's queue-source removal by reading flagged `§ Atomic` items +
