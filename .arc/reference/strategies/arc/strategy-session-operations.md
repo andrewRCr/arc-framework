@@ -819,7 +819,8 @@ live-write capture surface — entries land any time, drain at the between-WUs h
 **Section structure.**
 
 - **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
-  No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below).
+  No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
+  retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
 - **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling. Each
   carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
   destination stub — existence at drain decides route-vs-create.
@@ -838,6 +839,19 @@ nudge (never the same day), and the nudge is rate-limited to once per calendar d
 drain clears the entry. The reminder is personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits
 the same field grammar but is never nudged (it has no singular owner). How `arc-inbox` constructs the
 field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
+
+**Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
+**retain** a `## Atomic` capture in place rather than route or flush it — to hold it privately until
+vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
+agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
+`_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
+same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
+entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
+session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still
+surfaces it (the sweep reads `_Remind:_` *or* `_Hold:_`), so a retained capture cannot rot. `_Remind:_`
+alone cannot serve this role: it means *nudge-until-drained*, the opposite of exempt-from-drain.
+Retaining re-stamps `_Created:_` to the retain date, so the never-same-day reminder floor applies from
+the retention. The drain therefore closes on **no un-triaged entries**, not necessarily an empty file.
 
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:

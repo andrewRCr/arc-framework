@@ -250,7 +250,11 @@ capture-plus-drain reaches the same place. Lack of time is never a reason to los
 **not** at the integration ceremony: homeless atomic items flush to the shared `ATOMIC-INBOX`, homeless
 multi-step items graduate to a *provisional* stub (there is no shared multi-step inbox). Under PM modes other
 than arc-in-git, captures route per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); the
-inline, holding, and anti-rider rules are mode-independent.
+inline, holding, and anti-rider rules are mode-independent. The drain clears each entry to a home, with one
+sanctioned exception — a developer may **retain** a specific capture in `USER-INBOX` (held privately until
+vetted, or for imminent self-execution), explicit and per-entry, never the default. So the WU-start invariant
+is **no un-triaged entries**, not an empty inbox: a retained entry is triaged (marked, reminder-tracked), not
+rot.
 
 ### Holding ≠ execution
 
@@ -260,7 +264,9 @@ own session through the `run-errand` lifecycle (`arc-session --errand`), never h
 branch. The isolation rule is universal — get off the WU branch — but its *shape* follows protection mode: a
 `chore/<slug>` branch + PR under full, a direct base commit under partial (see
 [strategy-work-organization][work-org] § Cheap-branch path). There is no errand *queue*, no `errand-*` file, and
-no State field — an errand's state is derived from its branch and PR.
+no State field — an errand's state is derived from its branch and PR. `arc-session` is the **sole top-level
+execution entrypoint** — no standalone errand command — but not `run-errand`'s only caller: the housekeep drain
+may transition committed atomics into `run-errand` within the same session.
 
 Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
 errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so

@@ -586,6 +586,11 @@ A between-WUs `arc-housekeep` drain flushes captured work to its homes — routi
 scaffolding provisional stubs, flushing homeless items to the shared inbox. Under full protection each such
 write ships as a PR, so the drain follows a packaging discipline.
 
+The drain is **gated and phased** — it classifies with no writes, **stops at a confirmation interlock** for the
+full routing plan, then routes — so the packaging below is decided against a confirmed plan, never mid-write. It
+closes on **no un-triaged entries**: every entry routed, dismissed, flushed, dispatched as an errand, or
+explicitly *retained* (a per-entry escape-hatch, never the default). The phased steps live in `drain-inbox.md`.
+
 **One PR per lane.** A drain produces *one PR per lane* — not one per sweep, nor one per destination; lanes
 never mix in a single PR. What bounds a PR is *concern-coherence*, not file or destination count. A
 planning-artifact routing sweep is one coherent concern — "route these entries to their homes," certifiable by
@@ -595,6 +600,10 @@ that happen to touch the same file are still two PRs, sequenced (rebase the seco
 batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
 of [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing applied to packaging; see it for the rule itself. A freshly
 scaffolded *provisional* stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
+When a routing sweep is large enough that one auto-merge PR would exceed a reviewer's reach, chunk it by
+concern-coherence into multiple same-lane PRs — the chunk plan surfaced at the drain's confirmation interlock.
+Under partial protection, where routing writes are direct base commits rather than PRs, chunking degrades to
+coherent commit boundaries.
 
 **The review threshold.** The prefix split above is the fast path; the principle beneath it is a four-condition
 threshold. A planning-artifact change needs review iff it (1) touches a **foreign owner's** artifact, in any
