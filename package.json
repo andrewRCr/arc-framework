@@ -19,6 +19,7 @@
     "test:e2e": "npm run test:e2e -w packages/arc-framework",
     "typecheck": "npm run typecheck -w packages/arc-framework",
     "typecheck:test": "npm run typecheck:test -w packages/arc-framework",
+    "typecheck:all": "npm run typecheck:all -w packages/arc-framework",
     "lint:ts": "npm run lint:ts -w packages/arc-framework",
     "lint:sh": "npm run lint:sh -w packages/arc-framework",
     "lint:arc:triggers": "tsx packages/arc-framework/src/scripts/audit-method-triggers.ts",
