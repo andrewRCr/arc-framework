@@ -1043,44 +1043,55 @@ after it lands.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint, ts lint, sh lint, typecheck, typecheck:test, 2230 tests (2169 unit/integration +
+  61 e2e), and build — all passed.
+- _Success criteria:_ 15 criteria, all met. One Deviation annotated (parser shipped as `parseUserInbox` +
+  shared `parseH3Section`, not `parseUserInboxSection`; behavior matches). Two end-states confirmed expected,
+  not gaps: residual `doc-naming-convention` / lone `BACKLOG-INBOX` prose mentions are owning-WU cascade
+  deferrals; `USER-INBOX`'s 4 `_Remind:_` stayers are triaged retain-with-reminder captures, so "no un-triaged
+  entries" holds.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `DEV-RULES.ARC § Leave it cleaner` states the core invariant, the capture decision table, the
+- `[x]` `DEV-RULES.ARC § Leave it cleaner` states the core invariant, the capture decision table, the
   holding-vs-execution boundary, the anti-rider concern-identity test, and the planning-artifacts-aren't-capture
   anti-pattern; the three strategies align with no contradiction.
-- `[ ]` `USER-INBOX`'s `## Atomic` / `## Backlog` preambles carry the routing model and `## Backlog` entries
+- `[x]` `USER-INBOX`'s `## Atomic` / `## Backlog` preambles carry the routing model and `## Backlog` entries
   carry `WU_Target`; `parseUserInboxSection` parses the shape with no silent drops (tests green).
-- `[ ]` `BACKLOG-INBOX` is retired (template removed, writes stopped, contents drained, file deleted);
+    - **Deviation:** shipped as `parseUserInbox` delegating to a shared `parseH3Section` (one helper for both
+      sections) rather than a single `parseUserInboxSection`; the no-silent-drop guarantee and section coverage
+      hold, with a malformed entry surfacing as a failure rather than a silent drop.
+- `[x]` `BACKLOG-INBOX` is retired (template removed, writes stopped, contents drained, file deleted);
   `ATOMIC-INBOX` is the atomic-only shared inbox.
-- `[ ]` `arc-housekeep` exists as a thin skill + drain/route workflow, refuses/relocates off a base-branch write
+- `[x]` `arc-housekeep` exists as a thin skill + drain/route workflow, refuses/relocates off a base-branch write
   context, drains `USER-INBOX` to empty, and is reachable from both the standalone skill and `session-handoff`'s
   between-WUs path.
-- `[ ]` The session-init envelope exposes `inboxState`/`housekeepNeeded`; session-init carries the `housekeep`
+- `[x]` The session-init envelope exposes `inboxState`/`housekeepNeeded`; session-init carries the `housekeep`
   intent + soft-offer; `init-work-unit` warns on a non-empty `USER-INBOX`; `integrate-work-unit` Step 10 is
   removed; `activate-work-unit` Step 6 is narrowed.
-- `[ ]` `strategy-work-organization § Auto-Merge Lane` codifies one-PR-per-lane, provisional-stub auto-merge, the
+- `[x]` `strategy-work-organization § Auto-Merge Lane` codifies one-PR-per-lane, provisional-stub auto-merge, the
   four-condition review threshold, and the housekeep carve-out.
-- `[ ]` The three forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC de-scope) are
+- `[x]` The three forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC de-scope) are
   recorded in their destinations.
-- `[ ]` A live `arc-housekeep` run cleared `andrew`'s `USER-INBOX` and retired `BACKLOG-INBOX`; the next WU
+- `[x]` A live `arc-housekeep` run cleared `andrew`'s `USER-INBOX` and retired `BACKLOG-INBOX`; the next WU
   begins with an empty `USER-INBOX`.
-- `[ ]` Errands are execution-only: the `ERRANDS.md` queue, the capture-flavored `arc-errand` skill, and
+- `[x]` Errands are execution-only: the `ERRANDS.md` queue, the capture-flavored `arc-errand` skill, and
   `arc errand queue` are retired (no `errand-*` file, no State field); `arc errand check` survives at execution
   time; ADR-021 carries the amendment.
-- `[ ]` `run-errand` exists (one workflow, Launch → Execute → Integrate, dispatched by `arc-session`, honoring the
+- `[x]` `run-errand` exists (one workflow, Launch → Execute → Integrate, dispatched by `arc-session`, honoring the
   Review-Increment Invariant — not `process-task-loop`); Integrate removes the slug-matched inbox entry at
   completion; promote-to-WU is reachable from Execute.
-- `[ ]` Session-init carries the errand-resume arm, the Materialize extension to `chore/` remote branches, and the
+- `[x]` Session-init carries the errand-resume arm, the Materialize extension to `chore/` remote branches, and the
   orient-only in-flight-errand sweep with a rate-limited nudge.
-- `[ ]` `arc-inbox` exists as the model-first unified capture entrypoint; the doc-boundary divide holds and
+- `[x]` `arc-inbox` exists as the model-first unified capture entrypoint; the doc-boundary divide holds and
   `§ Atomic` carries the optional reminder flag; `arc-session` is the sole execution entrypoint.
-- `[ ]` Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path`; the
+- `[x]` Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path`; the
   `operational-state-docs` write-back is extended and the cohort cascade-notes are recorded.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

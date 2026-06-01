@@ -11,12 +11,11 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-routing-discipline.md`
-- **Last Completed:** Task 6.2 — Retire `BACKLOG-INBOX` to durable homes (second-pass triage → 7 new stubs +
-  5 folds + 2 cohorts; file deleted). Phase 6 complete.
-- **Next Task:** Task 7.1 — Complete verification (line ~1046)
+- **Last Completed:** Task 7.1 — Complete verification (Tier 3 gates green; 15 success criteria all met, one
+  Deviation annotated). Phase 7 complete — task list fully done.
+- **Next Task:** [none] — verification complete; WU ready for integration.
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 7.1 — load and follow `verify-work-unit.md` to verify the whole WU against its
-  Success Criteria; final phase before integration.
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---
