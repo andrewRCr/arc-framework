@@ -2,7 +2,8 @@
 
 ## Project Overview
 
-**Project Type**: Solo framework development with public release goals
+**Project Type**: Framework development with public release goals (solo-developed; the ARC team is
+currently one person — the methodology itself is team-size-agnostic, not solo-targeted)
 **Primary Goal**: Deliver a coherent, configurable methodology — 11 non-negotiable principles
 with strong default conventions that teams adapt to their context
 
