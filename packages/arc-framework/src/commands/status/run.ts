@@ -139,6 +139,9 @@ export async function runSessionInitStatus(
   type RawErrandSweep =
     | { ok: true; value: import("../../lib/session-init/errand-staleness-sweep.js").ErrandStalenessSweepResult }
     | ProbeErrorSlot;
+  type RawErrandState =
+    | { ok: true; value: import("../../lib/session-init/errand-state.js").ErrandStateResult }
+    | ProbeErrorSlot;
   type RawInboxState =
     | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
     | ProbeErrorSlot;
@@ -271,6 +274,15 @@ export async function runSessionInitStatus(
     worktreeIdentity.kind === "primary" && roster?.ok
       ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
       : undefined;
+  const errandState: RawErrandState | undefined =
+    worktree.ok && active.ok
+      ? await safeProbe(() => probes.errandState({
+        currentBranch: worktree.value.branch,
+        hasBackingMeta: active.value.resolution === "single",
+        includeDiscovery: active.value.resolution === "none",
+        roster: roster?.ok ? roster.value : null,
+      }))
+      : undefined;
 
   return {
     mode: "session-init",
@@ -288,6 +300,7 @@ export async function runSessionInitStatus(
     ...(sweep !== undefined ? { sweep } : {}),
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
+    ...(errandState !== undefined ? { errandState } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };

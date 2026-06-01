@@ -52,6 +52,7 @@ import type { CascadeResolution } from "../../../src/lib/session-init/branch-gon
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
+import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
@@ -168,6 +169,17 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 
 function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
   return { entries: [], warnings: [], ...overrides };
+}
+
+function errandStateResult(overrides: Partial<ErrandStateResult> = {}): ErrandStateResult {
+  return {
+    resume: { resumable: false, slug: null },
+    inFlight: { errands: [] },
+    materializable: { candidates: [] },
+    nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
+    warnings: [],
+    ...overrides,
+  };
 }
 
 function configSessionInit(
@@ -289,6 +301,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
+    errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
@@ -504,6 +517,7 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(probes.active).toHaveBeenCalledTimes(1);
     expect(probes.domainRules).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
+    expect(probes.errandState).toHaveBeenCalledTimes(1);
   });
 
   it("exposes the domainRules slot with ok=true on success", async () => {
@@ -826,6 +840,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "config",
       "dirty",
       "domainRules",
+      "errandState",
       "errandSweep",
       "extensions",
       "identity",
@@ -1241,6 +1256,77 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
       expect(result.sweep.error.message).toBe("sweep boom");
     }
     expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — errand-state slot", () => {
+  it("fires after the roster stage and passes resume + discovery context", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/repo", branch: "chore/fix" }] });
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "main" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      roster: vi.fn(async () => rosterValue),
+      errandState: vi.fn(async () =>
+        errandStateResult({
+          materializable: { candidates: [{ slug: "fix", branch: "chore/fix" }] },
+        })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.errandState).toHaveBeenCalledWith({
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      roster: rosterValue,
+    });
+    expect(result.errandState?.ok).toBe(true);
+    if (result.errandState?.ok) {
+      expect(result.errandState.value.materializable.candidates).toEqual([
+        { slug: "fix", branch: "chore/fix" },
+      ]);
+    }
+  });
+
+  it("passes backing-meta context and suppresses discovery on a normal WU resume", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "feat/x" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+
+    await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.errandState).toHaveBeenCalledWith({
+      currentBranch: "feat/x",
+      hasBackingMeta: true,
+      includeDiscovery: false,
+      roster: expect.any(Object),
+    });
+  });
+
+  it("wraps a rejecting errand-state probe without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      errandState: async () => { throw new Error("errand state boom"); },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.errandState?.ok).toBe(false);
+    if (result.errandState && !result.errandState.ok) {
+      expect(result.errandState.error.message).toBe("errand state boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+
+  it("omits the errand-state slot when required context probes fail", async () => {
+    const probes = sessionInitProbes({
+      worktree: async () => { throw new Error("worktree failed"); },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.errandState).not.toHaveBeenCalled();
+    expect("errandState" in result).toBe(false);
   });
 });
 

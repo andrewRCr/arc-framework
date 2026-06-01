@@ -39,6 +39,7 @@ import type { CascadeResolution } from "../../lib/session-init/branch-gone-casca
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
+import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
@@ -162,6 +163,14 @@ export interface SessionInitProbeResult {
    * worktree sweep it is not worktree-gated.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
+  /**
+   * Pre-computed errand-state probe. Present when the worktree and active
+   * slots resolved, because those slots provide the current branch and
+   * backing-meta signal. Carries the current-branch errand-resume arm,
+   * Orient-only in-flight `chore/` advisories, remote-only materialization
+   * candidates, and the rate-limit marker state for reminder/stale nudges.
+   */
+  errandState?: Probe<ErrandStateResult>;
   /**
    * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
    * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
@@ -336,6 +345,18 @@ export interface SessionInitProbes {
    * advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
+  /**
+   * Errand-state resolver. The orchestrator supplies the current branch,
+   * backing-meta signal, the Orient/discovery gate, and the resolved roster
+   * when available. The handler binds config, git/forge enumeration, and
+   * nudge-marker reads.
+   */
+  errandState: (input: {
+    currentBranch: string | null;
+    hasBackingMeta: boolean;
+    includeDiscovery: boolean;
+    roster: WorktreeRosterResult | null;
+  }) => Promise<ErrandStateResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
    * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in

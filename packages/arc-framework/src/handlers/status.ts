@@ -61,8 +61,10 @@ import {
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
+import { runErrandState, type ErrandNudgeState } from "../lib/session-init/errand-state.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
+import { shouldNudge } from "../lib/session-init/nudge-rate-limit.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -112,6 +114,35 @@ function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRo
     commitInterlock: settings.resolved.commitInterlock.value,
     pushInterlock: settings.resolved.pushInterlock.value,
   });
+}
+
+const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
+
+function parsePositiveInteger(raw: string, fallback: number): number {
+  const parsed = Number.parseInt(raw, 10);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+async function resolveErrandNudgeState(
+  cwd: string,
+  io: ReturnType<typeof createUserIOContext>,
+  identity: string | null,
+): Promise<ErrandNudgeState> {
+  const today = new Date().toISOString().slice(0, 10);
+  if (identity === null) {
+    return { shouldNudge: false, markerPath: null, today };
+  }
+  const markerPath = `.arc/user/${identity}/${ERRAND_NUDGE_MARKER_RELATIVE}`;
+  const absoluteMarkerPath = join(cwd, ".arc", "user", identity, ERRAND_NUDGE_MARKER_RELATIVE);
+  const lastNudge = await io.readFile(absoluteMarkerPath).then(
+    (content) => content.trim(),
+    () => null,
+  );
+  return {
+    shouldNudge: shouldNudge({ lastNudge, today }),
+    markerPath,
+    today,
+  };
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
@@ -261,10 +292,23 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       }),
       errandSweep: async (id) => {
         const resolved = await resolvedSettingsP;
-        const parsed = Number.parseInt(resolved.settings["inbox.remind_after_days"], 10);
-        const thresholdDays = Number.isInteger(parsed) && parsed >= 0 ? parsed : 1;
+        const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
         const { entries } = extractReminderEntries({ content: await readUserInbox(id) });
         return runErrandStalenessSweep({ entries, thresholdDays });
+      },
+      errandState: async (input) => {
+        const resolved = await resolvedSettingsP;
+        const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+        return runErrandState({
+          exec: gitExec,
+          currentBranch: input.currentBranch,
+          hasBackingMeta: input.hasBackingMeta,
+          includeDiscovery: input.includeDiscovery,
+          roster: input.roster,
+          baseBranch: resolved.settings["branch.base"],
+          staleThresholdDays: thresholdDays,
+          nudge: await resolveErrandNudgeState(cwd, io, identity),
+        });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };

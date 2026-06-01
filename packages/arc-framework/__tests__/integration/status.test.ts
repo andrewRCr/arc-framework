@@ -60,6 +60,7 @@ import { resolveReleaseRouting } from "../../src/lib/release/routing.js";
 import { runInboxState } from "../../src/lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminders.js";
 import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
+import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 
@@ -209,6 +210,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -259,8 +261,19 @@ function makeResolvedReleaseModeSessionInitProbes(
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
+  };
+}
+
+function stubErrandState(): ErrandStateResult {
+  return {
+    resume: { resumable: false, slug: null },
+    inFlight: { errands: [] },
+    materializable: { candidates: [] },
+    nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
+    warnings: [],
   };
 }
 
@@ -471,6 +484,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       sweep: async () => ({ worktrees: [], warnings: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
+      errandState: async () => stubErrandState(),
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
       releaseRouting: async () =>
         resolveReleaseRouting({
@@ -634,6 +648,7 @@ function makeRealWorktreeProbes(
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({

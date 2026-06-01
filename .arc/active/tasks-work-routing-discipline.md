@@ -708,7 +708,7 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
           4.5.c (git/forge enumeration); the `errandSweep` slot keeps its name (repointed, not renamed). Held the
           commit to land all three sub-pieces (rename + parser + repoint) atomically — nothing dangles.
 
-### `[ ]` **4.5 session-init errand arms (workflow wiring)**
+### `[x]` **4.5 session-init errand arms (workflow wiring)**
 
 - _Goal:_ session-init dispatches and advises on errands — execution is `arc-session`-driven, resume is
   automatic, and committed errands stay discoverable — without disturbing the WU-resume path.
@@ -716,19 +716,29 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   convention). Both copies (`session-init` is `.template.md` in the package).
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **4.5.a Errand-resume arm (orthogonal to `sessionType`)**
+    - `[x]` **4.5.a Errand-resume arm (orthogonal to `sessionType`)**
         - On the 4.4.a signal, load `run-errand` (resume mode) — **not** `process-task-loop`. Resolved as its own
           arm beside the existing entry dispatch, ahead of the `sessionType` → lifecycle-workflow mapping.
+        - Added the composite `errandState` envelope slot and Step 3 / lifecycle dispatch: a meta-less current
+          `chore/` branch routes to `run-errand` before WU `sessionType` handling and skips WU/task-loop reads.
 
-    - `[ ]` **4.5.b `--errand` cold dispatch + discovery surfacing**
+    - `[x]` **4.5.b `--errand` cold dispatch + discovery surfacing**
         - `arc-session --errand <blurb|slug>` cold-starts a fresh errand or picks up a flagged capture (dispatches
           `run-errand` Launch); bare `arc-session` (orient) surfaces recorded errands (flagged `§ Atomic` items +
           in-flight chore branches) as a route.
+        - Updated the cold-entry/orient arms so `--errand <blurb|slug>` feeds `run-errand` Launch, while bare
+          orient surfaces flagged inbox captures, in-flight errands, and materializable errand candidates.
 
-    - `[ ]` **4.5.c Materialize consumption + in-flight advisory**
+    - `[x]` **4.5.c Materialize consumption + in-flight advisory**
         - Consume the 4.4.c materialize candidates (remote chore branch → `git worktree add` → resume); surface
           the 4.4.b in-flight sweep as an **orient-only** advisory with the **rate-limited** nudge (lean: a
           lightweight last-nudged timestamp in user state — needs deeper evaluation at impl).
+        - Wired branch enumeration into `errand-state.ts`: local/remote `chore/` refs are classified with
+          merge/PR/age/meta facts; remote-only materializable candidates are exposed; the daily nudge marker is
+          carried in the same slot and documented as workflow-updated after surfacing.
+- _Outcome:_ One status envelope slot now carries resume, in-flight, materializable, and nudge state; both
+  session-init workflow copies consume it through Errand-resume, Orient, and Materialize arms, and the live
+  `npx arc status --session-init --json` probe returns `errandState`.
 
 ## **Phase 5:** Lifecycle-workflow deltas
 
