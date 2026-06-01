@@ -672,9 +672,12 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   under `src/lib/session-init/`.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **4.4.a Errand-resume detection**
-        - Resolve "current branch is `chore/`-prefixed AND no backing meta" → an errand to resume. The signal the
-          orthogonal resolution arm (4.5) dispatches on.
+    - `[x]` **4.4.a Errand-resume detection**
+        - New pure `detectErrandResume({ currentBranch, hasBackingMeta })` lib
+          (`src/lib/session-init/errand-resume-detection.ts`) → `{ resumable, slug }`: a `chore/`-prefixed branch
+          with no backing meta is a resumable errand (slug = the part after `chore/`); a backed `chore/` branch is
+          a promoted errand → WU, not a resume. Caller injects branch + meta-backing (from active/roster); the
+          orthogonal resolution arm (4.5) dispatches on `resumable`.
 
     - `[ ]` **4.4.b In-flight-errand sweep**
         - Enumerate `chore/` branches (local + open PRs) with no meta; classify in-progress / awaiting-merge /
