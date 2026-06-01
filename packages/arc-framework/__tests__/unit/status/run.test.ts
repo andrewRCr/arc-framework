@@ -359,6 +359,7 @@ function sessionHandoffProbes(
     pushability: vi.fn(async () => ({ allowed: true, conditions: [] })),
     restateCandidates: vi.fn(async () => restateCandidates()),
     releaseRouting: vi.fn(async () => releaseRouting()),
+    inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
 }
@@ -1463,7 +1464,9 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(probes.pushability).toHaveBeenCalledTimes(1);
     expect(probes.restateCandidates).toHaveBeenCalledTimes(1);
     expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
+    expect(probes.inboxState).toHaveBeenCalledTimes(1);
     expect(probes.user).toHaveBeenCalledWith("andrew");
+    expect(probes.inboxState).toHaveBeenCalledWith("andrew");
     expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
   });
 
@@ -1509,6 +1512,7 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "dirty",
       "head",
       "identity",
+      "inboxState",
       "mode",
       "pushability",
       "recommendedSummaryLine",
@@ -1519,6 +1523,49 @@ describe("runSessionHandoffStatus — orchestration", () => {
       "worktree",
     ]);
     expect(result.mode).toBe("session-handoff");
+  });
+
+  it("exposes the inboxState slot with ok=true on success", async () => {
+    const probes = sessionHandoffProbes({
+      inboxState: vi.fn(async () => ({ routableCount: 2, housekeepNeeded: true })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(probes.inboxState).toHaveBeenCalledWith("andrew");
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+    }
+  });
+
+  it("omits the inboxState slot when identity is absent", async () => {
+    const probes = sessionHandoffProbes();
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: null,
+      probes,
+    });
+    expect(probes.inboxState).not.toHaveBeenCalled();
+    expect("inboxState" in result).toBe(false);
+  });
+
+  it("wraps a rejecting inboxState probe as ok=false without rejecting handoff", async () => {
+    const probes = sessionHandoffProbes({
+      inboxState: async () => { throw new Error("inbox boom"); },
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.inboxState?.ok).toBe(false);
+    if (result.inboxState && !result.inboxState.ok) {
+      expect(result.inboxState.error.message).toBe("inbox boom");
+    }
+    expect(result.worktree.ok).toBe(true);
   });
 
   it("returns the helper's restate-candidates payload verbatim on the success path", async () => {

@@ -370,10 +370,13 @@ export async function runSessionHandoffStatus(
   const pushabilityTask = safeProbe(() => probes.pushability());
   const restateCandidatesTask = safeProbe(() => probes.restateCandidates());
   const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+  const inboxStateTask: Promise<SessionHandoffResult["inboxState"] | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.inboxState(identity));
 
   const [
     dirty, worktree, user, syncInterlock, active, head, pushability,
-    restateCandidates, releaseRouting,
+    restateCandidates, releaseRouting, inboxState,
   ] = await Promise.all([
     dirtyTask,
     worktreeTask,
@@ -384,6 +387,7 @@ export async function runSessionHandoffStatus(
     pushabilityTask,
     restateCandidatesTask,
     releaseRoutingTask,
+    inboxStateTask,
   ]);
 
   const branch = worktree.ok ? worktree.value.branch : null;
@@ -412,6 +416,7 @@ export async function runSessionHandoffStatus(
     pushability,
     restateCandidates,
     releaseRouting,
+    ...(inboxState !== null ? { inboxState } : {}),
     recommendedSummaryLine,
   };
 }

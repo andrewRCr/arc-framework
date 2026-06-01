@@ -769,7 +769,7 @@ package source.
   Added the `workflowCommit` marker for tracked `ATOMIC-INBOX` cleanup while keeping personal-inbox cleanup out of
   the project commit path, and normalized the ROADMAP regen fire site to the same marker pattern.
 
-### `[ ]` **5.3 `session-handoff` dedicated between-WUs path**
+### `[x]` **5.3 `session-handoff` dedicated between-WUs path**
 
 - _Goal:_ Session-handoff has a streamlined between-WUs branch — no SESSION-NOTES write, no meta commit, review
   WORKING-MEMORY removals, offer housekeep if captures pending, sync, confirm — wired to the same drain logic as
@@ -779,14 +779,20 @@ package source.
   _content_ cleanup stays `handoff-optimization`'s — adjacent concern, coordinate.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **5.3.a Add the between-WUs branch (DRY)**
+    - `[x]` **5.3.a Add the between-WUs branch (DRY)**
         - Factor the shared steps rather than duplicating the active-WU path; the branch skips SESSION-NOTES /
           meta-commit and reviews WORKING-MEMORY removals. Replaces the scattered `(if an active WU exists)`
           conditionals and the "next-session pointer" marker — durable captures route to existing surfaces
           (`USER-INBOX` / `WORKING-MEMORY` / `ROADMAP`), not a phantom pointer file.
 
-    - `[ ]` **5.3.b Wire the housekeep offer**
+    - `[x]` **5.3.b Wire the housekeep offer**
         - Reuse the Phase 3 drain logic (the second of the two doors); offer housekeep when captures pend.
+
+- _Outcome:_ Added a dedicated between-WUs branch to both `session-handoff` copies: no meta commit or
+  SESSION-NOTES write, WORKING-MEMORY review, durable capture routing, resolve-then-load dispatch to
+  `drain-inbox.md` through `arc-housekeep`, refresh, sync, and confirm. Wired handoff's identity-gated
+  `inboxState` probe through the status envelope and handler, with unit and integration coverage for success,
+  identity-absent, empty, and probe-failure paths.
 
 ### `[ ]` **5.4 `init-work-unit` non-blocking backstop warning**
 

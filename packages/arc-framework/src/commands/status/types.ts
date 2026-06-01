@@ -221,9 +221,9 @@ export interface HandoffSyncInterlock {
  * session-init context still being intact. Slots cover dirty-state, worktree
  * sync vs origin, notes sync (user), the sync-interlock gate, the resolved
  * active status file, current HEAD short-hash for the `Commit at Handoff`
- * anchor, and pushability pre-checks gating the worktree push. Push-interlock
- * and notes-push policy are owned by `arc sync` internally; the handoff
- * workflow doesn't read them.
+ * anchor, inbox state for the between-WUs housekeep offer, and pushability
+ * pre-checks gating the worktree push. Push-interlock and notes-push policy
+ * are owned by `arc sync` internally; the handoff workflow doesn't read them.
  *
  * `branch` is sourced from the worktree probe slot (where it's already
  * resolved internally) so the Confirm Handoff header and the pre-computed
@@ -266,14 +266,22 @@ export interface SessionHandoffResult {
   /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
+   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
+   * and a `housekeepNeeded` flag, so the between-WUs handoff branch can offer
+   * housekeep from a machine-resolved signal rather than an agent re-scan.
+   * Present whenever identity resolved; omitted only when identity is absent.
+   */
+  inboxState?: Probe<InboxStateResult>;
+  /**
    * State-aware top-of-Confirm-Handoff line, populated only when sync
    * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
    * absent). Carries `**Reconcile required:** ...` on diverged worktree or
    * `**Worktree:** N unpushed commit(s) on \`branch\`.` on local-ahead;
    * `null` when nothing warrants a top-level surface. The probe captures
-   * `worktree` pre-Step-3 of the handoff workflow — if Step 3 fires a chore
-   * commit, the rendered unpushed-count is one short of post-Step-3 truth.
-   * The workflow handles that adjustment when prepending the line.
+   * `worktree` before the selected handoff path mutates state — if the
+   * active-WU path fires a chore commit, the rendered unpushed-count is one
+   * short of post-commit truth. The workflow handles that adjustment when
+   * prepending the line.
    */
   recommendedSummaryLine: string | null;
 }
@@ -379,6 +387,7 @@ export interface SessionHandoffProbes {
   pushability: () => Promise<PushabilityResult>;
   restateCandidates: () => Promise<RestateCandidatesResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
+  inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 
 export interface RunStatusOptions {

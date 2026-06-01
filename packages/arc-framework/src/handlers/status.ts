@@ -159,6 +159,10 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const json = Boolean(opts.json);
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
+  // Both the inbox-state and reminder-sweep probes read the same personal
+  // `USER-INBOX.md`; a missing file reads as empty (no captures).
+  const readUserInbox = (id: string): Promise<string> =>
+    io.readFile(join(cwd, ".arc", "user", id, "USER-INBOX.md")).catch(() => "");
 
   if (opts.sessionHandoff) {
     if (!json) {
@@ -214,6 +218,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         return deriveRestateCandidates({ exec: gitExec, sessionNotes });
       },
       releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+      inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
     const result = await runSessionHandoffStatus({ identity, role, probes });
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -224,10 +229,6 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
-    // Both the inbox-state and reminder-sweep probes read the same personal
-    // `USER-INBOX.md`; a missing file reads as empty (no captures).
-    const readUserInbox = (id: string): Promise<string> =>
-      io.readFile(join(cwd, ".arc", "user", id, "USER-INBOX.md")).catch(() => "");
     const probes: SessionInitProbes = {
       user: async (id) => {
         const resolved = await resolvedSettingsP;
