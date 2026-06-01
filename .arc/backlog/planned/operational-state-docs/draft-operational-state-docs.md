@@ -18,9 +18,12 @@ substrate today; the surfaces are otherwise built piecemeal, each coining its ow
 - **Structured schemas** for the managed-doc surfaces `cli-substrate-adoption` does not cover. (CSA covers
   the meta record, the session-init envelope, the audit log, and `arc-config`; this WU covers `SESSION-NOTES`,
   `WORKING-MEMORY`, `USER-INBOX`, the shared backlog inbox (`ATOMIC-INBOX`), and the `STATUS.*` views.) The
-  inbox schemas adopt the slug-keyed managed-entry grammar — including the `WU_Target` field and the `§ Atomic`
-  reminder flag (`_Remind:_` + its `_Created:_` aging date), with parsed field values backtick-delimited,
-  `work-routing-discipline` set on current names — so the structured-record swap is a clean lift, not a regrammar.
+  inbox schemas adopt the slug-keyed managed-entry grammar — including the `WU_Target` field, the `§ Atomic`
+  reminder flag (`_Remind:_` + its `_Created:_` aging date), and the `§ Atomic` retain flag (`_Hold:_`, set by
+  the housekeep drain), with parsed field values backtick-delimited, `work-routing-discipline` set on current
+  names — so the structured-record swap is a clean lift, not a regrammar. The interim markdown readers
+  (`session-init/managed-field.ts`, regex-extracting these backtick-delimited values for the inbox-state and
+  reminder probes) are the recovery/import path this WU's structured model **supersedes**, not a layer to extend.
   `arc-inbox`'s deterministic managed-write CLI (`arc inbox add`) is this WU's backend: `work-routing-discipline`
   ships `arc-inbox` model-first over hand-managed markdown against the grammar this WU's CLI later emits (the
   `ROADMAP`-before-its-renderer pattern).

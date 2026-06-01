@@ -256,6 +256,15 @@ are mini-PRs that ride the same rebase / merge and async-merge discipline this W
 ordering and in-flight coordination are CWC territory; fold errand (`chore/`) branches into the concurrency
 rubrics when next iterated.
 
+**Drain-mechanism correction (`work-routing-discipline`, 2026-06-01):** `run-errand` and the `drain-inbox`
+execution transition both defer post-merge cleanup — errand branch/worktree teardown and removal of the
+slug-matched `USER-INBOX` line — to the errand's *merge*. On the auto-merge lane that merge is *unattended*, so
+no workflow step fires the cleanup; session-init's in-flight-errand sweep backstops it for now. CWC's
+merge-gate-awareness owns the unattended-merge **completion trigger** (who runs teardown + line-removal when no
+one attends the merge) — reconcile `run-errand`'s Complete phase and the drain's close when next iterated. This
+is the `run-errand` / `drain-inbox` facet of the broader "make the lifecycle workflows merge-gate-aware" concern
+(`integrate-work-unit` is the sibling case).
+
 ### Out of scope
 
 - **Focus-role field model** — explicitly rejected per § Why no formal focus-role model. Strategy
