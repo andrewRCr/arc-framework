@@ -812,22 +812,55 @@ USER-INBOX.md is the developer's personal capture surface for items to handle la
 single-step (`## Atomic` section) or multi-step (`## Backlog` section). Gitignored, cross-WU,
 branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, discard at
 integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
-live-write capture surface — entries land any time, drain at lifecycle boundaries.
+live-write capture surface — entries land any time, drain at the between-WUs housekeep flow.
 
 **Location.** `user/{identity}/USER-INBOX.md` — flat at the workspace root, cross-WU scope.
 
 **Section structure.**
 
 - **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
-- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling.
+  No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
+  retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
+- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling. Each
+  carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
+  destination stub — existence at drain decides route-vs-create.
 
-**Lifecycle.** Writes accepted any time (the live-capture role). Drain fires at WU lifecycle
-boundaries; destinations vary by PM mode:
+**Reminder flag.** A `## Atomic` entry may carry an optional `_Remind:_` descriptor — a low-friction
+"don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
+When set, session-init surfaces the capture as an advisory orientation line after a delay. It renders as
+an italic descriptor bullet like the entry's others, but a *parsed* field marks itself by
+backtick-delimiting its value: the `_Remind:_` key stays bare-italic and its value (`true`) is a code
+span — the backticks signalling data the sweep reads, not prose. It is boolean (default `false`) and
+renders only when `true`; the parser reads its absence as `false` — the same render rule `WU_Target`
+follows, where a managed field appears only at its non-default value. Flagged entries carry a
+tool-stamped `_Created:_` date descriptor (value backtick-delimited) as the aging anchor;
+`inbox.remind_after_days` (default 1) sets the delay before the first
+nudge (never the same day), and the nudge is rate-limited to once per calendar day until a housekeep
+drain clears the entry. The reminder is personal-`USER-INBOX`-only — the shared `ATOMIC-INBOX` permits
+the same field grammar but is never nudged (it has no singular owner). How `arc-inbox` constructs the
+field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
 
-- **`pm.mode: arc-in-git`** — entries flow to the project-shared backlog inboxes
-  (`backlog/ATOMIC-INBOX.md` and `backlog/BACKLOG-INBOX.md`) at WU ceremony fire-points. See
-  `strategy-planning-module.md` § Inbox Family and § Ceremony-Only Writes to Shared Inboxes
-  for operational details.
+**Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
+**retain** a `## Atomic` capture in place rather than route or flush it — to hold it privately until
+vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
+agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
+`_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
+same render rule `_Remind:_` follows). It is set by the drain, not by `arc-inbox` at capture. A `_Hold:_`
+entry is **triaged, not un-triaged**: it is excluded from the `inboxState.housekeepNeeded` count — so
+session-init does not re-offer housekeep for a deliberately-kept capture — while the reminder sweep still
+surfaces it (the sweep reads `_Remind:_` *or* `_Hold:_`), so a retained capture cannot rot. `_Remind:_`
+alone cannot serve this role: it means *nudge-until-drained*, the opposite of exempt-from-drain.
+Retaining re-stamps `_Created:_` to the retain date, so the never-same-day reminder floor applies from
+the retention. The drain therefore closes on **no un-triaged entries**, not necessarily an empty file.
+
+**Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
+between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:
+
+- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Atomic` items to their
+  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Backlog` items to an
+  existing stub or a new *provisional* stub (there is no shared multi-step inbox). See
+  `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
+  details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration
   model. See `strategy-team-coordination.md` § External Tracker Integration.
 - **`pm.mode: none`** — drain destination follows project convention (DEV-RULES.PROJECT may

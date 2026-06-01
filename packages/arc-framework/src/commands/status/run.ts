@@ -139,6 +139,12 @@ export async function runSessionInitStatus(
   type RawErrandSweep =
     | { ok: true; value: import("../../lib/session-init/errand-staleness-sweep.js").ErrandStalenessSweepResult }
     | ProbeErrorSlot;
+  type RawErrandState =
+    | { ok: true; value: import("../../lib/session-init/errand-state.js").ErrandStateResult }
+    | ProbeErrorSlot;
+  type RawInboxState =
+    | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
+    | ProbeErrorSlot;
 
   const userTask: Promise<RawUser> = identity === null
     ? Promise.resolve(identityMissing())
@@ -157,15 +163,20 @@ export async function runSessionInitStatus(
   const retiredSubdirsTask: Promise<RawRetired | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.retiredSubdirs(identity));
-  // Errand-staleness sweep rides the same eager / identity-gated phase: the
-  // queue is identity-scoped, so it is omitted when identity is absent.
+  // Errand-staleness sweep rides the same eager / identity-gated phase: its
+  // source is identity-scoped, so it is omitted when identity is absent.
   const errandSweepTask: Promise<RawErrandSweep | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.errandSweep(identity));
+  // Inbox-state probe rides the same eager / identity-gated phase: its source
+  // (`USER-INBOX.md`) is identity-scoped, so it is omitted when identity is absent.
+  const inboxStateTask: Promise<RawInboxState | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.inboxState(identity));
 
   const [
     user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
-    domainRules, releaseRouting, retiredSubdirs, errandSweep,
+    domainRules, releaseRouting, retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
     userTask,
     worktreeTask,
@@ -178,6 +189,7 @@ export async function runSessionInitStatus(
     releaseRoutingTask,
     retiredSubdirsTask,
     errandSweepTask,
+    inboxStateTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -262,6 +274,15 @@ export async function runSessionInitStatus(
     worktreeIdentity.kind === "primary" && roster?.ok
       ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
       : undefined;
+  const errandState: RawErrandState | undefined =
+    worktree.ok && active.ok
+      ? await safeProbe(() => probes.errandState({
+        currentBranch: worktree.value.branch,
+        hasBackingMeta: active.value.resolution === "single",
+        includeDiscovery: active.value.resolution === "none",
+        roster: roster?.ok ? roster.value : null,
+      }))
+      : undefined;
 
   return {
     mode: "session-init",
@@ -279,6 +300,8 @@ export async function runSessionInitStatus(
     ...(sweep !== undefined ? { sweep } : {}),
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
+    ...(errandState !== undefined ? { errandState } : {}),
+    ...(inboxState !== null ? { inboxState } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }
@@ -347,10 +370,13 @@ export async function runSessionHandoffStatus(
   const pushabilityTask = safeProbe(() => probes.pushability());
   const restateCandidatesTask = safeProbe(() => probes.restateCandidates());
   const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+  const inboxStateTask: Promise<SessionHandoffResult["inboxState"] | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.inboxState(identity));
 
   const [
     dirty, worktree, user, syncInterlock, active, head, pushability,
-    restateCandidates, releaseRouting,
+    restateCandidates, releaseRouting, inboxState,
   ] = await Promise.all([
     dirtyTask,
     worktreeTask,
@@ -361,6 +387,7 @@ export async function runSessionHandoffStatus(
     pushabilityTask,
     restateCandidatesTask,
     releaseRoutingTask,
+    inboxStateTask,
   ]);
 
   const branch = worktree.ok ? worktree.value.branch : null;
@@ -389,6 +416,7 @@ export async function runSessionHandoffStatus(
     pushability,
     restateCandidates,
     releaseRouting,
+    ...(inboxState !== null ? { inboxState } : {}),
     recommendedSummaryLine,
   };
 }

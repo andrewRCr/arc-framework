@@ -4,6 +4,8 @@
 - **Created:** 2026-05-27
 - **Origin:** [internal] — surfaced during ADR-022 (`adr-022-managed-operational-state-documents.md`)
   authoring; explicitly scoped out of that ADR.
+- **Cohort intent:** joins the `configuration` cohort on promotion to `planned/` (kept standalone while
+  provisional — cohorts are state-uniform).
 
 ---
 

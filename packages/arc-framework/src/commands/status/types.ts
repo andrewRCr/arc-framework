@@ -39,6 +39,8 @@ import type { CascadeResolution } from "../../lib/session-init/branch-gone-casca
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
+import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -154,14 +156,29 @@ export interface SessionInitProbeResult {
    */
   retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
   /**
-   * Pre-computed errand-staleness sweep — errand-queue entries pending past the
-   * configured threshold (`errands.staleness_days`, default 3), surfaced for
+   * Pre-computed errand-staleness sweep — errands pending past the configured
+   * threshold (`inbox.remind_after_days`, default 1), surfaced for
    * execute-or-demote. Advisory only. Present whenever identity resolved (the
-   * queue is identity-scoped); omitted only when identity is absent. Unlike the
-   * worktree sweep it is not worktree-gated — the queue is present in every
-   * worktree.
+   * source is identity-scoped); omitted only when identity is absent. Unlike the
+   * worktree sweep it is not worktree-gated.
    */
   errandSweep?: Probe<ErrandStalenessSweepResult>;
+  /**
+   * Pre-computed errand-state probe. Present when the worktree and active
+   * slots resolved, because those slots provide the current branch and
+   * backing-meta signal. Carries the current-branch errand-resume arm,
+   * Orient-only in-flight `chore/` advisories, remote-only materialization
+   * candidates, and the rate-limit marker state for reminder/stale nudges.
+   */
+  errandState?: Probe<ErrandStateResult>;
+  /**
+   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
+   * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
+   * machine-resolved signal rather than an agent re-scan. Present whenever
+   * identity resolved (the source is identity-scoped); omitted only when
+   * identity is absent.
+   */
+  inboxState?: Probe<InboxStateResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -204,9 +221,9 @@ export interface HandoffSyncInterlock {
  * session-init context still being intact. Slots cover dirty-state, worktree
  * sync vs origin, notes sync (user), the sync-interlock gate, the resolved
  * active status file, current HEAD short-hash for the `Commit at Handoff`
- * anchor, and pushability pre-checks gating the worktree push. Push-interlock
- * and notes-push policy are owned by `arc sync` internally; the handoff
- * workflow doesn't read them.
+ * anchor, inbox state for the between-WUs housekeep offer, and pushability
+ * pre-checks gating the worktree push. Push-interlock and notes-push policy
+ * are owned by `arc sync` internally; the handoff workflow doesn't read them.
  *
  * `branch` is sourced from the worktree probe slot (where it's already
  * resolved internally) so the Confirm Handoff header and the pre-computed
@@ -249,14 +266,22 @@ export interface SessionHandoffResult {
   /** Resolved release-wrapper routing decisions for workflow fire-site classes. */
   releaseRouting: Probe<ReleaseRoutingValue>;
   /**
+   * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
+   * and a `housekeepNeeded` flag, so the between-WUs handoff branch can offer
+   * housekeep from a machine-resolved signal rather than an agent re-scan.
+   * Present whenever identity resolved; omitted only when identity is absent.
+   */
+  inboxState?: Probe<InboxStateResult>;
+  /**
    * State-aware top-of-Confirm-Handoff line, populated only when sync
    * auto-invoke would skip (`syncInterlock.value === "manual"` or identity
    * absent). Carries `**Reconcile required:** ...` on diverged worktree or
    * `**Worktree:** N unpushed commit(s) on \`branch\`.` on local-ahead;
    * `null` when nothing warrants a top-level surface. The probe captures
-   * `worktree` pre-Step-3 of the handoff workflow — if Step 3 fires a chore
-   * commit, the rendered unpushed-count is one short of post-Step-3 truth.
-   * The workflow handles that adjustment when prepending the line.
+   * `worktree` before the selected handoff path mutates state — if the
+   * active-WU path fires a chore commit, the rendered unpushed-count is one
+   * short of post-commit truth. The workflow handles that adjustment when
+   * prepending the line.
    */
   recommendedSummaryLine: string | null;
 }
@@ -323,10 +348,29 @@ export interface SessionInitProbes {
   retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
   /**
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
-   * reads `user/{identity}/ERRANDS.md` and the `errands.staleness_days` threshold.
-   * Fired in the eager phase whenever identity resolved; advisory, read-only.
+   * resolves the candidate entries and the `inbox.remind_after_days` threshold,
+   * then ages them. Fired in the eager phase whenever identity resolved;
+   * advisory, read-only.
    */
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
+  /**
+   * Errand-state resolver. The orchestrator supplies the current branch,
+   * backing-meta signal, the Orient/discovery gate, and the resolved roster
+   * when available. The handler binds config, git/forge enumeration, and
+   * nudge-marker reads.
+   */
+  errandState: (input: {
+    currentBranch: string | null;
+    hasBackingMeta: boolean;
+    includeDiscovery: boolean;
+    roster: WorktreeRosterResult | null;
+  }) => Promise<ErrandStateResult>;
+  /**
+   * Inbox-state resolver. Receives the resolved identity; the handler reads
+   * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in
+   * the eager phase whenever identity resolved; advisory, read-only.
+   */
+  inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
@@ -343,6 +387,7 @@ export interface SessionHandoffProbes {
   pushability: () => Promise<PushabilityResult>;
   restateCandidates: () => Promise<RestateCandidatesResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
+  inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 
 export interface RunStatusOptions {

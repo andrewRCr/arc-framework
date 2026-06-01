@@ -186,6 +186,13 @@ The cohort's central cross-cutting decision is the **Errand work class** — see
 the taxonomy (Errand vs. Work Unit, the 1:1 relaxation, the threshold, atomic-as-character extended).
 ADR-021 decides the taxonomy; the operational plumbing is owned across the cohort:
 
+**Errand-model re-pivot (`work-routing-discipline`, 2026-05-31):** the class collapsed to **execution-only**.
+The `errand-launch` seed primitive and the `ERRANDS.md` queue are retired; an errand *is* its execution via the
+re-enterable `run-errand` workflow (`chore/<slug>` under full / direct base commit under partial), dispatched by
+`arc-session`. State is derived (chore branch → open PR → merged), never a queued artifact; capture is
+`arc-inbox`/inbox-only. The decision matrix and advisory foreign-artifact gate survive, but the ownership map
+below predates the pivot — read `errand-launch` as `run-errand`, and reconcile when next iterated.
+
 **Worktree Foundation owns:**
 
 - The cheap ephemeral-branch mechanism that makes an Errand affordable under full / host-protected `main`

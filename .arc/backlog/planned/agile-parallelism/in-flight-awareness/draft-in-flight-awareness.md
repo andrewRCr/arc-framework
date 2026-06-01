@@ -122,6 +122,11 @@ remotely," then drops the operator to a raw `git worktree add`.
    identity-filtered refs + PRs — consumed from spawn / cold-start / materialize / errand-launch. Still
    advisory, judgment-based, never a gate (the *gate doctrine* is CWC's). Absorbing both advisory stubs in
    one pass is why Errand Enablement sequences before this WU.
+    - **Errand-model re-pivot (`work-routing-discipline`, 2026-05-31).** Errands are now execution-only
+      `chore/<slug>` branches via `run-errand` (the `errand-launch` seed primitive + `ERRANDS.md` queue are
+      retired). The oracle's in-flight-errand detection (chore branches, no meta) is unchanged in intent;
+      `work-routing-discipline` ships an interim errand-state probe + in-flight-errand sweep (advisory,
+      orient-only) that this WU's oracle upgrade absorbs. Reconcile the `errand-launch` references when iterated.
 
 6. **Session-probe orchestration model (absorbs WF's conditional-slot seam).** The oracle's network slice
    (item 1), gated on `active.resolution === "none"` (the latency-budget decision below), is the **second**

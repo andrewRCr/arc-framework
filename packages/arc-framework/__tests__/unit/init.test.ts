@@ -298,7 +298,6 @@ describe("classifyFile", () => {
     expect(classifyFile("reference/PROJECT-PRD.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ROADMAP.template.md")).toBe("Scaffolded");
     expect(classifyFile("backlog/ATOMIC-INBOX.template.md")).toBe("Scaffolded");
-    expect(classifyFile("backlog/BACKLOG-INBOX.template.md")).toBe("Scaffolded");
   });
 
   it("classifies Configurable files", () => {
@@ -389,7 +388,6 @@ function userTemplateFiles(internalDir: string): Record<string, string> {
     [`${internalDir}/user/SESSION-NOTES.md`]: "# Session Notes\n",
     [`${internalDir}/user/WORKING-MEMORY.md`]: "# Working Memory\n",
     [`${internalDir}/user/USER-INBOX.md`]: "# User Inbox\n",
-    [`${internalDir}/user/ERRANDS.md`]: "# Errand Queue\n",
   };
 }
 

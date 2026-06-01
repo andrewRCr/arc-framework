@@ -8,6 +8,29 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
+
+- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
+  reanchor belongs to the same lifecycle file-move CLI surface this WU owns (`arc graduate`, the boundary
+  ceremonies that `git mv` artifacts).
+- *Concern:* in `pm.mode: arc-in-git`, lifecycle workflows move PRDs, task lists, atomic companions, plan docs,
+  and archives between `backlog/`, `active/`, and `completed/`. Markdown links inside moved files can go stale
+  because relative paths anchor to the source file's old directory. The pre-commit link validator catches the
+  failure, but recovery is manual and interrupts the activation/archive flow.
+- *Proposed:* combined helper + lifecycle CLI improvement — (1) a constrained link-reanchor helper accepting
+  explicit move pairs (or reading staged `git mv` state), parsing Markdown links / reference definitions and
+  rewriting only targets that resolve to moved ARC artifacts; (2) integrate into the lifecycle CLI commands so
+  `npx arc` performs `git mv`, state/PM updates, and link reanchoring as one operation. Keep it structural (not
+  broad grep/replace); support `--check`/`--write`; preserve filename-only references.
+- *Scope:* M (helper + tests); L if bundled with full activation/archive CLI commands.
+
+---
+
 ## Problem / Motivation
 
 WOR established the meta files as the single source of truth and codified a deterministic render for

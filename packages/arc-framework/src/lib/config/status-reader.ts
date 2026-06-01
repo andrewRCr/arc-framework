@@ -48,7 +48,7 @@ const DEFAULTS: ConfigSettings = {
   "session.init_load.notes": "prompt",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
-  "errands.staleness_days": "3",
+  "inbox.remind_after_days": "1",
 };
 
 /**

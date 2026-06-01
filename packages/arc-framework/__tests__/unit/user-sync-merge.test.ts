@@ -1,6 +1,6 @@
 /**
  * Unit tests for cross-WU entry parsing and merge — list-union of
- * `WORKING-MEMORY` / `USER-INBOX` / `ERRANDS` entries across the N most-recent
+ * `WORKING-MEMORY` / `USER-INBOX` entries across the N most-recent
  * notes, with divergent bodies resolving to the most-recent note and
  * unknown-shape files falling back to whole-file most-recent-wins.
  */
@@ -46,7 +46,7 @@ describe("mergeEntries", () => {
     expect(merged[0]?.raw).not.toContain("stale body");
   });
 
-  it("scopes identity by section so the same lead-in survives in different sections", () => {
+  it("scopes identity by section so the same key survives in different sections", () => {
     const recent: CrossWuEntry[] = [{ section: "Atomic", key: "X", raw: "- **X** — recent atomic" }];
     const older: CrossWuEntry[] = [
       { section: "Backlog", key: "X", raw: "- **X** — backlog" },
@@ -142,20 +142,28 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
 
 ## Atomic
 
-<!-- guidance comment -->
+<!-- ### \`[ ]\` **commented-shape** — shape example, not a real entry -->
 
-- **Lead A** — atomic text
+### \`[ ]\` **Lead A**
+
+- atomic text
     - nested detail line
-- plain item with no bold lead-in
+
+### no bold title here
+
+- malformed atomic entry
 
 ## Backlog
 
-- **Lead B** — backlog text
+### \`[ ]\` **Lead B**
+
+- backlog text
+- WU_Target: some-wu (provisional)
 
 ---
 `;
 
-  it("parses list items scoped to their section, keeping multi-line bodies", () => {
+  it("parses each entry keyed by the H3 bold title, scoped to its section", () => {
     const parsed = parseCrossWuEntries(content, "user-inbox");
     const ok = parsed.flatMap((p) => (p.ok ? [p.entry] : []));
 
@@ -163,53 +171,22 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
     expect(ok[0]?.raw).toContain("nested detail line");
   });
 
-  it("surfaces a list item with no bold lead-in as a failure", () => {
+  it("preserves a Backlog entry's WU_Target line verbatim in raw", () => {
+    const backlog = parseCrossWuEntries(content, "user-inbox").flatMap((p) =>
+      p.ok && p.entry.section === "Backlog" ? [p.entry] : [],
+    );
+
+    expect(backlog[0]?.raw).toContain("WU_Target: some-wu (provisional)");
+  });
+
+  it("surfaces an H3 entry with no bold title as a failure", () => {
     const failures = parseCrossWuEntries(content, "user-inbox").filter((p) => !p.ok);
-
-    expect(failures).toHaveLength(1);
-  });
-});
-
-describe("parseCrossWuEntries — ERRANDS", () => {
-  const content = `# Errand Queue
-
-## Queue
-
-<!-- ### \`[ ]\` **commented-shape** — shape example, not a real entry -->
-
-### \`[ ]\` **fix-flaky-test**
-
-- _Goal:_ deflake the retry test
-- _Branch:_ \`chore/fix-flaky-test\`
-- _Created:_ 2026-05-20
-
-### \`[ ]\` **tidy-readme**
-
-- _Goal:_ tighten the intro
-
-### no bold slug here
-
-- _Goal:_ malformed entry
-
----
-`;
-
-  it("parses each Queue entry keyed by the H3 bold slug", () => {
-    const parsed = parseCrossWuEntries(content, "errands");
-    const ok = parsed.flatMap((p) => (p.ok ? [p.entry] : []));
-
-    expect(ok.map((e) => `${e.section}:${e.key}`)).toEqual(["Queue:fix-flaky-test", "Queue:tidy-readme"]);
-    expect(ok[0]?.raw).toContain("deflake the retry test");
-  });
-
-  it("surfaces an H3 entry with no bold slug as a failure", () => {
-    const failures = parseCrossWuEntries(content, "errands").filter((p) => !p.ok);
 
     expect(failures).toHaveLength(1);
   });
 
   it("ignores the commented-out shape example so a seeded template parses as empty", () => {
-    const keys = parseCrossWuEntries(content, "errands").flatMap((p) => (p.ok ? [p.entry.key] : []));
+    const keys = parseCrossWuEntries(content, "user-inbox").flatMap((p) => (p.ok ? [p.entry.key] : []));
 
     expect(keys).not.toContain("commented-shape");
   });
@@ -252,21 +229,29 @@ Older body.
   it("folds older USER-INBOX items into their own section, keeping boundaries", () => {
     const recent = `## Atomic
 
-- **atomic recent** — recent atomic item
+### \`[ ]\` **atomic recent**
+
+- recent atomic item
 
 ## Backlog
 
-- **backlog recent** — recent backlog item
+### \`[ ]\` **backlog recent**
+
+- recent backlog item
 
 ---
 `;
     const older = `## Atomic
 
-- **atomic older** — older atomic item
+### \`[ ]\` **atomic older**
+
+- older atomic item
 
 ## Backlog
 
-- **backlog older** — older backlog item
+### \`[ ]\` **backlog older**
+
+- older backlog item
 
 ---
 `;
@@ -346,11 +331,11 @@ describe("appendRemovalTombstones", () => {
     expect(result).toBe(current);
   });
 
-  it("keys the tombstone to (section, key) so a removal spares the same lead-in elsewhere", () => {
+  it("keys the tombstone to (section, key) so a removal spares the same title elsewhere", () => {
     const uiFile = (atomic: string, backlog: string): string =>
       `# User Inbox\n\n## Atomic\n\n${atomic}\n\n## Backlog\n\n${backlog}\n\n---\n`;
-    const prior = uiFile("- **Shared** — atomic body", "- **Shared** — backlog body");
-    const current = uiFile("- **Shared** — atomic body", "");
+    const prior = uiFile("### `[ ]` **Shared**\n\n- atomic body", "### `[ ]` **Shared**\n\n- backlog body");
+    const current = uiFile("### `[ ]` **Shared**\n\n- atomic body", "");
 
     const result = appendRemovalTombstones("USER-INBOX.md", current, [{ content: prior }], NOW);
 
@@ -421,57 +406,3 @@ describe("mergeCrossWuFile — tombstones", () => {
   });
 });
 
-describe("mergeCrossWuFile — ERRANDS", () => {
-  const NOW = "2026-05-25T12:00:00.000Z";
-  const daysAgo = (n: number): string => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
-
-  const erEntry = (slug: string, goal: string): string =>
-    `### \`[ ]\` **${slug}**\n\n- _Goal:_ ${goal}\n- _Branch:_ \`chore/${slug}\`\n- _Created:_ 2026-05-20`;
-  const erTomb = (slug: string, removedAt: string): string =>
-    `## Removed: ${slug}\n\n- _Section:_ Queue\n- _Removed:_ ${removedAt}`;
-  const note = (entries: string, tombstones: string[] = []): string => {
-    const head = `# Errand Queue\n\n## Queue\n\n${entries}\n\n---\n`;
-    return tombstones.length > 0 ? `${head}\n${tombstones.join("\n\n")}\n` : head;
-  };
-
-  it("converges two worktrees' queues, folding an older-only entry into Queue", () => {
-    const recent = note(erEntry("recent-errand", "recent goal"));
-    const older = note(erEntry("older-errand", "older goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("**recent-errand**");
-    expect(result.content).toContain("**older-errand**");
-    expect(result.content.indexOf("**older-errand**")).toBeLessThan(result.content.indexOf("\n---"));
-  });
-
-  it("keeps the most-recent note's body when an errand entry diverges", () => {
-    const recent = note(erEntry("dup", "recent goal"));
-    const older = note(erEntry("dup", "stale goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("recent goal");
-    expect(result.content).not.toContain("stale goal");
-  });
-
-  it("suppresses an earlier errand when a more-recent note tombstones it", () => {
-    const recent = note("", [erTomb("dropped", daysAgo(1))]);
-    const older = note(erEntry("dropped", "dropped goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).not.toContain("dropped goal");
-    expect(result.content).toContain("## Removed: dropped");
-  });
-
-  it("drops a TTL-expired errand tombstone, letting the entry propagate again", () => {
-    const recent = note("", [erTomb("old", daysAgo(200))]);
-    const older = note(erEntry("old", "old goal"));
-
-    const result = mergeCrossWuFile("ERRANDS.md", [{ content: recent }, { content: older }], NOW);
-
-    expect(result.content).toContain("old goal");
-    expect(result.content).not.toContain("## Removed:");
-  });
-});

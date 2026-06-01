@@ -1,5 +1,5 @@
 ---
-purpose: Transition a work unit from Planning to Active — state-flip, branch rename, capture-pipeline absorption.
+purpose: Transition a work unit from Planning to Active — state-flip, branch rename, absorption-source cleanup.
 audience: agent
 arc:
   methods:
@@ -115,18 +115,32 @@ covers paths that activated without going through `init-work-unit` first):
 arc user open {name}
 ```
 
-### 6) Absorption write · `arc-in-git` only
+### 6) Absorption-source cleanup · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
-If activation absorbs queued inbox entries — `user/{identity}/USER-INBOX.md` (`## Atomic` / `## Backlog` sections)
-or shared `backlog/ATOMIC-INBOX.md` / `backlog/BACKLOG-INBOX.md` — into this WU's task list,
-finalize absorption now. Delete the source entries; record routing in the commit message.
+If planning already incorporated inbox entries from `user/{identity}/USER-INBOX.md` or
+`backlog/ATOMIC-INBOX.md` into this WU's spec or task list, finalize that absorption now. Delete only the source
+entries that were incorporated.
 
-The absorbing-artifact edits (task list) typically already landed during planning; this step
-lands the source deletions as the ceremony write (`workflowCommit`).
+Personal source cleanup (`USER-INBOX`) is user-state cleanup, not a project commit. Tracked project-source cleanup
+(`ATOMIC-INBOX`) lands as the ceremony write below. Do not drain or reroute unrelated personal captures here —
+between-WUs housekeep remains the broad `USER-INBOX` drain.
 
-See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture-routing table.
+When `backlog/ATOMIC-INBOX.md` source deletions remain, stage only those source deletions.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): finalize inbox absorption for {name}
+
+- Remove ATOMIC-INBOX entries already incorporated into {name}
+
+Context: meta-{name}.md (activation)
+```
+
+See [DEV-RULES.ARC § Discovered Work Routing][dev-rules-discovered-routing] for the capture-routing table.
 
 ### 7) ROADMAP regen · `arc-in-git` only
 
@@ -135,8 +149,19 @@ See [DEV-RULES.ARC § Leave it cleaner][dev-rules-leave-cleaner] for the capture
 Re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap] — the WU is already In Flight from
 initialization, so this refreshes the ROADMAP rather than changing its tier.
 
-Default: dedicated `chore(arc):` commit (`workflowCommit`). May ride the activation commit (Step 4) only when the
-regen is a trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+Default: dedicated `chore(arc):` commit. May ride the activation commit (Step 4) only when the regen is a
+trivial refresh (no render-set change) — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): refresh roadmap for {name} activation
+
+- Re-render ROADMAP after {name} enters In Flight
+
+Context: meta-{name}.md (activation)
+```
 
 ### 8) Fire `post-work-unit-activate` extension
 
@@ -165,5 +190,5 @@ With activation complete, proceed to task execution:
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[dev-rules-leave-cleaner]: ../../../../system/rules/DEV-RULES.ARC.md#leave-it-cleaner
+[dev-rules-discovered-routing]: ../../../../system/rules/DEV-RULES.ARC.md#discovered-work-routing
 [dev-rules-atomicity]: ../../../../system/rules/DEV-RULES.ARC.md#atomicity

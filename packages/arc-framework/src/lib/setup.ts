@@ -56,7 +56,6 @@ export async function configureGitIntegration(
 export const CROSS_WU_INSTANCE_FILES = [
   "WORKING-MEMORY.md",
   "USER-INBOX.md",
-  "ERRANDS.md",
 ] as const;
 
 /** Options for post-init user setup. */
@@ -71,7 +70,7 @@ export interface PostInitSetupOptions {
  * Run post-init user setup shared by both fresh and join modes.
  *
  * Stores identity in git config, creates the user directory with the
- * cross-WU instance files (WORKING-MEMORY, USER-INBOX, ERRANDS) seeded from the
+ * cross-WU instance files (WORKING-MEMORY, USER-INBOX) seeded from the
  * internal templates, and configures the git notes refspec for cross-machine
  * portability. SESSION-NOTES is per-WU and seeded lazily by `arc user open`
  * once a work unit is anchored — there is no anchored WU at init time. Per-

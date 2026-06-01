@@ -157,11 +157,24 @@ if [ "$context_footer" != "custom" ] && [ -n "$context_pattern" ]; then
     warn "commit.context_pattern is set but commit.context_footer is '$context_footer' (pattern is ignored)"
 fi
 
+# inbox.remind_after_days: must be a positive integer when set
+remind_after_days=$(arc_config_get "inbox.remind_after_days" "")
+if [ -n "$remind_after_days" ]; then
+    case "$remind_after_days" in
+        *[!0-9]* | 0)
+            error "inbox.remind_after_days must be a positive integer (got '$remind_after_days')"
+            ;;
+        *)
+            pass "inbox.remind_after_days is a positive integer"
+            ;;
+    esac
+fi
+
 # ============================================================================
 # Unknown key detection (typo protection)
 # ============================================================================
 
-known_keys="branch.base branch.protection worktree.location_template commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_load.notes user.notes_push archive.cadence errands.staleness_days"
+known_keys="branch.base branch.protection worktree.location_template commit.format commit.context_footer commit.custom_pattern commit.context_pattern merge.strategy hooks.pre_commit hooks.commit_msg hooks.task_numbering hooks.skip_extensions hooks.test_patterns hooks.meta_ref_patterns hooks.subject_max_length hooks.subject_warn_length hooks.body_max_lines hooks.body_max_line_length hooks.contributor_protected_paths review.pre_merge platform.type pm.mode team.mode session.remote_sync session.init_pull.worktree session.init_pull.notes session.init_load.notes user.notes_push archive.cadence inbox.remind_after_days"
 
 for key in $(arc_config_keys); do
     found=false

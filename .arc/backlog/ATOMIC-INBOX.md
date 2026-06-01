@@ -1,13 +1,12 @@
 # Atomic Inbox
 
-> _Project-shared queue of atomic (single-step) items. Live capture in `user/{identity}/USER-INBOX.md` § Atomic
-> drains here at WU ceremonies; items execute as-is and remove on completion.
-> See `strategy-planning-module.md` § Inbox Family._
+> _Project-shared queue of homeless atomic (single-step) items — single-step captures with no better home. Live
+> capture in `user/{identity}/USER-INBOX.md` § Atomic drains here via the `arc-housekeep` flow; items execute as-is and
+> remove on completion. No work-unit stub passes through here: multi-step work always has a stub home, so it
+> graduates to a `backlog/{planned,provisional}/<wu-name>/` stub and only genuinely homeless single-step items
+> rest in this shared surface. See `strategy-planning-module.md` § Inbox Family._
 
 ## Inbox
-
-<!-- Entry shape: H3 + checkbox + bold title (`### `[ ]` **Title**`) + italic-descriptor bullets
-(_Observation:_, _Approach:_, _Files:_, _Scope:_, _Captured during:_). -->
 
 ### `[ ]` **Audit interlock-marker convention adoption across remaining workflows**
 
@@ -165,7 +164,7 @@
 - _Proposed action:_ Same fix shape as the task-list-scanner migration — replace each subdir-loop with a
   flat-root file-existence check, and make the `(archival)` footer case `completed/`-aware so the post-sweep
   archival commit doesn't warn. Both copies mirror byte-identical. (This is the concrete hook fix behind the
-  stale-warning facet noted in the BACKLOG-INBOX "archival ceremony tooling" entry.)
+  stale-warning facet noted in the `interlock-release-refinement` draft's archival-ceremony Inbound Buffer entry.)
 
 - _Scope:_ Atomic-tier. ~3 surgical edits per copy + optional hook smoke test.
 
@@ -203,7 +202,7 @@
 ### `[ ]` **H1 styling for the inbox / working-memory file family**
 
 - _Observation:_ The user-scoped capture surfaces — `SESSION-NOTES.md`, `WORKING-MEMORY.md`, `USER-INBOX.md`,
-  `BACKLOG-INBOX.md`, `ATOMIC-INBOX.md` — use Title Case H1s (`# Session Notes`, etc.). Alternative:
+  `ATOMIC-INBOX.md` — use Title Case H1s (`# Session Notes`, etc.). Alternative:
   filename-style ALL-CAPS-HYPHENATED H1s (`# USER-INBOX`), which add visual weight and make file identity
   instant in raw-markdown views (the primary consumption mode), at the cost of diverging from standard H1
   convention and looking shouty when rendered. Half-measure: space-separated all-caps (`# WORKING MEMORY`).

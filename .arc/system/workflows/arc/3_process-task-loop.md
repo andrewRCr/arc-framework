@@ -247,7 +247,7 @@ For the full decision tree, see [manage-incidental-work.md][manage-incidental].
 
 Routing depends on lifecycle intent — during this WU, fold into the commit or spin an Errand;
 for later, capture in `USER-INBOX § Atomic` (PM-mode-dependent). See [DEV-RULES.ARC][dev-rules-arc]
-§ Leave it cleaner for the full routing table.
+§ Discovered Work Routing for the full routing table.
 
 ### Atomic Task Completion
 

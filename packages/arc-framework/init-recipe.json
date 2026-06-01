@@ -138,7 +138,6 @@
       "include_files": [
         "backlog/ROADMAP.template.md",
         "backlog/ATOMIC-INBOX.template.md",
-        "backlog/BACKLOG-INBOX.template.md",
         "completed/README.md",
         "reference/strategies/arc/strategy-planning-module.md"
       ]

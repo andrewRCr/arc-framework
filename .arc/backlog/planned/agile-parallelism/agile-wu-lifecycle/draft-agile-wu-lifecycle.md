@@ -390,6 +390,12 @@ AWL owns the *tier-side* reconciliation (atomic-character work defaults to an Er
 atomic-tier WU when the threshold trips); the Errand operationalization is EE's. The 2026-05-23 note's
 "atomic → an Errand on the bare-git path" routing is realized via EE's matrix.
 
+**Errand-model re-pivot (`work-routing-discipline`, 2026-05-31):** the Errand path is now **execution-only** —
+`errand-launch` (seed/queue) is retired for the re-enterable `run-errand` workflow; an errand is a `chore/<slug>`
+branch (full) / base commit (partial), state derived from branch + PR. AWL's tier-side reconciliation holds, but
+the promote-to-WU path is realized by `run-errand` → `init-work-unit` (mint `meta-*`, rename `chore/` →
+`<type>/`); reconcile the EE references when next iterated.
+
 ---
 
 ## Dependencies and Sequencing

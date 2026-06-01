@@ -41,7 +41,9 @@ The probe returns a single JSON envelope the agent consumes:
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                      |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                          |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
-| `errandSweep`               | Pre-computed errand-staleness sweep. `value.stale`: errand-queue entries (`user/{identity}/ERRANDS.md`) pending past `errands.staleness_days` (default 3), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the queue is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 — execute or demote to the inbox; never auto-removed                                                                                                                                           |
+| `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Atomic` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                    |
+| `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved. |
+| `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                        |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -115,16 +117,25 @@ entry seed (so it never collides with cold-start's spec input). It feeds the **O
 arm from between-WU discovery to **errand mode** (the cold-Errand path); on every other arm it is surfaced, not
 acted on.
 
+- **Errand-resume** — `errandState.value.resume.resumable === true`. The current branch is a meta-less
+  `chore/<slug>` errand, not a work unit. Continue to the sync channels below, then load universal context and
+  [run-errand][run-errand] in resume mode; never route this arm through `sessionType` or `process-task-loop`.
 - **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
   sync channels below, then Step 3.
 - **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
-  units). Two intents, disambiguated by the explicit `--errand` signal (never "any arg" — the positional seed
-  stays orthogonal):
+  units). Discovery and errand are the dispatch intents, disambiguated by the explicit `--errand` signal (never
+  "any arg" — the positional seed stays orthogonal); housekeep overlays either as a soft-offer when the inbox
+  holds routable captures:
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
-      next-work discovery orients and awaits direction.
-    - **Errand** (`--errand` present, primary worktree): enter **errand mode** — see
+      next-work discovery orients and awaits direction. If `errandState` carries flagged captures, in-flight
+      `chore/` branches, or materializable remote errands, surface them in Step 6 as available routes.
+    - **Errand** (`--errand <blurb|slug>` present, primary worktree): enter **errand mode** — see
       [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
       surface that an Errand runs from the primary worktree and fall through to discovery.
+    - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
+      captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
+      dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
+      drains via the [arc-housekeep skill][arc-housekeep-skill]. Soft-encourage, never hard-block.
 - **Cold-start** — `active.resolution` is `none` and the worktree is bare: a branch checked out for new work
   with no work unit (typically a linked worktree, `worktree.value.identity.kind` of `linked`). Offer to
   scaffold — never auto-scaffold. Before scaffolding, run the [in-flight scope check][in-flight-scope-check] —
@@ -136,13 +147,16 @@ acted on.
   an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
   blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
   **Resume**. On decline, fall through to **Orient**.
-- **Materialize** — the probe surfaces a remote-only work unit, its branch on `origin` with no local
-  worktree: `git worktree add <path> origin/<branch>`, then `arc user pull` to load its notes; **re-run the
-  Step 1 probe** and proceed as **Resume**. This arm runs when the probe surfaces such a unit.
+- **Materialize** — the probe surfaces either a remote-only work unit or
+  `errandState.value.materializable.candidates` includes a remote-only `chore/<slug>` branch with no local
+  worktree and no backing meta. For a work unit: `git worktree add <path> origin/<branch>`, then `arc user pull`
+  to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
+  `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**.
+  When multiple materializable errands are present, list them and ask which to materialize; never guess.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
-state, then re-runs the probe and re-enters as **Resume**. **Resume** and **Orient** continue straight to the
-channels below.
+state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,
+and **Orient** continue straight to the channels below.
 
 **Seed not consumed (non-cold-start arms).** Per the entry-seed rule above, only cold-start acts on a seed.
 When one was supplied but the resolved arm is anything else, surface a one-line note in orientation (Step 6):
@@ -150,9 +164,11 @@ the seed was not consumed; starting fresh work from it means spawning or checkin
 re-entering there.
 
 **Errand signal not consumed (non-Orient arms).** `--errand` feeds only the Orient arm's errand mode. On a
-Resume arm (an active WU session), an in-session Errand uses the [arc-errand skill][arc-errand-skill] instead —
-it queues and returns without disrupting the worktree; surface that pointer in orientation. On cold-start or
-materialize, note the signal was not consumed.
+Resume arm (an active WU session), out-of-WU work that surfaces mid-session follows
+[DEV-RULES.ARC § Discovered Work Routing][dev-rules-routing] — capture it to `USER-INBOX` via the
+[arc-inbox skill][arc-inbox-skill] to drain later, or run it as its own errand from the primary worktree via a
+fresh `arc-session --errand`; surface that pointer in orientation. On cold-start or materialize, note the signal
+was not consumed.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -219,13 +235,12 @@ Errand in place — no cross-worktree hop, since the primary worktree is where a
    the active task list (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
 2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
    replaces next-work-unit discovery (that is the *discovery* intent, not the Errand one).
-3. **Classify, gate, set up in place.** Follow the [arc-errand skill][arc-errand-skill] for the
-   classify-against-the-matrix and advisory-check halves (`arc errand check`) — including its stop-and-route exit
-   when the work is really a Work Unit, not an Errand. Then **diverge on the tail:** the cold path **executes
-   immediately by default** — cut the `chore/<slug>` branch off the configured base branch (`branch.base`,
-   default `main`) in this worktree and do the Errand as a normal review increment. The queue entry is
-   **optional** here, earning its keep only for deferral or cross-machine handoff — unlike in-session
-   `arc-errand`, which always queues and returns.
+3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
+   comes from the `--errand` blurb/slug when present; when it names a flagged `USER-INBOX § Atomic` capture,
+   adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
+   exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and resolves the
+   base + relocates by cutting the `chore/<slug>` branch off `branch.base` (default `main`) in this worktree;
+   its Execute phase runs the Errand as a normal review increment.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
 
@@ -245,6 +260,10 @@ other. Don't serialize when the platform supports parallel reads.
 
 The document set below is the [session-state method][arc-methods-session] default. If your project overrides
 session-state, follow the override instead.
+
+**Errand-resume mode** (`errandState.value.resume.resumable === true`): load universal context only — items
+1–6 and WORKING-MEMORY (item 8.2). Skip active meta, SESSION-NOTES, active task list, and the
+`sessionType`-selected lifecycle workflow; instead load [run-errand][run-errand] in resume mode.
 
 **Project identity and agent context:**
 
@@ -375,6 +394,7 @@ warning in orientation.
 
 10. **Lifecycle workflow** — **read in full**, branched on `sessionType`:
 
+    - `errandState.value.resume.resumable === true` → `.arc/system/workflows/arc/supplemental/run-errand.md`
     - `execution` → `.arc/system/workflows/arc/3_process-task-loop.md`
     - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
     - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
@@ -395,9 +415,9 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 
 ## 5. Assess Readiness
 
-**Errand mode** (Orient arm reached via `--errand`): skip this entire step — there is no handoff baseline to
-freshness-check, and the errand setup replaces next-work discovery. See
-[Errand cold-entry](#errand-cold-entry-orient-arm).
+**Errand mode** (Orient arm reached via `--errand`, or Errand-resume via `errandState`): skip this entire step —
+there is no work-unit handoff baseline to freshness-check, and errand setup/resume replaces next-work discovery.
+See [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 ### Freshness check
 
@@ -461,9 +481,9 @@ planning session, assess readiness for the next unit:
 
 Produce the orientation summary.
 
-**Errand mode** (Orient arm via `--errand`): frame the summary on the Errand — its goal, the `chore/<slug>`
-branch, and any coordination caveat — instead of work-unit state; the active-work-state shape below does not
-apply. See [Errand cold-entry](#errand-cold-entry-orient-arm).
+**Errand mode** (Orient arm via `--errand`, or Errand-resume via `errandState`): frame the summary on the
+Errand — its goal, the `chore/<slug>` branch, and any coordination caveat — instead of work-unit state; the
+active-work-state shape below does not apply. See [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 **Output format:**
 
@@ -567,13 +587,43 @@ tracked source documents the work.
   - `{candidate}`
   ```
 
-- `errandSweep.value.stale` non-empty: errand-queue entries pending past `errands.staleness_days` (default 3) —
-  a miscategorization signal (committed-near-term work that wasn't). Surface each for the operator to execute now
-  or demote to `USER-INBOX`; advisory only, never auto-removed.
+- `errandSweep.value.stale` non-empty AND `errandState.value.nudge.shouldNudge`: `_Remind:_`-flagged `§ Atomic`
+  `USER-INBOX` captures pending past `inbox.remind_after_days` (default 1) — the retired errand queue's "here are
+  your committed follow-ups" discoverability, now an inbox filter. Surface them as one batched line for the
+  operator to drain via housekeep; advisory only, never auto-removed. After surfacing, write
+  `errandState.value.nudge.today` to `errandState.value.nudge.markerPath` (create the parent directory if needed)
+  so the nudge batches to once per calendar day.
 
   ```text
-  **Stale errands:** {N} errand(s) pending past the staleness threshold — execute, or demote to the inbox:
+  **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
   - `{slug}` — created {created} ({ageDays}d ago)
+  ```
+
+- `errandState.value.inFlight.errands` non-empty (Orient arm — no active WU): local or remote `chore/` errands
+  are in flight. Surface them as available routes; never auto-check out, merge, or delete. Suppress stale entries
+  unless `errandState.value.nudge.shouldNudge` is true; when surfaced, update the same nudge marker described
+  above.
+
+  ```text
+  **Errands in flight:** {N} `chore/` branch(es) detected:
+  - `{branch}` — {in-progress | awaiting-merge | merged-cleanup | stale} ({ageDays}d)
+  ```
+
+- `errandState.value.materializable.candidates` non-empty (Orient arm — no active WU): remote-only errand
+  branches can be materialized for cross-machine resume. Surface as a route; on selection, follow Step 2's
+  Materialize arm.
+
+  ```text
+  **Materializable errands:** {N} remote `chore/` branch(es) available:
+  - `{branch}` — materialize and resume?
+  ```
+
+- `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer
+  the between-WU drain; never hard-block. A Resume session (active WU) carries the probe but does not surface this
+  — housekeep drains from a base-branch context, not mid-WU.
+
+  ```text
+  **Housekeep:** no active WU; `USER-INBOX` has {inboxState.value.routableCount} pending capture(s) — housekeep?
   ```
 
 **Never include**: configuration overrides, active-extensions list (any state), defaults active, freshness
@@ -618,7 +668,10 @@ source's view with specific details and wait for explicit direction before any c
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
-[arc-errand-skill]: ../../../.internal/skills/arc-errand/SKILL.md
+[run-errand]: ../supplemental/run-errand.md
+[arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
+[arc-housekeep-skill]: ../../../.internal/skills/arc-housekeep/SKILL.md
+[dev-rules-routing]: ../../../rules/DEV-RULES.ARC.md#discovered-work-routing
 [create-spec]: ../1_create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

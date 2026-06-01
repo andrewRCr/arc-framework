@@ -1,5 +1,30 @@
 # Draft: Quality Gate Tiers and Hook Integration
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Enhanced link validation — reference-style compliance + hook hardening**
+
+- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
+  hook-hardening lobe is a tier-to-hook-stage check (Tier 3 + CI) this WU owns; the link-reanchor counterpart
+  routed to `roadmap-tooling` (lifecycle file-move CLI).
+- *Concern:* two related gaps surfaced when LSP integration revealed mixed link styles and stale cross-file
+  references the existing `validate-links.sh` pre-commit hook didn't catch. (a) DEV-RULES.PROJECT
+  § Documentation Standards prefers reference-style for cross-file links, but the codebase is mixed. (b) The hook
+  validates only staged files — when a file is moved/renamed (e.g., archival), broken outgoing links from
+  un-staged files go undetected (a stale archived-WU reference surfaced long after archival).
+- *Proposed (two lobes; can split):* (1) **Reference-style compliance sweep** — audit `.arc/` and the
+  `packages/arc-framework/arc/` mirror; convert inline `[text](../path/to/file.md)` cross-file links to
+  reference-style with an EOF link block (same-directory / one-level-up targets may stay inline). (2) **Hook
+  hardening** on `validate-links.sh` — a `npm run lint:links` whole-tree scan wired into Tier 3 + CI; expanded
+  candidate set when commits delete/rename `.md` files; optional anchor validation for `file.md#section`;
+  optional dup-definition detection.
+- *Scope:* M overall (S for hook hardening; S–M for the sweep, link-volume dependent).
+
+---
+
 ## Problem / Motivation
 
 ARC's tiered quality gate system — Tier 1 (per-task), Tier 2 (coherent unit), Tier 3 (pre-PR) — is

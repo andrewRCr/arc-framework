@@ -1,46 +1,47 @@
 /**
- * Errand-staleness sweep — flags errand-queue entries pending past a threshold.
+ * Errand-staleness sweep — a session-init advisory that flags errands pending
+ * past a threshold so the operator can execute or demote them.
  *
- * The errand queue (`ERRANDS.md`) holds committed-but-not-yet-executed errands.
- * An entry pending beyond a short threshold is a miscategorization signal — it
- * wasn't actually committed-near-term — so the sweep surfaces it for the
- * operator to execute or demote to the inbox. Advisory only: it never mutates
- * the queue.
+ * Advisory only: it never mutates state. The pure core ages a set of dated
+ * candidate entries against a whole-day threshold; the candidates and the
+ * threshold are resolved by the caller (the session-init probe), so this module
+ * carries no file or source coupling of its own.
  *
  * A sibling of the stale-worktree sweep in *role* (a session-init advisory
- * riding the status envelope), not in *mechanics*: it reuses the registered
- * `errands` entry parser and ages each entry's `_Created:_` date, with no git
- * signals and no worktree gating (the queue is per-user and present in every
- * worktree).
+ * riding the status envelope), not in *mechanics*: it ages capture dates with
+ * no git signals and no worktree gating.
  *
  * @module
  */
 
-import { parseCrossWuEntries } from "../user-sync/index.js";
-
-/** The `_Created:_ YYYY-MM-DD` descriptor line within an errand entry — the age source. */
-const CREATED_LINE = /^\s*-\s*_Created:_\s*(\d{4}-\d{2}-\d{2})\b/m;
-
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
-/** One stale errand-queue entry surfaced for execute-or-demote. */
+/** A candidate entry to age: a stable key and its `YYYY-MM-DD` capture date. */
+export interface DatedErrandEntry {
+  /** The entry's identifying key — surfaced as the report slug. */
+  key: string;
+  /** The entry's capture date (`YYYY-MM-DD`) — the age source. */
+  created: string;
+}
+
+/** One stale entry surfaced for execute-or-demote. */
 export interface StaleErrandReport {
-  /** The entry's bold slug — its merge key and `chore/<slug>` branch name. */
+  /** The entry's key — its `chore/<slug>` branch name. */
   slug: string;
-  /** The entry's `_Created:_` date (`YYYY-MM-DD`). */
+  /** The entry's capture date (`YYYY-MM-DD`). */
   created: string;
   /** Whole-day age of the entry at sweep time. */
   ageDays: number;
 }
 
 export interface ErrandStalenessSweepResult {
-  /** Errand entries pending past the threshold — surfaced to execute or demote. */
+  /** Entries pending past the threshold — surfaced to execute or demote. */
   stale: StaleErrandReport[];
 }
 
 export interface RunErrandStalenessSweepOptions {
-  /** `ERRANDS.md` content; empty string when the file is absent. */
-  content: string;
+  /** Candidate entries to age; empty when no source is in scope. */
+  entries: readonly DatedErrandEntry[];
   /** Age threshold in whole days; entries strictly older than this are flagged. */
   thresholdDays: number;
   /** ISO-8601 reference time for age computation; defaults to now. */
@@ -48,30 +49,27 @@ export interface RunErrandStalenessSweepOptions {
 }
 
 /**
- * Flag errand-queue entries older than the threshold.
+ * Flag candidate entries older than the threshold.
  *
- * Entries with no parseable `_Created:_` date can't be aged and are skipped
- * (never flagged). Malformed entries are dropped by the parser upstream.
+ * Entries with no parseable `created` date can't be aged and are skipped
+ * (never flagged).
  *
- * @param options - Queue content, age threshold, and the reference time.
+ * @param options - Candidate entries, age threshold, and the reference time.
  * @returns The stale entries (possibly empty), each with its whole-day age.
  */
 export function runErrandStalenessSweep(
   options: RunErrandStalenessSweepOptions,
 ): ErrandStalenessSweepResult {
-  const { content, thresholdDays } = options;
+  const { entries, thresholdDays } = options;
   const nowMs = Date.parse(options.now ?? new Date().toISOString());
 
   const stale: StaleErrandReport[] = [];
-  for (const parse of parseCrossWuEntries(content, "errands")) {
-    if (!parse.ok) continue;
-    const created = parse.entry.raw.match(CREATED_LINE)?.[1];
-    if (created === undefined) continue;
+  for (const { key, created } of entries) {
     const createdMs = Date.parse(`${created}T00:00:00.000Z`);
     if (Number.isNaN(createdMs)) continue;
     const ageDays = Math.floor((nowMs - createdMs) / MS_PER_DAY);
     if (ageDays > thresholdDays) {
-      stale.push({ slug: parse.entry.key, created, ageDays });
+      stale.push({ slug: key, created, ageDays });
     }
   }
   return { stale };

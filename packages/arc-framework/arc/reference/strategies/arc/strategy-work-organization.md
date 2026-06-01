@@ -53,7 +53,7 @@ behavior change, `hotfix` for production-issue response) and supports overriding
 itself.
 
 For routing deferred or discovered work — inline fix vs. atomic task vs. new work unit — see
-[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
 
 ---
 
@@ -74,7 +74,7 @@ distinction sorts inbox items, individual tasks, and whole work units.
 **Route by character, not by wrapper.** Capture surfaces sort on this axis directly — on what the work *is*, not
 on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
 surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
-during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner.
+during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
 
 ---
 
@@ -499,10 +499,22 @@ ROADMAP back into agreement with meta-file state.
 
 Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and
 mid-execution interrupts requiring their own WU shape — follows the routing rules in
-[DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner. For mid-execution interrupts that warrant
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing. For mid-execution interrupts that warrant
 a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt protocol;
 capture interrupt work on the current branch with clear commit boundaries separating
 interrupt commits from primary task commits.
+
+**Anti-rider, briefly.** Whether a discovered fix may ride the current change is a
+*concern-identity* test, not a file-identity one: a same-concern micro-cleanup in a file you're
+already editing folds in; a distinct concern that merely shares the file errands (or is captured)
+rather than riding the PR. § Discovered Work Routing states the rule and its PR-packaging consequence;
+§ Auto-Merge Lane (below) governs how a housekeep drain packages the resulting PRs.
+
+**Why capture is cheap.** Deferring an out-of-WU concern to `USER-INBOX` is not a productivity
+tax: `USER-INBOX` is a personal notes-synced file, so capturing to it is free from any branch — it
+pollutes no PR. Only *execution* (running an errand, scaffolding a stub) pays an isolation cost.
+Capture freely mid-task and let the between-WUs housekeep drain route the backlog; reach for an
+express lane (a direct stub, or running an errand) only when the commitment is already firm.
 
 ---
 
@@ -556,8 +568,9 @@ Two lanes, by what the PR touches — classified by artifact **prefix**, not by 
 - **Reviewed lane** — everything else. Explicitly: **design-authority** artifacts (`spec-*`, `prd-*`); the
   **constitutional** surfaces — rules (`DEV-RULES.*`), ADRs (`reference/adr/**`), strategies
   (`reference/strategies/**`); the **derived or shared project surfaces** — `ROADMAP` (rendered from metas, so a
-  hand-edit must not silently diverge from its source) and the shared backlog inboxes (which change only at
-  reviewed ceremonies); and all code. Always requires owner review before merge.
+  hand-edit must not silently diverge from its source) and the shared backlog inboxes (a hand-edit to one
+  is reviewed; the between-WUs drain's own disciplined flush is the carve-out below); and all code. Always
+  requires owner review before merge.
 
 A PR that touches any reviewed-lane path is reviewed-lane as a whole — the lanes never split a single PR. Keep
 grooming PRs path-pure to stay on the auto-merge lane.
@@ -566,6 +579,53 @@ The lane classifies by **content type, not concurrency**: it decides whether a c
 not whether two branches edit the same artifact at once. Concurrent edits to a shared record — a multi-owner
 coordination doc, say — are a separate axis; gate those with the project's concurrent-work discipline, not this
 lane.
+
+### The housekeep drain
+
+A between-WUs `arc-housekeep` drain flushes captured work to its homes — routing inbox entries to their stubs,
+scaffolding provisional stubs, flushing homeless items to the shared inbox. Under full protection each such
+write ships as a PR, so the drain follows a packaging discipline.
+
+The drain is **gated and phased** — it classifies with no writes, **stops at a confirmation interlock** for the
+full routing plan, then routes — so the packaging below is decided against a confirmed plan, never mid-write. It
+closes on **no un-triaged entries**: every entry routed, dismissed, flushed, dispatched as an errand, or
+explicitly *retained* (a per-entry escape-hatch, never the default). The phased steps live in `drain-inbox.md`.
+
+**One PR per lane.** A drain produces *one PR per lane* — not one per sweep, nor one per destination; lanes
+never mix in a single PR. What bounds a PR is *concern-coherence*, not file or destination count. A
+planning-artifact routing sweep is one coherent concern — "route these entries to their homes," certifiable by
+a reviewer of uniform competence — so it batches into one auto-merge PR. A code-execution errand is one concern
+and takes its own PR (1:1; "one concern" may still span many files). Distinct concerns never share a PR: two
+that happen to touch the same file are still two PRs, sequenced (rebase the second on the first), not merged —
+batching them to dodge a rebase is the rider anti-pattern. This is the concern-identity-not-file-identity rule
+of [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing applied to packaging; see it for the rule itself. A freshly
+scaffolded *provisional* stub auto-merges — it is `meta-*`/`draft-*` under `backlog/` with no design authority.
+When a routing sweep is large enough that one auto-merge PR would exceed a reviewer's reach, chunk it by
+concern-coherence into multiple same-lane PRs — the chunk plan surfaced at the drain's confirmation interlock.
+Under partial protection, where routing writes are direct base commits rather than PRs, chunking degrades to
+coherent commit boundaries.
+
+**The review threshold.** The prefix split above is the fast path; the principle beneath it is a four-condition
+threshold. A planning-artifact change needs review iff it (1) touches a **foreign owner's** artifact, in any
+state; (2) carries **design authority** (`spec-*`/`prd-*`); (3) hits a **constitutional** surface (rules, ADRs,
+strategies); or (4) is an **unverifiable hand-edit of a derived surface**. Otherwise it auto-merges. Conditions
+2–4 are why the reviewed-lane prefixes are what they are; condition 1 is the one a prefix can't see — a `draft-*`
+or `tasks-*` that would auto-merge by prefix is reviewed-lane when its owner is not the author. Condition 4 is a
+*sunset* trigger: a hand-edit of a rendered surface (`ROADMAP`, and any other source-derived doc) is
+unverifiable only while that surface is hand-maintained; once a renderer produces it with a verify-against-source
+check, the derivation is verifiable and the change auto-merges. The same sunset applies to every derived surface
+as its renderer lands.
+
+**Carve-out.** The drain's own mechanical writes — flushing homeless items to the shared inbox, and a
+disciplined `ROADMAP` regen — auto-merge despite touching shared or derived surfaces: they trip none of the four
+conditions (no foreign owner, no design authority, not constitutional; the ceremony's own discipline and a
+regen-matches-source check stand in for condition 4).
+
+**Foreign edits beyond the in-flight gate.** Condition 1 classifies a foreign-owned artifact as reviewed in any
+state, but the mechanism below catches a foreign edit only while its PR is *in flight* — the code-owners gate and
+the advisory bot both key on an open PR. Gating a *dormant* foreign edit — one already merged, or written
+directly to the base branch — is a stewardship question for the project's concurrent-work discipline, not this
+lane: whether it warrants a hard gate or only a notification, and at what granularity, is settled there.
 
 ### The mechanism (host-agnostic)
 
@@ -610,8 +670,11 @@ ARC defines two work classes that share commit and review machinery but differ i
 Incidental work you have **committed to do yourself, soon** routes through this matrix, which selects its
 path. Work you are not committing to now is an inbox capture — triaged at a later ceremony, never routed here
 directly (the commitment boundary that gates entry to this matrix lives in [DEV-RULES.ARC][dev-rules-arc]
-§ Leave it cleaner). Two axes govern the choice: **create vs. maintain** decides whether the work needs the
-Work-Unit wrapper at all; **self-contained vs. cross-cutting** decides how an Errand routes once it does not.
+§ Discovered Work Routing). A third case sits outside the matrix entirely: work your **own work unit's spec
+already claims** — a coordination write-back it scoped in — is WU scope and rides the WU's PR, never an Errand;
+the matrix governs *incidental* cross-cutting work only. For that incidental case, two axes govern the choice:
+**create vs. maintain** decides whether the work needs the Work-Unit wrapper at all; **self-contained vs.
+cross-cutting** decides how an Errand routes once it does not.
 
 | Once committed to act ↓                        | **Self-contained** (own scope) | **Cross-cutting** (foreign-owned artifact)         |
 | ---------------------------------------------- | ------------------------------ | -------------------------------------------------- |
@@ -646,6 +709,17 @@ than editing the shared artifact in parallel (parallel edits on an in-flight art
 cross-branch conflict). The check is **advisory and judgment-based** — it records a caveat, never a hard
 block; when no in-flight work unit owns the target, the Errand proceeds unchanged.
 
+**Coordination write-backs ride; incidental foreign edits route.** A cross-cutting edit that your *own* work
+unit's spec scoped in — propagating a decision you are shipping into the downstream artifact it shifts — is a
+*coordination write-back*: it rides your WU's PR, not this matrix. It qualifies on three counts: it is (1)
+scoped into your WU's spec, (2) a mechanical propagation of *your* decision, and (3) recorded into the foreign
+artifact's own record-of-record. It *routes* instead — Errand or capture — when it is an unrelated fix that
+merely shares a file (the rider anti-pattern) or requires *foreign design authoring*, a decision that belongs to
+the downstream work unit. This is the same concern-identity-not-file-identity test as the anti-rider rule
+([DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing), here deciding WU-scope-vs-route rather than
+inline-vs-defer. Gating a *dormant* foreign edit more broadly is the project's concurrent-work discipline's
+concern, not this matrix's.
+
 ### Cheap-branch path
 
 The cheap-branch mechanism lands an Errand without WU machinery. Behavior depends on protection mode (see
@@ -663,12 +737,13 @@ by an `active/` entry.
 
 ### Entry path
 
-An Errand launches from the **primary worktree** (see [§ Main-on-Main Pattern](#main-on-main-pattern)). The
-Errand is initiated by starting a fresh session there on a new `chore`-type branch (under full protection)
-or directly against the base branch (under partial). It does
-not invoke planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has
-neither of. The Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded
-by git history through its commit footer, and tears down.
+An Errand runs through the `run-errand` workflow, dispatched by `arc-session` (via `--errand`, or surfaced at
+between-WU orientation). It launches from **any worktree**: the workflow's Launch phase resolves the base branch
+and relocates the execution locus itself onto the cheap-branch path (see
+[§ Cheap-branch path](#cheap-branch-path)), so the caller need not pre-switch worktrees. It does not invoke
+planning entry — spawn and cold-start scaffold meta files and lifecycles, which an Errand has neither of. The
+Errand mints no `active/` artifact and produces no orientation surface; it ships, is recorded by git history
+through its commit footer, and tears down.
 
 ---
 

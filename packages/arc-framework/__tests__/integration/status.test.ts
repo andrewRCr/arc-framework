@@ -57,6 +57,10 @@ import {
   type ResolvedSettingsResult,
 } from "../../src/lib/config/resolved-settings.js";
 import { resolveReleaseRouting } from "../../src/lib/release/routing.js";
+import { runInboxState } from "../../src/lib/session-init/inbox-state.js";
+import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminders.js";
+import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
+import type { ErrandStateResult } from "../../src/lib/session-init/errand-state.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 
@@ -206,6 +210,8 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
+    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -255,7 +261,19 @@ function makeResolvedReleaseModeSessionInitProbes(
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
+    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
+  };
+}
+
+function stubErrandState(): ErrandStateResult {
+  return {
+    resume: { resumable: false, slug: null },
+    inFlight: { errands: [] },
+    materializable: { candidates: [] },
+    nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
+    warnings: [],
   };
 }
 
@@ -291,6 +309,7 @@ function makeResolvedReleaseModeSessionHandoffProbes(
       noteFileChangesSinceHandoff: [],
     }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
+    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
   };
 }
 
@@ -466,6 +485,8 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       sweep: async () => ({ worktrees: [], warnings: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
+      errandState: async () => stubErrandState(),
+      inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -628,6 +649,8 @@ function makeRealWorktreeProbes(
     sweep: async () => ({ worktrees: [], warnings: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
+    errandState: async () => stubErrandState(),
+    inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -1049,5 +1072,270 @@ describe("runSessionHandoffStatus — releaseRouting envelope path", () => {
         },
       });
     }
+  });
+});
+
+// Exercises the handoff path's real read + parse + count wiring: the
+// `inboxState` slot is what the between-WUs branch uses to offer housekeep.
+describe("runSessionHandoffStatus — inbox-state envelope path", () => {
+  let fixture: Fixture;
+
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+  });
+
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  function realHandoffInboxStateProbes(f: Fixture): SessionHandoffProbes {
+    return {
+      ...makeResolvedReleaseModeSessionHandoffProbes(f),
+      inboxState: async (id) => {
+        const content = await nodeReadFile(
+          join(f.root, ".arc", "user", id, "USER-INBOX.md"),
+          "utf-8",
+        ).catch(() => "");
+        return runInboxState({ content });
+      },
+    };
+  }
+
+  it("counts routable USER-INBOX entries into the handoff envelope slot (present)", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Atomic",
+        "",
+        "### `[ ]` **first capture**",
+        "",
+        "- A routable atomic entry.",
+        "",
+        "## Backlog",
+        "",
+        "### `[ ]` **second capture**",
+        "",
+        "- A routable multi-step entry.",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realHandoffInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+    }
+  });
+
+  it("reports a missing inbox as zero count with housekeepNeeded false (empty)", async () => {
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realHandoffInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+    }
+  });
+
+  it("omits the inbox-state slot when identity is absent (identity-absent)", async () => {
+    const result = await runSessionHandoffStatus({
+      identity: null,
+      role: null,
+      probes: realHandoffInboxStateProbes(fixture),
+    });
+
+    expect("inboxState" in result).toBe(false);
+  });
+});
+
+// Exercises the real read + parse + count + envelope path: a handler-equivalent
+// `inboxState` probe reads `.arc/user/{identity}/USER-INBOX.md` off the fixture
+// filesystem, so the slot reflects the parser and orchestrator end to end.
+describe("runSessionInitStatus — inbox-state envelope path", () => {
+  let fixture: Fixture;
+
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+  });
+
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  function realInboxStateProbes(f: Fixture): SessionInitProbes {
+    return {
+      ...makeSessionInitProbes(f),
+      inboxState: async (id) => {
+        const content = await nodeReadFile(
+          join(f.root, ".arc", "user", id, "USER-INBOX.md"),
+          "utf-8",
+        ).catch(() => "");
+        return runInboxState({ content });
+      },
+    };
+  }
+
+  it("counts routable USER-INBOX entries into the envelope slot (present)", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Atomic",
+        "",
+        "### `[ ]` **first capture**",
+        "",
+        "- A routable atomic entry.",
+        "",
+        "## Backlog",
+        "",
+        "### `[ ]` **second capture**",
+        "",
+        "- A routable backlog entry.",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 2, housekeepNeeded: true });
+    }
+  });
+
+  it("reports a missing inbox as zero count with housekeepNeeded false (empty)", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realInboxStateProbes(fixture),
+    });
+
+    expect(result.inboxState?.ok).toBe(true);
+    if (result.inboxState?.ok) {
+      expect(result.inboxState.value).toEqual({ routableCount: 0, housekeepNeeded: false });
+    }
+  });
+
+  it("omits the inbox-state slot when identity is absent (identity-absent)", async () => {
+    const result = await runSessionInitStatus({
+      identity: null,
+      role: null,
+      probes: realInboxStateProbes(fixture),
+    });
+
+    expect("inboxState" in result).toBe(false);
+  });
+});
+
+// Exercises the repointed staleness sweep end to end: a handler-equivalent
+// errandSweep probe reads the fixture's USER-INBOX, extracts the reminder-
+// flagged Atomic entries, and ages them — confirming the sweep now sources the
+// inbox instead of the retired ERRANDS.md queue.
+describe("runSessionInitStatus — reminder-sweep envelope path", () => {
+  const NOW = "2026-05-31T12:00:00.000Z";
+  let fixture: Fixture;
+
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+  });
+
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  function realReminderSweepProbes(f: Fixture): SessionInitProbes {
+    return {
+      ...makeSessionInitProbes(f),
+      errandSweep: async (id) => {
+        const content = await nodeReadFile(
+          join(f.root, ".arc", "user", id, "USER-INBOX.md"),
+          "utf-8",
+        ).catch(() => "");
+        return runErrandStalenessSweep({
+          entries: extractReminderEntries({ content }).entries,
+          thresholdDays: 1,
+          now: NOW,
+        });
+      },
+    };
+  }
+
+  it("ages a reminder-flagged Atomic entry past the threshold into the sweep (present)", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Atomic",
+        "",
+        "### `[ ]` **drain the backlog**",
+        "",
+        "- _Remind:_ `true`",
+        "- _Created:_ `2026-05-28`",
+        "",
+        "## Backlog",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect(result.errandSweep?.ok).toBe(true);
+    if (result.errandSweep?.ok) {
+      expect(result.errandSweep.value.stale).toEqual([
+        { slug: "drain the backlog", created: "2026-05-28", ageDays: 3 },
+      ]);
+    }
+  });
+
+  it("surfaces nothing when there are no flagged captures (empty)", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect(result.errandSweep?.ok).toBe(true);
+    if (result.errandSweep?.ok) {
+      expect(result.errandSweep.value.stale).toEqual([]);
+    }
+  });
+
+  it("omits the sweep slot when identity is absent (identity-absent)", async () => {
+    const result = await runSessionInitStatus({
+      identity: null,
+      role: null,
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect("errandSweep" in result).toBe(false);
   });
 });

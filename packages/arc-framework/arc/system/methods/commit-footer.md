@@ -83,12 +83,12 @@ Used when no active WU exists. The anchor itself declares the off-WU semantic; t
 describes the kind of work.
 
 - `Context: standalone (maintenance)` — emergent maintenance
-- `Context: standalone (planning)` — queue-shaping (ROADMAP / BACKLOG-INBOX edits)
+- `Context: standalone (planning)` — queue-shaping (ROADMAP / ATOMIC-INBOX edits)
 - `Context: standalone (documentation)` — emergent documentation
 - `Context: standalone (refactor)` — emergent refactor
 
 **Off-WU `(planning)` vs. file-pointer `(planning)`.** Off-WU `(planning)` is queue-shaping work
-that organizes future work without iterating a specific spec (ROADMAP, BACKLOG-INBOX edits).
+that organizes future work without iterating a specific spec (ROADMAP, ATOMIC-INBOX edits).
 File-pointer `(planning)` — e.g., `tasks-[name].md (planning)` or `draft-[name].md (planning)` — is
 spec iteration on an active artifact.
 

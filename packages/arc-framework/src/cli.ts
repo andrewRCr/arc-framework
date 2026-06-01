@@ -17,11 +17,10 @@ import { handleInit } from "./handlers/init.js";
 import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
-  handleErrandQueue,
   handleErrandCheck,
-  type ErrandQueueOptions,
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
+import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -93,19 +92,7 @@ program
 
 const errand = program
   .command("errand")
-  .description(
-    "Errand queue operations. `queue` writes a forward-pointing entry into the primary "
-    + "worktree's ERRANDS.md (no branch, no commit); `check` reports foreign in-flight overlap.",
-  );
-
-errand
-  .command("queue")
-  .description("Queue an errand entry into the primary worktree's ERRANDS.md and return")
-  .option("--slug <slug>", "Merge key + `chore/<slug>` branch name (branch-safe: lowercase, digits, hyphens)")
-  .option("--goal <goal>", "One-line \"what\" — the outcome the errand delivers")
-  .option("--pointers <pointers>", "Files, symbols, or context the executing session needs to start")
-  .option("--caveat <caveat>", "Optional in-flight coordination advisory (composed by the skill)")
-  .action((opts: ErrandQueueOptions) => handleErrandQueue(opts));
+  .description("Errand operations. `check` reports which in-flight work units touch a target path.");
 
 errand
   .command("check")
@@ -113,6 +100,19 @@ errand
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+
+const housekeep = program
+  .command("housekeep")
+  .description(
+    "Between-WU drain operations. `check` classifies the write context (base-branch vs. "
+    + "work-unit branch) so the drain's base-branch-write precondition is enforced mechanically.",
+  );
+
+housekeep
+  .command("check")
+  .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
+  .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
+  .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
 
 // --- Lifecycle ---
 

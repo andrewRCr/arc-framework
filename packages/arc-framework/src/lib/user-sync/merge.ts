@@ -212,7 +212,7 @@ function dedupe(values: readonly string[]): string[] {
 interface Tombstone {
   /** Containing H2 section of the removed entry — preserves `(section, key)` identity. */
   section: string;
-  /** The removed entry's merge key (WORKING-MEMORY header or USER-INBOX lead-in). */
+  /** The removed entry's merge key (WORKING-MEMORY bold-field header or H3 bold title). */
   key: string;
   /** ISO-8601 timestamp when the removal was recorded. */
   removedAt: string;

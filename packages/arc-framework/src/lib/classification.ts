@@ -60,7 +60,6 @@ const SCAFFOLDED_FILES: ReadonlySet<string> = new Set([
   "reference/TECHNICAL-OVERVIEW.template.md",
   "backlog/ROADMAP.template.md",
   "backlog/ATOMIC-INBOX.template.md",
-  "backlog/BACKLOG-INBOX.template.md",
 ]);
 
 /**

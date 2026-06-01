@@ -14,6 +14,30 @@ Optimization WU.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **SESSION-NOTES post-WOR model cleanup**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- *Concern:* WOR moved SESSION-NOTES to WU-scoped subdirs (`user/{id}/<wu>/`) but left the pre-WOR single-doc
+  model in the template + workflows:
+    - Template (`templates/user/SESSION-NOTES.md`) still says "Completed Work" (the workflow wants only
+      "Uncommitted Work") and "status-{name}.md" (→ `meta-{name}.md`). Pure drift.
+    - The `**Working On:**` field + markers (`[none]` / `[between work units]` / `[planning: …]`) are dead under
+      WU-scoping — no WU means no subdir means no SESSION-NOTES, and the subdir name already is the WU identity.
+      Retire the field; H1 becomes `# Session Notes: {WU Name}`, populated by `arc user open` at seed.
+    - Coordinated retirement, not a one-liner: the field has a live consumer — session-init multi-candidate
+      disambiguation precedence #1 (`commands/active/status.ts`, now circular under WU-scoping) — plus
+      `session-handoff.md` step 2 / skeleton. Touches template + both session workflows + the CLI path (+ test).
+- *Coordination:* work-routing-discipline's between-WUs `session-handoff` path defines *when* SESSION-NOTES
+  is/isn't written; same file, adjacent concern — one coordinated sweep (its notes § Coordination write-back
+  specifics names this WU as the owner).
+
+---
+
 ## Problem / Motivation
 
 Session-handoff is structurally expensive in three places that compound across every

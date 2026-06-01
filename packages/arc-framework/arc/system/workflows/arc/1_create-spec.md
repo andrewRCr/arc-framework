@@ -34,7 +34,10 @@ Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] 
   into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
-files with additional detail — read those too. Before proceeding, assess PRD-readiness: check for
+files with additional detail — read those too. If the draft carries an `## Inbound Buffer — Pending
+Integration` section, **integrate those routed notes into the draft body first** (or consciously reject
+each) — the buffer is a transit zone that must drain before the plan feeds the PRD, never carried forward
+as-is. Before proceeding, assess PRD-readiness: check for
 unresolved design decisions, open unknowns marked for future resolution, or missing concrete details
 that the PRD would need to specify. If the plan isn't ready, surface the gaps and resolve them (or
 return to plan refinement) before investing in PRD writing. Treat the plan as authoritative upstream
@@ -115,13 +118,6 @@ compound names.
 - **none / external**: `.arc/active/spec-{{WORK_NAME}}.md` — PRDs save directly to
   active (no backlog directory). Create the directory first if it doesn't exist:
   `mkdir -p .arc/active/`
-
-**Promotion-write (`arc-in-git`, conditional):** If this PRD originates as a direct promotion from
-a `backlog/BACKLOG-INBOX.md` entry (no intermediate `draft-*` doc), delete the inbox entry in the
-same commit as the PRD save. Routing record lives in the deletion commit message — preserves the
-ceremony-only write discipline for shared inboxes (see [DEV-RULES.ARC][dev-rules-arc]
-§ Leave it cleaner). Inbox entries promoted via an intermediate `draft-*` doc are deleted at
-draft-doc creation, not here.
 
 ### Step 7: Retire Draft Documents
 

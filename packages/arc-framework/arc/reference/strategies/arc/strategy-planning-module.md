@@ -18,7 +18,7 @@ work without these artifacts.
 - [What It Installs](#what-it-installs) — capture surfaces and directory shape
 - [Inbox Family](#inbox-family) — per-inbox orientation: purpose, lifecycle, write discipline
 - [How Work Flows Through](#how-work-flows-through) — routing by intent, ownership, and character
-- [Ceremony-Only Writes to Shared Inboxes](#ceremony-only-writes-to-shared-inboxes) — write-isolation discipline
+- [Shared-Inbox Write Discipline](#shared-inbox-write-discipline) — what writes the shared inbox, and when
 - [State-Dir Graduation](#state-dir-graduation) — `provisional/` → `planned/` commitment semantics
 - [Cohort Wrapper Subdirs](#cohort-wrapper-subdirs) — codified sibling sets, backlog-only
 - [When to Use Arc-in-Git](#when-to-use-arc-in-git) — fit and scaling boundaries
@@ -28,14 +28,13 @@ work without these artifacts.
 
 ## What It Installs
 
-Four capture surfaces plus a generated sequencing view, distinguished by **ownership** (personal
+Three capture surfaces plus a generated sequencing view, distinguished by **ownership** (personal
 vs. project-shared) and **work character** (atomic vs. multi-step):
 
 | Artifact                              | Location           | Scope                | Purpose                                                |
 |---------------------------------------|--------------------|----------------------|--------------------------------------------------------|
 | `USER-INBOX.md`                       | `user/{identity}/` | Personal, gitignored | Live capture; `## Atomic` and `## Backlog` sections    |
-| `ATOMIC-INBOX.md`                     | `backlog/`         | Project-shared       | Atomic-character entries (committed, tracked)          |
-| `BACKLOG-INBOX.md`                    | `backlog/`         | Project-shared       | Multi-step entries (committed, tracked)                |
+| `ATOMIC-INBOX.md`                     | `backlog/`         | Project-shared       | Homeless atomic entries (committed, tracked)           |
 | `{planned,provisional}/<wu-name>/`    | `backlog/`         | Project-shared       | Per-WU subdirs for matured backlog WUs                 |
 | `ROADMAP.md`                          | `backlog/`         | Project-shared       | Generated view — sequencing across committed WUs       |
 
@@ -60,44 +59,38 @@ The capture surfaces split by **ownership** (personal vs. project-shared) and **
 - **Personal** — `user/{identity}/USER-INBOX.md`. Live-capture surface; cross-PM-mode (exists
   outside arc-in-git too). See `strategy-session-operations.md` § USER-INBOX for purpose,
   lifecycle, and the `## Atomic` / `## Backlog` section semantics.
-- **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below).
-- **Project-shared multi-step** — `backlog/BACKLOG-INBOX.md` (below).
+- **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below). The *only* shared inbox: multi-step
+  work always has a stub home, so there is no shared multi-step surface.
 
-§ How Work Flows Through covers the routing tree across all three; the subsections below cover
-per-inbox orientation for the two project-shared inboxes.
+§ How Work Flows Through covers the routing tree; the subsection below covers orientation for the
+shared atomic inbox.
 
 ### `backlog/ATOMIC-INBOX.md` — project-shared atomic capture
 
-Committed-tracked queue of atomic-character entries from across the project. Ceremony-only writes
-— read freely between ceremonies, write only at the three lifecycle fire-points. Entries execute
-as-is from inbox at their owning WU; completion deletes the entry, and the routing record lives
-in the deletion commit message plus the absorbing artifact.
-
-Off-WU work is committed with the `standalone (...)` footer; browse that history with
-`arc log standalone`.
-
-### `backlog/BACKLOG-INBOX.md` — project-shared multi-step capture
-
-Committed-tracked queue of multi-step entries awaiting draft-doc maturation. Ceremony-only writes
-(same fire-points as ATOMIC-INBOX). When scope and plan emerge, entries graduate to a per-WU
-subdir at `backlog/{planned,provisional}/<wu-name>/` carrying their `plan-<wu-name>.md` and any
-companions — see § State-Dir Graduation.
+Committed-tracked queue of *homeless* atomic-character entries — single-step work with no better
+home than the shared surface. The between-WUs housekeep drain *writes* it, flushing homeless
+`USER-INBOX § Atomic` items here; activation and planning-kickoff *read* from it, pulling in items
+whose home turns out to be the WU. Entries execute as-is from inbox at their owning WU; completion
+deletes the entry, and the routing record lives in the deletion commit message plus the absorbing
+artifact. Multi-step work never lands here — it always has a stub home.
 
 **Entry shape:** H3 with a `[ ]` checkbox and bold title, followed by italic-descriptor bullets
 — `_Observation:_`, `_Proposed action:_`, `_Scope:_`, `_Branch:_`, `_Captured during:_` (and
 others as the entry warrants). Entries sit under a `## Inbox` H2 wrapper (the H2 layer below the
-file H1); USER-INBOX additionally splits into `## Atomic` / `## Backlog` sections in lieu of
-`## Inbox`. Multi-line bullets within an entry separate with blank lines (loose-list per
-`strategy-task-list-formatting.md` § Blank-Line Discipline). Same shape applies to
-project-shared ATOMIC-INBOX entries.
+file H1). `USER-INBOX` shares the shape but splits into `## Atomic` / `## Backlog` in lieu of
+`## Inbox`, and its multi-step entries carry the `WU_Target` grammar — see
+`strategy-session-operations.md` § USER-INBOX. Multi-line bullets within an entry separate with
+blank lines (loose-list per `strategy-task-list-formatting.md` § Blank-Line Discipline).
+
+Off-WU work is committed with the `standalone (...)` footer; browse that history with
+`arc log standalone`.
 
 ### Write-discipline summary
 
-Personal capture (`USER-INBOX.md`) accepts writes any time (live capture). Shared inboxes
-(`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`) batch writes at ceremony fire-points
-(write isolation). The discipline trades write immediacy for elimination of multi-writer merge
-conflicts on shared files. See [DEV-RULES.ARC][dev-rules] § Leave it cleaner for the
-constitutional rule statement.
+Personal capture (`USER-INBOX.md`) accepts writes any time (live capture). The shared
+`backlog/ATOMIC-INBOX.md` is written only at the between-WUs housekeep drain (write isolation),
+trading write immediacy for elimination of multi-writer merge conflicts on the shared file. See
+[DEV-RULES.ARC][dev-rules] § Discovered Work Routing for the constitutional rule statement.
 
 ---
 
@@ -115,40 +108,41 @@ New work item
   └─ Quick (< 5 min)?             → fix immediately
 ```
 
-Captures land in `USER-INBOX.md` (personal, live). Entries drain at ceremony boundaries —
-§ Atomic flows to `backlog/ATOMIC-INBOX.md`; § Backlog flows to `backlog/BACKLOG-INBOX.md`, or
-graduates directly to a per-WU subdir under `backlog/{planned,provisional}/` when scope and plan
-have emerged. Atomic items execute as-is from inbox; multi-step items mature
-into `plan-<wu-name>.md` and (when ready) `prd-<wu-name>.md`. See
-[Work Planning Strategy][work-planning] for the plan → PRD pipeline and discovery checklist.
+Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep drain routes them —
+*not* the integration ceremony: § Atomic items route to their home, or flush to
+`backlog/ATOMIC-INBOX.md` if homeless; § Backlog items route to an existing stub, or graduate to a
+*provisional* stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
+Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
+ready) `prd-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the plan → PRD pipeline
+and discovery checklist.
 
 For the full intent × mode routing table (including `pm.mode: external` and `pm.mode: none`),
-see [DEV-RULES.ARC][dev-rules] § Leave it cleaner.
+see [DEV-RULES.ARC][dev-rules] § Discovered Work Routing.
 
 ---
 
-## Ceremony-Only Writes to Shared Inboxes
+## Shared-Inbox Write Discipline
 
-Shared inboxes (`backlog/ATOMIC-INBOX.md`, `backlog/BACKLOG-INBOX.md`) are read-only by
-convention outside three lifecycle fire-points:
+The shared `backlog/ATOMIC-INBOX.md` is **written** at one point and **read** at two — never
+continuously multi-writer-edited:
 
-- **Activation absorption** — at WU activation, USER-INBOX entries scoped to that WU's domain
-  absorb into the WU's task list; the remainder stays personal.
-- **Integration drain** — at WU integration, surviving USER-INBOX entries flush to the matching
-  shared inbox (`§ Atomic` → `ATOMIC-INBOX.md`; `§ Backlog` → `BACKLOG-INBOX.md`), or graduate
-  to a new `backlog/provisional/<wu-name>/` subdir if scope and plan have emerged.
-- **Planning-kickoff promotion** — when a maintainer commits to a backlog WU, entries from the
-  shared inbox or provisional subdir promote into the WU's plan/PRD as concrete tasks.
+- **Written by the housekeep drain (between-WUs).** When `USER-INBOX` drains, genuinely homeless
+  `§ Atomic` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives *off* the
+  integration ceremony. (`§ Backlog` items never flush here — multi-step work graduates to a
+  *provisional* stub instead; there is no shared multi-step inbox.)
+- **Read at activation** — a WU pulls in shared-inbox items whose home turns out to be its domain;
+  the rest stay put. Absorption *from* `USER-INBOX` is the degenerate case (empty post-housekeep).
+- **Read at planning-kickoff** — when a maintainer commits to a backlog WU, shared-inbox or
+  provisional-subdir items promote into its plan/PRD as concrete tasks.
 
 **Absorbed entries are deleted, not marked.** The routing record lives in the deletion commit
-message plus the absorbing artifact (task list or new WU subdir). Don't leave
-strikethrough, `[absorbed]` tags, or status markers — git history is the audit trail.
+message plus the absorbing artifact (task list or WU subdir). Don't leave strikethrough,
+`[absorbed]` tags, or status markers — git history is the audit trail.
 
-The discipline trades write immediacy for write isolation. Shared inboxes represent
-**committed direction as of the last ceremony**, not real-time capture. Live capture lives in
-`USER-INBOX.md`; cross-team and cross-worktree visibility materializes at the next ceremony
-boundary. The rule eliminates by construction a class of merge conflicts that continuous
-multi-writer edits to shared inboxes would otherwise produce.
+Batching writes to the single drain point — rather than continuous multi-writer edits — eliminates
+by construction a class of merge conflicts on the shared file. Live capture lives in
+`USER-INBOX.md`; cross-team and cross-worktree visibility materializes when housekeep next flushes a
+homeless item.
 
 ---
 
@@ -216,12 +210,12 @@ planning pipeline, and work tracking all live alongside the code.
 
 - Medium teams (4-6) with short-lived branches. Shared inboxes may lag behind in-flight work
   between integrations; `USER-INBOX.md` absorbs captures during branch work, items promote to
-  the shared backlog surface at integration boundaries. Expect occasional merge conflicts in
+  the shared backlog surface when housekeep next drains. Expect occasional merge conflicts in
   shared files — manageable if branches integrate often.
 
 **The scaling boundary** is a function of team size, branch lifetime, and integration
 frequency — not a hard headcount threshold. The shared backlog surface (`ATOMIC-INBOX.md`,
-`BACKLOG-INBOX.md`, per-WU subdirs, ROADMAP) is tracked in git on the base branch. When
+per-WU subdirs, ROADMAP) is tracked in git on the base branch. When
 multiple developers capture work from concurrent feature branches, those edits only converge
 at merge time. Teams that integrate often stay current; teams with long-lived branches
 experience growing staleness and merge friction.
@@ -238,8 +232,8 @@ See [Team Coordination][team-coord] § External Tracker Integration for the inte
 
 Without arc-in-git (`pm.mode: none` or `external`):
 
-- No `backlog/` directory — no `ATOMIC-INBOX.md`, `BACKLOG-INBOX.md`, ROADMAP, per-WU
-  subdirs, or commitment-dir split
+- No `backlog/` directory — no `ATOMIC-INBOX.md`, ROADMAP, per-WU subdirs, or
+  commitment-dir split
 - No `USER-INBOX.md` — for-later routing follows project convention or the external tracker
 - Atomic during-WU work still folds into the commit or spins an Errand — that's Core
 - Plan documents and PRDs (when used) live in `active/` directly; no graduation pipeline
@@ -255,7 +249,7 @@ events to external trackers.
 
 - [Work Planning][work-planning] — Planning pipeline, plan/PRD conventions, discovery checklist
 - [Work Organization][work-org] — Branching, archival, ROADMAP render algorithm, state semantics
-- [DEV-RULES.ARC][dev-rules] § Leave it cleaner — Full intent × mode capture routing table
+- [DEV-RULES.ARC][dev-rules] § Discovered Work Routing — Full intent × mode capture routing table
 - [Process Task Loop][process-loop] § Atomic Task Completion — atomic task execution and routing
 - [Team Coordination][team-coord] § External Tracker Integration — external PM integration model
 

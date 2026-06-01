@@ -7,6 +7,43 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Disambiguate the commit-footer `(activation)` context (init vs. activate)**
+
+- _Routed from:_ `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ `init-work-unit` (creates the WU on a `plan/` branch at State **Planning**) and `activate-work-unit`
+  (flips Planning → **Active**, renames `plan/` → `<type>/`) are distinct ceremonies, but both land under the
+  single `(activation)` footer context — defined as the "backlog → active transition." A State-Planning init
+  commit wears activation vocabulary belonging to the State-Active flip, and history cannot distinguish init from
+  activate by the context line. No `(init)` context exists.
+- _Shape (carries a design fork):_ add a distinct init context, rename `activation`, or clarify its scope —
+  touches `commit-footer.md` (both copies), the commit-msg validator's allowed-contexts list, and
+  `init-work-unit.md` commit guidance. Quick-tier (infra-touching); triage the fork at planning.
+
+### `[ ]` **Rebalance the Errand concept across AGENT-BRIEF.ARC / DEV-RULES.ARC (progressive disclosure)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
+- _Concern:_ an agent reaching an errand workflow has loaded AGENT-BRIEF.ARC + DEV-RULES.ARC but not strategies —
+  yet Errand is not a first-class Vocabulary term in AGENT-BRIEF.ARC (only a passing mention under _Atomic_),
+  while DEV-RULES.ARC carries conceptual framing partly duplicating `strategy-work-organization § Errand Work
+  Class`. Rebalance for progressive disclosure: AGENT-BRIEF.ARC § Vocabulary introduces Errand (peer to Work
+  Unit); DEV-RULES.ARC § Discovered Work Routing keeps operational routing but defers the conceptual model;
+  § Errand Work Class stays the authoritative deep model.
+- _Fold-ins:_ (a) write-for-reader fix — remove "no queue, no `errand-*` file, and no State field" from
+  DEV-RULES.ARC § Holding ≠ execution (it contrasts against the retired queue a reader with no memory of it
+  can't parse); state what an errand _is_ (state derived from its branch + PR). (b) Broaden the `taskCommit`
+  class-tag and `post-task-quality` extension _definitions_ to the **review increment** (task or errand) rather
+  than inventing errand variants — definitional cleanup, keep the names.
+- _Home:_ constitutional/doctrine surfaces (AGENT-BRIEF.ARC, DEV-RULES.ARC, `strategy-workflow-authoring`
+  § Routing class tags, the `post-task-quality` extension); reviewed-lane, two-copy. (Landing here as the
+  rules/doctrine home; could be a focused doctrine-cleanup pass instead — decide at integration.)
+
+---
+
 ## Problem / Motivation
 
 After WOR Phase 6.11 lands, the rules directory is at `system/rules/` with the universal pair

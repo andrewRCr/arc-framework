@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `cb30d32a`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `e101032b`.
 
 This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
 canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
@@ -19,6 +19,7 @@ _None in flight._
 | ----------------------------- | ------ | ------------------------ | -------------------------- |
 | handoff-optimization          | andrew | —                        | agent-context-optimization |
 | loadset-composition           | andrew | —                        | agent-context-optimization |
+| compaction-recovery           | andrew | —                        | agent-context-optimization |
 | agile-wu-lifecycle            | andrew | —                        | agile-parallelism          |
 | in-flight-awareness           | andrew | —                        | agile-parallelism          |
 | commit-increments             | andrew | —                        | approval-flow-refinement   |
@@ -26,6 +27,12 @@ _None in flight._
 | lib-layer-type-extraction     | andrew | —                        | architecture-remediation   |
 | sync-handler-decomposition    | andrew | —                        | architecture-remediation   |
 | user-sync-module-split        | andrew | —                        | architecture-remediation   |
+| cli-test-hardening            | andrew | —                        | architecture-remediation   |
+| config-storage-architecture   | andrew | —                        | configuration              |
+| customization-arch-realign    | andrew | —                        | configuration              |
+| config-migration-registry     | andrew | —                        | configuration              |
+| task-list-conventions         | andrew | —                        | doc-conventions            |
+| naming-conventions            | andrew | —                        | doc-conventions            |
 | coord-probe                   | andrew | —                        | cross-machine-coherence    |
 | cross-machine-sync-coherence  | andrew | —                        | cross-machine-coherence    |
 | composable-workflows          | andrew | —                        | principle-anchored-core    |
@@ -33,14 +40,15 @@ _None in flight._
 | workflow-template-loads       | andrew | —                        | principle-anchored-core    |
 | docs-site-refresh             | andrew | —                        | release-readiness          |
 | release-lifecycle             | andrew | —                        | release-readiness          |
+| binary-distribution           | andrew | —                        | release-readiness          |
 | arc-modes                     | andrew | —                        | —                          |
 | arc-reinforce                 | andrew | —                        | —                          |
 | cli-substrate-adoption        | andrew | —                        | —                          |
-| config-storage-architecture   | andrew | —                        | —                          |
-| customization-arch-realign    | andrew | —                        | —                          |
 | review-method-family          | andrew | —                        | —                          |
 | roadmap-tooling               | andrew | —                        | —                          |
 | rules-restructure             | andrew | —                        | —                          |
+| skill-infrastructure-cleanup  | andrew | —                        | —                          |
+| adr-accept-timing             | andrew | —                        | —                          |
 
 ## Blocked
 

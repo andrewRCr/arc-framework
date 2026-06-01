@@ -34,7 +34,7 @@ instructions that you write for your specific tracker.
 
 ## Step 2: Set Up Capture Routing
 
-ARC's "leave it cleaner" rule ([DEV-RULES.ARC][dev-rules-arc] § Leave it cleaner) requires a
+ARC's "leave it cleaner" rule ([DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing) requires a
 destination for deferred issues — work discovered during a task that can't be fixed inline.
 With `pm.mode: external`, the natural destination is your tracker.
 

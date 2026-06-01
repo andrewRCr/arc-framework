@@ -17,7 +17,8 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
-- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, leave-it-cleaner, test-first
+- [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
+- [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
 - [Session Management](#session-management) — state control, handoff, context quality
 - [Verification and Discovery](#verification-and-discovery) — verify, consult strategies, load methods/extensions
 - [Documentation Boundaries](#documentation-boundaries) — code and methodology separation
@@ -200,55 +201,90 @@ If quality gates fail after task completion:
 3. **Ask for guidance** on whether to fix immediately or defer
 4. **Never proceed** to the next task until resolved or the user approves
 
-### Leave it cleaner
-
-When you encounter an issue that needs addressing — whether in a file you're modifying,
-during analysis, or anywhere in the course of work — take responsibility for it.
-
-**Fixing it inline** (in a file you're already changing, manageable scope) · `[configurable]`:
-assess severity via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand.
-
-**Otherwise, route by commitment.** The question that decides the home is *am I committing to do this
-myself, soon?* — not the size of the work. This boundary is the precondition that gates the Errand decision
-matrix ([strategy-work-organization][work-org] § Errand Work Class): the boundary decides act-now vs.
-capture-for-later; the matrix selects the path once you have committed to act.
-
-| Committing to do it yourself, soon? | Character  | Destination                                                      |
-| ----------------------------------- | ---------- | ---------------------------------------------------------------- |
-| **Yes** — act now                   | Atomic     | Errand — its own commit, or folded into the work in hand         |
-| **Yes** — act now                   | Multi-step | Task structure / a Work Unit (multi-step trips the WU threshold) |
-| **No** — unsure / maybe / not-yet   | Atomic     | `user/{identity}/USER-INBOX.md` § Atomic (arc-in-git)            |
-| **No** — unsure / maybe / not-yet   | Multi-step | `user/{identity}/USER-INBOX.md` § Backlog (arc-in-git)           |
-
-Committed work is done in its real place now — never anticipatorily captured to an inbox. An atomic
-commitment is an Errand (or folds into the current commit when it belongs to the work in hand); a multi-step
-commitment trips the Work-Unit threshold and routes to task structure or a Work Unit, never an Errand.
-Not-committed work — unsure, maybe-someone-else, needs-a-think — is a capture, triaged at a ceremony where it
-may *become* an Errand, graduate to a Work Unit, or be dismissed. Under PM modes other than arc-in-git,
-not-committed work captures per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); default: ask
-the user.
-
-**Drain at ceremonies, not capture.** USER-INBOX entries drain at lifecycle ceremonies —
-activation absorption, integration drain, planning-kickoff promotion. § Atomic items drain to
-`backlog/ATOMIC-INBOX.md` (project-shared atomic surface); § Backlog items drain to
-`backlog/BACKLOG-INBOX.md`, or graduate to per-WU subdirs at
-`backlog/{planned,provisional}/<wu-name>/` when scope/plan emerges. Project-shared inboxes are
-read-only by convention outside these ceremonies.
-
-**Multi-step committed work:** Search the active task list for a natural home — fold
-into an existing incomplete task, add a subtask, or insert a new task at a logical point. If
-the work needs a new phase, it may not belong in this work unit — present to user.
-
-**Always propose placement to the user before acting.** The agent suggests, the user decides.
-
-**Anti-pattern:** Task completion notes and session notes are not capture surfaces for
-deferred work. They document what was done and contextual observations — they are not
-reviewed until integration prep, which is too late for actionable items.
-
 ### Test-first assessment · `[configurable]`
 
 Before implementing any task, assess whether tests should be written first — see the
 [test-first method][arc-methods-tf] for the decision tree.
+
+---
+
+## Discovered Work Routing
+
+When you encounter an issue — in a file you're editing, during analysis, anywhere in the course of work —
+take responsibility for it. Never silently drop an observation that should be fixed or captured.
+
+**The core invariant.** A work unit's stub/draft is the single authoritative source for its domain concerns;
+capture surfaces (`USER-INBOX`, the shared `ATOMIC-INBOX`) are transient buffers, never authoritative. **No
+item with a known home may rest in a capture surface.**
+
+### Leave it cleaner
+
+The behavioral floor for everything below — what to do with a concern the moment it surfaces.
+
+**Fixing it inline** (a file you're already changing, manageable scope) · `[configurable]`: assess severity
+via the [issue-triage method][arc-methods-it] and fold the fix into the work in hand — but only for a
+*same-concern* cleanup (see [Anti-rider](#anti-rider)), not merely because the file is open.
+
+**Always propose placement to the user before acting** — the agent suggests, the user decides.
+
+### Route by urgency × isolation
+
+**Otherwise, route by urgency × isolation** — a coarse *inline / errand-now / inbox-defer* call. The finer
+destination (existing stub, new stub, standalone errand, flush to shared) resolves later, at drain.
+
+| The concern is…       | Can I write its home here? | Route                                                  |
+| --------------------- | -------------------------- | ------------------------------------------------------ |
+| The current WU's own  | Yes — you're on its branch | Fix **inline**. Never capture.                         |
+| Out-of-WU, **urgent** | No — isolation needed now  | **Errand now** — own session (`arc-session --errand`). |
+| Out-of-WU, not urgent | No — defer the write       | **Capture** to `USER-INBOX` (via `arc-inbox`).         |
+
+In-WU multi-step discovery folds into the active task list (an existing task, a new subtask, or a new task; a
+whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classification follows
+[strategy-work-organization][work-org] § Errand Work Class.
+
+**Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and act
+directly — run an errand (atomic) or scaffold a `backlog/` stub (multi-step) — but never must:
+capture-plus-drain reaches the same place. Lack of time is never a reason to lose a thought.
+
+**Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow,
+**not** at the integration ceremony: homeless atomic items flush to the shared `ATOMIC-INBOX`, homeless
+multi-step items graduate to a *provisional* stub (there is no shared multi-step inbox). Under PM modes other
+than arc-in-git, captures route per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); the
+inline, holding, and anti-rider rules are mode-independent. The drain clears each entry to a home, with one
+sanctioned exception — a developer may **retain** a specific capture in `USER-INBOX` (held privately until
+vetted, or for imminent self-execution), explicit and per-entry, never the default. So the WU-start invariant
+is **no un-triaged entries**, not an empty inbox: a retained entry is triaged (marked, reminder-tracked), not
+rot.
+
+### Holding ≠ execution
+
+Capture *holds*; it never *executes*. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
+`arc-inbox`), never as a queued or seeded errand. **An errand *is* its execution:** out-of-WU work runs in its
+own session through the `run-errand` lifecycle (`arc-session --errand`), never hand-rolled on your current WU
+branch. The isolation rule is universal — get off the WU branch — but its *shape* follows protection mode: a
+`chore/<slug>` branch + PR under full, a direct base commit under partial (see
+[strategy-work-organization][work-org] § Cheap-branch path). There is no errand *queue*, no `errand-*` file, and
+no State field — an errand's state is derived from its branch and PR. `arc-session` is the **sole top-level
+execution entrypoint** — no standalone errand command — but not `run-errand`'s only caller: the housekeep drain
+may transition committed atomics into `run-errand` within the same session.
+
+Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
+errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so
+an abandoned errand never orphans the intent.
+
+### Anti-rider
+
+Whether a fix may ride the current change is decided by **concern-identity, not file-identity**. A
+*same-concern* micro-cleanup in a file you're already editing is always fine inline; a *distinct* concern that
+merely shares the file does not ride the current PR — errand or capture it instead. Same test for PR packaging:
+distinct concerns never share a PR even on a shared file — sequence them (rebase B on A), don't merge.
+
+### Planning artifacts aren't capture surfaces
+
+A WU's planning artifacts — draft, spec, notes, meta, a `Coordination §` — may *cross-reference* another WU's
+concern but must never hold it as their **record-of-record** (completion and session notes record what was
+done; they aren't actionable-work queues). The dual of the core invariant: no foreign work-item rests in a
+planning artifact.
 
 ---
 
