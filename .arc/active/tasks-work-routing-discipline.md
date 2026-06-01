@@ -759,12 +759,15 @@ package source.
   renumbered the remaining ceremony steps, and dropped stale drain references from the interlock surface, commit
   template, and planning-module link definitions.
 
-### `[ ]` **5.2 Reframe `activate-work-unit` Step 6 (absorption narrowing)**
+### `[x]` **5.2 Reframe `activate-work-unit` Step 6 (absorption narrowing)**
 
-- _Goal:_ Activation absorbs only from the shared inbox (homeless items whose home turns out to be this WU);
-  `USER-INBOX` absorption is dropped as degenerate (empty post-housekeep) — so the step matches reality.
-- _Note:_ Drop the `BACKLOG-INBOX` reference (retired); the shared inbox is now atomic-only `ATOMIC-INBOX`. Both
-  copies.
+- _Goal:_ Activation only finalizes source cleanup for captures already absorbed into this WU's spec or task list
+  — whether personal `USER-INBOX` or shared `ATOMIC-INBOX` — so the step is a failsafe, not a broad drain.
+
+- _Outcome:_ Reframed activation absorption as source-entry cleanup for already-incorporated `USER-INBOX` or
+  `ATOMIC-INBOX` captures, with unrelated personal captures left to between-WUs housekeep rather than activation.
+  Added the `workflowCommit` marker for tracked `ATOMIC-INBOX` cleanup while keeping personal-inbox cleanup out of
+  the project commit path, and normalized the ROADMAP regen fire site to the same marker pattern.
 
 ### `[ ]` **5.3 `session-handoff` dedicated between-WUs path**
 
