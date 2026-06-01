@@ -5,8 +5,11 @@
  * The pure core counts well-formed (`parse.ok`) entries across the inbox's
  * `## Atomic` and `## Backlog` sections, so session-init can offer housekeep
  * from a machine-resolved count rather than an agent re-scan. "Routable" means
- * a well-formed entry: malformed blocks are skipped, mirroring the staleness
- * sweep skipping entries it cannot age.
+ * a well-formed entry that still needs routing: malformed blocks are skipped
+ * (mirroring the staleness sweep skipping entries it cannot age), and so are
+ * entries deliberately retained at a drain (`_Hold:_ \`true\``) — a held entry
+ * is triaged, not pending, so it must not re-trigger the housekeep offer (the
+ * reminder sweep surfaces it instead; see `inbox-reminders`).
  *
  * The caller (the session-init probe) owns identity-gating and the file read;
  * this module carries no file or identity coupling of its own.
@@ -15,6 +18,7 @@
  */
 
 import { parseCrossWuEntries } from "../user-sync/index.js";
+import { managedFlagIsTrue } from "./managed-field.js";
 
 export interface InboxStateResult {
   /** Count of well-formed (`parse.ok`) entries across `## Atomic` + `## Backlog`. */
@@ -36,7 +40,7 @@ export interface RunInboxStateOptions {
  */
 export function runInboxState(options: RunInboxStateOptions): InboxStateResult {
   const routableCount = parseCrossWuEntries(options.content, "user-inbox").filter(
-    (parse) => parse.ok,
+    (parse) => parse.ok && !managedFlagIsTrue(parse.entry.raw, "Hold"),
   ).length;
   return { routableCount, housekeepNeeded: routableCount > 0 };
 }

@@ -62,4 +62,28 @@ describe("runInboxState", () => {
 
     expect(runInboxState({ content }).routableCount).toBe(1);
   });
+
+  it("excludes a held entry (`_Hold:_ `true``) from the routable count", () => {
+    const heldEntry = (title: string): string =>
+      ["### `[ ]` **" + title + "**", "", "- _Hold:_ `true`", "- _Created:_ `2026-06-01`", "- A retained capture.", ""].join(
+        "\n",
+      );
+    const content = ["## Atomic", "", atomicEntry("pending atomic"), heldEntry("retained atomic"), "## Backlog", ""].join(
+      "\n",
+    );
+
+    expect(runInboxState({ content }).routableCount).toBe(1);
+  });
+
+  it("reports housekeepNeeded false when the only entry is held", () => {
+    const content = [
+      "## Atomic",
+      "",
+      ["### `[ ]` **only held**", "", "- _Hold:_ `true`", "- _Created:_ `2026-06-01`", "- Retained.", ""].join("\n"),
+      "## Backlog",
+      "",
+    ].join("\n");
+
+    expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
+  });
 });

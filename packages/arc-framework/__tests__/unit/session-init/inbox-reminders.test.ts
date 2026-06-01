@@ -72,6 +72,17 @@ describe("extractReminderEntries", () => {
     expect(extractReminderEntries({ content }).entries).toEqual([{ key: "flagged but undated", created: "" }]);
   });
 
+  it("surfaces a held entry (`_Hold:_ `true``) so a retained capture cannot rot", () => {
+    const content = inbox({
+      heading: "Atomic",
+      body: [atomic("retained thing", "_Hold:_ `true`", "_Created:_ `2026-06-01`")],
+    });
+
+    expect(extractReminderEntries({ content }).entries).toEqual([
+      { key: "retained thing", created: "2026-06-01" },
+    ]);
+  });
+
   it("returns no entries for empty content", () => {
     expect(extractReminderEntries({ content: "" }).entries).toEqual([]);
   });

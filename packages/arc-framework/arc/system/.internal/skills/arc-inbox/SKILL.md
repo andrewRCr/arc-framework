@@ -24,6 +24,11 @@ executing them is `arc-session`'s.
    - **Multi-step** (needs a draft / PRD before it can be scheduled) → `## Backlog`.
    - Pick by work *character*, not by destination — the section is the routing fate; the finer home
      (existing stub, new stub, standalone errand, shared flush) resolves later at the drain.
+   - **Infra smell (advisory, never a gate):** if an `## Atomic` capture obviously touches load-bearing infra
+     (`.arc/system/**`, strategies, `arc-config.yml`), several files, or carries a design fork, it will likely
+     reclassify to a stub at the drain (the atomic-tier infra smell-flag). Still file it under `## Atomic` and
+     let the drain re-triage — optionally note the smell in an `_Observation:_`. Capture stays coarse by design;
+     the drain is the authoritative re-triage.
 
 3. Build the entry.
 

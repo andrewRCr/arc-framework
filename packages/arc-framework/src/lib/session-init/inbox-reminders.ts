@@ -1,13 +1,19 @@
 /**
- * Inbox reminder-flag extractor — surfaces `_Remind:_`-flagged `## Atomic`
- * USER-INBOX entries with their `_Created:_` aging date.
+ * Inbox reminder-flag extractor — surfaces `## Atomic` USER-INBOX entries that
+ * the session-init nudge should keep in view, with their `_Created:_` aging date.
  *
- * A capture opts into a reminder with a managed field whose value is a code
- * span — `` - _Remind:_ `true` `` — written only when set (its absence reads as
- * `false`), paired with a tool-stamped `` - _Created:_ `<YYYY-MM-DD>` `` aging
- * anchor. The backtick delimiting is the machine signal that the value is data,
- * not prose, so a bare `_Remind:_ true` is ignored. The reminder is personal-
- * `USER-INBOX`-only and `## Atomic`-only; `## Backlog` is never nudged.
+ * Two managed flags opt an entry in, both written as a backtick-delimited value
+ * (`` - _Remind:_ `true` `` / `` - _Hold:_ `true` ``), absent when unset:
+ *
+ * - `_Remind:_` — a capture-time "don't let me forget" switch (nudge-until-drained).
+ * - `_Hold:_` — a drain-time retain marker (the escape-hatch): the entry is
+ *   deliberately kept rather than routed, so it is excluded from the housekeep
+ *   offer (see `inbox-state`) but still surfaced here so a retained capture
+ *   cannot rot.
+ *
+ * Both pair with a tool-stamped `` - _Created:_ `<YYYY-MM-DD>` `` aging anchor
+ * (re-stamped to the retain date when an entry is held). The reminder is
+ * personal-`USER-INBOX`-only and `## Atomic`-only; `## Backlog` is never nudged.
  *
  * Pure core over the inbox text: it extracts the flagged entries; ageing them
  * against the threshold is the staleness sweep's job.
@@ -16,6 +22,7 @@
  */
 
 import { parseCrossWuEntries } from "../user-sync/index.js";
+import { managedFieldValue, managedFlagIsTrue } from "./managed-field.js";
 
 /** A flagged Atomic capture surfaced for the reminder nudge. */
 export interface ReminderEntry {
@@ -35,15 +42,10 @@ export interface ReminderEntriesResult {
   entries: ReminderEntry[];
 }
 
-/** A managed field's backtick-delimited value: `_Field:_ \`value\``. */
-const managedValue = (field: string): RegExp =>
-  new RegExp(`_${field}:_\\s*\`([^\`]*)\``);
-
-const REMIND_VALUE = managedValue("Remind");
-const CREATED_VALUE = managedValue("Created");
-
 /**
- * Extract the reminder-flagged Atomic entries from inbox content.
+ * Extract the reminder-surfaced Atomic entries from inbox content — those
+ * carrying `_Remind:_ \`true\`` (capture-time) or `_Hold:_ \`true\`` (drain-time
+ * retain).
  *
  * @param options - The inbox file content.
  * @returns The flagged entries, each with its key and (possibly empty) created date.
@@ -52,8 +54,9 @@ export function extractReminderEntries(options: ExtractReminderEntriesOptions): 
   const entries: ReminderEntry[] = [];
   for (const parse of parseCrossWuEntries(options.content, "user-inbox")) {
     if (!parse.ok || parse.entry.section !== "Atomic") continue;
-    if (REMIND_VALUE.exec(parse.entry.raw)?.[1] !== "true") continue;
-    entries.push({ key: parse.entry.key, created: CREATED_VALUE.exec(parse.entry.raw)?.[1] ?? "" });
+    const raw = parse.entry.raw;
+    if (!managedFlagIsTrue(raw, "Remind") && !managedFlagIsTrue(raw, "Hold")) continue;
+    entries.push({ key: parse.entry.key, created: managedFieldValue(raw, "Created") ?? "" });
   }
   return { entries };
 }
