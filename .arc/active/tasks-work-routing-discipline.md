@@ -794,13 +794,18 @@ package source.
   `inboxState` probe through the status envelope and handler, with unit and integration coverage for success,
   identity-absent, empty, and probe-failure paths.
 
-### `[ ]` **5.4 `init-work-unit` non-blocking backstop warning**
+### `[x]` **5.4 `init-work-unit` non-blocking backstop warning**
 
 - _Goal:_ Starting a new WU with a non-empty `USER-INBOX` emits a non-blocking warning ("starting new work with
   N pending captures — consider housekeep first") — a backstop reinforcing the empty-at-WU-start invariant at
   the init moment.
 - _Note:_ Init, not activate — init is the begin-new-WU moment the invariant targets. Fires at Step 1/2 (before
   scaffolding), reading the `inboxState` probe. Both copies.
+
+- _Outcome:_ Added the advisory backstop to Step 1 of both `init-work-unit` copies. Before creating a planning
+  branch or spawning a worktree, the workflow now reads `inboxState`, warns when `USER-INBOX` has pending
+  captures, keeps WU creation non-blocking, and lets the user optionally pause for base-branch housekeep before
+  re-checking clean/parity.
 
 ### `[ ]` **5.5 Errand-session handoff path (`session-handoff`)**
 

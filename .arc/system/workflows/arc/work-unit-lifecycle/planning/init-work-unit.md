@@ -68,6 +68,27 @@ creating the planning branch. This guard matters most on cross-machine resume, w
 `{base-branch}` may be arbitrarily behind `origin/{base-branch}` from integration work that landed
 on a sibling clone.
 
+**USER-INBOX backstop warning.** Before creating the planning branch or spawning a worktree, read the
+`inboxState` slot from the current session-init probe if available; otherwise run a fresh read-only probe and
+consume only that slot:
+
+```bash
+arc status --session-init --json
+```
+
+If `inboxState.ok && inboxState.value.housekeepNeeded`, surface this advisory and continue unless the user
+chooses to pause:
+
+```text
+**Housekeep recommended:** starting new work with {inboxState.value.routableCount} pending capture(s) in
+`USER-INBOX` — consider running `arc-housekeep` first.
+```
+
+This is a backstop, not a gate: do not refuse WU creation, do not auto-dispatch housekeep, and do not require
+zero pending captures. If the user pauses to drain, run housekeep from this base-branch write context, then
+re-check clean/parity before proceeding to Step 2. If identity is absent, `inboxState` is omitted, or the slot
+failed, surface the degraded state only when useful and continue.
+
 ### 2) Create Planning Branch
 
 _Worktree-creating mode delegates this step and Step 4 (Path B) to the spawn entry point — see
