@@ -11,12 +11,11 @@
 - **Cohort:** [none]
 
 - **Task List:** `tasks-work-routing-discipline.md`
-- **Last Completed:** Task 4.5 — session-init errand arms: `errandState` envelope slot, Errand-resume / Orient /
-  Materialize workflow arms, branch discovery, and shared reminder/stale-errand nudge state.
-- **Next Task:** Task 5.1 — Remove `integrate-work-unit` Step 10 (drain leaves integration) (line ~743)
+- **Last Completed:** Task 5.6 — Promote-errand-to-WU path in `init-work-unit`, linked from `run-errand`.
+- **Next Task:** Task 6.1 — Drain `andrew`'s `USER-INBOX` to homes (line ~856)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1 — remove the integration-ceremony USER-INBOX drain from both
-  `integrate-work-unit` copies, including renumbering and stale planning-ceremony references.
+- **Next Action:** Start Task 6.1 — run the live `arc-housekeep` drain over `andrew`'s `USER-INBOX`,
+  reshaping or directly reading the remaining flat entries as the first step.
 
 ---
