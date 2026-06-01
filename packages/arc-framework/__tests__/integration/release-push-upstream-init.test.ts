@@ -63,7 +63,7 @@ async function createRepoOnFreshBranch(branch: string): Promise<string> {
 
 function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
   const settings: ConfigSettings = {
-    "errands.staleness_days": "3",
+    "inbox.remind_after_days": "1",
     "branch.base": "main",
     "branch.protection": "partial",
     "worktree.location_template": "../{repo}.{branch}",

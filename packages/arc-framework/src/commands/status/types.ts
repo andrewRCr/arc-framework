@@ -156,7 +156,7 @@ export interface SessionInitProbeResult {
   retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
   /**
    * Pre-computed errand-staleness sweep — errands pending past the configured
-   * threshold (`errands.staleness_days`, default 3), surfaced for
+   * threshold (`inbox.remind_after_days`, default 1), surfaced for
    * execute-or-demote. Advisory only. Present whenever identity resolved (the
    * source is identity-scoped); omitted only when identity is absent. Unlike the
    * worktree sweep it is not worktree-gated.
@@ -331,7 +331,7 @@ export interface SessionInitProbes {
   retiredSubdirs: (identity: string) => Promise<RetiredSubdirDetectionResult>;
   /**
    * Errand-staleness sweep resolver. Receives the resolved identity; the handler
-   * resolves the candidate entries and the `errands.staleness_days` threshold,
+   * resolves the candidate entries and the `inbox.remind_after_days` threshold,
    * then ages them. Fired in the eager phase whenever identity resolved;
    * advisory, read-only.
    */

@@ -662,7 +662,7 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
   existing errand/USER-INBOX treatment — only the pre-existing `arc:if` blocks still differ); new
   `[arc-housekeep-skill]` link ref added to each.
 
-### `[ ]` **4.4 Errand-state probe (test-first)**
+### `[x]` **4.4 Errand-state probe (test-first)**
 
 - _Goal:_ The session-init envelope surfaces errand state — so session-init dispatches and advises from a
   machine-resolved signal, not an agent scan — covering errand-resume, the in-flight sweep, and cross-machine
@@ -693,18 +693,20 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
           neither — the cross-machine-resume candidates (already-local → resume; meta-backed → WU). Reuses the
           shared `errandSlugOf`. Git enumeration is caller-side (wired later).
 
-    - `[ ]` **4.4.d Repoint the staleness sweep**
-        - The staleness sweep survives 3.6.d's queue-source removal by reading flagged `§ Atomic` items +
-          in-flight chore branches instead of `ERRANDS.md`. Coordinate with 3.6.d so it is never left dangling.
-        - **Reminder-flag contract (2.R.4 / spec R30):** read `_Remind:_`-flagged `§ Atomic` `USER-INBOX` entries
-          (value `` `true` ``, backtick-delimited); age each against its `_Created:_` date (also
-          backtick-delimited) vs. `inbox.remind_after_days` (default **1**; floor: never the same day). Do the
-          **config code-rename here** — `errands.staleness_days` → `inbox.remind_after_days` across
-          `status-reader.ts` default, `config/types.ts`, the `validate-config.sh` `known_keys` allowlist, and the
-          sweep's read — paired with this repoint so nothing dangles. **Rate-limit to once per calendar day** via a
-          per-user gitignored last-nudge marker (one batched advisory orientation line listing all due captures,
-          not a per-entry nudge; once/day is a framework constant, not user config). Surface is advisory /
-          non-blocking, mirroring the in-flight sweep (4.5.c).
+    - `[x]` **4.4.d Repoint the staleness sweep**
+        - _Config rename:_ `errands.staleness_days` → `inbox.remind_after_days` (default 3→1) across
+          `status-reader.ts`, `config/types.ts`, the handler read, both `arc-config.yml` (section retitled
+          `# --- Inbox ---`), both `validate-config.sh` `known_keys`, and all test fixtures.
+        - _Reminder source:_ new pure `extractReminderEntries` (`inbox-reminders.ts`) pulls `§ Atomic` entries
+          whose `_Remind:_` value is `true` with their `_Created:_` date; the handler's `errandSweep` resolver reads
+          `USER-INBOX` (shared `readUserInbox`) and ages them via `runErrandStalenessSweep` — the sweep sources the
+          inbox, not the retired `ERRANDS.md`. Integration-tested (present / empty / identity-absent).
+        - _Rate-limit:_ new pure `shouldNudge` (`nudge-rate-limit.ts`) gates the batch to once per calendar day
+          (fail-open on a missing/corrupt marker); the marker file I/O + surfacing ride 4.5.c.
+        - _Docs:_ rewrote the Step 1 `errandSweep` row + Step 6 surface (both copies) onto the reminder model.
+        - _Interpretation:_ the sweep's "in-flight `chore/` branches" source is the 4.4.b classifier, surfaced at
+          4.5.c (git/forge enumeration); the `errandSweep` slot keeps its name (repointed, not renamed). Held the
+          commit to land all three sub-pieces (rename + parser + repoint) atomically — nothing dangles.
 
 ### `[ ]` **4.5 session-init errand arms (workflow wiring)**
 

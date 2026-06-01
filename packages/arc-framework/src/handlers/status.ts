@@ -62,6 +62,7 @@ import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
+import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -192,6 +193,10 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    // Both the inbox-state and reminder-sweep probes read the same personal
+    // `USER-INBOX.md`; a missing file reads as empty (no captures).
+    const readUserInbox = (id: string): Promise<string> =>
+      io.readFile(join(cwd, ".arc", "user", id, "USER-INBOX.md")).catch(() => "");
     const probes: SessionInitProbes = {
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -254,17 +259,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readDir: io.readDir,
         fs: { readdir: (path) => readdir(path) },
       }),
-      errandSweep: async () => {
+      errandSweep: async (id) => {
         const resolved = await resolvedSettingsP;
-        const parsed = Number.parseInt(resolved.settings["errands.staleness_days"], 10);
-        const thresholdDays = Number.isInteger(parsed) && parsed >= 0 ? parsed : 3;
-        return runErrandStalenessSweep({ entries: [], thresholdDays });
+        const parsed = Number.parseInt(resolved.settings["inbox.remind_after_days"], 10);
+        const thresholdDays = Number.isInteger(parsed) && parsed >= 0 ? parsed : 1;
+        const { entries } = extractReminderEntries({ content: await readUserInbox(id) });
+        return runErrandStalenessSweep({ entries, thresholdDays });
       },
-      inboxState: async (id) => {
-        const inboxPath = join(cwd, ".arc", "user", id, "USER-INBOX.md");
-        const content = await io.readFile(inboxPath).catch(() => "");
-        return runInboxState({ content });
-      },
+      inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {

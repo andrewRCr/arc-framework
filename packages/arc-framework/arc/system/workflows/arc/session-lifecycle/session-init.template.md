@@ -41,7 +41,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                      |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                          |
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
-| `errandSweep`               | Pre-computed errand-staleness sweep. `value.stale`: errand-queue entries (`user/{identity}/ERRANDS.md`) pending past `errands.staleness_days` (default 3), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the queue is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 — execute or demote to the inbox; never auto-removed                                                                                                                                           |
+| `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Atomic` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                    |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                        |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
@@ -573,12 +573,13 @@ tracked source documents the work.
   - `{candidate}`
   ```
 
-- `errandSweep.value.stale` non-empty: errand-queue entries pending past `errands.staleness_days` (default 3) —
-  a miscategorization signal (committed-near-term work that wasn't). Surface each for the operator to execute now
-  or demote to `USER-INBOX`; advisory only, never auto-removed.
+- `errandSweep.value.stale` non-empty: `_Remind:_`-flagged `§ Atomic` `USER-INBOX` captures pending past
+  `inbox.remind_after_days` (default 1) — the retired errand queue's "here are your committed follow-ups"
+  discoverability, now an inbox filter. Surface them as one batched line for the operator to drain via housekeep;
+  advisory only, never auto-removed. The nudge batches to once per calendar day.
 
   ```text
-  **Stale errands:** {N} errand(s) pending past the staleness threshold — execute, or demote to the inbox:
+  **Reminder:** {N} flagged capture(s) pending past the reminder threshold — drain via `arc-housekeep`:
   - `{slug}` — created {created} ({ageDays}d ago)
   ```
 

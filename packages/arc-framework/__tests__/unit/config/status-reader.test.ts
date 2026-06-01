@@ -59,8 +59,8 @@ describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
     expect(AGENT_CONSUMABLE_KEYS).toContain("archive.cadence");
   });
 
-  it("includes errands.staleness_days", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toContain("errands.staleness_days");
+  it("includes inbox.remind_after_days", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("inbox.remind_after_days");
   });
 });
 
@@ -87,7 +87,7 @@ describe("readConfigSettings — default fallback", () => {
     expect(result.settings["session.remote_sync"]).toBe("enabled");
     expect(result.settings["archive.cadence"]).toBe("with-integration");
     expect(result.settings["user.notes_push"]).toBe("on-sync");
-    expect(result.settings["errands.staleness_days"]).toBe("3");
+    expect(result.settings["inbox.remind_after_days"]).toBe("1");
   });
 
   it("reports every key as defaulted when the file is missing", async () => {
@@ -134,7 +134,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.init_load.notes: always",
       "archive.cadence: manual",
       "user.notes_push: manual",
-      "errands.staleness_days: 7",
+      "inbox.remind_after_days: 7",
     ].join("\n");
     await writeFile(fixture.configPath, content);
 
@@ -148,7 +148,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.init_load.notes"]).toBe("always");
     expect(result.settings["archive.cadence"]).toBe("manual");
-    expect(result.settings["errands.staleness_days"]).toBe("7");
+    expect(result.settings["inbox.remind_after_days"]).toBe("7");
     expect(result.defaultsApplied).toHaveLength(0);
     expect(result.warnings).toHaveLength(0);
   });

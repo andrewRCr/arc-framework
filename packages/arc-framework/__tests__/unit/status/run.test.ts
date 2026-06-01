@@ -118,7 +118,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.init_load.notes": "prompt",
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
-      "errands.staleness_days": "3",
+      "inbox.remind_after_days": "1",
     },
     defaultsApplied: [],
     warnings: [],

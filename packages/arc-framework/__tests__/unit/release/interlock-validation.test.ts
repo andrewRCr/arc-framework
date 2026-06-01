@@ -41,7 +41,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
   const branchBase = overrides.branchBase ?? "main";
 
   const settings: ConfigSettings = {
-    "errands.staleness_days": "3",
+    "inbox.remind_after_days": "1",
     "branch.base": branchBase,
     "branch.protection": branchProtection,
     "worktree.location_template": "../{repo}.{branch}",

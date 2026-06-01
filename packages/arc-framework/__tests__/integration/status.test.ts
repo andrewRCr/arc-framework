@@ -58,6 +58,8 @@ import {
 } from "../../src/lib/config/resolved-settings.js";
 import { resolveReleaseRouting } from "../../src/lib/release/routing.js";
 import { runInboxState } from "../../src/lib/session-init/inbox-state.js";
+import { extractReminderEntries } from "../../src/lib/session-init/inbox-reminders.js";
+import { runErrandStalenessSweep } from "../../src/lib/session-init/errand-staleness-sweep.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 import { execFileAsync, makeGitExec } from "../helpers/integration.js";
 
@@ -1141,5 +1143,97 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
     });
 
     expect("inboxState" in result).toBe(false);
+  });
+});
+
+// Exercises the repointed staleness sweep end to end: a handler-equivalent
+// errandSweep probe reads the fixture's USER-INBOX, extracts the reminder-
+// flagged Atomic entries, and ages them — confirming the sweep now sources the
+// inbox instead of the retired ERRANDS.md queue.
+describe("runSessionInitStatus — reminder-sweep envelope path", () => {
+  const NOW = "2026-05-31T12:00:00.000Z";
+  let fixture: Fixture;
+
+  beforeEach(async () => {
+    fixture = await createFixture();
+    await writeConfig(fixture.configPath);
+  });
+
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  function realReminderSweepProbes(f: Fixture): SessionInitProbes {
+    return {
+      ...makeSessionInitProbes(f),
+      errandSweep: async (id) => {
+        const content = await nodeReadFile(
+          join(f.root, ".arc", "user", id, "USER-INBOX.md"),
+          "utf-8",
+        ).catch(() => "");
+        return runErrandStalenessSweep({
+          entries: extractReminderEntries({ content }).entries,
+          thresholdDays: 1,
+          now: NOW,
+        });
+      },
+    };
+  }
+
+  it("ages a reminder-flagged Atomic entry past the threshold into the sweep (present)", async () => {
+    const userDir = join(fixture.root, ".arc", "user", "andrew");
+    await mkdir(userDir, { recursive: true });
+    await writeFile(
+      join(userDir, "USER-INBOX.md"),
+      [
+        "# User Inbox",
+        "",
+        "## Atomic",
+        "",
+        "### `[ ]` **drain the backlog**",
+        "",
+        "- _Remind:_ `true`",
+        "- _Created:_ `2026-05-28`",
+        "",
+        "## Backlog",
+        "",
+      ].join("\n"),
+    );
+
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect(result.errandSweep?.ok).toBe(true);
+    if (result.errandSweep?.ok) {
+      expect(result.errandSweep.value.stale).toEqual([
+        { slug: "drain the backlog", created: "2026-05-28", ageDays: 3 },
+      ]);
+    }
+  });
+
+  it("surfaces nothing when there are no flagged captures (empty)", async () => {
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect(result.errandSweep?.ok).toBe(true);
+    if (result.errandSweep?.ok) {
+      expect(result.errandSweep.value.stale).toEqual([]);
+    }
+  });
+
+  it("omits the sweep slot when identity is absent (identity-absent)", async () => {
+    const result = await runSessionInitStatus({
+      identity: null,
+      role: null,
+      probes: realReminderSweepProbes(fixture),
+    });
+
+    expect("errandSweep" in result).toBe(false);
   });
 });
