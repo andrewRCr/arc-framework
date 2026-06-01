@@ -884,70 +884,97 @@ plain heading slug, not the extension fire-point `· #name` marker). See `notes-
   handoff to `run-errand` (R35) and broadened `run-errand`'s entry note to acknowledge the drain transition.
   Both copies byte-identical; Tier-1 clean.
 
-### `[ ]` **5.R.3 Align `strategy-work-organization` + `DEV-RULES.ARC`**
+### `[x]` **5.R.3 Align `strategy-work-organization` + `DEV-RULES.ARC`**
 
 - _Goal:_ The strategy's `§ The housekeep drain` and `DEV-RULES.ARC § Discovered Work Routing` match the
   corrected mechanism, so the doctrine a developer reads matches the workflow.
-- _Approach:_ In `§ The housekeep drain`: the gated phased shape, the chunking resolution (concern-coherence +
-  review-reachability; partial degrades to commit-boundary discipline), the escape-hatch. In `DEV-RULES.ARC`:
-  the clarification that `arc-session` is the sole top-level execution entrypoint (not `run-errand`'s sole
-  caller), the retain escape-hatch + "no un-triaged entries" invariant reframe, and a pointer to the at-drain
-  tier re-triage.
-  Both copies, byte-identical.
 - **Strategies:** strategy-package-project-sync.md
+- _Outcome:_ Aligned three doctrine surfaces (both copies, byte-identical): `strategy-work-organization
+  § The housekeep drain` gained the gated-phased lead, the chunking resolution (concern-coherence; partial
+  degrades to commit boundaries), and the retain escape-hatch; `DEV-RULES.ARC § Discovered Work Routing` gained
+  the escape-hatch + "no un-triaged entries" invariant reframe (§ Where captures drain) and the
+  sole-top-level-execution-entrypoint clarification (§ Holding ≠ execution). The at-drain tier re-triage was
+  already promised in `DEV-RULES.ARC § Task Execution` (atomic-tier infra smell-flag), left as-is. Folded in:
+  documented the `_Hold:_` grammar in `session-operations § USER-INBOX` as a Retain-flag paragraph (peer to the
+  Reminder flag) — the managed-field grammar home. Tier-1 clean.
 
-### `[ ]` **5.R.4 `arc-inbox` light-touch + `inboxState` retained-exclusion**
+### `[x]` **5.R.4 `arc-inbox` light-touch + `inboxState` retained-exclusion**
 
 - _Goal:_ Capture stays cheap but flags an obvious tier mismatch, and the probe stops nagging housekeep for
   deliberately-retained captures.
-- _Approach:_ Optional capture-time nudge in `arc-inbox` when a `§ Atomic` capture obviously touches infra /
-  multiple files (suggest, never gate — the drain remains the authoritative re-triage). Implement `_Hold:_`
-  (R36): exclude it from `inboxState.housekeepNeeded` (`lib/session-init/inbox-state.ts`) and include it in the
-  reminder sweep (`lib/session-init/inbox-reminders.ts`), with parser support + tests; the retain action that
-  sets it + re-stamps `_Created:_` lives in the workflow (5.R.2).
-- _Note:_ The only code-bearing task in 5.R (the rest is workflow/doctrine). Run `typecheck:test` before
-  declaring tests green.
 - **Strategies:** strategy-package-project-sync.md
+- _Outcome:_ Implemented `_Hold:_` as a managed boolean — no parser change needed (managed fields are
+  regex-read from `entry.raw`, descriptor-agnostic). Added `lib/session-init/managed-field.ts`
+  (`managedFieldValue` / `managedFlagIsTrue`) to DRY the backtick-delimited-value grammar across both probes:
+  `inbox-state` now excludes `_Hold:_ true` from `routableCount` (held = triaged, not pending), and
+  `inbox-reminders` surfaces it alongside `_Remind:_` for anti-rot. Unit tests added (1862 pass; typecheck +
+  typecheck:test + lint:ts + lint:md clean). Added an advisory infra-smell nudge to `arc-inbox` step 2 (both
+  copies). Deferred refinement (noted, not blocking): held entries surface via the reminder channel with the
+  generic "drain via housekeep" wording — distinct "held — revisit?" wording would ripple into the probe +
+  session-init orientation, left as a small follow-up.
 
-### `[ ]` **5.R.5 Audit Phase 6 against the corrected mechanism**
+### `[x]` **5.R.5 Audit Phase 6 against the corrected mechanism**
 
 - _Goal:_ Phase 6's live-run tasks reflect the gated phased drain, so the re-run executes the corrected flow
   rather than the pre-correction one.
-- _Approach:_ Recast 6.1's `_Approach:_` to the phased flow (first-pass classify → confirmation interlock at the
-  full routing plan → chunked routing → execution transition for committed atomics → confirm no un-triaged
-  entries); note the dry run already produced the classification, so the re-run resumes from the interlock.
-  Confirm 6.2 (`BACKLOG-INBOX` retirement) is unaffected.
+- _Outcome:_ Recast the Phase 6 preamble (chunking Open Question marked resolved per 5.R.1; "no un-triaged
+  entries" invariant; Phases 1–5 + 5.R in the exercised set) and 6.1 (`_Approach:_` → the gated phased flow;
+  `_Note:_` → the actual ~26-entry count the dry run produced + resume-from-interlock; 6.1.a/6.1.b reworded to
+  the phased drain and the reframed invariant). 6.2 (`BACKLOG-INBOX` retirement) confirmed unaffected — a
+  one-time migration, not a housekeep run. 6.1 stays `[ ]`: the live run is the remaining Phase 6 work.
+
+### `[x]` **5.R.6 Downstream cascade write-backs (CWC + operational-state-docs)**
+
+- _Goal:_ The downstream WUs whose assumptions the drain-mechanism correction shifts carry the change in their
+  own artifacts, so each reconciles when next iterated rather than going silently stale.
+- _Outcome:_ Two dated cascade write-backs. (1) `draft-concurrent-work-conventions.md` gained a **Drain-mechanism
+  correction** note (beside the 2.R.5 errand-model note): `run-errand`'s Complete and the drain's close defer
+  teardown + slug-line removal to merge, which is unattended on the auto-merge lane, so CWC's
+  merge-gate-awareness owns the completion trigger; the in-flight sweep backstops it meanwhile — the
+  `run-errand` / `drain-inbox` facet of the broader "make lifecycle workflows merge-gate-aware" concern
+  (`integrate-work-unit` is the sibling). (2) `draft-operational-state-docs.md`'s managed-field write-back gained
+  `_Hold:_` (joining `WU_Target` / `_Remind:_` / `_Created:_` in the structured grammar it inherits), plus the
+  note that the interim `managed-field.ts` regex reader is the recovery/import path its structured model
+  supersedes, not a layer to extend. Both single-copy (internal-dev backlog drafts, not package-mirrored).
 
 ## **Phase 6:** Live validation (component b)
 
-_Purpose:_ Run the new `arc-housekeep` flow against the real backlog — drain `andrew`'s long-deferred
+_Purpose:_ Run the corrected `arc-housekeep` flow against the real backlog — drain `andrew`'s long-deferred
 `USER-INBOX` captures to their homes and retire `BACKLOG-INBOX`'s contents into provisional stubs. The first
-live run _is_ the mechanism's validation; the next WU begins with an empty `USER-INBOX`.
+live run _is_ the mechanism's validation; the next WU begins with no un-triaged `USER-INBOX` entries.
 
-_Design decisions:_ Exercises Phases 1-5 end to end — the drain itself is the live validation of `run-errand`
-(any atomic entry draining to standalone execution goes through it). Run from the primary worktree / base-branch
-context per the guard. The `ERRANDS.md` queue retirement is **template/code-only** (3.6.c): no live
-`.arc/user/andrew/ERRANDS.md` exists, so there is no live errand-queue migration here. `arc-inbox` and the
-session-init errand arms are exercised organically in use, not by the drain. _Open question pinned here (resolve
-at run):_ the errand↔PR chunking heuristic (spec § Open Questions, item a) — default one PR per lane, chunk only
-if a drain is too large for one reviewable PR; the actual backlog volume at run time decides.
+_Design decisions:_ Exercises Phases 1–5 + 5.R end to end — the drain itself is the live validation of
+`run-errand` (any committed atomic draining to standalone execution goes through it). Run from the primary
+worktree / base-branch context per the guard. The `ERRANDS.md` queue retirement is **template/code-only**
+(3.6.c): no live `.arc/user/andrew/ERRANDS.md` exists, so there is no live errand-queue migration here.
+`arc-inbox` and the session-init errand arms are exercised organically in use, not by the drain. The errand↔PR
+chunking heuristic (spec § Open Questions, item a) is now **resolved** (5.R.1): chunk by concern-coherence +
+review-reachability — one auto-merge PR per lane, split only past a reviewer's reach; under partial, coherent
+commit boundaries. The dry run (5.R) already produced the first-pass classification, so the live run resumes
+from the confirmation interlock.
 
 ### `[ ]` **6.1 Drain `andrew`'s `USER-INBOX` to homes**
 
 - _Goal:_ `andrew`'s pending `USER-INBOX` captures are routed to their real homes by an actual `arc-housekeep`
   run — the mechanism's first live exercise, proving the drain end to end.
-- _Approach:_ run the housekeep flow; classify + route each entry (existing-stub edits, new provisional stubs,
-  standalone execution via `run-errand`, homeless flush to `ATOMIC-INBOX`). PRs follow § Auto-Merge Lane; the
-  chunking heuristic (open question a) settles against the actual volume.
-- _Note:_ ~17 entries as of planning (8 § Atomic + 9 § Backlog). The live `.arc/user/andrew/USER-INBOX.md` is
-  still flat-shape here — the Phase 1 parser switch doesn't reshape it (a harmless interim probe miscount).
-  Reshape its entries to the H3+checkbox grammar, or read them directly, as the drain's first step.
+- _Approach:_ run the corrected gated, phased drain (`drain-inbox`): first-pass classify (no writes) →
+  confirmation interlock on the full routing plan → chunk if large → route (existing-stub edits, grouped new
+  stubs at chosen maturity, homeless flush to `ATOMIC-INBOX`, retain via `_Hold:_`) → execution transition
+  (committed atomics → `run-errand`) → confirm no un-triaged entries. PRs / chunking follow § Auto-Merge Lane
+  per the now-resolved heuristic.
+- _Note:_ The dry run (5.R) already produced the first-pass classification — ~26 entries (12 § Atomic +
+  14 § Backlog), well past the ~17 planning estimate; most § Atomic entries are legacy and reclassify to
+  quick-tier stubs. The live run resumes from the confirmation interlock against that classification. The live
+  `.arc/user/andrew/USER-INBOX.md` is still flat-shape — reshape its entries to the H3+checkbox grammar, or read
+  them directly, as the first step.
 
-    - `[ ]` **6.1.a Execute the drain over `USER-INBOX`**
-        - Classify and route every `## Atomic` + `## Backlog` entry to its home.
+    - `[ ]` **6.1.a Run the gated, phased drain over `USER-INBOX`**
+        - Classify (with tier re-triage + concern-grouping), confirm the plan at the interlock, then route every
+          `## Atomic` + `## Backlog` entry to its home; transition committed atomics to `run-errand`.
 
     - `[ ]` **6.1.b Confirm the invariant holds**
-        - `USER-INBOX` ends empty; the next WU starts clean.
+        - `USER-INBOX` ends with no un-triaged entries (empty but for any explicitly retained `_Hold:_`
+          captures); the next WU starts clean.
 
 ### `[ ]` **6.2 Retire `BACKLOG-INBOX` contents to provisional stubs**
 
