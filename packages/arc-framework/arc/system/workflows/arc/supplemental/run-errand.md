@@ -67,8 +67,9 @@ directly.
 
 **Scope explosion → promote, don't grow.** If the errand outgrows one review increment — it needs design
 decisions, several increments, or a task list — stop expanding it in place. Promote it to a work unit via
-[`init-work-unit`][init-work-unit] (mint a `meta-*`, rename `chore/<slug>` → `<type>/<name>`, preserve the
-commits already made), then continue under the work-unit lifecycle. The errand's commits carry forward intact.
+[`init-work-unit`'s Promote Errand to Work Unit path][promote-errand-to-wu] (mint a `meta-*`, rename
+`chore/<slug>` → `<type>/<name>`, preserve the commits already made), then continue under the work-unit
+lifecycle. The errand's commits carry forward intact.
 
 Otherwise, make the change and run the project's Tier 1 quality gates on what you touched.
 
@@ -163,6 +164,7 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
 
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
+[promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
 [commit-footer]: ../../../methods/commit-footer.md
 [errand-class]: ../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes

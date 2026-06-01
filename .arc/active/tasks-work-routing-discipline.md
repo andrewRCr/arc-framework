@@ -823,7 +823,7 @@ package source.
   pushes it for materialize/resume, skips SESSION-NOTES and meta ceremony, and explicitly leaves other `chore/`
   branches to session-init Orient's in-flight sweep.
 
-### `[ ]` **5.6 Promote-errand-to-WU path (`init-work-unit`)**
+### `[x]` **5.6 Promote-errand-to-WU path (`init-work-unit`)**
 
 - _Goal:_ An errand that exceeds one review increment promotes cleanly — `chore/<slug>` → mint `meta-*`, rename
   branch `chore/<slug>` → `<type>/<name>`, preserve commits — so scope explosion has a sanctioned conversion
@@ -832,6 +832,12 @@ package source.
   `run-errand`'s Execute phase (3.4.b). Authored as a clean extractable block (`composable-workflows`
   forward-compat). Both copies.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+- _Outcome:_ Added a dedicated promoted-errand entry path to both `init-work-unit` copies and pointed
+  `run-errand`'s scope-explosion primer directly at it. The path gates before promotion, preserves existing
+  `chore/<slug>` history by locally renaming to `{type}/{name}`, mints an Active meta file, seeds the WU
+  workspace, pushes the new branch before retiring the old errand ref, handles slug-matched `USER-INBOX`
+  cleanup, and skips `activate-work-unit` while backfilling spec/tasks.
 
 ## **Phase 6:** Live validation (component b)
 
