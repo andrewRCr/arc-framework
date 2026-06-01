@@ -34,8 +34,23 @@ atomic companion and the personal atomic inbox.
   commit moving `active/ → completed/`, or an explicit flag) and accept it; the wrapper should carry the routine
   archival commit/push, not refuse it. The doc-only alternative (codifying archival-class fire-sites as
   raw-routed) was set aside in favor of wrapper support. CLI change to the release wrapper's precondition check.
-- *Coordination:* dedups with a `BACKLOG-INBOX` archival-ceremony-tooling entry (the hook + `archive-work-unit`
-  facet); reconcile when `BACKLOG-INBOX` is retired.
+- *Coordination:* dedups with the archival-ceremony-tooling concern now folded in directly below (its remaining
+  facets), routed here when `BACKLOG-INBOX` was retired (2026-06-01).
+
+### `[ ]` **Archival ceremony: `archive-work-unit` finalize step + `completed/`-aware footer hook**
+
+- *Routed from:* `BACKLOG-INBOX` (archival-ceremony-tooling), work-routing-discipline retirement pass
+  (2026-06-01). The capture's wrapper facet is the entry above; this carries the remainder.
+- *Concern:* hit live during an integration, two residual facets. (1) **`archive-work-unit` finalize step** —
+  `archive-work-unit.md` says "State flip is the only transition archive owns," yet `template-meta.md` mandates a
+  PR URL + Completed post-integration block (and stale forward-fields like `Next Action` want clearing); no
+  workflow steps through it, so it was done by hand. Add an explicit "append PR URL + Completed, reconcile
+  forward-fields" step to the archive/integrate workflow per `template-meta.md`. (2) **`completed/`-aware footer
+  hook** — the `commit-msg` footer check warned the `Context:` footer file wasn't in `.arc/active/` because the
+  sweep had already moved it to `completed/`; make the check `completed/`-aware for `(archival)` footers. The
+  concrete hook fix is already captured as the subdir-loop migration entry in `ATOMIC-INBOX` — so the net-new
+  work here is the workflow finalize step; the hook facet is cross-referenced, not duplicated.
+- *Scope:* Quick-tier — a workflow step plus a hook tweak that rides the wrapper-archival work above.
 
 ---
 

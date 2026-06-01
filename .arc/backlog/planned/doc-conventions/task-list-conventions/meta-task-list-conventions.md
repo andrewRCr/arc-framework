@@ -8,7 +8,7 @@
 - **Design:** `draft-task-list-conventions.md`
 
 - **Depends On:** [none]
-- **Cohort:** [none]
+- **Cohort:** doc-conventions
 
 - **Task List:** [none]
 - **Last Completed:** Stub created at the work-routing-discipline housekeep drain (2026-06-01) from three

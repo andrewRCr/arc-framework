@@ -17,6 +17,31 @@ downstream WUs surface the felt need.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Post-integration / post-merge extension fire-point**
+
+- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here as the
+  closest existing home — this WU already scopes optional post-merge aggregation fire-points; the owning WU
+  decides at iteration whether deploy-governance fire-points belong here or spin out.
+- *Concern:* ARC's interlock model terminates at the integration-interlock — merge requires explicit human
+  approval, but downstream production deployment is out of scope. Teams wanting ARC-style governance over deploy
+  approvals (configurable autonomy, structured-prompt approvals, audit-trail consistency) have no discoverable
+  hook today. Proposed: a new `post-integration` (or `post-merge`) extension fire-point — opt-in per project,
+  declarative `.actions`, no scope creep into deploy-system specifics. Define fire-point semantics (merge commit
+  vs. PR-merge event vs. manual post-merge invocation); a reference pattern for wiring deploy approvals via the
+  structured-prompt model; decide whether a `deploy-interlock` belongs in the autonomy vocabulary (likely not —
+  it implies ARC owns the deploy-floor decision; extensions are the loose coupling that keeps ARC out of
+  deploy-system specifics).
+- *Out of scope:* deploy-system specifics, observability contracts, rollback semantics — adopters wire their own.
+- *Scope-creep risk:* data migrations, schema rollouts, feature-flag toggles all want similar hooks. Treat as one
+  of several possible `post-*` points, not a deploy-specific addition.
+
+---
+
 ## Problem / Motivation
 
 ARC models the **contribution side** of release activity via per-WU Release Notes Entries (WOR

@@ -984,9 +984,24 @@ from the confirmation interlock.
 - _Note:_ A one-time retirement migration, not a housekeep run (housekeep drains the personal `USER-INBOX`, not
   shared inboxes). ~13 entries, already in the managed-entry grammar (no reshape needed).
 
-    - `[ ]` **6.2.a Route each entry to a durable home**
-        - Triage each `BACKLOG-INBOX` entry: graduate to a `backlog/provisional/<wu-name>/` stub (`meta-*` +
-          `draft-*` as scope warrants), merge into an existing WU where one fits, or dismiss if obsolete.
+    - `[x]` **6.2.a Route each entry to a durable home**
+        - Second-pass triage (drain-inbox lens) consolidated the 13 entries into **7 new stubs + 5 folds + 2 new
+          cohorts**, down from a ~11-stub first pass. New planned stubs (nested in their cohort dirs):
+          `binary-distribution` (release-readiness), `cli-test-hardening` (architecture-remediation),
+          `config-migration-registry` (configuration); plus standalone `adr-accept-timing`. New provisional stubs
+          (standalone): `agent-platform-support` (merges Pi/opencode harness support + cross-platform compat
+          testing), `self-hosting-manifest-freshness`, `wu-header-metadata-shape`. Folds as `Inbound Buffer`
+          notes: post-integration fire-point → `release-lifecycle`; link-reanchor → `roadmap-tooling`;
+          link-validation → `quality-gate-hooks`; italic conventions (+ underscore-over-asterisk) →
+          `doc-naming-convention`; archival-ceremony residual → `interlock-release-refinement` (reconciled its
+          existing dedup note). New cohorts (planned-only, state-uniform per `strategy-planning-module.md`):
+          `configuration` (config-storage-architecture, customization-arch-realign, config-migration-registry) and
+          `doc-conventions` (naming-conventions, task-list-conventions), both relocated into `planned/<cohort>/<wu>/`;
+          the `doc-naming-convention` stub's identity rename → `naming-conventions` was pulled forward to avoid
+          colliding with the `doc-conventions` cohort name (its full reference cascade stays the WU's own work).
+          The two provisional members (`configurable-lifecycle-artifacts`, `wu-header-metadata-shape`) stay
+          standalone and join on promotion. ROADMAP re-rendered; nothing flushed to `ATOMIC-INBOX` — every entry
+          found a stub home or an existing-WU fold.
 
     - `[ ]` **6.2.b Delete the live `BACKLOG-INBOX.md`**
         - Remove the file and confirm no remaining references across docs/workflows/templates.

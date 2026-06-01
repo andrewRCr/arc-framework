@@ -7,18 +7,20 @@
 
 ## Inbox
 
-### `[ ]` **Pi harness support**
+### `[ ]` **Pi + opencode harness support (first-class)**
 
-- _Observation:_ Pi is an open-source TypeScript agent harness in the Claude Code / Codex CLI category.
-  Categorically orthogonal to ARC (Pi is a runtime agent harness; ARC is a process harness in `.arc/`), so
-  coexistence already works via agent-agnostic defaults. Explicit support is ergonomic glue, not architectural
-  change.
+- _Observation:_ Pi and opencode are open-source TypeScript agent harnesses in the Claude Code / Codex CLI
+  category. These two are the targets for **first-class** ARC harness support alongside the existing Codex CLI /
+  Claude Code; every other harness stays implicitly supported through agent-agnostic defaults. Both are
+  categorically orthogonal to ARC (they are runtime agent harnesses; ARC is a process harness in `.arc/`), so
+  coexistence already works via those defaults. Explicit support is ergonomic glue, not architectural change.
 
-- _Proposed action:_ `PI.ARC.md` harness file (sibling to `WARP.ARC.md`, distinct from model-identity files
-  like `CLAUDE.ARC.md`); skill packaging at Pi's discovery location (`~/.pi/agent/skills/` or `.pi/skills/`)
-  with any format adaptation; `arc init --tools pi` / `arc join --tools pi` recognition; verify
-  instruction-file discovery (Pi concatenates `AGENTS.md` / `CLAUDE.md` from global+parent+CWD — likely no
-  shim, confirm in practice).
+- _Proposed action:_ Per harness, a `{HARNESS}.ARC.md` file (sibling to `WARP.ARC.md`, distinct from
+  model-identity files like `CLAUDE.ARC.md`) — `PI.ARC.md` and `OPENCODE.ARC.md`; skill packaging at each
+  harness's discovery location (Pi: `~/.pi/agent/skills/` or `.pi/skills/`; opencode: confirm its skill / plugin
+  discovery path) with any format adaptation; `arc init --tools {pi,opencode}` / `arc join --tools {pi,opencode}`
+  recognition; verify instruction-file discovery in practice (Pi concatenates `AGENTS.md` / `CLAUDE.md` from
+  global+parent+CWD; opencode reads `AGENTS.md` — confirm whether either needs a shim).
 
 - _Out of scope:_ MCP (Pi excludes by design), permission-model guidance (user responsibility).
 
@@ -220,7 +222,7 @@
 - _Captured during:_ work-organization-reform — meta-file field audit + cross-file header-convention
   codification.
 
-### `[ ]` **Italicize file-top narrative-preamble blockquotes (convention + codification)**
+### `[ ]` **Italic conventions: narrative-preamble blockquotes + underscore-over-asterisk emphasis**
 
 - _Observation:_ Top-of-file `>` blockquotes carrying pure prose (file-purpose preamble) read ambiguously in
   raw markdown — they share the blockquote shape with GFM callouts (`> [!IMPORTANT]`), structured field blocks
@@ -231,6 +233,15 @@
 - _Proposed scope:_ A narrow rule — italicize only the file-top narrative preamble (first blockquote, before
   any `##`, plain prose with no list items / GFM directive / bold-field markers). The other three blockquote
   shapes stay non-italic. Mechanical to check at edit time.
+
+- _Related convention — underscore italics over asterisk:_ Standardize ARC on underscore emphasis (`_text_`)
+  over asterisk emphasis (`*text*`) repo-wide, and enforce it. Both render identically, so mixed source is pure
+  noise; underscore is already ARC's dominant convention (managed-field grammar, narrative preambles, these
+  inbox entries). Enforcement candidate: a **heal-on-touch pre-commit hook** that rewrites `*…*` emphasis runs →
+  `_…_` on staged files (scoped to single-asterisk emphasis only — never `**bold**`, list markers, or code/glob
+  asterisks), so migration happens incrementally as files are touched rather than via one risky repo-wide sweep
+  (an optional full sweep can finish the tail). Broadens this entry from a blockquote-only rule to a general
+  italic-style convention — both fold into the same codification home.
 
 - _Touch points:_ ARC template files (`templates/user/*`, `templates/active/*`, root template-first docs) plus
   selected `.arc/system/`, `.arc/reference/`, and root docs carrying a file-top narrative preamble.

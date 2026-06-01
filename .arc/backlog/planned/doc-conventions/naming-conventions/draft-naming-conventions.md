@@ -1,4 +1,4 @@
-# Draft: Doc Naming Convention
+# Draft: Naming Conventions
 
 **Purpose:** Formalize the `TYPE.QUALIFIER` naming convention for ARC's paired / multi-instance doc
 surfaces, codify the scope-ladder qualifier, and apply it via a set of file + section renames (inbox
@@ -21,15 +21,16 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Broaden scope to prose/vocabulary conventions; rename `doc-naming-convention` → `naming-conventions`**
+### `[ ]` **Broaden scope to prose/vocabulary conventions (general naming-conventions WU)**
 
 - *Routed from:* decided at the work-routing-discipline housekeep drain (2026-06-01).
 - *Concern:* this WU's current scope is file/section *renames* (the `TYPE.QUALIFIER` cascade). The two
   vocabulary captures below — prose word-choice conventions, not file names — broaden it into a general
-  **naming-conventions** WU. Rename `doc-naming-convention` → `naming-conventions` to reflect the broadened
-  scope: a cascade across the dir + `meta-*`/`draft-*` filenames + cross-references (work-routing-discipline's
-  spec/notes, other backlog drafts). Deferred from the drain (a design-bearing rename sweep belongs to this
-  WU's own iteration, not a mid-drain bulk edit) — execute it as this WU's first iteration act.
+  **naming-conventions** WU. The stub-identity rename `doc-naming-convention` → `naming-conventions` (dir +
+  `meta-*`/`draft-*` filenames) was pulled forward at the retirement pass, to avoid colliding with the
+  `doc-conventions` cohort name. What remains for this WU's first iteration: absorb these captures into the body,
+  then run the full reference cascade — the `TYPE.QUALIFIER` file/section renames plus reconciling residual
+  `doc-naming-convention` mentions across work-routing-discipline's spec/notes/tasks and other backlog drafts.
 
 ### `[ ]` **Spell out "work unit" on user-facing surfaces**
 
@@ -47,6 +48,22 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   standardize the prose form to "housekeeping" (keeping the command `arc-housekeep`) in a deliberate cross-surface
   sweep, or leave the established compound. Held during work-routing-discipline (Auto-Merge Lane work — decided to
   keep "housekeep drain" for consistency then). Low priority; a vocabulary/doc-convention sweep, dual-copy.
+
+### `[ ]` **Italic conventions: narrative-preamble blockquotes + underscore-over-asterisk emphasis**
+
+- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01).
+- *Concern:* two italic-style conventions that fit the broadened naming-conventions scope. (1)
+  **Narrative-preamble blockquotes** — italicize only the file-top narrative preamble (first blockquote before any
+  `##`, plain prose, no list items / GFM directive / bold-field markers); the other three blockquote shapes (GFM
+  callouts, structured field blocks, requirement notes) stay non-italic. Doubles the "meta-commentary, not
+  content" signal in raw markdown. (2) **Underscore over asterisk emphasis** — standardize ARC on `_text_` over
+  `*text*` repo-wide and enforce it; both render identically so mixed source is noise, and underscore is already
+  ARC's dominant convention. Enforcement candidate: a heal-on-touch pre-commit hook rewriting `*…*` emphasis runs
+  → `_…_` on staged files (single-asterisk emphasis only — never `**bold**`, list markers, or code/glob
+  asterisks), so migration is incremental rather than one risky repo-wide sweep. Codification home:
+  DEV-RULES.PROJECT § Documentation Standards § Markdown quality (explicit paragraph preferred over by-example).
+  Quick-tier per the atomic-tier infra-edit smell flag (multi-file sweep touching `.arc/system/` +
+  `.arc/reference/`).
 
 ---
 
