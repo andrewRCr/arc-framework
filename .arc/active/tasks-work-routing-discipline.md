@@ -807,7 +807,7 @@ package source.
   captures, keeps WU creation non-blocking, and lets the user optionally pause for base-branch housekeep before
   re-checking clean/parity.
 
-### `[ ]` **5.5 Errand-session handoff path (`session-handoff`)**
+### `[x]` **5.5 Errand-session handoff path (`session-handoff`)**
 
 - _Goal:_ Pausing an in-flight errand has a ceremony-light path — `commit WIP + push` the `chore/<slug>` branch,
   no SESSION-NOTES — so the pushed branch is the cross-machine resume anchor and an errand never needs WU-handoff
@@ -817,6 +817,11 @@ package source.
   in-flight sweep), not at every handoff (flow protection). No SESSION-NOTES per ADR-021 (errands have no
   orientation surface). Both copies (`session-handoff` is `.template.md` in the package).
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+- _Outcome:_ Added an Errand-Session Handoff Path to both `session-handoff` copies. The dispatch now routes
+  `active.none + chore/<slug>` separately from the between-WUs path, checkpoints only the current errand branch,
+  pushes it for materialize/resume, skips SESSION-NOTES and meta ceremony, and explicitly leaves other `chore/`
+  branches to session-init Orient's in-flight sweep.
 
 ### `[ ]` **5.6 Promote-errand-to-WU path (`init-work-unit`)**
 
