@@ -94,8 +94,9 @@ constitutional record is ADR-021's amendment.
     1. The **capture decision table** — inline (this WU's own concern) / errand-now (out-of-WU, urgent) /
        inbox-defer (out-of-WU, not urgent), framed as an urgency × isolation judgment.
     2. The **holding-vs-execution boundary** — the inbox holds, never executes; executing any out-of-current-WU
-       work goes through `arc-errand` (never hand-rolled in place, never a manual bypass branch); promotion
-       inbox→errand is the only execution path and **moves** the source entry.
+       work runs in its own session via `arc-session` (the sole execution entrypoint) through the `run-errand`
+       lifecycle, never hand-rolled in place and never a manual bypass branch. Capture never seeds or queues an
+       errand; an errand that adopts a captured item **removes** the slug-matched source entry at completion.
     3. The **anti-rider rule** — distinguished by *concern-identity, not file-identity*: same-concern
        micro-cleanup in a file already being edited is inline-always-fine; a distinct concern sharing a
        file/surface errands, never rides.

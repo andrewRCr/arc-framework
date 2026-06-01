@@ -157,6 +157,19 @@ if [ "$context_footer" != "custom" ] && [ -n "$context_pattern" ]; then
     warn "commit.context_pattern is set but commit.context_footer is '$context_footer' (pattern is ignored)"
 fi
 
+# inbox.remind_after_days: must be a positive integer when set
+remind_after_days=$(arc_config_get "inbox.remind_after_days" "")
+if [ -n "$remind_after_days" ]; then
+    case "$remind_after_days" in
+        *[!0-9]* | 0)
+            error "inbox.remind_after_days must be a positive integer (got '$remind_after_days')"
+            ;;
+        *)
+            pass "inbox.remind_after_days is a positive integer"
+            ;;
+    esac
+fi
+
 # ============================================================================
 # Unknown key detection (typo protection)
 # ============================================================================

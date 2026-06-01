@@ -1078,7 +1078,7 @@ after it lands.
 - `[x]` The three forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC de-scope) are
   recorded in their destinations.
 - `[x]` A live `arc-housekeep` run cleared `andrew`'s `USER-INBOX` and retired `BACKLOG-INBOX`; the next WU
-  begins with an empty `USER-INBOX`.
+  begins with `USER-INBOX` holding no un-triaged entries (empty but for retained-with-reminder captures).
 - `[x]` Errands are execution-only: the `ERRANDS.md` queue, the capture-flavored `arc-errand` skill, and
   `arc errand queue` are retired (no `errand-*` file, no State field); `arc errand check` survives at execution
   time; ADR-021 carries the amendment.
