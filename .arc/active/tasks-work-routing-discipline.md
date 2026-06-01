@@ -869,22 +869,20 @@ plain heading slug, not the extension fire-point `· #name` marker). See `notes-
   `notes-work-routing-discipline.md` § Drain-mechanism correction. Confirmed ADR-021 unaffected. Done as the
   re-planning act.
 
-### `[ ]` **5.R.2 Rewrite `drain-inbox.md` to the gated, phased shape**
+### `[x]` **5.R.2 Rewrite `drain-inbox.md` to the gated, phased shape**
 
 - _Goal:_ The drain workflow runs first-pass classify → mandatory confirmation interlock → chunk → route →
   optional execution transition → confirm — with at-drain tier re-triage, concern-grouping, and the retain
   escape-hatch — so a drain never routes straight from classification and never interleaves execution.
-- _Approach:_ Restructure into a mode/tier-agnostic routing spine plus a clean protection-mode write-mechanics
-  block (full: grooming auto-merge PR(s) + lane classification + review-chunking; partial: direct base commits +
-  commit-boundary discipline) deferring to `§ Cheap-branch path` / `§ Auto-Merge Lane`. Add the confirmation
-  interlock (plain heading slug, not a fire-point marker), the tier-reclassification step (R33), grouping +
-  maturity choice (R34), and the execution transition pointing at `run-errand` by stable anchor (R35). Minimal
-  `run-errand` edit: broaden its entry note to acknowledge the drain transition; keep its re-enterable spine
-  intact. Author the retain action setting the resolved `_Hold:_` marker + `_Created:_` re-stamp (R36). Both
-  copies.
-- _Note:_ Forward-compat with `composable-workflows` is whole-block-extraction-shaped seams only — build no
-  fragment machinery.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+- _Outcome:_ Rewrote `drain-inbox.md` (both copies) from the single-pass model to the gated, phased spine
+  (read → first-pass classify with no writes → confirmation interlock → chunk → route → execution transition →
+  confirm). Folded in verify-before-route, at-drain tier re-triage (R33), concern-grouping + maturity choice
+  (R34), and the `_Hold:_` retain escape-hatch with `_Created:_` re-stamp (R36). Isolated the protection-mode
+  write mechanics to one extraction-shaped block (§ 5) deferring to `§ Cheap-branch path` / `§ Auto-Merge Lane`
+  (R37); the confirmation interlock is a plain heading, not a fire-point marker. Added the execution-transition
+  handoff to `run-errand` (R35) and broadened `run-errand`'s entry note to acknowledge the drain transition.
+  Both copies byte-identical; Tier-1 clean.
 
 ### `[ ]` **5.R.3 Align `strategy-work-organization` + `DEV-RULES.ARC`**
 

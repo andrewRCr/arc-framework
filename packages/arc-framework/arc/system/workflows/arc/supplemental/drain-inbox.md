@@ -1,34 +1,40 @@
 ---
-purpose: Drain the personal capture inbox to authoritative homes — classify each entry by character and home, route it in one batched pass, and leave the inbox empty.
+purpose: Drain the personal capture inbox to authoritative homes via a gated, phased pass — classify with no writes, confirm the routing plan, route to homes, and hand committed atomic execution to run-errand, leaving no un-triaged entries.
 audience: agent
 ---
 
 # Workflow: Drain Inbox
 
 Routing body for the `arc-housekeep` skill, and the shared logic the `session-handoff` between-WUs path
-dispatches — one workflow, two doors. It reads the personal capture inbox (`USER-INBOX`), classifies each
-entry by character and home, and routes every entry to its authoritative home in a single batched pass,
-leaving the inbox empty.
+dispatches — one workflow, two doors. It reads the personal capture inbox (`USER-INBOX`) and, in a **gated,
+phased** pass, classifies each entry, **confirms the routing plan before any write**, routes every entry to its
+authoritative home, and hands any committed atomic execution to `run-errand` — leaving `USER-INBOX` with **no
+un-triaged entries**.
 
-The drain clears captures; it does not *execute* them. Routing a multi-step note to its stub is not
-execution — the drain writes it straight to the stub. Standalone atomic *execution* is delegated to a
-`run-errand` errand; the drain never runs atomic work itself. See
-[DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] for the capture-vs-execution boundary this
-mechanism enforces.
+The drain **routes**; routing is not execution. Writing a multi-step note into its stub _is_ routing — the
+content moves inbox → stub in a single write. Atomic _execution_ is never run inside the drain: a committed
+atomic is handed to the [`run-errand`][run-errand] lifecycle as an explicit, opt-in transition _after_ routing
+(`arc-session` is the sole top-level execution entrypoint). See
+[DEV-RULES.ARC § Discovered Work Routing][dev-rules-arc] for the capture-vs-execution boundary this mechanism
+enforces.
+
+**Mode/tier-agnostic spine.** The phases below are the routing spine; they do not vary by protection mode or
+tier. Only the **write mechanics** differ by protection mode, and they are isolated to one block (§ 5) that
+defers to [strategy-work-organization § Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane] —
+never scattered through the spine.
 
 ## When This Workflow Applies
 
-- **Between work units** (the primary sweep) — the lowest-isolation-cost moment, when the base branch
-  makes shared-planning writes native.
+- **Between work units** (the primary sweep) — the lowest-isolation-cost moment, when the base branch makes
+  shared-planning writes native.
 - **Mid-WU on demand** — invoked deliberately to clear accumulated captures without waiting for the next
-  between-WUs boundary. The precondition below governs *where* the drain may write, not *when* it runs.
+  between-WUs boundary. The precondition below governs _where_ the drain may write, not _when_ it runs.
 
 ## Precondition: base-branch write context
 
-The drain writes shared base-branch paths — stub edits, freshly scaffolded `provisional/` stubs, and
-homeless flushes to the shared inbox. Those writes must originate from a **base-branch write context**,
-never a work-unit worktree's branch, or they land on the wrong branch and tangle an unrelated WU's PR
-with grooming.
+The drain writes shared base-branch paths — stub edits, freshly scaffolded `provisional/` stubs, and homeless
+flushes to the shared inbox. Those writes must originate from a **base-branch write context**, never a work-unit
+worktree's branch, or they land on the wrong branch and tangle an unrelated WU's PR with grooming.
 
 This is a **machine-checked guard, not prose discipline**. Resolve the write context first:
 
@@ -40,83 +46,137 @@ The check resolves the current worktree path, the current branch, and the config
 (`branch.base`) — the same context `arc errand check` resolves — and classifies the invocation:
 
 - **Base-branch write context** → proceed to the drain steps.
-- **Work-unit branch** → **refuse and offer to relocate**: hop to a base-branch write context, run the
-  sweep there, and return. The relocation mechanics follow protection mode — see
-  [strategy-work-organization § Cheap-branch path][work-org] and
-  [§ Branch Protection Modes][work-org]. Launching from any worktree is not a blocker; only *writing*
-  shared paths from a WU branch is.
+- **Work-unit branch** → **refuse and offer to relocate**: hop to a base-branch write context, run the sweep
+  there, and return. The relocation mechanics follow protection mode — see
+  [strategy-work-organization § Cheap-branch path][cheap-branch] and [§ Branch Protection Modes][branch-modes].
+  Launching from any worktree is not a blocker; only _writing_ shared paths from a WU branch is.
 - **Degenerate context** (detached HEAD, or no resolvable base) → **safe refusal**, never a silent write.
 
-The guard is **guidance keyed on write context, not a gate on having an active WU**: the precondition is
-a base-branch write context, *not* "no active work unit." Housekeep is therefore invokable mid-WU — hop
-to the primary worktree, sweep as a batched errand, and return. Let captures stack before a mid-WU sweep
-rather than thrashing the drain per item.
+The guard is **guidance keyed on write context, not a gate on having an active WU**: the precondition is a
+base-branch write context, _not_ "no active work unit." Housekeep is therefore invokable mid-WU — hop to the
+primary worktree, sweep as a batched errand, and return. Let captures stack before a mid-WU sweep rather than
+thrashing the drain per item.
 
-## Drain Steps
+## Drain steps
+
+The drain is **gated and phased**: classify with no writes, **stop at the confirmation interlock**, then route,
+then optionally transition to execution. The interlock is unconditional — the drain never routes straight from
+classification.
 
 ### 1. Read the inbox
 
-Read `USER-INBOX` in full — both `§ Atomic` (single-step captures) and `§ Work Unit` (multi-step
-captures). These are the entries to route; the shared inbox (`ATOMIC-INBOX`) is a *destination*, not a
-source.
+Read `USER-INBOX` in full — both `§ Atomic` (single-step captures) and `§ Backlog` (multi-step captures). These
+are the entries to route; the shared inbox (`ATOMIC-INBOX`) is a _destination_, not a source.
 
-### 2. Classify each entry
+### 2. First-pass classification — no writes
 
-Classify against the **logical model** — *entry · character · home* — not the entry's markdown shape, so a
-later structured-record swap leaves the routing intact. Two questions resolve the route:
+Classify every entry against the **logical model** — _entry · character · home_ — not its markdown shape, so a
+later structured-record swap leaves the routing intact. This pass **makes no writes**; it produces the routing
+plan the interlock (§ 3) confirms. Resolve, per entry:
 
-- **Character** — *atomic* (single-step work, drained to execution) or *multi-step* (design-bearing or
-  trackable work, which belongs in a stub).
-- **Home** — the authoritative destination: an **existing** stub, a **new** stub identifiable now, or
-  **none** (homeless).
+- **Verify before routing.** A capture may already be **done or obsolete** — resolved inline by a later commit,
+  or by the host WU itself. Confirm against the current tree before proposing a route; a resolved capture is
+  _dismissed_ (removed at routing), not routed.
+- **Character** — _atomic_ (single-step) or _multi-step_ (design-bearing or trackable; belongs in a stub).
+- **Tier re-triage.** Capture-time character is intentionally coarse. A `§ Atomic` capture whose real scope is
+  **quick-tier** — load-bearing infra, multi-file, multi-commit, or carrying a design fork — **reclassifies to a
+  stub** here (existing or new), not to standalone execution. This is the at-drain reclassification
+  [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
+- **Home** — an **existing** stub (`active/` or `backlog/`), a **new** stub identifiable now, or **none**
+  (homeless).
+- **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate
+  into a **single** stub, not one-per-entry — concern-identity, not entry count (the anti-rider test applied to
+  stub creation). Propose the grouping with rationale.
+- **Maturity (new stubs).** Propose `planned` or `provisional` — `provisional` for under-evaluated captures, but
+  a well-developed capture may warrant `planned`. The user decides at the interlock; never hard-default silently.
+- **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
+  acted on in § 5 / § 6.
 
-Character and home together select one of the four routes below.
+### 3. Confirmation interlock
 
-### 3. Route in one batched pass
+> [!IMPORTANT]
+> Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub maturities,
+> atomic dispositions, and the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The
+> drain makes no write before this gate.**
 
-Each entry takes exactly one route:
+The user may adjust any proposal: regroup, change a maturity, flip an atomic between execute-now / defer /
+retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
 
-1. **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the
-   note **straight into** that stub's `draft-*` / `notes-*`. This is routing, not execution: the content
-   moves inbox → stub in a single write.
-2. **New stub** — a multi-step entry with no existing home. Scaffold a `provisional/` stub (`meta-*`, plus
-   `draft-*` when scope warrants) and write the note in. A provisional stub carries no design authority.
-3. **Atomic errand** — an atomic entry that is a committed standalone execution. Dispatch it to
-   `run-errand`; the drain **never executes atomic work itself**, it hands the item off as its own errand.
-4. **Homeless** — no determinable home. A homeless **atomic** flushes to the shared `ATOMIC-INBOX`; a
-   homeless **multi-step** graduates to a `provisional/` stub (route 2). The shared inbox is atomic-only,
-   so multi-step never lands there.
+### 4. Chunk if the sweep is large
 
-**PR packaging.** Lane assignment follows [strategy-work-organization § Auto-Merge Lane][work-org] and
-applies under full protection only — under partial protection every route is a direct base-branch commit
-with no merge-wait ([§ Branch Protection Modes][work-org]). Under full protection:
+Default a single routing batch. When the confirmed plan exceeds **one reviewable batch**, chunk by
+**concern-coherence + review-reachability** — split only when one unit would exceed a reviewer's reach. The chunk
+shape follows protection mode (§ 5): under full, one auto-merge PR per lane; under partial, coherent commit
+boundaries (there are no routing PRs to chunk). Surface the chunk plan at the interlock; never silently truncate.
 
-- The planning-routing writes — routes 1, 2, and the homeless-atomic flush — are **one coherent concern**
-  ("route these captures to their homes") and batch into a **single auto-merge PR** off a short-lived
-  grooming branch: one PR per lane, bounded by concern-coherence, not destination count. A write that
-  touches a **foreign owner's** artifact is reviewed-lane per the threshold and ships on its own, outside
-  the batch.
-- Each code errand (route 3) is its **own concern → its own PR (1:1)**, carried by `run-errand`. Code is
-  never auto-batched, and the two lanes **never mix** in one PR.
+### 5. Route — write to homes
 
-**Move, not copy.** Routing **removes the source line from `USER-INBOX`**, never duplicates it. For routes
-1, 2, and the homeless flush the removal rides the same write. A route-3 errand is the one deferral: it
-removes its slug-matched line at errand **completion**, not at dispatch — so the line doubles as the
-in-flight record and an abandoned errand never orphans the capture. Once the batch lands and its errands
-merge, `USER-INBOX` is empty.
+Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies); the
+removal rides the same write.
 
-### 4. Note shared-inbox aging
+- **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
+  **straight into** that stub's `draft-*` / `notes-*`.
+- **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
+  Scaffold the stub at the confirmed maturity (`meta-*`, plus `draft-*` when scope warrants) and write the note
+  in. A `provisional` stub carries no design authority.
+- **Homeless atomic — defer** — an atomic with no determinable home that is **not** being executed now. Flush it
+  to the shared inbox (`ATOMIC-INBOX` under `pm.mode: arc-in-git`; the project's convention otherwise). The
+  shared inbox is atomic-only.
+- **Retain (escape-hatch)** — an atomic the user explicitly keeps in `USER-INBOX` (private-until-vetted, or
+  imminent self-execution). **Never the default, never agent-suggested.** Set the managed field _Hold:_ to
+  `true` and **re-stamp** _Created:_ to the retain date (both values backtick-delimited per the managed-field
+  grammar), so the reminder floor (never same-day) applies from now. A retained entry is _triaged_ — it does not
+  count toward `inboxState.housekeepNeeded`, and the reminder sweep keeps it from rotting.
+- **Execute-now atomic** — held aside here; executed in § 6, not written by the drain.
 
-While draining, surface shared-inbox (`ATOMIC-INBOX`) aging — items long-resident there — as an advisory
-observation. Reminder nudges for personal captures and staleness of in-flight errands belong to
-session-init orientation, not the drain.
+**Write mechanics (protection-mode block).** This is the only mode-dependent step; it defers to
+[§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
 
-### 5. Confirm the drain is complete
+- **Fully protected** — the planning-routing writes (existing-stub edits, new provisional stubs, the
+  homeless-atomic flush) are **one coherent concern** and batch into a **single auto-merge PR** per lane off a
+  short-lived grooming branch (chunked per § 4 if large). A write touching a **foreign owner's** artifact is
+  reviewed-lane and ships on its own.
+- **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
+  keep coherent commit boundaries (the § 4 chunk shape). No lanes, no review-chunking.
 
-Verify `USER-INBOX` holds no entry still awaiting routing — every capture has been written to a stub,
-flushed to the shared inbox, or dispatched as an errand — and report what routed where.
+### 6. Execution transition — committed atomics → `run-errand`
+
+For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
+atomic work itself. Two explicit paths, the user's choice by context budget (never a structural gate):
+
+- **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
+  **one at a time, sequentially** (batch only when they are genuinely one concern). `run-errand`'s Launch
+  resolves and relocates its own execution locus off the base via the shared write-context primitive (the same
+  `arc housekeep check` resolution this drain used); the isolation shape — a separate worktree where spawning is
+  available, otherwise an in-place `chore/<slug>` branch in the primary base checkout — follows protection mode
+  and worktree availability (see `run-errand`). Either way the errand never executes on the drain's launching
+  branch, and control returns to the base context after each. No dependency on having entered through
+  session-init's errand arm.
+- **Fresh session** — leave the execute-now atomics in place and resume each via `arc-session --errand` later;
+  the drain still closes (§ 7) with those entries triaged-but-pending.
+
+**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the slug-matched
+`USER-INBOX` line is removed at the errand's **completion** (merge) — asynchronous on the auto-merge lane,
+review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
+in-flight-errand sweep is the backstop against orphaning (an abandoned errand keeps both its line and its pushed
+branch — both swept). Who fires teardown and line-removal on an _unattended_ merge is the merge-gate-awareness
+question captured for `concurrent-work-conventions`; until it lands, the sweep reconciles it.
+
+### 7. Confirm the drain is complete
+
+The drain **closes on dispositions, not on a physically empty file.** Verify every entry has a terminal
+disposition — **routed** / **dismissed** / **flushed** (line removed with the write), **retained** (`_Hold:_`,
+line stays), or **execute-bound** (dispatched in-flight, or pending a fresh `--errand` — line stays until the
+errand completes). No entry is left **un-triaged**. The lines that remain are only the retained and
+execute-bound ones; their async tail is owned by `run-errand` plus session-init's in-flight sweep, not the
+drain. Report what routed where, which entries were retained, and which errands are in flight. Surface
+shared-inbox (`ATOMIC-INBOX`) aging as an advisory while there — reminder nudges for personal captures and
+in-flight-errand staleness belong to session-init orientation, not the drain.
 
 ---
 
+[run-errand]: run-errand.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
+[cheap-branch]: ../../../../reference/strategies/arc/strategy-work-organization.md#cheap-branch-path
+[branch-modes]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
+[auto-lane]: ../../../../reference/strategies/arc/strategy-work-organization.md#auto-merge-lane

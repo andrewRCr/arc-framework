@@ -14,8 +14,10 @@ arc:
 # Workflow: Run Errand
 
 Execution body for an **errand** — a single bounded out-of-work-unit concern — dispatched by the `arc-session`
-skill (`--errand`, or adopted from session-init's discovery arm). For what distinguishes an errand from a work
-unit, see [strategy-work-organization § Errand Work Class][errand-class]; this workflow runs one.
+skill (`--errand`, or adopted from session-init's discovery arm), or entered directly from a
+[`drain-inbox`][drain-inbox] execution transition when the housekeep drain hands off a committed atomic. For what
+distinguishes an errand from a work unit, see [strategy-work-organization § Errand Work Class][errand-class];
+this workflow runs one.
 
 An errand is **one review increment**, so this workflow honors the [Review-Increment Invariant][dev-rules-arc]
 directly and does **not** load `process-task-loop` (there is no task list). Its phases — Launch → Execute →
@@ -163,6 +165,7 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
 ---
 
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
+[drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [promote-errand-to-wu]: ../work-unit-lifecycle/planning/init-work-unit.md#promote-errand-to-work-unit-path
 [commit-footer]: ../../../methods/commit-footer.md
