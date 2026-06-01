@@ -23,6 +23,7 @@ rather than re-deriving — the wording below is settled, not to be reinvented.
 
 - [Errand-model re-pivot (supersedes pre-pivot errand/queue refs below)](#errand-model-re-pivot)
 - [Drain-mechanism correction (surfaced at first live run)](#drain-mechanism-correction)
+- [Drain integration-mode (Inbound Buffer; surfaced at the live run)](#drain-integration-mode)
 - [Inbox section preambles (verbatim — do not re-derive)](#inbox-section-preambles-verbatim--do-not-re-derive)
 - [Capture decision table (verbatim)](#capture-decision-table-verbatim)
 - [Entry-grammar subtleties](#entry-grammar-subtleties)
@@ -129,6 +130,38 @@ stay inline). The directory reshape / core-fragment boundary is `composable-work
 problem — build no fragment files or load machinery here. Stable heading-slug anchors for cross-workflow refs;
 the new confirmation interlock takes a plain heading slug, **not** the extension fire-point `· #name` marker
 (that marker is pre-commit-validated against `system/extensions/<name>.md`; misuse trips CHECK 16).
+
+## Drain integration-mode
+
+> Reasoning behind spec `§ Drain integration-mode` (R38–R39), surfaced by the Phase 6 *live* run (Task 6.1)
+> routing into real, foreign-owned drafts. Records why routing gained a two-mode rule and the `Inbound Buffer`
+> landing zone, and why the floor folds here while the ceiling offloads.
+
+**The gap.** R8–R9 said routing writes the note "straight into" the stub but never said *how*. The live run
+exposed two failure modes in holistic-by-default integration: it is **costly** (reading and reworking each
+bespoke foreign draft does not scale across a sweep) and an **ownership overstep** — weaving a note into a
+draft's scope is a design act the owning WU should perform at its next iteration with full context, not the
+drainer ad hoc. Same category as the gated-phased correction: a mechanism-completeness gap surfaced by
+dogfooding, not new scope. A *work-routing* WU cannot ship a drain whose terminal step is under-specified.
+
+**Why `Inbound Buffer`, not `Inbox`.** The buffer holds only items already **routed to this WU as their home**
+(no longer foreign), and the forcing function keeps them in **transit, never at rest**. That transit-not-rest
+property is exactly what keeps it clear of `DEV-RULES.ARC § Planning artifacts aren't capture surfaces` — so the
+name must *reinforce* it. "Buffer" does; "inbox" signals capture-and-hold and would reopen the very question the
+buffer closes. "Inbound" names the feeder direction (the drain plus other routing) without baking in one feeder;
+the per-entry `routed from <origin>` provenance carries the specific source.
+
+**Floor folds, ceiling offloads.** The minimal floor that closes the pipeline lands here: the two-mode rule in
+`drain-inbox § 5`, the `## Inbound Buffer — Pending Integration` convention, and the forcing-function hook at the
+existing draft→PRD moment (`1_create-spec.md` Step 1; `2_generate-tasks.md` is downstream of that absorption, so
+it needs none). The richer iteration-time ceremony — a first-class buffer-drain step in the conductor's refine
+loop that supersedes the minimal hook — is **`arc-plan-conductor`'s**, routed there as a capture at this drain:
+it is design-bearing and its domain.
+
+**Placement.** The section is an interstitial after the Origin/Purpose metadata block, set off by `---` rules —
+visually *buffered* between header and body, and high-visibility so the owner sees pending items on opening the
+draft (the forcing function depends on that). Created on demand by the drain; a standard empty template slot is
+an optional later add, not the floor.
 
 ## Inbox section preambles (verbatim — do not re-derive)
 

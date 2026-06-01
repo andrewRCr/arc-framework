@@ -115,7 +115,18 @@ Each entry takes exactly one route. Routing **moves** the source line out of `US
 removal rides the same write.
 
 - **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
-  **straight into** that stub's `draft-*` / `notes-*`.
+  into that stub's `draft-*` / `notes-*` in one of **two integration modes**:
+    - **Holistic** — weave it into the draft body. Only when the fit is cheap, clear, and within your design
+      authority (you own the WU, or it is a trivially-additive, on-topic addendum).
+    - **Inbound-buffer note (the default)** — append it, with a `routed from <origin>, <date>` provenance line,
+      to the stub's `## Inbound Buffer — Pending Integration` section (an interstitial right after the draft's
+      Origin/Purpose block, set off by `---`; create it on demand). Use whenever integration is costly,
+      design-bearing, or the draft is **foreign-owned** — _how a note fits the scope is the owning WU's design
+      call at its next iteration, not yours mid-drain._ The buffer holds only items already routed to this WU as
+      home, in transit (never at rest) — distinct from the WU's own `Open Questions`; it stays
+      invariant-compliant because the obligation below drains it. An `## Inbound Buffer — Pending Integration`
+      section is **mandatorily** integrated into the body at the WU's next planning iteration (minimal hook:
+      `1_create-spec.md` Step 1); the richer iteration-time ceremony is `arc-plan-conductor`'s.
 - **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
   Scaffold the stub at the confirmed maturity (`meta-*`, plus `draft-*` when scope warrants) and write the note
   in. A `provisional` stub carries no design authority.

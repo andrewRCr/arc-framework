@@ -990,6 +990,34 @@ from the confirmation interlock.
     - `[ ]` **6.2.b Delete the live `BACKLOG-INBOX.md`**
         - Remove the file and confirm no remaining references across docs/workflows/templates.
 
+## **Phase 6.R:** Drain integration-mode completion
+
+_Purpose:_ Close the last under-specified step in the drain pipeline, surfaced mid-6.1 the moment the live run
+began routing into real, foreign-owned drafts: `drain-inbox` said routing writes the note "straight into" the
+stub but never said _how_. Land the **floor** — a two-mode rule (holistic vs. a default buffer note) plus the
+`## Inbound Buffer — Pending Integration` landing zone — so a _work-routing_ WU does not ship a drain whose
+terminal step is undefined. Mirrors 5.R: a mechanism-completeness gap surfaced by dogfooding, corrected before
+the run it enables completes.
+
+_Design decisions:_ Holistic integration is an ownership overstep when the draft is foreign-owned ("how this
+fits the scope" is the owning WU's design call at its next iteration) and does not scale across a sweep, so the
+**buffer note is the default**; holistic is reserved for cheap, clear, owner-authored fits. The buffer stays
+clear of `DEV-RULES.ARC § Planning artifacts aren't capture surfaces` because it holds only **already-homed**
+items in **transit** (the forcing function drains it) — `Inbound Buffer` reinforces transit-not-rest, `inbox`
+would undercut it. **Floor folds here; ceiling offloads:** the iteration-time enforcement ceremony is
+`arc-plan-conductor`'s (routed there at the 6.1 drain). See spec `§ Drain integration-mode` (R38–R39) and
+`notes § Drain integration-mode`. **6.1.a's routing writes are gated on this phase** and resume in buffer-mode
+after it lands.
+
+### `[x]` **6.R.1 Codify the two-mode rule + `Inbound Buffer` convention**
+
+- _Goal:_ The drain pipeline fully specifies how a routed note lands, with the forcing function that keeps the
+  buffer from rotting.
+- _Outcome:_ Floor codified — spec `§ Drain integration-mode` (R38–R39); `drain-inbox.md § 5` two-mode rule +
+  the `## Inbound Buffer — Pending Integration` convention (both copies); `1_create-spec.md` Step 1 minimal
+  forcing hook, integrate-before-PRD (both copies); reasoning in `notes § Drain integration-mode`. The
+  conductor-era enforcement ceremony routes to `arc-plan-conductor` at the 6.1 drain (not built here).
+
 ## **Phase 7:** Verification
 
 ### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]

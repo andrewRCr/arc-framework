@@ -374,6 +374,36 @@ the core invariant — no *known-home* item rests).
     `· #name` marker. No fragment machinery is built here (that is `composable-workflows`'); only the seams are
     kept clean.
 
+### Drain integration-mode
+
+Surfaced by the first *live* drain (component b / Task 6.1) routing into real, foreign-owned drafts: R8–R9 said
+routing writes the note "straight into" the stub but left *how* under-specified. Weaving each note holistically
+into a draft's bespoke structure is both costly (it does not scale across a sweep) and an **ownership overstep**
+— "how does this fit the existing scope?" is a design judgment the *owning* WU answers at its next planning
+iteration, not the drainer ad hoc mid-sweep. Like the gated-phased correction above, this is a
+mechanism-completeness gap surfaced by dogfooding, not new scope: a *work-routing* WU cannot ship a drain whose
+terminal step is under-specified.
+
+38. **(P0)** **Two integration modes + the `Inbound Buffer — Pending Integration` landing zone.** Routing a
+    capture into a stub takes one of two modes: **holistic** — weave it into the draft body — only when the fit
+    is cheap, clear, and within the drainer's design authority (you own the WU, or it is a trivially-additive,
+    on-topic addendum); otherwise a **buffer note (the default)** — append it, with a `routed from <origin>,
+    <date>` provenance line, to a standardized `## Inbound Buffer — Pending Integration` section. That section is
+    an interstitial sitting immediately after the draft's Origin/Purpose metadata block, set off by `---` rules
+    (created on demand; no draft-template change). It is distinct from a WU's native `Open Questions` (its own
+    design questions) and from `USER-INBOX`: it holds only items already **routed to this WU as their home**, in
+    **transit, never at rest** — which is exactly why it does not violate `DEV-RULES.ARC § Planning artifacts
+    aren't capture surfaces`. The "buffer" framing encodes that transit-not-rest property; "inbox" would undercut
+    it ("inbound" names the feeder direction without baking in one feeder — per-entry provenance carries the
+    source).
+39. **(P0)** **Forcing function — integrate at the next planning iteration.** An `Inbound Buffer` section is
+    **mandatorily** drained into the draft body before the draft feeds downstream work, so it cannot rot into a
+    record-of-record. The minimal floor lands the hook at the existing draft→PRD moment (`1_create-spec.md`
+    Step 1: integrate the buffer before treating the plan as authoritative; `2_generate-tasks.md` consumes the
+    PRD, downstream of that absorption, so it needs no hook). The richer iteration-time ceremony — a first-class
+    buffer-drain step in the conductor's refine loop, superseding the minimal hook — is **offloaded to
+    `arc-plan-conductor`** (design-bearing, its domain), routed there as a capture at this drain.
+
 ## Non-Goals
 
 - **File renames** (`USER-INBOX → INBOX.USER`, `ATOMIC-INBOX → INBOX.PROJECT`, section renames) — owned by

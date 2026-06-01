@@ -34,7 +34,10 @@ Where to look depends on your project's PM mode ([`arc-config.yml`][arc-config] 
   into (no backlog directory)
 
 **If a plan exists**: Read it as your primary context. It may reference supplemental `notes-*.md`
-files with additional detail — read those too. Before proceeding, assess PRD-readiness: check for
+files with additional detail — read those too. If the draft carries an `## Inbound Buffer — Pending
+Integration` section, **integrate those routed notes into the draft body first** (or consciously reject
+each) — the buffer is a transit zone that must drain before the plan feeds the PRD, never carried forward
+as-is. Before proceeding, assess PRD-readiness: check for
 unresolved design decisions, open unknowns marked for future resolution, or missing concrete details
 that the PRD would need to specify. If the plan isn't ready, surface the gaps and resolve them (or
 return to plan refinement) before investing in PRD writing. Treat the plan as authoritative upstream
