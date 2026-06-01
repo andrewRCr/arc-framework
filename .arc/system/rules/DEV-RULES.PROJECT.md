@@ -38,8 +38,12 @@ For ARC methodology rules (commit discipline, task execution, session management
     - Shell: `npm run lint:sh` — requires system-installed `shellcheck` on developer machines
 
 3. **TypeScript Type Checking**: Zero errors
-    - Command: `npm run typecheck`
-    - Config: `packages/arc-framework/tsconfig.json` (strict mode)
+    - Source: `npm run typecheck` — config `packages/arc-framework/tsconfig.json` (strict; excludes `__tests__`)
+    - Tests: `npm run typecheck:test` — config `packages/arc-framework/tsconfig.test.json`
+    - Both at once: `npm run typecheck:all`
+    - Test files typecheck under a separate config; Vitest's esbuild transpile skips type-checking, so a
+      test-only type error passes a source-only check and surfaces only at commit. Run both before declaring
+      types green — especially after editing a shared or exported type.
 
 4. **Tests**: All pass
     - Command: `npm test` (full suite), `npm run test:unit` (unit only)
