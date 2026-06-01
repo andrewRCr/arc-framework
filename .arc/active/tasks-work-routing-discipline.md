@@ -750,15 +750,14 @@ _Design decisions:_ `session-handoff`'s between-WUs path wires to the same drain
 (DRY, two doors). All workflow edits dual-copy; `session-init`/`session-handoff` are `.template.md` in the
 package source.
 
-### `[ ]` **5.1 Remove `integrate-work-unit` Step 10 (drain leaves integration)**
+### `[x]` **5.1 Remove `integrate-work-unit` Step 10 (drain leaves integration)**
 
 - _Goal:_ Integration ships only the WU — the `USER-INBOX` → shared-inbox drain no longer rides the integration
   commit — so the failure mode (deferred under PR-leanness pressure) is structurally removed.
-- _Note:_ Removing Step 10 also stops the `## Backlog` → `BACKLOG-INBOX` write — the write-stop leg of the
-  `BACKLOG-INBOX` retirement (1.3 template, 6.2 content). Renumber the subsequent steps. 2.2.a already reframed
-  and renamed the planning-module section to `§ Shared-Inbox Write Discipline` (housekeep writes, ceremonies
-  read); removing Step 10 here also drops `integrate-work-unit`'s now-stale `[planning-ceremony]` reference +
-  link def to it (dangling since 2.2.a). Both copies.
+
+- _Outcome:_ Removed the integration-ceremony `USER-INBOX` drain from both `integrate-work-unit` workflow copies,
+  renumbered the remaining ceremony steps, and dropped stale drain references from the interlock surface, commit
+  template, and planning-module link definitions.
 
 ### `[ ]` **5.2 Reframe `activate-work-unit` Step 6 (absorption narrowing)**
 

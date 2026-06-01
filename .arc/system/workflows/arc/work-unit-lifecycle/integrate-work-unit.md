@@ -149,7 +149,7 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
 [`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope.
 
-Leave the edit uncommitted — Step 11's interlock surfaces it alongside the rest of the composition for review
+Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
 
 ### 9) Compose Completion Notes — uncommitted
@@ -157,46 +157,19 @@ before the commit fires.
 Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
 [`template-meta.md`][template-meta]'s schema. Same uncommitted-surfacing pattern as Step 8.
 
-### 10) Integration drain — uncommitted · `arc-in-git` only
-
-> **Skip** under `pm.mode: none` or `external`.
-
-Integration is a drain fire-point ([strategy-planning-module § Ceremony-Only Writes][planning-ceremony]). Flush
-this developer's surviving personal captures to the shared surfaces so they become project-visible:
-
-- `user/{identity}/USER-INBOX.md` **§ Atomic → `backlog/ATOMIC-INBOX.md`**.
-- `user/{identity}/USER-INBOX.md` **§ Backlog → `backlog/BACKLOG-INBOX.md`**, or graduate an entry to a
-  `backlog/provisional/<wu-name>/` subdir when its scope and plan have emerged.
-
-Dedup against existing shared-inbox entries (keep the most complete); USER-INBOX § Atomic and § Backlog end
-empty. Absorbed entries are deleted, not marked — the routing record is the deletion commit plus the absorbing
-artifact (see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing).
-
-**De-contextualize as you flush.** USER-INBOX captures carry the originating WU's framing; the shared inboxes
-are read cold, project-wide, long after that WU ships. Rewrite each flushed entry to stand on its own — expand
-or drop WU short-names and abbreviations, and recast WU-internal references (task IDs, phase numbers,
-requirement IDs) as plain descriptions (planning IDs don't belong in durable shared surfaces —
-[DEV-RULES.ARC][dev-rules-arc] § Documentation Boundaries). A `_Captured during:_` line may keep a provenance
-pointer, but the entry's substance must read clearly to someone with no memory of the source WU.
-
-**Safety catch (normally a no-op):** entries absorbed at activation or promoted at planning-kickoff are deleted
-at *that* ceremony, so nothing should linger in a shared inbox for this WU. If a stray promoted entry survived,
-delete it now.
-
-### 11) Commit completion content
+### 10) Commit completion content
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before commit + sweep + push. Surface:
 >
 > 1. Composed Release Notes Entry + Completion Notes (Steps 8–9)
-> 2. Integration-drain edits — surviving USER-INBOX entries flushed to the shared inboxes (Step 10)
-> 3. Planned sweep target: `active/meta-{name}.md` → `completed/<dated>/{NN}_{name}/meta-{name}.md` (Step 12 under
+> 2. Planned sweep target: `active/meta-{name}.md` → `completed/<dated>/{NN}_{name}/meta-{name}.md` (Step 11 under
 >    `with-integration`)
-> 4. ROADMAP delta the upcoming regen will produce (Step 12 under `with-integration`)
+> 3. ROADMAP delta the upcoming regen will produce (Step 11 under `with-integration`)
 >
 > Await explicit "proceed to commit + sweep + push" direction.
 
-Bundle composition + integration-drain edits.
+Bundle the composition edits.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -206,25 +179,24 @@ chore(arc): compose archive-phase content for {name}
 
 - Release Notes Entry: <one-line summary>
 - Completion Notes
-- Integration drain: USER-INBOX § Atomic → ATOMIC-INBOX, § Backlog → BACKLOG-INBOX     # arc-in-git only
 
 Context: meta-{name}.md (integration)
 ```
 
 See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` method][commit-footer].
 
-### 12) Cadence dispatch — `archive.cadence`
+### 11) Cadence dispatch — `archive.cadence`
 
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. archive handles
   state flip `Integrating → Shipped`, sweep commits (`active/meta-{name}.md` →
   `completed/<dated>/{NN}_{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
-  Step 13.
+  Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
-  invocation. Step 13's push covers completion content only under this cadence.
+  invocation. Step 12's push covers completion content only under this cadence.
 
-### 13) Final push
+### 12) Final push
 
 What gets pushed varies by cadence:
 
@@ -256,7 +228,7 @@ contents are gitignored):
 arc user close {name}
 ```
 
-### 14) Post-merge worktree cleanup
+### 13) Post-merge worktree cleanup
 
 After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
 second prompt fires. Dispatch by current worktree identity:
@@ -292,7 +264,7 @@ on the resolved state:
 ## Next step
 
 - **Under `with-integration` (default):** WU is fully shipped after merge — archive ceremony already landed in
-  Step 12.
+  Step 11.
 - **Under `manual`:** After merge, invoke [`archive-work-unit.md`][archive-work-unit] to complete archival
   post-merge.
 
@@ -316,4 +288,3 @@ on the resolved state:
 [create-spec]: ../1_create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[planning-ceremony]: ../../../../reference/strategies/arc/strategy-planning-module.md#ceremony-only-writes-to-shared-inboxes
