@@ -1,13 +1,12 @@
 # Notes: Work-Routing Discipline
 
-Reference detail for task generation and execution: pre-decided concrete artifacts (verbatim section preambles,
-the capture decision table, entry-grammar subtleties), design rationale the spec abstracts, and routing records
-for concerns whose home is elsewhere. Cross-reference by filename + section heading from task descriptions
-rather than re-deriving — the wording below is settled, not to be reinvented.
+Design rationale and routing records for the work unit: the concrete artifacts it landed (section preambles,
+the capture decision table, entry-grammar subtleties), the reasoning the spec abstracts, and records for
+concerns whose home is elsewhere.
 
-> **Naming — current vs. target.** This WU lands shape + behavior on the **current** file/section names; the
-> renames are owned by `doc-naming-convention` (its draft § Renames) and are out of scope here. The design text
-> below uses the **target** vocabulary for clarity — when authoring concrete edits, map to the current names:
+> **Naming — current vs. target.** This WU landed shape + behavior on the **current** file/section names; the
+> renames are owned by `doc-naming-convention` (its draft § Renames). The text below uses the **target**
+> vocabulary for clarity; map to the shipped names:
 >
 > | Target (design vocabulary)     | Current (use in edits)                                                   |
 > | ------------------------------ | ------------------------------------------------------------------------ |
@@ -22,10 +21,10 @@ rather than re-deriving — the wording below is settled, not to be reinvented.
 ## Contents
 
 - [Errand-model re-pivot (supersedes pre-pivot errand/queue refs below)](#errand-model-re-pivot)
-- [Drain-mechanism correction (surfaced at first live run)](#drain-mechanism-correction)
-- [Drain integration-mode (Inbound Buffer; surfaced at the live run)](#drain-integration-mode)
-- [Inbox section preambles (verbatim — do not re-derive)](#inbox-section-preambles-verbatim--do-not-re-derive)
-- [Capture decision table (verbatim)](#capture-decision-table-verbatim)
+- [Drain-mechanism correction](#drain-mechanism-correction)
+- [Drain integration-mode (Inbound Buffer)](#drain-integration-mode)
+- [Inbox section preambles](#inbox-section-preambles)
+- [Capture decision table](#capture-decision-table)
 - [Entry-grammar subtleties](#entry-grammar-subtleties)
 - [Drain timing and ownership](#drain-timing-and-ownership)
 - [Surface roles — rationale](#surface-roles--rationale)
@@ -163,7 +162,7 @@ visually *buffered* between header and body, and high-visibility so the owner se
 draft (the forcing function depends on that). Created on demand by the drain; a standard empty template slot is
 an optional later add, not the floor.
 
-## Inbox section preambles (verbatim — do not re-derive)
+## Inbox section preambles
 
 The one-line destination-preamble callouts that land under each `INBOX.USER` section heading. Headings stay the
 stable character token (`## Atomic` / `## Work Unit`) — the anchor and reference key; routing destinations live
@@ -180,7 +179,7 @@ provisional" is wrong: most stubs start `planned/`).
 The **shared inbox** (`ATOMIC-INBOX`, atomic-only) uses only the `## Atomic` heading + its preamble — there is
 no Work-Unit section there, ever.
 
-## Capture decision table (verbatim)
+## Capture decision table
 
 The capture-time call is just *inline / errand-now / inbox-defer* — an urgency × isolation judgment. The finer
 destination (existing stub · new stub · standalone errand · flush to shared) is a **drain-time** resolution,
