@@ -127,19 +127,21 @@ constitutional record is ADR-021's amendment.
    grammar (`Atomic` / `Backlog` headings; slug-keyed `WU_Target` with the optional maturity parenthetical).
    This folds the standing USER-INBOX template↔parser mismatch capture.
 7. **(P0)** Codify the **graduation threshold** (the "bypass the inbox, make a stub directly" decision) as the
-   terminal-shape rule: homeless multi-step parks free in `USER-INBOX` § Backlog and graduates to a
-   *provisional* stub at housekeep — never a shared multi-step section.
+   terminal-shape rule: homeless multi-step parks free in `USER-INBOX` § Backlog and graduates to a stub at
+   housekeep (*provisional* by default; maturity and same-concern grouping per R34) — never a shared multi-step
+   section.
 
 ### `arc-housekeep` mechanism
 
 8. **(P0)** Build a **thin `arc-housekeep` skill** dispatching a **drain/route workflow** (matching ARC's
    codified skill/workflow split). Define housekeep's routing against the **logical** model (entry · character ·
    home), not the markdown format, so a later structured-record swap does not break it.
-9. **(P0)** Drain logic: read `USER-INBOX` → classify each entry (existing-stub home / new stub / atomic errand
-   / homeless) → route via a **batched, direct** drain on housekeep's own auto-merge branch — stub edits written
-   straight in (no per-item errand for note-routing); standalone atomic execution gets its own reviewed errand;
-   homeless items flush to the shared inbox. Promotion **moves** the source entry (not copy) → `USER-INBOX` ends
-   empty. Also surface the `ERRANDS.md` staleness sweep and shared-inbox aging while there.
+9. **(P0)** Drain logic follows the **gated, phased** shape of R32 (first-pass classify → confirmation interlock
+   → chunk → route → execution transition → confirm); the single-pass "classify and route" model is corrected
+   there. Routing writes the note **straight into** its home (an existing-stub edit or a freshly-scaffolded stub
+   — no per-item errand for note-routing, which is not execution); a deferred or homeless atomic's home is the
+   shared inbox (R35). Promotion **moves** the source entry (not copy). Surface shared-inbox aging while there —
+   reminder and in-flight-errand sweeps belong to session-init, not the drain.
 10. **(P0)** Enforce the precondition as a **machine-checked guard, not prose**: the skill/command resolves its
     write context (current worktree path, current branch, base branch — reusing `arc errand`'s resolution) and
     **refuses or offers to relocate** when invoked from a WU worktree's branch. The precondition is a
@@ -307,6 +309,71 @@ as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
     in-flight-errand detection) to cascade into their errand assumptions when next iterated. Foreign *design
     authoring* routes — these are informational write-backs, not redesigns of their scope.
 
+### Drain-mechanism correction
+
+Surfaced by the first live `arc-housekeep` dry run (component b / Task 6.1): classifying `andrew`'s real backlog
+exposed that `drain-inbox` as built (R8–R9) under-structures the drain — it routes in a single uninterrupted
+pass with no plan-confirmation gate, assumes commitment on the atomic-errand route rather than eliciting it,
+interleaves execution with routing (in tension with `arc-session` as the sole *top-level* execution entrypoint),
+omits the at-drain tier re-triage `DEV-RULES.ARC § Task Execution` already promises, and offers no grouping for
+homeless multi-step captures. R32–R37 correct the mechanism; they land as a remedial phase (5.R) ahead of the
+re-run. Like the errand-model re-pivot, this is correction surfaced by dogfooding, not new scope; ADR-021 is
+unaffected (the escape-hatch fits its "committed-but-parked / not-yet-actionable pointer" framing and preserves
+the core invariant — no *known-home* item rests).
+
+32. **(P0)** **Gated, phased drain.** Restructure the drain into: **first-pass classify** (no writes) →
+    **mandatory workflow-interlock** presenting the full routing plan for confirmation → **chunk** if the plan
+    exceeds one reviewable batch → **route** → **optional execution transition** (R35) → **confirm**. The
+    interlock is unconditional and precedes every write — the drain never routes straight from classification.
+    Authored as an extraction-shaped spine per R37.
+33. **(P0)** **At-drain tier re-triage.** The drain performs the reclassification `DEV-RULES.ARC § Task
+    Execution` (atomic-tier infra smell-flag) already promises: a `§ Atomic` capture whose real scope is
+    quick-tier — load-bearing infra, multi-file, multi-commit, or carrying a design fork — **reclassifies at
+    drain and routes to a stub** (existing or new), not to standalone execution. Capture-time classification is
+    intentionally coarse (`arc-inbox` is character-only); the drain is the designed re-triage point.
+34. **(P0)** **Group by concern; choose maturity.** Multiple homeless multi-step captures sharing one logical
+    concern consolidate into a **single** stub rather than one-per-entry — the agent proposes the grouping with
+    rationale, the user decides (concern-identity, not entry count; the anti-rider test applied to stub
+    creation). New-stub maturity (`planned` vs `provisional`) is a **surfaced choice**, not a hard default:
+    *provisional* stays the default for under-evaluated captures, but a well-developed capture may graduate
+    `planned` at the user's call. Amends R7.
+35. **(P0)** **Routing-first; execution as an explicit tail.** The routing pass is commitment-free; atomic
+    *execution* is a distinct, opt-in transition after routing. At the confirmation interlock the user marks
+    each atomic **execute-now** or **defer**. Deferred atomics flush to the shared inbox (`ATOMIC-INBOX` under
+    `pm.mode: arc-in-git`; project convention otherwise). Execute-now atomics **transition directly into
+    `run-errand` in the same session** — `run-errand`'s Launch self-resolves its locus via the shared
+    write-context primitive, so there is no dependency on session-init's errand arm. Both the same-session
+    transition and the alternative (end the drain, resume via a fresh `arc-session --errand`) are explicit; the
+    choice is the user's, governed by context budget, never a structural gate. Clarify in doctrine that
+    **`arc-session` is the sole *top-level* execution entrypoint** (no standalone errand command) — not
+    `run-errand`'s sole caller.
+36. **(P0)** **Per-entry retain escape-hatch + invariant reframe.** A user may, per entry, **retain** a capture
+    in `USER-INBOX` rather than route or flush it — for private-until-vetted holding or imminent self-execution.
+    It is **never the default and never agent-suggested**. The empty-at-WU-start invariant reframes from
+    **"ends empty"** to **"ends with no *un-triaged* entries"** (every entry routed, executed, flushed, or
+    explicitly retained) — a retained entry is triaged, not rot. **Marker: a distinct drain-set boolean
+    `_Hold:_`** (default `false`, rendered only when `true` under the managed-field render rule, value
+    backtick-delimited). `_Remind:_` cannot serve — it signals *nudge-until-drained*, the opposite of
+    exempt-from-drain. `_Hold:_` (a) **excludes the entry from `inboxState.housekeepNeeded`** (which counts only
+    un-triaged routable entries — so a kept capture stops re-triggering the Orient-time housekeep soft-offer,
+    which is not itself daily-rate-limited), and (b) **surfaces via the reminder sweep** for anti-rot (the sweep
+    reads `_Remind || _Hold`; that channel *is* once-per-calendar-day rate-limited). Retaining **re-stamps
+    `_Created:_`** to the retain date, so the existing reminder floor (first nudge on/after
+    `_Created:_ + inbox.remind_after_days`, never same-day) yields "never reminded the day you held it" with no
+    new logic. It is a **drain-time** field, so `arc-inbox` (capture) is untouched; ripple is the parser,
+    `inbox-state.ts` (exclude), `inbox-reminders.ts` (include), and the `operational-state-docs` schema
+    write-back.
+37. **(P0)** **Protection-mode first-class; composable forward-compat.** The routing spine (R32–R36) is
+    mode-independent; only the **write mechanics** differ — full: grooming auto-merge PR(s) + lane
+    classification + review-chunking; partial: direct base commits + commit-boundary discipline, no
+    PRs/lanes/review-chunking. Express the split as one **clean whole block deferring to `§ Cheap-branch path` /
+    `§ Auto-Merge Lane`** (per R25's pattern), never scattered conditionals — extraction-shaped for
+    `composable-workflows` (a mode/tier-agnostic spine plus liftable mode- and execution-transition blocks;
+    whole-block extraction, not intra-step branches). Cross-workflow references use stable heading-slug anchors,
+    never ordinals; the confirmation interlock takes a plain heading slug, **not** the extension fire-point
+    `· #name` marker. No fragment machinery is built here (that is `composable-workflows`'); only the seams are
+    kept clean.
+
 ## Non-Goals
 
 - **File renames** (`USER-INBOX → INBOX.USER`, `ATOMIC-INBOX → INBOX.PROJECT`, section renames) — owned by
@@ -373,8 +440,9 @@ as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
 - `BACKLOG-INBOX` is retired (no longer written; contents drained to provisional stubs); `ATOMIC-INBOX` is the
   atomic-only shared inbox.
 - `arc-housekeep` exists as a thin skill + drain/route workflow, refuses/relocates when invoked off a base-branch
-  write context, drains `USER-INBOX` to empty via batched direct routing, and is reachable from both the
-  standalone skill and `session-handoff`'s between-WUs path.
+  write context, runs the gated phased flow (first-pass classify → mandatory confirmation interlock → chunk →
+  route → optional execution transition) leaving `USER-INBOX` with no un-triaged entries, and is reachable from
+  both the standalone skill and `session-handoff`'s between-WUs path.
 - The CLI session-init probe exposes `inboxState`/`housekeepNeeded`; `session-init` carries the `housekeep`
   intent and soft-offer; `init-work-unit` warns on non-empty `USER-INBOX`; `integrate-work-unit` Step 10 is
   removed; `activate-work-unit` Step 6 is narrowed.
@@ -383,7 +451,8 @@ as a remedial phase (2.R) plus the per-phase reconciliation its audit drives.
 - The three forward-compat write-backs (doc-naming-convention, operational-state-docs, CWC de-scope) are
   recorded in their destinations.
 - A live `arc-housekeep` run has cleared `andrew`'s pending `USER-INBOX` captures and retired `BACKLOG-INBOX`;
-  the next WU begins with an empty `USER-INBOX`.
+  the next WU begins with `USER-INBOX` holding no un-triaged entries (empty but for any explicitly
+  retained-with-reminder captures).
 
 Errand-model re-pivot (R24–31):
 
@@ -401,15 +470,29 @@ Errand-model re-pivot (R24–31):
 - Protection-mode awareness threads the doctrine as clean blocks deferring to `§ Cheap-branch path` (no scattered
   conditionals); the `operational-state-docs` write-back is extended and the cohort cascade-notes are recorded.
 
+Drain-mechanism correction (R32–37):
+
+- The drain runs gated and phased — first-pass classify, then a mandatory confirmation interlock before any
+  write, then route, then an optional execution transition — never a single uninterrupted pass.
+- Mis-tiered `§ Atomic` captures reclassify to stubs at drain (R33); same-concern homeless multi-step consolidate
+  into one stub with a surfaced `planned`/`provisional` choice (R34).
+- Execute-now atomics transition into `run-errand` in-session (R35); deferred atomics flush to the shared inbox;
+  a per-entry retain escape-hatch holds a capture as deliberately-triaged — distinguishable from un-triaged so it
+  doesn't perpetually re-trigger the housekeep offer — so "ends empty" reads as "no un-triaged entries" (R36).
+- Write mechanics are protection-mode-split (full: grooming PR + lanes; partial: direct commits) as one clean
+  block, authored extraction-shaped for `composable-workflows` (R37).
+
 ## Open Questions
 
 All design-level questions are resolved in upstream planning (no spec-time blockers). Items to resolve **during
 work**:
 
-- **Errand↔PR chunking at scale.** The batching *doctrine* is settled (R18) — planning-routing sweeps batch
-  into one PR, code errands stay 1:1, same-file is not an exception, lanes never mix. What remains open is only
-  the chunking heuristic for a *very large* planning sweep (when one auto-merge PR exceeds review-reachability);
-  that settles against actual volume during the live run (component b).
+- **Errand↔PR chunking at scale — resolved (component b).** The first live run's volume settled the heuristic:
+  a planning-routing sweep chunks by **concern-coherence + review-reachability** — default one auto-merge PR per
+  lane, split only when one PR would exceed a reviewer's reach — and the chunk plan is surfaced at the drain's
+  confirmation interlock (R32). Under partial protection there are no routing PRs, so chunking degrades to
+  **commit-boundary discipline**. Code errands stay 1:1; lanes never mix. Codified in `drain-inbox` +
+  `§ Auto-Merge Lane`.
 - **Staleness / aging surfacing + nudge rate-limiting.** With the queue retired (R24), the staleness sweep
   repoints at reminder-flagged `§ Atomic` items + in-flight `chore/` branches (R27/R30). The exact presentation,
   whether aging warrants more than a notice, and the **rate-limit mechanism** (≈once/day vs. until-acted/dismissed

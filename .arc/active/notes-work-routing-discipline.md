@@ -22,6 +22,7 @@ rather than re-deriving — the wording below is settled, not to be reinvented.
 ## Contents
 
 - [Errand-model re-pivot (supersedes pre-pivot errand/queue refs below)](#errand-model-re-pivot)
+- [Drain-mechanism correction (surfaced at first live run)](#drain-mechanism-correction)
 - [Inbox section preambles (verbatim — do not re-derive)](#inbox-section-preambles-verbatim--do-not-re-derive)
 - [Capture decision table (verbatim)](#capture-decision-table-verbatim)
 - [Entry-grammar subtleties](#entry-grammar-subtleties)
@@ -74,6 +75,60 @@ ledger: retire `arc-errand`, add `arc-inbox`.
 core invariant, holding-vs-execution) stays in `DEV-RULES.ARC § Discovered Work Routing` for pre-invocation
 awareness; actionable construction specifics move into the `arc-inbox` skill; the inbox templates clean down to
 surface-only.
+
+## Drain-mechanism correction
+
+> Reasoning behind spec `§ Drain-mechanism correction` (R32–R37), surfaced by the Phase 6 dry run (Task 6.1) and
+> landing as remedial Phase 5.R. Records what the spec abstracts — chiefly *why* the corrections are what they
+> are — so 5.R.2–5.R.5 cite settled reasoning rather than re-deriving.
+
+**The fault.** `drain-inbox` as built (Phase 3) classified-then-routed in one uninterrupted pass: no
+plan-confirmation gate, the atomic-errand route assumed commitment rather than eliciting it, execution
+interleaved with routing, no at-drain tier re-triage, no grouping for homeless multi-step. The first live
+classification of `andrew`'s real backlog (≈26 entries vs. the ≈17 estimate) exposed all five at once — and that
+the volume itself needed a chunking answer.
+
+**The execute path is by design, not an accident — but under-structured.** Spec R9 + this notes file's
+§ Drain timing always had the drain dispatch standalone atomic *execution* via an errand at the low-isolation
+between-WUs moment; § Holding ≠ commitment always located the commitment decision "at drain when housekeep
+promotes a now-committed entry." So the drain *is* meant to execute atomic work. What was missing is the
+**commitment gate** (the workflow assumed it) and the **phase separation** (the workflow interleaved it). The
+real inconsistency is narrower: route-3 dispatching errands *inline* sits in tension with "`arc-session` is the
+sole *top-level* execution entrypoint" (R29). Phase-separating execution into a transition that re-enters
+`run-errand` is what restores that consistency — execution flows back through the one top-level door, as a
+distinct tail.
+
+**No coupling to session-init's errand arm.** `run-errand`'s Launch self-resolves its own locus via the shared
+write-context primitive (`arc housekeep check --json` → `baseBranch` / `primaryWorktreePath` — the *same*
+primitive the drain uses), so a drain → `run-errand` transition in-session has zero data dependency on having
+entered through session-init. "Sole *top-level* entrypoint" means there is no standalone `arc errand` command —
+*not* that `run-errand` has a single internal caller. Both transition-now and end-drain-then-fresh-`--errand`
+are valid; the choice is the user's, on context budget, never structural.
+
+**`arc-inbox` is not at fault for the mis-tiering.** Capture is character-only by design (atomic vs. multi-step);
+tier and finer home are *drain-time* resolutions, and `DEV-RULES.ARC § Task Execution` already promises the
+atomic-tier infra reclassification happens "at drain." Most current mis-tiered `§ Atomic` entries are *legacy*
+(flat-shape captures predating `arc-inbox` and the two-section reshape). The fix is the missing **drain**
+re-triage step (R33), optionally a light capture-time nudge — not hardening capture (capture must stay cheap).
+
+**Escape-hatch — retained-marker resolved (`_Hold:_`).** Retention (R36) takes a distinct drain-set boolean
+`_Hold:_`, not a reuse of `_Remind:_` (which means *nudge-until-drained* — reusing it would make every flagged
+capture wrongly skip the housekeep offer, inverting the forcing function). `_Hold: true` excludes the entry from
+`inboxState.housekeepNeeded`, so a deliberately-kept capture stops re-triggering the **Orient-time** housekeep
+soft-offer — which is *not* daily-rate-limited (it fires on each between-WU orientation), unlike the reminder
+nudge. Anti-rot rides the reminder sweep (`_Remind || _Hold`), which *is* once-per-calendar-day rate-limited.
+Retaining re-stamps `_Created:_` to the retain date, so the existing reminder floor (never same-day) gives
+"never reminded the day you held it" for free. Drain-time field → `arc-inbox` untouched; ripple is parser +
+`inbox-state.ts` (exclude) + `inbox-reminders.ts` (include) + the `operational-state-docs` schema write-back.
+Open only at the trivial level: the field name (`_Hold:_` vs `_Retain:_` / `_Keep:_`).
+
+**Forward-compat (composable-workflows) — seams only, no machinery.** Author `drain-inbox` as a mode/tier-agnostic
+routing spine plus a *whole* protection-mode write-mechanics block and a *whole* execution-transition block, each
+liftable later without restructuring (the extraction rule: whole conditional blocks extract, intra-step branches
+stay inline). The directory reshape / core-fragment boundary is `composable-workflows`' unresolved central
+problem — build no fragment files or load machinery here. Stable heading-slug anchors for cross-workflow refs;
+the new confirmation interlock takes a plain heading slug, **not** the extension fire-point `· #name` marker
+(that marker is pre-commit-validated against `system/extensions/<name>.md`; misuse trips CHECK 16).
 
 ## Inbox section preambles (verbatim — do not re-derive)
 

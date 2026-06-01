@@ -839,6 +839,87 @@ package source.
   workspace, pushes the new branch before retiring the old errand ref, handles slug-matched `USER-INBOX`
   cleanup, and skips `activate-work-unit` while backfilling spec/tasks.
 
+## **Phase 5.R:** Drain-mechanism correction
+
+_Purpose:_ Correct the `arc-housekeep` / `drain-inbox` mechanism before its first live run. The Phase 6 dry run
+surfaced that the drain as built (Phase 3) routes in a single uninterrupted pass with no plan-confirmation gate,
+assumes commitment on the atomic-errand route, interleaves execution with routing, omits the at-drain tier
+re-triage `DEV-RULES.ARC § Task Execution` promises, and offers no grouping for homeless multi-step captures.
+Remedial by character: it corrects a shipped workflow + its doctrine and amends the design authority; it builds
+no new mechanism. Phase 6 then runs against the corrected mechanism.
+
+_Design decisions:_ The spec (`§ Drain-mechanism correction`, R32–R37) is amended as the re-planning act that
+opens this phase (ADR-021 unaffected — the escape-hatch fits its committed-but-parked / not-yet-actionable
+framing and preserves the core invariant). Mirrors Phase 2.R's doctrine-before-mechanism shape. The
+partial-vs-full write-mechanics split is one clean block deferring to `strategy-work-organization
+§ Cheap-branch path` / `§ Auto-Merge Lane`, authored extraction-shaped for `composable-workflows` (whole-block,
+never intra-step conditionals; stable heading-slug anchors, never ordinals; the confirmation interlock takes a
+plain heading slug, not the extension fire-point `· #name` marker). See `notes-work-routing-discipline.md`
+§ Drain-mechanism correction (added by 5.R.1).
+
+### `[x]` **5.R.1 Amend the design authority (spec)**
+
+- _Goal:_ The spec carries the corrected drain mechanism, so every downstream rewrite cites a settled design.
+- _Outcome:_ `spec-work-routing-discipline.md` gained `§ Drain-mechanism correction` (R32–R37: gated phased
+  drain + mandatory confirmation interlock; at-drain tier re-triage; group-by-concern + maturity choice;
+  routing-first with execution as an explicit `run-errand` transition + sole-top-level-entrypoint clarification;
+  per-entry retain escape-hatch + "no un-triaged entries" invariant reframe; protection-mode-first-class +
+  composable forward-compat) plus amendments to R7 / R9, the Success Criteria, and the Open Questions
+  (chunking-at-scale resolved against this run's volume). Reasoning recorded in
+  `notes-work-routing-discipline.md` § Drain-mechanism correction. Confirmed ADR-021 unaffected. Done as the
+  re-planning act.
+
+### `[ ]` **5.R.2 Rewrite `drain-inbox.md` to the gated, phased shape**
+
+- _Goal:_ The drain workflow runs first-pass classify → mandatory confirmation interlock → chunk → route →
+  optional execution transition → confirm — with at-drain tier re-triage, concern-grouping, and the retain
+  escape-hatch — so a drain never routes straight from classification and never interleaves execution.
+- _Approach:_ Restructure into a mode/tier-agnostic routing spine plus a clean protection-mode write-mechanics
+  block (full: grooming auto-merge PR(s) + lane classification + review-chunking; partial: direct base commits +
+  commit-boundary discipline) deferring to `§ Cheap-branch path` / `§ Auto-Merge Lane`. Add the confirmation
+  interlock (plain heading slug, not a fire-point marker), the tier-reclassification step (R33), grouping +
+  maturity choice (R34), and the execution transition pointing at `run-errand` by stable anchor (R35). Minimal
+  `run-errand` edit: broaden its entry note to acknowledge the drain transition; keep its re-enterable spine
+  intact. Author the retain action setting the resolved `_Hold:_` marker + `_Created:_` re-stamp (R36). Both
+  copies.
+- _Note:_ Forward-compat with `composable-workflows` is whole-block-extraction-shaped seams only — build no
+  fragment machinery.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+### `[ ]` **5.R.3 Align `strategy-work-organization` + `DEV-RULES.ARC`**
+
+- _Goal:_ The strategy's `§ The housekeep drain` and `DEV-RULES.ARC § Discovered Work Routing` match the
+  corrected mechanism, so the doctrine a developer reads matches the workflow.
+- _Approach:_ In `§ The housekeep drain`: the gated phased shape, the chunking resolution (concern-coherence +
+  review-reachability; partial degrades to commit-boundary discipline), the escape-hatch. In `DEV-RULES.ARC`:
+  the clarification that `arc-session` is the sole top-level execution entrypoint (not `run-errand`'s sole
+  caller), the retain escape-hatch + "no un-triaged entries" invariant reframe, and a pointer to the at-drain
+  tier re-triage.
+  Both copies, byte-identical.
+- **Strategies:** strategy-package-project-sync.md
+
+### `[ ]` **5.R.4 `arc-inbox` light-touch + `inboxState` retained-exclusion**
+
+- _Goal:_ Capture stays cheap but flags an obvious tier mismatch, and the probe stops nagging housekeep for
+  deliberately-retained captures.
+- _Approach:_ Optional capture-time nudge in `arc-inbox` when a `§ Atomic` capture obviously touches infra /
+  multiple files (suggest, never gate — the drain remains the authoritative re-triage). Implement `_Hold:_`
+  (R36): exclude it from `inboxState.housekeepNeeded` (`lib/session-init/inbox-state.ts`) and include it in the
+  reminder sweep (`lib/session-init/inbox-reminders.ts`), with parser support + tests; the retain action that
+  sets it + re-stamps `_Created:_` lives in the workflow (5.R.2).
+- _Note:_ The only code-bearing task in 5.R (the rest is workflow/doctrine). Run `typecheck:test` before
+  declaring tests green.
+- **Strategies:** strategy-package-project-sync.md
+
+### `[ ]` **5.R.5 Audit Phase 6 against the corrected mechanism**
+
+- _Goal:_ Phase 6's live-run tasks reflect the gated phased drain, so the re-run executes the corrected flow
+  rather than the pre-correction one.
+- _Approach:_ Recast 6.1's `_Approach:_` to the phased flow (first-pass classify → confirmation interlock at the
+  full routing plan → chunked routing → execution transition for committed atomics → confirm no un-triaged
+  entries); note the dry run already produced the classification, so the re-run resumes from the interlock.
+  Confirm 6.2 (`BACKLOG-INBOX` retirement) is unaffected.
+
 ## **Phase 6:** Live validation (component b)
 
 _Purpose:_ Run the new `arc-housekeep` flow against the real backlog — drain `andrew`'s long-deferred
