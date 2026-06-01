@@ -16,8 +16,7 @@
  * @module
  */
 
-/** Branch prefix marking an execution-only errand. */
-const ERRAND_BRANCH_PREFIX = "chore/";
+import { errandSlugOf } from "./errand-branch.js";
 
 export interface ErrandResumeResult {
   /** True when the current branch is a `chore/` errand with no backing meta. */
@@ -41,13 +40,10 @@ export interface DetectErrandResumeOptions {
  */
 export function detectErrandResume(options: DetectErrandResumeOptions): ErrandResumeResult {
   const { currentBranch, hasBackingMeta } = options;
-  const notResumable: ErrandResumeResult = { resumable: false, slug: null };
+  if (hasBackingMeta) return { resumable: false, slug: null };
 
-  if (currentBranch === null || hasBackingMeta) return notResumable;
-  if (!currentBranch.startsWith(ERRAND_BRANCH_PREFIX)) return notResumable;
-
-  const slug = currentBranch.slice(ERRAND_BRANCH_PREFIX.length);
-  if (slug === "") return notResumable;
+  const slug = errandSlugOf(currentBranch);
+  if (slug === null) return { resumable: false, slug: null };
 
   return { resumable: true, slug };
 }

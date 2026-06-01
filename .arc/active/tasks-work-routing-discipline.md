@@ -679,9 +679,13 @@ third Orient-arm intent beside discovery and errand). Soft-encourage, never hard
           a promoted errand → WU, not a resume. Caller injects branch + meta-backing (from active/roster); the
           orthogonal resolution arm (4.5) dispatches on `resumable`.
 
-    - `[ ]` **4.4.b In-flight-errand sweep**
-        - Enumerate `chore/` branches (local + open PRs) with no meta; classify in-progress / awaiting-merge /
-          merged-cleanup / stale. Mirrors the stale-worktree sweep's advisory role.
+    - `[x]` **4.4.b In-flight-errand sweep**
+        - New pure `classifyInFlightErrands` (`src/lib/session-init/in-flight-errand-sweep.ts`): maps
+          caller-enumerated `chore/` branch facts (`hasMeta` / `hasOpenPr` / `merged` / `ageDays`) to
+          in-progress / awaiting-merge / merged-cleanup / stale (precedence merged → PR → aged → fresh);
+          excludes non-errand and meta-backed branches. Git/forge enumeration is caller-side (wired later).
+          Extracted the shared `chore/` identity (`errand-branch.ts`: `ERRAND_BRANCH_PREFIX` + `errandSlugOf`)
+          and repointed 4.4.a's lib onto it.
 
     - `[ ]` **4.4.c Materialize-candidate extension**
         - Recognize `chore/`-prefixed _remote_ branches (no local worktree, no meta) as materializable errands —
