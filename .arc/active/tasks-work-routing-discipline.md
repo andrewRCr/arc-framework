@@ -977,12 +977,10 @@ from the confirmation interlock.
   flushed to `ATOMIC-INBOX`** — every atomic found a stub home or an errand. ROADMAP re-rendered for the three
   newly-planned WUs. The run surfaced and folded Phase 6.R (drain integration-mode) before completing.
 
-### `[ ]` **6.2 Retire `BACKLOG-INBOX` contents to provisional stubs**
+### `[x]` **6.2 Retire `BACKLOG-INBOX` contents to durable homes**
 
 - _Goal:_ `BACKLOG-INBOX`'s accumulated entries reach durable homes and the file is deleted — completing the
   retirement begun in 1.3 (template) and 5.1 (write-stop).
-- _Note:_ A one-time retirement migration, not a housekeep run (housekeep drains the personal `USER-INBOX`, not
-  shared inboxes). ~13 entries, already in the managed-entry grammar (no reshape needed).
 
     - `[x]` **6.2.a Route each entry to a durable home**
         - Second-pass triage (drain-inbox lens) consolidated the 13 entries into **7 new stubs + 5 folds + 2 new
@@ -993,7 +991,7 @@ from the confirmation interlock.
           testing), `self-hosting-manifest-freshness`, `wu-header-metadata-shape`. Folds as `Inbound Buffer`
           notes: post-integration fire-point → `release-lifecycle`; link-reanchor → `roadmap-tooling`;
           link-validation → `quality-gate-hooks`; italic conventions (+ underscore-over-asterisk) →
-          `doc-naming-convention`; archival-ceremony residual → `interlock-release-refinement` (reconciled its
+          `naming-conventions`; archival-ceremony residual → `interlock-release-refinement` (reconciled its
           existing dedup note). New cohorts (planned-only, state-uniform per `strategy-planning-module.md`):
           `configuration` (config-storage-architecture, customization-arch-realign, config-migration-registry) and
           `doc-conventions` (naming-conventions, task-list-conventions), both relocated into `planned/<cohort>/<wu>/`;
@@ -1003,8 +1001,17 @@ from the confirmation interlock.
           standalone and join on promotion. ROADMAP re-rendered; nothing flushed to `ATOMIC-INBOX` — every entry
           found a stub home or an existing-WU fold.
 
-    - `[ ]` **6.2.b Delete the live `BACKLOG-INBOX.md`**
-        - Remove the file and confirm no remaining references across docs/workflows/templates.
+    - `[x]` **6.2.b Delete the live `BACKLOG-INBOX.md`**
+        - Deleted `.arc/backlog/BACKLOG-INBOX.md`. Swept the two live cross-refs in `ATOMIC-INBOX` (repointed the
+          archival-ceremony pointer to `interlock-release-refinement`; dropped the file from the H1-style example
+          list). Package side already clean from the 1.3 template retirement — manifest tracks only
+          `backlog/ROADMAP.md`; no `arc init` scaffold recipe, template, or `src/` reference. Remaining
+          `BACKLOG-INBOX` mentions are accurate historical provenance, `completed/` + ADR archives (immutable),
+          and this WU's own spec/notes — no dangling live pointers.
+
+- _Outcome:_ Retirement complete — `BACKLOG-INBOX` drained to durable homes and deleted; backlog root is now
+  `ATOMIC-INBOX.md` + `planned/` + `provisional/` + `ROADMAP.md`. The shared multi-step inbox is gone, so
+  homeless multi-step work now graduates straight to a provisional stub per the reframed invariant.
 
 ## **Phase 6.R:** Drain integration-mode completion
 
