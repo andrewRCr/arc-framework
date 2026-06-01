@@ -204,7 +204,7 @@ balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), 
   is the exact reliability cliff the prior "don't go all-in on JIT" finding warned about.
 - **Mid-session `arc-refresh` to reload core T1 against drift.** Out of scope here (it addresses "lost
   in the middle" mid-session decay, not load-set composition). Captured — leaning reject — in
-  `plan-compaction-seed.md`, alongside the related mid-session context-health idea.
+  `draft-compaction-recovery.md`, alongside the related mid-session context-health idea.
 
 ## Sibling Work Units
 

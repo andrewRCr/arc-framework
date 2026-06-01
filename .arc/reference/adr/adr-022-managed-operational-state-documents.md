@@ -247,7 +247,7 @@ units. The alignment edits below are the propagation set.
 - **`arc-plan-conductor`** — replace stale `status-{name}.md` references with `meta-*` (post-WOR); the
   three meta-creation paths converge on one schema; state transitions are schema events.
 - **`agent-context-optimization` cluster** (`handoff-optimization`, `documentation-surface-routing`,
-  `loadset-composition`, `instruction-optimization`, `compaction-seed`) — replace per-WU field-set accretion
+  `loadset-composition`, `instruction-optimization`, `compaction-recovery`) — replace per-WU field-set accretion
   with "consume the managed-document schema"; structured `_Remove when:_` triggers and the pointer-field
   hooks become schema-derived.
 - **`config-storage-architecture`** — coordinate on the notes-sync channel and manifest extension. Also the

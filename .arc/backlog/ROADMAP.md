@@ -21,6 +21,7 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 | ----------------------------- | ------ | ------------------------ | -------------------------- |
 | handoff-optimization          | andrew | —                        | agent-context-optimization |
 | loadset-composition           | andrew | —                        | agent-context-optimization |
+| compaction-recovery           | andrew | —                        | agent-context-optimization |
 | agile-wu-lifecycle            | andrew | —                        | agile-parallelism          |
 | in-flight-awareness           | andrew | —                        | agile-parallelism          |
 | commit-increments             | andrew | —                        | approval-flow-refinement   |
