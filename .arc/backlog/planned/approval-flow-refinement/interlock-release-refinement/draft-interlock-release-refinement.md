@@ -23,17 +23,22 @@ atomic companion and the personal atomic inbox.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Teach `arc release` to accept the archival commit/push (`no-active-wu`, code 10)**
+### `[ ]` **Teach `arc release` to accept no-active-WU ceremony commits/pushes (archival + errands)**
 
-- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
+- *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01); errand instance
+  added at the follow-up housekeep drain (2026-06-01).
 - *Concern:* the archive ceremony's `workflowCommit` + final `workflowPush` route to the wrapper per release
   routing, but the archival commit is the one that sweeps `meta-*` out of `active/`, so by commit/push time the
   wrapper's active-WU precondition cannot resolve and it refuses (code 10) — forcing a raw-`git` fallback for a
-  routine ceremony.
-- *Resolution (decided at drain — wrapper-teaching):* teach the wrapper to recognize the archival context (the
-  commit moving `active/ → completed/`, or an explicit flag) and accept it; the wrapper should carry the routine
-  archival commit/push, not refuse it. The doc-only alternative (codifying archival-class fire-sites as
-  raw-routed) was set aside in favor of wrapper support. CLI change to the release wrapper's precondition check.
+  routine ceremony. **Same root in errand shape:** `run-errand` tags its commit `taskCommit` (→ wrapper per
+  release routing), but an errand has no active WU at all, so `arc release commit` refuses with the same
+  `no-active-wu` code 10 — hit 4× draining errands this session. Both are legitimate no-active-WU ceremony
+  contexts the precondition wrongly rejects.
+- *Resolution (decided at drain — wrapper-teaching):* teach the wrapper to recognize valid no-active-WU contexts
+  — the archival commit moving `active/ → completed/`, AND the errand's `chore/<slug>` + `standalone` footer —
+  and accept them; validate the alternate provenance instead of an active WU rather than refusing. The doc-only
+  alternative (codifying these fire-sites as raw-routed) was set aside in favor of wrapper support. CLI change to
+  the release wrapper's precondition check.
 - *Coordination:* dedups with the archival-ceremony-tooling concern now folded in directly below (its remaining
   facets), routed here when `BACKLOG-INBOX` was retired (2026-06-01).
 
@@ -51,6 +56,27 @@ atomic companion and the personal atomic inbox.
   concrete hook fix is already captured as the subdir-loop migration entry in `ATOMIC-INBOX` — so the net-new
   work here is the workflow finalize step; the hook facet is cross-referenced, not duplicated.
 - *Scope:* Quick-tier — a workflow step plus a hook tweak that rides the wrapper-archival work above.
+
+### `[ ]` **Errand approval-collapse: one increment-approval releases the full tail (commit → push → merge → delete)**
+
+- *Routed from:* follow-up housekeep drain (2026-06-01), surfaced running this session's errands.
+- *Concern:* an errand is one review increment by definition, so the diff approved at the workflow-interlock IS
+  the complete shipping diff — yet the agent re-prompts at the integration-interlock, and the harness prompts
+  again for each of commit, push, merge, and branch-delete. Four-plus permission stops for a single approved
+  one-line change. The wrapper-routing work above covers the *commit* leg by approval-provenance, not the
+  errand-specific collapse of the whole tail.
+- *Shape (provisional):* a configurable mode — modeled on `commit.interlock: on-task-approval` (the existing
+  "one approval releases the next" precedent) — where a single errand increment-approval arms the rest:
+  commit + push + merge + branch-delete fire without re-prompting, with CI + `pre-merge-review` still gating the
+  actual merge (auto-merge-style). Trigger framed as *one increment* (an errand-class property), not "one
+  commit." Self-review/lane-aware: in a team the integration stop still carries cross-owner review weight, so
+  the collapse is opt-in and self-review-scoped.
+- *New surface this exposes:* `push` has `arc release push`, but **merge and branch-delete have no wrapper
+  coverage today** — collapsing the full tail likely requires the wrapper layer to grow (or an errand-finalize
+  wrapper carrying merge + teardown under one validated approval).
+- *Composition:* with the wrapper-routing migration above (provenance-driven commit routing) and the
+  commit-interlock inclusive-semantic item below. All three are facets of "one approval, then routing follows
+  opt-in + interlock mode."
 
 ---
 

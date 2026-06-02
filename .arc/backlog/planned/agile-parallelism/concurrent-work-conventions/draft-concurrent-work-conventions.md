@@ -77,6 +77,17 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
   resolution `arc errand` and the session probe already carry).
 - *Home:* CWC owns the isolation/concurrency doctrine; possibly Worktree Foundation for the primitive itself.
 
+### `[ ]` **Consumer: `shared-inbox-housekeep` needs entry-level re-homing of foreign-owned atomics**
+
+- *Routed from:* follow-up housekeep drain (2026-06-01); dependency flag from the new `shared-inbox-housekeep`
+  stub (which `Depends On` CWC).
+- *Concern:* `shared-inbox-housekeep` (a shared-scope `drain-inbox` mode that consolidates `ATOMIC-INBOX` against
+  the evolving stub landscape) depends on CWC's concurrency doctrine — but it needs more than the file-level
+  write-guard the entry above frames: it **re-homes individual foreign-owned atomic entries** (moves another
+  owner's `ATOMIC-INBOX` line into a stub) during a sweep. Ensure the all-owner gate doctrine covers entry-level
+  re-homing of foreign captures, not just guarding writes to the shared surface as a whole.
+- *Home:* CWC (the doctrine); the consuming sweep lives in `shared-inbox-housekeep`.
+
 ---
 
 ## Problem / Motivation

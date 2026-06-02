@@ -18,6 +18,26 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Extension firing-proportionality — a context/scope gate, not just enable/disable**
+
+- _Routed from:_ follow-up housekeep drain (2026-06-01), surfaced running this session's errands.
+- _Concern:_ active extensions fire indiscriminately regardless of the work's weight — `pre-pr-review`
+  (CodeRabbit) firing a full AI-review pass + its own interlock stop on a one-line docs errand is the live
+  example. This WU's current axis is enable/disable _activation_; firing-proportionality is a **new axis**: when
+  an active extension should fire, downgrade, or skip based on work context (trivial single-increment errand vs.
+  standard-tier WU).
+- _Shape (provisional):_ a proportionality/scope gate — universal across extensions, or per-extension via a
+  frontmatter field (e.g. a minimum-tier or applies-to-context declaration). Composes with this WU's
+  method/extension `active`-flag architecture (same frontmatter + loading surface). Cross-ref
+  `review-method-family` (the trigger was a review extension).
+
+---
+
 ## Problem / Motivation
 
 ARC's customization model documents three mechanisms (config, extensions, method overrides) with a
