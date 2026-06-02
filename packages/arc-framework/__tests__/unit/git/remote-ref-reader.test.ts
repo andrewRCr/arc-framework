@@ -5,6 +5,7 @@ import {
   listLiveRemoteBranches,
   listPrunedRemoteTrackingBranches,
   readMetaAtRef,
+  resolveInFlightBranchSet,
 } from "../../../src/lib/git/remote-ref-reader.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
@@ -145,5 +146,45 @@ describe("listPrunedRemoteTrackingBranches", () => {
     // Membership unknown → can't prune → fall back to all local tracking refs
     // (last-known view) rather than nuking everything to empty.
     expect(result).toEqual(["feat/a", "chore/old"]);
+  });
+});
+
+describe("resolveInFlightBranchSet", () => {
+  it("returns the pruned set and reachable: true when live membership is read", async () => {
+    const exec = execBySubcommand({
+      forEachRef: ["origin/feat/a", "origin/chore/old-merged"].join("\n"),
+      lsRemote: ["sha1\trefs/heads/feat/a", "sha2\trefs/heads/feat/b"].join("\n"),
+    });
+
+    const result = await resolveInFlightBranchSet({ exec });
+
+    expect(result).toEqual({ branches: ["feat/a"], reachable: true });
+  });
+
+  it("degrades to local refs with reachable: false when live membership is unreachable", async () => {
+    const exec: GitExec = vi.fn(async (_cmd, args): Promise<ExecResult> => {
+      if (args[0] === "ls-remote") throw new Error("fatal: could not read from remote repository");
+      if (args[0] === "for-each-ref") {
+        return { stdout: ["origin/feat/a", "origin/chore/old"].join("\n"), stderr: "" };
+      }
+      throw new Error(`unexpected git ${args.join(" ")}`);
+    });
+
+    const result = await resolveInFlightBranchSet({ exec });
+
+    expect(result).toEqual({ branches: ["feat/a", "chore/old"], reachable: false });
+  });
+
+  it("skips the network read entirely in localOnly mode", async () => {
+    const exec = execBySubcommand({
+      forEachRef: ["origin/feat/a", "origin/feat/b"].join("\n"),
+    });
+
+    const result = await resolveInFlightBranchSet({ exec, localOnly: true });
+
+    expect(result).toEqual({ branches: ["feat/a", "feat/b"], reachable: false });
+    // No `ls-remote` call — the offline view never touches the network.
+    const calledLsRemote = vi.mocked(exec).mock.calls.some(([, args]) => args[0] === "ls-remote");
+    expect(calledLsRemote).toBe(false);
   });
 });

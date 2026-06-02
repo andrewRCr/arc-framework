@@ -267,6 +267,14 @@ program
       "Emit the session-handoff envelope for arc-handoff",
     ).conflicts("session-init"),
   )
+  .addOption(
+    new Option(
+      "--user",
+      "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
+    ).conflicts(["session-init", "session-handoff"]),
+  )
+  .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "With --user: skip the network read; render from local refs")
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

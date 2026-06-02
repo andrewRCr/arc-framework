@@ -59,8 +59,14 @@ const PRIORITY_RANK: Record<Priority, number> = { P1: 0, P2: 1, P3: 2 };
  * priority resolves to the `P3` baseline; an absent cohort sorts after every
  * named cohort; the canonical WU-name is the total-order tiebreak, so identical
  * inputs always render byte-identically.
+ *
+ * Exported as the single source of the standard's ordering. The render core
+ * applies it internally so no view can diverge from the uniform key; downstream
+ * renderers (the project readiness view, the managed-doc file writer) reuse this
+ * exact comparator — e.g. sorting within each Blocked depth band — rather than
+ * reimplementing it and risking cross-view drift.
  */
-function compareStatusRows(a: StatusViewRow, b: StatusViewRow): number {
+export function compareStatusRows(a: StatusViewRow, b: StatusViewRow): number {
   const priority = PRIORITY_RANK[a.priority ?? "P3"] - PRIORITY_RANK[b.priority ?? "P3"];
   if (priority !== 0) return priority;
   const cohort = compareCohort(a.cohort, b.cohort);

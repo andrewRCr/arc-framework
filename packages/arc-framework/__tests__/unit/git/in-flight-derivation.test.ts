@@ -3,14 +3,18 @@ import { describe, it, expect, vi } from "vitest";
 import { deriveInFlight } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
-/** A meta-file body carrying the fields the derivation reads (Owner, Cohort). */
-function metaContent(fields: { owner?: string; cohort?: string } = {}): string {
+/** A meta-file body carrying the fields the derivation reads (Owner, Cohort, Priority, Depends On). */
+function metaContent(
+  fields: { owner?: string; cohort?: string; priority?: string; dependsOn?: string } = {},
+): string {
   return [
     "# Metadata: x",
     "",
     "- **State:** Active",
     `- **Owner:** ${fields.owner ?? "andrew"}`,
+    `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+    `- **Priority:** ${fields.priority ?? "[none]"}`,
     "",
     "---",
   ].join("\n");
@@ -69,6 +73,7 @@ describe("deriveInFlight", () => {
         state: "Active",
         owner: "andrew",
         remoteOnly: true,
+        dependsOn: [],
       },
     ]);
   });
@@ -209,6 +214,42 @@ describe("deriveInFlight", () => {
     expect(prSource).toHaveBeenCalled();
     expect(entries).toHaveLength(1);
     expect(entries[0]).not.toHaveProperty("pr");
+  });
+
+  it("surfaces Priority and a parsed Depends On list from the meta", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({
+          priority: "P1",
+          dependsOn: "alpha, bravo",
+        }),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries[0]).toMatchObject({ priority: "P1", dependsOn: ["alpha", "bravo"] });
+  });
+
+  it("omits Priority and yields an empty Depends On for an all-default meta", async () => {
+    const exec = makeExec({
+      metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries[0]).not.toHaveProperty("priority");
+    expect(entries[0]).toMatchObject({ dependsOn: [] });
   });
 
   it("flags remote-only in-flight WUs as the materialize-candidate signal", async () => {

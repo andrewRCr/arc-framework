@@ -79,11 +79,17 @@ import {
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { runStatusUserView } from "../lib/status/user-view.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
+  user?: boolean;
+  /** `--local`: render the user view from local refs without a network read. */
+  local?: boolean;
+  /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
+  fetch?: boolean;
   json?: boolean;
 }
 
@@ -146,9 +152,10 @@ async function resolveErrandNudgeState(
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
-  if (opts.sessionInit && opts.sessionHandoff) {
+  const modeCount = [opts.sessionInit, opts.sessionHandoff, opts.user].filter(Boolean).length;
+  if (modeCount > 1) {
     process.stderr.write(
-      "Error: --session-init and --session-handoff are mutually exclusive.\n",
+      "Error: --session-init, --session-handoff, and --user are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -321,6 +328,30 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     p.intro("arc status");
     p.note(buildSessionInitStatusSummary(result), "Session Init");
     p.outro("Done.");
+    return;
+  }
+
+  if (opts.user) {
+    const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const teamMode = resolved.settings["team.mode"] === "true";
+    const localOnly = Boolean(opts.local) || opts.fetch === false;
+    const statusUserPath =
+      identity === null ? null : join(cwd, ".arc", "user", identity, "STATUS.USER.md");
+    const view = await runStatusUserView({
+      exec: gitExec,
+      identity,
+      teamMode,
+      localOnly,
+      readLastRendered: () =>
+        statusUserPath === null
+          ? Promise.resolve(null)
+          : io.readFile(statusUserPath).then((content) => content, () => null),
+    });
+    if (json) {
+      process.stdout.write(`${JSON.stringify(view)}\n`);
+      return;
+    }
+    process.stdout.write(`${view.output}\n`);
     return;
   }
 

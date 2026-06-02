@@ -77,6 +77,10 @@ export interface InFlightWorkUnit extends InFlightLocation {
   owner?: string;
   /** `**Cohort:**` from the meta; absent when unset or `[none]`. */
   cohort?: string;
+  /** Raw `**Priority:**` level from the meta; absent when unset or `[none]`. */
+  priority?: string;
+  /** Parsed `**Depends On:**` WU-names; empty when independent (`[none]`). */
+  dependsOn: readonly string[];
 }
 
 /** An errand in flight — a `chore/<slug>` branch with no backing meta. */
@@ -200,7 +204,7 @@ function buildWorkUnit(
   planning: boolean,
 ): InFlightWorkUnit {
   const fields = parseMetaRecord(content);
-  const { Owner: owner, Cohort: cohort } = fields;
+  const { Owner: owner, Cohort: cohort, Priority: priority } = fields;
   return {
     kind: "work-unit",
     name,
@@ -208,7 +212,21 @@ function buildWorkUnit(
     ...location,
     ...(owner !== null ? { owner } : {}),
     ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+    ...(priority !== null && priority !== "[none]" ? { priority } : {}),
+    dependsOn: parseDependsOn(fields["Depends On"]),
   };
+}
+
+/**
+ * Parse a `**Depends On:**` field value into WU-names: comma-separated names,
+ * trimmed, with `[none]` / absent / empty resolving to no dependencies.
+ */
+function parseDependsOn(raw: string | null): readonly string[] {
+  if (raw === null || raw === "[none]") return [];
+  return raw
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
 }
 
 /**

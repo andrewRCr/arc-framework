@@ -155,12 +155,52 @@ export interface ListPrunedRemoteTrackingBranchesOptions {
 export async function listPrunedRemoteTrackingBranches(
   options: ListPrunedRemoteTrackingBranchesOptions,
 ): Promise<string[]> {
-  const { exec, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
-  const membership = await readLiveMembership(exec, timeoutMs);
+  return (await resolveInFlightBranchSet(options)).branches;
+}
+
+/** Inputs for {@link resolveInFlightBranchSet}. */
+export interface ResolveInFlightBranchSetOptions {
+  /** Injectable git executor. */
+  exec: GitExec;
+  /** Skip the live-membership network read; use local remote-tracking refs as-is. */
+  localOnly?: boolean;
+  /** Per-read network timeout in ms. Defaults to {@link DEFAULT_NETWORK_TIMEOUT_MS}. */
+  timeoutMs?: number;
+}
+
+/** The branch set to derive in-flight entries from, with a reachability signal. */
+export interface InFlightBranchSet {
+  /** Branch short-names — pruned to live membership when reachable, local-only otherwise. */
+  branches: string[];
+  /**
+   * True only when live membership was read and pruned against (online and
+   * reachable). False both when the remote is unreachable and in `localOnly`
+   * mode — the caller distinguishes those by whether it requested `localOnly`.
+   */
+  reachable: boolean;
+}
+
+/**
+ * Resolve the in-flight branch set, surfacing whether live membership backed it.
+ *
+ * The reachability-aware sibling of {@link listPrunedRemoteTrackingBranches}: an
+ * explicit-view command degrades to its last-rendered cache when `reachable` is
+ * false, while `localOnly` skips the network read entirely for a fast offline
+ * view over the last-known local remote-tracking refs.
+ *
+ * @param options - Executor, optional `localOnly`, and optional network timeout.
+ * @returns The branch set and whether live membership was read.
+ */
+export async function resolveInFlightBranchSet(
+  options: ResolveInFlightBranchSetOptions,
+): Promise<InFlightBranchSet> {
+  const { exec, localOnly = false, timeoutMs = DEFAULT_NETWORK_TIMEOUT_MS } = options;
   const local = await readLocalTrackingBranches(exec);
-  if (!membership.ok) return local;
+  if (localOnly) return { branches: local, reachable: false };
+  const membership = await readLiveMembership(exec, timeoutMs);
+  if (!membership.ok) return { branches: local, reachable: false };
   const live = new Set(membership.branches);
-  return local.filter((branch) => live.has(branch));
+  return { branches: local.filter((branch) => live.has(branch)), reachable: true };
 }
 
 /** Inputs for {@link fetchRefBounded}. */

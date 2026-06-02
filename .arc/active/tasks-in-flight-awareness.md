@@ -175,7 +175,7 @@ byte-identical output, making the standard executable.
   covers it (`git check-ignore` — no new ignore entry). The file header documents the single-cache invariant: the
   rendered file is the cache, file-open is the passive path (instant, no regen, no network read).
 
-### `[ ]` **3.3 `arc status --user` explicit-view command**
+### `[x]` **3.3 `arc status --user` explicit-view command**
 
 - _Goal:_ `arc status --user` fires the oracle, renders the in-flight-mine slice to the terminal via a pure
   render core (canonical markdown per the standard), and degrades to the last-rendered file when the remote is
@@ -195,12 +195,26 @@ byte-identical output, making the standard executable.
           shown; an absent cohort sorts after every named cohort. Owner/Depends-on resolution from the oracle
           is wiring deferred to 3.3.b.
 
-    - `[ ]` **3.3.b `--user` flag + `runStatus` wiring + bounded network read**
-        - Add the `--user` option in `cli.ts`; wire the oracle into `runStatus` behind a bounded timeout;
-          print-then-degrade to the last-rendered file on miss/offline.
+    - `[x]` **3.3.b `--user` flag + `runStatus` wiring + bounded network read**
+        - `--user` option added to the `status` command (handler-enforced mutual exclusion with
+          `--session-init` / `--session-handoff`); `runStatusUserView` composer (`src/lib/status/user-view.ts`)
+          fires the oracle behind the bounded `resolveInFlightBranchSet` read, assembles the slice via
+          `buildInFlightMineSlice`, and renders through the core. On an online-but-unreachable remote it degrades
+          to the last-rendered `STATUS.USER.md` cache; with no cache it reports the miss. The oracle gained
+          `priority` + parsed `dependsOn` (the assembler resolves deps against the in-flight set — unsatisfied =
+          still in flight; solo-mode-complete, full backlog satisfaction deferred to the file-writer).
 
-    - `[ ]` **3.3.c `--local` / `--no-fetch` offline path**
-        - Skip the network read; render from local refs only for a fast offline view.
+    - `[x]` **3.3.c `--local` / `--no-fetch` offline path**
+        - `--local` (alias `--no-fetch`) flows `localOnly` into the composer, which skips the network read and
+          renders from local remote-tracking refs — no degrade (the offline view was requested). Cannot prune
+          dead refs, so a lingering merged-and-deleted branch may surface; the online path prunes correctly.
+
+- _Outcome:_ `arc status --user` is live and renders byte-identical to the seeded `STATUS.USER` table (verified
+  against the real repo, online + `--local` + `--no-fetch`). The pure render core landed as
+  `renderStatusTable(slice, columns)` with the uniform sort baked in (not a passed `sort` arg). Terminal-only
+  per scope: no managed-doc file write or reconcile. New `src/lib/status/` module trio (render / in-flight-mine /
+  user-view); oracle and `remote-ref-reader` extended additively (the prior `listPrunedRemoteTrackingBranches`
+  now delegates to the reachability-aware `resolveInFlightBranchSet`).
 
 ## **Phase 4:** Materialize quadrant
 
