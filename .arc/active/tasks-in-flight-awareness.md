@@ -185,11 +185,15 @@ byte-identical output, making the standard executable.
   write + reconcile engine reuses; this WU does not write the managed-doc file or build reconcile.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **3.3.a Pure render core (oracle slice → canonical-markdown string)**
-        - Build `test-first` (one behavior at a time):
-            - Renders the in-flight-mine slice to a canonical-markdown string for a given oracle result + Priority
-            - Produces byte-identical output for identical inputs (no spurious diffs)
-            - Applies the per-table column sets and uniform sort key from the standard (3.1)
+    - `[x]` **3.3.a Pure render core (oracle slice → canonical-markdown string)**
+        - New `src/lib/status/render.ts`: pure `renderStatusTable(slice, columns)` over a resolved
+          `StatusViewRow` model (dependency / priority resolved upstream). Emits a width-padded markdown table
+          applying the `STATUS_USER_COLUMNS` set with the conditional `Priority` column (shown only when a row
+          carries a value) and the uniform `(priority, cohort, wu-name)` sort. Reproduces the seeded
+          `STATUS.USER` table byte-for-byte; order-independent output gives the no-spurious-diffs guarantee.
+          Two render decisions: an absent-priority row renders `P3` (the resolved baseline) when the column is
+          shown; an absent cohort sorts after every named cohort. Owner/Depends-on resolution from the oracle
+          is wiring deferred to 3.3.b.
 
     - `[ ]` **3.3.b `--user` flag + `runStatus` wiring + bounded network read**
         - Add the `--user` option in `cli.ts`; wire the oracle into `runStatus` behind a bounded timeout;
