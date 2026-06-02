@@ -322,19 +322,20 @@ _Design decisions:_ Earn generality from the two real instances (Worktree Founda
 oracle slot); no pre-building for coord-probe's future third instance. Sequenced last (P2) because it
 generalizes the firing discipline the earlier consumer phases hand-wire.
 
-### `[ ]` **6.1 Gated-slot affordance over the orchestrator**
+### `[x]` **6.1 Gated-slot affordance over the orchestrator**
 
 - _Goal:_ The orchestrator expresses expensive slots as gated slots that fire only under their condition — the
   oracle network slice gated on `active.resolution === "none"` — generalized from the roster + oracle instances,
   preserving the `safeProbe` "envelope never rejects" contract.
-- _Context:_ Evolves the firing discipline, not the slot contract; per-slot result shape is unchanged.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - A gated slot fires when its condition holds and is omitted — no probe call — otherwise
-        - The roster slot and the oracle slot both express through the same affordance
-        - The envelope still never rejects (a throwing slot resolves to an error slot, not a rejection)
-        - Per-slot result shape matches today's hand-coded gates
+- _Outcome:_ Added `gatedSlot(condition, probe)` in `commands/status/run.ts` — fires `safeProbe` only when the
+  gate holds, omits the slot (no probe call) otherwise, preserving the envelope-never-rejects contract. The
+  in-flight roster and materializable-WU oracle slots both express through it (gated _producers_: pure predicate,
+  no data threading). The roster _consumers_ (recovery, sweep, errand-state) deliberately stay inline conditional
+  stages — not a missed unification. They carry heterogeneous multi-slot preconditions (recovery: roster+worktree;
+  sweep: roster+worktreeIdentity; errand-state: worktree+active+roster) and thread those resolved values as probe
+  input; a gate-only affordance can't narrow across the condition/thunk split, so inlining is the honest shape.
+  CSA reconcile note: when the `Probe<T>` → `Result<T,E>` slot-wrapper rewrite lands here, leave the consumers
+  inline — the narrowing loss is intrinsic to any `(condition, thunk)` split, not a `Probe<T>` artifact.
 
 ### `[ ]` **6.2 De-duplicate the per-entry-point slot lists**
 

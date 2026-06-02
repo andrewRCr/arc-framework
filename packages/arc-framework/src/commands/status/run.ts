@@ -77,6 +77,26 @@ function safeProbe<T>(
   return Promise.resolve().then(probe).then(ok, fromRejection);
 }
 
+/**
+ * Gated-slot affordance over {@link safeProbe}. An expensive slot — a roster
+ * scan, an oracle's network slice — runs only when its gating condition holds;
+ * otherwise the probe is never invoked and the slot resolves to `undefined`
+ * (omitted from the envelope). When it does fire, `safeProbe` preserves the
+ * "envelope never rejects" contract: a throwing probe resolves to an error
+ * slot, not a rejection.
+ *
+ * Generalized from the orchestrator's two real expensive slots (the in-flight
+ * roster and the materializable-WU oracle) so their firing discipline is
+ * expressed once. The caller owns the boolean gate — this only sequences
+ * "evaluate the gate, then fire-or-omit".
+ */
+export function gatedSlot<T>(
+  condition: boolean,
+  probe: () => Promise<T>,
+): Promise<{ ok: true; value: T } | ProbeErrorSlot | undefined> {
+  return condition ? safeProbe(probe) : Promise.resolve(undefined);
+}
+
 function identityMissing(): ProbeErrorSlot {
   return {
     ok: false,
@@ -238,24 +258,28 @@ export async function runSessionInitStatus(
     : qualifiedUser;
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The in-flight roster is the lone conditional-expensive slot: its
-  // gating signals — worktree state, active resolution, and worktree identity —
-  // are produced by sibling slots in that fan-out, so it can only fire once they
-  // resolve. We gate on those resolved values and run the roster scan in a
-  // second stage; on the linked-worktree resume path the gate is false, the
-  // scan never runs, and the slot is omitted, so resume latency is unchanged.
-  // The primary-worktree arm fires it for the stale-worktree sweep — a main
-  // session recurs often enough to bound the lingering window. `safeProbe`
-  // preserves the "envelope never rejects" contract for the roster too. Kept
-  // deliberately minimal — one named conditional stage, not a general
-  // gated-slot framework.
+  // stage. The expensive slots below are the second: the in-flight roster and
+  // the materializable-WU oracle both express through the `gatedSlot` affordance
+  // — fire the probe only when the gate holds, omit the slot otherwise, with
+  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // gating signals (worktree state, active resolution, worktree identity) are
+  // produced by sibling slots in the fan-out above, so they can only resolve in
+  // a second stage. On the linked-worktree resume path both gates are false, so
+  // neither probe runs and resume latency is unchanged.
+  //
+  // The in-flight roster gates on the branch-gone, no-WU, and primary-worktree
+  // arms; the primary arm fires it for the stale-worktree sweep — a main session
+  // recurs often enough to bound the lingering window.
   const rosterGated =
     (worktree.ok && worktree.value.state === "branch-gone") ||
     (active.ok && active.value.resolution === "none") ||
     worktreeIdentity.kind === "primary";
-  const roster = rosterGated
-    ? await safeProbe(() => probes.roster())
-    : undefined;
+  const roster = await gatedSlot(rosterGated, () => probes.roster());
+
+  // Roster consumers — recovery, sweep, errand-state — thread the resolved
+  // roster value (and other narrowed slots) as input, so they stay as inline
+  // conditional stages rather than gated slots: a gated slot owns only the
+  // fire-or-omit gate, not the cross-slot data threading these need.
 
   // Branch-gone recovery — a gated consumer of the roster, narrower than the
   // roster gate (branch-gone only). It consumes the roster resolved just above,
@@ -285,15 +309,13 @@ export async function runSessionInitStatus(
       : undefined;
 
   // Materializable-WU oracle slot — the discovery surface for cross-machine
-  // pickup. Fires the oracle's bounded network slice ONLY on the no-active-WU
-  // arm, so the resume path pays zero oracle cost. A hand-coded conditional
-  // stage mirroring the errand-state discovery gate, deliberately minimal — not
-  // a general gated-slot framework. `safeProbe` preserves the "envelope never
-  // rejects" contract.
-  const materializableWorkUnits =
-    active.ok && active.value.resolution === "none"
-      ? await safeProbe(() => probes.materializableWorkUnits())
-      : undefined;
+  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
+  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
+  // the resume path pays zero oracle cost.
+  const materializableWorkUnits = await gatedSlot(
+    active.ok && active.value.resolution === "none",
+    () => probes.materializableWorkUnits(),
+  );
 
   return {
     mode: "session-init",

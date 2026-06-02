@@ -17,6 +17,7 @@ import {
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
+import { gatedSlot } from "../../../src/commands/status/run.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -1492,6 +1493,40 @@ describe("runSessionInitStatus — inbox-state slot", () => {
       expect(result.inboxState.error.message).toBe("inbox boom");
     }
     expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("gatedSlot — gated-slot affordance", () => {
+  it("fires the probe and wraps its value as an ok slot when the condition holds", async () => {
+    const probe = vi.fn(async () => ({ candidates: ["x"] }));
+    const slot = await gatedSlot(true, probe);
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(slot?.ok).toBe(true);
+    if (slot?.ok) expect(slot.value).toEqual({ candidates: ["x"] });
+  });
+
+  it("omits the slot (undefined) and never calls the probe when the condition is false", async () => {
+    const probe = vi.fn(async () => ({ candidates: ["x"] }));
+    const slot = await gatedSlot(false, probe);
+    expect(probe).not.toHaveBeenCalled();
+    expect(slot).toBeUndefined();
+  });
+
+  it("wraps a rejecting probe as an error slot instead of rejecting", async () => {
+    const slot = await gatedSlot(true, async () => { throw new Error("slot boom"); });
+    expect(slot?.ok).toBe(false);
+    if (slot && !slot.ok) {
+      expect(slot.error.kind).toBe("runtime");
+      expect(slot.error.message).toBe("slot boom");
+    }
+  });
+
+  it("wraps a synchronous throw before the probe returns its promise as an error slot", async () => {
+    const slot = await gatedSlot(true, (): Promise<unknown> => {
+      throw new Error("sync boom");
+    });
+    expect(slot?.ok).toBe(false);
+    if (slot && !slot.ok) expect(slot.error.message).toBe("sync boom");
   });
 });
 
