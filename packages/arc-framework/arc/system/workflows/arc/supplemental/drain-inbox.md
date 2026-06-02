@@ -87,19 +87,21 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 - **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate
   into a **single** stub, not one-per-entry — concern-identity, not entry count (the anti-rider test applied to
   stub creation). Propose the grouping with rationale.
-- **Maturity (new stubs).** Propose `planned` or `provisional` — `provisional` for under-evaluated captures, but
-  a well-developed capture may warrant `planned`. The user decides at the interlock; never hard-default silently.
+- **Commitment (new stubs).** Propose `planned` or `provisional` — the axis is _commitment_ (has a maintainer
+  committed to sequencing the WU?), not maturity. A drain is a mechanical routing, not the maintainer-commitment
+  moment, so an un-vetted capture defaults to `provisional`; a capture the maintainer commits to at the interlock
+  warrants `planned`. The user decides; never hard-default silently.
 - **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
   acted on in § 5 / § 6.
 
 ### 3. Confirmation interlock
 
 > [!IMPORTANT]
-> Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub maturities,
+> Stop. Present the **full routing plan** — every entry's proposed route, the groupings, new-stub commitment levels,
 > atomic dispositions, and the chunk plan (§ 4) if the sweep is large — and await explicit confirmation. **The
 > drain makes no write before this gate.**
 
-The user may adjust any proposal: regroup, change a maturity, flip an atomic between execute-now / defer /
+The user may adjust any proposal: regroup, change a commitment level, flip an atomic between execute-now / defer /
 retain, or **retain** an entry that would otherwise route. Routing (§ 5) proceeds only on the confirmed plan.
 
 ### 4. Chunk if the sweep is large
@@ -128,7 +130,7 @@ removal rides the same write.
       section is **mandatorily** integrated into the body at the WU's next planning iteration (minimal hook:
       `1_create-spec.md` Step 1); the richer iteration-time ceremony is `arc-plan-conductor`'s.
 - **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
-  Scaffold the stub at the confirmed maturity (`meta-*`, plus `draft-*` when scope warrants) and write the note
+  Scaffold the stub at the confirmed commitment level (`meta-*`, plus `draft-*` when scope warrants) and write the note
   in. A `provisional` stub carries no design authority.
 - **Homeless atomic — defer** — an atomic with no determinable home that is **not** being executed now. Flush it
   to the shared inbox (`ATOMIC-INBOX` under `pm.mode: arc-in-git`; the project's convention otherwise). The
