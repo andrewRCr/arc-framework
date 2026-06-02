@@ -29,6 +29,23 @@
   broad grep/replace); support `--check`/`--write`; preserve filename-only references.
 - *Scope:* M (helper + tests); L if bundled with full activation/archive CLI commands.
 
+### `[ ]` **Evaluate extracting a standalone STATUS render-standard doc when repurposing § ROADMAP**
+
+- *Routed from:* In-Flight Awareness Phase 3 planning (2026-06-02). That WU adds the shared render contract —
+  per-table column sets + the uniform `(priority, cohort, wu-name)` sort key — to `strategy-work-organization.md
+  § ROADMAP`, since `STATUS.USER` is the in-flight-mine slice of the *same* source as the project view: one
+  contract, two consumers.
+- *Concern:* `strategy-work-organization.md` is already ~811 lines / ~40 sections. After In-Flight Awareness lands,
+  § ROADMAP carries a render contract shared by `STATUS.PROJECT` and `STATUS.USER` — a decomposition candidate. But
+  extracting it early, from a WU that doesn't own the project-view doc, would fragment one contract across two
+  files, so it was deliberately kept in § ROADMAP for now.
+- *Proposed:* At the § ROADMAP repurposing (contract kept, mechanics → renderer spec), evaluate lifting the shared
+  render standard into its own doc (e.g. a `STATUS` render-standard strategy), co-decided with the
+  ROADMAP → STATUS.PROJECT rename (`doc-naming-convention`) so home and naming settle together. Keep-in-place is a
+  valid outcome — the point is to make the call deliberately with the right owner, not let the broad doc grow by
+  default.
+- *Scope:* S — a doc-structure decision + move, folded into the § ROADMAP repurposing already in this WU's scope.
+
 ---
 
 ## Problem / Motivation
