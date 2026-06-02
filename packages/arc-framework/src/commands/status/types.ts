@@ -40,6 +40,7 @@ import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-work
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
@@ -171,6 +172,16 @@ export interface SessionInitProbeResult {
    * candidates, and the rate-limit marker state for reminder/stale nudges.
    */
   errandState?: Probe<ErrandStateResult>;
+  /**
+   * Pre-computed materializable-WU candidates — the oracle's remote-only owned
+   * in-flight work units, the discovery surface the Materialize arm offers for
+   * cross-machine pickup. Present ONLY on the no-active-WU arm
+   * (`active.resolution === "none"`), where the oracle's network slice fires; the
+   * resume path skips it entirely (zero oracle cost). An empty `candidates` array
+   * means the oracle ran and found none (or the remote was unreachable); absence
+   * of the slot means it never ran.
+   */
+  materializableWorkUnits?: Probe<MaterializableWorkUnitsResult>;
   /**
    * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
    * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
@@ -365,6 +376,15 @@ export interface SessionInitProbes {
     includeDiscovery: boolean;
     roster: WorktreeRosterResult | null;
   }) => Promise<ErrandStateResult>;
+  /**
+   * Materializable-WU oracle slice. Fires the oracle's bounded network read
+   * (remote membership → in-flight derivation → remote-only owned filter) to
+   * surface the operator's cross-machine materialize candidates. The handler
+   * binds the git executor, identity, and team-mode filter; the orchestrator
+   * calls this ONLY on the no-active-WU arm so the resume path pays no oracle
+   * cost. An unreachable remote degrades to an empty candidate list.
+   */
+  materializableWorkUnits: () => Promise<MaterializableWorkUnitsResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
    * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in

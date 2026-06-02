@@ -284,6 +284,17 @@ export async function runSessionInitStatus(
       }))
       : undefined;
 
+  // Materializable-WU oracle slot — the discovery surface for cross-machine
+  // pickup. Fires the oracle's bounded network slice ONLY on the no-active-WU
+  // arm, so the resume path pays zero oracle cost. A hand-coded conditional
+  // stage mirroring the errand-state discovery gate, deliberately minimal — not
+  // a general gated-slot framework. `safeProbe` preserves the "envelope never
+  // rejects" contract.
+  const materializableWorkUnits =
+    active.ok && active.value.resolution === "none"
+      ? await safeProbe(() => probes.materializableWorkUnits())
+      : undefined;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -301,6 +312,7 @@ export async function runSessionInitStatus(
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),
+    ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };

@@ -54,6 +54,9 @@ import {
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
+import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
+import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
+import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
 import {
   runBranchGoneRecovery,
   RECOVERY_RECENCY_DAYS,
@@ -317,6 +320,20 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           staleThresholdDays: thresholdDays,
           nudge: await resolveErrandNudgeState(cwd, io, identity),
         });
+      },
+      materializableWorkUnits: async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const { branches, reachable } = await resolveInFlightBranchSet({
+          exec: gitExec,
+          localOnly: false,
+        });
+        // Online but unreachable: surface no candidates rather than a
+        // half-resolved view over un-pruned local refs (the materialize offer
+        // simply doesn't appear). The branch set is empty when unreachable too.
+        if (!reachable) return { candidates: [] };
+        const entries = await deriveInFlight({ exec: gitExec, branches, identity, teamMode });
+        return findMaterializableWorkUnits({ entries, identity });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };

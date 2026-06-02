@@ -53,6 +53,7 @@ import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/sta
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
+import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
@@ -302,6 +303,9 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
+    materializableWorkUnits: vi.fn(
+      async (): Promise<MaterializableWorkUnitsResult> => ({ candidates: [] }),
+    ),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
@@ -1328,6 +1332,67 @@ describe("runSessionInitStatus — errand-state slot", () => {
 
     expect(probes.errandState).not.toHaveBeenCalled();
     expect("errandState" in result).toBe(false);
+  });
+});
+
+describe("runSessionInitStatus — materializable-WU oracle slot", () => {
+  it("fires the oracle slot and surfaces candidates when no active WU resolves (resolution=none)", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      materializableWorkUnits: vi.fn(async () => ({
+        candidates: [{ name: "feature-x", branch: "feat/feature-x" }],
+      })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.materializableWorkUnits).toHaveBeenCalledTimes(1);
+    expect(result.materializableWorkUnits?.ok).toBe(true);
+    if (result.materializableWorkUnits?.ok) {
+      expect(result.materializableWorkUnits.value.candidates).toEqual([
+        { name: "feature-x", branch: "feat/feature-x" },
+      ]);
+    }
+  });
+
+  it("skips the oracle slot — no probe call — when an active WU resolves", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.materializableWorkUnits).not.toHaveBeenCalled();
+    expect("materializableWorkUnits" in result).toBe(false);
+  });
+
+  it("surfaces an empty candidate list when the oracle finds none", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.materializableWorkUnits?.ok).toBe(true);
+    if (result.materializableWorkUnits?.ok) {
+      expect(result.materializableWorkUnits.value.candidates).toEqual([]);
+    }
+  });
+
+  it("wraps a rejecting oracle probe without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      materializableWorkUnits: async () => { throw new Error("oracle boom"); },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.materializableWorkUnits?.ok).toBe(false);
+    if (result.materializableWorkUnits && !result.materializableWorkUnits.ok) {
+      expect(result.materializableWorkUnits.error.message).toBe("oracle boom");
+    }
+    expect(result.active.ok).toBe(true);
   });
 });
 

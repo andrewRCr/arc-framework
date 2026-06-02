@@ -235,17 +235,15 @@ worktree (free safety). The oracle slot is hand-wired here with a local gate; Ph
   The identity gate mirrors the oracle's `keepForIdentity` — current-identity + unattributed survive, another
   identity drops — so it holds regardless of how the upstream oracle was configured.
 
-### `[ ]` **4.2 Wire the oracle slot into the session-init probe (gated)**
+### `[x]` **4.2 Wire the oracle slot into the session-init probe (gated)**
 
 - _Goal:_ `runSessionInitStatus` surfaces materializable-WU candidates by firing the oracle network slice only
   when `active.resolution === "none"`, so the resume path pays zero oracle cost.
-- _Context:_ Hand-coded gate here, mirroring today's `errandState` gate; Phase 6 / R10 generalizes the
-  affordance. Preserves the `safeProbe` envelope contract and per-slot result shape.
-
-    - Build `test-first` (one behavior at a time):
-        - Fires the oracle slot when `active.resolution === "none"`
-        - Skips it — no network read — when an active WU resolves
-        - Surfaces remote-only WU candidates in the envelope; empty list when none
+- _Outcome:_ New `materializableWorkUnits` slot on `SessionInitProbes` + the envelope (`SessionInitProbeResult`),
+  fired in the orchestrator's second stage behind an `active.value.resolution === "none"` gate (mirrors the
+  `errandState` discovery gate; `safeProbe`-wrapped, so a rejecting oracle never sinks the composite). Handler
+  binds the bounded oracle pipeline (`resolveInFlightBranchSet` → `deriveInFlight` → `findMaterializableWorkUnits`,
+  identity + team-mode); an unreachable remote degrades to empty candidates. Slot absent on the resume path.
 
 ### `[ ]` **4.3 Session-init Materialize arm — the WU path**
 

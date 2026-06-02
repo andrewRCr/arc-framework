@@ -211,6 +211,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
+    materializableWorkUnits: async () => ({ candidates: [] }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -262,6 +263,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
+    materializableWorkUnits: async () => ({ candidates: [] }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
@@ -486,6 +488,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
       errandState: async () => stubErrandState(),
+      materializableWorkUnits: async () => ({ candidates: [] }),
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
       releaseRouting: async () =>
         resolveReleaseRouting({
@@ -650,6 +653,7 @@ function makeRealWorktreeProbes(
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
+    materializableWorkUnits: async () => ({ candidates: [] }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     releaseRouting: async () =>
       resolveReleaseRouting({
