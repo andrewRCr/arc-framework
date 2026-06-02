@@ -2,7 +2,7 @@
 
 - **State:** Planning
 - **Owner:** andrew
-- **Branch:** [none]
+- **Branch:** plan/in-flight-awareness
 
 - **Origin:** [internal]
 - **Design:** `draft-in-flight-awareness.md`
@@ -16,7 +16,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Refine `draft-in-flight-awareness.md` toward spec once Worktree Foundation's scope
-  settles (hard upstream). Pre-spec backlog stub; not yet activated.
+- **Next Action:** Refine `draft-in-flight-awareness.md` toward spec via `1_create-spec.md` — Worktree
+  Foundation (hard upstream) has shipped, so scope is settled. Open questions to resolve at spec: oracle
+  trigger subset, persisted-cache value, view-file naming.
 
 ---
