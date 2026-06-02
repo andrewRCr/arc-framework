@@ -11,8 +11,7 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** [none]
-- **Last Completed:** Carved out of Worktree Foundation in the 2-way Foundation | Awareness split
-  (2026-05-24) — the in-flight oracle + `STATUS.USER` view + `Priority` field + materialize subsystem.
+- **Last Completed:** Created `spec-in-flight-awareness.md` from the draft (`1_create-spec.md`); draft retired.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
