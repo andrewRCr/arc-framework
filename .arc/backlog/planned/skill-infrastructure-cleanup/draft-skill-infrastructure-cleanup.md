@@ -38,6 +38,25 @@ plus the package mirror; update the harness-regen path so the gitignored harness
 appropriate; sweep adopter-facing references ("run the `arc-setup` skill" → "follow the setup workflow").
 Side-benefit: frees the skill-picker autocomplete namespace for the every-session skill.
 
+### Guard ARC skills against cold (no-session-init) invocation
+
+- _Routed from:_ in-flight-awareness session (2026-06-02), surfaced during the `arc-errand` revival.
+- _Concern:_ every `arc-*` skill assumes a **warm** session — that `arc-session` has run and established
+  context — yet none guard against being invoked **cold** (the first action in a fresh agent context). The
+  agent would comply but operate without the orientation the entrypoint provides. This was implicitly the
+  original argument against a standalone `arc-errand` (cold launch would duplicate session-init), but the
+  concern is **general to all skills**, not errand-specific — so it belongs here, not as an errand caveat.
+- _Possible shapes (evaluate, don't assume):_ (a) a one-line advisory in each SKILL.md ("an ARC skill — run
+  `arc-session` first if you haven't") — cheap but ignorable; (b) a mechanical guard: `session-init` **plants**
+  a session marker, `session-handoff` **removes** it, and skills (or a CLI preflight) short-circuit with an
+  advisory when it is absent. Agent-session warmth is not git-visible, but a lifecycle-bookend marker makes it
+  durable.
+- _Caveats for the marker shape:_ a crashed / abandoned session never runs handoff → stale marker (needs
+  re-plant-on-init reconciliation or a TTL); non-`arc-session` entrypoints (errand-resume, materialize) must
+  plant it too; possible reuse beyond this — interrupted-session detection.
+- _Relation to this stub:_ same cross-cutting "every SKILL.md + harness-regen path" surface as the frontmatter
+  item above; the marker half also reaches the session lifecycle (`session-init` / `session-handoff`).
+
 ---
 
 ## Scope Estimate

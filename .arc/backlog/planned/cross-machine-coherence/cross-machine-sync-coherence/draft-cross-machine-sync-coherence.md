@@ -164,6 +164,31 @@ as the broader scope above. WF establishes the `.sync-state.json` schema seam (s
 and T3 layer on without a rewrite); this WU owns the drift-detection layer. Fold T3 into the broader-scope
 decision at PRD time.
 
+**Inbound from in-flight-awareness session (2026-06-02): a live `loadNeeded` miss + retired-subdir detection
+gap — the concrete instance T3 must catch.** Session-init read the active WU's `SESSION-NOTES.md` as absent
+while the probe reported `user.state: clean` / `loadNeeded: false` — yet the git note on HEAD *contained* that
+SESSION-NOTES; it had simply never been materialized to this checkout. Root cause:
+`computeSessionInitLoadNeeded` returns `true` only for `direction === "behind"`, and
+`inspectDiskVsLocalSnapshot` returns `"behind"` only when the note descends from the materialized basis **and**
+`diskHash === materializedHash` (disk pristine vs. its last basis). Here the disk had drifted — lingering
+retired-WU subdirs + a lagging WORKING-MEMORY — so the classifier returned `"mixed"` and `loadNeeded` fell to
+`false`. The computed `mixed`/`missing` divergence is then **discarded**: the clean arm of the session-init
+envelope carries only `loadNeeded`, so a missing active-WU SESSION-NOTES silently passes as `clean` whenever any
+benign drift coexists (the common case). Two defects for this WU's drift-detection layer:
+
+- **`loadNeeded` is too narrow / the divergence is never surfaced.** The `"behind"`-only trigger is right for
+  *auto*-load (don't clobber local edits), but `mixed`/`missing` should still **surface** on the clean arm
+  (recommendedAction `surface`, not auto-load — `mixed` may carry real local edits), with a sharpened
+  high-signal sub-case: *the active WU's SESSION-NOTES is present in the note but absent on disk.* This is
+  exactly T3's "intentional retirement at source vs. real local drift" call.
+- **Retired-subdir detection + cleanup gaps (adjacent).** session-init's `retiredSubdirs` probe returned `[]`
+  for genuinely-archived subdirs (`errand-enablement`, `work-routing-discipline`) — its "absent from the
+  recent-notes window" criterion is too time-gated to catch recently-archived ones; and `arc user load` only
+  **warns** ("Remove the subdir if its work unit is retired"), it does not remove. Plus a doc-vs-behavior
+  mismatch: `session-init.md` Step 6 claims retired subdirs "reconcile automatically — removed, with a
+  `.internal/` backup — on next `arc user load` / `pull`," which the tool does not do. Same `sync-state.json`
+  prior-file-list surface T3 extends.
+
 **Inbound from Worktree Foundation (2026-05-25): the `branch-gone` `arc sync` notes-push softening routes
 here.** WF's new `branch-gone` worktree state (split from `remote-unavailable`) inherits the conservative
 sync treatment — both push legs blocked, refused with code 14 — to avoid regressing into auto-recreating a

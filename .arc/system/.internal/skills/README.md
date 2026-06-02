@@ -20,5 +20,6 @@ and personal skills use no prefix.
 - `arc-plan` — Collaborative exploration setup: context gathering, framing questions, freeform (on-demand)
 - `arc-commit` — Atomic commit with active status file staging (during session)
 - `arc-inbox` — Capture a deferred work item to USER-INBOX, classified and routed by character (during session)
+- `arc-errand` — Run an out-of-work-unit errand now from the current session, dispatching into run-errand (during session)
 - `arc-handoff` — Session handoff (end of session)
 - `arc-housekeep` — Drain USER-INBOX between work units, routing each entry to its home (between sessions)
