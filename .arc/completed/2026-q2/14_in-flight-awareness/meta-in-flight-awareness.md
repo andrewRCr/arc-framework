@@ -1,6 +1,6 @@
 # Metadata: In-Flight Awareness
 
-- **State:** Integrating
+- **State:** Shipped
 - **Owner:** andrew
 - **Branch:** feat/in-flight-awareness
 
