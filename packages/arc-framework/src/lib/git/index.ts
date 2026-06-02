@@ -53,6 +53,17 @@ export {
 } from "./foreign-artifact-detection.js";
 
 export {
+  listLiveRemoteBranches,
+  listPrunedRemoteTrackingBranches,
+  fetchRefBounded,
+  readMetaAtRef,
+  type ListLiveRemoteBranchesOptions,
+  type ListPrunedRemoteTrackingBranchesOptions,
+  type FetchRefBoundedOptions,
+  type ReadMetaAtRefOptions,
+} from "./remote-ref-reader.js";
+
+export {
   isRefusalCondition,
   runPushabilityStatus,
   type AccessFn,

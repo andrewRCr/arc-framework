@@ -15,25 +15,19 @@ _Design decisions:_ Reuse the established primitives — `GitExec`, `extractFiel
 machinery. Correctness (A) lives in the oracle's pruned-ref classification; hygiene (B) is the `git fetch
 --prune` backstop, kept together here as the single "ref-derivation correctness" story.
 
-### `[ ]` **1.1 Remote-ref reader — live membership + bounded meta fetch (no checkout)**
+### `[x]` **1.1 Remote-ref reader — live membership + bounded meta fetch (no checkout)**
 
 - _Goal:_ The oracle reads WU metas off remote refs with no checkout, composing live `git ls-remote` membership
   with a bounded fetch of candidate refs so it can read the meta of a WU in flight only on another machine, and
   derives over a pruned view (local remote-tracking refs intersected with live membership) so a deleted upstream
   never surfaces.
-- _Approach:_ Model on `recent-remote-branches.ts` (no-checkout enumeration, `[]`-on-failure degrade) and the
-  `git show <ref>:<path>` shape from the save-load test mock; inject `GitExec`, using its `signal` option to
-  bound the network reads. `ls-remote` is the live membership / liveness oracle; the bounded fetch makes a
-  never-seen remote WU's objects readable; `git show` reads content.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - Enumerates live remote branches via `git ls-remote --heads origin` (membership truth, no checkout)
-        - Bounded-fetches the candidate WU refs so their meta objects are present, then reads content via
-          `git show <ref>:.arc/active/meta-<name>.md`; returns null when the path is absent on that ref
-        - Derives over a pruned view — a local remote-tracking ref absent from live membership is excluded, so a
-          merged-and-deleted branch never surfaces as phantom in-flight (holds independent of any prune)
-        - Bounds each network read by a timeout and degrades to the empty / last-known view when unreachable
+- _Outcome:_ `src/lib/git/remote-ref-reader.ts` ships four composable injectable-`GitExec` primitives —
+  `listLiveRemoteBranches` (ls-remote membership), `listPrunedRemoteTrackingBranches` (local refs ∩ live, dead
+  refs excluded), `fetchRefBounded` (bounded candidate fetch → `FETCH_HEAD`), and `readMetaAtRef`
+  (`git show <ref>:<path>` → content | null) — leaving branch→meta orchestration to derivation (1.2). Network
+  reads share one abort-signal timeout helper; degrade is per-read — membership → empty, fetch → false, but the
+  pruned view falls back to the **last-known local refs** (not empty) when membership is unreachable, so an
+  offline session keeps a view. Barrel-exported via `git/index.ts`.
 
 ### `[ ]` **1.2 In-flight derivation — WUs + errands, State, identity filter**
 
