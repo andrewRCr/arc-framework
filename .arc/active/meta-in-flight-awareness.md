@@ -11,13 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** `tasks-in-flight-awareness.md`
-- **Last Completed:** Task 1.4 — Dead-ref prune backstop at the two sites (`run-errand` § Complete +
-  session-init errand sweep). Phase 1 (in-flight oracle + dead-ref hygiene) complete.
-- **Next Task:** Task 2.1 — Add the `Priority` field to the meta schema (`template-meta.md`, both copies)
-  (line ~85)
+- **Last Completed:** Task 3.2 — `STATUS.USER` view file seeded (gitignored-local single-cache baseline). Phase 2
+  (the `Priority` field) complete; Phase 3 in progress (3.1 render standard + 3.2 baseline done).
+- **Next Task:** Task 3.3 — `arc status --user` explicit-view command (line ~178)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 2, Task 2.1 — add `**Priority:** P3` to the coordination block of
-  `template-meta.md` (both copies) and document its semantics in the template comment block.
+- **Next Action:** Begin Task 3.3 — build the pure render core (oracle slice → canonical-markdown string,
+  test-first), then the `--user` flag + `runStatus` wiring with a bounded network read, then the
+  `--local` / `--no-fetch` offline path.
 
 ---
