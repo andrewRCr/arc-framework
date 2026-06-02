@@ -11,16 +11,13 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** `tasks-in-flight-awareness.md`
-- **Last Completed:** Task 5.2 — Oracle-back the errand-launch foreign-artifact gate (line ~304). Phase 5
-  complete: both the activation in-flight scope check (5.1) and the errand-launch foreign-artifact gate (5.2)
-  are oracle-backed — cross-worktree + cross-machine, advisory, never gating.
-- **Next Task:** Task 6.1 — Gated-slot affordance over the orchestrator (line ~325)
+- **Last Completed:** Task 6.3 — Swap session-init errand consumption onto the oracle (line ~353). Phase 6
+  complete: the gated-slot affordance (6.1), the shared session-slot declaration (6.2), and the errand-discovery
+  oracle absorption (6.3) all landed. Phase 6 was the last implementation phase.
+- **Next Task:** Task 7.1 — Complete verification (line ~375)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — evolve the status orchestrator (`commands/status/run.ts`) into a gated-slot
-  affordance: expensive slots (the oracle network slice) fire only under their condition
-  (`active.resolution === "none"`), generalized from Worktree Foundation's roster slot + this WU's oracle slot;
-  preserve the `safeProbe` envelope-never-rejects contract and per-slot result shape. Note new Task 6.3 (errand
-  consumption swap) added this session.
+- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` (the WU's single verification task):
+  re-run the full quality-gate sweep and verify the implementation against `spec-in-flight-awareness.md`.
 
 ---
