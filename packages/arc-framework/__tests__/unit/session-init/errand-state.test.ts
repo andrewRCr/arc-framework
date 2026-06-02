@@ -29,10 +29,15 @@ function nudge(shouldNudge = true) {
 function buildExec(options: {
   refs?: string;
   merged?: readonly string[];
+  fetchThrows?: boolean;
 } = {}): GitExec {
   const merged = new Set(options.merged ?? []);
   return vi.fn(async (cmd: string, args: string[]) => {
     if (cmd !== "git") throw new Error(`unexpected command: ${cmd}`);
+    if (args[0] === "fetch") {
+      if (options.fetchThrows) throw new Error("offline");
+      return { stdout: "", stderr: "" };
+    }
     if (args[0] === "for-each-ref") {
       return { stdout: options.refs ?? "", stderr: "" };
     }
@@ -102,6 +107,53 @@ describe("runErrandState", () => {
       { slug: "materialize-me", branch: "chore/materialize-me" },
     ]);
     expect(result.nudge).toEqual(nudge());
+  });
+
+  it("prunes dead remote-tracking refs before reading them for the discovery sweep", async () => {
+    const exec = buildExec({ refs: `refs/remotes/origin/chore/x\t${RECENT}` });
+
+    await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      roster: roster(),
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+      detectOpenPr: async () => false,
+    });
+
+    const calls = (exec as ReturnType<typeof vi.fn>).mock.calls;
+    const fetchIdx = calls.findIndex(([, args]) => args[0] === "fetch");
+    const forEachRefIdx = calls.findIndex(([, args]) => args[0] === "for-each-ref");
+    expect(calls[fetchIdx]?.[1]).toEqual(["fetch", "--prune", "origin"]);
+    expect(fetchIdx).toBeLessThan(forEachRefIdx);
+  });
+
+  it("completes the discovery sweep when the prune fetch fails", async () => {
+    const exec = buildExec({
+      refs: `refs/remotes/origin/chore/x\t${RECENT}`,
+      fetchThrows: true,
+    });
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      roster: roster(),
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+      detectOpenPr: async () => false,
+    });
+
+    expect(result.inFlight.errands).toEqual([
+      { slug: "x", branch: "chore/x", state: "in-progress", ageDays: 0 },
+    ]);
   });
 
   it("excludes meta-backed chore branches from errand discovery", async () => {

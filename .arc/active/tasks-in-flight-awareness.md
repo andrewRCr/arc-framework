@@ -54,21 +54,23 @@ machinery. Correctness (A) lives in the oracle's pruned-ref classification; hygi
   and degrades to refs-only, never propagating the throw. Enrichment queries only the kept branches, so other
   owners' WUs cost no PR lookup.
 
-### `[ ]` **1.4 Dead-ref prune backstop at the two sites**
+### `[x]` **1.4 Dead-ref prune backstop at the two sites**
 
 - _Goal:_ Merged-and-deleted errand branches stop lingering as stale remote-tracking refs — a `git fetch
   --prune` runs at the two natural sites so the namespace stays clean and the interim sweep is correct before the
   oracle ships.
-- _Context:_ Correctness (A) already lives in the oracle's pruned-ref classification (1.1); this is the (B)
-  hygiene backstop. Both, per the spec — (A) without (B) accumulates cruft; (B) without (A) is racy.
+- _Outcome:_ The (B) hygiene backstop lands at both sites. The interim errand sweep no longer counts an
+  out-of-session-merged errand as phantom in-flight, complementing the oracle's pruned-ref classification (A).
 
-    - `[ ]` **1.4.a Prune at `run-errand` § Complete**
-        - Targeted — the in-session merge knows the slug; add the prune to the Complete teardown alongside the
-          existing branch/worktree removal.
+    - `[x]` **1.4.a Prune at `run-errand` § Complete**
+        - `run-errand` § Complete (both copies) prunes the merged-and-deleted `origin/chore/<slug>` ref via a
+          targeted `git fetch --prune origin` after teardown — the slug is known in-session.
 
-    - `[ ]` **1.4.b Prune backstop in the session-init errand sweep**
-        - Broad `git fetch --prune` backstop for the async-merge case (reviewed-lane errand PRs that auto-delete
-          the remote branch out-of-session); wire into the errand-state / staleness-sweep path.
+    - `[x]` **1.4.b Prune backstop in the session-init errand sweep**
+        - `runErrandState` runs a broad `git fetch --prune origin` on the discovery path before reading refs,
+          best-effort (degrades to last-known refs when offline). Covers the async-merge case where a
+          reviewed-lane errand PR auto-deletes its remote branch out-of-session. Tests assert prune-before-read
+          ordering and the offline degrade.
 
 ## **Phase 2:** The `Priority` field
 

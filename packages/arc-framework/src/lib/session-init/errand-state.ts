@@ -103,6 +103,13 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     );
   }
 
+  // Dead-ref prune backstop: a reviewed-lane errand PR merges out-of-session and
+  // auto-delete-head removes the remote branch on the host, so `run-errand`
+  // Complete never fires for it and `origin/chore/<slug>` lingers as a stale
+  // remote-tracking ref. Prune before reading refs so the sweep doesn't count it
+  // as in-flight. Best-effort — an offline fetch leaves the last-known refs.
+  await pruneRemoteTrackingRefs(options.exec);
+
   const refRead = await readBranchRefs(options.exec);
   const warnings = [...options.roster.warnings, ...refRead.warnings];
   const factsByBranch = new Map(refRead.branches.map((branch) => [branch.branch, branch]));
@@ -193,6 +200,19 @@ function emptyDiscovery(
 function ageDays(timestamp: number | null, nowMs: number): number {
   if (timestamp === null || Number.isNaN(nowMs)) return 0;
   return Math.max(0, Math.floor((nowMs - timestamp * 1000) / MS_PER_DAY));
+}
+
+/**
+ * Best-effort `git fetch --prune` to drop remote-tracking refs whose upstream
+ * was deleted out-of-session. Never throws: an offline or failed fetch leaves
+ * the last-known refs in place and the sweep still runs against them.
+ */
+async function pruneRemoteTrackingRefs(exec: GitExec): Promise<void> {
+  try {
+    await exec("git", ["fetch", "--prune", "origin"]);
+  } catch {
+    // Offline / no remote — degrade to the last-known local remote-tracking refs.
+  }
 }
 
 async function readBranchRefs(exec: GitExec): Promise<{ branches: BranchRefFacts[]; warnings: string[] }> {
