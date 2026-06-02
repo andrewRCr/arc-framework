@@ -38,6 +38,14 @@
   can't parse); state what an errand _is_ (state derived from its branch + PR). (b) Broaden the `taskCommit`
   class-tag and `post-task-quality` extension _definitions_ to the **review increment** (task or errand) rather
   than inventing errand variants — definitional cleanup, keep the names.
+- _Update (2026-06-02, in-flight-awareness session):_ **fold-in (a) done early** — the
+  DEV-RULES.ARC § Holding ≠ execution trim shipped with the `arc-errand` revival errand. It removed the
+  retired-queue contrast **and** the then-newly-false "sole top-level execution entrypoint / no standalone
+  errand command" clause (false once `arc-errand` exists), and named the warm `arc-errand` / cold
+  `arc-session --errand` entries. Remaining scope unchanged — AGENT-BRIEF.ARC § Vocabulary intro, the
+  DEV-RULES.ARC conceptual-model deferral, fold-in (b) — **plus a new residual:**
+  `strategy-work-organization § Errand Work Class`'s dispatch line still reads "dispatched by `arc-session`
+  (via `--errand`)" and now needs the warm `arc-errand` entry added.
 - _Home:_ constitutional/doctrine surfaces (AGENT-BRIEF.ARC, DEV-RULES.ARC, `strategy-workflow-authoring`
   § Routing class tags, the `post-task-quality` extension); reviewed-lane, two-copy. (Landing here as the
   rules/doctrine home; could be a focused doctrine-cleanup pass instead — decide at integration.)
