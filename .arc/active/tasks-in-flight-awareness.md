@@ -29,25 +29,19 @@ machinery. Correctness (A) lives in the oracle's pruned-ref classification; hygi
   pruned view falls back to the **last-known local refs** (not empty) when membership is unreachable, so an
   offline session keeps a view. Barrel-exported via `git/index.ts`.
 
-### `[ ]` **1.2 In-flight derivation — WUs + errands, State, identity filter**
+### `[x]` **1.2 In-flight derivation — WUs + errands, State, identity filter**
 
 - _Goal:_ Given the pruned remote-ref set, the oracle returns the identity's in-flight work units and errands
   with resolved State, distinguishing WUs (path/content-parsed metas) from errands (`chore/<slug>` branches that
   map to no WU).
-- _Context:_ State is a free proxy off the branch life-phase prefix — `plan/` = live-mutating planning, a
-  type-prefix = activated (plan frozen); never branch-name → WU.
-- _Approach:_ Reuse `extractField` / `META_FIELDS` for meta parsing and `filterRosterByIdentity` semantics for
-  the identity slice; resolve worktree paths live from `git worktree list` for locally-checked-out WUs, omit for
-  the rest (no stored paths).
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - Derives an in-flight WU with State from an `active/**` meta on a type-prefixed remote branch
-        - Derives a `plan/`-prefixed branch as an in-flight (planning) WU
-        - Classifies a `chore/<slug>` branch with no backing meta as an in-flight errand, not a WU
-        - Filters to the current identity (owner-matched), passing through unattributed entries
-        - Resolves the worktree path live for a locally-checked-out WU; omits it for a remote-only WU
-        - Flags remote-only in-flight WUs (no local worktree) — the materialize-candidate signal Phase 4 consumes
+- _Outcome:_ `src/lib/git/in-flight-derivation.ts` ships `deriveInFlight`, returning an `InFlightEntry[]`
+  discriminated union (`work-unit` | `errand`). Each pruned branch is classified by reading its candidate meta
+  off `origin/<branch>` with no checkout (`readMetaAtRef`): a present meta is a WU, a `chore/<slug>` branch with
+  no meta is an errand — content-driven, never branch-name → WU. State is the prefix proxy (`plan/` → Planning,
+  any other type-prefix → Active); Owner/Cohort come from `parseMetaRecord`; the identity filter mirrors
+  `filterRosterByIdentity` (team-mode owner match, unattributed pass-through). Worktree paths resolve live via a
+  new `resolveWorktreePathsByBranch` helper (added to `worktree-roster.ts`, reusing its porcelain parser); a WU
+  with no local worktree is flagged `remoteOnly` — the materialize-candidate signal Phase 4 consumes.
 
 ### `[ ]` **1.3 PR-source seam, degrading to refs-only**
 

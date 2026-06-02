@@ -31,6 +31,7 @@ export {
   runWorktreeRoster,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
+  resolveWorktreePathsByBranch,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
   type WorktreeRosterResult,
@@ -62,6 +63,15 @@ export {
   type FetchRefBoundedOptions,
   type ReadMetaAtRefOptions,
 } from "./remote-ref-reader.js";
+
+export {
+  deriveInFlight,
+  type DeriveInFlightOptions,
+  type InFlightEntry,
+  type InFlightWorkUnit,
+  type InFlightErrand,
+  type InFlightState,
+} from "./in-flight-derivation.js";
 
 export {
   isRefusalCondition,

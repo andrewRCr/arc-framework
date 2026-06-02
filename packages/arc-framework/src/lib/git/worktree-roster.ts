@@ -124,6 +124,31 @@ export async function resolvePrimaryWorktreePath(exec: GitExec): Promise<string 
   }
 }
 
+/**
+ * Map each branched worktree to its local filesystem path, keyed by branch.
+ *
+ * One `git worktree list --porcelain` read, no meta resolution — the cheap
+ * branch→path lookup the in-flight oracle uses to tell a locally-checked-out
+ * WU from a remote-only (materializable) one. Detached-HEAD worktrees carry no
+ * branch and are omitted; a read failure degrades to an empty map.
+ *
+ * @param exec - Injectable command executor (local only — no remote).
+ * @returns Branch → worktree path for every branched worktree.
+ */
+export async function resolveWorktreePathsByBranch(exec: GitExec): Promise<Map<string, string>> {
+  let worktrees: RawWorktree[];
+  try {
+    worktrees = parseWorktreeList(await exec("git", ["worktree", "list", "--porcelain"]));
+  } catch {
+    return new Map();
+  }
+  const byBranch = new Map<string, string>();
+  for (const wt of worktrees) {
+    if (wt.branch !== null) byBranch.set(wt.branch, wt.path);
+  }
+  return byBranch;
+}
+
 interface EntryResolution {
   entry: WorktreeRosterEntry;
   warnings: string[];
