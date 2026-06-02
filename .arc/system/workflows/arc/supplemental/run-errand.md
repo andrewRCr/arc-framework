@@ -13,9 +13,10 @@ arc:
 
 # Workflow: Run Errand
 
-Execution body for an **errand** — a single bounded out-of-work-unit concern — dispatched by the `arc-session`
-skill (`--errand`, or adopted from session-init's discovery arm), or entered directly from a
-[`drain-inbox`][drain-inbox] execution transition when the housekeep drain hands off a committed atomic. For what
+Execution body for an **errand** — a single bounded out-of-work-unit concern — entered warm from an active
+session via the `arc-errand` skill, cold via the `arc-session` skill (`--errand`, or adopted from
+session-init's discovery arm), or directly from a [`drain-inbox`][drain-inbox] execution transition when the
+housekeep drain hands off a committed atomic. For what
 distinguishes an errand from a work unit, see [strategy-work-organization § Errand Work Class][errand-class];
 this workflow runs one.
 

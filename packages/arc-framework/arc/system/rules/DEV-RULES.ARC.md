@@ -259,14 +259,12 @@ rot.
 ### Holding ≠ execution
 
 Capture *holds*; it never *executes*. Capture is inbox-only — a deferred concern lands in `USER-INBOX` (via
-`arc-inbox`), never as a queued or seeded errand. **An errand *is* its execution:** out-of-WU work runs in its
-own session through the `run-errand` lifecycle (`arc-session --errand`), never hand-rolled on your current WU
-branch. The isolation rule is universal — get off the WU branch — but its *shape* follows protection mode: a
-`chore/<slug>` branch + PR under full, a direct base commit under partial (see
-[strategy-work-organization][work-org] § Cheap-branch path). There is no errand *queue*, no `errand-*` file, and
-no State field — an errand's state is derived from its branch and PR. `arc-session` is the **sole top-level
-execution entrypoint** — no standalone errand command — but not `run-errand`'s only caller: the housekeep drain
-may transition committed atomics into `run-errand` within the same session.
+`arc-inbox`), never as a queued or seeded errand. **An errand *is* its execution:** out-of-WU work runs through
+the `run-errand` lifecycle on its own isolated branch — entered warm with `arc-errand` or cold with
+`arc-session --errand` — never hand-rolled on your current WU branch. The isolation rule is universal — get off
+the WU branch — but its *shape* follows protection mode: a `chore/<slug>` branch + PR under full, a direct base
+commit under partial (see [strategy-work-organization][work-org] § Cheap-branch path). An errand has no meta
+file or lifecycle of its own — its state is derived from its branch and PR.
 
 Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
 errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so
