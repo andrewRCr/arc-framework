@@ -245,22 +245,26 @@ worktree (free safety). The oracle slot is hand-wired here with a local gate; Ph
   binds the bounded oracle pipeline (`resolveInFlightBranchSet` → `deriveInFlight` → `findMaterializableWorkUnits`,
   identity + team-mode); an unreachable remote degrades to empty candidates. Slot absent on the resume path.
 
-### `[ ]` **4.3 Session-init Materialize arm — the WU path**
+### `[x]` **4.3 Session-init Materialize arm — the WU path**
 
 - _Goal:_ The session-init Materialize arm picks up a selected remote-only WU — `git worktree add
   <templated-path> origin/<branch>` → `arc user pull` → re-probe → orient as Resume — completing a cross-machine
   pickup without a hand-rolled git incantation.
-- _Note:_ Reuse Worktree Foundation's worktree location template (`resolveWorktreeLocation`); `arc user pull` is
-  the black-box notes load. The WU arm exists in skeleton in `session-init.md`; this fills the candidate
-  surfacing + path template.
 
-    - `[ ]` **4.3.a Wire candidate selection → materialize → re-probe → Resume**
-        - In `session-init.md`: surface oracle WU candidates on the no-local-WU arm; on selection run the
-          worktree-add → `arc user pull` → re-run Step 1 probe → proceed as Resume.
+    - `[x]` **4.3.a Wire candidate selection → materialize → re-probe → Resume**
+        - `session-init.md` (both copies): the Materialize arm now reads remote-only WUs from
+          `materializableWorkUnits.value.candidates`, surfaces them via a Step 6 "Materializable work units" route +
+          the Discovery-arm mention, and on selection runs worktree-add → `arc user pull` → re-run Step 1 → Resume.
 
-    - `[ ]` **4.3.b Templated worktree path + double-checkout safety**
-        - Confirm the path shape + collision handling against the WF template; surface that an already-checked-out
-          branch points at the existing worktree rather than erroring.
+    - `[x]` **4.3.b Templated worktree path + double-checkout safety**
+        - Path resolves from `worktree.location_template` (`{repo}` / `{branch}` slugged); the candidate surface
+          already excludes locally-checked-out entries (`remoteOnly`), with git's double-checkout refusal as the
+          backstop (resolves to the existing worktree, never a second one).
+
+- _Outcome:_ Filled the skeleton WU half of the Materialize arm in `session-init.md` + its package-source
+  `.template.md` (mirrored, conditional blocks untouched): envelope-table row for `materializableWorkUnits`,
+  candidate-driven Materialize dispatch with the templated path + double-checkout backstop, and a Step 6
+  orientation surface. Doc-only — the detecting/wiring code shipped in Tasks 4.1–4.2.
 
 ## **Phase 5:** Oracle-backed concurrency check
 

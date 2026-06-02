@@ -43,6 +43,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                          |
 | `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Atomic` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                    |
 | `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved. |
+| `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                  |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                        |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
@@ -128,7 +129,8 @@ acted on.
   holds routable captures:
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. If `errandState` carries flagged captures, in-flight
-      `chore/` branches, or materializable remote errands, surface them in Step 6 as available routes.
+      `chore/` branches, or materializable remote errands — or `materializableWorkUnits` carries remote-only
+      WU candidates — surface them in Step 6 as available routes.
     - **Errand** (`--errand <blurb|slug>` present, primary worktree): enter **errand mode** — see
       [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
       surface that an Errand runs from the primary worktree and fall through to discovery.
@@ -147,12 +149,17 @@ acted on.
   an ARC spec artifact (`draft-` / `spec-`) as `Design`, and passes anything else (a file/URL or free-text
   blurb) through for you to interpret. On accept, run the command, **re-run the Step 1 probe**, and proceed as
   **Resume**. On decline, fall through to **Orient**.
-- **Materialize** — the probe surfaces either a remote-only work unit or
-  `errandState.value.materializable.candidates` includes a remote-only `chore/<slug>` branch with no local
-  worktree and no backing meta. For a work unit: `git worktree add <path> origin/<branch>`, then `arc user pull`
-  to load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
-  `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**.
-  When multiple materializable errands are present, list them and ask which to materialize; never guess.
+- **Materialize** — the probe surfaces a remote-only work unit (`materializableWorkUnits.value.candidates`
+  non-empty) or a remote-only errand (`errandState.value.materializable.candidates` includes a `chore/<slug>`
+  branch with no local worktree and no backing meta). Surface the candidates and ask which to materialize when
+  more than one is present; never guess — the candidate list *is* the correctness mechanism (you pick a real
+  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: `git worktree add <path>
+  origin/<branch>` at the path resolved from `worktree.location_template` (`{repo}` → repo name, `{branch}` →
+  branch with `/` slugged to `-`), then `arc user pull` to load its notes; **re-run the Step 1 probe** and
+  proceed as **Resume**. For an errand: `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**,
+  and proceed as **Errand-resume**. The candidate surface already excludes any entry checked out locally (the
+  oracle's `remoteOnly` filter); as a backstop, git refuses a double checkout, so an already-materialized branch
+  resolves to its existing worktree rather than erroring into a second one.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,
@@ -616,6 +623,16 @@ tracked source documents the work.
   ```text
   **Materializable errands:** {N} remote `chore/` branch(es) available:
   - `{branch}` — materialize and resume?
+  ```
+
+- `materializableWorkUnits.value.candidates` non-empty (Orient arm — no active WU): remote-only owned work units
+  can be materialized onto this machine for cross-machine pickup. Surface as a route; on selection, follow Step 2's
+  Materialize arm. The candidate list is the correctness mechanism — selecting a real in-flight WU makes a
+  phantom / typo'd name impossible.
+
+  ```text
+  **Materializable work units:** {N} remote WU(s) available:
+  - `{name}` (`{branch}`) — materialize and resume?
   ```
 
 - `inboxState.value.housekeepNeeded` (Orient arm — no active WU): `USER-INBOX` holds routable captures. Soft-offer
