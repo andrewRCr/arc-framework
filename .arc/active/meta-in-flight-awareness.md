@@ -11,13 +11,12 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** `tasks-in-flight-awareness.md`
-- **Last Completed:** Task 6.3 — Swap session-init errand consumption onto the oracle (line ~353). Phase 6
-  complete: the gated-slot affordance (6.1), the shared session-slot declaration (6.2), and the errand-discovery
-  oracle absorption (6.3) all landed. Phase 6 was the last implementation phase.
-- **Next Task:** Task 7.1 — Complete verification (line ~375)
+- **Last Completed:** Task 7.1 — Complete verification (line ~375). Tier 3 gates green (lint, typecheck,
+  2299 tests, build) and all 7 success criteria met against `spec-in-flight-awareness.md`; the WU is ready
+  for integration. Phase 6 was the last implementation phase.
+- **Next Task:** [none] — verification complete; proceed to integrate-work-unit.
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` (the WU's single verification task):
-  re-run the full quality-gate sweep and verify the implementation against `spec-in-flight-awareness.md`.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---

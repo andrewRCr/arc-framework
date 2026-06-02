@@ -372,31 +372,37 @@ generalizes the firing discipline the earlier consumer phases hand-wire.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (338 files), TS + shell lint, typecheck (source + test), 2299 tests
+  (1931 unit / 307 integration / 61 e2e), tsup build — all passed.
+- _Success criteria:_ 7 criteria, all met against `spec-in-flight-awareness.md` — no deviations or
+  supersessions. The R3 PR-source refs-only degrade and R8 remote-only materialize-candidate signal
+  (the two intended Task 6.3 behavior shifts) confirmed consistent with the spec.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Oracle derives correctly and is dead-ref-robust: returns the identity's in-flight WUs with State via
+- `[x]` Oracle derives correctly and is dead-ref-robust: returns the identity's in-flight WUs with State via
   `git show` with no checkout; a merged-and-deleted errand branch does not appear (classification over a pruned
   ref view).
-- `[ ]` Resume path pays zero oracle cost: with an active local WU resolved, session-init fires no oracle network
+- `[x]` Resume path pays zero oracle cost: with an active local WU resolved, session-init fires no oracle network
   read; the network slice fires only on the named triggers, each bounded and degrading to the last-rendered file.
-- `[ ]` `STATUS.USER` renders to standard and is byte-stable: the in-flight-mine slice renders with the per-table
+- `[x]` `STATUS.USER` renders to standard and is byte-stable: the in-flight-mine slice renders with the per-table
   column sets + uniform sort key; identical inputs produce byte-identical output; `arc status --user` renders in
   the terminal via the pure core; opening the file does not regenerate it.
-- `[ ]` `Priority` field is live and conflict-free: `**Priority:**` is in `template-meta.md` and
+- `[x]` `Priority` field is live and conflict-free: `**Priority:**` is in `template-meta.md` and
   `strategy-work-organization.md`, defaults to `P3`, drives the render sort, and is a per-WU tracked edit with no
   shared-ordering doc.
-- `[ ]` Materialize completes a cross-machine pickup: from a no-local-WU session the oracle surfaces a
+- `[x]` Materialize completes a cross-machine pickup: from a no-local-WU session the oracle surfaces a
   remote-only owned WU and `arc-session` materializes the selected one; an already-materialized branch points at
   the existing worktree rather than erroring.
-- `[ ]` Activation concurrency check is oracle-backed and advisory: spawn / cold-start / materialize /
+- `[x]` Activation concurrency check is oracle-backed and advisory: spawn / cold-start / materialize /
   errand-launch consult the oracle-backed check; it surfaces overlap and never blocks.
-- `[ ]` Orchestration seam gates expensive slots: the orchestrator fires the oracle slot only under its
+- `[x]` Orchestration seam gates expensive slots: the orchestrator fires the oracle slot only under its
   condition, de-duplicates the per-entry-point slot lists, and preserves the `safeProbe` envelope contract.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
