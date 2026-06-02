@@ -65,6 +65,20 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   Quick-tier per the atomic-tier infra-edit smell flag (multi-file sweep touching `.arc/system/` +
   `.arc/reference/`).
 
+### `[ ]` **Commit-message discipline (self-hosting): `(arc)` scope overuse + `docs` type misuse — adherence gap**
+
+- *Routed from:* follow-up housekeep drain (2026-06-01), dogfooded across this session's own PRs.
+- *Concern:* `commit-format` § Type selection + § Subject scope already codify both rules clearly — `docs` is
+  "external-facing prose only (`README.md`, docs-site, onboarding)"; `(arc)` is reserved for cross-cutting
+  concerns, "not a default-when-uncertain catch-all" — yet both are widely under-adhered in the self-hosting
+  repo (five PRs in one session all used `docs`/`chore(arc)` for bounded methodology-artifact edits that should
+  have been `fix(brief)` / `fix(hook)` / `fix(strategy)` / `chore(backlog)`). The rules are excellent; the gap
+  is **adherence, not authoring.**
+- *Shape:* enforcement + salience, not new guidance. (1) A `commit-msg` hook check — `docs` misuse is
+  mechanically catchable (flag `type: docs` when no staged path is under an external-facing surface like
+  `README.md` / docs-site); `(arc)` scope can warn-to-confirm (a hook can't fully judge "cross-cutting"). (2)
+  Reinforcement/salience via `arc-reinforce`. Cross-ref `commit-format` § Type selection + § Subject scope.
+
 ---
 
 ## Problem / Motivation
