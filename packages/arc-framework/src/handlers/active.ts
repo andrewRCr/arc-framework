@@ -126,8 +126,9 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
   }
 
   p.intro("arc active in-flight");
+  const degradedNotice = result.reachable ? "" : "\n[remote unreachable — local-only view]";
   if (result.entries.length === 0) {
-    p.note("No work units or errands in flight.", "In-flight");
+    p.note(`No work units or errands in flight.${degradedNotice}`, "In-flight");
   } else {
     const lines = result.entries.map((e) => {
       const where = e.worktreePath ?? (e.remoteOnly ? "remote-only" : "no worktree");
@@ -135,8 +136,7 @@ export async function handleActiveInFlight(opts: ActiveInFlightCliOptions): Prom
         ? `${e.branch}  (${e.state})  ${where}`
         : `${e.branch}  (errand)  ${where}`;
     });
-    const suffix = result.reachable ? "" : "  [remote unreachable — local-only view]";
-    p.note(`${lines.join("\n")}${suffix}`, "In-flight");
+    p.note(`${lines.join("\n")}${degradedNotice}`, "In-flight");
   }
   p.outro("Done.");
 }
