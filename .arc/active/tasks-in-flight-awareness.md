@@ -272,27 +272,33 @@ _Purpose:_ Upgrade the activation-time concurrency check and the errand-launch f
 degrading advisory stubs to the oracle-backed version — identity-filtered refs + PRs, consumed from spawn /
 cold-start / materialize / errand-launch — still advisory, never a gate.
 
-_Design decisions:_ The oracle's in-flight-errand detection absorbs work-routing-discipline's interim
-errand-state probe + sweep. The gate doctrine (when/how the oracle gates) stays Concurrent Work Conventions's;
-here every consumer remains advisory.
+_Design decisions:_ The oracle's in-flight-errand detection is the single derivation that work-routing-discipline's
+interim errand-state probe + sweep collapse into — but the absorption splits along a capability/consumption seam:
+this phase makes the oracle the single _derivation_ (WUs + errands) and points the activation check at it; the
+_consumption_ swap (session-init's errand-orientation + materialize-errand surfaces onto the oracle, retiring the
+bespoke discovery) lands in Phase 6 (6.3), where the gated-slot machinery is reworked anyway. The gate doctrine
+(when/how the oracle gates) stays Concurrent Work Conventions's; here every consumer remains advisory.
 
 ### `[ ]` **5.1 Swap the concurrency check data source to the oracle**
 
 - _Goal:_ `in-flight-scope-check.md` consumes the oracle (identity-filtered refs + PRs) instead of the local-only
-  `arc active roster`, so the check sees cross-worktree and cross-machine in-flight WUs — still advisory.
-- _Context:_ Consumed from spawn / cold-start / materialize; absorbs the interim errand-state probe + in-flight
-  errand sweep into the oracle.
+  `arc active roster`, so the check sees cross-worktree and cross-machine in-flight WUs (and errands) — still
+  advisory.
+- _Context:_ Consumed from spawn / cold-start / materialize. The oracle becomes the single _derivation_ of the
+  in-flight set here; the consumption swap of session-init's own errand surfaces onto it is Phase 6 (see 6.3).
 - _Note:_ `in-flight-scope-check.md` already treats its data source as opaque (its Assess step reads each WU's
   scope from the meta `**Design:**` field); the oracle already reads metas, so carry `Design` in its output
-  rather than re-reading.
+  rather than re-reading. The new surface is a dedicated oracle-backed JSON command — `arc active roster` keeps
+  its local-roster semantics (and stays 5.2's projection base).
 
     - `[ ]` **5.1.a Repoint the scope-check data source (roster → oracle)**
-        - Update `in-flight-scope-check.md`'s Gather step and any backing command to read the oracle; keep the
-          degrade-to-silent on empty.
+        - Add a dedicated oracle-backed JSON command (network read + offline degrade) and point
+          `in-flight-scope-check.md`'s Gather step at it; carry `design` on the oracle's WU entries and handle the
+          remote-only shape (no `worktreePath`); keep the degrade-to-silent on empty.
 
-    - `[ ]` **5.1.b Fold the interim errand-state probe / sweep into the oracle-backed check**
-        - Route the in-flight-errand signal through the oracle so the activation check and the errand surfaces
-          share one source.
+    - `[ ]` **5.1.b Surface in-flight errands through the same oracle call**
+        - The oracle's `chore/`-branch errand entries feed the activation check alongside WUs, so one oracle call
+          is the check's single source. (Session-init's own errand-orientation surfaces move to the oracle in 6.3.)
 
 ### `[ ]` **5.2 Oracle-back the errand-launch foreign-artifact gate**
 
@@ -340,6 +346,27 @@ generalizes the firing discipline the earlier consumer phases hand-wire.
     - Build `test-first` (one behavior at a time):
         - The three entry points compose from a single shared slot declaration
         - Each entry point's envelope shape is unchanged (regression-guarded)
+
+### `[ ]` **6.3 Swap session-init errand consumption onto the oracle**
+
+- _Goal:_ Session-init's in-flight-errand orientation surface and the materialize-errand candidates derive from
+  the oracle, retiring `errand-state.ts`'s bespoke discovery (own ref read, prune, per-branch PR/merge probes,
+  `classifyInFlightErrands`, `findMaterializableErrands`) — completing work-routing-discipline's interim-sweep
+  absorption. `resume` (local current-branch signal) and `nudge` (rate-limit marker) stay; they aren't oracle
+  derivations.
+- _Context:_ Lands here, not in Phase 5, because the errand-discovery slot and the oracle network slice gate on
+  the same condition (`active.resolution === "none"`) — collapsing them is this phase's gated-slot work, avoiding
+  a double-touch of the slot wiring.
+- _Note:_ The oracle gains errand state (`merged` + `ageDays` → in-progress / awaiting-merge / merged-cleanup /
+  stale) and its `remoteOnly` errands feed the materialize-errand offer. Oracle correctness is prune-independent
+  (it intersects refs with live `ls-remote` membership), so the interim sweep's `git fetch --prune` survives only
+  as a standalone session-init hygiene backstop, decoupled from classification (spec § Dead-ref reconciliation).
+
+    - Build `test-first` (one behavior at a time):
+        - The in-flight-errand orientation surface classifies from oracle-derived entries (state + age preserved)
+        - Materialize-errand candidates derive from the oracle's remote-only errand entries
+        - `resume` and `nudge` are unaffected
+        - The dead-ref hygiene prune still runs (decoupled from classification)
 
 ## **Phase 7:** Verification
 
