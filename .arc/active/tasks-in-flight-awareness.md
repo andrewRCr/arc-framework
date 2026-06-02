@@ -133,43 +133,47 @@ standard; the canonical-file write + reconcile is deferred to `operational-state
 reuse the same render core (zero throwaway). The render core and the hand-maintenance procedure produce
 byte-identical output, making the standard executable.
 
-### `[ ]` **3.1 `STATUS.USER` render standard in the strategy doc**
+### `[x]` **3.1 `STATUS.USER` render standard in the strategy doc**
 
 - _Goal:_ A strategy-doc standard defines how `STATUS.USER` (and the per-table column sets / uniform sort the
   project view shares) is derived and hand-maintained — precise enough that the code render core and a human
   produce byte-identical output.
-- _Context:_ Filtered mode of the same source as the project view; establishes the standard
-  roadmap-tooling / `operational-state-docs` later mechanize.
-- _Note:_ Executor-only context — keep § ROADMAP adopter-neutral (no internal-WU forward-pointers). roadmap-tooling
-  later slims the render mechanics into its renderer spec, so add only the durable contract (column sets, sort key,
-  triggers) here, not a step-by-step the renderer will own.
-- **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.1.a Per-table column sets**
+    - `[x]` **3.1.a Per-table column sets**
         - In Flight / Ready / Blocked / `STATUS.USER`, each omitting columns constant across that table;
-          `[Priority]` rendered only when the field is present.
+          `[Priority]` is a conditional column (rendered only when a row in the table carries a value).
 
-    - `[ ]` **3.1.b Uniform sort key + byte-stability contract**
-        - `(priority, cohort, wu-name)`; absent priority resolves to `P3`; Blocked additionally banded by
-          dependency depth; identical inputs → byte-identical output; tables exempt from line-length lint
-          (`MD013.tables: false`).
+    - `[x]` **3.1.b Uniform sort key + byte-stability contract**
+        - `(priority, cohort, wu-name)`; absent priority resolves to `P3` (so an all-default render reduces to
+          today's `(cohort, wu-name)`); Blocked additionally banded by dependency depth; WU-name is the
+          total-order tiebreak → byte-identical output for identical inputs; tables exempt from line-length lint
+          (`MD013.tables: false`, verified present in `.markdownlint-cli2.jsonc`).
 
-    - `[ ]` **3.1.c Regeneration triggers + hand-maintenance procedure**
-        - Local-slice ceremonies (spawn / activate / integrate / shift / handoff) vs cross-machine-slice subset
-          (handoff / `arc sync` / explicit view / no-local-WU init); the step-by-step hand-maintenance procedure.
+    - `[x]` **3.1.c Regeneration triggers + hand-maintenance procedure**
+        - Local slice (spawn / activate / integrate / shift / handoff, no network) vs cross-machine slice
+          (handoff / `arc sync` / explicit `arc status --user` / no-local-WU init, bounded network read,
+          degrade to last-rendered); 3-step hand-maintenance procedure deferring derivation to § Render algorithm.
 
-### `[ ]` **3.2 `STATUS.USER` view file — gitignored-local, single-cache model**
+- _Outcome:_ Added to `strategy-work-organization.md § ROADMAP` (both copies): a `### Render standard` subsection
+  holding the shared contract (column sets + sort key + byte-stability + lint exemption) and a `### STATUS.USER
+  view` subsection (the filtered view, its gitignored-local single-cache storage, triggers, and hand-maintenance).
+  The contract is single-sourced — § Render algorithm's emit step now _defers_ column membership and sort to
+  § Render standard rather than duplicating, so the later renderer extraction lifts mechanics out and leaves the
+  contract in place. Byte-stability is scoped to the rendered slice (tables); a provenance marker — a commit hash
+  for the project view, an `Updated:` timestamp for `STATUS.USER` (its inputs are remote refs + PRs, which a hash
+  can't certify) — is stamped metadata outside the contract. Kept adopter-neutral (no internal-WU names /
+  forward-pointers).
+
+### `[x]` **3.2 `STATUS.USER` view file — gitignored-local, single-cache model**
 
 - _Goal:_ The `STATUS.USER` file lives at `.arc/user/{identity}/STATUS.USER.md`, per-machine, and is itself the
   cache — no separate persisted cache — so opening it never triggers a network read and it is trustworthy because
   the last ceremony refreshed it.
-- _Approach:_ The existing `.arc/user/*/` gitignore pattern already covers it (sibling to `WORKING-MEMORY.md` /
-  `USER-INBOX.md`) — no new ignore entry needed; seed an initial hand-rendered baseline per 3.1.
-
-    - File at `.arc/user/{identity}/STATUS.USER.md` (auto-gitignored by `.arc/user/*/`); initial hand-rendered
-      baseline
-    - Single-cache invariant documented: the rendered file is the cache; file-open is the passive path (instant,
-      no regen)
+- _Outcome:_ Seeded `.arc/user/andrew/STATUS.USER.md` — a hand-rendered baseline per § Render standard (one-row
+  in-flight-mine slice, `in-flight-awareness`; `[Priority]` column omitted as no WU carries a value yet, the dep
+  resolves to `—` by absence, matching the project In Flight row). Confirmed `.gitignore`'s `.arc/user/*/` already
+  covers it (`git check-ignore` — no new ignore entry). The file header documents the single-cache invariant: the
+  rendered file is the cache, file-open is the passive path (instant, no regen, no network read).
 
 ### `[ ]` **3.3 `arc status --user` explicit-view command**
 

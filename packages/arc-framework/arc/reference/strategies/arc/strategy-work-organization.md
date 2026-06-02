@@ -445,7 +445,7 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 1. Walk `active/**` and `backlog/planned/**` recursively for `meta-*.md` files — the **render set**.
    The recursive glob handles both standalone subdirs (`backlog/planned/<wu-name>/`) and
    cohort-wrapped subdirs (`backlog/planned/<cohort>/<wu-name>/`).
-2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, and `**Cohort:**` from each meta file.
+2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, `**Cohort:**`, and `**Priority:**` from each meta file.
 3. Resolve each `**Depends On:**` entry against the `active/` + `backlog/` set (planned and
    provisional): a target still present is unsatisfied; an absent target is satisfied (shipped).
 4. Group into three tiers:
@@ -455,15 +455,45 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
       with).
     - **Blocked** — planned work with at least one unsatisfied dependency, banded by dependency
       depth (shallowest first) so each WU follows the deps it waits on.
-5. Render each tier as a markdown table, splitting **Blocked** into one table per depth band (`Depth 1`,
-   `Depth 2`, …). Columns: **Work unit** (the canonical WU-name) · **Owner** · **Depends on** ·
-   **Cohort**, with an em-dash (`—`) for empty cells. The **In Flight** table inserts a **State** column
-   after **Work unit** (`Planning` / `Active` / `Integrating`); the tier spans all three, so the column
-   distinguishes them. Ready and Blocked omit it — planned work is uniformly `Planning`. Within a tier or
-   band, order rows to cluster cohort members (by cohort, then WU-name), and pad columns to shared widths
-   so the raw tables align.
+5. Render each tier as a markdown table per the per-table column sets and sort key in § Render standard,
+   splitting **Blocked** into one table per depth band (`Depth 1`, `Depth 2`, …). Use an em-dash (`—`) for
+   empty cells, and pad columns to shared widths so the raw tables align.
 6. Footer note pointing to `backlog/provisional/` for pre-commitment thinking that hasn't been
    sequenced.
+
+### Render standard
+
+The project readiness view and the user-scoped `STATUS.USER` view (below) share one render standard — the
+durable contract a renderer or a hand-edit must both satisfy. It governs which columns each table carries and
+the order its rows appear in.
+
+**Per-table column sets.** Each table renders only the columns that distinguish its rows — **omit any column
+that is constant across that table**:
+
+- **In Flight** — Work unit · State · [Priority] · Owner · Depends on · Cohort
+- **Ready** — Work unit · [Priority] · Owner · Cohort (State is constant `Planning`; Depends on is constant `—`)
+- **Blocked** — Work unit · [Priority] · Owner · Depends on · Cohort (State is constant `Planning`; Depends on
+  names the blocking dep)
+- **`STATUS.USER`** (in-flight-mine only) — Work unit · State · [Priority] · Depends on · Cohort (Owner is
+  constant `= me`)
+
+`[Priority]` is itself conditional — rendered only when at least one row in the table carries a `**Priority:**`
+value; a table of all-default WUs omits the column.
+
+**Sort key (uniform).** Rows order by `(priority, cohort, wu-name)` — priority first (`P1` → `P2` → `P3`), then
+cohort cluster, then canonical WU-name. A missing `**Priority:**` resolves to `P3`, so an all-default render
+reduces to `(cohort, wu-name)`. WU-name is a total-order tiebreak, so identical inputs always produce
+byte-identical output — no spurious regeneration diffs. **Blocked** additionally groups into dependency-depth
+bands (shallowest first), with the sort key applied within each band.
+
+**Lint exemption.** The rendered tables are exempt from line-length linting (`MD013.tables: false`); padding to
+shared column widths is intentional and would otherwise overflow.
+
+**Provenance (outside the stability contract).** Each view carries a freshness marker, and the byte-stability
+guarantee above covers only the rendered slice (the tables) as a function of meta-state — the marker is stamped
+metadata, outside it. The project readiness view records the commit it rendered against (its inputs are local
+meta files). `STATUS.USER` instead records an `Updated:` timestamp: its inputs include remote refs and open PRs,
+which a local commit hash would not certify as fresh.
 
 ### Regeneration fire-points
 
@@ -493,12 +523,60 @@ so re-render by hand (per § Render algorithm) when you make the change:
   WU to the render; demotion (the reverse) and creating a stub directly in `backlog/planned/` likewise
   change the render set.
 - **Render-field edits** on a planned or active meta — a `**Depends On:**` change re-tiers the WU
-  between Ready and Blocked; `**Owner:**` and `**Cohort:**` changes alter the owner column and
-  within-tier grouping. These are ordinary file edits, not ceremonies, so nothing else prompts the
-  re-render.
+  between Ready and Blocked; `**Owner:**`, `**Cohort:**`, and `**Priority:**` changes alter the owner
+  column, within-tier grouping, and sort order. These are ordinary file edits, not ceremonies, so
+  nothing else prompts the re-render.
 
 A skipped manual re-render is bounded, not permanent: the next ceremony-wired regeneration sweeps the
 ROADMAP back into agreement with meta-file state.
+
+### `STATUS.USER` view
+
+`STATUS.USER` is a **user-scoped, in-flight-mine** rendering of the same source as the project readiness view —
+a filtered mode, not a second generator. It scopes to the slice that is invisible across worktrees: the work
+units in flight *for you*, wherever they live. In-flight is location-based — a WU in `active/**` (equivalently,
+an unmerged WU branch on the remote) is in flight — so the view surfaces actively-*planned* WUs, not only
+executing ones. Everything not in flight stays in the project view.
+
+**Location and storage.** The file lives at `.arc/user/{identity}/STATUS.USER.md` — gitignored, per-machine. It
+does **not** sync: every machine regenerates it identically from remote refs (and open PRs), so it is an optional
+local cache, never transported content. There is no separate persisted cache — **the rendered file is the
+cache**. Opening it never regenerates it (the passive path: instant, no network read); it is trustworthy when
+opened because the last relevant trigger refreshed it.
+
+**Columns and sort.** Per § Render standard — the `STATUS.USER` column set (Owner omitted, constant `= me`) and
+the shared `(priority, cohort, wu-name)` sort key. It shares the project view's In-Flight ordering, filtered
+rather than re-sorted.
+
+**Rendered shape.** The file opens with an H1 — `Status (User): {identity}` — and a standing header note (a
+generated, gitignored-local cache refreshed at the triggers below; the single-cache / passive-open invariant
+above). The In Flight table follows. An `Updated:` provenance footer closes the file. The seeded
+`.arc/user/{identity}/STATUS.USER.md` is the canonical worked example a hand-render and the render core both
+reproduce.
+
+**Regeneration triggers.** The view has two slices with different refresh costs:
+
+- **Local slice** — your WUs in flight on *this* machine (the identity-filtered roster). It regenerates cheaply,
+  with no network read, at every local ceremony: spawn, activate, integrate, shift, and handoff.
+- **Cross-machine slice** — your WUs in flight only *elsewhere* (remote-only, no local worktree). Surfacing these
+  needs a network round-trip, so it refreshes only at the subset of triggers where cross-machine truth matters:
+  handoff, an explicit `arc sync`, an explicit view request (`arc status --user`), and a session start with no
+  local active WU. Each network read is bounded by a short timeout and degrades to the last-rendered file when
+  the remote is unreachable.
+
+**Explicit view request.** `arc status --user` is an active re-render request, not a passive file-open: it
+refreshes the local slice always and the cross-machine slice via the bounded network read, then renders the
+in-flight-mine slice. A `--local` / `--no-fetch` flag skips the network read for a fast offline view.
+
+**Hand-maintenance procedure.** Refresh the file by hand at the triggers above:
+
+1. Derive your in-flight-mine slice — the render set located in `active/**`, identity-filtered to your WUs. For a
+   cross-machine refresh, also include your remote-only in-flight WUs (a WU branch unmerged on the remote with no
+   local worktree).
+2. Apply the `STATUS.USER` column set and the `(priority, cohort, wu-name)` sort key from § Render standard.
+3. Write `.arc/user/{identity}/STATUS.USER.md` — the table, plus the standing header note and `Updated:` footer
+   described above. Because the sort is a total order, the rendered slice matches the eventual automated render
+   byte-for-byte; the `Updated:` stamp is the only part that varies.
 
 ---
 
