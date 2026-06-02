@@ -218,6 +218,7 @@ export const META_FIELDS = [
   { name: "Design", default: "[none]", group: "reference" },
   { name: "Depends On", default: "[none]", group: "coordination" },
   { name: "Cohort", default: "[none]", group: "coordination" },
+  { name: "Priority", default: "P3", group: "coordination" },
   { name: "Task List", default: "[none]", group: "pointers" },
   { name: "Last Completed", default: "[none]", group: "pointers" },
   { name: "Next Task", default: "[none]", group: "pointers" },

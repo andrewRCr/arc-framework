@@ -109,20 +109,17 @@ scale). Durability is the tracked field + git history — no in-file change-log 
         - Added a `**Priority anti-inflation.**` note: a soft cap on concurrent `P1`s, documentation discipline
           only — never an ARC nag or render-time signal; both copies.
 
-### `[ ]` **2.3 Add `Priority` to the meta schema record + a `validatePriority` helper**
+### `[x]` **2.3 Add `Priority` to the meta schema record + a `validatePriority` helper**
 
 - _Goal:_ `Priority` is a first-class `META_FIELDS` entry (so the `renderMetaFile` / `parseMetaRecord` round-trip
   covers it) and a `validatePriority` helper narrows a raw value to the bounded `P1` / `P2` / `P3` set with a
   `P3` default — the typed input the render sort and the oracle's data shape consume.
-- _Approach:_ Add `{ name: "Priority", default: "P3", group: "coordination" }` to `META_FIELDS`; keep
-  `parseMetaRecord` returning the raw value; add `validatePriority(raw): Priority` paralleling `validateState`
-  in `active/types.ts`. The shared field set keeps render and parse symmetric.
-
-    - Build `test-first` (one behavior at a time):
-        - `validatePriority` narrows `P1` / `P2` / `P3` to themselves
-        - `validatePriority` resolves a missing / `[none]` / out-of-range value (`P0`, `P5`) to `P3` with no throw
-        - The `renderMetaFile` / `parseMetaRecord` round-trip covers the new `Priority` field (round-trip guard
-          stays green)
+- _Outcome:_ `{ name: "Priority", default: "P3", group: "coordination" }` is in `META_FIELDS` (after `Cohort`),
+  so every render carries `**Priority:** P3` and `parseMetaRecord` recovers it raw; the existing round-trip guard,
+  which iterates `META_FIELDS`, now covers it. Added the `Priority` type + `validatePriority(p): Priority` to
+  `commands/active/types.ts` paralleling `validateState`, but never-failing — any unrecognized input (`null`,
+  `[none]`, `P0`/`P5`, case-mismatch) resolves to the `P3` baseline rather than an `"unknown"` sentinel, so the
+  sort/render always get a usable level.
 
 ## **Phase 3:** `STATUS.USER` view + render standard
 
