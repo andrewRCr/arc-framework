@@ -82,21 +82,18 @@ _Design decisions:_ `P0` is deliberately not a level (its stop-the-world connota
 scale). Durability is the tracked field + git history — no in-file change-log array (ADR-020). Anti-inflation
 (a soft cap on concurrent P1s) is documentation guidance only — never an agent-surfaced nag or render signal.
 
-### `[ ]` **2.1 Add the `Priority` field to the meta schema (`template-meta.md`, both copies)**
+### `[x]` **2.1 Add the `Priority` field to the meta schema (`template-meta.md`, both copies)**
 
 - _Goal:_ `**Priority:**` is a documented, `P3`-defaulted field in the meta template — project instance and
   package source — so every new WU carries it and adopters inherit it.
-- _Context:_ Schema-owned structure (name, valid values, default — not adopter-customizable) with a human-set
-  value, per ADR-022.
-- **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Add the field + slot placement**
-        - Insert `**Priority:** P3` in the coordination block (after `Cohort`) in both copies; edit package
-          source + `.arc/` instance together, never `cp`.
+    - `[x]` **2.1.a Add the field + slot placement**
+        - Inserted `**Priority:** P3` in the coordination block (after `Cohort`) in both copies — package
+          source + `.arc/` instance edited together.
 
-    - `[ ]` **2.1.b Document semantics in the template comment block**
-        - Levels (P1 top focus / P2 elevated / P3 baseline), `P3` default, the no-`P0` rationale, and the
-          anti-inflation-is-doc-guidance pointer; both copies.
+    - `[x]` **2.1.b Document semantics in the template comment block**
+        - Documented the levels (P1 top focus / P2 elevated / P3 baseline), `P3` default, the no-`P0` rationale,
+          and the anti-inflation-is-doc-guidance pointer in the template comment block; both copies.
 
 ### `[ ]` **2.2 Document `Priority` in `strategy-work-organization.md` § Source of truth (both copies)**
 
