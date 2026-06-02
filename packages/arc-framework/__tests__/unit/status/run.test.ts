@@ -17,7 +17,11 @@ import {
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
-import { gatedSlot } from "../../../src/commands/status/run.js";
+import {
+  buildSessionSharedSlots,
+  gatedSlot,
+  userSlot,
+} from "../../../src/commands/status/run.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -1527,6 +1531,72 @@ describe("gatedSlot — gated-slot affordance", () => {
     });
     expect(slot?.ok).toBe(false);
     if (slot && !slot.ok) expect(slot.error.message).toBe("sync boom");
+  });
+});
+
+describe("userSlot — identity-missing short-circuit primitive", () => {
+  it("fires the probe and wraps its result as an ok slot when identity is present", async () => {
+    const probe = vi.fn(async (id: string) => ({ id }));
+    const slot = await userSlot("andrew", probe);
+    expect(probe).toHaveBeenCalledWith("andrew");
+    expect(slot.ok).toBe(true);
+    if (slot.ok) expect(slot.value).toEqual({ id: "andrew" });
+  });
+
+  it("short-circuits to identity-missing — no probe call — when identity is null", async () => {
+    const probe = vi.fn(async (id: string) => ({ id }));
+    const slot = await userSlot(null, probe);
+    expect(probe).not.toHaveBeenCalled();
+    expect(slot.ok).toBe(false);
+    if (!slot.ok) expect(slot.error.kind).toBe("identity-missing");
+  });
+
+  it("wraps a rejecting probe as a runtime error slot", async () => {
+    const slot = await userSlot("andrew", async () => { throw new Error("user boom"); });
+    expect(slot.ok).toBe(false);
+    if (!slot.ok) {
+      expect(slot.error.kind).toBe("runtime");
+      expect(slot.error.message).toBe("user boom");
+    }
+  });
+});
+
+describe("buildSessionSharedSlots — shared session slot declaration", () => {
+  it("fires all five shared probes and wraps each as an ok slot, threading identity + role", async () => {
+    const probes = sessionInitProbes();
+    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
+    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
+      shared.user, shared.worktree, shared.dirty, shared.active, shared.releaseRouting,
+    ]);
+    expect(probes.user).toHaveBeenCalledWith("andrew");
+    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+    expect([user.ok, worktree.ok, dirty.ok, active.ok, releaseRouting.ok]).toEqual([
+      true, true, true, true, true,
+    ]);
+  });
+
+  it("short-circuits the user slot to identity-missing when identity is null; the other four still fire", async () => {
+    const probes = sessionInitProbes();
+    const shared = buildSessionSharedSlots({ identity: null, role: null, probes });
+    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
+      shared.user, shared.worktree, shared.dirty, shared.active, shared.releaseRouting,
+    ]);
+    expect(probes.user).not.toHaveBeenCalled();
+    expect(user.ok).toBe(false);
+    if (!user.ok) expect(user.error.kind).toBe("identity-missing");
+    expect([worktree.ok, dirty.ok, active.ok, releaseRouting.ok]).toEqual([true, true, true, true]);
+    expect(probes.active).toHaveBeenCalledWith(null, null);
+  });
+
+  it("wraps a rejecting shared probe as an error slot without rejecting the others", async () => {
+    const probes = sessionInitProbes({
+      worktree: async () => { throw new Error("worktree boom"); },
+    });
+    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
+    const [worktree, dirty] = await Promise.all([shared.worktree, shared.dirty]);
+    expect(worktree.ok).toBe(false);
+    if (!worktree.ok) expect(worktree.error.message).toBe("worktree boom");
+    expect(dirty.ok).toBe(true);
   });
 });
 

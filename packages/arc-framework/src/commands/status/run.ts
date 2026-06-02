@@ -30,10 +30,15 @@ import type {
   SessionInitProbeResult,
   SessionInitUserValue,
   SessionInitWorktreeValue,
+  SessionSharedProbes,
   StatusIdentity,
   StatusResult,
   WorktreeIdentity,
 } from "./types.js";
+import type { ActiveSessionInitResult } from "../active/types.js";
+import type { UserSessionInitStatusResult } from "../user/types.js";
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
   inferSessionInitRecommendations,
   type NotesPullPolicy,
@@ -104,6 +109,58 @@ function identityMissing(): ProbeErrorSlot {
   };
 }
 
+/** A resolved probe slot — success value or typed error. Structurally `Probe<T>`. */
+type Slot<T> = { ok: true; value: T } | ProbeErrorSlot;
+
+/**
+ * User-slot primitive: the identity-missing short-circuit shared by all three
+ * entry points. When `identity` is absent the user probe is never invoked and
+ * the slot resolves to an `identity-missing` error; otherwise `safeProbe` wraps
+ * the invocation, preserving the "envelope never rejects" contract. Generic over
+ * the probe's result type so full mode (`UserStatusResult`) and the session
+ * modes (`UserSessionInitStatusResult`) share one declaration.
+ */
+export function userSlot<T>(
+  identity: string | null,
+  probe: (identity: string) => Promise<T>,
+): Promise<Slot<T>> {
+  return identity === null
+    ? Promise.resolve(identityMissing())
+    : safeProbe(() => probe(identity));
+}
+
+/** The five probe slots shared by both session-scoped entry points. */
+interface SessionSharedSlots {
+  user: Promise<Slot<UserSessionInitStatusResult>>;
+  worktree: Promise<Slot<WorktreeSyncStatusResult>>;
+  dirty: Promise<Slot<DirtyStateResult>>;
+  active: Promise<Slot<ActiveSessionInitResult>>;
+  releaseRouting: Promise<Slot<ReleaseRoutingValue>>;
+}
+
+/**
+ * Declare the slots common to `session-init` and `session-handoff` once. Both
+ * orchestrators below compose their envelope from this single source plus their
+ * own mode-specific slots, rather than re-wiring user / worktree / dirty /
+ * active / releaseRouting independently. Each slot's probe fires eagerly (the
+ * `safeProbe` task starts on call), so the caller folding these into its
+ * `Promise.all` keeps the fan-out concurrent.
+ */
+export function buildSessionSharedSlots(opts: {
+  identity: string | null;
+  role: string | null;
+  probes: SessionSharedProbes;
+}): SessionSharedSlots {
+  const { identity, role, probes } = opts;
+  return {
+    user: userSlot(identity, (id) => probes.user(id)),
+    worktree: safeProbe(() => probes.worktree()),
+    dirty: safeProbe(() => probes.dirty()),
+    active: safeProbe(() => probes.active(identity, role)),
+    releaseRouting: safeProbe(() => probes.releaseRouting()),
+  };
+}
+
 function buildIdentity(identity: string | null, role: string | null): StatusIdentity {
   return { identity, role };
 }
@@ -119,9 +176,7 @@ function buildIdentity(identity: string | null, role: string | null): StatusIden
 export async function runStatus(options: RunStatusOptions): Promise<StatusResult> {
   const { identity, role, probes } = options;
 
-  const userTask: Promise<StatusResult["user"]> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
+  const userTask = userSlot(identity, (id) => probes.user(id));
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const activeTask = safeProbe(() => probes.active());
@@ -149,10 +204,7 @@ export async function runSessionInitStatus(
 ): Promise<SessionInitProbeResult> {
   const { identity, role, probes } = options;
 
-  type RawUser = { ok: true; value: import("../user/types.js").UserSessionInitStatusResult }
-    | ProbeErrorSlot;
-  type RawWorktree = { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult }
-    | ProbeErrorSlot;
+  type RawUser = Slot<UserSessionInitStatusResult>;
   type RawRetired =
     | { ok: true; value: import("../../lib/session-init/retired-subdir-detection.js").RetiredSubdirDetectionResult }
     | ProbeErrorSlot;
@@ -166,17 +218,11 @@ export async function runSessionInitStatus(
     | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
     | ProbeErrorSlot;
 
-  const userTask: Promise<RawUser> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
-  const worktreeTask: Promise<RawWorktree> = safeProbe(() => probes.worktree());
+  const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
-  const dirtyTask = safeProbe(() => probes.dirty());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
-  const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
-  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
   // Retired-subdir detection rides the eager phase (no roster dependency); it
   // needs identity to resolve a user dir, so it is omitted when identity is
   // absent. `null` here means "not computed" — distinct from an empty result.
@@ -195,18 +241,19 @@ export async function runSessionInitStatus(
     : safeProbe(() => probes.inboxState(identity));
 
   const [
-    user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
-    domainRules, releaseRouting, retiredSubdirs, errandSweep, inboxState,
+    user, worktree, dirty, active, releaseRouting,
+    worktreeIdentitySlot, extensions, config, domainRules,
+    retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
-    userTask,
-    worktreeTask,
+    shared.user,
+    shared.worktree,
+    shared.dirty,
+    shared.active,
+    shared.releaseRouting,
     worktreeIdentityTask,
-    dirtyTask,
     extensionsTask,
     configTask,
-    activeTask,
     domainRulesTask,
-    releaseRoutingTask,
     retiredSubdirsTask,
     errandSweepTask,
     inboxStateTask,
@@ -393,34 +440,28 @@ export async function runSessionHandoffStatus(
 ): Promise<SessionHandoffResult> {
   const { identity, role, probes } = options;
 
-  const dirtyTask = safeProbe(() => probes.dirty());
-  const worktreeTask = safeProbe(() => probes.worktree());
-  const userTask: Promise<SessionHandoffResult["user"]> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
+  const shared = buildSessionSharedSlots({ identity, role, probes });
   const syncInterlockTask = safeProbe(() => probes.syncInterlock());
-  const activeTask = safeProbe(() => probes.active(identity, role));
   const headTask = safeProbe(() => probes.head());
   const pushabilityTask = safeProbe(() => probes.pushability());
   const restateCandidatesTask = safeProbe(() => probes.restateCandidates());
-  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
   const inboxStateTask: Promise<SessionHandoffResult["inboxState"] | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.inboxState(identity));
 
   const [
-    dirty, worktree, user, syncInterlock, active, head, pushability,
-    restateCandidates, releaseRouting, inboxState,
+    user, worktree, dirty, active, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, inboxState,
   ] = await Promise.all([
-    dirtyTask,
-    worktreeTask,
-    userTask,
+    shared.user,
+    shared.worktree,
+    shared.dirty,
+    shared.active,
+    shared.releaseRouting,
     syncInterlockTask,
-    activeTask,
     headTask,
     pushabilityTask,
     restateCandidatesTask,
-    releaseRoutingTask,
     inboxStateTask,
   ]);
 

@@ -337,15 +337,18 @@ generalizes the firing discipline the earlier consumer phases hand-wire.
   CSA reconcile note: when the `Probe<T>` → `Result<T,E>` slot-wrapper rewrite lands here, leave the consumers
   inline — the narrowing loss is intrinsic to any `(condition, thunk)` split, not a `Probe<T>` artifact.
 
-### `[ ]` **6.2 De-duplicate the per-entry-point slot lists**
+### `[x]` **6.2 De-duplicate the per-entry-point slot lists**
 
 - _Goal:_ The slots hand-re-declared across `runStatus` / `runSessionInitStatus` / `runSessionHandoffStatus`
   (user / worktree / dirty / active / releaseRouting) are declared once and composed, so the three entry points
   share one slot source.
-
-    - Build `test-first` (one behavior at a time):
-        - The three entry points compose from a single shared slot declaration
-        - Each entry point's envelope shape is unchanged (regression-guarded)
+- _Outcome:_ Added a `SessionSharedProbes` base interface (`commands/status/types.ts`) that `SessionInitProbes`
+  and `SessionHandoffProbes` now extend, plus two `run.ts` helpers: `userSlot<T>(identity, probe)` — the
+  identity-missing short-circuit, generic over result type so all three entry points share it — and
+  `buildSessionSharedSlots({identity, role, probes})`, the single declaration of the five shared slots both
+  session orchestrators compose from. Full mode shares only `userSlot` (its `user`/`active` slots carry distinct
+  result types/signatures). Probes still fire eagerly, so the callers' `Promise.all` keeps the fan-out
+  concurrent; envelope shapes are unchanged, regression-guarded by the existing orchestrator suite.
 
 ### `[ ]` **6.3 Swap session-init errand consumption onto the oracle**
 

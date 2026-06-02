@@ -297,19 +297,19 @@ export interface SessionHandoffResult {
   recommendedSummaryLine: string | null;
 }
 
-/** Probe functions in session-init mode — bound to cwd and any required I/O. */
-export interface SessionInitProbes {
+/**
+ * Probe slots shared by both session-scoped entry points (`session-init` and
+ * `session-handoff`). The two probe interfaces below extend this base so the
+ * five slots stay declared once — the orchestrator wires them through a single
+ * `buildSessionSharedSlots` source rather than re-declaring each per entry
+ * point. Full mode (`StatusProbes`) shares only the `user` identity-missing
+ * triad (via the generic `userSlot` helper), since its `user` / `active` slots
+ * carry different result types and signatures.
+ */
+export interface SessionSharedProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
-  /**
-   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
-   * no network — so it rides every session-init pass. Folded onto the worktree
-   * slot in the orchestrator rather than surfaced as a top-level slot.
-   */
-  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
-  config: () => Promise<ConfigSessionInitResult>;
   /**
    * Active probe receives `identity` and `role` so contributor flow can
    * scan `.arc/user/{identity}/active/` instead of the maintainer root.
@@ -320,8 +320,20 @@ export interface SessionInitProbes {
     identity: string | null,
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
-  domainRules: () => Promise<DomainRulesSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
+}
+
+/** Probe functions in session-init mode — bound to cwd and any required I/O. */
+export interface SessionInitProbes extends SessionSharedProbes {
+  /**
+   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
+   * no network — so it rides every session-init pass. Folded onto the worktree
+   * slot in the orchestrator rather than surfaced as a top-level slot.
+   */
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
+  extensions: () => Promise<ExtensionsSessionInitResult>;
+  config: () => Promise<ConfigSessionInitResult>;
+  domainRules: () => Promise<DomainRulesSessionInitResult>;
   /**
    * In-flight worktree roster scan, identity-filtered (`git worktree list` +
    * per-worktree meta reads). Always provided — the orchestrator owns the
@@ -394,19 +406,11 @@ export interface SessionInitProbes {
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
-export interface SessionHandoffProbes {
-  dirty: () => Promise<DirtyStateResult>;
-  worktree: () => Promise<WorktreeSyncStatusResult>;
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+export interface SessionHandoffProbes extends SessionSharedProbes {
   syncInterlock: () => Promise<HandoffSyncInterlock>;
-  active: (
-    identity: string | null,
-    role: string | null,
-  ) => Promise<ActiveSessionInitResult>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
   restateCandidates: () => Promise<RestateCandidatesResult>;
-  releaseRouting: () => Promise<ReleaseRoutingValue>;
   inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 
