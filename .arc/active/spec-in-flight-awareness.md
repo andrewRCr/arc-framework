@@ -79,9 +79,10 @@ field this WU introduces (R7), which is a P1/P2/P3 attention scale on a WU.*
   live-mutating planning; a type-prefix = activated (plan frozen).
 - **R2 (P0) — Purely derived, dead-ref-robust classification.** The oracle carries only oracle-derived state
   (in-flight WUs + State) — no annotation layer; per-WU human context stays in SESSION-NOTES, cross-WU in
-  WORKING-MEMORY. It MUST classify against a **pruned ref view** — remote-tracking refs whose upstream is gone are
-  ignored/pruned before derivation — so it cannot assume any cleanup step ran (errand merges complete out-of-session
-  on the host). No worktree paths are stored; resolve them live from `git worktree list` for locally-checked-out
+  WORKING-MEMORY. It MUST classify against a **pruned ref view** — a local remote-tracking ref absent from live
+  `git ls-remote` membership (its upstream is gone) is excluded before derivation, so live membership rather than
+  on-disk ref state is authoritative — and it cannot assume any cleanup step ran (errand merges complete
+  out-of-session on the host). No worktree paths are stored; resolve them live from `git worktree list` for locally-checked-out
   WUs, omit for the rest.
 - **R3 (P1) — Three consumers, degrading PR-source.** The oracle is consumed by the `STATUS.USER` render (R4), the
   activation-time concurrency check (R9), and (downstream) Concurrent Work Conventions's concurrency gate. The
@@ -187,10 +188,12 @@ The governing principle: the common path (resume an existing local WU) must not 
   elsewhere) needs the oracle's network round-trip and so fires only at a subset of triggers where cross-machine
   truth matters: **handoff, explicit `arc sync`, explicit view request, and the no-local-WU init branch** — not
   every local ceremony or every session-init.
-- **Measured cost (47 remote refs, good connection):** `git ls-remote` ≈ 0.45s, `gh pr list` ≈ 0.38s (≈ 0.85s
-  combined network), local derivation/render ≈ tens of ms. The median is modest; the tail (offline, slow link,
-  host rate-limit) is the real risk. Therefore each network read MUST be **bounded by a short timeout and degrade to
-  the last-rendered file** on miss/offline (mirrors the PR-source → refs-only degrade). With bounded non-blocking
+- **Measured cost (47 remote refs, good connection):** the network slice is `git ls-remote` ≈ 0.45s (live branch
+  membership) plus a bounded fetch of the candidate WU refs (so a remote-only WU's meta is readable via `git show`
+  with no checkout) plus optional `gh pr list` ≈ 0.38s; local derivation/render ≈ tens of ms. The median is
+  modest; the tail (offline, slow link, host rate-limit) is the real risk. Therefore each network read MUST be
+  **bounded by a short timeout and degrade to the last-rendered file** on miss/offline (mirrors the PR-source →
+  refs-only degrade). With bounded non-blocking
   reads, trigger count is low-stakes.
 
 ### "Explicit view request" mechanics
@@ -199,10 +202,12 @@ The explicit-view trigger is the human-facing `arc status` invocation (this WU a
 e.g. `arc status --user`), routed through `runStatus` — **not** the `--session-init` probe, so the
 `active.resolution` gating does not apply (an explicit view means "fresh now"). It is an **active re-render
 request**, not a passive file-open: it refreshes the local slice always and the cross-machine slice via the bounded
-network read, **writes `STATUS.USER` to disk, then prints it** (write-then-print preserves the single-cache
-invariant — every explicit view refreshes the cache). An optional `--local` / `--no-fetch` flag skips the network
-read for a fast offline view. Opening the file in an editor stays the passive path: instant, no regen, as fresh as
-the last trigger.
+network read, then **renders the in-flight-mine slice to the terminal via a pure render core**. This WU renders in
+code to the terminal only; the canonical-file write + reconcile is deferred to `operational-state-docs` /
+roadmap-tooling (which reuse the same render core), and the `STATUS.USER` file is hand-maintained per the render
+standard in the interim. An optional `--local` / `--no-fetch` flag skips the network read for a fast offline view.
+The single-cache invariant is structural — the rendered file is the only cache — so opening it in an editor stays
+the passive path: instant, no regen, as fresh as the last trigger.
 
 ### Dead-ref reconciliation — detect *and* reconcile
 
@@ -281,7 +286,8 @@ Validated explicitly at work-unit completion:
    last-rendered file when the remote is unreachable.
 3. **`STATUS.USER` renders to standard and is byte-stable.** The view renders the in-flight-mine slice with the
    per-table column sets and uniform sort key; identical inputs produce byte-identical output (no spurious regen
-   diffs). The explicit-view command writes-then-prints; opening the file does not regenerate it.
+   diffs). The explicit-view command renders the slice to the terminal via the pure render core; opening the file
+   does not regenerate it.
 4. **`Priority` field is live and conflict-free.** `**Priority:**` is in `template-meta.md` and
    `strategy-work-organization.md`, defaults to `P3`, and drives the render sort; setting it is a per-WU tracked
    edit with no shared-ordering doc.

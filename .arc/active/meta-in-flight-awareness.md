@@ -10,11 +10,12 @@
 - **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
 
-- **Task List:** [none]
-- **Last Completed:** Created `spec-in-flight-awareness.md` from the draft (`1_create-spec.md`); draft retired.
-- **Next Task:** [none]
+- **Task List:** `tasks-in-flight-awareness.md`
+- **Last Completed:** Generated `tasks-in-flight-awareness.md` (3-pass) from the spec; spec sharpened during the
+  grounding audit (oracle read-flow, render boundary).
+- **Next Task:** Task 1.1 — Remote-ref reader, live membership + bounded meta fetch (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-in-flight-awareness.md` into a task list.
+- **Next Action:** Activate via `activate-work-unit.md` when implementation is about to begin, then start Task 1.1.
 
 ---
