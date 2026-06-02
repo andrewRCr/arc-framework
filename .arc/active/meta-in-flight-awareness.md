@@ -11,14 +11,16 @@
 - **Cohort:** agile-parallelism
 
 - **Task List:** `tasks-in-flight-awareness.md`
-- **Last Completed:** Task 4.3 — Session-init Materialize arm, the WU path (line ~248). Phase 4 complete: the
-  Materialize quadrant shipped — oracle candidate detection (`materializable-work-units.ts`), the gated probe
-  slot (fires only on `active.resolution === "none"`), and the `session-init.md` Materialize-arm wiring.
-- **Next Task:** Task 5.1 — Swap the concurrency check data source to the oracle (line ~279)
+- **Last Completed:** Task 5.2 — Oracle-back the errand-launch foreign-artifact gate (line ~304). Phase 5
+  complete: both the activation in-flight scope check (5.1) and the errand-launch foreign-artifact gate (5.2)
+  are oracle-backed — cross-worktree + cross-machine, advisory, never gating.
+- **Next Task:** Task 6.1 — Gated-slot affordance over the orchestrator (line ~325)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — repoint `in-flight-scope-check.md`'s data source from the local-only
-  `arc active roster` to the oracle (identity-filtered refs + PRs), carrying `Design` in the oracle output;
-  absorbs the interim errand-state probe + in-flight errand sweep. Still advisory, never a gate.
+- **Next Action:** Begin Task 6.1 — evolve the status orchestrator (`commands/status/run.ts`) into a gated-slot
+  affordance: expensive slots (the oracle network slice) fire only under their condition
+  (`active.resolution === "none"`), generalized from Worktree Foundation's roster slot + this WU's oracle slot;
+  preserve the `safeProbe` envelope-never-rejects contract and per-slot result shape. Note new Task 6.3 (errand
+  consumption swap) added this session.
 
 ---
