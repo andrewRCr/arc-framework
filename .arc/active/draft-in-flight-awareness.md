@@ -127,6 +127,15 @@ remotely," then drops the operator to a raw `git worktree add`.
       retired). The oracle's in-flight-errand detection (chore branches, no meta) is unchanged in intent;
       `work-routing-discipline` ships an interim errand-state probe + in-flight-errand sweep (advisory,
       orient-only) that this WU's oracle upgrade absorbs. Reconcile the `errand-launch` references when iterated.
+    - **Detect → reconcile, not detect-only (merged-cleanup dead refs).** The interim sweep classifies
+      merged errand branches as `merged-cleanup` but never acts on them: when a reviewed-lane errand PR merges
+      asynchronously on the host (auto-delete-head removes the *remote* branch out-of-session), `run-errand`
+      § Complete never fires for that errand, so the local *remote-tracking* ref (`origin/chore/<slug>`)
+      lingers until a `git fetch --prune`. Nothing in the session-init or errand flow prunes, so dead refs
+      accumulate and the sweep re-surfaces already-merged-and-deleted branches every session. The oracle
+      derives from remote refs + PRs, so it must classify against a pruned ref view (or reconcile dead
+      tracking refs itself) — otherwise it inherits the same phantom-in-flight noise. Decide at spec whether
+      reconciliation is the oracle's job or a `run-errand` / session-init prune step it depends on.
 
 6. **Session-probe orchestration model (absorbs WF's conditional-slot seam).** The oracle's network slice
    (item 1), gated on `active.resolution === "none"` (the latency-budget decision below), is the **second**
