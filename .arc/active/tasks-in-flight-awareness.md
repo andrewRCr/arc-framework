@@ -226,17 +226,14 @@ _Design decisions:_ Discovery-led, no `--materialize <name>` flag (deferred — 
 correctness mechanism). Git refuses double-checkout, so an already-materialized branch points at the existing
 worktree (free safety). The oracle slot is hand-wired here with a local gate; Phase 6 / R10 generalizes it.
 
-### `[ ]` **4.1 Materializable-WU candidate detection from the oracle**
+### `[x]` **4.1 Materializable-WU candidate detection from the oracle**
 
 - _Goal:_ The oracle surfaces the operator's remote-only in-flight WUs (branch + meta on the remote, no local
   worktree) as materialize candidates — the discovery surface that makes a phantom / typo'd name impossible.
-- _Approach:_ Filter oracle output by remote-only + owned, paralleling `materializable-errands.ts`'s candidate
-  shape.
-
-    - Build `test-first` (one behavior at a time):
-        - Selects a remote-only owned in-flight WU as a candidate
-        - Excludes a WU already checked out locally (a local worktree exists → free double-checkout safety)
-        - Excludes another identity's remote-only WU
+- _Outcome:_ New pure `materializable-work-units.ts` (`findMaterializableWorkUnits`) filters oracle
+  `InFlightEntry[]` to remote-only owned work units, returning `{ name, branch }` candidates (errands excluded).
+  The identity gate mirrors the oracle's `keepForIdentity` — current-identity + unattributed survive, another
+  identity drops — so it holds regardless of how the upstream oracle was configured.
 
 ### `[ ]` **4.2 Wire the oracle slot into the session-init probe (gated)**
 
