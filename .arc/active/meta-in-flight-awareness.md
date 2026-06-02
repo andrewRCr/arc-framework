@@ -1,8 +1,8 @@
 # Metadata: In-Flight Awareness
 
-- **State:** Planning
+- **State:** Active
 - **Owner:** andrew
-- **Branch:** plan/in-flight-awareness
+- **Branch:** feat/in-flight-awareness
 
 - **Origin:** [internal]
 - **Design:** `spec-in-flight-awareness.md`
@@ -16,6 +16,6 @@
 - **Next Task:** Task 1.1 — Remote-ref reader, live membership + bounded meta fetch (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Activate via `activate-work-unit.md` when implementation is about to begin, then start Task 1.1.
+- **Next Action:** Begin Task 1.1 — Remote-ref reader, live membership + bounded meta fetch (line ~18).
 
 ---
