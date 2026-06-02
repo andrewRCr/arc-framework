@@ -378,15 +378,14 @@ export interface SessionInitProbes extends SessionSharedProbes {
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
   /**
    * Errand-state resolver. The orchestrator supplies the current branch,
-   * backing-meta signal, the Orient/discovery gate, and the resolved roster
-   * when available. The handler binds config, git/forge enumeration, and
+   * backing-meta signal, and the Orient/discovery gate. The handler binds the
+   * shared in-flight oracle (errand discovery derives from it), config, and
    * nudge-marker reads.
    */
   errandState: (input: {
     currentBranch: string | null;
     hasBackingMeta: boolean;
     includeDiscovery: boolean;
-    roster: WorktreeRosterResult | null;
   }) => Promise<ErrandStateResult>;
   /**
    * Materializable-WU oracle slice. Fires the oracle's bounded network read

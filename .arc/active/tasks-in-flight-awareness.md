@@ -350,26 +350,25 @@ generalizes the firing discipline the earlier consumer phases hand-wire.
   result types/signatures). Probes still fire eagerly, so the callers' `Promise.all` keeps the fan-out
   concurrent; envelope shapes are unchanged, regression-guarded by the existing orchestrator suite.
 
-### `[ ]` **6.3 Swap session-init errand consumption onto the oracle**
+### `[x]` **6.3 Swap session-init errand consumption onto the oracle**
 
 - _Goal:_ Session-init's in-flight-errand orientation surface and the materialize-errand candidates derive from
   the oracle, retiring `errand-state.ts`'s bespoke discovery (own ref read, prune, per-branch PR/merge probes,
   `classifyInFlightErrands`, `findMaterializableErrands`) — completing work-routing-discipline's interim-sweep
   absorption. `resume` (local current-branch signal) and `nudge` (rate-limit marker) stay; they aren't oracle
   derivations.
-- _Context:_ Lands here, not in Phase 5, because the errand-discovery slot and the oracle network slice gate on
-  the same condition (`active.resolution === "none"`) — collapsing them is this phase's gated-slot work, avoiding
-  a double-touch of the slot wiring.
-- _Note:_ The oracle gains errand state (`merged` + `ageDays` → in-progress / awaiting-merge / merged-cleanup /
-  stale) and its `remoteOnly` errands feed the materialize-errand offer. Oracle correctness is prune-independent
-  (it intersects refs with live `ls-remote` membership), so the interim sweep's `git fetch --prune` survives only
-  as a standalone session-init hygiene backstop, decoupled from classification (spec § Dead-ref reconciliation).
-
-    - Build `test-first` (one behavior at a time):
-        - The in-flight-errand orientation surface classifies from oracle-derived entries (state + age preserved)
-        - Materialize-errand candidates derive from the oracle's remote-only errand entries
-        - `resume` and `nudge` are unaffected
-        - The dead-ref hygiene prune still runs (decoupled from classification)
+- _Outcome:_ `errand-state.ts` now consumes the oracle's `InFlightEntry[]` instead of reading refs itself: it
+  filters to `kind:"errand"`, enriches each with `merged` (`isBranchMerged`) + `ageDays` (lifted `for-each-ref`
+  committer-date) + `hasOpenPr` (from `entry.pr`), then runs the reused pure `classifyInFlightErrands`.
+  `materializable-errands.ts` was rewritten to filter the oracle entries (remote-only errands), mirroring
+  `findMaterializableWorkUnits`. The handler derives the oracle **once** via a memoized `getOracle()` shared by
+  the errand-state and materializable-WU probes (both gate on the no-WU arm), so resume sessions still pay zero
+  oracle cost. The `git fetch --prune` moved to a standalone `dead-ref-prune.ts`, fired decoupled (concurrent,
+  not feeding classification). `resume`/`nudge` and the `ErrandStateResult` envelope shape are unchanged.
+  **Two behavior shifts (per spec/seams):** (1) materialize-errand candidates now mirror WUs — any remote-only
+  errand entry qualifies; the old merged/open-PR exclusion is subsumed by the oracle's live-`ls-remote`
+  intersection. (2) `awaiting-merge` depends on the oracle's `pr` enrichment, which is refs-only until
+  coord-probe wires a `PrSource`; `merged`/`ageDays` are fully preserved.
 
 ## **Phase 7:** Verification
 

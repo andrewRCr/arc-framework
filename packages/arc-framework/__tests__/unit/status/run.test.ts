@@ -1270,12 +1270,10 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
 });
 
 describe("runSessionInitStatus — errand-state slot", () => {
-  it("fires after the roster stage and passes resume + discovery context", async () => {
-    const rosterValue = rosterResult({ entries: [{ worktreePath: "/repo", branch: "chore/fix" }] });
+  it("passes resume + discovery context on the no-WU arm", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "main" })),
       active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
-      roster: vi.fn(async () => rosterValue),
       errandState: vi.fn(async () =>
         errandStateResult({
           materializable: { candidates: [{ slug: "fix", branch: "chore/fix" }] },
@@ -1288,7 +1286,6 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "main",
       hasBackingMeta: false,
       includeDiscovery: true,
-      roster: rosterValue,
     });
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
@@ -1310,7 +1307,6 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "feat/x",
       hasBackingMeta: true,
       includeDiscovery: false,
-      roster: expect.any(Object),
     });
   });
 

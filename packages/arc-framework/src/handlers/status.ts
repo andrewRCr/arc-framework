@@ -55,8 +55,9 @@ import {
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
 import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
-import { deriveInFlight } from "../lib/git/in-flight-derivation.js";
+import { deriveInFlight, type InFlightEntry } from "../lib/git/in-flight-derivation.js";
 import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
+import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
 import {
   runBranchGoneRecovery,
   RECOVERY_RECENCY_DAYS,
@@ -239,6 +240,28 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    // Shared in-flight oracle slice — the bounded network read (live remote
+    // membership → pruned-ref derivation) feeding both the errand-state and
+    // materializable-WU probes. Both gate on the no-active-WU arm, so when one
+    // fires the other does too; memoizing keeps it a single read. Lazy: a resume
+    // session forces neither probe, so the network read never runs there.
+    let oraclePromise: Promise<{ entries: InFlightEntry[]; reachable: boolean }> | undefined;
+    const getOracle = (): Promise<{ entries: InFlightEntry[]; reachable: boolean }> => {
+      oraclePromise ??= (async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const { branches, reachable } = await resolveInFlightBranchSet({
+          exec: gitExec,
+          localOnly: false,
+        });
+        // Unreachable: derive nothing rather than a half-resolved view over
+        // un-pruned local refs. Consumers surface no candidates / skip discovery.
+        if (!reachable) return { entries: [], reachable: false };
+        const entries = await deriveInFlight({ exec: gitExec, branches, identity, teamMode });
+        return { entries, reachable: true };
+      })();
+      return oraclePromise;
+    };
     const probes: SessionInitProbes = {
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -310,29 +333,31 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+        let entries: InFlightEntry[] | null = null;
+        if (input.includeDiscovery) {
+          // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
+          // the oracle: the oracle is prune-independent, so classification never
+          // depends on the prune completing.
+          const [, oracle] = await Promise.all([
+            pruneRemoteTrackingRefs(gitExec),
+            getOracle(),
+          ]);
+          entries = oracle.reachable ? oracle.entries : null;
+        }
         return runErrandState({
           exec: gitExec,
           currentBranch: input.currentBranch,
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
-          roster: input.roster,
+          entries,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveErrandNudgeState(cwd, io, identity),
         });
       },
       materializableWorkUnits: async () => {
-        const resolved = await resolvedSettingsP;
-        const teamMode = resolved.settings["team.mode"] === "true";
-        const { branches, reachable } = await resolveInFlightBranchSet({
-          exec: gitExec,
-          localOnly: false,
-        });
-        // Online but unreachable: surface no candidates rather than a
-        // half-resolved view over un-pruned local refs (the materialize offer
-        // simply doesn't appear). The branch set is empty when unreachable too.
+        const { entries, reachable } = await getOracle();
         if (!reachable) return { candidates: [] };
-        const entries = await deriveInFlight({ exec: gitExec, branches, identity, teamMode });
         return findMaterializableWorkUnits({ entries, identity });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),

@@ -351,7 +351,6 @@ export async function runSessionInitStatus(
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
-        roster: roster?.ok ? roster.value : null,
       }))
       : undefined;
 
