@@ -153,6 +153,13 @@ Backlog WUs live in one of two commitment dirs at the backlog root:
 - `backlog/planned/<wu-name>/` — committed by a maintainer; sequenced on ROADMAP.
 - `backlog/provisional/<wu-name>/` — drafted but not yet committed; not on ROADMAP.
 
+The axis is **commitment, not maturity.** Whether a WU is `planned` or `provisional` reflects whether a
+maintainer has committed to sequencing it — not how mature, confident, or well-specified the draft is. A
+thoroughly-drafted WU stays `provisional` until committed; a one-line stub is `planned` the moment a maintainer
+commits. The default is **creation-path-keyed**: deliberate planning entry creates `planned`, while a mechanical
+drain of an un-vetted capture creates `provisional` — the no-commitment-yet fallback, promotable at any later
+maintainer commitment.
+
 Each WU subdir carries `meta-<wu-name>.md` (always) plus `plan-<wu-name>.md` and any other
 companions when present.
 
