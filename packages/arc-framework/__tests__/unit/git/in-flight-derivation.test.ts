@@ -148,6 +148,69 @@ describe("deriveInFlight", () => {
     expect(remote?.remoteOnly).toBe(true);
   });
 
+  it("produces a refs-only view when no PR adapter is injected", async () => {
+    const exec = makeExec({
+      metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).not.toHaveProperty("pr");
+  });
+
+  it("enriches in-flight entries with open-PR state when an adapter is present", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/has-pr:.arc/active/meta-has-pr.md": metaContent(),
+        "origin/feat/no-pr:.arc/active/meta-no-pr.md": metaContent(),
+      },
+    });
+    const prSource = vi.fn(async (branches: readonly string[]) => {
+      expect(branches).toContain("feat/has-pr");
+      return new Map([["feat/has-pr", { number: 42, url: "https://example/pr/42" }]]);
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/has-pr", "feat/no-pr"],
+      identity: null,
+      teamMode: false,
+      prSource,
+    });
+
+    const hasPr = entries.find((e) => e.branch === "feat/has-pr");
+    const noPr = entries.find((e) => e.branch === "feat/no-pr");
+    expect(hasPr?.pr).toEqual({ number: 42, url: "https://example/pr/42" });
+    expect(noPr).not.toHaveProperty("pr");
+  });
+
+  it("degrades to refs-only without throwing when the PR adapter errors", async () => {
+    const exec = makeExec({
+      metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
+    });
+    const prSource = vi.fn(async () => {
+      throw new Error("gh: rate limited");
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+      prSource,
+    });
+
+    expect(prSource).toHaveBeenCalled();
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).not.toHaveProperty("pr");
+  });
+
   it("flags remote-only in-flight WUs as the materialize-candidate signal", async () => {
     const exec = makeExec({
       worktrees: [{ path: "/repos/here", branch: "feat/here" }],

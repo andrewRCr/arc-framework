@@ -37,6 +37,23 @@ const PLANNING_BRANCH_PREFIX = "plan/";
 /** State proxied off the branch life-phase prefix — coarse by design. */
 export type InFlightState = Extract<WorkUnitState, "Planning" | "Active">;
 
+/** Open-PR signal for one branch, surfaced by a coordination adapter. */
+export interface OpenPrSignal {
+  /** PR number, when the adapter surfaces it. */
+  number?: number;
+  /** PR web URL, when the adapter surfaces it. */
+  url?: string;
+}
+
+/**
+ * PR-source seam — resolves open-PR state for the in-flight branches, keyed by
+ * branch (branches with no open PR are simply absent from the map). The concrete
+ * `gh`/coord-probe adapter is a downstream deliverable; the oracle needs only
+ * this contract and is fully functional without it (refs-only). An adapter that
+ * rejects degrades to refs-only — the oracle never propagates the throw.
+ */
+export type PrSource = (branches: readonly string[]) => Promise<Map<string, OpenPrSignal>>;
+
 /** Fields shared by every in-flight entry, work unit or errand. */
 interface InFlightLocation {
   /** The remote branch the entry derives from. */
@@ -45,6 +62,8 @@ interface InFlightLocation {
   worktreePath?: string;
   /** True when in flight on the remote with no local worktree — the materialize-candidate signal. */
   remoteOnly: boolean;
+  /** Open-PR enrichment; present only when a PR source resolved one for this branch (refs-only otherwise). */
+  pr?: OpenPrSignal;
 }
 
 /** A work unit in flight — a remote branch backed by an `active/` meta. */
@@ -82,6 +101,8 @@ export interface DeriveInFlightOptions {
   teamMode: boolean;
   /** Remote whose tracking refs back the reads. Defaults to `origin`. */
   remote?: string;
+  /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
+  prSource?: PrSource;
 }
 
 /**
@@ -91,16 +112,38 @@ export interface DeriveInFlightOptions {
  * @returns In-flight entries in input-branch order, identity-filtered.
  */
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<InFlightEntry[]> {
-  const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE } = options;
+  const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource } = options;
   const worktreePaths = await resolveWorktreePathsByBranch(exec);
 
   const classified = await Promise.all(
     branches.map((branch) => classifyBranch(exec, remote, branch, worktreePaths)),
   );
 
-  return classified
+  const kept = classified
     .filter((entry): entry is InFlightEntry => entry !== null)
     .filter((entry) => keepForIdentity(entry, identity, teamMode));
+
+  return prSource === undefined ? kept : enrichWithPrState(kept, prSource);
+}
+
+/**
+ * Enrich the kept entries with open-PR state, querying only their branches. A
+ * rejecting adapter degrades to refs-only — the seam never propagates a throw.
+ */
+async function enrichWithPrState(
+  entries: InFlightEntry[],
+  prSource: PrSource,
+): Promise<InFlightEntry[]> {
+  let openPrs: Map<string, OpenPrSignal>;
+  try {
+    openPrs = await prSource(entries.map((entry) => entry.branch));
+  } catch {
+    return entries;
+  }
+  return entries.map((entry) => {
+    const pr = openPrs.get(entry.branch);
+    return pr === undefined ? entry : { ...entry, pr };
+  });
 }
 
 /** Build the location fields for a branch from the live worktree map. */

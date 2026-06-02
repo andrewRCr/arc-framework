@@ -71,6 +71,8 @@ export {
   type InFlightWorkUnit,
   type InFlightErrand,
   type InFlightState,
+  type OpenPrSignal,
+  type PrSource,
 } from "./in-flight-derivation.js";
 
 export {

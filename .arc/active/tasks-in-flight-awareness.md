@@ -43,17 +43,16 @@ machinery. Correctness (A) lives in the oracle's pruned-ref classification; hygi
   new `resolveWorktreePathsByBranch` helper (added to `worktree-roster.ts`, reusing its porcelain parser); a WU
   with no local worktree is flagged `remoteOnly` — the materialize-candidate signal Phase 4 consumes.
 
-### `[ ]` **1.3 PR-source seam, degrading to refs-only**
+### `[x]` **1.3 PR-source seam, degrading to refs-only**
 
 - _Goal:_ The oracle's PR signal arrives through a seam that degrades to refs-only when no coordination adapter
   is present, so the oracle is fully functional without `gh`.
-- _Context:_ Mirrors Worktree Foundation's branch-gone cascade / coord-probe coupling; the concrete `gh` adapter
-  is coord-probe's deliverable, so the seam + refs-only fallback is the contract here, not a `gh` integration.
-
-    - Build `test-first` (one behavior at a time):
-        - Produces a derived view from refs alone when no PR adapter is injected
-        - Enriches in-flight entries with open-PR state when an adapter is present
-        - Degrades to refs-only (no throw) when the adapter errors or times out
+- _Outcome:_ `deriveInFlight` gained an optional `prSource` adapter —
+  `PrSource = (branches) => Promise<Map<branch, OpenPrSignal>>` — defining the contract without a `gh`
+  integration (coord-probe's deliverable). Absent adapter → refs-only; present → kept (identity-filtered)
+  entries whose branch carries an open PR get an optional `pr` field; a rejecting/timing-out adapter is caught
+  and degrades to refs-only, never propagating the throw. Enrichment queries only the kept branches, so other
+  owners' WUs cost no PR lookup.
 
 ### `[ ]` **1.4 Dead-ref prune backstop at the two sites**
 
