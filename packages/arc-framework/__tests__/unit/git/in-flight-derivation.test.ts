@@ -3,15 +3,16 @@ import { describe, it, expect, vi } from "vitest";
 import { deriveInFlight } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
-/** A meta-file body carrying the fields the derivation reads (Owner, Cohort, Priority, Depends On). */
+/** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Priority, Depends On). */
 function metaContent(
-  fields: { owner?: string; cohort?: string; priority?: string; dependsOn?: string } = {},
+  fields: { owner?: string; design?: string; cohort?: string; priority?: string; dependsOn?: string } = {},
 ): string {
   return [
     "# Metadata: x",
     "",
     "- **State:** Active",
     `- **Owner:** ${fields.owner ?? "andrew"}`,
+    `- **Design:** ${fields.design ?? "[none]"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
     `- **Priority:** ${fields.priority ?? "[none]"}`,
@@ -234,6 +235,38 @@ describe("deriveInFlight", () => {
     });
 
     expect(entries[0]).toMatchObject({ priority: "P1", dependsOn: ["alpha", "bravo"] });
+  });
+
+  it("carries Design as the WU's stated scope when the meta sets it", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ design: "spec-x.md" }),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries[0]).toMatchObject({ design: "spec-x.md" });
+  });
+
+  it("omits Design when the meta leaves it unset (`[none]`)", async () => {
+    const exec = makeExec({
+      metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries[0]).not.toHaveProperty("design");
   });
 
   it("omits Priority and yields an empty Depends On for an all-default meta", async () => {

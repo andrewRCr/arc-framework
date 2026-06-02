@@ -27,7 +27,7 @@ import {
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus, handleActiveRoster } from "./handlers/active.js";
+import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
@@ -249,6 +249,14 @@ activeCmd
   .description("Emit the cross-worktree in-flight work-unit roster (concurrency-advisory data input)")
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveRoster);
+
+activeCmd
+  .command("in-flight")
+  .description("Emit the oracle-backed in-flight set — your work units and errands across worktrees and machines")
+  .option("--local", "Skip the network read; derive from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "Skip the network read; derive from local refs")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveInFlight);
 
 // --- Status (composite) ---
 

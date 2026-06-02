@@ -14,6 +14,11 @@ export {
   type ActiveRosterResult,
 } from "./active/roster.js";
 export {
+  runActiveInFlight,
+  type ActiveInFlightOptions,
+  type ActiveInFlightResult,
+} from "./active/in-flight.js";
+export {
   buildActiveStatusSummary,
   buildActiveSessionInitSummary,
 } from "./active/format.js";

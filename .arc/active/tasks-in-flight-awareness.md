@@ -279,26 +279,27 @@ _consumption_ swap (session-init's errand-orientation + materialize-errand surfa
 bespoke discovery) lands in Phase 6 (6.3), where the gated-slot machinery is reworked anyway. The gate doctrine
 (when/how the oracle gates) stays Concurrent Work Conventions's; here every consumer remains advisory.
 
-### `[ ]` **5.1 Swap the concurrency check data source to the oracle**
+### `[x]` **5.1 Swap the concurrency check data source to the oracle**
 
 - _Goal:_ `in-flight-scope-check.md` consumes the oracle (identity-filtered refs + PRs) instead of the local-only
   `arc active roster`, so the check sees cross-worktree and cross-machine in-flight WUs (and errands) — still
   advisory.
-- _Context:_ Consumed from spawn / cold-start / materialize. The oracle becomes the single _derivation_ of the
-  in-flight set here; the consumption swap of session-init's own errand surfaces onto it is Phase 6 (see 6.3).
-- _Note:_ `in-flight-scope-check.md` already treats its data source as opaque (its Assess step reads each WU's
-  scope from the meta `**Design:**` field); the oracle already reads metas, so carry `Design` in its output
-  rather than re-reading. The new surface is a dedicated oracle-backed JSON command — `arc active roster` keeps
-  its local-roster semantics (and stays 5.2's projection base).
 
-    - `[ ]` **5.1.a Repoint the scope-check data source (roster → oracle)**
-        - Add a dedicated oracle-backed JSON command (network read + offline degrade) and point
-          `in-flight-scope-check.md`'s Gather step at it; carry `design` on the oracle's WU entries and handle the
-          remote-only shape (no `worktreePath`); keep the degrade-to-silent on empty.
+    - `[x]` **5.1.a Repoint the scope-check data source (roster → oracle)**
+        - New `arc active in-flight [--json] [--local|--no-fetch]` (`commands/active/in-flight.ts` →
+          `runActiveInFlight`) emits the oracle's identity-filtered in-flight set with a `reachable` flag; the
+          oracle's WU entries now carry `design` (parsed from `**Design:**`, `[none]` dropped). The workflow's
+          Gather reads it; `arc active roster` keeps its local-roster semantics (5.2's projection base).
 
-    - `[ ]` **5.1.b Surface in-flight errands through the same oracle call**
-        - The oracle's `chore/`-branch errand entries feed the activation check alongside WUs, so one oracle call
-          is the check's single source. (Session-init's own errand-orientation surfaces move to the oracle in 6.3.)
+    - `[x]` **5.1.b Surface in-flight errands through the same oracle call**
+        - The oracle's `chore/`-branch errand entries ride the same call; the workflow's Assess/Surface steps
+          surface in-flight errands (no stated scope → bias to surfacing) and handle the remote-only shape (no
+          `worktreePath` → "remotely on `origin/<branch>`").
+
+- _Outcome:_ The activation check now sees cross-machine, remote-only in-flight work the local worktree roster
+  couldn't, from one oracle call covering WUs and errands; advisory discipline preserved (degrade-to-silent on
+  empty, `reachable: false` runs over last-known local refs, never gates). `errand-state.ts` is untouched — its
+  session-init consumption swap is Task 6.3.
 
 ### `[ ]` **5.2 Oracle-back the errand-launch foreign-artifact gate**
 

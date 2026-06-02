@@ -75,6 +75,8 @@ export interface InFlightWorkUnit extends InFlightLocation {
   state: InFlightState;
   /** `**Owner:**` from the meta; absent when unattributed. */
   owner?: string;
+  /** `**Design:**` spec pointer from the meta — the WU's stated scope; absent when unset or `[none]`. */
+  design?: string;
   /** `**Cohort:**` from the meta; absent when unset or `[none]`. */
   cohort?: string;
   /** Raw `**Priority:**` level from the meta; absent when unset or `[none]`. */
@@ -204,13 +206,14 @@ function buildWorkUnit(
   planning: boolean,
 ): InFlightWorkUnit {
   const fields = parseMetaRecord(content);
-  const { Owner: owner, Cohort: cohort, Priority: priority } = fields;
+  const { Owner: owner, Design: design, Cohort: cohort, Priority: priority } = fields;
   return {
     kind: "work-unit",
     name,
     state: planning ? "Planning" : "Active",
     ...location,
     ...(owner !== null ? { owner } : {}),
+    ...(design !== null && design !== "[none]" ? { design } : {}),
     ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),
     dependsOn: parseDependsOn(fields["Depends On"]),
