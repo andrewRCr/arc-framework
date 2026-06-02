@@ -5,7 +5,7 @@
 - **Branch:** plan/in-flight-awareness
 
 - **Origin:** [internal]
-- **Design:** `draft-in-flight-awareness.md`
+- **Design:** `spec-in-flight-awareness.md`
 
 - **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
@@ -16,8 +16,6 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Refine `draft-in-flight-awareness.md` toward spec via `1_create-spec.md` — Worktree
-  Foundation (hard upstream) has shipped, so scope is settled. Open questions to resolve at spec: oracle
-  trigger subset, persisted-cache value, view-file naming.
+- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-in-flight-awareness.md` into a task list.
 
 ---
