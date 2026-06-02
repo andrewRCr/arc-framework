@@ -98,6 +98,8 @@ errand
   .command("check")
   .description("Report which in-flight work units touch the target path(s) — advisory, never blocks")
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
+  .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
+  .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
 

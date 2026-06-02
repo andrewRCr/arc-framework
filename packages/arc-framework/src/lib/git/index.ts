@@ -48,9 +48,12 @@ export {
 
 export {
   detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionOptions,
   type ForeignArtifactDetectionResult,
   type ForeignArtifactOverlap,
+  type OverlapCandidateEntry,
+  type OverlapRoster,
 } from "./foreign-artifact-detection.js";
 
 export {

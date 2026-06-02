@@ -8,7 +8,12 @@
 
 import { describe, it, expect } from "vitest";
 
-import { detectForeignArtifactOverlap } from "../../../src/lib/git/foreign-artifact-detection.js";
+import {
+  detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
+  type OverlapRoster,
+} from "../../../src/lib/git/foreign-artifact-detection.js";
+import type { InFlightEntry } from "../../../src/lib/git/in-flight-derivation.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { ExecResult, GitExec, GitExecOptions } from "../../../src/lib/git/index.js";
 
@@ -209,6 +214,36 @@ describe("detectForeignArtifactOverlap", () => {
     ]);
   });
 
+  it("reports a worktree-less (remote-only) entry from its committed diff alone, skipping the status probe", async () => {
+    // A remote-only in-flight WU has no local worktree; its uncommitted edits
+    // live elsewhere and can't collide here, so committed overlap is the whole
+    // signal and no `git status` runs.
+    const roster: OverlapRoster = {
+      entries: [{
+        branch: "origin/feat/remote",
+        metaFilePath: ".arc/active/meta-remote.md",
+        state: "Active",
+      }],
+      warnings: [],
+    };
+    const { exec, calls } = buildExec({
+      "diff main...origin/feat/remote --name-only -- docs/x.md": { stdout: "docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "origin/feat/remote", matchedPaths: ["docs/x.md"] },
+    ]);
+    expect(calls.some((c) => c.args[0] === "status")).toBe(false);
+  });
+
   it("diffs against the configured base branch, not a hardcoded main", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a",
@@ -266,5 +301,64 @@ describe("detectForeignArtifactOverlap", () => {
     });
 
     expect(result.overlaps.map((o) => o.branch)).toEqual(["feat/wu-a", "feat/wu-b"]);
+  });
+});
+
+/** Oracle work-unit entry (refs-only — no PR enrichment), locally checked out unless `remoteOnly`. */
+function oracleWu(branch: string, name: string, worktreePath?: string): InFlightEntry {
+  return {
+    kind: "work-unit",
+    branch,
+    name,
+    state: "Active",
+    remoteOnly: worktreePath === undefined,
+    dependsOn: [],
+    ...(worktreePath !== undefined ? { worktreePath } : {}),
+  };
+}
+
+describe("projectInFlightToOverlapRoster", () => {
+  it("projects a locally-checked-out WU with its branch and worktree", async () => {
+    const roster = projectInFlightToOverlapRoster([oracleWu("feat/x", "x", "/repo.x")]);
+
+    expect(roster.entries).toEqual([
+      { branch: "feat/x", worktreePath: "/repo.x", metaFilePath: ".arc/active/meta-x.md", state: "Active" },
+    ]);
+  });
+
+  it("projects a remote-only WU as origin/<branch> with no worktree", async () => {
+    const roster = projectInFlightToOverlapRoster([oracleWu("feat/y", "y")]);
+
+    expect(roster.entries).toEqual([
+      { branch: "origin/feat/y", metaFilePath: ".arc/active/meta-y.md", state: "Active" },
+    ]);
+    expect(roster.entries[0]).not.toHaveProperty("worktreePath");
+  });
+
+  it("drops errands — they carry no meta and aren't WU-overlap candidates", async () => {
+    const roster = projectInFlightToOverlapRoster([
+      oracleWu("feat/x", "x", "/repo.x"),
+      { kind: "errand", branch: "chore/fix", slug: "fix", remoteOnly: true },
+    ]);
+
+    expect(roster.entries.map((e) => e.branch)).toEqual(["feat/x"]);
+  });
+
+  it("surfaces an overlap from oracle data (refs-only) for a remote-only WU touching the target", async () => {
+    const roster = projectInFlightToOverlapRoster([oracleWu("feat/remote", "remote")]);
+    const { exec, calls } = buildExec({
+      "diff main...origin/feat/remote --name-only -- docs/x.md": { stdout: "docs/x.md\n" },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: ["docs/x.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+    });
+
+    expect(result.overlaps).toEqual([{ branch: "origin/feat/remote", matchedPaths: ["docs/x.md"] }]);
+    expect(calls.some((c) => c.args[0] === "status")).toBe(false);
   });
 });

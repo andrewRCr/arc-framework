@@ -301,18 +301,16 @@ bespoke discovery) lands in Phase 6 (6.3), where the gated-slot machinery is rew
   empty, `reachable: false` runs over last-known local refs, never gates). `errand-state.ts` is untouched — its
   session-init consumption swap is Task 6.3.
 
-### `[ ]` **5.2 Oracle-back the errand-launch foreign-artifact gate**
+### `[x]` **5.2 Oracle-back the errand-launch foreign-artifact gate**
 
 - _Goal:_ `arc errand check` / `run-errand` § Launch derives overlap from the oracle, so the errand-launch
   foreign-artifact gate is oracle-backed and advisory across worktrees / machines.
-- _Approach:_ Repoint `handlers/errand.ts`'s `detectForeignArtifactOverlap` source to the oracle.
-- _Note:_ `detectForeignArtifactOverlap` (`lib/git/index.ts`) consumes a `roster: { entries, warnings }` shape;
-  expose an oracle projection in that shape so the overlap core stays intact rather than refactoring its contract.
-
-    - Build `test-first` (one behavior at a time):
-        - Surfaces an overlapping in-flight WU from oracle data for a target path set
-        - Produces no output when no overlap (silent advisory)
-        - Degrades to refs-only overlap when no PR adapter is present
+- _Outcome:_ `arc errand check` (and `run-errand` § Launch, which calls it) sources the oracle via
+  `runActiveInFlight` + a new `projectInFlightToOverlapRoster`, so the gate spans worktrees and machines. The
+  overlap core gained a worktree-optional input: a remote-only WU projects as `origin/<branch>` with no worktree
+  and matches on committed diff alone (uncommitted-elsewhere can't collide locally); locally-checked-out WUs keep
+  the full committed + uncommitted probe. `--local`/`--no-fetch` + a `reachable` flag carry the offline degrade;
+  errands drop from the projection (no meta, not WU-overlap candidates).
 
 ## **Phase 6:** Session-probe orchestration seam
 
