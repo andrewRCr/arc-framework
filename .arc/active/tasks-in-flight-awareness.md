@@ -95,17 +95,19 @@ scale). Durability is the tracked field + git history — no in-file change-log 
         - Documented the levels (P1 top focus / P2 elevated / P3 baseline), `P3` default, the no-`P0` rationale,
           and the anti-inflation-is-doc-guidance pointer in the template comment block; both copies.
 
-### `[ ]` **2.2 Document `Priority` in `strategy-work-organization.md` § Source of truth (both copies)**
+### `[x]` **2.2 Document `Priority` in `strategy-work-organization.md` § Source of truth (both copies)**
 
 - _Goal:_ § Source of truth lists `**Priority:**` alongside State / Owner / Depends On / Cohort as a field the
   in-flight views render and sort on, with the anti-inflation discipline stated as documentation guidance only.
-- **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **2.2.a Add `Priority` to § Source of truth**
-        - Field entry + its role in the render sort key; both copies.
+    - `[x]` **2.2.a Add `Priority` to § Source of truth**
+        - Added the `**Priority:**` bullet (P1/P2/P3, `P3` default) after `Cohort`, noting it feeds the in-flight
+          views' sort and renders as a conditional column; both copies. Full sort-key/column mechanics stay with
+          § Render algorithm (the render standard).
 
-    - `[ ]` **2.2.b State the anti-inflation discipline**
-        - Soft cap on concurrent P1s as doc-only guidance; explicitly not a nag or render-time signal; both copies.
+    - `[x]` **2.2.b State the anti-inflation discipline**
+        - Added a `**Priority anti-inflation.**` note: a soft cap on concurrent `P1`s, documentation discipline
+          only — never an ARC nag or render-time signal; both copies.
 
 ### `[ ]` **2.3 Add `Priority` to the meta schema record + a `validatePriority` helper**
 

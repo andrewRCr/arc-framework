@@ -413,6 +413,13 @@ canonical fields ROADMAP renders from:
 - `**Owner:**` — single owner (per WU)
 - `**Depends On:**` — dependency list (bare WU names; `[none]` if independent)
 - `**Cohort:**` — cohort membership (`[none]` for solo WUs)
+- `**Priority:**` — attention level for triaging a multi-in-flight worklist (`P1` top focus / `P2` elevated /
+  `P3` baseline; `P3` default). Feeds the in-flight views' sort so the worklist is priority-ordered, and renders
+  as a column only when the field is present.
+
+**Priority anti-inflation.** A soft cap on concurrent `P1`s keeps "top focus" meaningful — if everything is
+top priority, nothing is. This is documentation discipline only: ARC never nags about it and never emits it as a
+render-time signal.
 
 Each WU renders under its **canonical WU-name** — the `<wu-name>` token from its directory and
 `meta-<wu-name>.md` filename, the same token `**Depends On:**` entries reference. Keying on the
