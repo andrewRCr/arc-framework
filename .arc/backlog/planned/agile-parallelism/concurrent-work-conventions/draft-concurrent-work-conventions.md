@@ -36,6 +36,44 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
   soft conventions in the strategy doc, and operational guidance for handling conflicts at
   integration. No new meta-file field, no overlap probe, no formal primacy model.
 
+## Realignment & scope flags (2026-06-02)
+
+> Flags only — resolve at this WU's next planning pass. Backlog-grooming pass; no design decided here.
+
+**Unblocked — `agile-wu-lifecycle` dependency dropped; this WU is now Ready.** The AWL dependency was
+soft: this draft consumes only WOR's `**State:** Integrating` (shipped) for awaiting-review
+accommodation, plus reversible shared-file coordination on `integrate-work-unit.md` (the async-merge
+audit lands additively on whatever shape that workflow has — if AWL later adds tier-aware branches,
+AWL composes on top of this WU's changes, not the reverse). AWL has also moved to the
+principle-anchored-core cohort (its center of gravity is spec/task scaling, not parallelism). With WF,
+errand-enablement, and in-flight-awareness all shipped, **this WU is the last remaining
+agile-parallelism conventions member** — but see the merge-safety flag below for what else gates
+closeout. The § Dependencies "Recommended sequencing" and the AWL upstream entry are updated to match.
+
+**Merge-safety cluster — cohort-closeout-critical, and partly homeless.** Inbound items 1/2/4/5 are one
+concern from four angles: behind-base drift detection + reconcile-triage discipline (item 5),
+merge-gate-aware lifecycle workflows + auto-lane interlock relocation (item 1), a base-branch-write
+guard plus a shared write-context-classifier primitive (item 2), and a merge-commit hook/footer
+exemption (item 4). The buffer homes the **discipline** to this WU but leaves the **CLI buildables** — a behind-base
+probe (`main` moved K, you're N behind, paths overlap → reconcile?), the write-context-classifier, a
+commit-msg hook, and merge-gate arming — **homeless**: WF (the prior home guess for the primitive) has
+shipped, and these carry *mechanism* character, unlike this WU's *conventions* character. Today nothing
+computes behind-*base* (session-init's `remote-ahead` only detects behind-own-upstream). This cluster
+is what actually gates agile-parallelism closeout — parallel WUs + errands work mechanically, but there
+is no discipline or tooling for "main moved under me," the exact ergonomic failure that bites once
+parallel in-flight work is real. **Open question (split vs. fold):** spin the buildables into a
+dedicated mechanism cohort member, or fold them into a re-scoped CWC? It depends on how heavy the
+conventions/doc work proves once this WU plans — remains to be seen, so decide then. Either way,
+**the cohort does not close until this cluster lands somewhere.**
+
+**Scope estimate is stale.** The § Scope Estimate "Medium-Small … doc-heavy" predates the merge-safety
+buildables accruing in the buffer; re-estimate at planning (it is no longer doc-only if the fold path
+wins).
+
+**Fold the buffer at planning.** The six Inbound Buffer items want a focused integration pass into the
+body at this WU's next planning iteration (per the buffer's own `drain-inbox § 5` convention) — not a
+piecemeal drain.
+
 ---
 
 ## Inbound Buffer — Pending Integration
@@ -492,10 +530,14 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
 - **In-Flight Awareness** (`draft-in-flight-awareness.md`): the in-flight **oracle** this WU's
   concurrency *gate* consumes (all-owner refs + open PRs), plus the oracle-backed activation-time
   concurrency check. Split from Worktree Foundation 2026-05-24; depends on it.
-- **Agile WU Lifecycle** (`draft-agile-wu-lifecycle.md`): tier model + `**State:**` machine rollout
-  (WOR's 4-state; merge-position folded into `Integrating`, no separate `**Integration:**` field).
-  Concurrent-work conventions consume the `Integrating` state for awaiting-review accommodation.
-  Async-merge audit interacts with tier-aware archival flows.
+- **Work Organization Reform** (shipped) supplies the `**State:**` machine — the 4-state model with
+  merge-position folded into `Integrating` (no separate `**Integration:**` field). Concurrent-work
+  conventions consume the `Integrating` state for awaiting-review accommodation. (Formerly attributed to
+  Agile WU Lifecycle as an upstream dependency; corrected — the state is WOR's and already shipped.)
+- **Agile WU Lifecycle** (now in the principle-anchored-core cohort) is **not** an upstream dependency —
+  the edge was dropped (see § Realignment & scope flags). Its only touchpoint is reversible shared-file
+  coordination on `integrate-work-unit.md`: this WU's async-merge audit lands additively, and AWL's
+  later tier-aware archival branches compose on top — either order works.
 - **User Sync UX Polish** (`prd-user-sync-ux.md`): clean sync state machine before
   worktree-axis-plus-concurrent-work conventions land on it.
 - **Session-Operational Flow Phases 3/5/6:** configurable autonomy modes — reduce approval
@@ -510,8 +552,9 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
 
 ### Recommended sequencing
 
-Work Organization Reform → `draft-worktree-foundation.md` → `draft-agile-wu-lifecycle.md` →
-**Concurrent Work Conventions**.
+Work Organization Reform → `draft-worktree-foundation.md` → **Concurrent Work Conventions**. (All
+upstream members — WF, errand-enablement, in-flight-awareness — have shipped, so this WU is Ready.
+`draft-agile-wu-lifecycle.md` is no longer in the chain; it left the cohort and does not block this WU.)
 
 ---
 
