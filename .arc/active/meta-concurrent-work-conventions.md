@@ -12,14 +12,13 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Full-content sweep + draft rework — all four threads resolved, split-vs-fold → fold
-  (one WU ships the agile-parallelism cohort complete), buffer folded, re-estimated (`00dbee01`)
+- **Last Completed:** Terminal-state settle — 3 PRD-gating opens resolved, four-WU decomposition (D1–D4)
+  recorded, AWL coordination note routed, async audit run (`92ac4c5b`)
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** Delivery parked pending Agile WU Lifecycle (small-WU pipeline + decomposition procedure) — see Next Action
 
-- **Next Action:** Finer iteration on the reworked draft (state: maturing) — graduate the part-2 resolutions
-  into first-class § Design Decisions, reword the in-scope activation-check bullet, refresh Problem/Motivation +
-  Dependencies to post-fold; then close the three PRD-gating opens (rename, stack boundaries, fuller async audit)
-  before `1_create-spec.md`. See draft § Planning pass resolutions (2026-06-03 part 2) + SESSION-NOTES.
+- **Next Action:** **Parked (dormant) pending Agile WU Lifecycle** — re-enter as the four-WU stack (D1–D4)
+  once AWL ships the scalable `create-spec`/`generate-tasks` pipeline + the actionable decomposition procedure
+  (draft § Delivery plan & parked status).
 
 ---
