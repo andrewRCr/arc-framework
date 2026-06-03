@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7a179341`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `64f02743`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,9 +12,7 @@ scheduling constraint.
 
 ## In Flight
 
-| State    | Work unit                   | Priority | Owner  | Depends on | Cohort            |
-| -------- | --------------------------- | -------- | ------ | ---------- | ----------------- |
-| Planning | concurrent-work-conventions | P1       | andrew | —          | agile-parallelism |
+_No work units in flight._
 
 ## Ready
 
@@ -59,6 +57,7 @@ scheduling constraint.
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
+| concurrent-work-conventions   | P1       | andrew | agile-wu-lifecycle          | agile-parallelism          |
 | arc-plan-conductor            | P2       | andrew | loadset-composition         | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption      | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization        | agent-context-optimization |
@@ -67,13 +66,13 @@ scheduling constraint.
 | docs-content-sweep            | P3       | andrew | docs-site-refresh           | release-readiness          |
 | contributor-path              | P3       | andrew | agile-wu-lifecycle          | —                          |
 | quality-gate-hooks            | P3       | andrew | agile-wu-lifecycle          | —                          |
-| shared-inbox-housekeep        | P3       | andrew | concurrent-work-conventions | —                          |
 
 ### Depth 2
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
 | wu5-public-release            | P3       | andrew | docs-content-sweep          | release-readiness          |
+| shared-inbox-housekeep        | P3       | andrew | concurrent-work-conventions | —                          |
 
 ---
 

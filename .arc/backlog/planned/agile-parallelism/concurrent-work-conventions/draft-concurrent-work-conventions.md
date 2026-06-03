@@ -117,7 +117,7 @@ never the target (AGENT-BRIEF.PROJECT: team-size-agnostic, not solo-targeted).
 
 ### Parallel WU support is conventions-bound, not just mechanism-bound
 
-[strategy-team-coordination.md][team-coord] L276-281 documents that parallel work units on
+`strategy-team-coordination.md` L276-281 documents that parallel work units on
 independent branches are structurally supported:
 
 > Parallel work units on independent branches... The work units don't coordinate at all at the
@@ -201,7 +201,7 @@ field validations a tool enforces.
 
 ## Relationship to Interlock Model Frame
 
-[ADR-016][adr-016] establishes configurable autonomy interlocks for session-operational flow, with
+ADR-016 establishes configurable autonomy interlocks for session-operational flow, with
 `plan-session-operational-flow.md` implementing the core mechanics. This WU consumes the
 frame as an enabler — configurable autonomy modes reduce approval ceremony under multi-session
 load, which is exactly the ergonomic gap multi-worktree introduces.
@@ -218,7 +218,7 @@ the posture as "tolerated" or "principled at modest scale."
 ### In scope
 
 1. **`strategy-concurrent-work.md` (new strategy doc).** Sibling to
-   [strategy-team-coordination.md][team-coord], not extending it. Same-identity concurrency is
+   `strategy-team-coordination.md`, not extending it. Same-identity concurrency is
    structurally different from multi-developer coordination. Coverage:
 
     - **Worktree-by-default rationale and trade-offs.** Why ARC departs from solo-developer norm
@@ -294,7 +294,7 @@ the posture as "tolerated" or "principled at modest scale."
     - **Relationship to team mode.** Concurrent-work conventions and team mode are orthogonal;
       both can coexist; neither requires the other.
 
-2. **Integration-surface async-merge audit.** [integrate-work-unit.md][integrate-wu] and related
+2. **Integration-surface async-merge audit.** `integrate-work-unit.md` and related
    lifecycle workflows currently assume synchronous merge (PR created → merged → cleanup in one
    flow). With async-merge as a legitimate pattern (post-PR + awaiting-review-latency), workflows
    need accommodation — handoff transitions, meta-file updates, worktree cleanup advisory,
@@ -541,7 +541,7 @@ activation rather than field-encoded role. Research strongly supports the lighte
 
 ### Async-merge audit scope: option B (additive)
 
-[integrate-work-unit.md][integrate-wu] currently assumes synchronous merge. Three audit shapes:
+`integrate-work-unit.md` currently assumes synchronous merge. Three audit shapes:
 
 - **A — Full rewrite of state transitions** to treat async-merge as a primary path alongside
   sync-merge. Cleanest end state; heaviest change.
@@ -665,7 +665,7 @@ teammate's (each WU is single-owner regardless). Both can coexist; neither requi
 
 ### Async-merge scope boundary
 
-[integrate-work-unit.md][integrate-wu] is shared with `draft-agile-wu-lifecycle.md` (which adds
+`integrate-work-unit.md` is shared with `draft-agile-wu-lifecycle.md` (which adds
 tier-aware branches). Coordination required: async-merge audit lands additive accommodation atop
 the tier-aware flow, not via independent rewrite. PRD-time sequencing care.
 
@@ -849,7 +849,3 @@ the markdown or a schema. Reference the model rather than redefining write/merge
 `adr-022-managed-operational-state-documents.md` § Coordination.
 
 ---
-
-[adr-016]: ../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[team-coord]: ../reference/strategies/arc/strategy-team-coordination.md
-[integrate-wu]: ../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
