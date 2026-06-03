@@ -12,13 +12,14 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** WU init on planning branch + scope realignment (`arc start` create-new extracted
-  from AWL to this WU's buffer)
+- **Last Completed:** Planning pass — integration-end target + single-owner WU ownership model resolved
+  and folded into the draft (`40a23a38`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Planning pass — fold the Inbound Buffer into the body (including the newly-routed
-  `arc start` create-new wiring + `arc user open --prune` mechanism items), resolve the merge-safety
-  cluster's split-vs-fold question, then proceed to `1_create-spec.md`.
+- **Next Action:** Continue planning the remaining threads — start-side check spec (pillar 1), ergonomics
+  lifecycle sweep (pillar 2, untouched), merge-safety cluster items 1–2 (merge-gate-aware workflows +
+  write-context-classifier), then the full Inbound Buffer fold → re-estimate → split-vs-fold; then
+  `1_create-spec.md`. See draft § Planning pass resolutions (2026-06-03) + SESSION-NOTES.
 
 ---
