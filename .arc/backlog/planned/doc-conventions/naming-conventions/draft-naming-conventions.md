@@ -90,6 +90,21 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   name doesn't imply bidirectional reconcile.
 - *Scope:* S — naming/doc decision (the capability question is the sibling note in `cross-machine-sync-coherence`).
 
+### `[ ]` **H1 styling for the inbox / working-memory / notes file family**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02). Informs the Renames table — decide the H1
+  *form* the renamed surfaces adopt.
+- *Concern:* the user-scoped capture surfaces (`SESSION-NOTES`, `WORKING-MEMORY`, `USER-INBOX`, `ATOMIC-INBOX`)
+  use Title-Case H1s (`# Session Notes`, etc.). Alternative: filename-style ALL-CAPS-HYPHENATED H1s
+  (`# INBOX.USER`), which add visual weight and make file identity instant in raw-markdown views (the primary
+  consumption mode), at the cost of diverging from standard H1 convention and reading shouty when rendered.
+  Half-measure: space-separated all-caps (`# WORKING MEMORY`).
+- *Why here:* the rename cascade rewrites these H1s anyway (`SESSION-NOTES → NOTES.SESSION`, etc.), so the
+  styling choice is a natural rider on that work — neighbors the *italic conventions* buffer entry above (same
+  file-family styling axis).
+- *Scope:* small ripple — the renamed templates + instances + any cross-doc references quoting H1s. Defer to
+  the cascade.
+
 ---
 
 ## Problem / Motivation

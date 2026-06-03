@@ -9,6 +9,43 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Per-phase approval cascade in `2_generate-tasks` audit pass (reconcile with § Scope item 3)**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).
+- *Concern:* the Step 3.2 audit-pass `workflow-interlock` ("Stop after the audit findings and corrections are
+  applied per phase") reads as *apply-then-stop*; the cleaner pattern is *surface findings + proposed
+  corrections per phase, await direction before applying,* with approval of one phase's corrections cascading
+  to permission for the next phase's audit.
+- *Reconcile:* this is the **same Step 3.2 interlock** as § Scope item 3 (*Strengthen `2_generate-tasks` Pass-3
+  interlock language*), but proposes a **different mechanism** — an *auto-cascade* (approval rolls one phase
+  forward) vs. item 3's *explicit user batch-waiver* ("audit the rest without stopping"). Resolve the tension
+  between the two models at iteration rather than codifying both.
+- *Scope:* Quick-tier; ~3-line edit in both `2_generate-tasks.md` copies (folds into item 3's edit surface).
+
+### `[ ]` **`_Outcome:_` shape example + blank-line-separator adherence at completion-notes time**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02); broadened during the sweep from the original
+  `_Outcome:_`-only capture.
+- *Concern (two facets, one drift zone):* (a) an agent wrote `_Outcome:_` as a 4-space-indented paragraph (no
+  leading `-`) instead of a top-level bullet peer to `_Goal:_`, despite reading the prose guidance — the rule
+  is verbal, neither `3_process-task-loop.md` § Completion protocol nor `strategy-task-list-formatting.md`
+  § Goal/Note Lines shows the literal markdown shape. (b) more generally, the codified blank-line-separator
+  conventions don't reliably stick at completion-notes-writing time — the same deep-indent drift zone the
+  WORKING-MEMORY wide-wrap note tracks.
+- *Proposed:* add a small code-block shape example near the bullet-at-root prose (showing `_Goal:_` →
+  description → `_Outcome:_` at the parent column); pair it with the § Scope item 1 descriptor-block blank-line
+  work so the loose-list + shape conventions land together. *Watch-and-wait* on the `_Outcome:_` facet (first
+  observed occurrence — three instances, one session); the blank-line-adherence facet is the recurring one.
+- *Scope:* Quick-tier; doc/example edits in `3_process-task-loop.md` + `strategy-task-list-formatting.md`
+  (+ `template-tasks.md`), two-copy.
+
+---
+
 ## Scope (routed captures — iterate into a plan)
 
 ### Codify or deprecate the task-list Strategies line (+ make the root descriptor block loose)

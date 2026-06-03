@@ -37,6 +37,24 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   Fits this WU's cross-machine coherence surface.
 - *Scope:* M — depends on the inbound-leg design.
 
+### `[ ]` **Session-init probe: detect local base-ref staleness vs. `origin/<base>`**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02) — the capture self-cross-references this WU
+  ("both are 'machine B unaware of machine A's state change,' different mechanism classes").
+- *Concern:* the session-init worktree probe compares only the current branch against its upstream. Local
+  `main` (or any base ref) can fall arbitrarily behind `origin/main` when cross-machine integration lands on a
+  sibling clone — the integrating machine fast-forwards local `main` as a merge side-effect, the sibling never
+  does, and orientation carries no signal. Observed live: a machine's local `main` 47 commits behind
+  `origin/main`. The defensive at-branch-creation check already shipped; this is the probe-side surface that
+  flags the gap *before* branch creation.
+- *Proposed:* extend the session-init probe envelope with a `baseBranchSync` slot mirroring the `worktree` slot
+  (`state`, `ahead`/`behind`, `recommendedAction`, `recommendedPromptText`); new config key
+  `session.init_pull.main ∈ {always, prompt, surface, skip}`. Surface in orientation when behind; probe is
+  read-only (fetch + compare), pull action config-gated. Touch points: probe handler, envelope types,
+  `session-init.md`, `arc-config.yml` template comments, QUICK-REFERENCE.
+- *Scope:* Quick-tier — architecturally bounded (mirrors the worktree channel); ~30-50 lines TS + tests +
+  workflow doc updates.
+
 ---
 
 ## Problem / Motivation
