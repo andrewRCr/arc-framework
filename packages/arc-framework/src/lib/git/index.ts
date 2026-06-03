@@ -31,6 +31,7 @@ export {
   runWorktreeRoster,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
+  resolveWorktreePathsByBranch,
   type WorktreeRosterEntry,
   type WorktreeRosterFs,
   type WorktreeRosterResult,
@@ -47,10 +48,35 @@ export {
 
 export {
   detectForeignArtifactOverlap,
+  projectInFlightToOverlapRoster,
   type ForeignArtifactDetectionOptions,
   type ForeignArtifactDetectionResult,
   type ForeignArtifactOverlap,
+  type OverlapCandidateEntry,
+  type OverlapRoster,
 } from "./foreign-artifact-detection.js";
+
+export {
+  listLiveRemoteBranches,
+  listPrunedRemoteTrackingBranches,
+  fetchRefBounded,
+  readMetaAtRef,
+  type ListLiveRemoteBranchesOptions,
+  type ListPrunedRemoteTrackingBranchesOptions,
+  type FetchRefBoundedOptions,
+  type ReadMetaAtRefOptions,
+} from "./remote-ref-reader.js";
+
+export {
+  deriveInFlight,
+  type DeriveInFlightOptions,
+  type InFlightEntry,
+  type InFlightWorkUnit,
+  type InFlightErrand,
+  type InFlightState,
+  type OpenPrSignal,
+  type PrSource,
+} from "./in-flight-derivation.js";
 
 export {
   isRefusalCondition,

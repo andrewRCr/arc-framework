@@ -60,6 +60,37 @@ export function validateState(s: string | null): WorkUnitState | "unknown" {
 }
 
 /**
+ * Codified per-WU attention levels for triaging a multi-in-flight worklist:
+ * `P1` (top focus) → `P2` (elevated) → `P3` (baseline). `P3` is the default —
+ * there is no `P0` (its stop-the-world connotation misfits a standing scale).
+ */
+export type Priority = "P1" | "P2" | "P3";
+
+/**
+ * Narrow a raw `**Priority:**` field value to the codified `Priority` enum.
+ * Unlike {@link validateState}, this never reports failure: anything
+ * unrecognized — `null`, the empty string, `[none]`, an out-of-range level
+ * (`P0`, `P5`), or any malformed input — resolves to the `P3` baseline, so
+ * callers always get a usable level for sort and render.
+ *
+ * Parsers return the raw `Priority` string verbatim; callers that need enum
+ * narrowing import and apply `validatePriority` explicitly.
+ *
+ * @param p - Raw `**Priority:**` field value, or `null` when absent.
+ * @returns The narrowed `Priority`, defaulting to `"P3"`.
+ */
+export function validatePriority(p: string | null): Priority {
+  switch (p) {
+    case "P1":
+    case "P2":
+    case "P3":
+      return p;
+    default:
+      return "P3";
+  }
+}
+
+/**
  * Resolved session type — drives session-init's per-type loadset (Step 3
  * items 9–10). Inferred from active state.
  *

@@ -54,6 +54,10 @@ import {
   runWorktreeRoster,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
+import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
+import { deriveInFlight, type InFlightEntry } from "../lib/git/in-flight-derivation.js";
+import { findMaterializableWorkUnits } from "../lib/session-init/materializable-work-units.js";
+import { pruneRemoteTrackingRefs } from "../lib/session-init/dead-ref-prune.js";
 import {
   runBranchGoneRecovery,
   RECOVERY_RECENCY_DAYS,
@@ -79,11 +83,17 @@ import {
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { runStatusUserView } from "../lib/status/user-view.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
+  user?: boolean;
+  /** `--local`: render the user view from local refs without a network read. */
+  local?: boolean;
+  /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
+  fetch?: boolean;
   json?: boolean;
 }
 
@@ -146,9 +156,10 @@ async function resolveErrandNudgeState(
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
-  if (opts.sessionInit && opts.sessionHandoff) {
+  const modeCount = [opts.sessionInit, opts.sessionHandoff, opts.user].filter(Boolean).length;
+  if (modeCount > 1) {
     process.stderr.write(
-      "Error: --session-init and --session-handoff are mutually exclusive.\n",
+      "Error: --session-init, --session-handoff, and --user are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -229,6 +240,28 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    // Shared in-flight oracle slice — the bounded network read (live remote
+    // membership → pruned-ref derivation) feeding both the errand-state and
+    // materializable-WU probes. Both gate on the no-active-WU arm, so when one
+    // fires the other does too; memoizing keeps it a single read. Lazy: a resume
+    // session forces neither probe, so the network read never runs there.
+    let oraclePromise: Promise<{ entries: InFlightEntry[]; reachable: boolean }> | undefined;
+    const getOracle = (): Promise<{ entries: InFlightEntry[]; reachable: boolean }> => {
+      oraclePromise ??= (async () => {
+        const resolved = await resolvedSettingsP;
+        const teamMode = resolved.settings["team.mode"] === "true";
+        const { branches, reachable } = await resolveInFlightBranchSet({
+          exec: gitExec,
+          localOnly: false,
+        });
+        // Unreachable: derive nothing rather than a half-resolved view over
+        // un-pruned local refs. Consumers surface no candidates / skip discovery.
+        if (!reachable) return { entries: [], reachable: false };
+        const entries = await deriveInFlight({ exec: gitExec, branches, identity, teamMode });
+        return { entries, reachable: true };
+      })();
+      return oraclePromise;
+    };
     const probes: SessionInitProbes = {
       user: async (id) => {
         const resolved = await resolvedSettingsP;
@@ -300,16 +333,32 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+        let entries: InFlightEntry[] | null = null;
+        if (input.includeDiscovery) {
+          // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
+          // the oracle: the oracle is prune-independent, so classification never
+          // depends on the prune completing.
+          const [, oracle] = await Promise.all([
+            pruneRemoteTrackingRefs(gitExec),
+            getOracle(),
+          ]);
+          entries = oracle.reachable ? oracle.entries : null;
+        }
         return runErrandState({
           exec: gitExec,
           currentBranch: input.currentBranch,
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
-          roster: input.roster,
+          entries,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveErrandNudgeState(cwd, io, identity),
         });
+      },
+      materializableWorkUnits: async () => {
+        const { entries, reachable } = await getOracle();
+        if (!reachable) return { candidates: [] };
+        return findMaterializableWorkUnits({ entries, identity });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
@@ -321,6 +370,30 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     p.intro("arc status");
     p.note(buildSessionInitStatusSummary(result), "Session Init");
     p.outro("Done.");
+    return;
+  }
+
+  if (opts.user) {
+    const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const teamMode = resolved.settings["team.mode"] === "true";
+    const localOnly = Boolean(opts.local) || opts.fetch === false;
+    const statusUserPath =
+      identity === null ? null : join(cwd, ".arc", "user", identity, "STATUS.USER.md");
+    const view = await runStatusUserView({
+      exec: gitExec,
+      identity,
+      teamMode,
+      localOnly,
+      readLastRendered: () =>
+        statusUserPath === null
+          ? Promise.resolve(null)
+          : io.readFile(statusUserPath).then((content) => content, () => null),
+    });
+    if (json) {
+      process.stdout.write(`${JSON.stringify(view)}\n`);
+      return;
+    }
+    process.stdout.write(`${view.output}\n`);
     return;
   }
 

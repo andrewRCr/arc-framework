@@ -40,6 +40,7 @@ import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-work
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
@@ -172,6 +173,16 @@ export interface SessionInitProbeResult {
    */
   errandState?: Probe<ErrandStateResult>;
   /**
+   * Pre-computed materializable-WU candidates — the oracle's remote-only owned
+   * in-flight work units, the discovery surface the Materialize arm offers for
+   * cross-machine pickup. Present ONLY on the no-active-WU arm
+   * (`active.resolution === "none"`), where the oracle's network slice fires; the
+   * resume path skips it entirely (zero oracle cost). An empty `candidates` array
+   * means the oracle ran and found none (or the remote was unreachable); absence
+   * of the slot means it never ran.
+   */
+  materializableWorkUnits?: Probe<MaterializableWorkUnitsResult>;
+  /**
    * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
    * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
    * machine-resolved signal rather than an agent re-scan. Present whenever
@@ -286,19 +297,19 @@ export interface SessionHandoffResult {
   recommendedSummaryLine: string | null;
 }
 
-/** Probe functions in session-init mode — bound to cwd and any required I/O. */
-export interface SessionInitProbes {
+/**
+ * Probe slots shared by both session-scoped entry points (`session-init` and
+ * `session-handoff`). The two probe interfaces below extend this base so the
+ * five slots stay declared once — the orchestrator wires them through a single
+ * `buildSessionSharedSlots` source rather than re-declaring each per entry
+ * point. Full mode (`StatusProbes`) shares only the `user` identity-missing
+ * triad (via the generic `userSlot` helper), since its `user` / `active` slots
+ * carry different result types and signatures.
+ */
+export interface SessionSharedProbes {
   user: (identity: string) => Promise<UserSessionInitStatusResult>;
   worktree: () => Promise<WorktreeSyncStatusResult>;
-  /**
-   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
-   * no network — so it rides every session-init pass. Folded onto the worktree
-   * slot in the orchestrator rather than surfaced as a top-level slot.
-   */
-  worktreeIdentity: () => Promise<WorktreeIdentity>;
   dirty: () => Promise<DirtyStateResult>;
-  extensions: () => Promise<ExtensionsSessionInitResult>;
-  config: () => Promise<ConfigSessionInitResult>;
   /**
    * Active probe receives `identity` and `role` so contributor flow can
    * scan `.arc/user/{identity}/active/` instead of the maintainer root.
@@ -309,8 +320,20 @@ export interface SessionInitProbes {
     identity: string | null,
     role: string | null,
   ) => Promise<ActiveSessionInitResult>;
-  domainRules: () => Promise<DomainRulesSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
+}
+
+/** Probe functions in session-init mode — bound to cwd and any required I/O. */
+export interface SessionInitProbes extends SessionSharedProbes {
+  /**
+   * Physical-worktree detection (primary vs. linked). Local rev-parse only —
+   * no network — so it rides every session-init pass. Folded onto the worktree
+   * slot in the orchestrator rather than surfaced as a top-level slot.
+   */
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
+  extensions: () => Promise<ExtensionsSessionInitResult>;
+  config: () => Promise<ConfigSessionInitResult>;
+  domainRules: () => Promise<DomainRulesSessionInitResult>;
   /**
    * In-flight worktree roster scan, identity-filtered (`git worktree list` +
    * per-worktree meta reads). Always provided — the orchestrator owns the
@@ -355,16 +378,24 @@ export interface SessionInitProbes {
   errandSweep: (identity: string) => Promise<ErrandStalenessSweepResult>;
   /**
    * Errand-state resolver. The orchestrator supplies the current branch,
-   * backing-meta signal, the Orient/discovery gate, and the resolved roster
-   * when available. The handler binds config, git/forge enumeration, and
+   * backing-meta signal, and the Orient/discovery gate. The handler binds the
+   * shared in-flight oracle (errand discovery derives from it), config, and
    * nudge-marker reads.
    */
   errandState: (input: {
     currentBranch: string | null;
     hasBackingMeta: boolean;
     includeDiscovery: boolean;
-    roster: WorktreeRosterResult | null;
   }) => Promise<ErrandStateResult>;
+  /**
+   * Materializable-WU oracle slice. Fires the oracle's bounded network read
+   * (remote membership → in-flight derivation → remote-only owned filter) to
+   * surface the operator's cross-machine materialize candidates. The handler
+   * binds the git executor, identity, and team-mode filter; the orchestrator
+   * calls this ONLY on the no-active-WU arm so the resume path pays no oracle
+   * cost. An unreachable remote degrades to an empty candidate list.
+   */
+  materializableWorkUnits: () => Promise<MaterializableWorkUnitsResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
    * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in
@@ -374,19 +405,11 @@ export interface SessionInitProbes {
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
-export interface SessionHandoffProbes {
-  dirty: () => Promise<DirtyStateResult>;
-  worktree: () => Promise<WorktreeSyncStatusResult>;
-  user: (identity: string) => Promise<UserSessionInitStatusResult>;
+export interface SessionHandoffProbes extends SessionSharedProbes {
   syncInterlock: () => Promise<HandoffSyncInterlock>;
-  active: (
-    identity: string | null,
-    role: string | null,
-  ) => Promise<ActiveSessionInitResult>;
   head: () => Promise<HeadHashResult>;
   pushability: () => Promise<PushabilityResult>;
   restateCandidates: () => Promise<RestateCandidatesResult>;
-  releaseRouting: () => Promise<ReleaseRoutingValue>;
   inboxState: (identity: string) => Promise<InboxStateResult>;
 }
 

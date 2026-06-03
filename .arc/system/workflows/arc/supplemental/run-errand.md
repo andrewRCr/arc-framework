@@ -42,9 +42,10 @@ base-derived branch — so the errand never executes from an unrelated work unit
    arc errand check --target <path>... --json
    ```
 
-   It reports which in-flight work units touch the same paths — fresher here at execution time than at
-   capture. **Advisory, never a gate:** surface any overlap so you can coordinate or sequence the errand after
-   the other unit integrates, then proceed.
+   It reports which in-flight work units touch the same paths — across worktrees and machines (via the
+   in-flight oracle), fresher here at execution time than at capture. **Advisory, never a gate:** surface any
+   overlap so you can coordinate or sequence the errand after the other unit integrates, then proceed. If the
+   remote is unreachable the check degrades to local refs and says so.
 
 3. **Resolve the base and relocate the locus.** The errand executes from a base-derived locus, never the
    branch you launched from — launching from any worktree (a work unit's included) is fine; only *executing*
@@ -159,6 +160,10 @@ base-branch push follows the project's normal base-push discipline.
 On merge (full) or commit (partial), tear down the locus and clear the capture:
 
 - Remove the `chore/<slug>` branch and any ephemeral worktree spawned at Launch (full only).
+- **Prune the stale remote-tracking ref** (full only) — `git fetch --prune origin` after the merge, so the
+  merged-and-deleted `origin/chore/<slug>` ref doesn't linger and surface as phantom in-flight. Targeted here
+  because the slug is known in-session; session-init's errand sweep carries the broad backstop for errands
+  whose PR merged out-of-session.
 - **Remove the slug-matched originating `USER-INBOX` entry** — this is the single point where that removal is
   ensured. An errand that started but never completed keeps its entry, so the intent is never lost;
   session-init's in-flight sweep backstops an abandoned branch.

@@ -17,6 +17,11 @@ import {
   runSessionInitStatus,
   runStatus,
 } from "../../../src/commands/status.js";
+import {
+  buildSessionSharedSlots,
+  gatedSlot,
+  userSlot,
+} from "../../../src/commands/status/run.js";
 import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
@@ -53,6 +58,7 @@ import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/sta
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
+import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
@@ -302,6 +308,9 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
+    materializableWorkUnits: vi.fn(
+      async (): Promise<MaterializableWorkUnitsResult> => ({ candidates: [] }),
+    ),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
@@ -1261,12 +1270,10 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
 });
 
 describe("runSessionInitStatus — errand-state slot", () => {
-  it("fires after the roster stage and passes resume + discovery context", async () => {
-    const rosterValue = rosterResult({ entries: [{ worktreePath: "/repo", branch: "chore/fix" }] });
+  it("passes resume + discovery context on the no-WU arm", async () => {
     const probes = sessionInitProbes({
       worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "main" })),
       active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
-      roster: vi.fn(async () => rosterValue),
       errandState: vi.fn(async () =>
         errandStateResult({
           materializable: { candidates: [{ slug: "fix", branch: "chore/fix" }] },
@@ -1279,7 +1286,6 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "main",
       hasBackingMeta: false,
       includeDiscovery: true,
-      roster: rosterValue,
     });
     expect(result.errandState?.ok).toBe(true);
     if (result.errandState?.ok) {
@@ -1301,7 +1307,6 @@ describe("runSessionInitStatus — errand-state slot", () => {
       currentBranch: "feat/x",
       hasBackingMeta: true,
       includeDiscovery: false,
-      roster: expect.any(Object),
     });
   });
 
@@ -1328,6 +1333,67 @@ describe("runSessionInitStatus — errand-state slot", () => {
 
     expect(probes.errandState).not.toHaveBeenCalled();
     expect("errandState" in result).toBe(false);
+  });
+});
+
+describe("runSessionInitStatus — materializable-WU oracle slot", () => {
+  it("fires the oracle slot and surfaces candidates when no active WU resolves (resolution=none)", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      materializableWorkUnits: vi.fn(async () => ({
+        candidates: [{ name: "feature-x", branch: "feat/feature-x" }],
+      })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.materializableWorkUnits).toHaveBeenCalledTimes(1);
+    expect(result.materializableWorkUnits?.ok).toBe(true);
+    if (result.materializableWorkUnits?.ok) {
+      expect(result.materializableWorkUnits.value.candidates).toEqual([
+        { name: "feature-x", branch: "feat/feature-x" },
+      ]);
+    }
+  });
+
+  it("skips the oracle slot — no probe call — when an active WU resolves", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.materializableWorkUnits).not.toHaveBeenCalled();
+    expect("materializableWorkUnits" in result).toBe(false);
+  });
+
+  it("surfaces an empty candidate list when the oracle finds none", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.materializableWorkUnits?.ok).toBe(true);
+    if (result.materializableWorkUnits?.ok) {
+      expect(result.materializableWorkUnits.value.candidates).toEqual([]);
+    }
+  });
+
+  it("wraps a rejecting oracle probe without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      materializableWorkUnits: async () => { throw new Error("oracle boom"); },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.materializableWorkUnits?.ok).toBe(false);
+    if (result.materializableWorkUnits && !result.materializableWorkUnits.ok) {
+      expect(result.materializableWorkUnits.error.message).toBe("oracle boom");
+    }
+    expect(result.active.ok).toBe(true);
   });
 });
 
@@ -1427,6 +1493,106 @@ describe("runSessionInitStatus — inbox-state slot", () => {
       expect(result.inboxState.error.message).toBe("inbox boom");
     }
     expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("gatedSlot — gated-slot affordance", () => {
+  it("fires the probe and wraps its value as an ok slot when the condition holds", async () => {
+    const probe = vi.fn(async () => ({ candidates: ["x"] }));
+    const slot = await gatedSlot(true, probe);
+    expect(probe).toHaveBeenCalledTimes(1);
+    expect(slot?.ok).toBe(true);
+    if (slot?.ok) expect(slot.value).toEqual({ candidates: ["x"] });
+  });
+
+  it("omits the slot (undefined) and never calls the probe when the condition is false", async () => {
+    const probe = vi.fn(async () => ({ candidates: ["x"] }));
+    const slot = await gatedSlot(false, probe);
+    expect(probe).not.toHaveBeenCalled();
+    expect(slot).toBeUndefined();
+  });
+
+  it("wraps a rejecting probe as an error slot instead of rejecting", async () => {
+    const slot = await gatedSlot(true, async () => { throw new Error("slot boom"); });
+    expect(slot?.ok).toBe(false);
+    if (slot && !slot.ok) {
+      expect(slot.error.kind).toBe("runtime");
+      expect(slot.error.message).toBe("slot boom");
+    }
+  });
+
+  it("wraps a synchronous throw before the probe returns its promise as an error slot", async () => {
+    const slot = await gatedSlot(true, (): Promise<unknown> => {
+      throw new Error("sync boom");
+    });
+    expect(slot?.ok).toBe(false);
+    if (slot && !slot.ok) expect(slot.error.message).toBe("sync boom");
+  });
+});
+
+describe("userSlot — identity-missing short-circuit primitive", () => {
+  it("fires the probe and wraps its result as an ok slot when identity is present", async () => {
+    const probe = vi.fn(async (id: string) => ({ id }));
+    const slot = await userSlot("andrew", probe);
+    expect(probe).toHaveBeenCalledWith("andrew");
+    expect(slot.ok).toBe(true);
+    if (slot.ok) expect(slot.value).toEqual({ id: "andrew" });
+  });
+
+  it("short-circuits to identity-missing — no probe call — when identity is null", async () => {
+    const probe = vi.fn(async (id: string) => ({ id }));
+    const slot = await userSlot(null, probe);
+    expect(probe).not.toHaveBeenCalled();
+    expect(slot.ok).toBe(false);
+    if (!slot.ok) expect(slot.error.kind).toBe("identity-missing");
+  });
+
+  it("wraps a rejecting probe as a runtime error slot", async () => {
+    const slot = await userSlot("andrew", async () => { throw new Error("user boom"); });
+    expect(slot.ok).toBe(false);
+    if (!slot.ok) {
+      expect(slot.error.kind).toBe("runtime");
+      expect(slot.error.message).toBe("user boom");
+    }
+  });
+});
+
+describe("buildSessionSharedSlots — shared session slot declaration", () => {
+  it("fires all five shared probes and wraps each as an ok slot, threading identity + role", async () => {
+    const probes = sessionInitProbes();
+    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
+    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
+      shared.user, shared.worktree, shared.dirty, shared.active, shared.releaseRouting,
+    ]);
+    expect(probes.user).toHaveBeenCalledWith("andrew");
+    expect(probes.active).toHaveBeenCalledWith("andrew", "maintainer");
+    expect([user.ok, worktree.ok, dirty.ok, active.ok, releaseRouting.ok]).toEqual([
+      true, true, true, true, true,
+    ]);
+  });
+
+  it("short-circuits the user slot to identity-missing when identity is null; the other four still fire", async () => {
+    const probes = sessionInitProbes();
+    const shared = buildSessionSharedSlots({ identity: null, role: null, probes });
+    const [user, worktree, dirty, active, releaseRouting] = await Promise.all([
+      shared.user, shared.worktree, shared.dirty, shared.active, shared.releaseRouting,
+    ]);
+    expect(probes.user).not.toHaveBeenCalled();
+    expect(user.ok).toBe(false);
+    if (!user.ok) expect(user.error.kind).toBe("identity-missing");
+    expect([worktree.ok, dirty.ok, active.ok, releaseRouting.ok]).toEqual([true, true, true, true]);
+    expect(probes.active).toHaveBeenCalledWith(null, null);
+  });
+
+  it("wraps a rejecting shared probe as an error slot without rejecting the others", async () => {
+    const probes = sessionInitProbes({
+      worktree: async () => { throw new Error("worktree boom"); },
+    });
+    const shared = buildSessionSharedSlots({ identity: "andrew", role: "maintainer", probes });
+    const [worktree, dirty] = await Promise.all([shared.worktree, shared.dirty]);
+    expect(worktree.ok).toBe(false);
+    if (!worktree.ok) expect(worktree.error.message).toBe("worktree boom");
+    expect(dirty.ok).toBe(true);
   });
 });
 

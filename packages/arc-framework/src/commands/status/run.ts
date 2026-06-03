@@ -30,10 +30,15 @@ import type {
   SessionInitProbeResult,
   SessionInitUserValue,
   SessionInitWorktreeValue,
+  SessionSharedProbes,
   StatusIdentity,
   StatusResult,
   WorktreeIdentity,
 } from "./types.js";
+import type { ActiveSessionInitResult } from "../active/types.js";
+import type { UserSessionInitStatusResult } from "../user/types.js";
+import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
   inferSessionInitRecommendations,
   type NotesPullPolicy,
@@ -77,10 +82,82 @@ function safeProbe<T>(
   return Promise.resolve().then(probe).then(ok, fromRejection);
 }
 
+/**
+ * Gated-slot affordance over {@link safeProbe}. An expensive slot — a roster
+ * scan, an oracle's network slice — runs only when its gating condition holds;
+ * otherwise the probe is never invoked and the slot resolves to `undefined`
+ * (omitted from the envelope). When it does fire, `safeProbe` preserves the
+ * "envelope never rejects" contract: a throwing probe resolves to an error
+ * slot, not a rejection.
+ *
+ * Generalized from the orchestrator's two real expensive slots (the in-flight
+ * roster and the materializable-WU oracle) so their firing discipline is
+ * expressed once. The caller owns the boolean gate — this only sequences
+ * "evaluate the gate, then fire-or-omit".
+ */
+export function gatedSlot<T>(
+  condition: boolean,
+  probe: () => Promise<T>,
+): Promise<{ ok: true; value: T } | ProbeErrorSlot | undefined> {
+  return condition ? safeProbe(probe) : Promise.resolve(undefined);
+}
+
 function identityMissing(): ProbeErrorSlot {
   return {
     ok: false,
     error: { kind: "identity-missing", message: IDENTITY_MISSING_MESSAGE },
+  };
+}
+
+/** A resolved probe slot — success value or typed error. Structurally `Probe<T>`. */
+type Slot<T> = { ok: true; value: T } | ProbeErrorSlot;
+
+/**
+ * User-slot primitive: the identity-missing short-circuit shared by all three
+ * entry points. When `identity` is absent the user probe is never invoked and
+ * the slot resolves to an `identity-missing` error; otherwise `safeProbe` wraps
+ * the invocation, preserving the "envelope never rejects" contract. Generic over
+ * the probe's result type so full mode (`UserStatusResult`) and the session
+ * modes (`UserSessionInitStatusResult`) share one declaration.
+ */
+export function userSlot<T>(
+  identity: string | null,
+  probe: (identity: string) => Promise<T>,
+): Promise<Slot<T>> {
+  return identity === null
+    ? Promise.resolve(identityMissing())
+    : safeProbe(() => probe(identity));
+}
+
+/** The five probe slots shared by both session-scoped entry points. */
+interface SessionSharedSlots {
+  user: Promise<Slot<UserSessionInitStatusResult>>;
+  worktree: Promise<Slot<WorktreeSyncStatusResult>>;
+  dirty: Promise<Slot<DirtyStateResult>>;
+  active: Promise<Slot<ActiveSessionInitResult>>;
+  releaseRouting: Promise<Slot<ReleaseRoutingValue>>;
+}
+
+/**
+ * Declare the slots common to `session-init` and `session-handoff` once. Both
+ * orchestrators below compose their envelope from this single source plus their
+ * own mode-specific slots, rather than re-wiring user / worktree / dirty /
+ * active / releaseRouting independently. Each slot's probe fires eagerly (the
+ * `safeProbe` task starts on call), so the caller folding these into its
+ * `Promise.all` keeps the fan-out concurrent.
+ */
+export function buildSessionSharedSlots(opts: {
+  identity: string | null;
+  role: string | null;
+  probes: SessionSharedProbes;
+}): SessionSharedSlots {
+  const { identity, role, probes } = opts;
+  return {
+    user: userSlot(identity, (id) => probes.user(id)),
+    worktree: safeProbe(() => probes.worktree()),
+    dirty: safeProbe(() => probes.dirty()),
+    active: safeProbe(() => probes.active(identity, role)),
+    releaseRouting: safeProbe(() => probes.releaseRouting()),
   };
 }
 
@@ -99,9 +176,7 @@ function buildIdentity(identity: string | null, role: string | null): StatusIden
 export async function runStatus(options: RunStatusOptions): Promise<StatusResult> {
   const { identity, role, probes } = options;
 
-  const userTask: Promise<StatusResult["user"]> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
+  const userTask = userSlot(identity, (id) => probes.user(id));
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const activeTask = safeProbe(() => probes.active());
@@ -129,10 +204,7 @@ export async function runSessionInitStatus(
 ): Promise<SessionInitProbeResult> {
   const { identity, role, probes } = options;
 
-  type RawUser = { ok: true; value: import("../user/types.js").UserSessionInitStatusResult }
-    | ProbeErrorSlot;
-  type RawWorktree = { ok: true; value: import("../../lib/git/worktree-sync.js").WorktreeSyncStatusResult }
-    | ProbeErrorSlot;
+  type RawUser = Slot<UserSessionInitStatusResult>;
   type RawRetired =
     | { ok: true; value: import("../../lib/session-init/retired-subdir-detection.js").RetiredSubdirDetectionResult }
     | ProbeErrorSlot;
@@ -146,17 +218,11 @@ export async function runSessionInitStatus(
     | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
     | ProbeErrorSlot;
 
-  const userTask: Promise<RawUser> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
-  const worktreeTask: Promise<RawWorktree> = safeProbe(() => probes.worktree());
+  const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
-  const dirtyTask = safeProbe(() => probes.dirty());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
-  const activeTask = safeProbe(() => probes.active(identity, role));
   const domainRulesTask = safeProbe(() => probes.domainRules());
-  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
   // Retired-subdir detection rides the eager phase (no roster dependency); it
   // needs identity to resolve a user dir, so it is omitted when identity is
   // absent. `null` here means "not computed" — distinct from an empty result.
@@ -175,18 +241,19 @@ export async function runSessionInitStatus(
     : safeProbe(() => probes.inboxState(identity));
 
   const [
-    user, worktree, worktreeIdentitySlot, dirty, extensions, config, active,
-    domainRules, releaseRouting, retiredSubdirs, errandSweep, inboxState,
+    user, worktree, dirty, active, releaseRouting,
+    worktreeIdentitySlot, extensions, config, domainRules,
+    retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
-    userTask,
-    worktreeTask,
+    shared.user,
+    shared.worktree,
+    shared.dirty,
+    shared.active,
+    shared.releaseRouting,
     worktreeIdentityTask,
-    dirtyTask,
     extensionsTask,
     configTask,
-    activeTask,
     domainRulesTask,
-    releaseRoutingTask,
     retiredSubdirsTask,
     errandSweepTask,
     inboxStateTask,
@@ -238,24 +305,28 @@ export async function runSessionInitStatus(
     : qualifiedUser;
 
   // Two-stage orchestration seam. The eager `Promise.all` above is the first
-  // stage. The in-flight roster is the lone conditional-expensive slot: its
-  // gating signals — worktree state, active resolution, and worktree identity —
-  // are produced by sibling slots in that fan-out, so it can only fire once they
-  // resolve. We gate on those resolved values and run the roster scan in a
-  // second stage; on the linked-worktree resume path the gate is false, the
-  // scan never runs, and the slot is omitted, so resume latency is unchanged.
-  // The primary-worktree arm fires it for the stale-worktree sweep — a main
-  // session recurs often enough to bound the lingering window. `safeProbe`
-  // preserves the "envelope never rejects" contract for the roster too. Kept
-  // deliberately minimal — one named conditional stage, not a general
-  // gated-slot framework.
+  // stage. The expensive slots below are the second: the in-flight roster and
+  // the materializable-WU oracle both express through the `gatedSlot` affordance
+  // — fire the probe only when the gate holds, omit the slot otherwise, with
+  // `safeProbe`'s "envelope never rejects" contract preserved either way. Their
+  // gating signals (worktree state, active resolution, worktree identity) are
+  // produced by sibling slots in the fan-out above, so they can only resolve in
+  // a second stage. On the linked-worktree resume path both gates are false, so
+  // neither probe runs and resume latency is unchanged.
+  //
+  // The in-flight roster gates on the branch-gone, no-WU, and primary-worktree
+  // arms; the primary arm fires it for the stale-worktree sweep — a main session
+  // recurs often enough to bound the lingering window.
   const rosterGated =
     (worktree.ok && worktree.value.state === "branch-gone") ||
     (active.ok && active.value.resolution === "none") ||
     worktreeIdentity.kind === "primary";
-  const roster = rosterGated
-    ? await safeProbe(() => probes.roster())
-    : undefined;
+  const roster = await gatedSlot(rosterGated, () => probes.roster());
+
+  // Roster consumers — recovery, sweep, errand-state — thread the resolved
+  // roster value (and other narrowed slots) as input, so they stay as inline
+  // conditional stages rather than gated slots: a gated slot owns only the
+  // fire-or-omit gate, not the cross-slot data threading these need.
 
   // Branch-gone recovery — a gated consumer of the roster, narrower than the
   // roster gate (branch-gone only). It consumes the roster resolved just above,
@@ -280,9 +351,17 @@ export async function runSessionInitStatus(
         currentBranch: worktree.value.branch,
         hasBackingMeta: active.value.resolution === "single",
         includeDiscovery: active.value.resolution === "none",
-        roster: roster?.ok ? roster.value : null,
       }))
       : undefined;
+
+  // Materializable-WU oracle slot — the discovery surface for cross-machine
+  // pickup. Expressed through the same `gatedSlot` affordance as the roster:
+  // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
+  // the resume path pays zero oracle cost.
+  const materializableWorkUnits = await gatedSlot(
+    active.ok && active.value.resolution === "none",
+    () => probes.materializableWorkUnits(),
+  );
 
   return {
     mode: "session-init",
@@ -301,6 +380,7 @@ export async function runSessionInitStatus(
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),
+    ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
@@ -359,34 +439,28 @@ export async function runSessionHandoffStatus(
 ): Promise<SessionHandoffResult> {
   const { identity, role, probes } = options;
 
-  const dirtyTask = safeProbe(() => probes.dirty());
-  const worktreeTask = safeProbe(() => probes.worktree());
-  const userTask: Promise<SessionHandoffResult["user"]> = identity === null
-    ? Promise.resolve(identityMissing())
-    : safeProbe(() => probes.user(identity));
+  const shared = buildSessionSharedSlots({ identity, role, probes });
   const syncInterlockTask = safeProbe(() => probes.syncInterlock());
-  const activeTask = safeProbe(() => probes.active(identity, role));
   const headTask = safeProbe(() => probes.head());
   const pushabilityTask = safeProbe(() => probes.pushability());
   const restateCandidatesTask = safeProbe(() => probes.restateCandidates());
-  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
   const inboxStateTask: Promise<SessionHandoffResult["inboxState"] | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.inboxState(identity));
 
   const [
-    dirty, worktree, user, syncInterlock, active, head, pushability,
-    restateCandidates, releaseRouting, inboxState,
+    user, worktree, dirty, active, releaseRouting,
+    syncInterlock, head, pushability, restateCandidates, inboxState,
   ] = await Promise.all([
-    dirtyTask,
-    worktreeTask,
-    userTask,
+    shared.user,
+    shared.worktree,
+    shared.dirty,
+    shared.active,
+    shared.releaseRouting,
     syncInterlockTask,
-    activeTask,
     headTask,
     pushabilityTask,
     restateCandidatesTask,
-    releaseRoutingTask,
     inboxStateTask,
   ]);
 

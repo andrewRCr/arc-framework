@@ -1,31 +1,23 @@
 /**
- * Materializable-errand detection — recognizing `chore/` remote branches that
- * have no local worktree and no meta as cross-machine errands to materialize.
+ * Materializable-errand detection — filtering the oracle's in-flight entries to
+ * the remote-only `chore/` errands, the cross-machine resumes session-init's
+ * Materialize arm offers.
  *
  * An errand handed off mid-flight is a pushed `chore/<slug>` branch. On another
- * machine the branch exists only on the remote — no local checkout, no meta —
- * so session-init's Materialize arm fetches it (`git worktree add`) and resumes
- * via run-errand. A remote `chore/` branch already checked out locally is a
- * resume (handled by the resume probe), not a materialize; one with a backing
- * meta is a work unit.
+ * machine it exists only on the remote — no local worktree — so the oracle marks
+ * it `remoteOnly`; session-init fetches it (`git worktree add`) and resumes via
+ * run-errand. A `chore/` branch already checked out here is a resume (the resume
+ * probe), not a materialize; one with a backing meta is a work unit (the oracle
+ * classifies it as such, so it never reaches here as an errand).
  *
- * Pure core: the caller enumerates the remote branches and resolves each one's
- * local-worktree / meta facts (git), so this module carries no git coupling.
+ * Pure core over the oracle's output ({@link InFlightEntry}) — mirrors
+ * {@link findMaterializableWorkUnits}; no git coupling. Errands carry no owner,
+ * so unlike the WU filter there is no identity gate.
  *
  * @module
  */
 
-import { errandSlugOf } from "./errand-branch.js";
-
-/** Caller-resolved facts for one remote branch. */
-export interface RemoteErrandFacts {
-  /** The remote branch's short name (e.g. `chore/<slug>`). */
-  branch: string;
-  /** Whether the branch is already checked out in a local worktree. */
-  hasLocalWorktree: boolean;
-  /** Whether an active meta backs the branch — a work unit, not an errand. */
-  hasMeta: boolean;
-}
+import type { InFlightEntry } from "../git/in-flight-derivation.js";
 
 /** One remote errand branch that can be materialized. */
 export interface MaterializableErrand {
@@ -36,33 +28,33 @@ export interface MaterializableErrand {
 }
 
 export interface FindMaterializableErrandsOptions {
-  /** Caller-enumerated remote branches with their resolved facts. */
-  branches: readonly RemoteErrandFacts[];
+  /** Oracle-derived in-flight entries (work units and errands). */
+  entries: readonly InFlightEntry[];
 }
 
 export interface MaterializableErrandsResult {
-  /** Remote `chore/` branches materializable as cross-machine errand resumes. */
+  /** Remote-only `chore/` errands materializable as cross-machine resumes. */
   candidates: MaterializableErrand[];
 }
 
 /**
- * Select the materializable errand branches from the caller's remote-branch set.
+ * Select the materializable errands from the oracle's in-flight entries.
  *
- * A branch qualifies when it is a `chore/` errand branch with no local worktree
- * (not already resumable here) and no backing meta (not a work unit).
+ * An entry qualifies when it is an errand (a `chore/<slug>` branch with no
+ * backing meta) in flight only on the remote (no local worktree — not already
+ * resumable here). Work units are never errand candidates.
  *
- * @param options - Candidate remote branches with facts.
- * @returns The materializable remote errand branches.
+ * @param options - The oracle's in-flight entries.
+ * @returns The remote-only materializable errands.
  */
 export function findMaterializableErrands(
   options: FindMaterializableErrandsOptions,
 ): MaterializableErrandsResult {
   const candidates: MaterializableErrand[] = [];
-  for (const { branch, hasLocalWorktree, hasMeta } of options.branches) {
-    if (hasLocalWorktree || hasMeta) continue;
-    const slug = errandSlugOf(branch);
-    if (slug === null) continue;
-    candidates.push({ slug, branch });
+  for (const entry of options.entries) {
+    if (entry.kind !== "errand") continue;
+    if (!entry.remoteOnly) continue;
+    candidates.push({ slug: entry.slug, branch: entry.branch });
   }
   return { candidates };
 }

@@ -409,6 +409,7 @@ describe("renderMetaFile — fresh Planning scaffold", () => {
     expect(md).toContain("- **Design:** [none]");
     expect(md).toContain("- **Depends On:** [none]");
     expect(md).toContain("- **Cohort:** [none]");
+    expect(md).toContain("- **Priority:** P3");
     expect(md).toContain("- **Task List:** [none]");
     expect(md).toContain("- **Last Completed:** [none]");
     expect(md).toContain("- **Next Task:** [none]");
@@ -426,7 +427,9 @@ describe("renderMetaFile — projection shape", () => {
     const md = renderMetaFile("foo", SPAWN_OVERRIDES);
     expect(md).toContain("- **Branch:** plan/foo\n\n- **Origin:** [internal]");
     expect(md).toContain("- **Design:** [none]\n\n- **Depends On:** [none]");
-    expect(md).toContain("- **Cohort:** [none]\n\n- **Task List:** [none]");
+    expect(md).toContain(
+      "- **Cohort:** [none]\n- **Priority:** P3\n\n- **Task List:** [none]",
+    );
     expect(md).toContain(
       "- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec",
     );
@@ -455,6 +458,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       Design: "draft-foo.md",
       "Depends On": "alpha beta",
       Cohort: "gamma",
+      Priority: "P1",
       "Task List": "tasks-foo.md",
       "Last Completed": "Task 1.1 — kicked off (line ~10)",
       "Next Task": "Task 1.2 — next up (line ~20)",
@@ -473,6 +477,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
     expect(record.Design).toBe("[none]");
     expect(record["Depends On"]).toBe("[none]");
     expect(record.Cohort).toBe("[none]");
+    expect(record.Priority).toBe("P3");
     expect(record["Task List"]).toBe("[none]");
     expect(record["Last Completed"]).toBe("[none]");
     expect(record["Next Task"]).toBe("[none]");

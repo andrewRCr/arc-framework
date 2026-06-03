@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { validateState } from "../../../../src/commands/active/types.js";
+import {
+  validatePriority,
+  validateState,
+} from "../../../../src/commands/active/types.js";
 
 describe("validateState", () => {
   it("returns each codified state verbatim", () => {
@@ -30,5 +33,27 @@ describe("validateState", () => {
     expect(validateState("Bogus")).toBe("unknown");
     expect(validateState("active")).toBe("unknown"); // case-sensitive
     expect(validateState("Paused (2026-04-12)")).toBe("unknown"); // parenthetical suffix not stripped
+  });
+});
+
+describe("validatePriority", () => {
+  it("returns each codified priority verbatim", () => {
+    expect(validatePriority("P1")).toBe("P1");
+    expect(validatePriority("P2")).toBe("P2");
+    expect(validatePriority("P3")).toBe("P3");
+  });
+
+  it("defaults a missing value to P3", () => {
+    expect(validatePriority(null)).toBe("P3");
+    expect(validatePriority("")).toBe("P3");
+    expect(validatePriority("   ")).toBe("P3");
+    expect(validatePriority("[none]")).toBe("P3");
+  });
+
+  it("defaults out-of-range and malformed values to P3 without throwing", () => {
+    expect(validatePriority("P0")).toBe("P3");
+    expect(validatePriority("P5")).toBe("P3");
+    expect(validatePriority("p1")).toBe("P3"); // case-sensitive
+    expect(validatePriority("Bogus")).toBe("P3");
   });
 });

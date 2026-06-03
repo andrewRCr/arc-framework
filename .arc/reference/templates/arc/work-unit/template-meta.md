@@ -36,6 +36,12 @@
     ROADMAP tier grouping.
   - **Cohort** — single cohort name; default `[none]`. Source of truth for
     cohort membership; sibling list derived.
+  - **Priority** — `P1` (top focus) | `P2` (elevated) | `P3` (baseline);
+    default `P3`. Human-set attention level for triaging a multi-in-flight
+    worklist; the in-flight views render and sort on it. No `P0` — its
+    stop-the-world connotation misfits a standing attention scale. A soft
+    cap on concurrent P1s is documentation discipline only — never an
+    agent-surfaced nag or render-time signal.
 
   Task pointers:
   - **Task List** — `[none]` during planning; `tasks-{name}.md` filename
@@ -97,6 +103,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** [none]
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]

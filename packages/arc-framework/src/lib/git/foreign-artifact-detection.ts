@@ -6,23 +6,52 @@
  * The check stays deterministic because an errand has a concrete target path, so
  * overlap is decidable from local git state alone (no remote fetch, no heuristics).
  *
- * The roster (identity-filtered by the caller, no remote fetch) supplies the
- * in-flight set; this module adds the per-path overlap diff on top of it. It
- * returns facts only and never blocks — the skill turns the facts into an
- * advisory caveat (bias-to-surface judgment lives there, not here).
+ * The in-flight set is supplied as a roster-shaped input the caller projects —
+ * the local worktree roster (`runActiveRoster`) or the cross-machine oracle
+ * (`runActiveInFlight`). This module adds the per-path overlap diff on top of
+ * it: a committed diff against the base, plus — only for a locally-checked-out
+ * entry — an uncommitted-edits probe in its worktree. A worktree-less
+ * (remote-only) entry has no local edits to collide with here, so its committed
+ * diff against `origin/<branch>` is the whole signal. Returns facts only and
+ * never blocks — the skill turns the facts into an advisory caveat
+ * (bias-to-surface judgment lives there, not here).
  *
  * @module
  */
 
 import type { GitExec } from "./exec.js";
-import type { WorktreeRosterEntry, WorktreeRosterResult } from "./worktree-roster.js";
+import type { InFlightEntry } from "./in-flight-derivation.js";
+import type { WorktreeRosterState } from "./worktree-roster.js";
+
+/**
+ * The minimal in-flight entry the overlap core needs. A {@link WorktreeRosterEntry}
+ * satisfies it directly; an oracle projection supplies `branch` as the diffable
+ * ref (`origin/<branch>` for a remote-only entry) and omits `worktreePath` when
+ * the WU has no local worktree.
+ */
+export interface OverlapCandidateEntry {
+  /** Diffable branch ref — a local branch, or `origin/<branch>` for a remote-only entry. */
+  branch: string;
+  /** Local worktree path; absent for a remote-only entry (no uncommitted probe runs). */
+  worktreePath?: string;
+  /** Present marks a meta-bearing work unit (in-flight); absent → admin/main checkout. */
+  metaFilePath?: string;
+  /** Roster-entry state; a `Shipped` WU has merged and is excluded. */
+  state?: WorktreeRosterState;
+}
+
+/** The roster-shaped in-flight input — local roster or oracle projection. */
+export interface OverlapRoster {
+  entries: OverlapCandidateEntry[];
+  warnings: string[];
+}
 
 /** Inputs for {@link detectForeignArtifactOverlap}. */
 export interface ForeignArtifactDetectionOptions {
-  /** Injectable git executor (local only — no remote fetch). */
+  /** Injectable git executor. */
   exec: GitExec;
-  /** Identity-filtered roster — the caller applies `filterRosterByIdentity`. */
-  roster: WorktreeRosterResult;
+  /** Identity-filtered in-flight set — the caller applies the identity filter. */
+  roster: OverlapRoster;
   /** Repo-relative target path(s); matched by path-prefix (a dir matches files beneath it). */
   targetPaths: string[];
   /** Base branch to diff against — resolved from `branch.base`, never hardcoded. */
@@ -34,7 +63,8 @@ export interface ForeignArtifactDetectionOptions {
 /** One foreign in-flight WU whose state overlaps the errand's target. */
 export interface ForeignArtifactOverlap {
   branch: string;
-  worktreePath: string;
+  /** The WU's worktree path; absent for a remote-only entry (in flight elsewhere). */
+  worktreePath?: string;
   /** The subset of target paths this WU touches. */
   matchedPaths: string[];
 }
@@ -51,7 +81,7 @@ export interface ForeignArtifactDetectionResult {
  * still occupies a branch that will merge, so it counts. Meta-less admin/main
  * checkouts carry no WU and never count.
  */
-function isInFlight(entry: WorktreeRosterEntry): boolean {
+function isInFlight(entry: OverlapCandidateEntry): boolean {
   return entry.metaFilePath !== undefined && entry.state !== "Shipped";
 }
 
@@ -73,12 +103,20 @@ export async function detectForeignArtifactOverlap(
   const overlaps: ForeignArtifactOverlap[] = [];
   for (const entry of candidates) {
     const committed = await committedMatches(exec, baseBranch, entry.branch, targetPaths);
-    const uncommitted = await uncommittedMatches(exec, entry.worktreePath, targetPaths);
+    // A remote-only entry has no local worktree to probe; its uncommitted edits
+    // live elsewhere and can't collide with a local edit, so committed is all.
+    const uncommitted = entry.worktreePath === undefined
+      ? []
+      : await uncommittedMatches(exec, entry.worktreePath, targetPaths);
     const matched = targetPaths.filter(
       (target) => committed.includes(target) || uncommitted.includes(target),
     );
     if (matched.length > 0) {
-      overlaps.push({ branch: entry.branch, worktreePath: entry.worktreePath, matchedPaths: matched });
+      overlaps.push({
+        branch: entry.branch,
+        ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+        matchedPaths: matched,
+      });
     }
   }
 
@@ -131,4 +169,31 @@ async function uncommittedMatches(
 /** True when `file` is at or beneath `target` (path-prefix match). */
 function underPath(file: string, target: string): boolean {
   return file === target || file.startsWith(target.endsWith("/") ? target : `${target}/`);
+}
+
+/**
+ * Project oracle in-flight entries into the overlap roster shape.
+ *
+ * Work units only — errands carry no meta and aren't WU-overlap candidates
+ * (mirroring the meta-bearing narrowing the worktree roster applies). A
+ * locally-checked-out WU keeps its branch and worktree, so the core runs its
+ * full committed + uncommitted probe; a remote-only WU projects its branch as
+ * `origin/<branch>` with no worktree, so the committed diff against the remote
+ * ref is its overlap signal.
+ *
+ * @param entries - Oracle output (identity-filtered in-flight WUs and errands).
+ * @returns The overlap roster the detection core consumes.
+ */
+export function projectInFlightToOverlapRoster(entries: readonly InFlightEntry[]): OverlapRoster {
+  const projected: OverlapCandidateEntry[] = [];
+  for (const entry of entries) {
+    if (entry.kind !== "work-unit") continue;
+    projected.push({
+      branch: entry.worktreePath !== undefined ? entry.branch : `origin/${entry.branch}`,
+      ...(entry.worktreePath !== undefined ? { worktreePath: entry.worktreePath } : {}),
+      metaFilePath: `.arc/active/meta-${entry.name}.md`,
+      state: entry.state,
+    });
+  }
+  return { entries: projected, warnings: [] };
 }

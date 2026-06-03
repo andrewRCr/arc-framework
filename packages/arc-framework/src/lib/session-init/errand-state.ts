@@ -1,20 +1,28 @@
 /**
  * Errand-state composer for session-init.
  *
- * This is the I/O boundary around the pure errand helpers: it detects a
- * resumable current `chore/` branch, optionally enumerates discoverable local
- * and remote errand branches, classifies their state, and selects remote-only
- * branches that can be materialized for cross-machine resume.
+ * The I/O boundary around the pure errand helpers, now oracle-backed. It detects
+ * a resumable current `chore/` branch (cheap, always), and — when discovery is
+ * on — classifies the oracle's in-flight errand entries and selects the
+ * remote-only ones as materialize candidates. The oracle's pruned-ref view
+ * supplies each errand's presence and location (`remoteOnly`); this layer adds
+ * only the per-errand merge + committer-date reads the classification needs.
+ * Open-PR state rides the oracle entry's `pr` enrichment (refs-only until a
+ * PR source is wired), so no bespoke forge probe lives here.
+ *
+ * The dead-ref `git fetch --prune` is no longer part of this path — the oracle
+ * is prune-independent (it intersects local refs with live remote membership),
+ * so the prune survives only as a standalone session-init hygiene backstop
+ * (see {@link pruneRemoteTrackingRefs}).
  *
  * @module
  */
 
-import type { WorktreeRosterResult } from "../git/worktree-roster.js";
 import type { GitExec } from "../git/exec.js";
+import type { InFlightEntry, InFlightErrand } from "../git/in-flight-derivation.js";
 import { isBranchMerged } from "../git/worktree-cleanup.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
-import { errandSlugOf } from "./errand-branch.js";
 import {
   classifyInFlightErrands,
   type InFlightErrandSweepResult,
@@ -40,9 +48,9 @@ export interface ErrandNudgeState {
 export interface ErrandStateResult {
   /** Current-branch resume signal — cheap and always computed. */
   resume: ErrandResumeResult;
-  /** Orient-only advisory over local/remote `chore/` branches. */
+  /** Orient-only advisory over the oracle's in-flight `chore/` errands. */
   inFlight: InFlightErrandSweepResult;
-  /** Remote-only `chore/` branches that can be materialized locally. */
+  /** Remote-only `chore/` errands that can be materialized locally. */
   materializable: MaterializableErrandsResult;
   /** Rate-limit state shared by reminder and stale-errand surfaces. */
   nudge: ErrandNudgeState;
@@ -56,8 +64,12 @@ export interface RunErrandStateOptions {
   hasBackingMeta: boolean;
   /** Discovery is an Orient-arm concern; false leaves in-flight/materialize empty. */
   includeDiscovery: boolean;
-  /** Resolved worktree roster; required for safe discovery, optional for resume. */
-  roster: WorktreeRosterResult | null;
+  /**
+   * Oracle-derived in-flight entries (work units and errands). `null` when
+   * discovery is off or the oracle was unavailable (unreachable remote): both
+   * leave in-flight/materialize empty.
+   */
+  entries: readonly InFlightEntry[] | null;
   /** Integration base branch short-name, e.g. `main`. */
   baseBranch: string;
   /** Whole-day threshold for classifying in-progress branches as stale. */
@@ -66,24 +78,12 @@ export interface RunErrandStateOptions {
   nudge: ErrandNudgeState;
   /** ISO-8601 reference time for deterministic age calculations. */
   now?: string;
-  /** Forge adapter for open-PR detection. Defaults to a best-effort GitHub CLI probe. */
-  detectOpenPr?: (branch: string) => Promise<boolean>;
-}
-
-interface BranchRefFacts {
-  branch: string;
-  hasLocalRef: boolean;
-  hasRemoteRef: boolean;
-  /** Ref used for merge checks (`branch` for local refs, `origin/branch` for remote-only). */
-  mergeRef: string;
-  /** Unix timestamp for the ref tip, when available. */
-  timestamp: number | null;
 }
 
 /**
- * Compose the session-init errand state.
+ * Compose the session-init errand state from the oracle's in-flight entries.
  *
- * @param options - Git adapter, current branch context, roster, config, and nudge state.
+ * @param options - Git adapter, current-branch context, oracle entries, config, and nudge state.
  * @returns Composite errand state for the session-init envelope.
  */
 export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
@@ -95,85 +95,65 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   if (!options.includeDiscovery) {
     return emptyDiscovery(resume, options.nudge, []);
   }
-  if (options.roster === null) {
+  if (options.entries === null) {
     return emptyDiscovery(
       resume,
       options.nudge,
-      ["Errand discovery skipped because the worktree roster was unavailable."],
+      ["Errand discovery skipped because the in-flight oracle was unavailable."],
     );
   }
 
-  const refRead = await readBranchRefs(options.exec);
-  const warnings = [...options.roster.warnings, ...refRead.warnings];
-  const factsByBranch = new Map(refRead.branches.map((branch) => [branch.branch, branch]));
-  for (const entry of options.roster.entries) {
-    if (!factsByBranch.has(entry.branch)) {
-      factsByBranch.set(entry.branch, {
-        branch: entry.branch,
-        hasLocalRef: true,
-        hasRemoteRef: false,
-        mergeRef: entry.branch,
-        timestamp: null,
-      });
-    }
-  }
-
-  const metaBacked = new Set(
-    options.roster.entries
-      .filter((entry) => entry.metaFilePath !== undefined)
-      .map((entry) => entry.branch),
+  const materializable = findMaterializableErrands({ entries: options.entries });
+  const errands = options.entries.filter(
+    (entry): entry is InFlightErrand => entry.kind === "errand",
   );
-  if (options.hasBackingMeta && options.currentBranch !== null) {
-    metaBacked.add(options.currentBranch);
-  }
-  const localWorktrees = new Set(options.roster.entries.map((entry) => entry.branch));
-  const detectOpenPr = options.detectOpenPr ?? ((branch) => detectOpenPrWithGh(options.exec, branch));
-
-  const errandFacts = [...factsByBranch.values()].filter((facts) => errandSlugOf(facts.branch) !== null);
-  const mergedByBranch = new Map<string, boolean>();
-  const openPrByBranch = new Map<string, boolean>();
-  for (const facts of errandFacts) {
-    const [merged, hasOpenPr] = await Promise.all([
-      isBranchMerged({
-        exec: options.exec,
-        branch: facts.mergeRef,
-        target: `origin/${options.baseBranch}`,
-      }),
-      detectOpenPr(facts.branch),
-    ]);
-    mergedByBranch.set(facts.branch, merged);
-    openPrByBranch.set(facts.branch, hasOpenPr);
+  if (errands.length === 0) {
+    return { resume, inFlight: { errands: [] }, materializable, nudge: options.nudge, warnings: [] };
   }
 
+  const timestamps = await readErrandTimestamps(options.exec);
   const nowMs = Date.parse(options.now ?? new Date().toISOString());
+
+  const mergedByBranch = new Map<string, boolean>();
+  await Promise.all(
+    errands.map(async (entry) => {
+      const merged = await isBranchMerged({
+        exec: options.exec,
+        branch: mergeRefOf(entry),
+        target: `origin/${options.baseBranch}`,
+      });
+      mergedByBranch.set(entry.branch, merged);
+    }),
+  );
+
   const inFlight = classifyInFlightErrands({
     staleThresholdDays: options.staleThresholdDays,
-    branches: errandFacts.map((facts) => ({
-      branch: facts.branch,
-      hasMeta: metaBacked.has(facts.branch),
-      hasOpenPr: openPrByBranch.get(facts.branch) ?? false,
-      merged: mergedByBranch.get(facts.branch) ?? false,
-      ageDays: ageDays(facts.timestamp, nowMs),
+    branches: errands.map((entry) => ({
+      branch: entry.branch,
+      // The oracle classifies a meta-backed `chore/` branch as a work unit, so
+      // every errand entry that reaches here is meta-less by construction.
+      hasMeta: false,
+      hasOpenPr: entry.pr !== undefined,
+      merged: mergedByBranch.get(entry.branch) ?? false,
+      ageDays: ageDays(timestampOf(entry, timestamps), nowMs),
     })),
   });
 
-  const materializable = findMaterializableErrands({
-    branches: errandFacts
-      .filter(
-        (facts) =>
-          facts.hasRemoteRef &&
-          !facts.hasLocalRef &&
-          !(mergedByBranch.get(facts.branch) ?? false) &&
-          !(openPrByBranch.get(facts.branch) ?? false),
-      )
-      .map((facts) => ({
-        branch: facts.branch,
-        hasLocalWorktree: localWorktrees.has(facts.branch),
-        hasMeta: metaBacked.has(facts.branch),
-      })),
-  });
+  return { resume, inFlight, materializable, nudge: options.nudge, warnings: timestamps.warnings };
+}
 
-  return { resume, inFlight, materializable, nudge: options.nudge, warnings };
+/** Ref the merge check runs against — `origin/<branch>` for remote-only, the local branch otherwise. */
+function mergeRefOf(entry: InFlightErrand): string {
+  return entry.remoteOnly ? `origin/${entry.branch}` : entry.branch;
+}
+
+/** Committer-date timestamp for an errand, preferring the local ref when checked out here. */
+function timestampOf(
+  entry: InFlightErrand,
+  timestamps: ErrandTimestamps,
+): number | null {
+  if (entry.remoteOnly) return timestamps.remote.get(entry.branch) ?? null;
+  return timestamps.local.get(entry.branch) ?? timestamps.remote.get(entry.branch) ?? null;
 }
 
 function emptyDiscovery(
@@ -195,7 +175,21 @@ function ageDays(timestamp: number | null, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - timestamp * 1000) / MS_PER_DAY));
 }
 
-async function readBranchRefs(exec: GitExec): Promise<{ branches: BranchRefFacts[]; warnings: string[] }> {
+interface ErrandTimestamps {
+  /** Branch → committer-date (unix) for `refs/heads/*`. */
+  local: Map<string, number>;
+  /** Branch → committer-date (unix) for `refs/remotes/origin/*`. */
+  remote: Map<string, number>;
+  warnings: string[];
+}
+
+/**
+ * Read committer-date timestamps for the branch refs in one `for-each-ref`,
+ * split into local (`refs/heads`) and remote (`refs/remotes/origin`) maps. A
+ * read failure degrades to empty maps plus a soft warning — ages fall back to 0
+ * rather than blocking the sweep.
+ */
+async function readErrandTimestamps(exec: GitExec): Promise<ErrandTimestamps> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", [
@@ -206,94 +200,28 @@ async function readBranchRefs(exec: GitExec): Promise<{ branches: BranchRefFacts
     ]));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return { branches: [], warnings: [`Errand branch enumeration failed: ${message}`] };
+    return { local: new Map(), remote: new Map(), warnings: [`Errand branch enumeration failed: ${message}`] };
   }
 
-  const byBranch = new Map<string, BranchRefFacts>();
+  const local = new Map<string, number>();
+  const remote = new Map<string, number>();
   for (const line of stdout.split("\n")) {
-    const parsed = parseRefLine(line);
-    if (parsed === null) continue;
-    const existing = byBranch.get(parsed.branch);
-    if (existing === undefined) {
-      byBranch.set(parsed.branch, parsed);
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    const [refName, timestampRaw] = trimmed.split("\t");
+    if (refName === undefined || timestampRaw === undefined) continue;
+    const timestamp = Number.parseInt(timestampRaw, 10);
+    if (Number.isNaN(timestamp)) continue;
+
+    if (refName.startsWith("refs/heads/")) {
+      const branch = refName.slice("refs/heads/".length);
+      if (branch !== "") local.set(branch, timestamp);
       continue;
     }
-    byBranch.set(parsed.branch, mergeRefFacts(existing, parsed));
+    if (refName.startsWith("refs/remotes/origin/")) {
+      const branch = refName.slice("refs/remotes/origin/".length);
+      if (branch !== "" && branch !== "HEAD") remote.set(branch, timestamp);
+    }
   }
-  return { branches: [...byBranch.values()], warnings: [] };
-}
-
-function parseRefLine(line: string): BranchRefFacts | null {
-  const trimmed = line.trim();
-  if (trimmed === "") return null;
-  const [refName, timestampRaw] = trimmed.split("\t");
-  if (refName === undefined || timestampRaw === undefined) return null;
-  const timestamp = Number.parseInt(timestampRaw, 10);
-  const normalizedTimestamp = Number.isNaN(timestamp) ? null : timestamp;
-
-  if (refName.startsWith("refs/heads/")) {
-    const branch = refName.slice("refs/heads/".length);
-    if (branch === "") return null;
-    return {
-      branch,
-      hasLocalRef: true,
-      hasRemoteRef: false,
-      mergeRef: branch,
-      timestamp: normalizedTimestamp,
-    };
-  }
-  if (refName.startsWith("refs/remotes/origin/")) {
-    const branch = refName.slice("refs/remotes/origin/".length);
-    if (branch === "" || branch === "HEAD") return null;
-    return {
-      branch,
-      hasLocalRef: false,
-      hasRemoteRef: true,
-      mergeRef: `origin/${branch}`,
-      timestamp: normalizedTimestamp,
-    };
-  }
-  return null;
-}
-
-function mergeRefFacts(left: BranchRefFacts, right: BranchRefFacts): BranchRefFacts {
-  const hasLocalRef = left.hasLocalRef || right.hasLocalRef;
-  const hasRemoteRef = left.hasRemoteRef || right.hasRemoteRef;
-  const timestamp = hasLocalRef
-    ? (left.hasLocalRef ? left.timestamp : right.timestamp)
-    : maxTimestamp(left.timestamp, right.timestamp);
-  return {
-    branch: left.branch,
-    hasLocalRef,
-    hasRemoteRef,
-    mergeRef: hasLocalRef ? left.branch : `origin/${left.branch}`,
-    timestamp,
-  };
-}
-
-function maxTimestamp(left: number | null, right: number | null): number | null {
-  if (left === null) return right;
-  if (right === null) return left;
-  return Math.max(left, right);
-}
-
-async function detectOpenPrWithGh(exec: GitExec, branch: string): Promise<boolean> {
-  try {
-    const { stdout } = await exec("gh", [
-      "pr",
-      "list",
-      "--head",
-      branch,
-      "--state",
-      "open",
-      "--json",
-      "number",
-      "--limit",
-      "1",
-    ]);
-    const parsed = JSON.parse(stdout) as unknown;
-    return Array.isArray(parsed) && parsed.length > 0;
-  } catch {
-    return false;
-  }
+  return { local, remote, warnings: [] };
 }

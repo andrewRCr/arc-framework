@@ -27,7 +27,7 @@ import {
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
-import { handleActiveStatus, handleActiveRoster } from "./handlers/active.js";
+import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
 import { handleSync } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
@@ -98,6 +98,8 @@ errand
   .command("check")
   .description("Report which in-flight work units touch the target path(s) — advisory, never blocks")
   .option("--target <paths...>", "Target path(s) the errand will edit (prefix-matched)")
+  .option("--local", "Skip the oracle's network read; check local refs only (alias: --no-fetch)")
+  .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
 
@@ -250,6 +252,14 @@ activeCmd
   .option("--json", "Emit the typed result as JSON")
   .action(handleActiveRoster);
 
+activeCmd
+  .command("in-flight")
+  .description("Emit the oracle-backed in-flight set — your work units and errands across worktrees and machines")
+  .option("--local", "Skip the network read; derive from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "Skip the network read; derive from local refs")
+  .option("--json", "Emit the typed result as JSON")
+  .action(handleActiveInFlight);
+
 // --- Status (composite) ---
 
 program
@@ -267,6 +277,14 @@ program
       "Emit the session-handoff envelope for arc-handoff",
     ).conflicts("session-init"),
   )
+  .addOption(
+    new Option(
+      "--user",
+      "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
+    ).conflicts(["session-init", "session-handoff"]),
+  )
+  .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
+  .option("--no-fetch", "With --user: skip the network read; render from local refs")
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

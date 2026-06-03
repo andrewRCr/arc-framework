@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `4f7dbf03`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1c7ef261`.
 
 This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
 canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
@@ -11,7 +11,7 @@ separate them from a startable root. Cohort membership is a logical grouping, no
 
 ## In Flight
 
-_None in flight._
+_No work units in flight._
 
 ## Ready
 
@@ -21,7 +21,6 @@ _None in flight._
 | loadset-composition           | andrew | —                           | agent-context-optimization |
 | compaction-recovery           | andrew | —                           | agent-context-optimization |
 | agile-wu-lifecycle            | andrew | —                           | agile-parallelism          |
-| in-flight-awareness           | andrew | —                           | agile-parallelism          |
 | commit-increments             | andrew | —                           | approval-flow-refinement   |
 | interlock-release-refinement  | andrew | —                           | approval-flow-refinement   |
 | lib-layer-type-extraction     | andrew | —                           | architecture-remediation   |
