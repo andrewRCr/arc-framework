@@ -282,11 +282,16 @@ case "$context_footer_mode" in
                 meta_found=false
                 if [ -f ".arc/active/$meta_file" ]; then
                     meta_found=true
+                elif find .arc/completed -type f -name "$meta_file" 2>/dev/null | grep -q .; then
+                    # Archival sweeps the meta from active/ into a nested completed/ subdir;
+                    # a completed/ match is still a valid reference, so the (archival) footer
+                    # of the sweep commit must not warn.
+                    meta_found=true
                 fi
 
                 if [ "$meta_found" = false ]; then
-                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active directory${NC}"
-                    echo "   This may be intentional if the file was just created or archived"
+                    echo -e "${YELLOW}Warning: Meta file '$meta_file' not found in active or completed directory${NC}"
+                    echo "   This may be intentional if the file was just created"
                     warnings=$((warnings + 1))
                 fi
 
