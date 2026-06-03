@@ -8,8 +8,8 @@
 - **Design:** `draft-agile-wu-lifecycle.md`
 
 - **Depends On:** worktree-foundation
-- **Cohort:** agile-parallelism
-- **Priority:** P1
+- **Cohort:** principle-anchored-core
+- **Priority:** P2
 
 - **Task List:** [none]
 - **Last Completed:** [none]

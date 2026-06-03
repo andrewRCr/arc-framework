@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1b5092d6`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7a179341`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -18,7 +18,7 @@ _No work units in flight._
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
-| agile-wu-lifecycle            | P1       | andrew | —                           | agile-parallelism          |
+| concurrent-work-conventions   | P1       | andrew | —                           | agile-parallelism          |
 | coord-probe                   | P1       | andrew | —                           | cross-machine-coherence    |
 | cross-machine-sync-coherence  | P1       | andrew | —                           | cross-machine-coherence    |
 | roadmap-tooling               | P1       | andrew | —                           | —                          |
@@ -26,6 +26,7 @@ _No work units in flight._
 | commit-increments             | P2       | andrew | —                           | approval-flow-refinement   |
 | interlock-release-refinement  | P2       | andrew | —                           | approval-flow-refinement   |
 | naming-conventions            | P2       | andrew | —                           | doc-conventions            |
+| agile-wu-lifecycle            | P2       | andrew | —                           | principle-anchored-core    |
 | composable-workflows          | P2       | andrew | —                           | principle-anchored-core    |
 | cli-substrate-adoption        | P2       | andrew | —                           | —                          |
 | compaction-recovery           | P3       | andrew | —                           | agent-context-optimization |
@@ -57,7 +58,6 @@ _No work units in flight._
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
-| concurrent-work-conventions   | P1       | andrew | agile-wu-lifecycle          | agile-parallelism          |
 | arc-plan-conductor            | P2       | andrew | loadset-composition         | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption      | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization        | agent-context-optimization |
@@ -66,13 +66,13 @@ _No work units in flight._
 | docs-content-sweep            | P3       | andrew | docs-site-refresh           | release-readiness          |
 | contributor-path              | P3       | andrew | agile-wu-lifecycle          | —                          |
 | quality-gate-hooks            | P3       | andrew | agile-wu-lifecycle          | —                          |
+| shared-inbox-housekeep        | P3       | andrew | concurrent-work-conventions | —                          |
 
 ### Depth 2
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
 | wu5-public-release            | P3       | andrew | docs-content-sweep          | release-readiness          |
-| shared-inbox-housekeep        | P3       | andrew | concurrent-work-conventions | —                          |
 
 ---
 

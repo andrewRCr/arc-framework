@@ -14,6 +14,53 @@ the agility gap where ARC's uniform ceremony costs more than the work for short-
 
 - **Created:** 2026-04-28 (terminology refresh 2026-05-19)
 
+## Cohort reassignment & design-refresh flag (2026-06-02)
+
+> **This draft is stale and pre-PRD; its body has not absorbed ADR-020, ADR-021, or the
+> errand-model re-pivot (`work-routing-discipline`). Read the body as the original 2026-04-28
+> conception, not current direction.** The items below are flagged open, not resolved here — they
+> are the agenda for this WU's eventual planning pass.
+
+**Reassigned cohort: agile-parallelism → principle-anchored-core (priority P1 → P2).** Rationale:
+the "agile" motivation (small bounded work spun up fast) was substantially delivered by the Errand
+class (`errand-enablement` + `work-routing-discipline`, both shipped). What remains of this WU after
+the errand-absorbed parts is **spec-shape scaling + scalable `create-spec`/`generate-tasks` + tier
+reconciliation** — which is the scalable-core thesis ("scale grammar, never scale discipline" per
+ADR-020), not parallelism. This WU is the *execution arm* of principle-anchored-core's steer, mislabeled
+into agile-parallelism by its origin story. It does **not** block `concurrent-work-conventions`
+(that dependency was soft — CWC consumes only WOR's `Integrating` state, already shipped, plus
+reversible shared-file coordination on `integrate-work-unit.md`); the CWC→AWL edge has been dropped.
+
+**Open design agenda for the planning pass** (each needs real design thought + external research; none
+decided here):
+
+1. **Atomic-tier retirement.** Strong case that "atomic" should no longer be a WU *tier* at all — the
+   Errand class is where atomic-character work executes (inbox captures atomics, drained inline or as an
+   errand; errands are a `full`-protection construct, a base commit under `partial`). The tier set likely
+   collapses to `{quick, standard}`, with "atomic" reverting to a pure work-character adjective. ADR-021
+   already shifted the *default realization* of atomic-character work from "atomic-tier WU" to Errand and
+   handed the *name's fate* to this WU (`cohort-agile-parallelism.md`). Tiers may still earn their keep for
+   categorization / routing — open.
+2. **Spec-shape scaling, not tier-coupled alternates.** ADR-020 ratifies one spec filename
+   (`spec-{name}.md`) scaling via a **template family** (full PRD → lighter design-brief → minimal
+   paragraph), and explicitly kills the quick-tier "spec via task-list `## Scope` header" still shown in
+   this draft's § Three-Tier Model table. Decoupled from tier by default, conventionally correlated.
+3. **Task-list scaling = one grammar, fewer phases.** Reconsider the draft's "flat task list (no phases)"
+   as a distinct shape. The scalable-core-coherent answer is the *same* task-list grammar with fewer
+   phases (down to one substantive phase) + verification always present (gate-check or phase) — keeping CLI
+   parsability and verification consistent. "Entirely flat" is an alternate, not a scaling. The real weight
+   to scale is `generate-tasks` (a 3-pass procedure today), not the task-list artifact.
+4. **AWL ↔ arc-plan-conductor seam (resolve the circular deference).** Today both drafts defer spec-form
+   work to each other. Proposed split: **AWL owns the grammar that scales** (the spec template family + the
+   scalable `create-spec` / `generate-tasks` workflows); **conductor owns facilitation** (the pre-spec
+   elicitation verb, depth selection, invoking the shape AWL defines). This pulls the headline
+   "scalable work units" value into AWL and shrinks conductor — de-risking it (conductor is P2, blocked on
+   `loadset-composition`; AWL depends only on shipped `worktree-foundation`). A conductor-side note records
+   the same split.
+5. **Likely new dependency: `composable-workflows`.** In its new cohort, AWL's scalable workflows would be
+   built on composable-workflows' resolve-then-load mechanism — set this dependency at planning (left off
+   the meta for now rather than asserting it here).
+
 ## WOR alignment note (2026-05-19)
 
 WOR R66-R68's renames are applied throughout this draft: WU artifact prefixes `plan-*` → `draft-*`

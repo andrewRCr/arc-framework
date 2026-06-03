@@ -14,6 +14,24 @@ freeform exploration.
 
 - **Created:** 2026-04-10 (revised 2026-04-29, terminology refresh 2026-05-19)
 
+## Scope-boundary flag — spec-form work is AWL's, not the conductor's (2026-06-02)
+
+> Flag only; resolve at this WU's planning pass. Today this draft and `agile-wu-lifecycle` defer
+> spec-form work to each other (circular deference): AWL says "tier ↔ spec-form coupling is a
+> conductor decision," while this draft claims the lighter spec-form templates and the
+> form-agnostic `create-spec` reframe as its own scope. Proposed split to de-conflict:
+>
+> - **AWL owns the grammar that scales** — the spec template family (PRD → brief → minimal) and the
+>   scalable `create-spec` / `generate-tasks` workflows. That is artifact-shape scaling, i.e. the
+>   scalable-core / tier concern AWL owns.
+> - **This conductor owns facilitation** — the canonical pre-spec elicitation verb, depth selection
+>   (minimum / standard / expanded), and *invoking* the shape AWL defines. It reads tier/depth and
+>   selects among AWL's templates; it does not ship them.
+>
+> This pulls the headline "scalable work units" value into AWL and keeps the conductor focused on
+> the planning-conductor element. Body content below predates this split and ADR-020/021 — read it
+> as the 2026-04-29 conception. AWL carries the mirror note.
+
 ---
 
 ## Inbound Buffer — Pending Integration

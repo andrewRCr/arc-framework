@@ -1,9 +1,10 @@
 # Cohort: Agile Parallelism
 
-> Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (active),
-> In-Flight Awareness (`draft-in-flight-awareness.md`), Agile WU Lifecycle
-> (`draft-agile-wu-lifecycle.md`), Concurrent Work Conventions
-> (`draft-concurrent-work-conventions.md`), Errand Enablement (`draft-errand-enablement.md`).
+> Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (shipped),
+> Errand Enablement (shipped), In-Flight Awareness (shipped), Concurrent Work Conventions
+> (`draft-concurrent-work-conventions.md` — the remaining member). Agile WU Lifecycle
+> (`draft-agile-wu-lifecycle.md`) **departed to the principle-anchored-core cohort 2026-06-02** — its
+> center of gravity is spec/task scaling, not parallelism; see § Cohort status & closeout.
 > Internal-dev-facing; not shipped. The detailed designs live
 > in each member's draft; this record holds what the cohort owns *as a whole* — the shared thesis, the
 > boundary map, cross-member contracts, the cross-cutting design spine, and candidates not yet owned by
@@ -27,26 +28,43 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 
 ## Membership and ownership map
 
-- **Worktree Foundation** (active — worktree mechanics): the WU entry primitives (spawn / cold-start) and
+- **Worktree Foundation** (shipped — worktree mechanics): the WU entry primitives (spawn / cold-start) and
   the `arc-session` skill, the `arc start --here` cold-start invocation command (introduces the `arc start`
   verb; AWL extends it with the create-new + tier modes), worktree-aware session-init + branch-gone handling,
   cross-WU sync, and the Errand-class cheap-branch mechanism. (`/arc-shift` was originally in WF scope;
   deferred during execution — see § Deferred — `/arc-shift`.)
-- **Errand Enablement** (the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
+- **Errand Enablement** (shipped — the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
   and the advisory foreign-artifact gate — the minimum to make the Errand class usable. Sequences Worktree
   Foundation → Errand Enablement → In-Flight Awareness. Carved from AWL / CWC 2026-05-25.
-- **In-Flight Awareness** (awareness layer): the in-flight-detection oracle, the user-scoped `STATUS.USER`
+- **In-Flight Awareness** (shipped — awareness layer): the in-flight-detection oracle, the user-scoped `STATUS.USER`
   view + file / standard (below), the per-WU `Priority` field, materialize (the 4th entry-point quadrant),
   and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
   depends on it.
-- **Agile WU Lifecycle** (verbs / lifecycle): tier model (atomic / quick / standard), `arc start` create-new + tier
-  modes (extends the verb Worktree Foundation introduces with `--here`), the `**State:**`-machine rollout, and
-  tier-model reconciliation to the Errand/WU split.
-- **Concurrent Work Conventions** (conventions): when to parallelize, awaiting-review handling, parked =
-  soft guidance, and the Errand-class doctrine + gates (below).
+- **Agile WU Lifecycle** (~~verbs / lifecycle~~ — **departed to principle-anchored-core 2026-06-02**): the
+  tier model, `arc start` create-new + tier modes, the `**State:**`-machine rollout, and tier-model
+  reconciliation to the Errand/WU split were its scope. Reassigned because what remained after the Errand
+  class absorbed the "agile" spin-up motivation is spec/task scaling (the scalable-core thesis), not
+  parallelism. The **tier-model reconciliation + atomic-tier-survival question travels with it** to its new
+  cohort (see that draft's § Cohort reassignment & design-refresh flag). It does not block CWC.
+- **Concurrent Work Conventions** (conventions — the remaining member): when to parallelize, awaiting-review
+  handling, parked = soft guidance, and the Errand-class doctrine + gates (below).
 
 Cross-cohort touchpoint: **roadmap-tooling** (outside the cohort) owns the renderer that both ROADMAP
 and the in-flight view (below) derive from.
+
+## Cohort status & closeout (2026-06-02)
+
+Four of the five original members have shipped (Worktree Foundation, Errand Enablement, In-Flight
+Awareness — and `work-routing-discipline`, the errand-model re-pivot, outside this cohort). Agile WU
+Lifecycle departed to principle-anchored-core. **Concurrent Work Conventions is the last member named
+here — but it is not the only thing gating closeout.** CWC's Inbound Buffer carries a **merge-safety
+cluster** (behind-base drift detection + reconcile-triage, merge-gate-aware lifecycle workflows, a
+base-branch-write-context-classifier primitive, a merge-commit hook/footer exemption) whose CLI
+buildables are *homeless* and carry mechanism — not conventions — character. That cluster is the real
+closeout-critical work: parallel WUs + errands run mechanically today, but nothing detects or disciplines
+"main moved under me." **Open (decide at CWC planning): split the buildables into a dedicated mechanism
+cohort member, or fold them into a re-scoped CWC** — depends on how heavy CWC's conventions work proves.
+The cohort archives only when this cluster has landed somewhere, not merely when the CWC doc ships.
 
 ## Shared contract — WU state machine
 
@@ -238,8 +256,10 @@ below predates the pivot — read `errand-launch` as `run-errand`, and reconcile
   that depend on each other; evaluate the full stacked-PR workflow (rebase discipline, tooling) against
   ARC's independent-merge model at the PRD — vocabulary now, workflow TBD.
 
-**Agile WU Lifecycle owns:** tier-model reconciliation to Errand/WU + atomic-as-character (whether the
-*atomic-tier* name survives in the tier set).
+**Agile WU Lifecycle owns** (now from the principle-anchored-core cohort — departed 2026-06-02):
+tier-model reconciliation to Errand/WU + atomic-as-character (whether the *atomic-tier* name survives in
+the tier set). This question travelled with the WU; the strong current lean is that atomic-character work
+lives in the Errand class and "atomic" is no longer a WU tier — see that draft's design-refresh flag.
 
 Cross-cohort follow-on — **arc-plan-conductor** (outside the cohort): reconcile its spec-graduation
 cleanup ceremony (drop a WU's *own* planning-noise commits before the Planning → Active flip) with the
