@@ -12,14 +12,14 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Planning pass — integration-end target + single-owner WU ownership model resolved
-  and folded into the draft (`40a23a38`)
+- **Last Completed:** Full-content sweep + draft rework — all four threads resolved, split-vs-fold → fold
+  (one WU ships the agile-parallelism cohort complete), buffer folded, re-estimated (`00dbee01`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue planning the remaining threads — start-side check spec (pillar 1), ergonomics
-  lifecycle sweep (pillar 2, untouched), merge-safety cluster items 1–2 (merge-gate-aware workflows +
-  write-context-classifier), then the full Inbound Buffer fold → re-estimate → split-vs-fold; then
-  `1_create-spec.md`. See draft § Planning pass resolutions (2026-06-03) + SESSION-NOTES.
+- **Next Action:** Finer iteration on the reworked draft (state: maturing) — graduate the part-2 resolutions
+  into first-class § Design Decisions, reword the in-scope activation-check bullet, refresh Problem/Motivation +
+  Dependencies to post-fold; then close the three PRD-gating opens (rename, stack boundaries, fuller async audit)
+  before `1_create-spec.md`. See draft § Planning pass resolutions (2026-06-03 part 2) + SESSION-NOTES.
 
 ---
