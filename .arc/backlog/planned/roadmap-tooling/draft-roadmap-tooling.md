@@ -88,6 +88,30 @@
   lands.
 - *Scope:* M — the deferred file-write/reconcile + trigger wiring (CLI + workflows, package-synced).
 
+### `[ ]` **Render standard: uniform columns (replace conditional-column rules) + Priority as a regen trigger**
+
+- *Routed from:* housekeep-drain follow-on (2026-06-02), surfaced doing the Priority-backfill errand + ROADMAP
+  regen. Coordinate with the empty-tier-render note above — same § Render standard, land together.
+- *Concern:* now that `**Priority:**` ships and is populated, the render rules are internally inconsistent and
+  partly contradicted by the rendered artifact:
+    - **Conditional columns are arbitrary and ragged.** § Render standard says "omit any column constant across
+      the table," but the Priority-specific rule renders the column "when at least one row carries a value" — the
+      two diverge for an all-`P2` table (omit-if-constant hides it; the special rule shows a constant `P2`
+      column). And the actual ROADMAP already renders `Depends on` in Ready despite it being constant `—`, so the
+      artifact already votes for **uniform columns**. Decision (this session): standardize on a uniform column set
+      across all tables — `Work unit · Priority · Owner · Depends on · Cohort` (`State` prepended for In Flight),
+      Priority always shown in slot 2. Replaces both "omit-constant columns" and "conditional Priority."
+    - **The rule lives in code, not just the doc.** `lib/status/render.ts` (≈ line 10) "drops the conditional
+      Priority column when no row carries a value" — the uniform-columns change must touch the renderer, not only
+      `strategy-work-organization.md § Render standard`.
+    - **DEV-RULES omits Priority from the regen-trigger list.** `DEV-RULES.ARC § Commit Discipline` (and its
+      package mirror) names only `Depends On / Owner / Cohort` as render fields that re-render ROADMAP in the same
+      commit, yet `strategy-work-organization § Regeneration fire-points` correctly includes `**Priority:**`. Add
+      `Priority` to the DEV-RULES list to reconcile.
+- *Proposed:* one reconciliation pass — strategy § Render standard (uniform-columns rule) + `render.ts` (render
+  uniformly) + DEV-RULES.ARC regen-trigger list (add Priority) + package mirrors.
+- *Scope:* S–M — doc + small renderer change, package-synced; reviewed-lane (touches DEV-RULES + strategy).
+
 ---
 
 ## Problem / Motivation
