@@ -12,7 +12,8 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** [none]
+- **Last Completed:** WU init on planning branch + scope realignment (`arc start` create-new extracted
+  from AWL to this WU's buffer)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
