@@ -78,6 +78,27 @@ atomic companion and the personal atomic inbox.
   commit-interlock inclusive-semantic item below. All three are facets of "one approval, then routing follows
   opt-in + interlock mode."
 
+### `[ ]` **Audit interlock-marker convention adoption across remaining workflows**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02). Filed here for concern-adjacency with the
+  *Class-tag fire-site admonition sweep across remaining workflows* item (§ Watch / Provisional, below) — the
+  commit-fire-visibility lobe is the same sweep with a different target list.
+- *Concern:* `strategy-workflow-authoring.md` § Interlock markers codifies the workflow-interlock convention
+  (advance-signal forms — quoted-verb / named-target with direction / approval split; trigger-driven embedded
+  placement; standalone-step prohibition; gate-vs-fire separation), applied to `integrate-work-unit.md` and
+  `1_create-prd.md` as reference implementations. Other workflows have embedded interlocks but their
+  advance-signal *language* predates the convention — likely bare "await direction" rather than the quoted-verb
+  / named-target forms.
+- *Proposed:* audit + tighten interlock callouts in `2_generate-tasks.md`, `integrate-external-content.md`,
+  `3_process-task-loop.md`, and any workflows authored since — verify embedded placement, retune advance-signal
+  language (~1-2 lines each). Folds its commit-fire-visibility lobe into the class-tag-sweep item's target list
+  (which already names `session-handoff.md`, `prepare-commits.md`, the `arc-commit` skill).
+- *Boundary note:* the advance-signal-*language* facet is workflow-authoring convention adoption (vs. IRR's
+  release-routing core); it neighbors the `2_generate-tasks` interlock-language items in `task-list-conventions`
+  (§ Scope item 3 + the per-phase-cascade buffer entry there) — reconcile the `2_generate-tasks` overlap at
+  iteration so the two WUs don't both edit the same callouts.
+- *Scope:* Quick-tier (touches `.arc/system/workflows/`); package-source-primary with `.arc/` mirror sync.
+
 ---
 
 ## Problem / Motivation

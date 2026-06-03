@@ -9,6 +9,31 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Reframe the init-recipe `tools` prompt as harness/tooling, not agent selection**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).
+- *Concern:* `init-recipe.json` lists ~14 tool options (amp, cline, codex, cursor, gemini, copilot, kimi,
+  opencode, warp, windsurf, antigravity, augment, claude). Now that per-agent file scaffolding
+  (`{AGENT}.ARC.md`) is retired, this prompt no longer drives file generation — its remaining role is signaling
+  where/how to generate `arc-*` skill files for the user's harness (via `detectExistingSkillDirs`). The "tools"
+  framing reads as agent-selection, but the substantive use is harness-tooling.
+- *Proposed:* rephrase the prompt label/help to surface harness-choice semantics ("Which AI harness/tooling do
+  you use?"); audit the list (drop dead entries, add missing); keep universal-skill-dir detection aligned;
+  verify docs cross-references to "tools" still read coherently.
+- *Architectural angle:* weigh an agent-driven self-scaffold path (precedent: the `add-agent.md` workflow
+  handles post-init tool addition) over CLI-prompt-driven recording, with the recipe options demoted to a
+  "supported examples" set rather than the menu. The list/language refresh is needed either way; the
+  architectural choice is the deferred decision. Composes with this WU's `arc init --tools {pi,opencode}`
+  recognition scope.
+- *Scope:* small for the rename; medium if the self-scaffold path is taken.
+
+---
+
 ## Scope (routed captures — iterate into a plan)
 
 ### First-class harness support: Pi + opencode

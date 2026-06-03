@@ -23,6 +23,26 @@
   optional dup-definition detection.
 - *Scope:* M overall (S for hook hardening; S–M for the sweep, link-volume dependent).
 
+### `[ ]` **Forbidden-pattern pre-commit checks: adopter-language + path-style WU-artifact refs**
+
+- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02) — two captures bundled (each flags "same
+  shape, same hook file" as the other).
+- *Concern:* two mechanical content rules currently rely on agent attention + manual review, and both have
+  drawn real slips. (a) **`adopter`/`adopters` in adopter-facing surfaces** — DEV-RULES.PROJECT § Audience
+  Boundaries forbids framework-author-POV `adopter` language in the adopter-facing surface set; an "adopter
+  onboarding" example slipped into `commit-format.md`, caught only at pre-commit review. (b) **Path-style refs
+  to movable WU artifacts** — DEV-RULES.ARC § Documentation Boundaries requires backticked-filename-only refs;
+  a migration sweep found ~14 non-compliant path-style refs across 9 files, with no mechanical enforcement.
+- *Proposed:* a pre-commit hook (or markdownlint custom rule) flagging each forbidden pattern in staged content
+  — `\badopters?\b` under the adopter-facing surface globs, and path-style
+  `(active|backlog)/.../(prd|plan|tasks|notes|meta|atomic)-*.md` refs (plus link defs) elsewhere. Allowlist
+  mechanism for the rare legitimate framework-author-audience use and for fenced code blocks / historical
+  completion-note records. Mirrors the existing `commit-msg` hook + smoke-test pattern; one sweep for both
+  (same hook file).
+- *Scope:* Atomic-tier each (~30-60 min); bundle as one. Sibling of the link-validation hook-hardening buffer
+  entry above — all three are staged-content pre-commit checks this WU's hook-integration surface can absorb (or
+  consciously reject against the § Out-of-scope "existing structural CHECKs are framework-owned" line).
+
 ---
 
 ## Problem / Motivation
