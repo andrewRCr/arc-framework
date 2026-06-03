@@ -9,6 +9,7 @@
 
 - **Depends On:** agile-wu-lifecycle
 - **Cohort:** agile-parallelism
+- **Priority:** P1
 
 - **Task List:** [none]
 - **Last Completed:** [none]

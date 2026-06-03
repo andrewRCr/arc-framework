@@ -9,6 +9,7 @@
 
 - **Depends On:** worktree-foundation
 - **Cohort:** cross-machine-coherence
+- **Priority:** P1
 
 - **Task List:** [none]
 - **Last Completed:** [none]

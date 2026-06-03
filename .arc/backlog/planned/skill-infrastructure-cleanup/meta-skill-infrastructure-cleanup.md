@@ -9,6 +9,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** [none]
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** Stub created at the work-routing-discipline housekeep drain (2026-06-01) from two routed

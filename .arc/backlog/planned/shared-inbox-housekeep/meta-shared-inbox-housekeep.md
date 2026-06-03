@@ -9,6 +9,7 @@
 
 - **Depends On:** concurrent-work-conventions
 - **Cohort:** [none]
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** Stub created at the follow-up housekeep drain (2026-06-01) from a discovered-work routing.

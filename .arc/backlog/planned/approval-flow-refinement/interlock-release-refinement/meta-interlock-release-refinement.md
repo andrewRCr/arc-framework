@@ -9,6 +9,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** approval-flow-refinement
+- **Priority:** P2
 
 - **Task List:** [none]
 - **Last Completed:** [none]

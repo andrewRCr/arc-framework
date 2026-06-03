@@ -9,6 +9,7 @@
 
 - **Depends On:** docs-content-sweep
 - **Cohort:** release-readiness
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]

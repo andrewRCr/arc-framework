@@ -9,6 +9,7 @@
 
 - **Depends On:** cli-substrate-adoption
 - **Cohort:** architecture-remediation
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]

@@ -9,6 +9,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** agent-context-optimization
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]

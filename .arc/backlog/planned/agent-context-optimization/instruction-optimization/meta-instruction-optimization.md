@@ -9,6 +9,7 @@
 
 - **Depends On:** handoff-optimization
 - **Cohort:** agent-context-optimization
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]
