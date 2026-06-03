@@ -7,7 +7,9 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
 `draft-worktree-foundation.md` (mechanism) and `draft-agile-wu-lifecycle.md` (tier model) to deliver
 "agile, principled, multi-WU work."
 
-- **State:** Draft — pre-PRD exploration captured. Renamed from former Work-Unit Mobility WU as part
+- **State:** Maturing — pre-PRD exploration; structural calls resolved at the 2026-06-03 (part 2) sweep
+  (split-vs-fold → **fold**: one WU ships the agile-parallelism cohort complete, conventions **and** mechanism;
+  **rename flagged**, coordinate `naming-conventions`). Earlier: renamed from former Work-Unit Mobility WU as part
   of the agile/mobility split (mechanism → Worktree Foundation; tier model → Agile WU Lifecycle;
   conventions → this WU). Iteration expected before PRD promotion. Updated 2026-05-08:
   redesigned around external-research-informed lighter shape — focus-role field model rejected;
@@ -38,7 +40,9 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
 
 ## Realignment & scope flags (2026-06-02)
 
-> Flags only — resolve at this WU's next planning pass. Backlog-grooming pass; no design decided here.
+> **Resolved at the 2026-06-03 (part 2) sweep** (see § Planning pass resolutions): split-vs-fold → **fold**; the
+> merge-safety cluster homes **here**; the buffer is folded; the scope is re-estimated. The flags below are
+> retained as the reasoning trail that fed those resolutions.
 
 **Unblocked — `agile-wu-lifecycle` dependency dropped; this WU is now Ready.** The AWL dependency was
 soft: this draft consumes only WOR's `**State:** Integrating` (shipped) for awaiting-review
@@ -136,6 +140,77 @@ write-collision and single-`Next Task`-pointer workarounds team-coord currently 
   DEV-RULES.ARC § Task interlock, meta `**Owner:**` semantics — has real weight and rewrites a doc CWC otherwise
   treats as an orthogonal sibling. Flagged as separable execution and a split-vs-fold input.
 
+### 2026-06-03 (part 2) — full-content sweep
+
+> Second focused pass the same day: swept the remaining threads (start-side, ergonomics/lifecycle, merge-safety)
+> and resolved the split-vs-fold structural call. Each thread was grounded against shipped reality — the draft
+> above predates a wave of shipped infra and over-scoped accordingly. These feed the PRD; the body below is
+> reworked to match.
+
+**Structural: split-vs-fold → FOLD.** A single WU ships the agile-parallelism cohort **complete** — conventions
+**and** mechanism. "Convention vs mechanism" character is no longer a splitting axis; cohort-closeout is the
+boundary. The mechanism buildables (write-context extensions, behind-base detector, merge-commit exemption,
+completion sweep, merge-gate-awareness, `arc start` create-new wiring, subdir-removal primitive) fold in.
+Cross-machine concerns stay **out** (the explicit next WU). "Conventions" now undersells the scope —
+**rename flagged** (coordinate `naming-conventions`); current name/branch kept for now.
+
+**Shipped-reality reconciliation (4 drift findings — the spec must not re-build these):**
+
+- **IFA shipped the activation-check *mechanism*, not just the oracle.** The oracle-backed check is already
+  *consulted* at spawn / cold-start / materialize / errand-launch (IFA R9, Success Criteria #6), advisory, never
+  blocks. Pillar 1 adds **doctrine only** — no tooling, no wiring.
+- **Async-merge touchpoints are largely shipped.** `archive.cadence: manual` already defers archival post-merge;
+  the stale-worktree sweep + session-init in-flight sweeps already backstop walk-away cleanup. The async audit is
+  mostly *audit-don't-rebuild*.
+- **The write-context-classifier is shipped.** `lib/git/write-context.ts` (`classifyWriteContext` /
+  `resolveWriteContext`; consumed by housekeep + CLI) and `errand-branch.ts` (`chore/` detection) exist. Net-new
+  is only the *path-surface dimension*, *chore-awareness* (composes the two shipped primitives), the *pre-commit
+  backstop hook*, and broader command wiring.
+- **The at-branch-creation base-staleness check is shipped** (per `cross-machine-sync-coherence`); the behind-base
+  detector composes with it.
+
+**Pillar 1 (start-side check) — doctrine over a shipped mechanism.** One unified *advisory overlap-judgment
+doctrine* in `strategy-concurrent-work.md` governing **both** WU-activation and `errand-launch` (one oracle-backed
+check, two trigger surfaces) plus thin pointers at those already-built fire-sites so the agent consults it.
+Content: a **light codified rubric** (disjoint domain → proceed; shared module / strategy / load-bearing infra →
+flag + consider sequencing; foreign-owned overlap → coordinate) with worked examples; the **self/foreign
+asymmetry** (single-owner-WU makes this the *entire* "all-owner" addition — self-overlap reorder freely,
+foreign-overlap coordinate); an explicit **"this is a heads-up; the behind-base detector is the real net"** weight
+statement. No tooling, no analysis subagent — the research rejects automated overlap prediction, not soft rubrics.
+
+**Pillar 2 (ergonomics / lifecycle) — async accommodation + forcing function.** `Integrating` already = the
+awaiting-review state (no new state or field). Audit-don't-rebuild the cadence / sweep-covered touchpoints.
+**Build:** (a) an explicit **suspend/resume seam** at the PR-open boundary (park in `Integrating`, end the
+session, resume the *ceremony* later); (b) an **in-flight completion sweep** generalizing the errand sweep's
+PR-state classification to owned WUs across the **full tail** — `awaiting-review → mergeable → merged-needs-archival
+→ archived` (the stage-2 archival dangle exists only under `archive.cadence: manual`) — as the forcing function
+against dangling-`Integrating` rot. Two tiers: **presence** (roster, free, every session-init) + **mergeable
+sharpening** (oracle PR-source, gated to handoff / no-active-WU, degrades to presence without `gh`). A
+**configurable `*_after_days` threshold** reusing the inbox-reminder machinery (+ once-per-day marker) gates the
+*stale* tier; the *mergeable* and *merged-needs-archival* triggers are event-driven (bypass the threshold).
+**Completion is a worktree-agnostic boundary action** — the tail (`gh pr merge` + `arc user close` +
+worktree-remove-from-elsewhere) runs cleanest from the **primary worktree**, never a mid-increment switch. Audit
+shape: **option B (additive)**, reaffirmed. Unifies with merge-safety item 1 ("decouple merge + cleanup from the
+integration session").
+
+**Thread 3 (merge-safety) — composes shipped primitives.** write-context: extend cleanly (path-surface dimension +
+chore-awareness + pre-commit backstop hook + broader command wiring) under the **reuse-clean (SOLID / DRY)**
+principle — refactor the primitive for all known consumers, never bolt-on. merge-commit: do **both** a hook
+exemption (`MERGE_HEAD` / 2-parent skip of conventional + footer rules) and an `integration` footer kind.
+behind-base detector: **CWC ships it** (the chosen option) as a **ref-parameterized `origin/<base>`-distance
+primitive + a session-init probe slot** (worktree-channel-shaped: `state` / `ahead` / `behind` /
+`recommendedAction` / `recommendedPromptText`), built general so `cross-machine-sync-coherence`'s `baseBranchSync`
+*extends* it (local-base-ref subject + `session.init_pull.main` + cross-machine sync layer) rather than
+double-building. Item 3 (entry-level re-homing of foreign-owned atomics) folds into the all-owner gate doctrine
+(cover entry-level, not just file-level writes). Item 6 (cohort-`{name}.md` discovery at session-init)
+**included** — agent awareness of the coordinating cohort doc is load-bearing for parallelism actually
+coordinating.
+
+**Delivery shape — plan-as-one, deliver-as-a-stack.** Folded as one *planning* concern (one spec); at PRD time,
+decompose into a **stack of PR-sized WUs** along deliverable boundaries (doctrine / strategy-doc → mechanism
+buildables → team-coord rewrite), per idiomatic small-PR review norms. The general WU-sizing protocol behind this
+is routed out (see Routed out).
+
 ### Routed out (captured to `USER-INBOX § Backlog`, 2026-06-03)
 
 - **Decomposition** (team-ownership motivation + lifecycle-timing axis) → `arc-plan-conductor` (extends its § 11
@@ -145,136 +220,30 @@ write-collision and single-`Next Task`-pointer workarounds team-coord currently 
 - **Cohort as a first-class structural entity** — stays a draft Open Question (below). The single-owner model
   *strengthens* the case (cohorts become the epic-level home for multi-person features), but it is research-gated
   and touches roadmap-tooling + WOR group-dirs. Flag, don't fold.
+- **WU/PR right-sizing + decomposition protocol** (plan-grouping vs. delivery-grouping; small-PR review norms;
+  stack-vs-cohort; sizing triggers) → `arc-plan-conductor` § 11 + likely `strategy-work-organization`. CWC is the
+  motivating live example, but the protocol is decomposition-machinery, not concurrency conventions — not CWC.
+- **Base-branch-distance probe slot/primitive coordination** → `cross-machine-sync-coherence` (so its
+  `baseBranchSync` extends CWC's shipped primitive rather than double-building). Forward-compat seam note.
 
 ---
 
-## Inbound Buffer — Pending Integration
+## Inbound Buffer — folded 2026-06-03
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> The eight routed-in concerns were folded into the body at the 2026-06-03 (part 2) sweep (per `drain-inbox § 5`).
+> All fold in (split-vs-fold → fold), most resolved against shipped reality. Dispositions below; the design detail
+> now lives in § Planning pass resolutions (2026-06-03, part 2), § Scope, and § Design Decisions.
 
-### `[ ]` **Make the WU lifecycle workflows merge-gate-aware**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* errand-enablement shipped the auto-merge lane (`merge-ok` classify gate, CODEOWNERS, native
-  auto-merge) but never reconciled the lifecycle workflows that drive PRs through it; `integrate-work-unit.md`
-  still encodes a pre-gate merge model.
-    - *Auto-lane failure mode:* Step 13's final human gate is the integration-interlock ("stop before merge, then
-      `gh pr merge`"). On the auto lane there is no discrete merge step — arming auto-merge + pushing green *is*
-      the authorization; the merge then happens unattended. So the integration-interlock is structurally moot and
-      its final-go intent evaporates. Fix: relocate that intent onto the **pre-push interlock** for the auto lane
-      (harden the `workflowPush` fire-site with awareness that, on this lane, the push authorizes an unattended
-      merge). Do **not** add a merge-time step.
-    - *Open — who arms `--auto`, and when:* native auto-merge is two-level — repo-level `allow_auto_merge`
-      (one-time; `setup-merge-gate` did it) + per-PR `gh pr merge --auto` (nothing automates it). An un-armed
-      planning PR sits green-but-unmerged. The workflow that opens planning PRs should own arming at PR-open.
-    - *Reviewed lane:* Step 13 doesn't mention `merge-ok` is now a *required* check (enforce_admins on) nor the
-      lane classification.
-- *Sequencing:* capture-not-fold was deliberate — work-routing-discipline's own integration PR is the gate's
-  first live traversal. Likely home CWC; touches `integrate-work-unit.md` (+ planning PR-open paths), two-copy.
-
-### `[ ]` **General base-branch-write guard + commit-hook backstop (shared write-context primitive)**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`; pre-decided for CWC in work-routing-discipline's
-  notes), work-routing-discipline housekeep drain (2026-06-01).
-- *Concern:* work-routing-discipline hardens only `arc-housekeep`'s *own* precondition (refuse/relocate off a WU
-  branch, reusing `arc errand`'s context resolution). The general case is isolation enforcement: any
-  base-branch-writing command (incl. AWL's `arc start` create-new) should guard its context, plus a pre-commit
-  backstop flagging a shared base-branch surface (`backlog/`, `active/` stubs, shared inbox) staged on a
-  non-base, non-`chore/` branch.
-- *DRY:* the command-time guard and the commit-time hook answer the same question (WU branch vs. base/`chore` ×
-  is this path a shared base-branch surface?) — share one **write-context-classifier** primitive (extending the
-  resolution `arc errand` and the session probe already carry).
-- *Home:* CWC owns the isolation/concurrency doctrine; possibly Worktree Foundation for the primitive itself.
-
-### `[ ]` **Consumer: `shared-inbox-housekeep` needs entry-level re-homing of foreign-owned atomics**
-
-- *Routed from:* follow-up housekeep drain (2026-06-01); dependency flag from the new `shared-inbox-housekeep`
-  stub (which `Depends On` CWC).
-- *Concern:* `shared-inbox-housekeep` (a shared-scope `drain-inbox` mode that consolidates `ATOMIC-INBOX` against
-  the evolving stub landscape) depends on CWC's concurrency doctrine — but it needs more than the file-level
-  write-guard the entry above frames: it **re-homes individual foreign-owned atomic entries** (moves another
-  owner's `ATOMIC-INBOX` line into a stub) during a sweep. Ensure the all-owner gate doctrine covers entry-level
-  re-homing of foreign captures, not just guarding writes to the shared surface as a whole.
-- *Home:* CWC (the doctrine); the consuming sweep lives in `shared-inbox-housekeep`.
-
-### `[ ]` **Merge commits have no codified Context-footer / commit-msg-hook path**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); hit merging `main` into a WU branch
-  during in-flight-awareness.
-- *Concern:* the commit-msg validator has **no merge-commit exemption** — a local `git merge` rejects the
-  default "Merge branch …" message (fails conventional-format + required `Context:` footer). Yet the footer
-  taxonomy (`<file> (incidental during X)` / `standalone (…)` / `contribution`) has no natural slot for a merge.
-- *Proposed:* (a) hook-side — exempt merge commits (detect 2-parent / `MERGE_HEAD`, skip conventional + footer
-  rules); and/or (b) taxonomy-side — add a merge/integration footer kind (e.g. `Context: integration (merge
-  main)`). Likely both. Part of the mid-WU reconcile discipline this WU owns.
-- *Scope:* S–M — hook exemption + footer-taxonomy convention.
-
-### `[ ]` **In-flight WUs drift from `main` when errands / WUs land — no reconcile-triage convention**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); deepened at the 2026-06-02 boundary
-  review. Home decision deferred to this WU's PRD (own quick-tier follow-on vs. a CWC deliverable).
-- *Concern:* a `main` advance (sibling integration, errand, hotfix) leaves in-flight WU branches behind until
-  they reconcile. Impact is conditional (orthogonal → fine at integration; overlapping → latent conflict + coding
-  against stale shared files; dependency → may be required to continue). Distinct from behind-own-upstream drift
-  (which session-init already detects as `remote-ahead`): this is **behind-base**.
-- *Decomposition:* **discipline** (when reconcile is required vs. deferrable, merge-vs-rebase, ordering,
-  multi-machine force-push) → this WU. **Substrate** (enumerate in-flight WUs + paths; overlap) → the in-flight
-  awareness oracle + `arc errand check` (shipped). **Advisory detector** (compose → "main moved K; you're N
-  behind; these paths overlap → reconcile?", fired at session-init resume) → *unhomed*; a sibling of the
-  activation-concurrency-check (same advisory-never-gate doctrine, different trigger).
-- *Scope:* M — discipline codification; the detector is a small separable buildable.
-
-### `[ ]` **Agents can't discover a coordinating cohort's `cohort-{name}.md` at session init**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); routed here as the home for the
-  cohort-doc *convention*. Coordinate-with the agent-context-optimization cohort for the awareness blurb.
-- *Concern:* a coordinating cohort keeps its shared design record in `cohort-{name}.md` at the cohort root, but a
-  by-the-book session-init never reaches it — the active WU never co-locates a `cohort-*` file, the meta carries
-  `**Cohort:**` as a bare value with no pointer, and neither AGENT-BRIEF.ARC nor session-init says such a doc may
-  exist. So shared cross-member contracts are invisible (hit this session — the cohort doc went unread).
-- *Proposed:* (light) a note in `AGENT-BRIEF.ARC.md` that a `**Cohort:**` value may belong to a coordinating
-  cohort with a `cohort-{name}.md` record — consult it when coordinating with siblings; (heavier) session-init
-  surfaces it via probe + orientation line. This WU owns the `cohort-{name}.md` convention codification (with
-  file-classification); the awareness blurb (an `instruction-optimization` / `documentation-surface-routing`
-  concern) should align to it rather than front-run it.
-- *Scope:* S — convention note + optional session-init surfacing.
-
-### `[ ]` **Wire `arc start` create-new (worktree-spawning) mode — primitive shipped, CLI mode absent**
-
-- *Routed from:* this WU's session-init investigation (2026-06-03); extracted from
-  `draft-agile-wu-lifecycle.md` scope item 4 as the parallelism-mechanism half (AWL retains only the tier-flag
-  half — see § Realignment, and that draft's scope-extraction note).
-- *Concern:* Worktree Foundation shipped the `spawnWorktree` primitive (`lib/git/worktree-scaffold.ts`,
-  barrel-exported) and wired only `arc start --here` (cold-start / use-existing); `arc start --help` confirms
-  `--here` is "the only mode available today." The create-new mode — spawn a new WU into a dedicated worktree by
-  calling the shipped primitive — was never wired. It is the *only* path to spawn a new WU into a worktree, and
-  this WU's conventions presume that ergonomic exists. AWL nominally owned "`arc start` create-new + tier modes,"
-  but AWL was re-centered on spec/task scaling (cohort move to principle-anchored-core), so the worktree-spawning
-  wiring — mechanism, not grammar — was mis-homed there.
-- *Decomposition:* (a) worktree-creating create-new wiring = thin plumbing over the shipped primitive; defaults to
-  Planning, no tier flags; **mechanism** character → this cluster. (b) `--tier` flag + tier semantics = stays AWL
-  (**grammar**; in flux pending atomic-tier retirement). The two were conflated in AWL scope item 4.
-- *Scope:* S for the wiring itself (the primitive exists); the open question is its home — same split-vs-fold call
-  as the merge-safety cluster (§ Realignment & scope flags). Closeout-critical mechanism bucket.
-
-### `[ ]` **Unify stale/retired per-WU-subdir removal (non-interactive, backup-safe) across `arc user`**
-
-- *Routed from:* this WU's session-init init (2026-06-03); hit live when `arc user open` hard-blocked on an
-  interactive "remove stale subdir?" prompt during this WU's setup.
-- *Concern:* three divergent stale/retired-subdir removal behaviors exist across `arc user`. `open` **blocks on an
-  interactive prompt** with no non-interactive escape — a non-starter for agentic / automated spawn, where subdir
-  seeding happens constantly once create-new spawn is wired (item above). `close` **hard-deletes recursively with
-  no `.internal/` backup**. The `load` / `pull` retired-subdir reconcile removes **with** a `.internal/` backup.
-  So `open` and `close` each disagree with the reconcile — on interactivity and on safety, respectively.
-- *Proposed:* one shared **subdir-retirement primitive** (backup to `.internal/`, then remove) behind all three
-  call sites — `open`'s stale-subdir path, `close`, and the reconcile — plus a non-interactive `--prune` / `--yes`
-  flag only where a command actually blocks (`open`). `close` is already non-interactive but should route through
-  the backup-aware primitive rather than hard-deleting. (Notes-sync prompts on `push` / `fetch` / `sync` are
-  conflict-resolution — a separate axis, out of scope here.)
-- *DRY:* same shape as the merge-safety cluster's write-context-classifier — one primitive, several call sites.
-- *Scope:* S–M — extract the primitive, reroute three call sites, add one flag. Same parallelism-mechanism bucket
-  as the item above; decide its home at the split-vs-fold call.
+| Folded item | Lands in |
+| --- | --- |
+| Make WU lifecycle workflows merge-gate-aware | Pillar 2 + thread 3 — unified "decouple merge + cleanup from the integration session" (suspend/resume seam + completion sweep + auto-lane interlock relocation) |
+| Base-branch-write guard + commit-hook backstop (write-context primitive) | Thread 3 — **primitive shipped** (`lib/git/write-context.ts`); add path-surface dimension + chore-awareness + pre-commit backstop + wiring |
+| `shared-inbox-housekeep` entry-level re-homing of foreign atomics | All-owner gate doctrine — extend to entry-level, not just file-level |
+| Merge commits have no Context-footer / commit-msg path | Thread 3 — hook exemption (`MERGE_HEAD`/2-parent) **and** `integration` footer kind |
+| In-flight WUs drift from `main` — reconcile-triage convention | Integration-end — behind-base detector (CWC ships; ref-parameterized shared primitive + probe slot) + reconcile-triage doctrine |
+| Cohort-`{name}.md` discovery at session-init | **Included** — `AGENT-BRIEF.ARC` note + optional session-init surfacing; load-bearing for cohort coordination |
+| Wire `arc start` create-new (worktree-spawning) mode | Mechanism bucket — thin plumbing over the shipped `spawnWorktree` primitive (`--tier` stays AWL) |
+| Unify stale/retired subdir removal across `arc user` | Mechanism bucket — extract backup-safe primitive behind `open` / `close` / reconcile + `--prune` flag |
 
 ---
 
@@ -513,8 +482,9 @@ is the `run-errand` / `drain-inbox` facet of the broader "make the lifecycle wor
   is judgment-based, not probe-based.
 - **Worktree mechanism, shift lifecycle, session-init worktree detection, branch-gone detection,
   inbox sync** — `draft-worktree-foundation.md`.
-- **Tier model, `arc start` command, ceremony scaling, atomic-companion retirement, incidental
-  category retirement** — `draft-agile-wu-lifecycle.md`.
+- **Tier model, `arc start` `--tier` flag + tier semantics, ceremony scaling, atomic-companion retirement,
+  incidental category retirement** — `draft-agile-wu-lifecycle.md`. (The `arc start` create-new **worktree-spawning
+  wiring** is *in scope here* — mechanism, folded 2026-06-03; only the tier grammar stays AWL.)
 - **External tracker integration for "what's @teammate working on"** — `draft-coord-probe.md`.
 - **Group-dir convention for sibling WUs** — `plan-work-organization-reform.md`. The existing
   `**Sibling Work Unit(s):**` meta field plus group-dir convention from WOR cover the
@@ -529,6 +499,11 @@ is the `run-errand` / `drain-inbox` facet of the broader "make the lifecycle wor
 - **Automated mode-fit detection.** Framework doesn't assess whether a project is "outgrowing"
   single-active discipline. Runtime detection rejected per arc-modes principle.
 - **Cross-dev worktree coordination.** Team-mode territory.
+- **Cross-machine sync-state coherence** (local base-ref staleness, partial-push trust, notes-ref coherence) —
+  `cross-machine-sync-coherence` (the explicit next WU). CWC ships the ref-parameterized base-distance primitive +
+  probe slot it extends; the cross-machine layer itself is not CWC's.
+- **WU/PR right-sizing + decomposition protocol** — routed to `arc-plan-conductor` § 11 / `strategy-work-organization`
+  (§ Routed out). CWC is the motivating example, not the home.
 - **Hooks at shift transitions.** Hook symmetry deferred to a later hooks-completeness pass.
 
 ---
@@ -721,17 +696,28 @@ without deep per-tool integration docs.
 
 ## Open Questions
 
-### Parallel-WU ROADMAP format
+### ROADMAP / STATUS visualization — routed out
 
-Current: single "In Progress" / inline status markers. Proposed: research-informed redesign. What
-does the exact format look like? Per-tier swimlanes? DAG? Mermaid graphs? Inline annotations?
-Format decision pending research.
+The earlier "Parallel-WU ROADMAP format" and "visualization scope" questions are **not CWC's**: the ROADMAP /
+STATUS render grammar, views, and automation belong to `roadmap-tooling` (render standard + the now/next/later
+horizon mode), captured there 2026-06-03. CWC contributes only the concurrency-safety overlay on the "Next"
+slice — the existing CWC↔roadmap-tooling seam.
 
-### ROADMAP visualization scope
+### Exact rename
 
-Visualization gap exists across multiple planning docs (ROADMAP, plan-* docs, strategy docs).
-Should this WU's redesign extend beyond ROADMAP, or scope to ROADMAP only with follow-on for
-other docs? PRD decision after research.
+"Conventions" undersells the folded conventions-plus-mechanism scope; rename toward cohort-closeout (candidates
+TBD), coordinating `naming-conventions`. Current name/branch kept until then.
+
+### Internal stack boundaries / phasing
+
+Plan-as-one, deliver-as-a-stack (§ Scope Estimate): at PRD time, cut the stack along deliverable boundaries
+(doctrine / strategy-doc → mechanism buildables → team-coord rewrite) — exact boundaries, and whether pieces ship
+as separate PRs or one internally-phased PR. The general sizing protocol is routed out (§ Routed out).
+
+### Fuller handoff / archival async audit
+
+Pillar 2 banks "async touchpoints largely shipped" (cadence + sweeps) on the `integrate-work-unit` read; confirm
+at spec time with a fuller pass over the handoff + archival workflows that nothing else assumes synchronous merge.
 
 ### Cohort / wave grouping as first-class structure
 
@@ -767,32 +753,35 @@ deferred to a later hooks-completeness pass — but flagged here for explicit PR
 
 ## Scope Estimate
 
-**Medium-Small.** Conventions-layer work is doc-heavy — strategy doc creation, async-merge audit,
-state-field semantics coordination. Lighter than the pre-redesign shape (focus-role model design
-phase removed). Less mechanism-heavy than `draft-worktree-foundation.md` or
-`draft-agile-wu-lifecycle.md`.
+**Large — doc-dominant, with a lighter-than-first-framed mechanism tail.** The bulk is documentation:
+`strategy-concurrent-work.md` (conventions + the unified overlap-judgment doctrine + async-merge guidance + the
+forcing-function / reconcile discipline) plus the single-owner-WU rewrite of `strategy-team-coordination` +
+DEV-RULES.ARC. The mechanism half is real but lighter than the pre-sweep framing — most buildables **compose
+shipped primitives** (`lib/git/write-context.ts`, the errand sweep, the `origin/<base>` substrate, `spawnWorktree`)
+rather than build from scratch: behind-base detector (ref-parameterized primitive + probe slot), in-flight
+completion sweep, merge-commit exemption, suspend/resume seam, merge-gate-awareness, `arc start` create-new wiring,
+subdir primitive, write-context path-surface / chore extensions + pre-commit backstop.
 
-**Re-estimate pending (2026-06-03).** This is no longer doc-only. The single-owner-WU decision adds a
-`strategy-team-coordination` + DEV-RULES rewrite (separable execution), and the merge-safety cluster adds the
-behind-base detector + merge-gate-aware workflows + write-context-classifier + merge-commit hook exemption
-(mechanism buildables). True size — and whether CWC stays one WU — resolves at the Inbound Buffer fold and the
-split-vs-fold call.
+**Delivery: plan-as-one, deliver-as-a-stack.** One planning concern / one spec; at PRD time decompose into a stack
+of PR-sized WUs along the deliverable boundaries below, per small-PR review norms (the general sizing protocol is
+routed out — § Routed out). The phases are the natural stack cut.
 
-Phases (provisional):
+Phases / stack increments (provisional, dependency order):
 
-1. **Strategy doc creation** — `strategy-concurrent-work.md` covering all the sub-sections listed
-   in scope item 1. Substantial doc; consolidates findings from four research files.
-2. **Async-merge integration audit** — option B implementation; identify and additive-treat each
-   touchpoint in integration-adjacent workflows. Coordinate with `draft-agile-wu-lifecycle.md`'s
-   tier-aware archival flow.
-3. **Awaiting-review state semantics** — coordinate with `draft-agile-wu-lifecycle.md` so WOR's
-   `**State:** Integrating` cleanly expresses awaiting-review across handoff, archival, and worktree
-   cleanup workflows (no separate `**Integration:**` field).
-4. **Documentation cascade** — ensure references and examples align (strategy cross-references;
-   ROADMAP examples; template-meta notes if needed).
+1. **Doctrine + strategy doc** — `strategy-concurrent-work.md`: the unified advisory overlap-judgment doctrine
+   (pillar 1, both trigger surfaces), parallelize-vs-serialize rubric, worktree operational guidance, async-merge and
+   reconcile discipline, anti-patterns, main-worktree convention. Consolidates the four research files; carries
+   most of the weight.
+2. **Merge-safety mechanism** — behind-base detector (ref-parameterized primitive + probe slot, built for
+   `cross-machine-sync-coherence` to extend) + write-context extensions + pre-commit backstop + merge-commit
+   exemption.
+3. **Lifecycle / ergonomics** — suspend/resume seam + in-flight completion sweep (forcing function, full tail
+   through archival) + merge-gate-awareness (option B, additive on `integrate-work-unit`) + `arc start` create-new
+   wiring + subdir-removal primitive + cohort-`{name}.md` discovery.
+4. **Single-owner-WU rewrite** — `strategy-team-coordination` + DEV-RULES.ARC § Task interlock + meta `**Owner:**`
+   semantics; remove the within-WU multi-dev apparatus + `(@name)`. Separable execution; real weight.
 
-Phase 1 carries most of the weight. Phases 2-4 are mostly independent of Phase 1; can ship in any
-order once Phase 1 lands.
+Phase 1 is the spine; 2–4 are largely independent and sequence/parallelize as a stack once the doctrine lands.
 
 ---
 
