@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1c7ef261`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c6dac25c`.
 
 This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
 canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
@@ -43,6 +43,7 @@ _No work units in flight._
 | arc-modes                     | andrew | —                           | —                          |
 | arc-reinforce                 | andrew | —                           | —                          |
 | cli-substrate-adoption        | andrew | —                           | —                          |
+| inbound-routing-method        | andrew | —                           | —                          |
 | review-method-family          | andrew | —                           | —                          |
 | roadmap-tooling               | andrew | —                           | —                          |
 | rules-restructure             | andrew | —                           | —                          |

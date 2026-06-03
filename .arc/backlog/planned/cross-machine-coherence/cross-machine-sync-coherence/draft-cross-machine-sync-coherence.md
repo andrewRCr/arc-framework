@@ -20,6 +20,25 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Clarify `arc sync` directionality: bidirectional capability vs. publish-only**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+  planning. (Split capture — the naming/expectation angle routed to `naming-conventions`.)
+- *Concern:* `arc sync` runs a 6-cell `push_interlock × notes_push × worktree-state` matrix with notes
+  reconcile-on-conflict (lossless `git notes merge`), but the worktree leg is **push-only** — on `remote-ahead` /
+  `diverged` it detects-and-blocks rather than pulling. It never runs the inbound worktree leg, so it can't
+  replace `git pull` on machine arrival.
+- *Proposed (capability angle):* should `arc sync` gain an inbound / pull leg to become truly bidirectional?
+  Fits this WU's cross-machine coherence surface.
+- *Scope:* M — depends on the inbound-leg design.
+
+---
+
 ## Problem / Motivation
 
 A **partial push** is the state where the worktree push (`origin/<branch>`) succeeded but the user-notes

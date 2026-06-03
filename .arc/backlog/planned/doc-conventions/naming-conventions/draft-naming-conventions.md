@@ -79,6 +79,17 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   `README.md` / docs-site); `(arc)` scope can warn-to-confirm (a hook can't fully judge "cross-cutting"). (2)
   Reinforcement/salience via `arc-reinforce`. Cross-ref `commit-format` § Type selection + § Subject scope.
 
+### `[ ]` **Clarify `arc sync` directionality in naming/expectation terms (publish-only vs. bidirectional)**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+  planning. (Split capture — the capability angle routed to `cross-machine-sync-coherence`.)
+- *Concern:* `arc sync` is a smart *publish* orchestrator, not bidirectional — the worktree leg is push-only
+  (detects-and-blocks on `remote-ahead` / `diverged` rather than pulling), so it can't replace `git pull` on
+  machine arrival. The name oversells it as bidirectional.
+- *Proposed (naming/expectation angle):* if it stays publish-only, rename or document the directionality so the
+  name doesn't imply bidirectional reconcile.
+- *Scope:* S — naming/doc decision (the capability question is the sibling note in `cross-machine-sync-coherence`).
+
 ---
 
 ## Problem / Motivation

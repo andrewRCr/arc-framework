@@ -46,6 +46,48 @@
   default.
 - *Scope:* S — a doc-structure decision + move, folded into the § ROADMAP repurposing already in this WU's scope.
 
+### `[ ]` **Codify the empty-tier render convention in the shared render standard**
+
+- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-02); captured at in-flight-awareness archival.
+- *Concern:* `strategy-work-organization.md` § Render standard fixes per-table column sets and the uniform sort
+  key but says nothing about how a tier with **zero rows** renders. Surfaced at in-flight-awareness archival —
+  shipping the only in-flight WU emptied the In Flight tier with no guidance (an italic `_No work units in
+  flight._` placeholder was chosen ad hoc). `STATUS.USER` shares the standard and has the same gap (an operator
+  with no in-flight-mine work).
+- *Proposed:* add an empty-tier rule to § Render standard — retain the tier heading and render a single fixed
+  italic placeholder line instead of a header-only empty table; applies to both the project readiness view and
+  `STATUS.USER`. Keep the placeholder string fixed so byte-stability holds. Coordinate so this WU's automated
+  renderer emits the same placeholder.
+- *Scope:* S — strategy-doc convention edit; infra-smell re-triaged to quick-tier at drain (touches a strategy).
+
+### `[ ]` **Rename this WU — its name goes stale once it renames ROADMAP away**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+  planning. (`naming-conventions` owns the convention.)
+- *Concern:* this WU renames `ROADMAP` → `STATUS.PROJECT` and automates the `STATUS.*` render (both `.PROJECT`
+  and `.USER`), so "roadmap" no longer describes what it tools.
+- *Proposed:* rename the WU + concept to a status-oriented name (e.g. `status-view-tooling` /
+  `status-render-tooling`) and sweep cross-references in sibling drafts / metas. Coordinate with
+  `naming-conventions` (owns the convention).
+- *Scope:* S — WU rename + reference cascade.
+
+### `[ ]` **STATUS.USER on-disk write + refresh is unbuilt — only the terminal render shipped**
+
+- *Routed from:* housekeep-drain discovery (2026-06-02) — surfaced when the last WU's integration regenerated
+  ROADMAP but left `STATUS.USER.md` stale.
+- *Concern:* in-flight-awareness shipped the render core + the terminal view (`arc status --user`) but
+  **explicitly deferred the canonical-file write + reconcile** (`user-view.ts`: "renders to the terminal only;
+  the canonical-file write and reconcile … land later"). So `arc status --user` prints an up-to-date slice but
+  **nothing writes `.arc/user/{identity}/STATUS.USER.md`** — it reads the on-disk file only as a degradation
+  cache. No ceremony refreshes it either: the lifecycle workflows carry a `Regenerate ROADMAP` step but no
+  parallel STATUS.USER step (integrate / archive / activate / init / handoff / session-init). The strategy's
+  "the rendered file is the cache / trustworthy when opened" language describes the *target*, not shipped reality.
+- *Proposed:* build the canonical-file write + reconcile (this WU's deferred half), then wire the refresh at the
+  trigger points the strategy names (spawn / activate / integrate / shift / handoff + session-start-no-active-WU
+  for the cross-machine slice). Reconcile the strategy § STATUS.USER claims with shipped behavior as the writer
+  lands.
+- *Scope:* M — the deferred file-write/reconcile + trigger wiring (CLI + workflows, package-synced).
+
 ---
 
 ## Problem / Motivation
