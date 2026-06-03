@@ -31,6 +31,17 @@ into agile-parallelism by its origin story. It does **not** block `concurrent-wo
 (that dependency was soft — CWC consumes only WOR's `Integrating` state, already shipped, plus
 reversible shared-file coordination on `integrate-work-unit.md`); the CWC→AWL edge has been dropped.
 
+**Pulled forward & dependency formalized (2026-06-03).** The P1 → P2 demotion above is **reversed** — AWL
+is re-bumped to **P1** and sequenced next-up to unblock `concurrent-work-conventions`. The "does not block
+CWC / edge dropped" claim is narrowed: the *runtime* edge stays dropped (CWC's merge-safety mechanism needs
+none of AWL's tier model), but the *delivery / build-order* edge is now a **formal hard dependency** — CWC
+carries `Depends On: agile-wu-lifecycle`, because its four-WU decomposed delivery cannot be built until AWL
+ships the scalable spec/task pipeline + the decomposition procedure (item 6). Cohort is **unchanged**
+(principle-anchored-core — AWL sits with its thesis siblings scalable-core / composable-workflows /
+workflow-template-loads); pulling-forward is a priority/sequencing move, not a cohort move. CWC was parked to
+`backlog/planned/agile-parallelism/` so its settled draft is available on `main` as AWL's worked
+requirements input.
+
 **Scope extraction — `arc start` create-new wiring left this WU (2026-06-03).** The worktree-spawning
 *create-new* half of scope item 4's `arc start` command is extracted to the parallelism-mechanism cluster
 (`draft-concurrent-work-conventions.md` Inbound Buffer): it is thin plumbing over Worktree Foundation's shipped
@@ -83,6 +94,48 @@ decided here):
    *routes to / invokes* it, never owns it (it is also far downstream, so the procedure cannot live there).
    This is a **delivery-ergonomics edge**: CWC re-enters as the stack once AWL's scaling / decomposition
    support lands. Treat CWC's parked draft as a primary design input at this WU's planning pass.
+
+   **Folded-in requirements** (from a `USER-INBOX` capture, 2026-06-03 — re-routed here from
+   `arc-plan-conductor`: the actionable procedure is AWL's deliverable; the conductor only routes to /
+   invokes it). The concrete protocol shape this WU owns:
+    - **Decouple planning-grouping from delivery-grouping.** One concern plans as a single coherent
+      draft/spec but *delivers* as a stack of PR-sized WUs along natural deliverable/phase boundaries — no
+      forced choice between "one concern" and "small PRs."
+    - **Sizing heuristics (sense oversize ahead).** Count distinct deliverables / independently-reviewable
+      surfaces; estimate LOC + file count; test "reviewable in one sitting." Review effectiveness craters
+      past ~200–400 changed LOC (Google / SmartBear studies); >~few-hundred LOC / >~8–10 files / multiple
+      independent review surfaces → stack-or-cohort, not one WU.
+    - **Stack vs. cohort.** Sequentially-dependent → stack (ordered PRs); independent-ish → cohort (parallel
+      WUs). ARC already has the levels — **cohort ≈ epic**, **WU ≈ story / one reviewable PR**; the gap is the
+      codified concern→WU-count mapping.
+    - **When to split.** At PRD / decomposition time, not mid-execution (a mid-execution split is a costly
+      escape hatch).
+    - **Live example.** CWC itself — folded to "one WU finishes the cohort," but by these norms ~4–5
+      deliverables → plan-as-one, deliver-as-a-stack (its D1–D4). Reason against this case to validate the
+      protocol.
+    - **Sizing-norm co-home.** The sizing standard itself likely co-homes in `strategy-work-organization`
+      (a WU-sizing standard AWL's procedure consumes).
+
+7. **Artifact relocatability invariant (2026-06-03).** WU artifacts (`meta-*`, `draft-*`, `spec-*`,
+   `tasks-*`, companions) relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`) as a
+   function of State — a graduate / park / archive move must be a pure `git mv` with **no content edit**.
+   That holds only if artifacts carry **position-independent refs** (filename-only, per DEV-RULES.ARC
+   § `.arc/` artifact references); relative-path links break on move. AWL owns the *invariant* (a lifecycle
+   property of the moves its workflows perform); the *rule* generalization (close the source-side gap — the
+   rule today permits relative paths to stable docs, which still break when the source itself moves) routes
+   to DEV-RULES.ARC, and *enforcement* (forbidden-pattern hook extended to source-side link-defs + a sweep
+   of the ~38 path-style link-defs currently in active/backlog movable artifacts) routes to
+   `quality-gate-hooks`. Surfaced live 2026-06-03 — both the CWC park and this graduation hit relative-link
+   breakage on move, fixed by converting both drafts to filename-only.
+
+8. **Cohort-consistency invariant (2026-06-03).** A WU's `**Cohort:**` field must match its
+   `backlog/planned/<cohort>/` parent directory; a cohort doc's member-list must match its actual members;
+   and every cohort dir should carry a `cohort-{name}.md` (`principle-anchored-core` currently has none —
+   only `cohort-agile-parallelism.md` exists). Field-vs-directory drift is a silent failure (a WU assigned to
+   one cohort but filed under another). AWL owns the *invariant* (cohort semantics — what a cohort is, its
+   boundaries, membership — is this WU's charter); *enforcement* (a backlog-scoped structural guard;
+   `active/` is flat and `completed/` ordinal, so neither applies) routes to `quality-gate-hooks`, same
+   family as its existing forbidden-pattern / layout-drift checks.
 
 ## WOR alignment note (2026-05-19)
 
@@ -281,8 +334,8 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 
 5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
    the top (3-5 sentences, bounded by convention) when no external `**Design:**` is set — fills the
-   internal-spec gap under `pm.layer: arc-pm`. New section in [strategy-task-list-formatting.md][
-   tasklist-fmt] § Quick Tier.
+   internal-spec gap under `pm.layer: arc-pm`. New section in `strategy-task-list-formatting.md`
+   § Quick Tier.
 
 6. **Atomic-tier WU shape.** No task list. Meta file minimal (Tier, State, Branch, Origin). Execution
    discipline preserved at commit boundaries: each commit IS a review increment with mandatory stop.
