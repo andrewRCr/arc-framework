@@ -88,6 +88,48 @@ accommodation, and main-worktree-under-full-protection framing. Composes with
   re-homing of foreign captures, not just guarding writes to the shared surface as a whole.
 - *Home:* CWC (the doctrine); the consuming sweep lives in `shared-inbox-housekeep`.
 
+### `[ ]` **Merge commits have no codified Context-footer / commit-msg-hook path**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); hit merging `main` into a WU branch
+  during in-flight-awareness.
+- *Concern:* the commit-msg validator has **no merge-commit exemption** — a local `git merge` rejects the
+  default "Merge branch …" message (fails conventional-format + required `Context:` footer). Yet the footer
+  taxonomy (`<file> (incidental during X)` / `standalone (…)` / `contribution`) has no natural slot for a merge.
+- *Proposed:* (a) hook-side — exempt merge commits (detect 2-parent / `MERGE_HEAD`, skip conventional + footer
+  rules); and/or (b) taxonomy-side — add a merge/integration footer kind (e.g. `Context: integration (merge
+  main)`). Likely both. Part of the mid-WU reconcile discipline this WU owns.
+- *Scope:* S–M — hook exemption + footer-taxonomy convention.
+
+### `[ ]` **In-flight WUs drift from `main` when errands / WUs land — no reconcile-triage convention**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); deepened at the 2026-06-02 boundary
+  review. Home decision deferred to this WU's PRD (own quick-tier follow-on vs. a CWC deliverable).
+- *Concern:* a `main` advance (sibling integration, errand, hotfix) leaves in-flight WU branches behind until
+  they reconcile. Impact is conditional (orthogonal → fine at integration; overlapping → latent conflict + coding
+  against stale shared files; dependency → may be required to continue). Distinct from behind-own-upstream drift
+  (which session-init already detects as `remote-ahead`): this is **behind-base**.
+- *Decomposition:* **discipline** (when reconcile is required vs. deferrable, merge-vs-rebase, ordering,
+  multi-machine force-push) → this WU. **Substrate** (enumerate in-flight WUs + paths; overlap) → the in-flight
+  awareness oracle + `arc errand check` (shipped). **Advisory detector** (compose → "main moved K; you're N
+  behind; these paths overlap → reconcile?", fired at session-init resume) → *unhomed*; a sibling of the
+  activation-concurrency-check (same advisory-never-gate doctrine, different trigger).
+- *Scope:* M — discipline codification; the detector is a small separable buildable.
+
+### `[ ]` **Agents can't discover a coordinating cohort's `cohort-{name}.md` at session init**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); routed here as the home for the
+  cohort-doc *convention*. Coordinate-with the agent-context-optimization cohort for the awareness blurb.
+- *Concern:* a coordinating cohort keeps its shared design record in `cohort-{name}.md` at the cohort root, but a
+  by-the-book session-init never reaches it — the active WU never co-locates a `cohort-*` file, the meta carries
+  `**Cohort:**` as a bare value with no pointer, and neither AGENT-BRIEF.ARC nor session-init says such a doc may
+  exist. So shared cross-member contracts are invisible (hit this session — the cohort doc went unread).
+- *Proposed:* (light) a note in `AGENT-BRIEF.ARC.md` that a `**Cohort:**` value may belong to a coordinating
+  cohort with a `cohort-{name}.md` record — consult it when coordinating with siblings; (heavier) session-init
+  surfaces it via probe + orientation line. This WU owns the `cohort-{name}.md` convention codification (with
+  file-classification); the awareness blurb (an `instruction-optimization` / `documentation-surface-routing`
+  concern) should align to it rather than front-run it.
+- *Scope:* S — convention note + optional session-init surfacing.
+
 ---
 
 ## Problem / Motivation
