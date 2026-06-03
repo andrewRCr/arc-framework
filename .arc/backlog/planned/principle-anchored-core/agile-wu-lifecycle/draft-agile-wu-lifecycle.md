@@ -31,6 +31,15 @@ into agile-parallelism by its origin story. It does **not** block `concurrent-wo
 (that dependency was soft — CWC consumes only WOR's `Integrating` state, already shipped, plus
 reversible shared-file coordination on `integrate-work-unit.md`); the CWC→AWL edge has been dropped.
 
+**Scope extraction — `arc start` create-new wiring left this WU (2026-06-03).** The worktree-spawning
+*create-new* half of scope item 4's `arc start` command is extracted to the parallelism-mechanism cluster
+(`draft-concurrent-work-conventions.md` Inbound Buffer): it is thin plumbing over Worktree Foundation's shipped
+`spawnWorktree` primitive — **mechanism**, not grammar — and belongs with the cohort that owns parallelism, not
+with this WU's spec/task-scaling thesis. AWL retains only the **tier layer**: the `--tier` flag and
+tier-conditional activation behavior layered onto whatever create-new command that cluster delivers. This keeps
+AWL strictly WU-scalability — nothing parallelism-required. Item 4 below is the stale original conception; read
+it through this narrowing.
+
 **Open design agenda for the planning pass** (each needs real design thought + external research; none
 decided here):
 

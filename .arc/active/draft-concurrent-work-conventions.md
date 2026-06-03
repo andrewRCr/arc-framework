@@ -168,6 +168,42 @@ piecemeal drain.
   concern) should align to it rather than front-run it.
 - *Scope:* S — convention note + optional session-init surfacing.
 
+### `[ ]` **Wire `arc start` create-new (worktree-spawning) mode — primitive shipped, CLI mode absent**
+
+- *Routed from:* this WU's session-init investigation (2026-06-03); extracted from
+  `draft-agile-wu-lifecycle.md` scope item 4 as the parallelism-mechanism half (AWL retains only the tier-flag
+  half — see § Realignment, and that draft's scope-extraction note).
+- *Concern:* Worktree Foundation shipped the `spawnWorktree` primitive (`lib/git/worktree-scaffold.ts`,
+  barrel-exported) and wired only `arc start --here` (cold-start / use-existing); `arc start --help` confirms
+  `--here` is "the only mode available today." The create-new mode — spawn a new WU into a dedicated worktree by
+  calling the shipped primitive — was never wired. It is the *only* path to spawn a new WU into a worktree, and
+  this WU's conventions presume that ergonomic exists. AWL nominally owned "`arc start` create-new + tier modes,"
+  but AWL was re-centered on spec/task scaling (cohort move to principle-anchored-core), so the worktree-spawning
+  wiring — mechanism, not grammar — was mis-homed there.
+- *Decomposition:* (a) worktree-creating create-new wiring = thin plumbing over the shipped primitive; defaults to
+  Planning, no tier flags; **mechanism** character → this cluster. (b) `--tier` flag + tier semantics = stays AWL
+  (**grammar**; in flux pending atomic-tier retirement). The two were conflated in AWL scope item 4.
+- *Scope:* S for the wiring itself (the primitive exists); the open question is its home — same split-vs-fold call
+  as the merge-safety cluster (§ Realignment & scope flags). Closeout-critical mechanism bucket.
+
+### `[ ]` **Unify stale/retired per-WU-subdir removal (non-interactive, backup-safe) across `arc user`**
+
+- *Routed from:* this WU's session-init init (2026-06-03); hit live when `arc user open` hard-blocked on an
+  interactive "remove stale subdir?" prompt during this WU's setup.
+- *Concern:* three divergent stale/retired-subdir removal behaviors exist across `arc user`. `open` **blocks on an
+  interactive prompt** with no non-interactive escape — a non-starter for agentic / automated spawn, where subdir
+  seeding happens constantly once create-new spawn is wired (item above). `close` **hard-deletes recursively with
+  no `.internal/` backup**. The `load` / `pull` retired-subdir reconcile removes **with** a `.internal/` backup.
+  So `open` and `close` each disagree with the reconcile — on interactivity and on safety, respectively.
+- *Proposed:* one shared **subdir-retirement primitive** (backup to `.internal/`, then remove) behind all three
+  call sites — `open`'s stale-subdir path, `close`, and the reconcile — plus a non-interactive `--prune` / `--yes`
+  flag only where a command actually blocks (`open`). `close` is already non-interactive but should route through
+  the backup-aware primitive rather than hard-deleting. (Notes-sync prompts on `push` / `fetch` / `sync` are
+  conflict-resolution — a separate axis, out of scope here.)
+- *DRY:* same shape as the merge-safety cluster's write-context-classifier — one primitive, several call sites.
+- *Scope:* S–M — extract the primitive, reroute three call sites, add one flag. Same parallelism-mechanism bucket
+  as the item above; decide its home at the split-vs-fold call.
+
 ---
 
 ## Problem / Motivation

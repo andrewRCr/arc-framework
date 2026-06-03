@@ -30,7 +30,8 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
 
 - **Worktree Foundation** (shipped — worktree mechanics): the WU entry primitives (spawn / cold-start) and
   the `arc-session` skill, the `arc start --here` cold-start invocation command (introduces the `arc start`
-  verb; AWL extends it with the create-new + tier modes), worktree-aware session-init + branch-gone handling,
+  verb; AWL adds the tier modes — the create-new wiring was extracted to CWC 2026-06-03, see its Inbound
+  Buffer), worktree-aware session-init + branch-gone handling,
   cross-WU sync, and the Errand-class cheap-branch mechanism. (`/arc-shift` was originally in WF scope;
   deferred during execution — see § Deferred — `/arc-shift`.)
 - **Errand Enablement** (shipped — the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
@@ -41,8 +42,9 @@ laid the single-branch-per-WU substrate; this cohort builds the parallelism on t
   and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
   depends on it.
 - **Agile WU Lifecycle** (~~verbs / lifecycle~~ — **departed to principle-anchored-core 2026-06-02**): the
-  tier model, `arc start` create-new + tier modes, the `**State:**`-machine rollout, and tier-model
-  reconciliation to the Errand/WU split were its scope. Reassigned because what remained after the Errand
+  tier model, the `arc start` tier layer (`--tier` + tier-conditional activation — create-new wiring
+  extracted to CWC 2026-06-03), the `**State:**`-machine rollout, and tier-model reconciliation to the
+  Errand/WU split were its scope. Reassigned because what remained after the Errand
   class absorbed the "agile" spin-up motivation is spec/task scaling (the scalable-core thesis), not
   parallelism. The **tier-model reconciliation + atomic-tier-survival question travels with it** to its new
   cohort (see that draft's § Cohort reassignment & design-refresh flag). It does not block CWC.
