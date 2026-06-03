@@ -68,7 +68,21 @@ decided here):
    the same split.
 5. **Likely new dependency: `composable-workflows`.** In its new cohort, AWL's scalable workflows would be
    built on composable-workflows' resolve-then-load mechanism — set this dependency at planning (left off
-   the meta for now rather than asserting it here).
+   the meta for now rather than asserting it here). Note: composable-workflows is not hard-blocked (its only
+   `Depends On`, `work-organization-reform`, has shipped) — design AWL's scalable pipeline *forward-compat*
+   with resolve-then-load without blocking on it (it remains a bare stub entangled with the
+   agent-context-optimization cohort).
+
+6. **Actionable decomposition procedure is AWL's — with CWC as the live requirements input (2026-06-03).**
+   Concurrent Work Conventions parked at terminal planning precisely because it decomposes into a **four-WU
+   stack** that today's `1_create-spec` / `2_generate-tasks` can't size down to (the unconditional 3-pass,
+   3–7-phase pipeline). Its settled draft + concrete D1–D4 decomposition
+   (`draft-concurrent-work-conventions.md` § Delivery plan & parked status) is a **worked requirements
+   example** for both the spec-template-family + fewer-phases grammar **and** an **actionable decomposition
+   procedure** (sizing triggers, boundary-finding, stack-vs-cohort) this WU owns — `arc-plan-conductor` only
+   *routes to / invokes* it, never owns it (it is also far downstream, so the procedure cannot live there).
+   This is a **delivery-ergonomics edge**: CWC re-enters as the stack once AWL's scaling / decomposition
+   support lands. Treat CWC's parked draft as a primary design input at this WU's planning pass.
 
 ## WOR alignment note (2026-05-19)
 

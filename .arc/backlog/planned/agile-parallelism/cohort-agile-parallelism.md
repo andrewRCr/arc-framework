@@ -68,6 +68,18 @@ closeout-critical work: parallel WUs + errands run mechanically today, but nothi
 cohort member, or fold them into a re-scoped CWC** — depends on how heavy CWC's conventions work proves.
 The cohort archives only when this cluster has landed somewhere, not merely when the CWC doc ships.
 
+**Update (2026-06-03): fold resolved; CWC decomposes and parks pending AWL.** The split-vs-fold question
+resolved to **fold** — one closeout concern, conventions **and** the merge-safety / lifecycle mechanism. But
+the folded scope is too large for one WU/PR, so CWC decomposes into a **four-WU stack** of single-owner
+siblings (doctrine / merge-safety / async-lifecycle / single-owner-rewrite — see
+`draft-concurrent-work-conventions.md` § Delivery plan & parked status); cross-WU coordination lives here in
+this cohort doc, not in a shared spec. CWC is brought to terminal planning and **parked**: cleanly delivering
+that stack needs a small-WU pipeline (scalable `create-spec` / `generate-tasks` + an actionable decomposition
+procedure), which is **Agile WU Lifecycle's** chartered deliverable. So AWL — though departed to
+principle-anchored-core — re-enters the closeout **sequence** ahead of CWC's build: a *delivery-ergonomics*
+edge, distinct from the dropped *runtime* edge (CWC's mechanism needs none of AWL's tier model). The cohort
+archives when the four-WU stack ships.
+
 ## Shared contract — WU state machine
 
 WU state is the strict 4-state machine — `Planning | Active | Integrating | Shipped`, defined by the meta
