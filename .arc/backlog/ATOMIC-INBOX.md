@@ -34,12 +34,3 @@
 - _Possible cleanup:_ Create a sibling `installation/` directory, move the four framework-level workflows,
   leaving `supplemental/` cleanly session-adjacent. Atomic move of 4 files + reference updates in DEV-RULES.ARC
   and workflow cross-references. Cleanup-eligible any time.
-
-### `[ ]` **Update SESSION-NOTES template's stale `status-` marker reference**
-
-- _Observation:_ `packages/arc-framework/templates/user/SESSION-NOTES.md` § Handoff Metadata carries a
-  `**Working On:**` example listing `status-{name}.md`. The status→meta rename swept hooks, scripts,
-  validators, and active meta files but missed this template comment, so a fresh `arc init` ships a template
-  referencing a retired filename token.
-
-- _Fix:_ Update the example to `meta-{name}.md`. Mechanical single-line edit (cross-reference-sweep territory).

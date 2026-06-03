@@ -11,7 +11,7 @@ Markers:
   [none]                        — no active work
   [planning: {category}/{name}] — planning cycle, no WU yet
   [between work units]          — between activation and archive of adjacent WUs
-  status-{name}.md              — normal case, file reference
+  meta-{name}.md                — normal case, file reference
 -->
 
 **Commit at Handoff:** `{{short-hash}}`
