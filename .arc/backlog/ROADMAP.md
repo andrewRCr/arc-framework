@@ -12,13 +12,14 @@ scheduling constraint.
 
 ## In Flight
 
-_No work units in flight._
+| State    | Work unit                   | Priority | Owner  | Depends on | Cohort            |
+| -------- | --------------------------- | -------- | ------ | ---------- | ----------------- |
+| Planning | concurrent-work-conventions | P1       | andrew | —          | agile-parallelism |
 
 ## Ready
 
 | Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
 | ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
-| concurrent-work-conventions   | P1       | andrew | —                           | agile-parallelism          |
 | coord-probe                   | P1       | andrew | —                           | cross-machine-coherence    |
 | cross-machine-sync-coherence  | P1       | andrew | —                           | cross-machine-coherence    |
 | roadmap-tooling               | P1       | andrew | —                           | —                          |

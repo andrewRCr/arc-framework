@@ -731,6 +731,6 @@ the markdown or a schema. Reference the model rather than redefining write/merge
 
 ---
 
-[adr-016]: ../../../../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
-[team-coord]: ../../../../reference/strategies/arc/strategy-team-coordination.md
-[integrate-wu]: ../../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
+[adr-016]: ../reference/adr/adr-016-configurable-autonomy-interlocks-for-session-operations.md
+[team-coord]: ../reference/strategies/arc/strategy-team-coordination.md
+[integrate-wu]: ../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
