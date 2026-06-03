@@ -9,6 +9,7 @@
 
 - **Depends On:** worktree-foundation
 - **Cohort:** [none]
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]

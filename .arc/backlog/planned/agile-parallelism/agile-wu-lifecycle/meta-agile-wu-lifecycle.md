@@ -9,6 +9,7 @@
 
 - **Depends On:** worktree-foundation
 - **Cohort:** agile-parallelism
+- **Priority:** P1
 
 - **Task List:** [none]
 - **Last Completed:** [none]

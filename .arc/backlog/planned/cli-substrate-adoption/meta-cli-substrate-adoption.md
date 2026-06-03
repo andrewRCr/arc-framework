@@ -9,6 +9,7 @@
 
 - **Depends On:** work-organization-reform
 - **Cohort:** [none]
+- **Priority:** P2
 
 - **Task List:** [none]
 - **Last Completed:** [none]

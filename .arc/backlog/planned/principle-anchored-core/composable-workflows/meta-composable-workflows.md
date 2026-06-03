@@ -9,6 +9,7 @@
 
 - **Depends On:** work-organization-reform
 - **Cohort:** principle-anchored-core
+- **Priority:** P2
 
 - **Task List:** [none]
 - **Last Completed:** [none]

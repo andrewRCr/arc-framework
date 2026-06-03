@@ -9,6 +9,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** release-readiness
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a

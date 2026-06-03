@@ -9,6 +9,7 @@
 
 - **Depends On:** work-routing-discipline
 - **Cohort:** doc-conventions
+- **Priority:** P2
 
 - **Task List:** [none]
 - **Last Completed:** Provisional stub captured from Worktree Foundation planning (2026-05-24): the

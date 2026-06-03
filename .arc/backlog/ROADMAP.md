@@ -1,11 +1,12 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `c6dac25c`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1b5092d6`.
 
-This view is a derived readiness and dependency map, not a priority ordering. Every work unit is keyed by its
-canonical name; assignment is the owner field. Sequencing follows dependency satisfaction: a unit is Ready once
-the units it depends on have shipped, and Blocked units are banded by how many unsatisfied dependency hops
-separate them from a startable root. Cohort membership is a logical grouping, not a scheduling constraint.
+This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
+unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
+unsatisfied dependency hops separate them from a startable root. Within each tier, rows are ordered by
+Priority (P1 → P2 → P3), then cohort, then canonical name. Cohort membership is a logical grouping, not a
+scheduling constraint.
 
 ---
 
@@ -15,63 +16,63 @@ _No work units in flight._
 
 ## Ready
 
-| Work unit                     | Owner  | Depends on                  | Cohort                     |
-| ----------------------------- | ------ | --------------------------- | -------------------------- |
-| handoff-optimization          | andrew | —                           | agent-context-optimization |
-| loadset-composition           | andrew | —                           | agent-context-optimization |
-| compaction-recovery           | andrew | —                           | agent-context-optimization |
-| agile-wu-lifecycle            | andrew | —                           | agile-parallelism          |
-| commit-increments             | andrew | —                           | approval-flow-refinement   |
-| interlock-release-refinement  | andrew | —                           | approval-flow-refinement   |
-| lib-layer-type-extraction     | andrew | —                           | architecture-remediation   |
-| sync-handler-decomposition    | andrew | —                           | architecture-remediation   |
-| user-sync-module-split        | andrew | —                           | architecture-remediation   |
-| cli-test-hardening            | andrew | —                           | architecture-remediation   |
-| config-storage-architecture   | andrew | —                           | configuration              |
-| customization-arch-realign    | andrew | —                           | configuration              |
-| config-migration-registry     | andrew | —                           | configuration              |
-| task-list-conventions         | andrew | —                           | doc-conventions            |
-| naming-conventions            | andrew | —                           | doc-conventions            |
-| coord-probe                   | andrew | —                           | cross-machine-coherence    |
-| cross-machine-sync-coherence  | andrew | —                           | cross-machine-coherence    |
-| composable-workflows          | andrew | —                           | principle-anchored-core    |
-| scalable-core                 | andrew | —                           | principle-anchored-core    |
-| workflow-template-loads       | andrew | —                           | principle-anchored-core    |
-| docs-site-refresh             | andrew | —                           | release-readiness          |
-| release-lifecycle             | andrew | —                           | release-readiness          |
-| binary-distribution           | andrew | —                           | release-readiness          |
-| arc-modes                     | andrew | —                           | —                          |
-| arc-reinforce                 | andrew | —                           | —                          |
-| cli-substrate-adoption        | andrew | —                           | —                          |
-| inbound-routing-method        | andrew | —                           | —                          |
-| review-method-family          | andrew | —                           | —                          |
-| roadmap-tooling               | andrew | —                           | —                          |
-| rules-restructure             | andrew | —                           | —                          |
-| skill-infrastructure-cleanup  | andrew | —                           | —                          |
-| adr-accept-timing             | andrew | —                           | —                          |
+| Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
+| ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
+| agile-wu-lifecycle            | P1       | andrew | —                           | agile-parallelism          |
+| coord-probe                   | P1       | andrew | —                           | cross-machine-coherence    |
+| cross-machine-sync-coherence  | P1       | andrew | —                           | cross-machine-coherence    |
+| roadmap-tooling               | P1       | andrew | —                           | —                          |
+| loadset-composition           | P2       | andrew | —                           | agent-context-optimization |
+| commit-increments             | P2       | andrew | —                           | approval-flow-refinement   |
+| interlock-release-refinement  | P2       | andrew | —                           | approval-flow-refinement   |
+| naming-conventions            | P2       | andrew | —                           | doc-conventions            |
+| composable-workflows          | P2       | andrew | —                           | principle-anchored-core    |
+| cli-substrate-adoption        | P2       | andrew | —                           | —                          |
+| compaction-recovery           | P3       | andrew | —                           | agent-context-optimization |
+| handoff-optimization          | P3       | andrew | —                           | agent-context-optimization |
+| cli-test-hardening            | P3       | andrew | —                           | architecture-remediation   |
+| lib-layer-type-extraction     | P3       | andrew | —                           | architecture-remediation   |
+| sync-handler-decomposition    | P3       | andrew | —                           | architecture-remediation   |
+| user-sync-module-split        | P3       | andrew | —                           | architecture-remediation   |
+| config-migration-registry     | P3       | andrew | —                           | configuration              |
+| config-storage-architecture   | P3       | andrew | —                           | configuration              |
+| customization-arch-realign    | P3       | andrew | —                           | configuration              |
+| task-list-conventions         | P3       | andrew | —                           | doc-conventions            |
+| scalable-core                 | P3       | andrew | —                           | principle-anchored-core    |
+| workflow-template-loads       | P3       | andrew | —                           | principle-anchored-core    |
+| binary-distribution           | P3       | andrew | —                           | release-readiness          |
+| docs-site-refresh             | P3       | andrew | —                           | release-readiness          |
+| release-lifecycle             | P3       | andrew | —                           | release-readiness          |
+| adr-accept-timing             | P3       | andrew | —                           | —                          |
+| arc-modes                     | P3       | andrew | —                           | —                          |
+| arc-reinforce                 | P3       | andrew | —                           | —                          |
+| inbound-routing-method        | P3       | andrew | —                           | —                          |
+| review-method-family          | P3       | andrew | —                           | —                          |
+| rules-restructure             | P3       | andrew | —                           | —                          |
+| skill-infrastructure-cleanup  | P3       | andrew | —                           | —                          |
 
 ## Blocked
 
 ### Depth 1
 
-| Work unit                     | Owner  | Depends on                  | Cohort                     |
-| ----------------------------- | ------ | --------------------------- | -------------------------- |
-| documentation-surface-routing | andrew | handoff-optimization        | agent-context-optimization |
-| instruction-optimization      | andrew | handoff-optimization        | agent-context-optimization |
-| concurrent-work-conventions   | andrew | agile-wu-lifecycle          | agile-parallelism          |
-| schema-introspection-layer    | andrew | cli-substrate-adoption      | architecture-remediation   |
-| docs-content-sweep            | andrew | docs-site-refresh           | release-readiness          |
-| arc-plan-conductor            | andrew | loadset-composition         | —                          |
-| contributor-path              | andrew | agile-wu-lifecycle          | —                          |
-| operational-state-docs        | andrew | cli-substrate-adoption      | —                          |
-| quality-gate-hooks            | andrew | agile-wu-lifecycle          | —                          |
+| Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
+| ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
+| concurrent-work-conventions   | P1       | andrew | agile-wu-lifecycle          | agile-parallelism          |
+| arc-plan-conductor            | P2       | andrew | loadset-composition         | —                          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption      | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization        | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization        | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption      | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh           | release-readiness          |
+| contributor-path              | P3       | andrew | agile-wu-lifecycle          | —                          |
+| quality-gate-hooks            | P3       | andrew | agile-wu-lifecycle          | —                          |
 
 ### Depth 2
 
-| Work unit                     | Owner  | Depends on                  | Cohort                     |
-| ----------------------------- | ------ | --------------------------- | -------------------------- |
-| wu5-public-release            | andrew | docs-content-sweep          | release-readiness          |
-| shared-inbox-housekeep        | andrew | concurrent-work-conventions | —                          |
+| Work unit                     | Priority | Owner  | Depends on                  | Cohort                     |
+| ----------------------------- | -------- | ------ | --------------------------- | -------------------------- |
+| wu5-public-release            | P3       | andrew | docs-content-sweep          | release-readiness          |
+| shared-inbox-housekeep        | P3       | andrew | concurrent-work-conventions | —                          |
 
 ---
 

@@ -9,6 +9,7 @@
 
 - **Depends On:** [none]
 - **Cohort:** principle-anchored-core
+- **Priority:** P3
 
 - **Task List:** [none]
 - **Last Completed:** [none]
