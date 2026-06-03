@@ -70,9 +70,81 @@ conventions/doc work proves once this WU plans — remains to be seen, so decide
 buildables accruing in the buffer; re-estimate at planning (it is no longer doc-only if the fold path
 wins).
 
-**Fold the buffer at planning.** The six Inbound Buffer items want a focused integration pass into the
+**Fold the buffer at planning.** The eight Inbound Buffer items want a focused integration pass into the
 body at this WU's next planning iteration (per the buffer's own `drain-inbox § 5` convention) — not a
 piecemeal drain.
+
+## Planning pass resolutions (2026-06-03)
+
+> Decisions from a focused `arc-plan` pass on the integration-end target and the WU↔dev ownership model.
+> These feed the PRD. The full Inbound Buffer fold (below) and the split-vs-fold call remain open.
+
+### Scope frame for closeout
+
+CWC = "what closes the agile-parallelism cohort" = the conventions doc **plus** the merge-safety cluster
+landing *somewhere* (per `cohort-agile-parallelism.md` § Cohort status & closeout). The **design target is any
+team size** — solo is the degenerate case, never the target (AGENT-BRIEF.PROJECT: team-size-agnostic, not
+solo-targeted). Cross-machine-sync-coherence and coord-probe stay a separate cohort; only the behind-base
+detector overlaps (see Integration-end target).
+
+### Integration-end target: advisory detector + convention (not active guard)
+
+The "main moved under me" target is **(a) convention in the strategy doc + (b) an advisory behind-base
+detector**, explicitly **not (c) a blocking guard** — the integration-conflict research is unambiguous that
+overlap signals stay advisory (false positives; industry detects at merge time, not before).
+
+- **The detector:** at session-init resume, compute behind-base drift + path overlap ("main moved K, you're N
+  behind, these paths overlap → reconcile?"). O(1) per resume (your one branch vs. base); advisory, never gates.
+- **De-dup:** this is the *same mechanism* as Inbound item 5's "advisory detector" **and**
+  `cross-machine-sync-coherence`'s `baseBranchSync` session-init probe — one buildable, double-captured across
+  two cohorts; spec it once. Today nothing computes behind-*base* (`remote-ahead` only detects
+  behind-own-upstream).
+- Plus the merge-commit hook/footer exemption (Inbound item 4) as a correctness fix.
+- `research-integration-conflict-handling.md` is **sufficient** for the integration end — no new external pass.
+
+### Start-side ↔ integration-end coupling
+
+Start-side rigor is inversely coupled to integration-end robustness. Because (b) surfaces drift continuously at
+every resume, the activation-time "safe to start?" check stays a **light advisory nudge**, not a heavyweight
+conflict-eval subagent (which also cuts against the research — pre-merge conflict prediction is non-idiomatic,
+O(n²), false-positive-prone). Pillar-1 start-side spec: codify the judgment heuristics + the light framing; lean
+on In-Flight Awareness's shipped oracle-backed check rather than adding tooling.
+
+### WU↔dev ownership model: single-owner WUs
+
+**Decision: a WU is single-owner (one DRI).** Cross-person parallelism = decompose into N single-owner WUs
+(cohort ≈ epic), **not** multiple devs concurrently driving one WU's task list. Grounded in the dominant industry
+idiom (one branch = one author; story = one assignee; parallelism = more branches/PRs, not more authors per
+branch) and in ARC's substrate — a single-owner WU is structurally lighter (one branch + one PR) than the
+shared-integration-branch + per-dev-sub-branch topology multi-dev-per-WU requires, and avoids the shared-meta
+write-collision and single-`Next Task`-pointer workarounds team-coord currently carries.
+
+- **Non-owner contribution** happens via (1) PR review (already first-class), (2) pairing (synchronous, one
+  driver, `Co-authored-by:` for credit — convention, no structure), (3) handoff (sequential owner
+  *reassignment* — keep; vacation/rotation).
+- **Remove `(@name)` entirely.** With single-owner WUs the meta `**Owner:**` field *is* the assignment;
+  per-task markers have no remaining job. team-coord's own rationale — "git tracks authorship; duplicating adds
+  maintenance burden" — now argues against `(@name)` in task lists too, once concurrent per-task ownership is gone.
+- **Kill the within-WU concurrent multi-dev apparatus** — the Personal-Sub-Branches and Stacked-PRs-per-Developer
+  patterns, the shared-meta concurrent-write handling, and "concurrent pairs on different tasks" (DEV-RULES.ARC
+  § Task interlock).
+- **Caveat:** untested at team scale — a conscious idiomatic + structural-fit bet, not field-proven. The one
+  genuine shared-branch case (a feature too cohesive to split) is absorbed by the dichotomy: too-coupled-to-split
+  → one WU, one owner, may pair; separable → multiple WUs.
+- **Execution is separable.** The *decision* is a CWC conventions item; the *rewrite* it forces —
+  `strategy-team-coordination` (branching patterns, the `(@name)` convention, person-to-person handoff),
+  DEV-RULES.ARC § Task interlock, meta `**Owner:**` semantics — has real weight and rewrites a doc CWC otherwise
+  treats as an orthogonal sibling. Flagged as separable execution and a split-vs-fold input.
+
+### Routed out (captured to `USER-INBOX § Backlog`, 2026-06-03)
+
+- **Decomposition** (team-ownership motivation + lifecycle-timing axis) → `arc-plan-conductor` (extends its § 11
+  plan-splitting / PRD-decomposition). Planning-lifecycle, not concurrency conventions — not CWC.
+- **Collaborative team planning** (single-author-draft + review model) → team-coord + a conductor seam; partly
+  subsumes conductor OQ23. Carries a "planning-machinery cohort" organizing flag.
+- **Cohort as a first-class structural entity** — stays a draft Open Question (below). The single-owner model
+  *strengthens* the case (cohorts become the epic-level home for multi-person features), but it is research-gated
+  and touches roadmap-tooling + WOR group-dirs. Flag, don't fold.
 
 ---
 
@@ -699,6 +771,12 @@ deferred to a later hooks-completeness pass — but flagged here for explicit PR
 state-field semantics coordination. Lighter than the pre-redesign shape (focus-role model design
 phase removed). Less mechanism-heavy than `draft-worktree-foundation.md` or
 `draft-agile-wu-lifecycle.md`.
+
+**Re-estimate pending (2026-06-03).** This is no longer doc-only. The single-owner-WU decision adds a
+`strategy-team-coordination` + DEV-RULES rewrite (separable execution), and the merge-safety cluster adds the
+behind-base detector + merge-gate-aware workflows + write-context-classifier + merge-commit hook exemption
+(mechanism buildables). True size — and whether CWC stays one WU — resolves at the Inbound Buffer fold and the
+split-vs-fold call.
 
 Phases (provisional):
 
