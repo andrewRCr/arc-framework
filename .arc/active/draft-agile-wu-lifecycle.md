@@ -137,6 +137,249 @@ decided here):
    `active/` is flat and `completed/` ordinal, so neither applies) routes to `quality-gate-hooks`, same
    family as its existing forbidden-pattern / layout-drift checks.
 
+## Floor model — planning-pass resolution (2026-06-03)
+
+> Resolves agenda items 1–3 above and informs 4; supersedes the body's § Three-Tier Model wherever they
+> conflict. Everything from § Problem / Motivation onward is the 2026-04-28 conception — read this section as
+> current direction. Derived during the 2026-06-03 `arc-plan` pass from P1/P2/P4/P7 (ADR-001), ADR-020, and
+> ADR-021; the reasoning, not just the conclusions, is recorded so the constitutional pass can rebuild it.
+
+### Two floors, not one
+
+The word "floor" names two different things, and conflating them is what makes the question feel fuzzy:
+
+- **Discipline floor (P2/P4) — universal, sits *below* the wrapper, never scales.** Every increment of change —
+  a WU task, an Errand commit, a loose off-WU commit — closes with a review-increment gate and passes its
+  quality gates. The floor of *discipline* is the smallest **commit**, not the smallest WU. This is ARC's
+  identity; it does not move.
+- **Wrapper floor — the smallest thing that is a WU at all.** This is the question with real design content
+  (below).
+
+### The wrapper exists for spec-worthiness; tracking is downstream
+
+Over a bare disciplined commit, a WU adds exactly two things: an **authored spec** (P1) and a **tracked
+lifecycle** (P7). The defining trait is **spec-worthiness** — work that is *more than a single logical concern*
+(more than one review increment), even if multi-step / multi-file. Tracking is a *consequence* of that, never
+an independent cause: graduation (an Errand that reveals unforeseen complexity mid-impl → WU) trips on
+discovered *complexity*; tracking comes along for the ride. There is no "needs tracking but the work doesn't
+warrant it" case — it does not occur. Anchors: P1's own test ("Does this need up-front planning? Quick fixes
+with clear scope can rely on well-crafted git commits") and ADR-021 threshold #1.
+
+### The scaling axis: authoring-labor-to-settle (design is always settled)
+
+**Invariant (P1; DEV-RULES.ARC § Design before implementation):** all settle-able design is settled *before*
+implementation — best reasonable effort, never a conscious deferral. What varies across tiers is **not whether
+design is settled** but **how much design must be *authored* — versus read off existing inputs — to reach the
+settled state**:
+
+- **Errand** — zero authoring. The intent *is* the design. ("Intent *to* design" disqualifies it.)
+- **Lower tier** — design is determinate from existing inputs (issue / pattern / clear intent); the spec
+  *records* the settled design lightly, it does not *derive* it.
+- **Top tier** — settling *requires authoring* a real design (a PRD's worth): many concerns, alternatives, and
+  tradeoffs that do not exist until someone works them out.
+
+> **Candidate constitutional sharpening (flagged, not decided):** today's spec-directed rule handles *emergent*
+> design questions ("route them back to the spec"). Add the stronger *front-loading* duty — settle all
+> settle-able design up front; never consciously defer it to impl. AWL touches DEV-RULES.ARC anyway.
+
+### Topology: fixed floor → scalable middle → fixed ceiling (derived, not chosen)
+
+Preference operates in the band between the complexity-set floor and a fixed ceiling (max ceremony ARC
+offers). **Band width shrinks as authoring-labor rises**, because the floor climbs toward the fixed ceiling:
+
+- Errand: floor = ceiling = one disciplined commit. Band width **zero**.
+- Low authoring-labor (determinate design): floor low, ceiling high. Band **wide** — preference has real room.
+- High authoring-labor (PRD-worth): floor already near the ceiling (a paragraph can't hold a large design
+  space; many concerns force phasing; real intent-verification is required). Band **≈ zero**.
+
+So **both endpoints are fixed for the same reason — degenerate bands — and only the middle scales.** This falls
+out of the two-axis model; it is not symmetry-for-its-own-sake. Topology: **Errand (fixed floor) → scalable
+tier (wide band, catch-everything) → standard (fixed ceiling).** The middle↔top boundary is the **design-doc
+line** (does settling *require authoring* a design?); the two do **not** overlap — the top tier's floor sits
+strictly above the lower tier's ceiling.
+
+**Atomic retires as a *tier* (resolves agenda item 1).** Atomic-character work executes as an **Errand** below
+the wrapper, or graduates; ADR-020 §3's spec-in-commit "floor exception" migrates *out of the tier model into
+the Errand class*, which reconciles the ADR-020 ↔ ADR-021 tension. "Atomic" reverts to a pure character
+adjective. Tier set collapses to **{lower, standard}** (names are placeholders — see § Open below).
+
+### Ceremony stack: three lower-bound layers; the tier label tracks only complexity
+
+1. **Complexity → forced floor** (per-WU, objective, enforced via drift-promotion). *The work demands ≥ this.*
+2. **Project preference → team floor** (set at init, trivially changeable, no reinstall). The consistency
+   knob; likely a project-config setting per ADR-020 §8's guided-init walkthrough.
+3. **User preference → personal investment *above* the team floor** (working style); never below it.
+
+Actual ceremony = the user's pick within `[max(complexity_floor, project_floor), ceiling]`. The **tier label
+tracks layer 1 only** (work-demand) — neither preference layer inflates classification. A determinate WU
+specced heavily by preference is still **lower-tier**, correctly: the *work* was light; the author simply
+likes rigor. This keeps the class objective and useful for parallelism planning ("how much genuinely-heavy
+work is in flight").
+
+**Rigor available ≡ across the lower tier's top and the standard tier** — same machinery, full strength. Only
+rigor *mandated* differs: standard ceremony is **forced** (the work's authoring-labor demands it, band
+collapsed); lower-tier-max ceremony is **chosen** (insurance, not necessary design labor). That is the
+"appropriately rigorous, not forced" property — the lower tier's high end is real rigor, never a diet
+imitation.
+
+### Invariant vs. convention (this is the "always feels like ARC")
+
+The floor is **identical at every matrix position** — that invariance *is* the ARC feel; the matrix only moves
+the convention layer on top.
+
+- **Floor (principle-forced):** a spec in some form (P1); a task list when multi-increment (P2 + P7);
+  intent-verification of completed work against the spec (P1's intent-vs-outcome loop); the discipline floor
+  (P2/P4). Always present, every tier above Errand.
+- **Convention (opinionated, scalable, configurable):** spec *template weight*; phase count beyond one;
+  pre-execution task-list audit (`arc-task-audit` is a strong default, **not** a floor — front-loading audit
+  is a method under P1, not an invariant); iteration passes.
+- **Task list scales by phase *count*, not *shape* (resolves agenda item 3):** one parsed grammar from 1..N
+  phases (minimum one substantive phase + always-present verification — gate-check at the low end, dedicated
+  phase at standard). A "flat" shape is a *second grammar* = a parser fork = an internal-dev maintenance trap;
+  rejected. **Spec scales by template family (resolves agenda item 2):** three variants, heaviest = the current
+  PRD; exact shapes informed by external research.
+
+### User-above preference: config knob vs. in-process steer (OPEN)
+
+Deferred until the mechanical design is known (how tier/preference affects each workflow, skill, hook, CLI
+surface). **Decision criterion:** a config knob is warranted *iff* "ceremony preference" resolves to a single
+coherent ordinal workflows can consume; if it is a scattered bag of per-surface toggles, one knob is a leaky
+abstraction and steer-per-process is better until consolidated.
+
+**Forward-compat (binds now, even while deferring):**
+
+- Design the scaling mechanism to consume a **resolved** preference value independent of its source
+  (resolve-then-load, ADR-020 §9): the probe resolves active ceremony preference; workflows load the matching
+  fragment. This makes knob-vs-steer a **late-binding input decision, not an architectural fork** — decidable
+  after the implications are known, without reshaping any workflow.
+- If it becomes a knob, its home is the `configuration` cohort's per-developer substrate
+  (`draft-config-storage-architecture.md` — `.arc/user/{identity}/config.user.yml`, user-notes-synced), not a
+  bespoke surface. Soft coordination, not a hard dependency.
+
+### Open / deferred from this pass
+
+- **Tier names.** `lower` / `standard` are placeholders with known defects: "quick" overweights speed and
+  underweights the authoring-labor essence; "standard" implies *default* but names the *marked / maximal* case
+  (the lower tier is the more common one). The name must encode the design-doc line **and** read as weight in a
+  roster. → external research (Shape Up shaping vs. small-batch; Stripe RFC threshold; Google design-doc;
+  GitLab MR-driven).
+- **Decomposition / WU-sizing / cohorts** (agenda item 6 + CWC requirements input). Resolved this session —
+  see § Decomposition model below. Orthogonal-ish to the floor model — ceremony weight ≠ WU scope
+  (full-ceremony WUs can be <2-day end-to-end) — but adjacent: it is where the "WUs trend too long" tendency is
+  actually corrected, distinct from ceremony-fit.
+
+## Decomposition model — planning-pass resolution (2026-06-03)
+
+> Resolves agenda item 6 (the actionable decomposition procedure AWL owns); leans on items 7 (relocatability)
+> and 8 (cohort-consistency). Derived during the 2026-06-03 `arc-plan` pass plus a focused external-research
+> pass (stacked-diffs / RFC-impl / epic-story / review-sizing). CWC's parked four-WU decomposition is the
+> worked requirements example **and** the procedure's acceptance test. The procedure is AWL's chartered
+> deliverable; `arc-plan-conductor` only routes to / invokes it.
+
+### The WU upper boundary (mirror of ADR-021)
+
+ADR-021's threshold answers "is this big enough to warrant a WU?" (Errand vs. WU — the *lower* bound).
+Decomposition answers "is this too big to be **one** WU?" (WU vs. cohort — the *upper* bound). Same test,
+other end; the symmetry is the spine of the procedure.
+
+### Model B only — decompose into a cohort of self-contained WUs; Model A retired
+
+When a concern exceeds one WU it becomes a **cohort of self-contained, single-owner WUs** (each its own
+`meta-* + spec-* + tasks-*`, one branch, one PR) — **not** one WU sliced into stacked PRs (Model A). Three
+grounds, weakest to strongest:
+
+1. **One-branch-per-WU (ADR-019) makes Model A inexpressible.** "One WU across many branches" has no ARC
+   form; it can only collapse into a stack of *WUs* — which is just Model B's delivery mode.
+2. **ARC's review grain is already sub-PR** (per-task review increment, P2) — so Model A's "split PRs to get
+   small reviewable units" benefit is largely served at a finer grain already. (This does **not** replace
+   PR-level review — different eyes, different altitude; it just means A buys ARC less than it buys PR-grain
+   shops.)
+3. **Decisive — Model A forces shared mutable planning artifacts across branches.** One spec + one task list
+   edited from N worktrees is exactly the cross-branch shared-mutable state that worktree isolation and the
+   relocatability invariant (item 7) exist to prevent: it either gravitates up to the cohort/backlog tier
+   (detaching the design from any single task list — the spec stops being the live co-located upstream) or
+   stays on one branch referenced cross-branch (clunky, conflict-prone, a relocatability breach). **Model B
+   keeps each WU's meta+spec+tasks a self-contained, co-located, relocatable bundle** — the agent-native
+   in-repo model working *because* the unit is self-contained. The external pass reached this independently:
+   co-location / shared-mutable-artifact was "the strongest evidence for Model B" (Google's
+   one-RFC-to-many-PRs "works at enterprise scale only because they accept spec drift").
+
+"Stacked PRs" survives in ARC **only** as Model B's *dependency-ordered delivery mode* — a stack of WUs, each
+its own branch, merged in order (idiomatic at WU-grain; cf. Graphite at commit-grain). The merge/rebase
+*discipline* for executing such a stack is CWC's (`draft-concurrent-work-conventions.md`); AWL owns the
+*decision* to decompose, CWC owns delivering the stack safely — they compose.
+
+### The discriminator — orthogonality, not size
+
+Decompose on **design / subsystem orthogonality + independent deliverability / ownership** — *not* raw size.
+Size is a secondary symptom, and only when it spans *unrelated* subsystems (review-sizing research: defect
+detection craters past ~200–400 LOC per review increment; ~800–1000 LOC across *orthogonal* systems is a
+decompose signal). Tightly-coupled work designed as a whole stays **one WU even when large** — the per-task
+review grain carries quality — and splits later only if it destabilizes. Concern multiplicity is the trigger;
+LOC is a heads-up.
+
+### Two guard rails
+
+- **Lower rail — don't split below WU-warrant.** Decompose only until each piece independently warrants a WU
+  (ADR-021 threshold). A piece too small is a **phase of a sibling** or an **Errand**, never a peer WU.
+  ("Making a 3-task piece its own WU feels silly" is this rail firing.)
+- **Upper rail — don't split coupled one-design work for size alone.** Over-decomposition is a real failure
+  mode (the microservices premature-split trap: chatty coordination, onboarding cost). A personal
+  under-decomposition bias will feel the lower rail most; the framework needs both for general correctness.
+
+### Timing — gated on design maturity
+
+Decompose when the design is **stable enough that the cuts are real**, not before. Speculative design → hold
+as one unit and iterate; settled design → decompose. Mechanically: a **provisional cut at draft-settle** (name
+the pieces) **confirmed / re-cut at spec/task time** (size them — merge a piece that came out too small, split
+one too big). Iterative, not a single blind upfront gate. CWC parked at *terminal planning* (= design settled)
+is the proof case: that maturity is exactly what makes it decomposable now.
+
+### Cohorts stay flat — no nesting
+
+Decomposition **expands or creates a flat cohort of peer WUs**; structure rides **dependency edges**, never a
+cohort tree. CWC → D1–D4 become peers of WF / EE / IFA within agile-parallelism, not a sub-cohort under "CWC."
+If a piece itself later splits, its parts are more flat peers. (Avoids the reason-about-it-quickly trap.)
+Cohort semantics here reconcile with item 8's cohort-consistency invariant and the `cohort-{name}.md`
+convention (whose codification is shared with CWC + file-classification — ownership map to settle at spec).
+
+### Plan-grouping ≠ delivery-grouping
+
+One concern **plans** as one draft (a single design exploration); at decomposition it becomes **N
+self-contained WU specs + cross-WU coordination** in `cohort-{name}.md`. The cohort doc carries coordination
+only — never design that drives a task list (specs feed task lists and validate completion; they are not
+coordination docs).
+
+### Deliberate divergence from Shape Up
+
+Adopt Shape Up's *self-contained vertical-slice unit* shape; **reject its design-co-evolves-during-build
+timing.** ARC stays spec-directed (P1) — but as a best-effort *goal*, not an absolute: settle everything
+*settle-able* up front and never *consciously* defer it, while accepting that genuine unforeseeable unknowns
+surface during impl (no plan survives first contact) and are handled by routing them back to the spec. The
+divergence is *deliberate under-specification as a design method* (Shape Up) vs. *best-effort settle +
+disciplined emergence-handling* (ARC) — not "100% upfront vs. co-evolve."
+
+### Acceptance test
+
+The procedure must cleanly **re-derive CWC's D1–D4 from CWC's one settled draft.** CWC is both the worked
+requirements example and the first customer (parked pending this support). If the orthogonality discriminator
+and the two rails produce that decomposition, the procedure works; if it strains, the rule is wrong.
+
+### Open / deferred
+
+- **Pipeline fire-point** for the procedure — a new decomposition workflow vs. a phase inside `create-spec`.
+- **Sizing-norm co-home** — the WU-sizing standard co-homes in `strategy-work-organization` (consumed by the
+  procedure), not authored here.
+- **Cohort-as-first-class** — the free-form `**Cohort:**` field (exists) vs. a structural cohort entity with
+  member lists; the structural form earns its keep only *if* cohorts gain shared lifecycle events (one PR for
+  the wave, coordinated rollout) — they don't today, so graph-derived grouping + the field suffice until they
+  do.
+- **Reconciliation debt.** `strategy-work-organization` § Task Lists and Branches (stacked-PRs / phased /
+  team-sub-branch — pre-ADR-019 leftovers that contradict one-branch-per-WU) needs rewriting to the B-only
+  model; § Work Character / § Spec-Flow Invariants § Scaling axes / § Escape-hatch still name the retired
+  atomic tier. Compounds with the floor model's tier reconciliation — one DEV-RULES / strategy sweep at
+  activation.
+
 ## WOR alignment note (2026-05-19)
 
 WOR R66-R68's renames are applied throughout this draft: WU artifact prefixes `plan-*` → `draft-*`
