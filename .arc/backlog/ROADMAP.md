@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `64f02743`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a64d3235`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,7 +12,9 @@ scheduling constraint.
 
 ## In Flight
 
-_No work units in flight._
+| State    | Work unit          | Priority | Owner  | Depends on | Cohort                  |
+| -------- | ------------------ | -------- | ------ | ---------- | ----------------------- |
+| Planning | agile-wu-lifecycle | P1       | andrew | —          | principle-anchored-core |
 
 ## Ready
 
@@ -25,7 +27,6 @@ _No work units in flight._
 | commit-increments             | P2       | andrew | —                           | approval-flow-refinement   |
 | interlock-release-refinement  | P2       | andrew | —                           | approval-flow-refinement   |
 | naming-conventions            | P2       | andrew | —                           | doc-conventions            |
-| agile-wu-lifecycle            | P2       | andrew | —                           | principle-anchored-core    |
 | composable-workflows          | P2       | andrew | —                           | principle-anchored-core    |
 | cli-substrate-adoption        | P2       | andrew | —                           | —                          |
 | compaction-recovery           | P3       | andrew | —                           | agent-context-optimization |

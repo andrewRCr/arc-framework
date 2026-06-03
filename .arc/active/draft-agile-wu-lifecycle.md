@@ -226,7 +226,7 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 ### In scope
 
 1. **Three-tier WU model** with structural differentiation per the table above. Constitutional
-   amendment to [DEV-RULES.ARC][dev-rules] establishing tier definitions, boundary tests, and the
+   amendment to DEV-RULES.ARC establishing tier definitions, boundary tests, and the
    tiered-artifacts/invariant-discipline framing. Companion ADR documenting the constitutional
    shift (parallel scale to ADR-016).
 
@@ -359,14 +359,14 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
    those surfaces. (WOR already retired the pause-pointer fields; nothing migrates to a shift state —
    see `cohort-agile-parallelism.md`.)
 
-10. **Documentation cascade.** [DEV-RULES.ARC][dev-rules] tier definitions and boundary tests;
-    [strategy-task-list-formatting.md][tasklist-fmt] tier-aware task list shapes;
-    [strategy-work-organization.md][strategy-work-org] tier integration with categories and branch
+10. **Documentation cascade.** DEV-RULES.ARC tier definitions and boundary tests;
+    `strategy-task-list-formatting.md` tier-aware task list shapes;
+    `strategy-work-organization.md` tier integration with categories and branch
     naming, plus § Spec-Flow Invariants updates — name AWL in § Deferred contract as the
     tier-classification model home, and replace § Escape-hatch guardrails intent-level phrasing
     with concrete `--tier atomic` flag default (currently abstracted pending this WU per
-    audience-boundary discipline); [template-meta.md][template-meta] new fields;
-    [template-tasks.md][template-tasks] quick-tier shape variant; quality-gate-commands method
+    audience-boundary discipline); `template-meta.md` new fields;
+    `template-tasks.md` quick-tier shape variant; quality-gate-commands method
     tier awareness.
 
 ### Out of scope
@@ -708,9 +708,3 @@ machine's transitions are schema events, not free-text field edits. See
 `adr-022-managed-operational-state-documents.md` § Coordination.
 
 ---
-
-[dev-rules]: ../../../../system/rules/DEV-RULES.ARC.md
-[strategy-work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
-[tasklist-fmt]: ../../../../reference/strategies/arc/strategy-task-list-formatting.md
-[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
-[template-tasks]: ../../../../reference/templates/arc/work-unit/template-tasks.md
