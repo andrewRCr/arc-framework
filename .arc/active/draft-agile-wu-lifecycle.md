@@ -788,17 +788,54 @@ doc carries **coordination only — never design that drives a task list** (spec
 completion; coordination docs do neither). Exact field / section set is a prototype-iterate artifact, like
 the spec templates.
 
-### The graduation workflow
+### Decomposition (decide) vs. graduation (execute) — a method and a lifecycle workflow
 
-The decomposition procedure *decides* the cut; a **graduation workflow** *executes* it: mint the cohort
-(dir + `cohort-{name}.md` from the origin draft's coordination content) → scaffold the N member WU stubs
-(`meta-* + draft-*` each) → distribute the origin draft's design into each piece's draft (plan-grouping →
-delivery-grouping) → set the path-valued `Cohort` fields → re-point incoming `Depends On` edges per the cut
-map → retire the origin meta into the cohort doc → regen `ROADMAP`. A standalone workflow referenced by the
-planning workflows, forward-compat with composable-workflows (resolve-then-load fragments).
-**Bootstrapping:** AWL is its own first customer, so the first graduation runs a *manual* path (mirroring the
-interim manual park / resume paths until that tooling lands), with the workflow codified inside the
-decomposition piece.
+The two are **semantically distinct**, split across the method/workflow line ARC already uses (decision
+*methods* like test-first / issue-triage vs. lifecycle *workflows* like init / integrate):
+
+- **Decomposition is a planning-time *method*** — the discriminator + rails + timing that *decide* the cut
+  (pieces + dependency edges + the cut map). It runs inside planning (an `arc-plan` phase, or a `create-spec`
+  phase); it produces a decision, not a structural change.
+- **Graduation is a lifecycle *workflow*** — it *executes* a confirmed cut by transforming a live WU into a
+  cohort. It is a genuine lifecycle transition (a WU changing *what it is*), not mere decomposition cleanup —
+  which is why it earns its own workflow + PR story rather than being a tail of the method. "Graduate" is
+  ARC's established word for a lifecycle promotion (`init-work-unit` *graduates* a backlog stub → active); a
+  WU graduating to a cohort extends that sense.
+
+The relationship is **not 1:1**. Graduation always follows a decomposition decision (you only reach a cohort
+by splitting), but decomposition does **not** always trigger graduation: decomposing a concern that is *not*
+a live WU (a backlog draft never activated, or planning that concludes "cohort from the start") just creates
+the cohort + members directly — no origin WU to park / retire. Graduation is the variant *with a live
+origin*, and that origin is what adds the park-shaped exit below.
+
+### Graduation delivery lifecycle — a park-shaped exit
+
+Graduation reuses the **park** path's mechanics (`active/ → backlog/`, PR to `main`, branch + worktree
+teardown) with cohort-specific choreography. It is **not** an `integrate-work-unit` (no code deliverable, no
+`completed/` archive):
+
+- **Runs on the originating planning branch**, as that WU's terminal act — planning concluded "this is a
+  cohort," so materializing the cohort *is* the deliverable. No fresh branch; no `Active` step.
+- **Steps:** mint the cohort (dir + `cohort-{name}.md` from the origin draft's coordination content) →
+  scaffold the N member stubs in `backlog/planned/<theme>/<cohort>/` (`meta-* + draft-*` each, `Cohort`
+  path-set, `Depends On` edges encoding order) → distribute the origin draft's design into each member draft
+  (plan-grouping → delivery-grouping) → re-point *incoming* `Depends On` per the cut map → **retire the
+  origin `meta-*` + `draft-*`** (deleted; fully redistributed) → regen `ROADMAP` → park-shaped PR to `main`
+  → branch / worktree teardown.
+- **No new State value:** the origin meta is deleted — the WU *ceases to be a WU* because it became a cohort.
+  The State machine governs existing WUs; the git PR + a one-line origin note in the cohort doc are the
+  record. **No `completed/` entry** for the origin (its outputs are *future* work in `backlog/`); the
+  **cohort** carries the eventual `completed/` archive when its last member ships.
+- **Members land uniformly in `backlog/planned/`;** activation is a separate, deliberate act per member
+  (`init-work-unit` Path A: backlog → active → fresh `plan/<member>` branch), in dependency order. The cut
+  stays provisional — re-cut at each member's spec time.
+- **Relationship to `integrate-work-unit`:** graduation is a *separate* workflow (keeps integrate
+  code-shipping-focused) that **shares the PR-merge-branch-cleanup primitive** (DRY), plus a **lightweight
+  graduation-PR description variant** (story: "decompose X → cohort + members, each ready to init").
+- **Draft-retirement (judgment flag):** lean *retire* the origin draft (content fully redistributed; git
+  history archives the holistic form) over keeping a cohort-level design appendix (stale-duplicate risk).
+- **Bootstrapping:** the graduation workflow is itself a D3 deliverable, so AWL's own graduation runs the
+  **manual** park-shaped path above (mirroring the interim manual park / resume paths), codified in D3 after.
 
 ### Concurrency — the cohort doc is the one shared-mutable planning artifact (CWC seam)
 
@@ -1203,14 +1240,14 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
    verification); grounding-audit intensity parameterization (per-phase interlock retained).
 5. **`arc-plan` depth-relativity** — depth-relative readiness bar; the three planning shapes; artifact-shape
    feed-forward. (Light-touch; rich triage stays the conductor's.)
-6. **Decomposition procedure** — the orthogonality discriminator, two guard rails, design-maturity timing,
-   plan-vs-delivery-grouping, Model-B-only; sizing heuristics consuming the `strategy-work-organization`
-   sizing standard. Acceptance test: re-derive CWC's D1–D4.
-7. **Grouping taxonomy + cohort-graduation** — the bounded `theme ⊃ cohort ⊃ WU` taxonomy; the path-valued
-   `Cohort` field; the constitutive `cohort-{name}.md` managed record (ADR-022 family, H1 / H2-cohort-level /
-   H3-per-slug, membership-derived) + `template-cohort.md`; and the **graduation workflow** that turns a
-   decomposing WU into a cohort (mint cohort + member stubs, distribute design, re-point `Depends On`, retire
-   origin meta, regen). Forward-compat with composable-workflows.
+6. **Decomposition method** (planning-time *decide*) — the orthogonality discriminator, two guard rails,
+   design-maturity timing, plan-vs-delivery-grouping, Model-B-only; sizing heuristics consuming the
+   `strategy-work-organization` sizing standard. Acceptance test: re-derive CWC's D1–D4.
+7. **Grouping taxonomy + the graduation workflow** (lifecycle *execute*) — the bounded `theme ⊃ cohort ⊃ WU`
+   taxonomy; the path-valued `Cohort` field; the constitutive `cohort-{name}.md` managed record (ADR-022
+   family, H1 / H2-cohort-level / H3-per-slug, membership-derived) + `template-cohort.md`; and the
+   **graduation workflow** (park-shaped exit; transforms a live WU → cohort; shares `integrate`'s
+   PR-merge-cleanup primitive + a graduation-PR variant). Forward-compat with composable-workflows.
 8. **Lifecycle integration adaptation** — the single artifact-presence-tolerance requirement on the
    integrate / archive workflows (§ Lifecycle Integration). No tier fork.
 9. **`spec-review` method + ceremony extension** — depth-scaled default self-review; opt-in external-cadence
