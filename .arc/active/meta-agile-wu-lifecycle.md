@@ -12,16 +12,21 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Consolidated the draft into one coherent body (7/7a integration evaluation resolved →
-  not tier-forked; model-A correction applied throughout), then added the cohort-graduation model
-  (theme ⊃ cohort ⊃ WU taxonomy, path-valued `Cohort`, `cohort-{name}.md` managed record, graduation =
-  lifecycle workflow vs. decomposition = method, park-shaped delivery) and **decided the decomposition**:
-  AWL graduates into cohort `agile-wu-lifecycle`, members D1–D4. Committed `da114ec2` / `4a83801c` / `40dc20cf`
+- **Last Completed:** Refined the tier model to the **two-axis `Class` + per-stage `process intensity`** shape
+  and swept it through the whole draft: `Class` (`light`/`heavy`) = heavy-iff-either-axis (derivation ∨ scale),
+  decoupled from spec form (the `outline` straddle); `process intensity` (`low`/`medium`/`high`) per stage;
+  `sketch` → `brief`; design-doc-line → derivation-line. Committed `4b9fc47f`. Inboxed the arc-plan-conductor
+  realignment + the `briefs/` → `agent-briefs/` rename.
 - **Next Task:** [none]
-- **Blockers:** [none]
+- **Blockers:** **Theme-vs-cohort taxonomy** (blocks decomposition): decide categorical theme/cohort (draft
+  today; doc-presence = cohort-hood) vs. one `cohort` concept with coordination as a *property* (`Coordinated:`
+  flag / doc-presence) — the owner's design intent, which resolves the single-segment `Cohort:` field wrinkle.
+  Decide → update the draft → then graduate. Detail + the two models in SESSION-NOTES.
 
-- **Next Action:** Execute AWL's graduation into cohort `agile-wu-lifecycle` — manual park-shaped path (no
-  codified tooling yet; see SESSION-NOTES + draft § Graduation delivery lifecycle), then init D1 and author its
-  spec via `1_create-spec`.
+- **Next Action:** **First** resolve the theme-vs-cohort blocker (above) and update the draft accordingly.
+  **Then** execute AWL's graduation — manual park-shaped path (see SESSION-NOTES playbook); confirmed params:
+  theme dir `principle-anchored-core/` (exists) gains cohort dir `agile-wu-lifecycle/` with
+  `cohort-agile-wu-lifecycle.md`; D1–D4 get `Cohort: principle-anchored-core/agile-wu-lifecycle`; draft → retire
+  (pending blocker outcome). Then init D1 + author its spec via `1_create-spec`.
 
 ---
