@@ -258,11 +258,9 @@ abstraction and steer-per-process is better until consolidated.
 
 ### Open / deferred from this pass
 
-- **Tier names.** `lower` / `standard` are placeholders with known defects: "quick" overweights speed and
-  underweights the authoring-labor essence; "standard" implies *default* but names the *marked / maximal* case
-  (the lower tier is the more common one). The name must encode the design-doc line **and** read as weight in a
-  roster. → external research (Shape Up shaping vs. small-batch; Stripe RFC threshold; Google design-doc;
-  GitLab MR-driven).
+- **Tier names — resolved.** Settled as `Complexity Tier` with values `light` / `full`; see § Naming —
+  research-pass resolution below. (The "encode the design-doc line" criterion was corrected there: that
+  threshold is the Errand ↔ WU line, not the within-WU tier split — both tiers carry a spec.)
 - **Decomposition / WU-sizing / cohorts** (agenda item 6 + CWC requirements input). Resolved this session —
   see § Decomposition model below. Orthogonal-ish to the floor model — ceremony weight ≠ WU scope
   (full-ceremony WUs can be <2-day end-to-end) — but adjacent: it is where the "WUs trend too long" tendency is
@@ -402,10 +400,13 @@ name the axis and the two markers:
 
 These are floor-marker vs chosen-marker on the **same** scale (this supersedes the earlier "different layers /
 orthogonal axes" framing from this same pass — same axis, with layer 1 contributing the floor and layer 3 the
-chosen position above it). The consequence that matters: there is **one shared "level" vocabulary used at every
-stage**, not a separate tier-vocabulary *and* depth-vocabulary — which kills the `standard` (tier) / `standard`
-(depth) collision at its root. The conductor's "depth" is just the planning-stage name for this level and
-retires into the unified vocabulary. (All naming deferred — see § Deferred.)
+chosen position above it). The per-stage choice is a **shared ordinal** (`sketch` / `outline` /
+`detailed` — see § Naming) realized in each stage's own units (planning facilitation, spec-template weight,
+task-list phase count), **not** a single global enum; and the count of *available* positions is
+**tier-relative** — wide under `light`, collapsed toward forced under `full` (the floor model's band-width
+topology). The complexity tier and the formulation-depth ordinal use **distinct** vocabularies, so they never
+collide. The conductor's "depth" is just the planning-stage instance of this ordinal. (Names settled in
+§ Naming below.)
 
 ### Lane-switchable per-stage authoring
 
@@ -459,16 +460,67 @@ the conductor draft's scope-boundary flag anticipated, now made precise.
   self-resolution; the conductor is entry + optional re-engagement, not a mandatory cross-stage driver — a
   mandatory driver would re-bloat the conductor**) and the `arc start`-vs-conductor verb fate are settled in
   that coupled, code-grounded pass.
-- **Naming → research + semantics pass.** All of it: the meta-names (tier → `complexity tier` / `weight class`
-  / `scope class`?; unify the per-stage choice to one `level`?), the tier values (`quick`/`standard` defects),
-  the level values (`minimum`/`standard`/`expanded` — collision + asymmetric register), and the **bucket
-  count** ("why 3?" — not principled; a UX-granularity choice, currently *inconsistent across stages*: spec =
-  3 discrete variants vs task list = 1..N phase continuum; the granularity model should be consistent across
-  stages). Feeds the write-back below.
+- **Naming → resolved.** Settled in § Naming — research-pass resolution below: `Complexity Tier` =
+  `light` / `full`; `formulation depth` = `sketch` / `outline` / `detailed`. The "why 3?" bucket-count worry
+  dissolves there (three is the *light* tier's band resolution, not a universal count).
 - **Write-back debt (`draft-arc-plan-conductor.md`).** Its § 4 still says quick-tier generates a `## Scope`
   task-list-header section — stale against the floor model (spec is always a separate doc, lightest template
-  variant). Rewrite to "invoke AWL's lightest spec template" (level vocabulary pending the naming pass), and
-  retire "depth" into the unified level vocabulary.
+  variant). Rewrite to "invoke AWL's `sketch`-depth spec template", and retire the conductor's `depth` modes
+  (`minimum` / `standard` / `expanded`) into the planning-stage instance of `formulation depth`
+  (`sketch` / `outline` / `detailed`).
+
+## Naming — research-pass resolution (2026-06-03)
+
+> Resolves the tier-name question (floor model § Open) and the seam's deferred naming. Settled during the
+> 2026-06-03 `arc-plan` pass after a focused external-vocabulary research pass (RFC lightweight/standard idiom,
+> Shape Up appetite, incident-severity tiers, t-shirt / magnitude legibility). Research informed the names; the
+> calls are the project's. **Supersedes** the placeholder `lower` / `standard` and `quick` / `standard` and
+> `minimum` / `standard` / `expanded` usages elsewhere in this draft — reconcile the body at activation.
+
+### The slate
+
+| Slot | Name | Recorded? |
+| ---- | ---- | --------- |
+| Complexity axis (the floor / work-property) | **`Complexity Tier`** (meta field) | Yes — render deferred (lean off) |
+| Complexity-tier values | **`light`** / **`full`** | Yes |
+| Per-stage ceremony choice (the band position) | **`formulation depth`** | No — transient, per-stage, lane-switchable |
+| Formulation-depth ordinal | **`sketch`** / **`outline`** / **`detailed`** | No |
+
+### Rationale
+
+- **`Complexity Tier`, not bare `tier`.** The axis is named for its **basis** — complexity / design-authoring
+  depth — which reinforces the floor model's discipline that the tier tracks *work-demand only*, never
+  preference. Naming the basis (`complexity`) while keeping the `tier` abstraction also lets the values carry
+  *ceremony weight* (`light` / `full`) without the basis-vs-value grammar clash that a bare `Complexity: full`
+  would invite. Taken **regardless of the partial collision** with the quality-gate `Tier 1/2/3` vocabulary —
+  whose own rename (`draft-quality-gate-hooks.md`, current lean drops the tier numbers) likely clears it
+  anyway, and which is non-catastrophic either way.
+- **`light` / `full`, not `quick` / `standard`.** `quick` overweighted *speed* over the authoring-labor
+  essence; `standard` implied *default* while naming the *marked / maximal* case. `light` reads as relative
+  (vs. `lightweight`, which sounds absolute / "not much" and is over-long against `full`); `full` is the right
+  ceiling word (`heavy` carries the same absolute-sounding baggage `full` avoids). This is the **within-WU**
+  complexity split — *not* the design-doc-or-not threshold, which is the Errand ↔ WU line (wrapper floor): both
+  tiers carry a spec; they differ in design-authoring depth, not in whether a design exists.
+- **`formulation depth` is a concept, not a field.** It *defines the lanes* and is re-selectable per stage (can
+  differ between planning stages), so it is transient — never a recorded meta value or render column. The name
+  captures process **and** artifact (you *formulate* an approach and produce *a formulation*), and fences the
+  **pre-implementation** scope in a way `authoring` does not (code is authored too; nothing is "formulated"
+  during execution).
+- **`sketch` / `outline` / `detailed`** reads as an ordinal progression at every pre-impl stage (sketch /
+  outline / detail a plan, a spec, a task list), is collision-free with the tier vocabulary, and avoids the
+  floor-word-vs-magnitude-word register trap (`minimum` / `expanded`). It is a **shared ordinal**, not a global
+  enum: each stage realizes it in its own units, and the count of *available* positions is tier-relative — wide
+  under `light`, collapsed toward forced under `full` (the floor model's band-width topology). **"Why three?"**
+  resolves here: three is the resolution of the *light* tier's wide band, not a universal tier count — no
+  industry framework runs a 3-level ceremony scale, which was the tell.
+
+### Record-but-don't-necessarily-render
+
+`Complexity Tier` records on the meta — it is scope item 2's `**Tier:**` field, renamed; it groups with the
+classification fields (`Depends On` / `Cohort` / `Priority`), not with provenance (`Origin` / `Design`).
+**Rendering is a separate call:** the parallelism-planning rationale points at `user.status` In-Flight if
+anywhere, not ROADMAP, and with both tables near max width the lean is **off in renders** until that view's
+value is demonstrated. Recording is cheap and stable; render-inclusion stays open.
 
 ## WOR alignment note (2026-05-19)
 
