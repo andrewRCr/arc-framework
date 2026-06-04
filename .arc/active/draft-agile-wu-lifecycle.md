@@ -380,6 +380,96 @@ and the two rails produce that decomposition, the procedure works; if it strains
   atomic tier. Compounds with the floor model's tier reconciliation — one DEV-RULES / strategy sweep at
   activation.
 
+## AWL ↔ conductor seam — planning-pass resolution (2026-06-03)
+
+> Resolves agenda item 4 (the circular deference) and the *conceptual* half of item 5; informs the floor
+> model's deferred knob-vs-steer question and the upcoming naming pass. Derived during the 2026-06-03
+> `arc-plan` pass from the floor model above, the conductor draft's scope-boundary flag
+> (`draft-arc-plan-conductor.md`), and `draft-composable-workflows.md`. Mechanism and naming are explicitly
+> deferred — see § Deferred below.
+
+### One ceremony axis: tier is the floor, level is the choice
+
+There is **one ceremony axis** (artifact / process weight), and two markers on it — not two orthogonal axes.
+The "circular deference" persisted because both drafts called their concern "spec-form work"; the fix is to
+name the axis and the two markers:
+
+- **Tier — the floor marker.** Where the complexity floor sits on the axis. A property of the *work*
+  (objective authoring-labor / complexity, the floor model's layer 1). Set at entry; a **one-way ratchet** —
+  it rises when a stage reveals complexity, never demotes (demotion would discard work).
+- **Level — the chosen marker.** Where the user *chooses* to sit within `[floor, ceiling]` (the floor model's
+  layer-3 user-above choice). Not a property of the work; a per-stage selection.
+
+These are floor-marker vs chosen-marker on the **same** scale (this supersedes the earlier "different layers /
+orthogonal axes" framing from this same pass — same axis, with layer 1 contributing the floor and layer 3 the
+chosen position above it). The consequence that matters: there is **one shared "level" vocabulary used at every
+stage**, not a separate tier-vocabulary *and* depth-vocabulary — which kills the `standard` (tier) / `standard`
+(depth) collision at its root. The conductor's "depth" is just the planning-stage name for this level and
+retires into the unified vocabulary. (All naming deferred — see § Deferred.)
+
+### Lane-switchable per-stage authoring
+
+The user's pick within the band is made **per-stage, not once at entry, and is re-selectable at each stage
+transition**. Entry sets a *default cascade* (derived from tier); each of the three pre-implementation
+**authoring** stages — pre-spec planning, spec creation, task generation — re-resolves its level within the
+band. Two guardrails keep this safe rather than chaotic:
+
+1. **Down-switching is bounded by the tier floor.** You may choose lighter going *into* a stage, never below
+   the forced complexity floor — the floor protects genuine design work.
+2. **No-demotion, correctly scoped** (replaces the body's blanket "promotion is one-way / no demotion", which
+   was too coarse). You are free to choose *how much to produce* going into a not-yet-started stage; you may
+   **not tear down** a heavier artifact already produced. Demotion-of-produced-artifacts discards work;
+   lighter-choice-going-in does not. The tier ratchet is one-way; the per-stage level floats within the band.
+
+This is **self-diagnosing**: up-switching a *downstream* stage past the tier default (e.g. a minimal spec but
+a heavy phased task list) *is* the tier-promotion signal — the incoherent combo is the floor telling you it was
+set too low. Lane-switch-up-downstream and tier-promotion are one event seen from two angles.
+
+Integration is **not a lane.** Unlike the three pre-impl authoring stages, integration ceremony is not a
+user-selectable per-stage level — it consumes what was produced rather than choosing how much to produce. It
+stays consistent, lightweight-by-default, and configurable independently of the level axis. **Open (flagged,
+not decided):** whether integration ceremony nonetheless derives *some* weight from the realized tier — the
+body's scope items 7 / 7a tier-aware sweep (atomic trivial / quick standard / standard full) — needs a proper
+evaluation before those items are dismissed wholesale. Part of 7 / 7a plainly falls out (integration is not a
+lane); whether tier-sensitivity of the sweep / archive survives is a separate question. Evaluate at the
+reconciliation pass; non-blocking.
+
+### Ownership: AWL defines, the conductor elicits
+
+- **AWL owns the engine and the definitions.** The axis itself; the tier classification + floor enforcement +
+  promotion ratchet; the per-stage levels and their grammar (the spec template family, the task-list phase
+  grammar, the planning-stage level set); the lane-switch triggers / connections; and the tier→default-cascade
+  mapping. This is a structure / workflow / template concern — AWL's charter. Everything here is built and
+  workable from AWL, conductor or not.
+- **The conductor owns ergonomics only, downstream.** It elicits, guides, and *assesses fit for* a lane —
+  recommends, and may flag a misfit ("this reads heavier than the lane you picked") — but **never dictates,
+  never defines the lanes, never owns their triggers / connections / codification.** It applies AWL's codified
+  tier→cascade mapping at the planning entry; it is the planning-stage facilitation instance, not a cross-stage
+  driver.
+
+This narrows the conductor and de-risks it, pulling the headline scalable-WU value into AWL — the resolution
+the conductor draft's scope-boundary flag anticipated, now made precise.
+
+### Deferred from this pass
+
+- **Mechanism → coupled with item 5 (`draft-composable-workflows.md`).** Per-stage level re-resolution *is*
+  resolve-then-load applied per stage (composable's draft already calls the conductor's depth-selection "the
+  tier-axis instance of resolve-then-load"; lane-switching generalizes that to every pre-impl stage). So item
+  4's mechanism tail lives with item 5: the through-line-vs-self-resolution call (**lean: per-stage
+  self-resolution; the conductor is entry + optional re-engagement, not a mandatory cross-stage driver — a
+  mandatory driver would re-bloat the conductor**) and the `arc start`-vs-conductor verb fate are settled in
+  that coupled, code-grounded pass.
+- **Naming → research + semantics pass.** All of it: the meta-names (tier → `complexity tier` / `weight class`
+  / `scope class`?; unify the per-stage choice to one `level`?), the tier values (`quick`/`standard` defects),
+  the level values (`minimum`/`standard`/`expanded` — collision + asymmetric register), and the **bucket
+  count** ("why 3?" — not principled; a UX-granularity choice, currently *inconsistent across stages*: spec =
+  3 discrete variants vs task list = 1..N phase continuum; the granularity model should be consistent across
+  stages). Feeds the write-back below.
+- **Write-back debt (`draft-arc-plan-conductor.md`).** Its § 4 still says quick-tier generates a `## Scope`
+  task-list-header section — stale against the floor model (spec is always a separate doc, lightest template
+  variant). Rewrite to "invoke AWL's lightest spec template" (level vocabulary pending the naming pass), and
+  retire "depth" into the unified level vocabulary.
+
 ## WOR alignment note (2026-05-19)
 
 WOR R66-R68's renames are applied throughout this draft: WU artifact prefixes `plan-*` → `draft-*`
