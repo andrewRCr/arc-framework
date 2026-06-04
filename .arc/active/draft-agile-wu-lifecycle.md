@@ -3,7 +3,7 @@
 **Purpose:** Scale work-unit ceremony to the work's actual pre-impl demand while holding ARC's execution
 discipline invariant. A two-value **`Class`** (`light` / `heavy`) recording planning weight — `heavy` iff
 either of two intrinsic, stage-decorrelating axes is high (**derivation** of an open design, or **scale** of
-the codebase-grounding a correct plan needs) — a per-stage **process intensity** (`low` / `medium` /
+the codebase-grounding a correct plan needs) — a per-stage **planning depth** (`low` / `medium` /
 `high`), three spec forms (`brief` / `outline` / `detailed` → PRD/RFC), and an actionable decomposition
 procedure together close the agility gap where ARC's uniform ceremony costs more than the work for small
 bounded WUs — without making any discipline optional. This is the execution arm of the scalable-core
@@ -14,11 +14,11 @@ spec-shape scaling, task-list scaling, the AWL ↔ conductor seam, decomposition
 deep-research pass and the integration-ceremony (former scope items 7 / 7a) evaluation are all resolved and
 folded into one coherent body. The **two-axis refinement** (2026-06-04) supersedes the earlier "one axis,
 two markers" framing: `Class` aggregates two intrinsic, stage-decorrelating axes (derivation, scale), is
-decoupled from spec form (the `outline` straddle), and process intensity resolves per stage (`sketch` →
+decoupled from spec form (the `outline` straddle), and planning depth resolves per stage (`sketch` →
 `brief`, `Complexity Tier` → `Class` `light`/`heavy`). The cohort-structure / graduation thread is resolved
-(the `theme ⊃ cohort ⊃ WU` taxonomy + the
+(the nested-cohort grouping taxonomy + the
 graduate-a-decomposing-WU-into-a-cohort model). **Decision: this WU decomposes and graduates** into a cohort
-`agile-wu-lifecycle` (four member WUs D1–D4) under the `principle-anchored-core` theme — it is its own
+`agile-wu-lifecycle` (four member WUs D1–D4) under the `principle-anchored-core` cohort — it is its own
 decomposition procedure's second acceptance test and first graduation customer (§ Scope Estimate). Each
 member spec is authored from this draft via `1_create-spec`. External-artifact reconciliation
 (`strategy-work-organization`, DEV-RULES.ARC) is execution-time scope, not resolved here.
@@ -105,7 +105,7 @@ planning? Quick fixes with clear scope can rely on well-crafted git commits") an
 **Invariant (P1; DEV-RULES.ARC § Design before implementation):** all settle-able design is settled
 *before* implementation — best reasonable effort, never a conscious deferral. What varies is **not whether
 design is settled** but **how much pre-impl work settling it demands**, along **two axes** (§ Class and
-Intensity): **derivation** — how much design must be *authored* versus read off existing inputs — and
+Planning Depth): **derivation** — how much design must be *authored* versus read off existing inputs — and
 **scale** — how much codebase-grounding a correct impl plan demands. Along derivation:
 
 - **Errand** — zero authoring. The intent *is* the design. ("Intent *to* design" disqualifies it.)
@@ -115,7 +115,7 @@ Intensity): **derivation** — how much design must be *authored* versus read of
   alternatives, and tradeoffs that do not exist until someone works them out. Always `heavy`.
 
 The scale axis is co-equal: a determinate-but-large WU (a mechanical refactor) is `heavy` by grounding
-demand alone. `Class` is `heavy` iff *either* axis is high (§ Class and Intensity).
+demand alone. `Class` is `heavy` iff *either* axis is high (§ Class and Planning Depth).
 
 > **Candidate constitutional sharpening (flagged, not decided):** today's spec-directed rule handles
 > *emergent* design questions ("route them back to the spec"). Add the stronger *front-loading* duty —
@@ -140,7 +140,7 @@ So **both endpoints are fixed for the same reason — degenerate bands — and o
 *requires* derivation. `Class` is the separate `heavy`-iff-either-axis aggregate, so a determinate-but-large
 WU is `heavy` with an `outline` spec (the straddle) — `Class` and spec form are deliberately decoupled. The
 derivation line and the scale trigger are the two `heavy`-promotions; both are load-bearing for § Class and
-Intensity.
+Planning Depth.
 
 ### Atomic retires as a *tier*
 
@@ -163,9 +163,9 @@ heavily by preference is still **`light`**, correctly: the *work* was light; the
 This keeps `Class` objective and useful for parallelism planning ("how much genuinely-heavy work is in
 flight"). (Intrinsic scale is not preference — a large refactor is `heavy` by demand, not taste.)
 
-**Machinery available is identical at every intensity** — the same full-strength workflows, grounding
-audit, review, and gates, **parameterized by intensity rather than forked** (§ Grounding audit). What
-differs is how much there is to apply it to (artifact surface) and whether the intensity is *mandated*
+**Machinery available is identical at every depth** — the same full-strength workflows, grounding
+audit, review, and gates, **parameterized by depth rather than forked** (§ Grounding audit). What
+differs is how much there is to apply it to (artifact surface) and whether the depth is *mandated*
 (`detailed` is forced when design derives; a full grounding pass is forced at large scale — band collapsed)
 or *chosen* within the band (`outline` is chosen insurance over `brief`). The determinate middle's ceiling
 (`outline`) is **real rigor applied to a determinate design** — never a diet `detailed`. This is the
@@ -207,18 +207,18 @@ a leaky abstraction and steer-per-process is better until consolidated.
 
 ---
 
-## Class and Intensity: Two Axes, Resolved Per Stage
+## Class and Planning Depth: Two Axes, Resolved Per Stage
 
 The model is governed by **two intrinsic axes** of the work, a recorded coarse **`Class`**, and a per-stage
-**process intensity**. The earlier "one axis, two markers" framing was wrong in one consequential way: the
+**planning depth**. The earlier "one axis, two markers" framing was wrong in one consequential way: the
 two axes **load different stages**, so they **decorrelate** — and any model that collapses them into a
-single per-WU "depth" bucket gives the wrong answer for the work where they pull apart.
+single per-WU bucket gives the wrong answer for the work where they pull apart.
 
 ### The two axes (intrinsic work properties)
 
 - **Derivation** — how much design must be *authored* (derived) versus *recorded* (read off existing
   inputs). The durable framing of pre-impl ambiguity: a shipped WU still "required derivation." Loads
-  **pre-spec planning + the spec**. (Formerly miscalled the "design-doc line" — a misnomer, since in ARC
+  **drafting + spec creation**. (Formerly miscalled the "design-doc line" — a misnomer, since in ARC
   *every* non-Errand WU has a spec; the line separates *record from derive*, not *doc from no-doc*.)
 - **Scale** — how much codebase-grounding and mechanical mapping a *correct implementation plan* requires
   (symbols, relationships, breakdown accuracy), **independent of whether the design was derived**. Loads
@@ -227,7 +227,7 @@ single per-WU "depth" bucket gives the wrong answer for the work where they pull
 The two collapse at the heavy end (deriving an open design is inherently complex) and spread apart on the
 determinate side — which is where the two single-axis-heavy archetypes live:
 
-| WU archetype              | derivation | scale    | spec form      | **Class** | planning | spec | task-gen |
+| WU archetype              | derivation | scale    | spec form      | **Class** | drafting | spec | task-gen |
 | ------------------------- | ---------- | -------- | -------------- | --------- | -------- | ---- | -------- |
 | small fix                 | low        | low      | `brief`        | light     | low      | low  | low      |
 | moderate feature          | low        | med      | `outline`      | light     | low      | low  | med      |
@@ -256,18 +256,18 @@ though — a large refactor is `heavy` by its grounding demand even with an obvi
 (`heavy`/`brief` is empty: low scale can only reach `heavy` via derivation, and derivation forces
 `detailed`, never `brief`.)
 
-### `process intensity` — the per-stage resolution (`low` / `medium` / `high`)
+### `planning depth` — the per-stage resolution (`low` / `medium` / `high`)
 
-Each authoring stage resolves a **process intensity** *independently*, from the axis that loads it.
-Intensity is **transient, per-stage, never recorded**, and **able to vary across stages** — by work-need
+Each authoring stage resolves a **planning depth** *independently*, from the axis that loads it.
+Depth is **transient, per-stage, never recorded**, and **able to vary across stages** — by work-need
 *and*, to a bounded degree, user preference. That per-stage variability is the principle-anchored-core
-thesis in miniature (scale the grammar per stage; never the discipline), and treating intensity as one
+thesis in miniature (scale the grammar per stage; never the discipline), and treating depth as one
 WU-level bucket was the bug the two-axis view corrects. The archetype table's three rightmost columns are
-intensities; their *non-flat* profiles — refactor (low planning, high task-gen), algorithm (the reverse) —
+per-stage depths; their *non-flat* profiles — refactor (low drafting, high task-gen), algorithm (the reverse) —
 are the point.
 
-Only the spec stage's intensity names a durable artifact — the **spec form** (`low → brief`,
-`medium → outline`, `high → detailed`). Planning and task-gen realize their intensity in their own units
+Only the spec stage's depth names a durable artifact — the **spec form** (`low → brief`,
+`medium → outline`, `high → detailed`). Drafting and task-gen realize their depth in their own units
 (facilitation rounds; pass-structure + grounding depth), producing no separately-named artifact. The
 arc-plan conductor's selectable planning depth is the planning-stage instance of this ordinal.
 
@@ -290,8 +290,8 @@ deliverable — the model's correctness rests on the thresholds far more than on
 `light` iff **both** `heavy`-triggers are no. The triggers are recognizable in retrospect: determinate work
 that starts needing alternatives or a success-criteria matrix is the derivation trigger firing; determinate
 work whose task breakdown can't be made correct without a deep grounding pass is the scale trigger firing.
-Both are the `light → heavy` ratchet (§ Lane-switching). Early adopters will mis-call a stage occasionally;
-the lane-switch ratchet and the conductor's depth-aware navigation (§ AWL touches the *existing* `arc-plan`)
+Both are the `light → heavy` ratchet (§ Depth-shifting). Early adopters will mis-call a stage occasionally;
+the depth-shift ratchet and the conductor's depth-aware navigation (§ AWL touches the *existing* `arc-plan`)
 are the corrections, with user preference steering within the band — but the thresholds carry the load, so
 keep them crisp.
 
@@ -299,12 +299,12 @@ keep them crisp.
 
 **Every position the model exposes must be distinguishable to the *user* in rigor and/or speed; a
 distinction visible only to the author is arbitrary and must collapse.** This is a first-class acceptance
-criterion, and applying it honestly is what keeps the axes / `Class` / intensity split honest.
+criterion, and applying it honestly is what keeps the axes / `Class` / depth split honest.
 
 The spec forms differ in both speed and rigor — `brief` (fast) / `outline` (moderate) / `detailed`
 (thorough) — so the form ordinal passes cleanly. The two `Class` values pass too, including the straddle:
 a `heavy`/`outline` WU (large refactor) is felt-distinct from a `light`/`outline` WU by its task-gen
-intensity — a long grounding grind versus a quick one. And **there is still no `light`/`detailed`
+depth — a long grounding grind versus a quick one. And **there is still no `light`/`detailed`
 position**: `detailed` *derives*, which forces `heavy`. What the test *rejects* is a knob that would make
 `light/detailed` and `heavy/detailed` produce identical artifacts distinguished only modally (chosen vs.
 forced) — the **arbitrary-lever trap**. `Class` avoids it because it is not a second lever over a single
@@ -320,7 +320,7 @@ cognitive load up front; scale as a grounding grind at task-gen).
 The spec stage clinches the count: the gap between a single-paragraph `brief` and a full PRD is
 *enormous*, so a single middle is not optional — without `outline` the broad determinate-design middle of
 real work has only two unusable extremes. The spec stage's hard requirement for a middle **pins the form
-ordinal at three**, and stage-coherence carries the three-position intensity to planning and task-gen
+ordinal at three**, and stage-coherence carries the three-position depth to drafting and task-gen
 (where the middle is present but less dramatic).
 
 **Why three, when industry runs two?** Mature processes use a binary design-doc-or-not gate plus an
@@ -344,8 +344,8 @@ Research informed the names; the calls are the project's.
 | ---- | ---- | --------- |
 | Recorded WU classification (planning weight) | **`Class`** (meta field) | Yes — render deferred (lean off) |
 | `Class` values | **`light`** / **`heavy`** | Yes |
-| Per-stage process resolution | **`process intensity`** | No — transient, per-stage, varies by stage |
-| Process-intensity ordinal | **`low`** / **`medium`** / **`high`** | No |
+| Per-stage planning resolution | **`planning depth`** | No — transient, per-stage, varies by stage |
+| Planning-depth level | **`low`** / **`medium`** / **`high`** | No |
 | Spec artifact form | **`brief`** / **`outline`** / **`detailed`** (→ PRD / RFC) | the spec itself |
 | Underlying axes (explanation, never labels) | **derivation** + **scale** | No |
 
@@ -364,16 +364,23 @@ Rationale:
   *marked* case.) Definitional guardrail: `heavy` is about **design-derivation or grounding scale**, **not
   raw code volume** — a large but determinate mechanical change is `heavy` by its grounding demand, which
   the scale axis captures honestly.
-- **`process intensity` (low / medium / high), not `formulation depth` (sketch / outline / detailed).**
-  Intensity is resolved **per stage** and the stages decorrelate, so it needs a *magnitude* vocabulary
-  distinct from the *spec-form* vocabulary — forcing `outline` to double as a planning-stage "depth" was the
-  source of the "outline depth" awkwardness. `low` / `medium` / `high` reads cleanly at every stage ("high
-  task-gen intensity, low planning intensity"); "depth" survives only as the **colloquial** user frame ("a
-  deeper planning pass"). It is a concept, not a field — never recorded.
+- **`planning depth` (low / medium / high), not `process intensity` or `formulation depth`.** The axis is
+  resolved **per stage** and the stages decorrelate, so it needs a *magnitude* vocabulary distinct from the
+  *spec-form* vocabulary (`brief` / `outline` / `detailed`) — forcing `outline` to double as a planning-stage
+  depth was the old "outline depth" awkwardness. `depth` is the noun (it captures both the *process* and the
+  depth of its *product*); `planning` is the qualifier — anchoring the axis to the `State: Planning` stages it
+  spans, and matching the WU State value. `low` / `medium` / `high` are its **levels**, reading cleanly as
+  tagged scale positions and compound modifiers ("high task-gen depth", "a low-depth planning pass"); the
+  bare-noun "high depth" never has to appear, so the only knock on `depth` is cosmetic and avoidable.
+  Rejected: `rigor` (clean at the top but mis-frames the *bottom* — "low rigor" reads as permission to be
+  sloppy, which the axis never means; less elaboration ≠ less care); `process intensity` (accurate but adds a
+  second "process" term and loses the State anchor); `formulation depth` (its result-noun precision is already
+  covered by the concrete spec-form names, so the extra vocabulary doesn't pay). It is a concept, not a field
+  — never recorded.
 - **`brief` / `outline` / `detailed`, not `sketch` / …** `sketch` carried the wrong connotation — rough /
   preliminary / will-be-redone — the opposite of a floor spec, which is concise *and* authoritative *and*
   complete at its scope. `brief` reads as deliberately-concise-and-complete (a design brief), as both an
-  artifact ("a brief spec") and a magnitude ("brief work"); the form ordinal names lanes by their *output*,
+  artifact ("a brief spec") and a magnitude ("brief work"); the form ordinal names its levels by their *output*,
   not by a process verb. (`detailed` splits by feature / technical nature into PRD / RFC — § Detailed-spec
   subtypes; only `detailed` branches, because only `detailed` derives.)
 - **`derivation` + `scale` stay explanation, never labels.** The axes are inverse-correlated with "weight"
@@ -400,14 +407,14 @@ Each of the three pre-implementation **authoring** stages realizes the depth ord
 post-integration dogfooding refinement (scale a position up or down within reason if real use shows the
 tuning is off):
 
-1. **Pre-spec planning** (the existing `arc-plan`): `low` = quick determinacy-confirm (a couple of
+1. **Drafting** (pre-spec drafting; the existing `arc-plan`): `low` = quick determinacy-confirm (a couple of
    targeted questions); `medium` = bounded single-pass elicitation (surface the few real decisions +
    scope, no iteration); `high` = full iterative facilitation (today's `arc-plan`, later the
    conductor's refine-loop). Driven by **derivation**.
-2. **Spec** (`1_create-spec`): a template family (§ Spec shapes) — intensity names the form. `low` →
-   `brief` = intent + scope boundary + one falsifiable success signal; `medium` → `outline` =
+2. **Spec creation** (`1_create-spec`): a template family (§ Spec shapes) — the depth level names the form.
+   `low` → `brief` = intent + scope boundary + one falsifiable success signal; `medium` → `outline` =
    decision-centric record; `high` → `detailed` = the current full PRD, subtyped PRD / RFC.
-3. **Task-gen** (`2_generate-tasks`): pass-structure + phase count, **driven by scale**. `low` = single
+3. **Task generation** (`2_generate-tasks`): pass-structure + phase count, **driven by scale**. `low` = single
    combined pass with inline light grounding, one substantive phase + verification gate-check; `medium` =
    merged structure+content pass with the grounding audit retained, few phases; `high` = full 3-pass
    (structure → content → per-phase grounding audit) + 3–7 phases + dedicated verification phase — forced
@@ -435,7 +442,7 @@ What the idiom confirmed (and didn't):
   adds *one falsifiable success signal* on top — ARC's P1-driven addition, not industry-converged.)
 - **Procedure: async-first and scales with tier** — author-owned PR + bounded comment window (Oxide
   3–5 days), escalate to sync after ~2 round-trips (Microsoft), committee only for high-blast-radius
-  (Squarespace). Direct support for the felt-difference test on the *procedure* axis (lanes differ in speed
+  (Squarespace). Direct support for the felt-difference test on the *procedure* axis (levels differ in speed
   *and* rigor).
 - **Caveats:** several procedure findings are single-company existence-proofs (adapt-from, not norms); ADR's
   "fixed 5 fields" holds only for canonical Nygard (the family spans one sentence to 15 sections); Amazon
@@ -503,15 +510,15 @@ distinct templates?" Felt-difference test + dogfooding decide.
 - **Inline grounding** — even `brief` / task-gen keeps a *minimal* grounding check (named files / symbols
   exist); it is the generation-time slice of P1 intent-verification, hence floor, never "no grounding."
 
-### Grounding audit: scale by intensity, not scope, and keep the per-phase interlock
+### Grounding audit: scale by depth, not scope, and keep the per-phase interlock
 
 `arc-task-audit` is **already** per-task / per-phase-scoped at maximum — never "audit the whole task list in
-one go" — so *scope* is not a meaningful scaling parameter. What scales is **intensity**: a light
+one go" — so *scope* is not a meaningful scaling parameter. What scales is **depth**: a light
 grounding-only pass (files / symbols exist) at `low` vs the full eight-category audit at `high`. Critically,
-this is the **task-gen stage's intensity, keyed to the *scale* axis** — *not* inherited from the spec form.
-A determinate-but-large refactor carries an `outline` spec yet demands a `high`-intensity audit (its
+this is the **task-gen stage's depth, keyed to the *scale* axis** — *not* inherited from the spec form.
+A determinate-but-large refactor carries an `outline` spec yet demands a `high`-depth audit (its
 correctness lives in the mechanical mapping); a tricky-but-small algorithm carries a `detailed` spec yet
-needs little grounding. This is exactly why intensity resolves per stage (§ Class and Intensity).
+needs little grounding. This is exactly why depth resolves per stage (§ Class and Planning Depth).
 
 The audit's *interlock cadence* — audit one phase → interlock (surface findings + recommendations) → take
 feedback / confirmation / iteration → revise that phase → proceed to the next phase's audit → interlock — is
@@ -520,25 +527,25 @@ surface everything at the end) risks denying the user the chance to absorb findi
 iterate; per-phase interlock feels load-bearing even for a two-phase list. Treat per-phase interlock as
 invariant pending a spec-time confirmation.
 
-So: **parameterize the one invariant procedure by intensity — do not fork it into a second skill.** task-gen
-invokes it at the stage's scale-resolved intensity; **mid-impl always offers the full variant regardless of
-the WU's `Class`** (a `light` WU can still hit a tricky task), so intensity is the per-context *default*,
+So: **parameterize the one invariant procedure by depth — do not fork it into a second skill.** task-gen
+invokes it at the stage's scale-resolved depth; **mid-impl always offers the full variant regardless of
+the WU's `Class`** (a `light` WU can still hit a tricky task), so depth is the per-context *default*,
 never a lock — preserving the at-will, human-and-agent use the skill already serves. Parameterizing (rather
 than forking)
 is also the forward-compat-as-fragment shape (§ composable-workflows).
 
-### Lane-switching: asymmetric and input-gated
+### Depth-shifting: asymmetric and input-gated
 
 The user's pick within the band is made **per-stage, not once at entry, and is re-selectable at each stage
 transition**. Entry sets a *default cascade* (derived from `Class`); each authoring stage re-resolves its
-intensity within the band. Two guardrails keep this safe rather than chaotic:
+depth within the band. Two guardrails keep this safe rather than chaotic:
 
 1. **Down-switching is bounded by the demand floor.** You may choose lighter going *into* a stage, never
    below the forced floor (derivation or scale) — the floor protects genuine design and grounding work.
 2. **No-demotion, correctly scoped.** You are free to choose *how much to produce* going into a
    not-yet-started stage; you may **not tear down** a heavier artifact already produced.
    Demotion-of-produced-artifacts discards work; lighter-choice-going-in does not. The `Class` ratchet is
-   one-way; the per-stage intensity floats within the band.
+   one-way; the per-stage depth floats within the band.
 
 Concretely, asymmetric and input-gated:
 
@@ -592,7 +599,7 @@ The review *gate* is invariant (a spec-finalization review increment always fire
 *cadence* scale and are configurable, via two ARC mechanisms:
 
 - **`spec-review` method** — always loaded by create-spec; ships a **lightweight default self-review**
-  (coherence + grounding pass, intensity-scaled: quick at `brief`, fuller at `detailed`), overridable. The
+  (coherence + grounding pass, depth-scaled: quick at `brief`, fuller at `detailed`), overridable. The
   gate's default content. (May co-home with a broader review-method-family rather than AWL owning it
   outright — settle at spec.)
 - **`spec-review`-ceremony extension** — fires at the spec-finalization fire-point, **inactive / empty by
@@ -600,7 +607,7 @@ The review *gate* is invariant (a spec-finalization review increment always fire
   committee cadences). The strategy doc carries those as **informative industry precedent + a mapping, not
   ARC-enforced.**
 
-So: gate invariant; method = shippable intensity-scaled default; extension = optional external cadence.
+So: gate invariant; method = shippable depth-scaled default; extension = optional external cadence.
 
 ---
 
@@ -609,10 +616,10 @@ So: gate invariant; method = shippable intensity-scaled default; extension = opt
 ### Per-stage self-resolution, flag-free feed-forward
 
 **Self-resolution over a conductor through-line — confirmed by the code.** The authoring workflows are
-already self-contained stage-entries that resolve their own context at entry; per-stage intensity resolution
-is the natural extension, and a conductor threading intensity across stages would be a retrofit (and cannot
+already self-contained stage-entries that resolve their own context at entry; per-stage depth resolution
+is the natural extension, and a conductor threading depth across stages would be a retrofit (and cannot
 be a hard requirement — see verb fate). **Feed-forward is flag-free: the upstream artifact's shape *is* the
-intensity signal** — `generate-tasks` reads the spec's realized template variant; `create-spec` reads the
+depth signal** — `generate-tasks` reads the spec's realized template variant; `create-spec` reads the
 draft's shape; each then self-resolves within the ratcheting `Class` floor. No threaded value, no
 orchestrator state —
 the resolve-then-load posture. (The conductor draft already uses "`plan-*` visibly uses expanded structure"
@@ -639,30 +646,30 @@ set / updated by whichever stage holds the information. Both pipeline orderings 
   refines it.
 
 Three clean roles, no flag: **`arc start` = stub-scaffolding; `arc-plan` = `Class`-determination; the
-conductor = intensity-direction.** **AWL ships the `Class` *model* (floor + ratchet + classification) and the
-intensity resolution inside the authoring workflows — not a CLI flag. `--class` is dropped.** Any eventual
+conductor = depth-direction.** **AWL ships the `Class` *model* (floor + ratchet + classification) and the
+depth resolution inside the authoring workflows — not a CLI flag. `--class` is dropped.** Any eventual
 create-new `Class` override would live on CWC's create-new command, consuming AWL's model.
 
 ### AWL touches the *existing* `arc-plan`, not the future conductor
 
-The universal planning entrypoint must scale across all three intensities *today* — leaving it
-intensity-blind means a `brief`-form WU still gets the only mode that exists (full facilitation), defeating
-the lightness. AWL's minimal, light-touch addition: **make `arc-plan`'s readiness bar intensity-relative** —
+The universal planning entrypoint must scale across all three depths *today* — leaving it
+depth-blind means a `brief`-form WU still gets the only mode that exists (full facilitation), defeating
+the lightness. AWL's minimal, light-touch addition: **make `arc-plan`'s readiness bar depth-relative** —
 its synthesis states (`fresh → rough → maturing → formalization-ready`) stay, but "formalization-ready" comes
-to mean *ready at the chosen intensity* (a `low` pass hits it after minimal elicitation; a `high` pass needs
+to mean *ready at the chosen depth* (a `low` pass hits it after minimal elicitation; a `high` pass needs
 full maturity) — plus define the three planning shapes and the artifact-shape feed-forward. The rich triage /
 decision-trees stay the conductor's job; AWL is the light-touch enabler.
 
 ### `composable-workflows`: forward-compat constraint, no hard dep
 
 composable's extraction rule ("extract *whole conditional steps / blocks*; keep fine-grained intra-step
-branches inline") dictates *how* AWL writes the intensity differentiation in `create-spec` /
-`generate-tasks`: as **whole-block intensity variants** (a `low` task-pass structure vs a `high` one), not
+branches inline") dictates *how* AWL writes the depth differentiation in `create-spec` /
+`generate-tasks`: as **whole-block depth variants** (a `low` task-pass structure vs a `high` one), not
 fine-grained "if light, skip this sentence" — so they extract cleanly to fragments when composable lands. The grounding-audit
 parameterization is the same shape. composable is a bare stub whose only `Depends On` (WOR) has shipped, and
 it does not block — so this is a **soft coordination note, not a `Depends On`**. (Per-stage level
 re-resolution *is* resolve-then-load applied per stage; composable's draft already calls the conductor's
-depth-selection "the tier-axis instance of resolve-then-load", and lane-switching generalizes that to every
+depth-selection "the tier-axis instance of resolve-then-load", and depth-shifting generalizes that to every
 pre-impl stage.)
 
 ### Ownership: AWL defines, the conductor elicits
@@ -670,13 +677,13 @@ pre-impl stage.)
 One ceremony axis, owned by AWL; facilitation, owned by the conductor.
 
 - **AWL owns the engine and the definitions.** The two axes; the `Class` classification + floor enforcement +
-  promotion ratchet; the per-stage intensities and their grammar (the spec template family, the task-list
-  phase grammar, the planning-stage intensity set); the lane-switch triggers / connections; and the
+  promotion ratchet; the per-stage depths and their grammar (the spec template family, the task-list
+  phase grammar, the planning-stage depth set); the depth-shift triggers / connections; and the
   `Class` → default-cascade mapping. This is a structure / workflow / template concern — AWL's charter.
   Everything here is built and workable from AWL, conductor or not.
-- **The conductor owns ergonomics only, downstream.** It elicits, guides, and *assesses fit for* a lane —
-  recommends, and may flag a misfit ("this reads heavier than the lane you picked") — but **never dictates,
-  never defines the lanes, never owns their triggers / connections / codification.** It applies AWL's
+- **The conductor owns ergonomics only, downstream.** It elicits, guides, and *assesses fit for* a level —
+  recommends, and may flag a misfit ("this reads heavier than the level you picked") — but **never dictates,
+  never defines the levels, never owns their triggers / connections / codification.** It applies AWL's
   codified `Class` → cascade mapping at the planning entry; it is the planning-stage facilitation instance,
   not a cross-stage driver.
 
@@ -686,7 +693,7 @@ depends only on shipped `worktree-foundation`), pulling the headline scalable-WU
 task-list-header section, and it speaks of `atomic` / `quick` / `standard` tiers — both stale against this
 model (spec is always a separate doc; the `Class` set is `light` / `heavy`). Rewrite to "invoke AWL's
 `brief`-form spec template", realign its tier-awareness to `Class`, and map the conductor's `depth` modes
-(`minimum` / `standard` / `expanded`) onto the planning-stage instance of `process intensity`
+(`minimum` / `standard` / `expanded`) onto the planning-stage instance of `planning depth`
 (`low` / `medium` / `high`). **Captured to `USER-INBOX` for routing to `arc-plan-conductor`.**
 
 ---
@@ -774,31 +781,42 @@ as one unit and iterate; settled design → decompose. Mechanically: a **provisi
 small, split one too big). Iterative, not a single blind upfront gate. CWC parked at *terminal planning*
 (= design settled) is the proof case: that maturity is exactly what makes it decomposable now.
 
-### The bounded grouping taxonomy: theme ⊃ cohort ⊃ WU
+### The bounded grouping taxonomy: nested cohorts, WU leaf
 
 Decomposition does **not** produce an arbitrary cohort tree, but it does need **one bounded level of
 nesting** — because the common case is decomposing a WU that is *already* a cohort member (AWL itself, a
-`principle-anchored-core` member). The grouping levels:
+`principle-anchored-core` member). There is **one grouping kind — the cohort** — and coordination is a
+*property it carries by degree*, not a separate category:
 
-- **Theme** — an optional outer grouping for browsing / dependency legibility. **No coordination doc.**
-  (`principle-anchored-core` is a theme — its members are loosely-coupled thesis siblings.)
-- **Cohort** — the coordinating level. **A cohort always carries a `cohort-{name}.md`** — doc-presence is
-  *constitutive* of cohort-hood, not an optional signal. (`agile-parallelism` is a cohort.)
+- **Cohort** — any deliberate grouping of sibling WUs. It **always carries a `cohort-{name}.md`** (no
+  exceptions — § The cohort doc), whose required floor is a one-paragraph **Purpose** and whose body
+  *accretes* coordination content (shared contracts, closeout criteria) as the siblings tighten. A grouping
+  that only *organizes* (loosely-coupled thesis siblings, e.g. `principle-anchored-core`) carries a
+  Purpose-only doc; one that actively *coordinates* (e.g. `agile-parallelism`) carries the fuller body. The
+  difference is **how much the doc says, not what kind of thing the grouping is.**
 - **WU** — the leaf deliverable (one branch, one PR, its own `meta-* / spec-* / tasks-*`).
 
-**The cap is one coordinating level:** never theme ⊃ theme or cohort ⊃ cohort. Each level above the WU is
-optional (`agile-parallelism` is a cohort with no theme above it; a standalone WU has neither). If a *theme*
-ever wants its own coordination doc, that is the signal its cohort boundaries are wrong — refactor, don't add
-a third doc-bearing tier. This keeps the anti-sprawl intent of "no cohort tree" while admitting the one real
-level decomposition needs. (`principle-anchored-core` is correctly doc-less *because* it is a theme — not a
-cohort-consistency gap, as a flatter reading would suggest.)
+"**Theme**" survives only as **informal prose** for a top-level, mostly-organizing cohort — never a distinct
+schema kind, never a doc-less exception. (Earlier drafts made theme a categorical doc-less tier; it broke at
+the single-segment `Cohort` value, where `principle-anchored-core` and a genuine top-level cohort are
+syntactically identical and disambiguated *only* by doc-presence. Collapsing to one kind with a Purpose-floor
+doc dissolves the wrinkle: every grouping has a doc, so doc-presence stops discriminating anything.)
+
+**The cap is one level of nesting:** at most `<cohort>/<subcohort>/<wu>` — never three grouping segments.
+This is a plain structural bound (anti-sprawl), **not** a limit on coordination: *both* levels may coordinate
+(an outer cohort with its own shared contracts above an inner one is allowed — indeed `principle-anchored-core`
+is already accreting toward it). Each level above the WU is optional (`agile-parallelism` is a top-level
+cohort with nothing above it; a standalone WU has neither). The required one-paragraph Purpose doubles as a
+**reality check on the grouping** — if you can't expand the slug into a sentence that distinguishes this
+cohort from "a pile of loosely-related WUs," it shouldn't exist (anti-sprawl from the content side,
+complementing the nesting cap from the structure side).
 
 Nesting lives in a **path-valued `Cohort` field** (`principle-anchored-core/agile-wu-lifecycle`), not a
-distinct artifact type: one `cohort-{name}.md` shape and one `template-cohort.md` at every level — a
-sub-cohort differs from a top-level cohort *only* by path depth (capped at two segments, theme/cohort).
-"Sub-cohort" is prose framing, never a `subcohort-*` prefix or a second type — a level change is then a
+distinct artifact type: one `cohort-{name}.md` shape and one `template-cohort.md` at every level — an inner
+cohort differs from a top-level one *only* by path depth (capped at two segments) and by how much its doc
+says. "Sub-cohort" is prose framing, never a `subcohort-*` prefix or a second type — a level change is a
 path-value edit, not a rename + retype. The on-disk dir mirrors the path
-(`backlog/planned/<theme>/<cohort>/<wu>/`); the relocatability invariant (pure `git mv` on state
+(`backlog/planned/<cohort>/<subcohort>/<wu>/`); the relocatability invariant (pure `git mv` on state
 transitions) is unaffected (just more dir levels), and the cohort-consistency invariant generalizes from
 "field matches parent dir" to "field-path matches dir-path."
 
@@ -806,10 +824,11 @@ transitions) is unaffected (just more dir levels), and the cohort-consistency in
 
 When a WU decomposes it **graduates into a cohort** carrying the original name: AWL → cohort
 `agile-wu-lifecycle` (members D1–D4), `cohort-agile-wu-lifecycle.md` repurposed from this draft's
-coordination content, sitting under the `principle-anchored-core` theme. This is the recursive shape — a
-*standalone* WU that decomposes *becomes* a cohort; a WU *already* in a cohort graduates to a cohort under
-the (now-recognized) theme. It **preserves the name** — and so the browsing / narrative / mental-model
-references — at the right altitude (the pieces directly serve `agile-wu-lifecycle`, which serves the theme).
+coordination content, nested under the `principle-anchored-core` cohort. This is the recursive shape — a
+*standalone* WU that decomposes *becomes* a cohort; a WU *already* in a cohort graduates to a **sub-cohort**
+under its existing parent. It **preserves the name** — and so the browsing / narrative / mental-model
+references — at the right altitude (the pieces directly serve `agile-wu-lifecycle`, which serves
+`principle-anchored-core`).
 
 The "name loss breaks references" worry splits cleanly and dissolves:
 
@@ -823,13 +842,21 @@ The "name loss breaks references" worry splits cleanly and dissolves:
 `ROADMAP` / `STATUS.USER` render from metas, so regen handles the WU→cohort shift automatically (no
 `agile-wu-lifecycle` WU node; a cohort grouping of the in-flight pieces) — no manual roster anywhere.
 
-### The cohort doc — a managed coordination record (ADR-022 family)
+### The cohort doc — every grouping's identity record (ADR-022 family)
 
-`cohort-{name}.md` joins the structured-record family alongside the meta record (ADR-022). Shape:
+`cohort-{name}.md` joins the structured-record family alongside the meta record (ADR-022), and is
+**constitutive of every cohort** — its presence is what marks a dir as a deliberate grouping rather than an
+incidental parent. Its content scales from pure orientation to full coordination:
 
 - **H1 + uniform preamble** (from `template-cohort.md`).
-- **H2 — cohort-level content and fields:** thesis, parent-theme pointer, closeout criteria, and shared
-  contracts (cross-member design no single WU owns).
+- **Required floor — a one-paragraph `Purpose`:** an expansion of the slug — *what this group of WUs is
+  about*, the shared goal they serve. The minimum that makes the file non-vacuous; also the grouping's
+  reality check (§ taxonomy). A purely-organizing cohort stops here. The Purpose line may **sharpen** into a
+  thesis as the grouping tightens.
+- **Optional H2 — coordination content (accretes above the floor):** shared contracts (cross-member design no
+  single WU owns), closeout criteria, and a parent-cohort pointer (derivable from the `Cohort` path —
+  rendered / templated, not hand-maintained). There is **no `Coordinated` flag**: coordination is a continuum
+  of how much the doc says, with no discrete line to mark.
 - **H3-per-WU, keyed by slug — a *partitioned coordination surface*, not a membership roster.** Each member
   edits only its own H3 section, so parallel writers line-merge cleanly — the git-tree analog of the
   notes-ref entry-union (no tombstones needed: a tracked file handles deletions natively, and the partition
@@ -840,7 +867,7 @@ meta template already declares "sibling list derived"). The H3 set is therefore 
 gets a section only when it has cross-cutting coordination to record; a missing section just means "nothing
 to coordinate," with no sync obligation and no drift. The doc never carries a roster or a status table (those
 render). Orphan H3 sections (a renamed / removed WU) are caught by the cohort-consistency invariant, which
-doubles as this doc's schema validator (H3 slugs ⊆ derived members; required H2 fields present). The cohort
+doubles as this doc's schema validator (Purpose present; H3 slugs ⊆ derived members). The cohort
 doc carries **coordination only — never design that drives a task list** (specs feed task lists and validate
 completion; coordination docs do neither). Exact field / section set is a prototype-iterate artifact, like
 the spec templates.
@@ -874,7 +901,9 @@ teardown) with cohort-specific choreography. It is **not** an `integrate-work-un
 - **Runs on the originating planning branch**, as that WU's terminal act — planning concluded "this is a
   cohort," so materializing the cohort *is* the deliverable. No fresh branch; no `Active` step.
 - **Steps:** mint the cohort (dir + `cohort-{name}.md` from the origin draft's coordination content) →
-  scaffold the N member stubs in `backlog/planned/<theme>/<cohort>/` (`meta-* + draft-*` each, `Cohort`
+  **backfill the parent cohort's doc if absent** (a nested graduation under an existing parent that lacks one
+  — e.g. `cohort-principle-anchored-core.md`, Purpose-only — since every grouping carries a doc) →
+  scaffold the N member stubs in `backlog/planned/<cohort>/<subcohort>/` (`meta-* + draft-*` each, `Cohort`
   path-set, `Depends On` edges encoding order) → distribute the origin draft's design into each member draft
   (plan-grouping → delivery-grouping) → re-point *incoming* `Depends On` per the cut map → **retire the
   origin `meta-*` + `draft-*`** (deleted; fully redistributed) → regen `ROADMAP` → park-shaped PR to `main`
@@ -956,11 +985,11 @@ Resolves the former scope items 7 / 7a (tier-aware ceremony scaling), evaluated 
 consolidated model. The headline: integration ceremony is **not tier-forked** — it is one invariant
 procedure whose cost scales naturally with what was produced.
 
-### Integration is not a lane
+### Integration is not a selectable depth
 
 Unlike the three pre-impl authoring stages, integration ceremony is **not a user-selectable per-stage
-intensity** — it *consumes* what was produced rather than *choosing* how much to produce. So the
-process-intensity / spec-form axis (`brief` / `outline` / `detailed`) does **not** reach it. It stays
+depth** — it *consumes* what was produced rather than *choosing* how much to produce. So the
+planning-depth / spec-form axis (`brief` / `outline` / `detailed`) does **not** reach it. It stays
 consistent, lightweight-by-default, and configurable independently of that axis.
 
 ### Not tier-forked: one invariant procedure, cost-scales
@@ -996,7 +1025,7 @@ has no activate at all, and `light` / `heavy` both carry a spec (they differ in 
 presence). What survives is the invariant **spec-alignment gate** — "a spec exists at the resolved form" —
 which cost-scales (near-instant for a `brief`). WOR's `review.planning_checkpoint` opt-in
 (`pre-execution-graduation` extension) stays — orthogonal, applied wherever planning happens, never
-`Class`-gated on / off. Planning itself happens at *all* levels (intensity-scaled), so there is no "bypass planning"
+`Class`-gated on / off. Planning itself happens at *all* levels (depth-scaled), so there is no "bypass planning"
 branch — only Errands (below the wrapper) have no planning workflow.
 
 ### AWL's residue: artifact-presence-tolerant integration
@@ -1005,7 +1034,7 @@ After removing the atomic rows (Errand-owned, shipped) and the WOR-absorbed mach
 the integrate / archive workflows shrinks to a **single requirement**:
 
 > Integration is **artifact-presence-tolerant, not artifact-presence-assuming** — it consumes whatever the
-> resolved intensity produced (a `brief` spec, a one-phase task list, no separate completion doc) without
+> resolved depth produced (a `brief` spec, a one-phase task list, no separate completion doc) without
 > requiring full-shape artifacts.
 
 That is the legitimate residue of tier-introduction: WOR shipped integration around the full shape; AWL's
@@ -1053,16 +1082,18 @@ graduation hit relative-link breakage on move, fixed by converting both drafts t
 
 ### Cohort-consistency invariant
 
-A WU's path-valued `**Cohort:**` field must match its `backlog/planned/<theme?>/<cohort>/` parent dir-path
-(generalized from single-segment to path-matching for the grouping taxonomy); **every cohort carries a
-`cohort-{name}.md`** (doc-presence is constitutive of cohort-hood — a doc-less grouping is a *theme*, so
-`principle-anchored-core`'s doc-lessness is correct, not a gap); and a cohort doc's **H3 slugs must be a
-subset of derived members** (no orphan sections — membership is derived from `Cohort` fields, never a roster
-in the doc). Field-vs-dir drift is a silent failure (a WU assigned to one cohort but filed under another).
-AWL owns the *invariant* (cohort semantics — what a cohort is, its boundaries, the theme/cohort/WU taxonomy,
-derived membership — is this WU's charter); the check also serves as the cohort doc's schema validator;
-*enforcement* (a backlog-scoped structural guard; `active/` is flat and `completed/` ordinal, so neither
-applies) routes to `quality-gate-hooks`, same family as its existing forbidden-pattern / layout-drift checks.
+A WU's path-valued `**Cohort:**` field must match its `backlog/planned/<cohort>[/<subcohort>]/` parent
+dir-path (generalized from single-segment to path-matching for the grouping taxonomy); **every grouping dir
+carries a `cohort-{name}.md`** (constitutive — its presence is what makes the dir a cohort rather than an
+incidental parent; no doc-less grouping exists, so doc-presence is invariant, not a theme-vs-cohort
+discriminator) carrying at least a **`Purpose`** floor; and a cohort doc's **H3 slugs must be a subset of
+derived members** (no orphan sections — membership is derived from `Cohort` fields, never a roster in the
+doc). Field-vs-dir drift is a silent failure (a WU assigned to one cohort but filed under another). AWL owns
+the *invariant* (cohort semantics — what a cohort is, its boundaries, the one-level nesting cap, derived
+membership — is this WU's charter); the check also serves as the cohort doc's schema validator (Purpose
+present; H3 slugs ⊆ derived members); *enforcement* (a backlog-scoped structural guard; `active/` is flat and
+`completed/` ordinal, so neither applies) routes to `quality-gate-hooks`, same family as its existing
+forbidden-pattern / layout-drift checks.
 
 ---
 
@@ -1105,11 +1136,13 @@ in-flight transitions. External-tracker URLs are out of scope (they live in `Ori
 ### `Cohort` field — path-valued
 
 The existing `Cohort` field becomes **path-valued** to carry the grouping taxonomy (§ The bounded grouping
-taxonomy): `<theme>/<cohort>` (e.g. `principle-anchored-core/agile-wu-lifecycle`), or a single segment for a
-top-level cohort, or `[none]` for a standalone WU. Capped at two segments. It stays the source of truth for
-membership (the sibling list is *derived*, never stored as a roster). The path mirrors the on-disk dir-path,
-enforced by the cohort-consistency invariant (§ Invariants). A new sibling **`cohort-{name}.md`** managed
-record (ADR-022 family) is constitutive of every cohort; `template-cohort.md` is a new template deliverable.
+taxonomy): a single segment `<cohort>` for a top-level cohort, `<cohort>/<subcohort>` for a nested one (e.g.
+`principle-anchored-core/agile-wu-lifecycle`), or `[none]` for a standalone WU. Capped at two segments (one
+level of nesting). It stays the source of truth for membership (the sibling list is *derived*, never stored
+as a roster). The path mirrors the on-disk dir-path, enforced by the cohort-consistency invariant
+(§ Invariants). A sibling **`cohort-{name}.md`** managed record (ADR-022 family) is constitutive of every
+cohort — required floor a one-paragraph `Purpose`, coordination content accreting above; `template-cohort.md`
+is a new template deliverable.
 
 ---
 
@@ -1197,7 +1230,7 @@ mechanical sweep.
 
 ### Soft coordination (not dependencies)
 
-- **`composable-workflows`** — forward-compat-as-fragment constraint on how AWL writes intensity
+- **`composable-workflows`** — forward-compat-as-fragment constraint on how AWL writes depth
   differentiation (§ composable-workflows). Not a `Depends On`.
 - **`arc-plan-conductor`** — AWL defines, the conductor elicits (§ Ownership). AWL does not depend on it;
   benefits from its `Class`-aware orchestration if it ships first, degrades gracefully if not (conductor
@@ -1218,7 +1251,7 @@ is sequenced next-up after the post-WF layer settles.
 ### `Class` drift via under-specification
 
 Adopters may default to `light` for everything to avoid `detailed`-spec ceremony, even when work is
-genuinely `heavy`. Mitigations: the self-diagnosing lane-switch signal (a heavy downstream artifact over a
+genuinely `heavy`. Mitigations: the self-diagnosing depth-shift signal (a heavy downstream artifact over a
 minimal spec *is* the floor-was-set-too-low signal, and reaching for a `detailed` spec *is* the graduation);
 the explicit `**Class:**` field invites reviewer scrutiny ("Class: light" on a complex change has the
 explicit signal to push back); strategy-doc guidance with concrete examples on each side of the derivation
@@ -1269,8 +1302,6 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
 - **User-above preference: config knob vs. in-process steer** — deferred until the mechanical design is
   known; forward-compat binds now (§ User-above preference).
 - **Decomposition pipeline fire-point** — new workflow vs. a phase inside `create-spec`.
-- **Cohort-as-first-class** — free-form field vs. structural entity; earns its keep only if cohorts gain
-  shared lifecycle events.
 - **`Class` render-inclusion** — recorded always; rendered only if the parallelism-planning view
   demonstrates value.
 - **`Class`-aware `Design`-field validation** — warn-not-block, probably; PRD / spec decision.
@@ -1287,8 +1318,8 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
 
 ### In scope
 
-1. **The `Class` / intensity model** — `Class` (`light` / `heavy`, `heavy` iff either axis — derivation or
-   scale — is high) + `process intensity` (`low` / `medium` / `high`, per-stage) + three spec forms (`brief`
+1. **The `Class` / planning-depth model** — `Class` (`light` / `heavy`, `heavy` iff either axis — derivation or
+   scale — is high) + `planning depth` (`low` / `medium` / `high`, per-stage) + three spec forms (`brief`
    / `outline` / `detailed`). Constitutional amendment to DEV-RULES.ARC establishing the `Class` definitions,
    the two boundary tests (derivation line + scale trigger), the scaled-ceremony / invariant-discipline
    framing, and the front-loading-duty sharpening. Companion ADR (parallel scale to ADR-016).
@@ -1296,23 +1327,24 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
    validation, layered on the upstream-introduced fields; migration handling for existing WUs.
 3. **Spec template family** — `template-spec-brief.md` / `-outline.md` / `-detailed-*.md` (PRD / RFC
    subtypes); `Spec ({form}): {name}` H1; the form-agnostic `create-spec` reframe ("PRD" → "detailed
-   spec"); the intensity-relative spec-ready bar.
-4. **Scalable `create-spec` / `generate-tasks`** — per-stage intensity self-resolution, flag-free
-   feed-forward, whole-block intensity variants (composable-ready); task-list one-grammar (1..N phases +
-   always-present verification); grounding-audit intensity parameterization (per-phase interlock retained).
-5. **`arc-plan` intensity-relativity** — intensity-relative readiness bar; the three planning shapes;
+   spec"); the depth-relative spec-ready bar.
+4. **Scalable `create-spec` / `generate-tasks`** — per-stage depth self-resolution, flag-free
+   feed-forward, whole-block depth variants (composable-ready); task-list one-grammar (1..N phases +
+   always-present verification); grounding-audit depth parameterization (per-phase interlock retained).
+5. **`arc-plan` depth-relativity** — depth-relative readiness bar; the three planning shapes;
    artifact-shape feed-forward. (Light-touch; rich triage stays the conductor's.)
 6. **Decomposition method** (planning-time *decide*) — the orthogonality discriminator, two guard rails,
    design-maturity timing, plan-vs-delivery-grouping, Model-B-only; sizing heuristics consuming the
    `strategy-work-organization` sizing standard. Acceptance test: re-derive CWC's D1–D4.
-7. **Grouping taxonomy + the graduation workflow** (lifecycle *execute*) — the bounded `theme ⊃ cohort ⊃ WU`
-   taxonomy; the path-valued `Cohort` field; the constitutive `cohort-{name}.md` managed record (ADR-022
-   family, H1 / H2-cohort-level / H3-per-slug, membership-derived) + `template-cohort.md`; and the
+7. **Grouping taxonomy + the graduation workflow** (lifecycle *execute*) — the bounded nested-cohort grouping
+   taxonomy (one kind, ≤2 deep, coordination by degree); the path-valued `Cohort` field; the constitutive
+   `cohort-{name}.md` managed record (ADR-022 family; H1 + `Purpose` floor / optional H2 coordination /
+   H3-per-slug; membership-derived) + `template-cohort.md`; and the
    **graduation workflow** (park-shaped exit; transforms a live WU → cohort; shares `integrate`'s
    PR-merge-cleanup primitive + a graduation-PR variant). Forward-compat with composable-workflows.
 8. **Lifecycle integration adaptation** — the single artifact-presence-tolerance requirement on the
    integrate / archive workflows (§ Lifecycle Integration). No tier fork.
-9. **`spec-review` method + ceremony extension** — intensity-scaled default self-review; opt-in
+9. **`spec-review` method + ceremony extension** — depth-scaled default self-review; opt-in
    external-cadence extension.
 10. **Three structural invariants** — relocatability + cohort-consistency (now incl. the path-matching +
     constitutive-doc + H3-subset checks) (AWL owns the invariants; rule / enforcement route downstream).
@@ -1323,7 +1355,7 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
     § Spec-Flow Invariants + § Escape-hatch updates (name AWL as the `Class`-classification model home,
     replace intent-level phrasing) + the sizing-norm co-home + the grouping-taxonomy / cohort-doc convention
     (shared with CWC + file-classification); `template-meta.md` new fields (incl. path-valued `Cohort`);
-    `template-tasks.md` intensity variants; `template-cohort.md` (new); quality-gate-commands `Class` awareness;
+    `template-tasks.md` depth variants; `template-cohort.md` (new); quality-gate-commands `Class` awareness;
     `draft-arc-plan-conductor.md` write-back (retire `## Scope`-header + `minimum/standard/expanded` modes).
 
 ### Out of scope
@@ -1355,7 +1387,7 @@ surfaces.
 WU's own procedure (§ Decomposition Model): the timing gate passes (design at terminal-planning maturity);
 the upper-boundary test fires on **orthogonality, not size** — four distinct subsystems with clean
 interfaces, several independently deliverable, well past one-sitting reviewability. So AWL **graduates into a
-cohort** `agile-wu-lifecycle` under the `principle-anchored-core` theme; this draft's design distributes into
+cohort** `agile-wu-lifecycle` under the `principle-anchored-core` cohort; this draft's design distributes into
 four member specs, and its coordination content becomes `cohort-agile-wu-lifecycle.md`. AWL is the procedure's
 **second acceptance test** (CWC is the first) and its **first graduation customer** — so the graduation runs
 the *manual* path (D4 later codifies the workflow).
@@ -1367,12 +1399,12 @@ Four flat member WUs (Model B), wired by dependency edges:
   `Design` / path-valued `Cohort` fields, `template-meta`, migration); the **relocatability invariant**
   statement. The base; ships standalone (workflows default to `heavy` until D2). *Depends on: — (worktree-foundation).*
 - **D2 · Scalable Authoring Pipeline** — `heavy`. Spec template family (brief / outline / detailed-prd/rfc +
-  prototype-iterate) + create-spec reframe + generate-tasks intensity-resolution + grounding-audit intensity +
-  task-list one-grammar + `template-tasks` intensity variants + arc-plan intensity-relativity + spec-review
+  prototype-iterate) + create-spec reframe + generate-tasks depth-resolution + grounding-audit depth +
+  task-list one-grammar + `template-tasks` depth variants + arc-plan depth-relativity + spec-review
   method / extension + the lifecycle-integration artifact-tolerance requirement. Internally phased (templates →
   wiring; the feed-forward coupling keeps it one WU per the upper rail). *Depends on: D1.*
 - **D3 · Decomposition & Cohort Machinery** — `heavy`. The decomposition procedure (discriminator + rails +
-  timing + Model-B) + sizing standard; the `theme ⊃ cohort ⊃ WU` taxonomy; the `cohort-{name}.md` managed
+  timing + Model-B) + sizing standard; the nested-cohort grouping taxonomy; the `cohort-{name}.md` managed
   record + `template-cohort.md`; the **graduation workflow**; the **cohort-consistency invariant**. (Grew
   with the cohort-graduation fold-in; a possible decompose-at-spec itself, but it is one coherent design —
   lean one WU with phases.) *Depends on: D1.* Runs **∥ D2**.
