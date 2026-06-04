@@ -12,15 +12,15 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Resolved & captured the floor model (agenda items 1–3) and decomposition model
-  (item 6) as two planning-pass-resolution sections in the draft — wrapper floor = spec-worthiness,
-  authoring-labor scaling axis, atomic-tier retired; Model-B-only decomposition, orthogonality discriminator
+- **Last Completed:** Resolved the AWL↔conductor seam (item 4) + the naming/research pass — single ceremony
+  axis: `Complexity Tier` (`light`/`full`, the floor) and `formulation depth` (`sketch`/`outline`/`detailed`,
+  per-stage lane-switchable choice); AWL defines the model, conductor elicits. Committed `20b6cd9f`, `51005b1c`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `arc-plan` on the remaining agenda — the standard↔lower mechanical
-  differentiators (gates the user-above ceremony knob-vs-steer call), the AWL↔conductor seam (item 4) +
-  `composable-workflows` dep (item 5), and tier names (external-research pass owed). Then reconcile the stale
-  pre-ADR-020/021 body + flagged `strategy-work-organization` sections before `1_create-spec`.
+- **Next Action:** Continue `arc-plan` on the final agenda thread — the coupled standard↔lower mechanical
+  differentiators + `composable-workflows` dep (item 5); best started fresh in code-grounded mode (priming in
+  SESSION-NOTES § Additional Context). Then the activation reconciliation sweep (stale pre-ADR-020/021 body,
+  `strategy-work-organization` sections, the 7/7a integration evaluation) before `1_create-spec`.
 
 ---
