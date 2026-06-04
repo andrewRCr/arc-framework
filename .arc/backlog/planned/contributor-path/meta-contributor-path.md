@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-contributor-path.md`
 
-- **Depends On:** agile-wu-lifecycle
+- **Depends On:** class-model-foundation
 - **Cohort:** [none]
 - **Priority:** P3
 

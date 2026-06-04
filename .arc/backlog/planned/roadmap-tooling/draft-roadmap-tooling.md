@@ -114,6 +114,28 @@
 
 ---
 
+### `[ ]` **Render decisions for nested cohorts + multi-dependency rows (surfaced by the first graduation)**
+
+- *Routed from:* agile-wu-lifecycle graduation (PR #55), 2026-06-04 — first hand-render with a nested cohort
+  path and WUs carrying more than one dependency. Coordinate with the uniform-columns entry above — same
+  § Render standard, land together.
+- *Concern:* two render gaps the uniform-columns entry didn't anticipate (nested cohorts + multi-dep didn't
+  exist yet):
+    - **Nested cohort path.** `Cohort` is now path-valued (`principle-anchored-core/agile-wu-lifecycle`); the
+      full path overflows the column. Interim render shows the **leaf segment only** (`agile-wu-lifecycle`),
+      full path in the meta. Ratify, or prefer top-level / full-path.
+    - **Multi-dependency rows overflow.** A WU with two deps (`concurrent-work-conventions` →
+      `scalable-authoring-pipeline, decomposition-machinery`) pushes the row to ~127 chars, past the 120
+      target. A `Blocked by:` list was tried and rejected (split the table into duplicate WU names); reverted
+      to the wide table and accepted it as a big-screen artifact. Needs a real policy: accept-wide, a generated
+      graph/list view, or narrow other columns.
+- *Proposed:* fold into the § Render standard pass above (same doc + `render.ts`); decide the nested-cohort
+  segment rule and the multi-dep / over-width policy; consume `arc.identity.short`
+  (config-storage-architecture) to shrink the Owner column.
+- *Scope:* S — render-standard + renderer; lands with the uniform-columns reconciliation.
+
+---
+
 ## Problem / Motivation
 
 WOR established the meta files as the single source of truth and codified a deterministic render for
