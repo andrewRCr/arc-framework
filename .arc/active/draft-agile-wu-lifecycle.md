@@ -1,278 +1,642 @@
 # Draft: Agile WU Lifecycle
 
-**Purpose:** Introduce a three-tier work-unit model (atomic / quick / standard) with structurally
-differentiated artifact requirements and invariant execution discipline. Make small bounded work
-fast to spin up and ship, while preserving ARC's spec-directed, review-disciplined character. Closes
-the agility gap where ARC's uniform ceremony costs more than the work for short-lived WUs.
+**Purpose:** Scale work-unit ceremony to the work's actual design-authoring demand while holding ARC's
+execution discipline invariant. A two-value complexity model (`light` / `full`) **derived** at the
+design-doc line, a three-position formulation-depth ordinal (`sketch` / `outline` / `detailed`) realized
+per authoring stage, and an actionable decomposition procedure together close the agility gap where ARC's
+uniform ceremony costs more than the work for small bounded WUs — without making any discipline optional.
+This is the execution arm of the scalable-core thesis: **scale grammar, never scale discipline** (ADR-020).
 
-- **State:** Draft — pre-PRD exploration captured during agile/mobility design discussion 2026-04-28.
-  Three-tier model and constitutional reframing identified; external research and PRD-time
-  ratification expected. Updated 2026-05-08: sweep-as-you-go foundation (formerly scope item 7a's
-  load-bearing pieces) moved to upstream Work Organization Reform WU; this WU retains
-  tier-aware adaptations on top. Updated 2026-05-19 with WOR-induced terminology shifts (see
-  § WOR alignment note below).
+**State:** Consolidated planning draft (2026-06-04). The five planning threads (atomic-tier retirement,
+spec-shape scaling, task-list scaling, the AWL ↔ conductor seam, decomposition) plus the spec-shape
+deep-research pass and the integration-ceremony (former scope items 7 / 7a) evaluation are all resolved and
+folded into one coherent body. The **model-A correction** is applied throughout: Complexity Tier is a
+derived coarsening of the depth ordinal at the `outline | detailed` boundary, never an independent knob.
+Ready for `1_create-spec` readiness assessment. A likely **decompose-before-spec** candidate — this WU is
+large and is the first customer of its own decomposition procedure (§ Scope Estimate). External-artifact
+reconciliation (`strategy-work-organization`, DEV-RULES.ARC) is execution-time scope, not resolved here.
 
-- **Created:** 2026-04-28 (terminology refresh 2026-05-19)
+**Created:** 2026-04-28 (terminology refresh 2026-05-19; consolidated 2026-06-04).
 
-## Cohort reassignment & design-refresh flag (2026-06-02)
+**Classification:** Cohort `principle-anchored-core`; Priority **P1**; `Depends On: worktree-foundation`
+(shipped). Sequenced **next-up** to unblock `concurrent-work-conventions` (see § Dependencies). Originally
+filed under `agile-parallelism` by its origin story; reassigned to `principle-anchored-core` once the
+"agile / small-bounded-work-spun-up-fast" motivation was substantially delivered by the Errand class
+(`errand-enablement` + `work-routing-discipline`, both shipped). What remains is spec-shape scaling +
+scalable `create-spec` / `generate-tasks` + the decomposition procedure + tier reconciliation — the
+scalable-core thesis, not parallelism.
 
-> **This draft is stale and pre-PRD; its body has not absorbed ADR-020, ADR-021, or the
-> errand-model re-pivot (`work-routing-discipline`). Read the body as the original 2026-04-28
-> conception, not current direction.** The items below are flagged open, not resolved here — they
-> are the agenda for this WU's eventual planning pass.
+---
 
-**Reassigned cohort: agile-parallelism → principle-anchored-core (priority P1 → P2).** Rationale:
-the "agile" motivation (small bounded work spun up fast) was substantially delivered by the Errand
-class (`errand-enablement` + `work-routing-discipline`, both shipped). What remains of this WU after
-the errand-absorbed parts is **spec-shape scaling + scalable `create-spec`/`generate-tasks` + tier
-reconciliation** — which is the scalable-core thesis ("scale grammar, never scale discipline" per
-ADR-020), not parallelism. This WU is the *execution arm* of principle-anchored-core's steer, mislabeled
-into agile-parallelism by its origin story. It does **not** block `concurrent-work-conventions`
-(that dependency was soft — CWC consumes only WOR's `Integrating` state, already shipped, plus
-reversible shared-file coordination on `integrate-work-unit.md`); the CWC→AWL edge has been dropped.
+## Problem / Motivation
 
-**Pulled forward & dependency formalized (2026-06-03).** The P1 → P2 demotion above is **reversed** — AWL
-is re-bumped to **P1** and sequenced next-up to unblock `concurrent-work-conventions`. The "does not block
-CWC / edge dropped" claim is narrowed: the *runtime* edge stays dropped (CWC's merge-safety mechanism needs
-none of AWL's tier model), but the *delivery / build-order* edge is now a **formal hard dependency** — CWC
-carries `Depends On: agile-wu-lifecycle`, because its four-WU decomposed delivery cannot be built until AWL
-ships the scalable spec/task pipeline + the decomposition procedure (item 6). Cohort is **unchanged**
-(principle-anchored-core — AWL sits with its thesis siblings scalable-core / composable-workflows /
-workflow-template-loads); pulling-forward is a priority/sequencing move, not a cohort move. CWC was parked to
-`backlog/planned/agile-parallelism/` so its settled draft is available on `main` as AWL's worked
-requirements input.
+ARC's WU ceremony is uniform regardless of WU size. A 30-minute fix and a 6-week feature go through the
+same activate / integrate / archive pipeline. For small bounded work, that ceremony costs more than the
+work itself.
 
-**Scope extraction — `arc start` create-new wiring left this WU (2026-06-03).** The worktree-spawning
-*create-new* half of scope item 4's `arc start` command is extracted to the parallelism-mechanism cluster
-(`draft-concurrent-work-conventions.md` Inbound Buffer): it is thin plumbing over Worktree Foundation's shipped
-`spawnWorktree` primitive — **mechanism**, not grammar — and belongs with the cohort that owns parallelism, not
-with this WU's spec/task-scaling thesis. AWL retains only the **tier layer**: the `--tier` flag and
-tier-conditional activation behavior layered onto whatever create-new command that cluster delivers. This keeps
-AWL strictly WU-scalability — nothing parallelism-required. Item 4 below is the stale original conception; read
-it through this narrowing.
+The pre-existing "lighter" options fell short:
 
-**Open design agenda for the planning pass** (each needs real design thought + external research; none
-decided here):
+- **`incidental/` category** — documented as the lighter tier, but its workflows were identical to
+  feature / technical. The "lightening" was about scope (no PRD / plan needed), not ceremony.
+- **Lightweight completion-doc template** — saved doc time at integration only; didn't reduce activation or
+  task-list overhead.
+- **Atomic work** — bypasses WU lifecycle entirely, but the boundary is "smaller than warrants a branch."
+  Under `branch.protection: full` (the default for most teams), most reviewable work needs a branch and
+  therefore a WU.
+- **`branch.protection: partial`** — allows direct-to-main commits for atomic work, but that's not what
+  teams using PR review do.
 
-1. **Atomic-tier retirement.** Strong case that "atomic" should no longer be a WU *tier* at all — the
-   Errand class is where atomic-character work executes (inbox captures atomics, drained inline or as an
-   errand; errands are a `full`-protection construct, a base commit under `partial`). The tier set likely
-   collapses to `{quick, standard}`, with "atomic" reverting to a pure work-character adjective. ADR-021
-   already shifted the *default realization* of atomic-character work from "atomic-tier WU" to Errand and
-   handed the *name's fate* to this WU (`cohort-agile-parallelism.md`). Tiers may still earn their keep for
-   categorization / routing — open.
-2. **Spec-shape scaling, not tier-coupled alternates.** ADR-020 ratifies one spec filename
-   (`spec-{name}.md`) scaling via a **template family** (full PRD → lighter design-brief → minimal
-   paragraph), and explicitly kills the quick-tier "spec via task-list `## Scope` header" still shown in
-   this draft's § Three-Tier Model table. Decoupled from tier by default, conventionally correlated.
-3. **Task-list scaling = one grammar, fewer phases.** Reconsider the draft's "flat task list (no phases)"
-   as a distinct shape. The scalable-core-coherent answer is the *same* task-list grammar with fewer
-   phases (down to one substantive phase) + verification always present (gate-check or phase) — keeping CLI
-   parsability and verification consistent. "Entirely flat" is an alternate, not a scaling. The real weight
-   to scale is `generate-tasks` (a 3-pass procedure today), not the task-list artifact.
-4. **AWL ↔ arc-plan-conductor seam (resolve the circular deference).** Today both drafts defer spec-form
-   work to each other. Proposed split: **AWL owns the grammar that scales** (the spec template family + the
-   scalable `create-spec` / `generate-tasks` workflows); **conductor owns facilitation** (the pre-spec
-   elicitation verb, depth selection, invoking the shape AWL defines). This pulls the headline
-   "scalable work units" value into AWL and shrinks conductor — de-risking it (conductor is P2, blocked on
-   `loadset-composition`; AWL depends only on shipped `worktree-foundation`). A conductor-side note records
-   the same split.
-5. **Likely new dependency: `composable-workflows`.** In its new cohort, AWL's scalable workflows would be
-   built on composable-workflows' resolve-then-load mechanism — set this dependency at planning (left off
-   the meta for now rather than asserting it here). Note: composable-workflows is not hard-blocked (its only
-   `Depends On`, `work-organization-reform`, has shipped) — design AWL's scalable pipeline *forward-compat*
-   with resolve-then-load without blocking on it (it remains a bare stub entangled with the
-   agent-context-optimization cohort).
+For an experienced dev's "spin up a branch for a small bug, work, PR, merge" pattern under `full`
+protection there was no lightweight path: every branch became a WU; every WU got full ceremony.
 
-6. **Actionable decomposition procedure is AWL's — with CWC as the live requirements input (2026-06-03).**
-   Concurrent Work Conventions parked at terminal planning precisely because it decomposes into a **four-WU
-   stack** that today's `1_create-spec` / `2_generate-tasks` can't size down to (the unconditional 3-pass,
-   3–7-phase pipeline). Its settled draft + concrete D1–D4 decomposition
-   (`draft-concurrent-work-conventions.md` § Delivery plan & parked status) is a **worked requirements
-   example** for both the spec-template-family + fewer-phases grammar **and** an **actionable decomposition
-   procedure** (sizing triggers, boundary-finding, stack-vs-cohort) this WU owns — `arc-plan-conductor` only
-   *routes to / invokes* it, never owns it (it is also far downstream, so the procedure cannot live there).
-   This is a **delivery-ergonomics edge**: CWC re-enters as the stack once AWL's scaling / decomposition
-   support lands. Treat CWC's parked draft as a primary design input at this WU's planning pass.
+This WU introduces a model where ceremony scales with the work's actual design-authoring demand, while
+execution discipline (mandatory stops, quality gates, commit format) stays invariant.
 
-   **Folded-in requirements** (from a `USER-INBOX` capture, 2026-06-03 — re-routed here from
-   `arc-plan-conductor`: the actionable procedure is AWL's deliverable; the conductor only routes to /
-   invokes it). The concrete protocol shape this WU owns:
-    - **Decouple planning-grouping from delivery-grouping.** One concern plans as a single coherent
-      draft/spec but *delivers* as a stack of PR-sized WUs along natural deliverable/phase boundaries — no
-      forced choice between "one concern" and "small PRs."
-    - **Sizing heuristics (sense oversize ahead).** Count distinct deliverables / independently-reviewable
-      surfaces; estimate LOC + file count; test "reviewable in one sitting." Review effectiveness craters
-      past ~200–400 changed LOC (Google / SmartBear studies); >~few-hundred LOC / >~8–10 files / multiple
-      independent review surfaces → stack-or-cohort, not one WU.
-    - **Stack vs. cohort.** Sequentially-dependent → stack (ordered PRs); independent-ish → cohort (parallel
-      WUs). ARC already has the levels — **cohort ≈ epic**, **WU ≈ story / one reviewable PR**; the gap is the
-      codified concern→WU-count mapping.
-    - **When to split.** At PRD / decomposition time, not mid-execution (a mid-execution split is a costly
-      escape hatch).
-    - **Live example.** CWC itself — folded to "one WU finishes the cohort," but by these norms ~4–5
-      deliverables → plan-as-one, deliver-as-a-stack (its D1–D4). Reason against this case to validate the
-      protocol.
-    - **Sizing-norm co-home.** The sizing standard itself likely co-homes in `strategy-work-organization`
-      (a WU-sizing standard AWL's procedure consumes).
+## Working Thesis: Scaled Ceremony, Invariant Discipline
 
-7. **Artifact relocatability invariant (2026-06-03).** WU artifacts (`meta-*`, `draft-*`, `spec-*`,
-   `tasks-*`, companions) relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`) as a
-   function of State — a graduate / park / archive move must be a pure `git mv` with **no content edit**.
-   That holds only if artifacts carry **position-independent refs** (filename-only, per DEV-RULES.ARC
-   § `.arc/` artifact references); relative-path links break on move. AWL owns the *invariant* (a lifecycle
-   property of the moves its workflows perform); the *rule* generalization (close the source-side gap — the
-   rule today permits relative paths to stable docs, which still break when the source itself moves) routes
-   to DEV-RULES.ARC, and *enforcement* (forbidden-pattern hook extended to source-side link-defs + a sweep
-   of the ~38 path-style link-defs currently in active/backlog movable artifacts) routes to
-   `quality-gate-hooks`. Surfaced live 2026-06-03 — both the CWC park and this graduation hit relative-link
-   breakage on move, fixed by converting both drafts to filename-only.
+ARC's value is the **structural enforcement of execution discipline**: mandatory stops at each review
+increment, quality gates, atomic commits with format + context-footer enforcement, PR review for shared
+branches. That discipline drives quality and is invariant across all WU sizes.
 
-8. **Cohort-consistency invariant (2026-06-03).** A WU's `**Cohort:**` field must match its
-   `backlog/planned/<cohort>/` parent directory; a cohort doc's member-list must match its actual members;
-   and every cohort dir should carry a `cohort-{name}.md` (`principle-anchored-core` currently has none —
-   only `cohort-agile-parallelism.md` exists). Field-vs-directory drift is a silent failure (a WU assigned to
-   one cohort but filed under another). AWL owns the *invariant* (cohort semantics — what a cohort is, its
-   boundaries, membership — is this WU's charter); *enforcement* (a backlog-scoped structural guard;
-   `active/` is flat and `completed/` ordinal, so neither applies) routes to `quality-gate-hooks`, same
-   family as its existing forbidden-pattern / layout-drift checks.
+What scales is **artifact ceremony**: how much design must be *authored* to reach a settled state, how
+specs are shaped, how tasks are organized, and how work is archived.
 
-## Floor model — planning-pass resolution (2026-06-03)
+This framing explicitly answers the historical `draft-arc-modes.md` § Mode 1 rejection of a "Required vs
+Available" model. That rejection was about making *execution discipline* optional (task interlocks removed,
+gates skipped, "trust the dev"). This WU does none of that: discipline is enforced at every tier. What
+varies is design-authoring labor — where the spec lives, how heavy it is, how tasks are organized, how work
+is archived. Those are scaling-dependent ceremony, not discipline.
 
-> Resolves agenda items 1–3 above and informs 4; supersedes the body's § Three-Tier Model wherever they
-> conflict. Everything from § Problem / Motivation onward is the 2026-04-28 conception — read this section as
-> current direction. Derived during the 2026-06-03 `arc-plan` pass from P1/P2/P4/P7 (ADR-001), ADR-020, and
-> ADR-021; the reasoning, not just the conclusions, is recorded so the constitutional pass can rebuild it.
+---
+
+## The Floor Model
+
+The model rests on two distinct "floors" whose conflation is what made the whole question feel fuzzy.
+Anchors: ADR-001 principles P1 / P2 / P4 / P7; ADR-020 (scalable core); ADR-021 (Errand threshold). The
+reasoning — not only the conclusions — is recorded so the constitutional pass can rebuild it.
 
 ### Two floors, not one
 
-The word "floor" names two different things, and conflating them is what makes the question feel fuzzy:
-
-- **Discipline floor (P2/P4) — universal, sits *below* the wrapper, never scales.** Every increment of change —
-  a WU task, an Errand commit, a loose off-WU commit — closes with a review-increment gate and passes its
-  quality gates. The floor of *discipline* is the smallest **commit**, not the smallest WU. This is ARC's
-  identity; it does not move.
-- **Wrapper floor — the smallest thing that is a WU at all.** This is the question with real design content
-  (below).
+- **Discipline floor (P2 / P4) — universal, sits *below* the wrapper, never scales.** Every increment of
+  change — a WU task, an Errand commit, a loose off-WU commit — closes with a review-increment gate and
+  passes its quality gates. The floor of *discipline* is the smallest **commit**, not the smallest WU. This
+  is ARC's identity; it does not move.
+- **Wrapper floor — the smallest thing that is a WU at all.** This is the question with real design content.
 
 ### The wrapper exists for spec-worthiness; tracking is downstream
 
 Over a bare disciplined commit, a WU adds exactly two things: an **authored spec** (P1) and a **tracked
-lifecycle** (P7). The defining trait is **spec-worthiness** — work that is *more than a single logical concern*
-(more than one review increment), even if multi-step / multi-file. Tracking is a *consequence* of that, never
-an independent cause: graduation (an Errand that reveals unforeseen complexity mid-impl → WU) trips on
-discovered *complexity*; tracking comes along for the ride. There is no "needs tracking but the work doesn't
-warrant it" case — it does not occur. Anchors: P1's own test ("Does this need up-front planning? Quick fixes
-with clear scope can rely on well-crafted git commits") and ADR-021 threshold #1.
+lifecycle** (P7). The defining trait is **spec-worthiness** — work that is *more than a single logical
+concern* (more than one review increment), even if multi-step / multi-file. Tracking is a *consequence* of
+that, never an independent cause: graduation (an Errand that reveals unforeseen complexity mid-impl → WU)
+trips on discovered *complexity*; tracking comes along for the ride. There is no "needs tracking but the
+work doesn't warrant it" case — it does not occur. Anchors: P1's own test ("Does this need up-front
+planning? Quick fixes with clear scope can rely on well-crafted git commits") and ADR-021 threshold #1.
 
 ### The scaling axis: authoring-labor-to-settle (design is always settled)
 
-**Invariant (P1; DEV-RULES.ARC § Design before implementation):** all settle-able design is settled *before*
-implementation — best reasonable effort, never a conscious deferral. What varies across tiers is **not whether
-design is settled** but **how much design must be *authored* — versus read off existing inputs — to reach the
-settled state**:
+**Invariant (P1; DEV-RULES.ARC § Design before implementation):** all settle-able design is settled
+*before* implementation — best reasonable effort, never a conscious deferral. What varies across tiers is
+**not whether design is settled** but **how much design must be *authored* — versus read off existing
+inputs — to reach the settled state**:
 
 - **Errand** — zero authoring. The intent *is* the design. ("Intent *to* design" disqualifies it.)
-- **Lower tier** — design is determinate from existing inputs (issue / pattern / clear intent); the spec
+- **`light` tier** — design is determinate from existing inputs (issue / pattern / clear intent); the spec
   *records* the settled design lightly, it does not *derive* it.
-- **Top tier** — settling *requires authoring* a real design (a PRD's worth): many concerns, alternatives, and
-  tradeoffs that do not exist until someone works them out.
+- **`full` tier** — settling *requires authoring* a real design (a PRD's worth): many concerns,
+  alternatives, and tradeoffs that do not exist until someone works them out.
 
-> **Candidate constitutional sharpening (flagged, not decided):** today's spec-directed rule handles *emergent*
-> design questions ("route them back to the spec"). Add the stronger *front-loading* duty — settle all
-> settle-able design up front; never consciously defer it to impl. AWL touches DEV-RULES.ARC anyway.
+> **Candidate constitutional sharpening (flagged, not decided):** today's spec-directed rule handles
+> *emergent* design questions ("route them back to the spec"). Add the stronger *front-loading* duty —
+> settle all settle-able design up front; never consciously defer it to impl. AWL touches DEV-RULES.ARC
+> anyway. (See § No design-deferral stays universal for how this lands.)
 
 ### Topology: fixed floor → scalable middle → fixed ceiling (derived, not chosen)
 
 Preference operates in the band between the complexity-set floor and a fixed ceiling (max ceremony ARC
-offers). **Band width shrinks as authoring-labor rises**, because the floor climbs toward the fixed ceiling:
+offers). **Band width shrinks as authoring-labor rises**, because the floor climbs toward the fixed
+ceiling:
 
-- Errand: floor = ceiling = one disciplined commit. Band width **zero**.
-- Low authoring-labor (determinate design): floor low, ceiling high. Band **wide** — preference has real room.
-- High authoring-labor (PRD-worth): floor already near the ceiling (a paragraph can't hold a large design
-  space; many concerns force phasing; real intent-verification is required). Band **≈ zero**.
+- **Errand:** floor = ceiling = one disciplined commit. Band width **zero**.
+- **Low authoring-labor (determinate design):** floor low, ceiling high. Band **wide** — preference has
+  real room.
+- **High authoring-labor (PRD-worth):** floor already near the ceiling (a paragraph can't hold a large
+  design space; many concerns force phasing; real intent-verification is required). Band **≈ zero**.
 
-So **both endpoints are fixed for the same reason — degenerate bands — and only the middle scales.** This falls
-out of the two-axis model; it is not symmetry-for-its-own-sake. Topology: **Errand (fixed floor) → scalable
-tier (wide band, catch-everything) → standard (fixed ceiling).** The middle↔top boundary is the **design-doc
-line** (does settling *require authoring* a design?); the two do **not** overlap — the top tier's floor sits
-strictly above the lower tier's ceiling.
+So **both endpoints are fixed for the same reason — degenerate bands — and only the middle scales.** This
+falls out of the two-axis model; it is not symmetry-for-its-own-sake. Topology: **Errand (fixed floor) →
+scalable middle (`light`, wide band, catch-everything) → fixed ceiling (`full`).** The middle ↔ ceiling
+boundary is the **design-doc line** (does settling *require authoring* a design?); the two do **not**
+overlap — the ceiling's floor sits strictly above the middle's ceiling. This no-overlap topology is
+load-bearing for the tier-derivation in § Tier and Depth.
 
-**Atomic retires as a *tier* (resolves agenda item 1).** Atomic-character work executes as an **Errand** below
-the wrapper, or graduates; ADR-020 §3's spec-in-commit "floor exception" migrates *out of the tier model into
-the Errand class*, which reconciles the ADR-020 ↔ ADR-021 tension. "Atomic" reverts to a pure character
-adjective. Tier set collapses to **{lower, standard}** (names are placeholders — see § Open below).
+### Atomic retires as a *tier*
 
-### Ceremony stack: three lower-bound layers; the tier label tracks only complexity
+Atomic-character work executes as an **Errand** below the wrapper, or graduates; ADR-020 §3's spec-in-commit
+"floor exception" migrates *out of the tier model into the Errand class*, which reconciles the
+ADR-020 ↔ ADR-021 tension. "Atomic" reverts to a pure character adjective (see § Atomic-the-character vs
+atomic-the-shape). The tier set is **{`light`, `full`}**.
 
-1. **Complexity → forced floor** (per-WU, objective, enforced via drift-promotion). *The work demands ≥ this.*
+### The ceremony stack: three lower-bound layers; the tier label tracks only complexity
+
+1. **Complexity → forced floor** (per-WU, objective, enforced via drift-promotion). *The work demands
+   ≥ this.*
 2. **Project preference → team floor** (set at init, trivially changeable, no reinstall). The consistency
    knob; likely a project-config setting per ADR-020 §8's guided-init walkthrough.
 3. **User preference → personal investment *above* the team floor** (working style); never below it.
 
-Actual ceremony = the user's pick within `[max(complexity_floor, project_floor), ceiling]`. The **tier label
-tracks layer 1 only** (work-demand) — neither preference layer inflates classification. A determinate WU
-specced heavily by preference is still **lower-tier**, correctly: the *work* was light; the author simply
-likes rigor. This keeps the class objective and useful for parallelism planning ("how much genuinely-heavy
-work is in flight").
+Actual ceremony = the user's pick within `[max(complexity_floor, project_floor), ceiling]`. The **tier
+label tracks layer 1 only** (work-demand) — neither preference layer inflates classification. A determinate
+WU specced heavily by preference is still **`light`-tier**, correctly: the *work* was light; the author
+simply likes rigor. This keeps the class objective and useful for parallelism planning ("how much
+genuinely-heavy work is in flight").
 
-**Rigor available ≡ across the lower tier's top and the standard tier** — same machinery, full strength. Only
-rigor *mandated* differs: standard ceremony is **forced** (the work's authoring-labor demands it, band
-collapsed); lower-tier-max ceremony is **chosen** (insurance, not necessary design labor). That is the
-"appropriately rigorous, not forced" property — the lower tier's high end is real rigor, never a diet
-imitation.
+**Machinery available is identical at every depth** — the same full-strength workflows, grounding audit,
+review, and gates, **parameterized by intensity rather than forked** (§ Grounding audit). What differs is
+how much there is to apply it to (artifact surface) and whether the depth is *mandated* (`full`'s
+`detailed` is forced — band collapsed) or *chosen* within the band (`light`'s `outline` is chosen insurance
+over `sketch`). The lower tier's ceiling (`outline`) is **real rigor applied to a determinate design** —
+never a diet `detailed`. This is the "appropriately rigorous, not forced" property.
 
 ### Invariant vs. convention (this is the "always feels like ARC")
 
-The floor is **identical at every matrix position** — that invariance *is* the ARC feel; the matrix only moves
-the convention layer on top.
+The floor is **identical at every model position** — that invariance *is* the ARC feel; the model only
+moves the convention layer on top.
 
 - **Floor (principle-forced):** a spec in some form (P1); a task list when multi-increment (P2 + P7);
-  intent-verification of completed work against the spec (P1's intent-vs-outcome loop); the discipline floor
-  (P2/P4). Always present, every tier above Errand.
+  intent-verification of completed work against the spec (P1's intent-vs-outcome loop); the discipline
+  floor (P2 / P4). Always present, every tier above Errand.
 - **Convention (opinionated, scalable, configurable):** spec *template weight*; phase count beyond one;
-  pre-execution task-list audit (`arc-task-audit` is a strong default, **not** a floor — front-loading audit
-  is a method under P1, not an invariant); iteration passes.
-- **Task list scales by phase *count*, not *shape* (resolves agenda item 3):** one parsed grammar from 1..N
-  phases (minimum one substantive phase + always-present verification — gate-check at the low end, dedicated
-  phase at standard). A "flat" shape is a *second grammar* = a parser fork = an internal-dev maintenance trap;
-  rejected. **Spec scales by template family (resolves agenda item 2):** three variants, heaviest = the current
-  PRD; exact shapes informed by external research.
+  pre-execution task-list audit (`arc-task-audit` is a strong default, **not** a floor — front-loading
+  audit is a method under P1, not an invariant); iteration passes.
+- **Task list scales by phase *count*, not *shape*:** one parsed grammar from 1..N phases (minimum one
+  substantive phase + always-present verification — gate-check at the low end, dedicated phase at `full`).
+  A "flat" shape is a *second grammar* = a parser fork = an internal-dev maintenance trap; rejected.
+- **Spec scales by template family:** three variants, heaviest = the current PRD; exact shapes informed by
+  external research (§ Spec shapes).
 
 ### User-above preference: config knob vs. in-process steer (OPEN)
 
-Deferred until the mechanical design is known (how tier/preference affects each workflow, skill, hook, CLI
-surface). **Decision criterion:** a config knob is warranted *iff* "ceremony preference" resolves to a single
-coherent ordinal workflows can consume; if it is a scattered bag of per-surface toggles, one knob is a leaky
-abstraction and steer-per-process is better until consolidated.
+Deferred until the mechanical design is known (how tier / preference affects each workflow, skill, hook,
+CLI surface). **Decision criterion:** a config knob is warranted *iff* "ceremony preference" resolves to a
+single coherent ordinal workflows can consume; if it is a scattered bag of per-surface toggles, one knob is
+a leaky abstraction and steer-per-process is better until consolidated.
 
 **Forward-compat (binds now, even while deferring):**
 
 - Design the scaling mechanism to consume a **resolved** preference value independent of its source
-  (resolve-then-load, ADR-020 §9): the probe resolves active ceremony preference; workflows load the matching
-  fragment. This makes knob-vs-steer a **late-binding input decision, not an architectural fork** — decidable
-  after the implications are known, without reshaping any workflow.
+  (resolve-then-load, ADR-020 §9): the probe resolves active ceremony preference; workflows load the
+  matching fragment. This makes knob-vs-steer a **late-binding input decision, not an architectural fork** —
+  decidable after the implications are known, without reshaping any workflow.
 - If it becomes a knob, its home is the `configuration` cohort's per-developer substrate
-  (`draft-config-storage-architecture.md` — `.arc/user/{identity}/config.user.yml`, user-notes-synced), not a
-  bespoke surface. Soft coordination, not a hard dependency.
+  (`draft-config-storage-architecture.md` — `.arc/user/{identity}/config.user.yml`, user-notes-synced),
+  not a bespoke surface. Soft coordination, not a hard dependency.
 
-### Open / deferred from this pass
+---
 
-- **Tier names — resolved.** Settled as `Complexity Tier` with values `light` / `full`; see § Naming —
-  research-pass resolution below. (The "encode the design-doc line" criterion was corrected there: that
-  threshold is the Errand ↔ WU line, not the within-WU tier split — both tiers carry a spec.)
-- **Decomposition / WU-sizing / cohorts** (agenda item 6 + CWC requirements input). Resolved this session —
-  see § Decomposition model below. Orthogonal-ish to the floor model — ceremony weight ≠ WU scope
-  (full-ceremony WUs can be <2-day end-to-end) — but adjacent: it is where the "WUs trend too long" tendency is
-  actually corrected, distinct from ceremony-fit.
+## Tier and Depth: One Axis, Two Markers
 
-## Decomposition model — planning-pass resolution (2026-06-03)
+There is **one ceremony axis** (artifact / process weight). On it sit two markers — not two orthogonal
+axes. The historical "circular deference" between this WU and the conductor persisted because both called
+their concern "spec-form work"; the fix is to name the axis and its two markers precisely.
 
-> Resolves agenda item 6 (the actionable decomposition procedure AWL owns); leans on items 7 (relocatability)
-> and 8 (cohort-consistency). Derived during the 2026-06-03 `arc-plan` pass plus a focused external-research
-> pass (stacked-diffs / RFC-impl / epic-story / review-sizing). CWC's parked four-WU decomposition is the
-> worked requirements example **and** the procedure's acceptance test. The procedure is AWL's chartered
-> deliverable; `arc-plan-conductor` only routes to / invokes it.
+### `formulation depth` is the product; `Complexity Tier` is the derived floor
+
+- **`formulation depth` — the user-facing product.** The per-stage choice of how much to author, realized
+  in each authoring stage's own units (planning facilitation, spec-template weight, task-list phase count).
+  Ordinal: **`sketch` / `outline` / `detailed`**. Transient, per-stage, lane-switchable (§ Lane-switching);
+  **never a recorded meta value or render column** — it can differ between stages of one WU.
+- **`Complexity Tier` — a *derived* two-value coarsening of that ordinal at the design-doc line.** The
+  `outline | detailed` boundary **is** the design-doc line **is** the tier line:
+    - **`light`** = `{sketch, outline}` — design is determinate; the spec *records* it.
+    - **`full`** = `{detailed}` — design must be authored; the spec *derives* it.
+
+  Tier is **never an independent knob** — it is read off which side of the design-doc line the work's
+  settled depth falls on. It is a property of the *work* (objective design-authoring labor), **recorded on
+  the meta** (§ Meta Schema), and a **one-way ratchet** (§ Mechanism): it rises when a stage reveals
+  complexity, never demotes (demotion would discard work).
+
+**Topology (Errand → `light` → `full`), no overlap:**
+
+- **Errand** — below the floor: no spec, one disciplined commit. Fixed floor, band zero.
+- **`light`** — the variable middle: floor `sketch`, ceiling `outline`. Real room for preference.
+- **`full`** — the fixed ceiling: `detailed`, mandatory. Band ≈ zero (a PRD-worth of design forces the
+  structure).
+
+`detailed` exists **only** as `full`; `full`'s floor (`detailed`) sits strictly above `light`'s ceiling
+(`outline`). Reaching for `detailed` *graduates* `light → full` — the self-diagnosing signal
+(§ Lane-switching). The conductor's "depth" is just the planning-stage instance of this ordinal; the
+complexity tier and the depth ordinal use **distinct vocabularies**, so they never collide.
+
+### Boundary tests (objective)
+
+Two recognizable-in-retrospect tests place work on the topology:
+
+- **Errand vs. WU (the wrapper floor — ADR-021):** *"Does this need more than a single logical concern —
+  more than one review increment — to do well?"* No → Errand (single disciplined commit). Yes → WU
+  (spec-worthy). Multi-commit coordination is the tell.
+- **`light` vs. `full` (the design-doc line — AWL's):** *"Could a competent engineer execute this from the
+  existing description (issue / ticket / bug / pattern) without authoring additional design before they
+  start?"* Yes → `light` (design determinate; the spec *records* it). No → `full` (design open; a `detailed`
+  spec *derives* it).
+
+The design-doc line is well-trodden industry ground (Stripe RFC criteria, Google design-doc guidance,
+Shape Up's shaping tier, GitLab MR-driven workflow). It is recognizable in retrospect: when work classified
+`light` starts needing design notes, alternatives, or a success-criteria matrix, that *is* the `light → full`
+promotion firing (§ Lane-switching).
+
+### The felt-difference test (model guardrail)
+
+**Every position the model exposes must be distinguishable to the *user* in rigor and/or speed; a
+distinction visible only to the author is arbitrary and must collapse.** This is a first-class acceptance
+criterion for the whole model, and applying it honestly is what fixes the tier↔depth relationship.
+
+The three exposed positions are exactly the three depths, each in its tier:
+
+- **`light` / `sketch`** — ~1 paragraph spec, single pass, one phase: **fast**.
+- **`light` / `outline`** — 1–2 page decision-centric spec, merged task-gen pass, few phases: **moderate**.
+- **`full` / `detailed`** — full PRD / RFC, 3-pass task-gen, per-phase audit, dedicated verification:
+  **thorough**.
+
+All three differ in both speed and rigor — the test passes cleanly. **There is no `light` / `detailed`
+position to fail it:** reaching `detailed` *is* the graduation to `full`. An independent tier knob layered
+*over* depth — where `light/detailed` and `full/detailed` would produce identical artifacts distinguished
+only modally (chosen vs. forced) — is the **arbitrary-lever trap**, and is exactly what the
+design-doc-line derivation removes. Tier is not a second lever; it is a **coarsening** of the depth ordinal
+at the one boundary that already matters (does settling require authoring a design?). **Depth is the single
+felt product; tier is the floor derivation reads off it.**
+
+- **Follow-up-WU criterion** — scaling ceremony *within* this structure (making positions more distinct) is
+  a legitimate future WU **iff** its candidates pass the felt-difference test. Only-arbitrary candidates ⇒
+  the split is wrong; real-but-not-yet-built candidates ⇒ an opportunity. The test is the discriminator.
+
+### Depth ordinal confirmed at three; the middle is structural
+
+The spec stage clinches the count: the gap between a single-paragraph `sketch` and a full PRD is
+*enormous*, so a single middle is not optional — without `outline` the broad determinate-design middle of
+real work has only two unusable extremes. The spec stage's hard requirement for a middle **pins the ordinal
+at three**, and stage-coherence carries it to planning and task-gen (where the middle is present but less
+dramatic). The three positions span the whole authoring span: `light` owns `sketch`..`outline`, `full` owns
+`detailed`.
+
+**Why three, when industry runs two?** Mature processes use a binary design-doc-or-not gate plus an
+implicit floor (even Oxide, RFC-derived, collapses to a *single* artifact with author-judged depth). Our
+three-level ordinal is a deliberate adaptation with its own justification: (a) ARC's mechanism
+(resolve-then-load, per-stage self-resolution, composable fragments) needs **discrete, loadable**
+resolutions — you cannot load a fragment against a continuum; the discreteness is the agent-native
+adaptation; (b) the spec-gap argument (paragraph → full is too large to leave the determinate middle
+unserved); (c) the felt-difference test validates each position. The Oxide continuum is the
+**considered-and-declined** alternative (declined for agent-loadability). Each of the three *shapes* is
+individually attested in the idiom (§ Spec shapes); what is adapted is assembling them into one graduated,
+agent-resolvable ordinal.
+
+### Naming
+
+Settled after a focused external-vocabulary research pass (RFC lightweight / standard idiom, Shape Up
+appetite, incident-severity tiers, t-shirt / magnitude legibility). Research informed the names; the calls
+are the project's.
+
+| Slot | Name | Recorded? |
+| ---- | ---- | --------- |
+| Complexity axis (the floor / work-property) | **`Complexity Tier`** (meta field) | Yes — render deferred (lean off) |
+| Complexity-tier values | **`light`** / **`full`** | Yes |
+| Per-stage ceremony choice (the band position) | **`formulation depth`** | No — transient, per-stage, lane-switchable |
+| Formulation-depth ordinal | **`sketch`** / **`outline`** / **`detailed`** | No |
+
+Rationale:
+
+- **`Complexity Tier`, not bare `tier`.** The axis is named for its **basis** — complexity /
+  design-authoring depth — which reinforces that the tier tracks *work-demand only*, never preference.
+  Naming the basis while keeping the `tier` abstraction also lets the values carry *ceremony weight*
+  (`light` / `full`) without the basis-vs-value grammar clash a bare `Complexity: full` would invite. Taken
+  **regardless of the partial collision** with the quality-gate `Tier 1/2/3` vocabulary — whose own rename
+  (`draft-quality-gate-hooks.md`, current lean drops the tier numbers) likely clears it anyway, and which is
+  non-catastrophic either way.
+- **`light` / `full`, not `quick` / `standard`.** `quick` overweighted *speed* over the authoring-labor
+  essence; `standard` implied *default* while naming the *marked / maximal* case. `light` reads as relative
+  (vs. `lightweight`, which sounds absolute and is over-long against `full`); `full` is the right ceiling
+  word (`heavy` carries the same absolute-sounding baggage `full` avoids). This is the **within-WU**
+  complexity split — *not* the design-doc-or-not threshold, which is the Errand ↔ WU line (wrapper floor):
+  both tiers carry a spec; they differ in design-authoring depth, not in whether a design exists.
+- **`formulation depth` is a concept, not a field.** It *defines the lanes* and is re-selectable per stage,
+  so it is transient — never a recorded meta value or render column. The name captures process **and**
+  artifact (you *formulate* an approach and produce *a formulation*), and fences the **pre-implementation**
+  scope in a way `authoring` does not (code is authored too; nothing is "formulated" during execution).
+- **`sketch` / `outline` / `detailed`** reads as an ordinal progression at every pre-impl stage (sketch /
+  outline / detail a plan, a spec, a task list), is collision-free with the tier vocabulary, and avoids the
+  floor-word-vs-magnitude-word register trap (`minimum` / `expanded`). It is a **shared ordinal**, not a
+  global enum: each stage realizes it in its own units. The *determinate ↔ derived* split is the
+  **rationale** behind the ordinal (how much design must be authored to settle it), kept as the explanation
+  — **not** surfaced as the labels (a two-pole rationale would break a three-position ordinal).
+
+### Record but don't necessarily render
+
+`Complexity Tier` records on the meta — it is the `**Tier:**` field renamed; it groups with the
+classification fields (`Depends On` / `Cohort` / `Priority`), not with provenance (`Origin` / `Design`).
+**Rendering is a separate call:** the parallelism-planning rationale points at `STATUS.USER` (In-Flight) if
+anywhere, not ROADMAP, and with both tables near max width the lean is **off in renders** until that view's
+value is demonstrated. Recording is cheap and stable; render-inclusion stays open.
+
+---
+
+## Per-Stage Realization
+
+### The three authoring stages
+
+Each of the three pre-implementation **authoring** stages realizes the depth ordinal in its own units and
+**self-resolves** (§ Mechanism). These shapes are **starting points** — explicitly open to
+post-integration dogfooding refinement (scale a position up or down within reason if real use shows the
+tuning is off):
+
+1. **Pre-spec planning** (the existing `arc-plan`): `sketch` = quick determinacy-confirm (a couple of
+   targeted questions); `outline` = bounded single-pass elicitation (surface the few real decisions +
+   scope, no iteration); `detailed` = full iterative facilitation (today's `arc-plan`, later the
+   conductor's refine-loop).
+2. **Spec** (`1_create-spec`): a template family (§ Spec shapes). `sketch` = intent + scope boundary + one
+   falsifiable success signal; `outline` = decision-centric record; `detailed` = the current full PRD,
+   subtyped PRD / RFC.
+3. **Task-gen** (`2_generate-tasks`): pass-structure + phase count. `sketch` = single combined pass with
+   inline light grounding, one substantive phase + verification gate-check; `outline` = merged
+   structure+content pass with the grounding audit retained, few phases; `detailed` = full 3-pass
+   (structure → content → per-phase grounding audit) + 3–7 phases + dedicated verification phase. `full` =
+   `detailed`, forced.
+
+### Spec shapes (research-grounded)
+
+Refined with the 2026-06-03 deep-research pass on industry idiom for lightweight specs. Research posture:
+**inform and adapt, never adopt.** (Full source URLs live in the deep-research transcript — run
+`wf_191136b1-518`; pull them when authoring the spec's External Research. Sources nameable even if the
+transcript is gone: Shape Up pitch, ADR / Nygard, GitLab handbook, Go proposal, Oxide RFD-0001, Microsoft
+eng playbook, Squarespace, Rust RFC.)
+
+What the idiom confirmed (and didn't):
+
+- **Decision-centric middle: confirmed** (high confidence, 3-0). The stable middle-tier artifacts — Shape
+  Up's pitch (Problem / Appetite / Solution / Rabbit Holes / No-gos), the ADR (Context / Decision /
+  Consequences), GitLab's lightweight-ADR — all *record* settled design + an explicit scope boundary + the
+  one-or-two open items, while deliberately *excluding* requirement-ID enumeration and success-criteria
+  matrices. The exclusion is the anti-up-drift mechanism (Shape Up: "we don't want to over-specify… they'll
+  box in the designers"); the fixed decision+scope sections are the anti-down-drift. **A full spec
+  *derives* a design that didn't exist; the middle *records* one that was mostly determinate.**
+- **Floor: convergent** — GitLab "start with one paragraph and evolve… not a complete upfront blueprint";
+  Go "brief issue… no design document at this point." Intent-first, accretes through learning. (Our floor
+  adds *one falsifiable success signal* on top — ARC's P1-driven addition, not industry-converged.)
+- **Procedure: async-first and scales with tier** — author-owned PR + bounded comment window (Oxide
+  3–5 days), escalate to sync after ~2 round-trips (Microsoft), committee only for high-blast-radius
+  (Squarespace). Direct support for the felt-difference test on the *procedure* axis (lanes differ in speed
+  *and* rigor).
+- **Caveats:** several procedure findings are single-company existence-proofs (adapt-from, not norms); ADR's
+  "fixed 5 fields" holds only for canonical Nygard (the family spans one sentence to 15 sections); Amazon
+  PR/FAQ went unexamined (the heavy boundary).
+
+The three shapes (concrete, starting points — dogfooding-refinable):
+
+- **`sketch` (floor):** ~1 evolving paragraph — intent + scope boundary + one falsifiable success signal.
+  Industry-attested core (one-paragraph / brief-issue); the success-signal is ARC's P1 addition. Not
+  trivial, not an Errand (ADR-020 keeps intent-verification at every tier, so a sketch is still checkable).
+- **`outline` (middle, records):** ~1–2 pages (ADR length norm). Section set adapted from pitch + ADR +
+  GitLab-lightweight-ADR: **Problem / Context · settled Decision(s) · Scope boundary (No-gos) · Open items
+  (worked out, not deferred) · Consequences / risks** — optionally a bounded **Appetite / effort** line
+  (Shape Up; maps onto Complexity Tier). No requirement IDs, no success-criteria matrix. Borrows the ADR's
+  decision-centric *form*, but is a *spec* (feeds a task list, validates completion) — distinct from an ARC
+  ADR (a posterity decision record that feeds nothing); do not conflate. The stabilizing principle:
+  structurally different, not "PRD minus sections" (drifts up) or "sketch plus a bit" (drifts down).
+- **`detailed` (ceiling, derives):** the current full spec, subtyped PRD (feature) / RFC (technical) — full
+  requirement enumeration + success criteria; derives an open design.
+
+### Spec naming & variants
+
+The on-disk filename stays `spec-{name}.md` (WOR-locked, relocatable) at every depth. What varies is the
+template and the H1 label:
+
+- **Templates:** `template-spec-sketch.md` / `template-spec-outline.md` / `template-spec-detailed-*.md`.
+  One genre noun — **Spec** (keeps ARC's `spec-*` / create-spec vocabulary; avoids a `Design Doc` ↔
+  `**Design:**`-meta-field clash).
+- **H1 leads with the artifact type:** `Spec ({depth}): {name}` — e.g. `Spec (outline): payment-retry`.
+  Restores at-a-glance type legibility (an external reader sees *why* two specs are structured differently)
+  and keeps symmetry; prose uses the natural compound ("the outline spec", "sketch-spec work").
+  Punctuation is a template detail.
+- **`PRD` retires as the catch-all term** — replace generic "PRD = any spec" usage with "detailed spec"
+  across surfaces (a documentation-cascade item; lands in the create-spec form-agnostic reframe).
+  `PROJECT-PRD` is a different artifact (project constitution) and is preserved.
+
+### Detailed-spec subtypes (PRD / RFC) — adopted as direction
+
+The `detailed` spec — the one tier that *derives* — splits by the existing feature / technical work-category
+axis (already classified at create-spec Step 2), which makes the `PRD` misnomer correct itself rather than
+vanish:
+
+- **feature → `PRD`** (`Spec (detailed · PRD): {name}`) — product requirements; now true to the name.
+- **technical → `RFC`** (`Spec (detailed · RFC): {name}`) — technical design; idiomatic, and its
+  comment-process heritage dovetails with the review-ceremony extension below. (Exact technical-subtype
+  label — `RFC` vs `design-doc` vs `technical-spec` — is a minor spec-time naming call.)
+
+Subtypes apply **at `detailed` only** — where derivation makes the feature / technical shape genuinely
+diverge (user stories / adoption metrics vs. alternatives / architecture / migration). `sketch` and
+`outline` *record* rather than derive, so category-divergence is minimal there; they stay single,
+category-agnostic shapes (bounding proliferation to four templates, not six). **Open (spec-time):** separate
+detailed templates (`-prd` / `-rfc`) vs. one detailed template that flexes by category — today's single
+template already flexes via optional sections, so the bar is "do the two diverge *enough* to warrant
+distinct templates?" Felt-difference test + dogfooding decide.
+
+### Floors that sit *below* the depth axis (do not scale)
+
+- **Discipline floor** (P2 / P4) — per-commit review-increment + quality gates. Invariant.
+- **Spec alignment checks** (`1_create-spec` Steps 4–5: PROJECT-PRD principle / Out-of-Scope;
+  TECHNICAL-OVERVIEW drift) — **binary on/off, always-on**, cost naturally proportional to spec surface.
+  You cannot "lightly" check principle alignment; it is a yes/no gate regardless of spec weight. Grounded
+  against CWC's D1 (a thin-spec, determinate strategy-doc WU): the checks still run, near-instant because
+  the surface is tiny. **This cost-scales-but-never-forks pattern is the template for integration ceremony
+  too** (§ Lifecycle Integration).
+- **Inline grounding** — even `sketch` / task-gen keeps a *minimal* grounding check (named files / symbols
+  exist); it is the generation-time slice of P1 intent-verification, hence floor, never "no grounding."
+
+### Grounding audit: scale by intensity, not scope, and keep the per-phase interlock
+
+`arc-task-audit` is **already** per-task / per-phase-scoped at maximum — never "audit the whole task list in
+one go" — so *scope* is not a meaningful scaling parameter. What can scale is **intensity / depth**: a light
+grounding-only pass (files / symbols exist) at `sketch` vs the full eight-category audit at `detailed`.
+
+The audit's *interlock cadence* — audit one phase → interlock (surface findings + recommendations) → take
+feedback / confirmation / iteration → revise that phase → proceed to the next phase's audit → interlock — is
+**leaning invariant** (not 100%). The candidate scaling (run all phases without the between-phase interlock,
+surface everything at the end) risks denying the user the chance to absorb findings, ask questions, and
+iterate; per-phase interlock feels load-bearing even for a two-phase list. Treat per-phase interlock as
+invariant pending a spec-time confirmation.
+
+So: **parameterize the one invariant procedure by intensity — do not fork it into a second skill.** task-gen
+invokes it at the WU's resolved depth; **mid-impl always offers the full variant regardless of the WU's
+tier** (a light WU can still hit a tricky task), so intensity is the per-context *default*, never a lock —
+preserving the at-will, human-and-agent use the skill already serves. Parameterizing (rather than forking)
+is also the forward-compat-as-fragment shape (§ composable-workflows).
+
+### Lane-switching: asymmetric and input-gated
+
+The user's pick within the band is made **per-stage, not once at entry, and is re-selectable at each stage
+transition**. Entry sets a *default cascade* (derived from tier); each authoring stage re-resolves its
+depth within the band. Two guardrails keep this safe rather than chaotic:
+
+1. **Down-switching is bounded by the tier floor.** You may choose lighter going *into* a stage, never
+   below the forced complexity floor — the floor protects genuine design work.
+2. **No-demotion, correctly scoped.** You are free to choose *how much to produce* going into a
+   not-yet-started stage; you may **not tear down** a heavier artifact already produced.
+   Demotion-of-produced-artifacts discards work; lighter-choice-going-in does not. The tier ratchet is
+   one-way; the per-stage level floats within the band.
+
+Concretely, asymmetric and input-gated:
+
+- **Lighter going *into* an unstarted stage** (within floor): always fine — a rich input over-supports a
+  lighter output (e.g. a detailed spec but a lighter task list for mechanical impl).
+- **Heavier going in:** valid only if the upstream artifact *supports* it. When it doesn't, that *is* the
+  **tier-promotion signal** ("minimal spec + heavy phased task list = the floor was set too low") — and the
+  resolution is to **re-enter the upstream stage that owns the gap and deepen it** (additively; the
+  no-tear-down rule holds), cascading back only as far as the insufficiency reaches (rarely the entrypoint).
+  You never proceed on under-determined input — the no-deferral invariant forbids it.
+
+This is **self-diagnosing**: up-switching a *downstream* stage past the tier default (e.g. a minimal spec
+but a heavy phased task list) *is* the tier-promotion signal. Lane-switch-up-downstream and tier-promotion
+are one event seen from two angles. Reaching for a `detailed` spec specifically *is* the `light → full`
+graduation (the design-doc line is the tier line). This generalizes the grounding audit's "route
+corrections back to the spec" to depth, and keeps the tier ratchet one-way.
+
+### Spec-ready & finalized thresholds — one depth-invariant bar; depth sets the distance
+
+There is **one spec-ready bar, depth-invariant:** *is all settle-able design settled, and can I state how
+I'll know it worked?* What varies is the **distance** to it (authoring cost), not the **height**: `sketch`
+reached fast (design obvious), `outline` at moderate cost (the few real calls settled / recorded),
+`detailed` at full cost (today's formalization-ready). No per-depth threshold proliferation. Same for the
+spec → task-gen ("finalized") bar — one invariant (spec coherent + design settled), even less
+depth-variation, with the grounding audit as the residual-catcher routing any straggler design decision
+back to the spec (still pre-impl). The threshold is where no-deferral is enforced *uniformly* — no depth
+leaves the spec stage with an open design decision.
+
+This makes `arc-plan`'s readiness states depth-relative (§ AWL touches the existing `arc-plan`): the
+synthesis progression `fresh → rough → maturing → formalization-ready` stays, but "formalization-ready"
+comes to mean *ready at the chosen depth*.
+
+### No design-deferral stays universal (and the PRD line gets crisp)
+
+The depth axis is authoring-labor-to-*settle*, not amount-*left-open*: `outline` is faster than `detailed`
+because the design was *more determinate coming in* (less to author), **never because it tolerates more open
+design**. Both reach a fully settled design before impl. The line ARC already runs — **design decisions
+settled upfront (invariant, all depths); implementation detail resolved during work (always, all depths)** —
+is what the current PRD's "Open Questions → resolve during work" must mean (impl-detail, never design). This
+WU **sharpens that wording** to say so explicitly across all variants (landing the floor model's flagged
+front-loading-duty constitutional sharpening). The industry "don't over-specify" idiom (Shape Up / GitLab)
+is exactly the impl-detail latitude ARC already grants — no new deferral mechanism. The only
+legitimately-scalable thing nearby is *which pre-impl stage settles a decision* (planning / spec / task-gen
+grounding audit) — all upstream of the first impl commit.
+
+### Spec-review procedure — a method (default) + an extension (optional ceremony)
+
+The review *gate* is invariant (a spec-finalization review increment always fires); its *content* and
+*cadence* scale and are configurable, via two ARC mechanisms:
+
+- **`spec-review` method** — always loaded by create-spec; ships a **lightweight default self-review**
+  (coherence + grounding pass, depth-scaled: quick at `sketch`, fuller at `detailed`), overridable. The
+  gate's default content. (May co-home with a broader review-method-family rather than AWL owning it
+  outright — settle at spec.)
+- **`spec-review`-ceremony extension** — fires at the spec-finalization fire-point, **inactive / empty by
+  default** (like all extensions); opt-in to point at a team's procedure (the async-PR / comment-window /
+  committee cadences). The strategy doc carries those as **informative industry precedent + a mapping, not
+  ARC-enforced.**
+
+So: gate invariant; method = shippable depth-scaled default; extension = optional external cadence.
+
+---
+
+## Mechanism
+
+### Per-stage self-resolution, flag-free feed-forward
+
+**Self-resolution over a conductor through-line — confirmed by the code.** The authoring workflows are
+already self-contained stage-entries that resolve their own context at entry; per-stage depth resolution is
+the natural extension, and a conductor threading depth across stages would be a retrofit (and cannot be a
+hard requirement — see verb fate). **Feed-forward is flag-free: the upstream artifact's shape *is* the depth
+signal** — `generate-tasks` reads the spec's realized template variant; `create-spec` reads the draft's
+shape; each then self-resolves within the ratcheting tier floor. No threaded value, no orchestrator state —
+the resolve-then-load posture. (The conductor draft already uses "`plan-*` visibly uses expanded structure"
+as a detection signal; this generalizes it.) The conductor, when it lands, is **depth-*direction*** (triage
+trees, ergonomics, overridable / discussable) — entry + optional re-engagement, **not** a mandatory
+cross-stage driver (a mandatory driver would re-bloat the conductor).
+
+### `arc start` verb fate + no `--tier` flag
+
+Shipped reality: `arc start --here` is **Planning-only cold-start** (scaffolds a Planning meta +
+SESSION-NOTES into an existing worktree); the create-new *worktree-spawning* wiring is **CWC's** (it folds
+the loose plumbing over Worktree Foundation's shipped `spawnWorktree` primitive — mechanism, not grammar);
+**no `--tier` flag exists.** The resolution:
+
+**Scaffolding (`init-work-unit` / `arc start`) is depth-agnostic** — it produces a uniform minimal Planning
+container (branch + meta + Planning state) and carries no depth opinion. **Depth is born in the planning
+stage and lives in the content**, not in the scaffolding act. The `Complexity Tier` field is mutable and
+ratcheting, set / updated by whichever stage holds the information. Both pipeline orderings stay coherent
+flag-free:
+
+- **Plan-first** (`arc-session → arc-plan → init`): explore, depth emerges, then init records the
+  discovered tier at creation.
+- **Container-first** (`arc-session → init → arc-plan`): init scaffolds with the tier field at its default
+  (the only mildly awkward seam — harmless because the field is designed to ratchet), then `arc-plan`
+  refines it.
+
+Three clean roles, no flag: **`arc start` = stub-scaffolding; `arc-plan` = depth-determination; the
+conductor = depth-direction.** **AWL ships the tier *model* (floor + ratchet + classification) and the depth
+resolution inside the authoring workflows — not a CLI flag. `--tier` is dropped.** Any eventual create-new
+tier override would live on CWC's create-new command, consuming AWL's model.
+
+### AWL touches the *existing* `arc-plan`, not the future conductor
+
+The universal planning entrypoint must scale across all three depths *today* — leaving it depth-blind means
+a `sketch` WU still gets the only mode that exists (full facilitation), defeating the lightness. AWL's
+minimal, light-touch addition: **make `arc-plan`'s readiness bar depth-relative** — its synthesis states
+(`fresh → rough → maturing → formalization-ready`) stay, but "formalization-ready" comes to mean *ready at
+the chosen depth* (a `sketch` hits it after minimal elicitation; a `detailed` needs full maturity) — plus
+define the three planning shapes and the artifact-shape feed-forward. The rich triage / decision-trees stay
+the conductor's job; AWL is the light-touch enabler.
+
+### `composable-workflows`: forward-compat constraint, no hard dep
+
+composable's extraction rule ("extract *whole conditional steps / blocks*; keep fine-grained intra-step
+branches inline") dictates *how* AWL writes the depth differentiation in `create-spec` / `generate-tasks`:
+as **whole-block depth variants** (a `sketch` task-pass structure vs a `detailed` one), not fine-grained "if
+light, skip this sentence" — so they extract cleanly to fragments when composable lands. The grounding-audit
+parameterization is the same shape. composable is a bare stub whose only `Depends On` (WOR) has shipped, and
+it does not block — so this is a **soft coordination note, not a `Depends On`**. (Per-stage level
+re-resolution *is* resolve-then-load applied per stage; composable's draft already calls the conductor's
+depth-selection "the tier-axis instance of resolve-then-load", and lane-switching generalizes that to every
+pre-impl stage.)
+
+### Ownership: AWL defines, the conductor elicits
+
+One ceremony axis, owned by AWL; facilitation, owned by the conductor.
+
+- **AWL owns the engine and the definitions.** The axis itself; the tier classification + floor enforcement +
+  promotion ratchet; the per-stage depths and their grammar (the spec template family, the task-list
+  phase grammar, the planning-stage depth set); the lane-switch triggers / connections; and the
+  tier → default-cascade mapping. This is a structure / workflow / template concern — AWL's charter.
+  Everything here is built and workable from AWL, conductor or not.
+- **The conductor owns ergonomics only, downstream.** It elicits, guides, and *assesses fit for* a lane —
+  recommends, and may flag a misfit ("this reads heavier than the lane you picked") — but **never dictates,
+  never defines the lanes, never owns their triggers / connections / codification.** It applies AWL's
+  codified tier → cascade mapping at the planning entry; it is the planning-stage facilitation instance, not
+  a cross-stage driver.
+
+This narrows the conductor and de-risks it (the conductor is P2, blocked on `loadset-composition`; AWL
+depends only on shipped `worktree-foundation`), pulling the headline scalable-WU value into AWL.
+**Write-back debt (`draft-arc-plan-conductor.md`):** its § 4 still says quick-tier generates a `## Scope`
+task-list-header section — stale against this model (spec is always a separate doc, lightest template
+variant). Rewrite to "invoke AWL's `sketch`-depth spec template", and retire the conductor's `depth` modes
+(`minimum` / `standard` / `expanded`) into the planning-stage instance of `formulation depth`
+(`sketch` / `outline` / `detailed`).
+
+---
+
+## Decomposition Model
+
+The actionable decomposition procedure is AWL's chartered deliverable; `arc-plan-conductor` only routes to /
+invokes it (and is far downstream, so the procedure cannot live there). Derived from the floor model plus a
+focused external-research pass (stacked-diffs / RFC-impl / epic-story / review-sizing). CWC's parked four-WU
+decomposition is the **worked requirements example and the procedure's acceptance test**.
 
 ### The WU upper boundary (mirror of ADR-021)
 
@@ -294,27 +658,44 @@ grounds, weakest to strongest:
    shops.)
 3. **Decisive — Model A forces shared mutable planning artifacts across branches.** One spec + one task list
    edited from N worktrees is exactly the cross-branch shared-mutable state that worktree isolation and the
-   relocatability invariant (item 7) exist to prevent: it either gravitates up to the cohort/backlog tier
+   relocatability invariant exist to prevent: it either gravitates up to the cohort / backlog tier
    (detaching the design from any single task list — the spec stops being the live co-located upstream) or
    stays on one branch referenced cross-branch (clunky, conflict-prone, a relocatability breach). **Model B
-   keeps each WU's meta+spec+tasks a self-contained, co-located, relocatable bundle** — the agent-native
-   in-repo model working *because* the unit is self-contained. The external pass reached this independently:
-   co-location / shared-mutable-artifact was "the strongest evidence for Model B" (Google's
+   keeps each WU's meta + spec + tasks a self-contained, co-located, relocatable bundle** — the
+   agent-native in-repo model working *because* the unit is self-contained. The external pass reached this
+   independently: co-location / shared-mutable-artifact was "the strongest evidence for Model B" (Google's
    one-RFC-to-many-PRs "works at enterprise scale only because they accept spec drift").
 
-"Stacked PRs" survives in ARC **only** as Model B's *dependency-ordered delivery mode* — a stack of WUs, each
-its own branch, merged in order (idiomatic at WU-grain; cf. Graphite at commit-grain). The merge/rebase
-*discipline* for executing such a stack is CWC's (`draft-concurrent-work-conventions.md`); AWL owns the
-*decision* to decompose, CWC owns delivering the stack safely — they compose.
+"Stacked PRs" survives in ARC **only** as Model B's *dependency-ordered delivery mode* — a stack of WUs,
+each its own branch, merged in order (idiomatic at WU-grain; cf. Graphite at commit-grain). The merge /
+rebase *discipline* for executing such a stack is CWC's (`draft-concurrent-work-conventions.md`); AWL owns
+the *decision* to decompose, CWC owns delivering the stack safely — they compose.
 
 ### The discriminator — orthogonality, not size
 
-Decompose on **design / subsystem orthogonality + independent deliverability / ownership** — *not* raw size.
-Size is a secondary symptom, and only when it spans *unrelated* subsystems (review-sizing research: defect
-detection craters past ~200–400 LOC per review increment; ~800–1000 LOC across *orthogonal* systems is a
-decompose signal). Tightly-coupled work designed as a whole stays **one WU even when large** — the per-task
-review grain carries quality — and splits later only if it destabilizes. Concern multiplicity is the trigger;
-LOC is a heads-up.
+Decompose on **design / subsystem orthogonality + independent deliverability / ownership** — *not* raw
+size. Size is a secondary symptom, and only when it spans *unrelated* subsystems (review-sizing research:
+defect detection craters past ~200–400 LOC per review increment; ~800–1000 LOC across *orthogonal* systems
+is a decompose signal). Tightly-coupled work designed as a whole stays **one WU even when large** — the
+per-task review grain carries quality — and splits later only if it destabilizes. Concern multiplicity is
+the trigger; LOC is a heads-up.
+
+### Folded-in sizing requirements (the concrete protocol AWL owns)
+
+- **Decouple planning-grouping from delivery-grouping.** One concern plans as a single coherent draft / spec
+  but *delivers* as a stack of PR-sized WUs along natural deliverable / phase boundaries — no forced choice
+  between "one concern" and "small PRs."
+- **Sizing heuristics (sense oversize ahead).** Count distinct deliverables / independently-reviewable
+  surfaces; estimate LOC + file count; test "reviewable in one sitting." Review effectiveness craters past
+  ~200–400 changed LOC (Google / SmartBear studies); >~few-hundred LOC / >~8–10 files / multiple independent
+  review surfaces → stack-or-cohort, not one WU.
+- **Stack vs. cohort.** Sequentially-dependent → stack (ordered PRs); independent-ish → cohort (parallel
+  WUs). ARC already has the levels — **cohort ≈ epic**, **WU ≈ story / one reviewable PR**; the gap is the
+  codified concern → WU-count mapping.
+- **When to split.** At PRD / decomposition time, not mid-execution (a mid-execution split is a costly
+  escape hatch).
+- **Sizing-norm co-home.** The sizing standard itself co-homes in `strategy-work-organization` (a WU-sizing
+  standard the procedure consumes), not authored here.
 
 ### Two guard rails
 
@@ -328,17 +709,17 @@ LOC is a heads-up.
 ### Timing — gated on design maturity
 
 Decompose when the design is **stable enough that the cuts are real**, not before. Speculative design → hold
-as one unit and iterate; settled design → decompose. Mechanically: a **provisional cut at draft-settle** (name
-the pieces) **confirmed / re-cut at spec/task time** (size them — merge a piece that came out too small, split
-one too big). Iterative, not a single blind upfront gate. CWC parked at *terminal planning* (= design settled)
-is the proof case: that maturity is exactly what makes it decomposable now.
+as one unit and iterate; settled design → decompose. Mechanically: a **provisional cut at draft-settle**
+(name the pieces) **confirmed / re-cut at spec / task time** (size them — merge a piece that came out too
+small, split one too big). Iterative, not a single blind upfront gate. CWC parked at *terminal planning*
+(= design settled) is the proof case: that maturity is exactly what makes it decomposable now.
 
 ### Cohorts stay flat — no nesting
 
-Decomposition **expands or creates a flat cohort of peer WUs**; structure rides **dependency edges**, never a
-cohort tree. CWC → D1–D4 become peers of WF / EE / IFA within agile-parallelism, not a sub-cohort under "CWC."
-If a piece itself later splits, its parts are more flat peers. (Avoids the reason-about-it-quickly trap.)
-Cohort semantics here reconcile with item 8's cohort-consistency invariant and the `cohort-{name}.md`
+Decomposition **expands or creates a flat cohort of peer WUs**; structure rides **dependency edges**, never
+a cohort tree. CWC → D1–D4 become peers of WF / EE / IFA within agile-parallelism, not a sub-cohort under
+"CWC." If a piece itself later splits, its parts are more flat peers. (Avoids the reason-about-it-quickly
+trap.) Cohort semantics reconcile with the cohort-consistency invariant and the `cohort-{name}.md`
 convention (whose codification is shared with CWC + file-classification — ownership map to settle at spec).
 
 ### Plan-grouping ≠ delivery-grouping
@@ -360,780 +741,170 @@ disciplined emergence-handling* (ARC) — not "100% upfront vs. co-evolve."
 ### Acceptance test
 
 The procedure must cleanly **re-derive CWC's D1–D4 from CWC's one settled draft.** CWC is both the worked
-requirements example and the first customer (parked pending this support). If the orthogonality discriminator
-and the two rails produce that decomposition, the procedure works; if it strains, the rule is wrong.
+requirements example and the first customer (parked pending this support). If the orthogonality
+discriminator and the two rails produce that decomposition, the procedure works; if it strains, the rule is
+wrong.
 
-### Open / deferred
+### Open / deferred (decomposition)
 
 - **Pipeline fire-point** for the procedure — a new decomposition workflow vs. a phase inside `create-spec`.
-- **Sizing-norm co-home** — the WU-sizing standard co-homes in `strategy-work-organization` (consumed by the
-  procedure), not authored here.
 - **Cohort-as-first-class** — the free-form `**Cohort:**` field (exists) vs. a structural cohort entity with
-  member lists; the structural form earns its keep only *if* cohorts gain shared lifecycle events (one PR for
-  the wave, coordinated rollout) — they don't today, so graph-derived grouping + the field suffice until they
-  do.
+  member lists; the structural form earns its keep only *if* cohorts gain shared lifecycle events (one PR
+  for the wave, coordinated rollout) — they don't today, so graph-derived grouping + the field suffice until
+  they do.
 - **Reconciliation debt.** `strategy-work-organization` § Task Lists and Branches (stacked-PRs / phased /
   team-sub-branch — pre-ADR-019 leftovers that contradict one-branch-per-WU) needs rewriting to the B-only
   model; § Work Character / § Spec-Flow Invariants § Scaling axes / § Escape-hatch still name the retired
-  atomic tier. Compounds with the floor model's tier reconciliation — one DEV-RULES / strategy sweep at
-  activation.
-
-## AWL ↔ conductor seam — planning-pass resolution (2026-06-03)
-
-> Resolves agenda item 4 (the circular deference) and the *conceptual* half of item 5; informs the floor
-> model's deferred knob-vs-steer question and the upcoming naming pass. Derived during the 2026-06-03
-> `arc-plan` pass from the floor model above, the conductor draft's scope-boundary flag
-> (`draft-arc-plan-conductor.md`), and `draft-composable-workflows.md`. Mechanism and naming are explicitly
-> deferred — see § Deferred below.
-
-### One ceremony axis: tier is the floor, level is the choice
-
-There is **one ceremony axis** (artifact / process weight), and two markers on it — not two orthogonal axes.
-The "circular deference" persisted because both drafts called their concern "spec-form work"; the fix is to
-name the axis and the two markers:
-
-- **Tier — the floor marker.** Where the complexity floor sits on the axis. A property of the *work*
-  (objective authoring-labor / complexity, the floor model's layer 1). Set at entry; a **one-way ratchet** —
-  it rises when a stage reveals complexity, never demotes (demotion would discard work).
-- **Level — the chosen marker.** Where the user *chooses* to sit within `[floor, ceiling]` (the floor model's
-  layer-3 user-above choice). Not a property of the work; a per-stage selection.
-
-These are floor-marker vs chosen-marker on the **same** scale (this supersedes the earlier "different layers /
-orthogonal axes" framing from this same pass — same axis, with layer 1 contributing the floor and layer 3 the
-chosen position above it). The per-stage choice is a **shared ordinal** (`sketch` / `outline` /
-`detailed` — see § Naming) realized in each stage's own units (planning facilitation, spec-template weight,
-task-list phase count), **not** a single global enum; and the count of *available* positions is
-**tier-relative** — wide under `light`, collapsed toward forced under `full` (the floor model's band-width
-topology). The complexity tier and the formulation-depth ordinal use **distinct** vocabularies, so they never
-collide. The conductor's "depth" is just the planning-stage instance of this ordinal. (Names settled in
-§ Naming below.)
-
-### Lane-switchable per-stage authoring
-
-The user's pick within the band is made **per-stage, not once at entry, and is re-selectable at each stage
-transition**. Entry sets a *default cascade* (derived from tier); each of the three pre-implementation
-**authoring** stages — pre-spec planning, spec creation, task generation — re-resolves its level within the
-band. Two guardrails keep this safe rather than chaotic:
-
-1. **Down-switching is bounded by the tier floor.** You may choose lighter going *into* a stage, never below
-   the forced complexity floor — the floor protects genuine design work.
-2. **No-demotion, correctly scoped** (replaces the body's blanket "promotion is one-way / no demotion", which
-   was too coarse). You are free to choose *how much to produce* going into a not-yet-started stage; you may
-   **not tear down** a heavier artifact already produced. Demotion-of-produced-artifacts discards work;
-   lighter-choice-going-in does not. The tier ratchet is one-way; the per-stage level floats within the band.
-
-This is **self-diagnosing**: up-switching a *downstream* stage past the tier default (e.g. a minimal spec but
-a heavy phased task list) *is* the tier-promotion signal — the incoherent combo is the floor telling you it was
-set too low. Lane-switch-up-downstream and tier-promotion are one event seen from two angles.
-
-Integration is **not a lane.** Unlike the three pre-impl authoring stages, integration ceremony is not a
-user-selectable per-stage level — it consumes what was produced rather than choosing how much to produce. It
-stays consistent, lightweight-by-default, and configurable independently of the level axis. **Open (flagged,
-not decided):** whether integration ceremony nonetheless derives *some* weight from the realized tier — the
-body's scope items 7 / 7a tier-aware sweep (atomic trivial / quick standard / standard full) — needs a proper
-evaluation before those items are dismissed wholesale. Part of 7 / 7a plainly falls out (integration is not a
-lane); whether tier-sensitivity of the sweep / archive survives is a separate question. Evaluate at the
-reconciliation pass; non-blocking.
-
-### Ownership: AWL defines, the conductor elicits
-
-- **AWL owns the engine and the definitions.** The axis itself; the tier classification + floor enforcement +
-  promotion ratchet; the per-stage levels and their grammar (the spec template family, the task-list phase
-  grammar, the planning-stage level set); the lane-switch triggers / connections; and the tier→default-cascade
-  mapping. This is a structure / workflow / template concern — AWL's charter. Everything here is built and
-  workable from AWL, conductor or not.
-- **The conductor owns ergonomics only, downstream.** It elicits, guides, and *assesses fit for* a lane —
-  recommends, and may flag a misfit ("this reads heavier than the lane you picked") — but **never dictates,
-  never defines the lanes, never owns their triggers / connections / codification.** It applies AWL's codified
-  tier→cascade mapping at the planning entry; it is the planning-stage facilitation instance, not a cross-stage
-  driver.
-
-This narrows the conductor and de-risks it, pulling the headline scalable-WU value into AWL — the resolution
-the conductor draft's scope-boundary flag anticipated, now made precise.
-
-### Deferred from this pass
-
-- **Mechanism → coupled with item 5 (`draft-composable-workflows.md`).** Per-stage level re-resolution *is*
-  resolve-then-load applied per stage (composable's draft already calls the conductor's depth-selection "the
-  tier-axis instance of resolve-then-load"; lane-switching generalizes that to every pre-impl stage). So item
-  4's mechanism tail lives with item 5: the through-line-vs-self-resolution call (**lean: per-stage
-  self-resolution; the conductor is entry + optional re-engagement, not a mandatory cross-stage driver — a
-  mandatory driver would re-bloat the conductor**) and the `arc start`-vs-conductor verb fate are settled in
-  that coupled, code-grounded pass.
-- **Naming → resolved.** Settled in § Naming — research-pass resolution below: `Complexity Tier` =
-  `light` / `full`; `formulation depth` = `sketch` / `outline` / `detailed`. The "why 3?" bucket-count worry
-  dissolves there (three is the *light* tier's band resolution, not a universal count).
-- **Write-back debt (`draft-arc-plan-conductor.md`).** Its § 4 still says quick-tier generates a `## Scope`
-  task-list-header section — stale against the floor model (spec is always a separate doc, lightest template
-  variant). Rewrite to "invoke AWL's `sketch`-depth spec template", and retire the conductor's `depth` modes
-  (`minimum` / `standard` / `expanded`) into the planning-stage instance of `formulation depth`
-  (`sketch` / `outline` / `detailed`).
-
-## Naming — research-pass resolution (2026-06-03)
-
-> Resolves the tier-name question (floor model § Open) and the seam's deferred naming. Settled during the
-> 2026-06-03 `arc-plan` pass after a focused external-vocabulary research pass (RFC lightweight/standard idiom,
-> Shape Up appetite, incident-severity tiers, t-shirt / magnitude legibility). Research informed the names; the
-> calls are the project's. **Supersedes** the placeholder `lower` / `standard` and `quick` / `standard` and
-> `minimum` / `standard` / `expanded` usages elsewhere in this draft — reconcile the body at activation.
-
-### The slate
-
-| Slot | Name | Recorded? |
-| ---- | ---- | --------- |
-| Complexity axis (the floor / work-property) | **`Complexity Tier`** (meta field) | Yes — render deferred (lean off) |
-| Complexity-tier values | **`light`** / **`full`** | Yes |
-| Per-stage ceremony choice (the band position) | **`formulation depth`** | No — transient, per-stage, lane-switchable |
-| Formulation-depth ordinal | **`sketch`** / **`outline`** / **`detailed`** | No |
-
-### Rationale
-
-- **`Complexity Tier`, not bare `tier`.** The axis is named for its **basis** — complexity / design-authoring
-  depth — which reinforces the floor model's discipline that the tier tracks *work-demand only*, never
-  preference. Naming the basis (`complexity`) while keeping the `tier` abstraction also lets the values carry
-  *ceremony weight* (`light` / `full`) without the basis-vs-value grammar clash that a bare `Complexity: full`
-  would invite. Taken **regardless of the partial collision** with the quality-gate `Tier 1/2/3` vocabulary —
-  whose own rename (`draft-quality-gate-hooks.md`, current lean drops the tier numbers) likely clears it
-  anyway, and which is non-catastrophic either way.
-- **`light` / `full`, not `quick` / `standard`.** `quick` overweighted *speed* over the authoring-labor
-  essence; `standard` implied *default* while naming the *marked / maximal* case. `light` reads as relative
-  (vs. `lightweight`, which sounds absolute / "not much" and is over-long against `full`); `full` is the right
-  ceiling word (`heavy` carries the same absolute-sounding baggage `full` avoids). This is the **within-WU**
-  complexity split — *not* the design-doc-or-not threshold, which is the Errand ↔ WU line (wrapper floor): both
-  tiers carry a spec; they differ in design-authoring depth, not in whether a design exists.
-- **`formulation depth` is a concept, not a field.** It *defines the lanes* and is re-selectable per stage (can
-  differ between planning stages), so it is transient — never a recorded meta value or render column. The name
-  captures process **and** artifact (you *formulate* an approach and produce *a formulation*), and fences the
-  **pre-implementation** scope in a way `authoring` does not (code is authored too; nothing is "formulated"
-  during execution).
-- **`sketch` / `outline` / `detailed`** reads as an ordinal progression at every pre-impl stage (sketch /
-  outline / detail a plan, a spec, a task list), is collision-free with the tier vocabulary, and avoids the
-  floor-word-vs-magnitude-word register trap (`minimum` / `expanded`). It is a **shared ordinal**, not a global
-  enum: each stage realizes it in its own units, and the count of *available* positions is tier-relative — wide
-  under `light`, collapsed toward forced under `full` (the floor model's band-width topology). **"Why three?"**
-  resolves here: three is the resolution of the *light* tier's wide band, not a universal tier count — no
-  industry framework runs a 3-level ceremony scale, which was the tell.
-
-### Record-but-don't-necessarily-render
-
-`Complexity Tier` records on the meta — it is scope item 2's `**Tier:**` field, renamed; it groups with the
-classification fields (`Depends On` / `Cohort` / `Priority`), not with provenance (`Origin` / `Design`).
-**Rendering is a separate call:** the parallelism-planning rationale points at `user.status` In-Flight if
-anywhere, not ROADMAP, and with both tables near max width the lean is **off in renders** until that view's
-value is demonstrated. Recording is cheap and stable; render-inclusion stays open.
-
-## Mechanical differentiators — planning-pass resolution (2026-06-03, code-grounded)
-
-> Resolves agenda item 5 (the coupled standard↔lower mechanical differentiators + `composable-workflows` dep)
-> and the mechanism tail of item 4 (through-line-vs-self-resolution; the `arc start`-vs-conductor verb fate).
-> Derived during the 2026-06-03 code-grounded `arc-plan` pass against the *real* surfaces — `1_create-spec.md`,
-> `2_generate-tasks.md`, `activate-`/`integrate-work-unit.md`, the shipped `arc start` command
-> (`commands/start.ts`), and the `composable-workflows` + `arc-plan-conductor` drafts — plus CWC's parked D1–D4
-> as the worked light-WU example. Supersedes the body's § Three-Tier Model and any tier-coupled spec/task shapes
-> wherever they conflict. Sharpens the seam section's "tier is the floor, level is the choice" into a single
-> consolidated axis (below).
-
-### Consolidation: one felt axis (formulation depth) + a floor (tier)
-
-The seam section's "one ceremony axis, two markers" collapses one step further: there is **one user-facing
-product — formulation depth** (`sketch` / `outline` / `detailed`, realized per stage) — and **tier merely sets
-where the floor sits on that axis**:
-
-- **`light`** — floor at `sketch`; free to climb to `detailed` by choice.
-- **`full`** — floor pinned *at* `detailed`. `full` is not a separate ceremony machine that happens to coincide
-  with `light/detailed`; it **is `detailed`, made mandatory.** The fixed ceiling; it does not vary.
-- **Errand** — below the floor entirely (no spec). The fixed floor; it does not vary.
-
-So the "overlap between `full` and `light/detailed`" question **dissolves** — it was never two things, it is one
-axis with a floor. Errand and Full are the two fixed endpoints (no variation, by symmetry); `light` is the
-variable middle between them. This is faithful to the floor model's "rigor *available* is identical across the
-lower tier's top and standard; only rigor *mandated* differs" — mandated-vs-chosen is now the *only* difference,
-and depth is the single product.
-
-### The felt-difference test (model guardrail)
-
-**Every lane position must be distinguishable to the *user* in rigor and/or speed; a distinction visible only to
-the author is arbitrary and must collapse.** This is a first-class acceptance criterion for the whole model, and
-applying it honestly is what produced the consolidation above:
-
-- **Depth passes strongly** — `sketch` (paragraph spec, single pass, one phase, fast) vs `detailed` (full PRD,
-  3-pass, per-phase audit, thorough) is felt in both speed and rigor.
-- **Tier-at-the-same-depth fails the felt test** — `light/detailed` and `full/detailed` produce identical
-  artifacts; the difference is purely modal (chosen vs forced). That failure is *why* tier cannot be the
-  user-facing knob and must be the floor/classification — felt only via the floor it enforces and the legibility
-  it gives parallelism planning. The model is non-arbitrary **iff depth is the felt lever and tier is the
-  floor.** Treating tier as the user-facing knob would be the arbitrary-lever trap.
-- **Follow-up-WU criterion** — scaling ceremony *within* this structure (making positions more distinct) is a
-  legitimate future WU **iff** its candidates pass the felt-difference test. Only-arbitrary candidates ⇒ the
-  split is wrong; real-but-not-yet-built candidates ⇒ an opportunity. The test is the discriminator.
-
-### Depth ordinal confirmed at 3; the middle is structural
-
-The spec stage clinches it: the gap between a single-paragraph `sketch` and a full PRD is *enormous*, so a
-single middle is not optional — without it the broad determinate-design middle of real work has only two
-unusable extremes. The spec stage's hard requirement for a middle **pins the ordinal at 3**, and stage-coherence
-carries it to planning and task-gen (where the middle is present but less dramatic). Lane-switching still lets a
-single WU mix levels across stages; all three positions stay *available* at each stage.
-
-### Per-stage realization of depth (the three authoring stages)
-
-Each authoring stage realizes the ordinal in its own units and **self-resolves** (see § Mechanism below). These
-shapes are **starting points** — AWL explicitly leaves them open to post-integration dogfooding refinement
-(scale a position up or down within reason if real use shows the tuning is off):
-
-1. **Pre-spec planning** (the existing `arc-plan`): `sketch` = quick determinacy-confirm (a couple of targeted
-   questions); `outline` = bounded single-pass elicitation (surface the few real decisions + scope, no
-   iteration); `detailed` = full iterative facilitation (today's `arc-plan`, later the conductor's refine-loop).
-2. **Spec** (`1_create-spec`): a template family. `sketch` = intent + scope boundary + one falsifiable success
-   signal (ADR-020 keeps intent-verification at every tier, so a sketch is still checkable — not trivial, not an
-   Errand); `outline` = **decision-centric** — records settled design + scope + the one-or-two things that
-   genuinely needed working out, *without* full requirement enumeration (no exhaustive R-IDs / success-criteria
-   matrix); `detailed` = the current full PRD. The stabilizing principle for `outline`: structurally different,
-   not "PRD minus sections" (drifts up) or "sketch plus a bit" (drifts down) — full PRD *derives* a design that
-   didn't exist; `outline` *records* one that was mostly determinate.
-3. **Task-gen** (`2_generate-tasks`): pass-structure + phase count. `sketch` = single combined pass with inline
-   light grounding, one substantive phase + verification gate-check; `outline` = merged structure+content pass
-   with the grounding audit retained, few phases; `detailed` = full 3-pass (structure → content → per-phase
-   grounding audit) + 3–7 phases + dedicated verification phase. `full` = `detailed`, forced.
-
-### Floors that sit *below* the depth axis (do not scale)
-
-- **Discipline floor** (P2/P4) — per-commit review-increment + quality gates. Invariant.
-- **Spec alignment checks** (`1_create-spec` Steps 4–5: PROJECT-PRD principle / Out-of-Scope; TECHNICAL-OVERVIEW
-  drift) — **binary on/off, always-on**, cost naturally proportional to spec surface. You cannot "lightly" check
-  principle alignment; it is a yes/no gate regardless of spec weight. Grounded against CWC's D1 (a thin-spec,
-  determinate strategy-doc WU): the checks still run, near-instant because the surface is tiny.
-- **Inline grounding** — even `sketch`/task-gen keeps a *minimal* grounding check (named files/symbols exist);
-  it is the generation-time slice of P1 intent-verification, hence floor, never "no grounding."
-
-### Grounding audit: scale by intensity, not scope, and keep the per-phase interlock
-
-Correction to the prior framing: `arc-task-audit` is **already** per-task / per-phase-scoped at maximum — never
-"audit the whole task list in one go" — so *scope* is not a meaningful scaling parameter here. What can scale is
-**intensity / depth**: a light grounding-only pass (files/symbols exist) at `sketch` vs the full eight-category
-audit at `detailed`.
-
-The audit's *interlock cadence* — audit one phase → interlock (surface findings + recommendations) → take
-feedback / confirmation / iteration → revise that phase → proceed to the next phase's audit → interlock — is
-**leaning invariant** (not 100% certain). The candidate scaling (run all phases without the between-phase
-interlock and surface everything at the end) risks denying the user the chance to absorb findings, ask
-questions, and iterate; per-phase interlock feels load-bearing even for a two-phase list. Treat per-phase
-interlock as invariant pending a spec-time confirmation.
-
-So: **parameterize the one invariant procedure by intensity — do not fork it into a second skill.** task-gen
-invokes it at the WU's resolved depth; **mid-impl always offers the full variant regardless of the WU's tier**
-(a light WU can still hit a tricky task), so intensity is the per-context *default*, never a lock — preserving
-the at-will, human-and-agent use the skill already serves. Parameterizing (rather than forking) is also the
-forward-compat-as-fragment shape (see § composable below).
-
-### Mechanism: per-stage self-resolution, flag-free feed-forward (resolves item 4 tail)
-
-**Self-resolution over a conductor through-line — confirmed by the code.** The authoring workflows are already
-self-contained stage-entries that resolve their own context at entry; per-stage depth resolution is the natural
-extension, and a conductor threading depth across stages would be a retrofit (and cannot be a hard requirement —
-see verb fate). **Feed-forward is flag-free: the upstream artifact's shape *is* the depth signal** —
-`generate-tasks` reads the spec's realized template variant; `create-spec` reads the draft's shape; each then
-self-resolves within the ratcheting tier floor. No threaded value, no orchestrator state — the resolve-then-load
-posture. (The conductor draft already uses "`plan-*` visibly uses expanded structure" as a detection signal;
-this generalizes it.) The conductor, when it lands, is **depth-*direction*** (triage trees, ergonomics,
-overridable/discussable) — entry + optional re-engagement, **not** a mandatory cross-stage driver.
-
-### `arc start` verb fate + no `--tier` flag (resolves item 4 tail)
-
-Shipped reality: `arc start --here` is **Planning-only cold-start** (scaffolds a Planning meta + SESSION-NOTES
-into an existing worktree); the create-new *worktree-spawning* wiring is **CWC's D3** ("folds the loose plumbing:
-`arc start` create-new wiring"); **no `--tier` flag exists.** The decisive resolution:
-
-**Scaffolding (`init-work-unit` / `arc start`) is depth-agnostic** — it produces a uniform minimal Planning
-container (branch + meta + Planning state) and carries no depth opinion. **Depth is born in the planning stage
-and lives in the content**, not in the scaffolding act. The `Complexity Tier` field is mutable and ratcheting,
-set/updated by whichever stage holds the information. Both pipeline orderings stay coherent flag-free:
-
-- **Plan-first** (`arc-session → arc-plan → init`): explore, depth emerges, then init records the discovered
-  tier at creation.
-- **Container-first** (`arc-session → init → arc-plan`): init scaffolds with the tier field at its default
-  (the only mildly awkward seam — harmless because the field is designed to ratchet), then `arc-plan` refines it.
-
-Three clean roles, no flag: **`arc start` = stub-scaffolding; `arc-plan` = depth-determination; the conductor =
-depth-direction.** **AWL ships the tier *model* (floor + ratchet + classification) and the depth resolution
-inside the authoring workflows — not a CLI flag. `--tier` is dropped** (scope item 4's flag retires). Any
-eventual create-new tier override would live on CWC's create-new command, consuming AWL's model.
-
-### AWL touches the *existing* `arc-plan`, not the future conductor
-
-The universal planning entrypoint must scale across all three depths *today* — leaving it depth-blind means a
-`sketch` WU still gets the only mode that exists (full facilitation), defeating the lightness. AWL's minimal,
-light-touch addition: **make `arc-plan`'s readiness bar depth-relative** — its synthesis states
-(`fresh`→`rough`→`maturing`→`formalization-ready`) stay, but "formalization-ready" comes to mean *ready at the
-chosen depth* (a `sketch` hits it after minimal elicitation; a `detailed` needs full maturity) — plus define the
-three planning shapes and the artifact-shape feed-forward. The rich triage / decision-trees stay the conductor's
-job; AWL is the light-touch enabler.
-
-### `composable-workflows`: forward-compat constraint, no hard dep
-
-composable's extraction rule ("extract *whole conditional steps/blocks*; keep fine-grained intra-step branches
-inline") dictates *how* AWL writes the depth differentiation in `create-spec` / `generate-tasks`: as **whole-block
-depth variants** (a `sketch` task-pass structure vs a `detailed` one), not fine-grained "if light, skip this
-sentence" — so they extract cleanly to fragments when composable lands. The grounding-audit parameterization is
-the same shape. composable is a bare stub whose only `Depends On` (WOR) has shipped, and it does not block — so
-this is a **soft coordination note, not a `Depends On`** (corrects agenda item 5's "likely new dependency").
-
-### Open / deferred from this pass
-
-- **`outline` + `sketch` spec shapes — research-owed.** The decisive design challenge; needs an external-idiom
-  pass (design-brief / one-pager, Shape Up pitch, mini-RFC — inform and adapt, don't adopt, as with PRDs/ADRs)
-  before the spec's template-family work. Scoped immediately after this capture.
-- **Planning + spec shapes are starting points** — explicitly open to post-integration dogfooding refinement
-  (scale up/down within reason).
-- **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
-- **Integration tier-sensitivity (body scope items 7 / 7a)** — still the activation reconciliation pass's
-  question (integration is not a lane); not decided here.
-
-## Spec shapes, naming & review — research-grounded resolution (2026-06-03)
-
-> Refines the prior section's per-stage *spec* realization with the 2026-06-03 deep-research pass (industry
-> idiom for lightweight specs) plus the follow-on naming / threshold / lane-switch / review-procedure calls.
-> Research posture: inform and adapt, never adopt. Full source URLs live in that deep-research transcript — pull
-> them when authoring the spec's External Research section (per the SESSION-NOTES citation convention); findings
-> are cited inline by source here.
-
-### Research grounding (what the idiom confirmed — and didn't)
-
-- **Decision-centric middle: confirmed** (high confidence, 3-0). The stable middle-tier artifacts — Shape Up's
-  pitch (Problem / Appetite / Solution / Rabbit Holes / No-gos), the ADR (Context / Decision / Consequences),
-  GitLab's lightweight-ADR — all *record* settled design + an explicit scope boundary + the one-or-two open
-  items, while deliberately *excluding* requirement-ID enumeration and success-criteria matrices. The exclusion
-  is the anti-up-drift mechanism (Shape Up: "we don't want to over-specify… they'll box in the designers"); the
-  fixed decision+scope sections are the anti-down-drift. **A full spec *derives* a design that didn't exist; the
-  middle *records* one that was mostly determinate.** The hypothesis held.
-- **Floor: convergent** — GitLab "start with one paragraph and evolve… not a complete upfront blueprint"; Go
-  "brief issue… no design document at this point." Intent-first, accretes through learning. (Our floor adds *one
-  falsifiable success signal* on top — that piece is ARC's P1-driven addition, not industry-converged.)
-- **Procedure: async-first and scales with tier** — author-owned PR + bounded comment window (Oxide 3–5 days),
-  escalate to sync after ~2 round-trips (Microsoft), committee only for high-blast-radius (Squarespace). Direct
-  support for the felt-difference test on the *procedure* axis (lanes differ in speed *and* rigor).
-- **3-vs-2: industry runs TWO, not three** (high confidence). Mature processes use a binary design-doc-or-not
-  gate + an implicit floor; even Oxide — RFC-derived — collapses to a *single* artifact with author-judged depth
-  ("use your best judgement… weigh rigor and urgency"), only lifecycle states, no depth tiers. **So our 3-level
-  ordinal is an adaptation requiring its own justification — which we have:** (a) ARC's mechanism
-  (resolve-then-load, per-stage self-resolution, composable fragments) needs *discrete, loadable* resolutions —
-  you cannot load a fragment against a continuum; the discreteness is the agent-native adaptation. (b) The
-  spec-gap argument (paragraph→full is too large to leave the determinate middle unserved). (c) The
-  felt-difference test validates each position. The Oxide continuum is the **considered-and-declined
-  alternative** (declined for agent-loadability). Each of our three *shapes* is individually attested in the
-  idiom; what's adapted is assembling them into one graduated, agent-resolvable ordinal.
-- **Caveats:** several procedure findings are single-company existence-proofs (adapt-from, not norms); ADR's
-  "fixed 5 fields" holds only for canonical Nygard (the family spans one sentence to 15 sections); Amazon PR/FAQ
-  went unexamined (the heavy boundary).
-
-### Spec naming & variants
-
-The on-disk filename stays `spec-{name}.md` (WOR-locked, relocatable) at every depth. What varies is the
-template and the H1 label:
-
-- **Templates:** `template-spec-sketch.md` / `template-spec-outline.md` / `template-spec-detailed-*.md` (detailed
-  split below). One genre noun — **Spec** (keeps ARC's `spec-*` / create-spec vocabulary; avoids a `Design Doc`
-  ↔ `**Design:**`-meta-field clash).
-- **H1 leads with the artifact type:** `Spec ({depth}): {name}` — e.g. `Spec (outline): payment-retry`. Restores
-  at-a-glance type legibility (an external reader sees *why* two specs are structured differently) and keeps full
-  symmetry; prose uses the natural compound ("the outline spec", "sketch-spec work"). Punctuation is a template
-  detail.
-- **Depth ordinal stays `sketch` / `outline` / `detailed`.** The *determinate ↔ derived* split is the
-  **rationale** behind the ordinal (how much design must be authored to settle it), kept as the explanation —
-  **not** surfaced as the labels (a two-pole rationale would break a three-position ordinal).
-- **`PRD` retires as the catch-all term** — replace generic "PRD = any spec" usage with "detailed spec" across
-  surfaces (a documentation-cascade item; lands in the create-spec form-agnostic reframe). `PROJECT-PRD` is a
-  different artifact (project constitution) and is preserved.
-
-**Detailed-spec subtypes by work category (adopted as direction).** The detailed spec — the one tier that
-*derives* — splits by the existing feature/technical work-category axis (already classified at create-spec
-Step 2), which makes the misnomer correct itself rather than vanish:
-
-- **feature → `PRD`** (`Spec (detailed · PRD): {name}`) — product requirements; now true to the name.
-- **technical → `RFC`** (`Spec (detailed · RFC): {name}`) — technical design; idiomatic, and its comment-process
-  heritage dovetails with the review-ceremony extension below. (Exact technical-subtype label — `RFC` vs
-  `design-doc` vs `technical-spec` — is a minor spec-time naming call.)
-
-Subtypes apply **at `detailed` only** — where derivation makes the feature/technical shape genuinely diverge
-(user stories / adoption metrics vs. alternatives / architecture / migration). `sketch` and `outline` *record*
-rather than derive, so category-divergence is minimal there; they stay single, category-agnostic shapes
-(bounding proliferation to four templates, not six). **Open (spec-time):** separate detailed templates
-(`-prd` / `-rfc`) vs. one detailed template that flexes by category — today's single template already flexes via
-optional sections, so the bar is "do the two diverge *enough* to warrant distinct templates?" Felt-difference
-test + dogfooding decide.
-
-### The three shapes (concrete, starting points — dogfooding-refinable)
-
-- **`sketch` (floor):** ~1 evolving paragraph — intent + scope boundary + one falsifiable success signal.
-  Industry-attested core (one-paragraph / brief-issue); the success-signal is ARC's P1 addition. Not trivial,
-  not an Errand.
-- **`outline` (middle, records):** ~1–2 pages (ADR length norm). Section set adapted from pitch + ADR +
-  GitLab-lightweight-ADR: **Problem/Context · settled Decision(s) · Scope boundary (No-gos) · Open items (worked
-  out, not deferred) · Consequences/risks** — optionally a bounded **Appetite/effort** line (Shape Up; maps onto
-  Complexity Tier). No requirement IDs, no success-criteria matrix. Borrows the ADR's decision-centric *form*,
-  but is a *spec* (feeds a task list, validates completion) — distinct from an ARC ADR (a posterity decision
-  record that feeds nothing); do not conflate.
-- **`detailed` (ceiling, derives):** the current full spec, subtyped PRD (feature) / RFC (technical) — full
-  requirement enumeration + success criteria; derives an open design.
-
-### No design-deferral stays universal (and the PRD line gets crisp)
-
-The depth axis is authoring-labor-to-*settle*, not amount-*left-open*: `outline` is faster than `detailed`
-because the design was *more determinate coming in* (less to author), **never because it tolerates more open
-design**. Both reach a fully settled design before impl. The line ARC already runs — **design decisions settled
-upfront (invariant, all depths); implementation detail resolved during work (always, all depths)** — is what the
-current PRD's "Open Questions → resolve during work" must mean (impl-detail, never design). This WU **sharpens
-that wording** to say so explicitly across all variants (landing the floor model's flagged front-loading-duty
-constitutional sharpening). The industry "don't over-specify" idiom (Shape Up / GitLab) is exactly the
-impl-detail latitude ARC already grants — no new deferral mechanism. The only legitimately-scalable thing nearby
-is *which pre-impl stage settles a decision* (planning / spec / task-gen grounding audit) — all upstream of the
-first impl commit.
-
-### Spec-ready & finalized thresholds — one depth-invariant bar; depth sets the distance
-
-There is **one spec-ready bar, depth-invariant:** *is all settle-able design settled, and can I state how I'll
-know it worked?* What varies is the **distance** to it (authoring cost), not the **height**: `sketch` reached
-fast (design obvious), `outline` at moderate cost (the few real calls settled/recorded), `detailed` at full cost
-(today's formalization-ready). No per-depth threshold proliferation. Same for the spec→task-gen ("finalized")
-bar — one invariant (spec coherent + design settled), even less depth-variation, with the grounding audit as the
-residual-catcher routing any straggler design decision back to the spec (still pre-impl). The threshold is where
-no-deferral is enforced *uniformly* — no depth leaves the spec stage with an open design decision.
-
-### Lane-switching — asymmetric and input-gated (sharpens the seam section)
-
-Lane-switching survives, made safe by input-gating rather than removed:
-
-- **Lighter going *into* an unstarted stage** (within floor): always fine — a rich input over-supports a lighter
-  output (e.g. a detailed spec but a lighter task list for mechanical impl).
-- **Heavier going in:** valid only if the upstream artifact *supports* it. When it doesn't, that *is* the
-  tier-promotion signal ("minimal spec + heavy phased task list = the floor was set too low") — and its
-  resolution is to **re-enter the upstream stage that owns the gap and deepen it** (additively; the no-tear-down
-  rule holds), cascading back only as far as the insufficiency reaches (rarely the entrypoint). You never proceed
-  on under-determined input — the no-deferral invariant forbids it. This generalizes the grounding audit's
-  "route corrections back to the spec" to depth, and keeps the tier ratchet one-way.
-
-### Spec-review procedure — a method (default) + an extension (optional ceremony)
-
-The review *gate* is invariant (a spec-finalization review increment always fires); its *content* and *cadence*
-scale and are configurable, via two ARC mechanisms:
-
-- **`spec-review` method** — always loaded by create-spec; ships a **lightweight default self-review**
-  (coherence + grounding pass, depth-scaled: quick at `sketch`, fuller at `detailed`), overridable. The gate's
-  default content. (May co-home with a broader review-method-family rather than AWL owning it outright — settle
-  at spec.)
-- **`spec-review`-ceremony extension** — fires at the spec-finalization fire-point, **inactive/empty by default**
-  (like all extensions); opt-in to point at a team's procedure (the async-PR / comment-window / committee
-  cadences). The strategy doc carries those as **informative industry precedent + a mapping, not ARC-enforced.**
-
-So: gate invariant; method = shippable depth-scaled default; extension = optional external cadence.
-
-### Open / deferred (updates the prior section's list)
-
-- **`outline` / `sketch` spec shapes** — now research-grounded above (was research-owed); template *bodies*
-  authored at spec time.
-- **Detailed-subtype template structure** — separate `-prd` / `-rfc` templates vs. one flexing template
-  (felt-difference test + dogfooding).
-- **Per-phase grounding-audit interlock invariance** — lean invariant, confirm at spec.
-- **Integration tier-sensitivity (body items 7 / 7a)** — still the activation reconciliation pass's question.
-
-## WOR alignment note (2026-05-19)
-
-WOR R66-R68's renames are applied throughout this draft: WU artifact prefixes `plan-*` → `draft-*`
-and `prd-*` → `spec-*`, and the meta field `Spec` → `Design` (`Task List` retained). Spec form
-variation routes through template choice under the unified `spec-*` filename — `template-prd.md`
-preserved as the heaviest variant; lighter variants defer to `draft-arc-plan-conductor` WU scope
-(`brief` ruled out as a name — collides with `reference/briefs/`). References to completed WUs
-(Session-Operational Flow, Work Organization Reform, User Sync UX) keep their as-shipped artifact
-names. The shift-state reconciliation is applied inline too — see `cohort-agile-parallelism.md`.
-
-Substantive AWL-specific implications (captured here):
-
-1. **Tier ↔ spec-form coupling is a conductor-WU decision, not AWL's.** This plan's § Three-Tier
-   Model table currently couples tier to spec form (atomic: none; quick: task-list `## Scope`;
-   standard: full PRD). Per WOR follow-on planning (2026-05-19 session), that coupling is now an
-   **open conductor-WU question** — the alternative (user picks form per WU, decoupled from tier)
-   is on the table. AWL should defer to conductor's resolution rather than encoding coupling here.
-   PRD-time: align with whatever conductor lands.
-2. **Quick-tier spec shape — partially superseded.** § Open Questions § "Quick-tier spec shape —
-   task-list header vs reduced PRD doc" narrows under WOR's variant model. The remaining question
-   is "which template variant does quick default to?" — not "does quick have a spec doc?" The
-   default-to-spec-doc-with-form-variant answer is the WOR-aligned shape; the exact form (brief,
-   compact-PRD, etc.) decides at conductor PRD time.
-3. **Atomic-tier spec — binary at conductor PRD time.** Per WOR follow-on planning: atomic either
-   gets a required-and-tiny spec (one-paragraph form) OR no spec at all. Not optional. Resolution
-   defers to conductor WU's PRD.
-4. **Meta field values** (scope item 3) — the field is `**Design:**` (renamed from `Spec`); values are
-   `draft-{name}.md` (Planning), `spec-{name}.md` (Active+). Form variation (PRD vs brief vs etc.)
-   lives in template choice + H1, not in filename.
-
-- **Origin:** Surfaced during the agile/mobility expansion discussion when Worktree
-  Foundation (mechanism) and Concurrent Work Conventions (conventions) were carved out
-  of the original Work-Unit Mobility WU. The agility gap — small bounded work paying full ceremony
-  cost — emerged as a third concern alongside concurrency. Solo-dev sequential work patterns shaped
-  ARC's current uniform ceremony, which doesn't fit team practice where small WUs are spun up and
-  shipped constantly.
-
-## Scalable-core alignment note (ADR-020)
-
-ADR-020 (principle-anchored scalable core) ratifies this plan's tiered-artifacts / invariant-execution
-thesis and adds two steers to absorb at PRD:
-
-1. **Spec is always a separate document.** ADR-020's invariant floor kills the quick-tier "spec via
-   task-list `## Scope` header" option in the § Three-Tier Model table — quick-tier (and above) carries a
-   separate `spec-*` doc that scales by template variant (PRD → brief → paragraph), never a header section.
-   This narrows § Open Questions' "quick-tier spec shape" further: the answer is a separate doc, lightest
-   variant.
-2. **Intent-verification survives at quick tier, scaled.** The table's quick-tier closeout ("tasks
-   complete + T2 gates") drops the intent check; ADR-020 keeps it — success criteria exist and are checked
-   at quick tier, scaling from one falsifiable criterion up. Verification-as-an-explicit-phase still scales
-   (gate-check at quick, phase at standard), but *that* intent-verification happens does not. Atomic
-   remains the exemption (commit/PR self-review).
-
-The tier model otherwise stands. Comprehensive reconciliation defers to WU activation.
+  atomic tier. Compounds with the tier reconciliation — one DEV-RULES / strategy sweep at activation.
 
 ---
 
-## Problem / Motivation
+## Lifecycle Integration (activate / integrate / archive)
 
-ARC's WU ceremony is uniform regardless of WU size. A 30-minute fix and a 6-week feature go through
-the same activate/integrate/archive pipeline. For small bounded work, that ceremony costs more than
-the work itself.
+Resolves the former scope items 7 / 7a (tier-aware ceremony scaling), evaluated 2026-06-04 against the
+consolidated model. The headline: integration ceremony is **not tier-forked** — it is one invariant
+procedure whose cost scales naturally with what was produced.
 
-Current "lighter" options fall short:
+### Integration is not a lane
 
-- **`incidental/` category** — documented as the lighter tier, but workflows are identical to
-  feature/technical. The "lightening" is mostly about scope (no PRD/plan needed), not ceremony.
-- **Lightweight completion-doc template** — exists, but only saves doc time at integration; doesn't
-  reduce activation or task-list overhead.
-- **Atomic work** (capture rerouted post-WF to fold-into-commit / add a task / spin an Errand /
-  `USER-INBOX § Atomic`; per-WU atomic companion file type retired under WF Phase 7.4) — bypasses WU
-  lifecycle entirely. But the boundary is "smaller than warrants a branch" — under
-  `branch.protection: full` (the default for most teams), most reviewable work needs a branch and
-  therefore a WU.
-- **`branch.protection: partial`** — allows direct-to-main commits for atomic work, but that's not
-  what teams using PR review do.
+Unlike the three pre-impl authoring stages, integration ceremony is **not a user-selectable per-stage
+depth** — it *consumes* what was produced rather than *choosing* how much to produce. So the formulation
+depth axis (`sketch` / `outline` / `detailed`) does **not** reach it. It stays consistent,
+lightweight-by-default, and configurable independently of the depth axis.
 
-For an experienced dev's "spin up a branch for a small bug, work, PR, merge" pattern under `full`
-protection, there's no lightweight path. Every branch becomes a WU; every WU gets full ceremony.
+### Not tier-forked: one invariant procedure, cost-scales
 
-This WU introduces a tiered model where ceremony scales with the work's actual scope, while
-execution discipline (mandatory stops, quality gates, commit format) stays invariant.
+The flagged question — "does integration nonetheless derive *some* weight from the realized tier?" —
+resolves with a distinction:
+
+- **Weight as *cost*: yes, derivatively.** Integration costs what the produced artifacts cost, and tier
+  shaped those artifacts upstream. A `light` WU has fewer phases / a lighter spec / a shorter completion
+  record, so the same steps cost less. The correlation is real.
+- **Weight as a *selected ceremony variant*: no.** The mechanism is **consume-what's-there, never
+  branch-on-tier.** A `trivial-sweep | standard-sweep | full-sweep` selector keyed on tier would
+  re-introduce exactly the fork the rest of the model rejects everywhere (task-list one-grammar;
+  grounding-audit parameterize-don't-fork; spec-alignment binary-cost-scaling). It is the same answer the
+  floor model gives for spec-alignment checks, lifted to the integration boundary.
+
+### Completion record: meta-appended, self-sizing
+
+The shipped model appends **Release Notes** (user-facing; later part of a changelog) + **Completion Notes**
+(internal narrative) **to the meta file** by default — there is no standalone `completion-*` doc, and no
+"completion doc vs PR-description-as-archive" choice to tier on. The record **self-sizes by what there is to
+say**: a `light` WU with a mechanical change writes two sentences and may omit Release Notes (nothing
+user-facing → nothing written, a *content* outcome, not a tier rule); a `full` WU writes several paragraphs.
+Same append-to-meta act, zero forks, scaling right down to near-nothing — which absorbs the former
+"atomic gets just a PR description" case without any tier logic. No floor-vs-configurable knob needed; "no
+record" is just the bottom of the natural size range, and the *verification* it records (P1 intent-vs-outcome)
+is itself the floor.
+
+### Activate: the spec-presence gate
+
+The old "skip plan / PRD checks for the lighter tier, require for standard" has no referent: the Errand path
+has no activate at all, and `light` / `full` both carry a spec (they differ in the spec's depth, not its
+presence). What survives is the invariant **spec-alignment gate** — "a spec exists at the resolved depth" —
+which cost-scales (near-instant for a `sketch`). WOR's `review.planning_checkpoint` opt-in
+(`pre-execution-graduation` extension) stays — orthogonal, applied wherever planning happens, never
+tier-gated on / off. Planning itself happens at *all* tiers (depth-scaled), so there is no "bypass planning"
+branch — only Errands (below the wrapper) have no planning workflow.
+
+### AWL's residue: artifact-presence-tolerant integration
+
+After removing the atomic rows (Errand-owned, shipped) and the WOR-absorbed machinery, AWL's contribution to
+the integrate / archive workflows shrinks to a **single requirement**:
+
+> Integration is **artifact-presence-tolerant, not artifact-presence-assuming** — it consumes whatever the
+> resolved depth produced (a `sketch` spec, a one-phase task list, no separate completion doc) without
+> requiring full-shape artifacts.
+
+That is the legitimate residue of tier-introduction: WOR shipped integration around the full shape; AWL's
+tiering means it must tolerate lighter shapes. One requirement, not a tier-branched workflow rewrite.
+
+### Upstream-settled (WOR) and Errand-owned (shipped)
+
+The following — claimed by the original scope items 7 / 7a — are **not** AWL's:
+
+- **State machine** — WOR settled the strict 4-state machine `Planning | Active | Integrating | Shipped`,
+  folding merge-position into `Integrating` (no separate `**Integration:**` field; no `Paused` / `In
+  Progress`). Partial supersession is an optional `**Superseded By:**` annotation, not a state variant — a
+  partially-superseded WU still ships `Integrating → Shipped` normally (`integrate-work-unit` § Handling
+  Partially Superseded Work; framing settled under WF Phase 7.5.a).
+- **CodeRabbit-flagged contradictoriness fix** — the `State: Complete` + integration-step `Next Action`
+  contradiction is resolved by WOR's `Integrating` state itself.
+- **sweep-as-you-go**, **`archive.cadence` config**, **deferred-sweep variant**, **per-worktree isolation
+  invariant** (meta on the WU branch only, not on main while in flight) — all WOR. The `archive.cadence`
+  default (`with-integration` vs `deferred`) affects whether `archive-work-unit` exists as a separate doc,
+  **not** the tier-awareness logic (which is "none" — there is no fork).
+- **Atomic-tier integration** — owned by the Errand model (`run-errand`: `chore/<slug>` PR under `full`,
+  base commit under `partial`; state derived from branch + PR). Shipped via `errand-enablement` +
+  `work-routing-discipline`. The promote-to-WU path is `run-errand → init-work-unit` (mint `meta-*`, rename
+  `chore/` → `<type>/`).
 
 ---
 
-## Working Thesis: Tiered Artifacts, Invariant Execution Discipline
+## Invariants AWL Owns
 
-ARC's value is in **structural enforcement of execution discipline**: mandatory stops at task
-completion, quality gates per tier, atomic commits with format and context-footer enforcement,
-PR review for shared branches. That discipline drives quality and is invariant across all WU sizes.
+Two structural invariants surfaced during this planning pass; AWL owns each *invariant*, while the *rule
+generalization* and *enforcement* route to their codified homes.
 
-What scales with WU size is **artifact ceremony**: planning artifacts (plan-*, PRD), task structure
-(phased vs flat vs none), and archival artifacts (completion doc vs PR description).
+### Artifact relocatability invariant
 
-This framing **explicitly answers the `draft-arc-modes.md` § Mode 1 rejection** of the
-"Required vs Available" model. That rejection was about making *execution discipline* optional — task
-interlocks removed, quality gates skipped, "trust the dev." This WU does none of that: execution
-discipline is enforced at every tier. What varies is where the spec lives, how tasks are organized,
-and how the work is archived. Those are scaling-dependent ceremony, not discipline.
+WU artifacts (`meta-*`, `draft-*`, `spec-*`, `tasks-*`, companions) relocate between lifecycle states
+(`active/` ↔ `backlog/` ↔ `completed/`) as a function of State — a graduate / park / archive move must be a
+pure `git mv` with **no content edit**. That holds only if artifacts carry **position-independent refs**
+(filename-only, per DEV-RULES.ARC § `.arc/` artifact references); relative-path links break on move. AWL
+owns the *invariant* (a lifecycle property of the moves its workflows perform); the *rule* generalization
+(close the source-side gap — the rule today permits relative paths to stable docs, which still break when
+the source itself moves) routes to DEV-RULES.ARC; *enforcement* (forbidden-pattern hook extended to
+source-side link-defs + a sweep of the ~38 path-style link-defs currently in active / backlog movable
+artifacts) routes to `quality-gate-hooks`. Surfaced live 2026-06-03 — both the CWC park and this WU's
+graduation hit relative-link breakage on move, fixed by converting both drafts to filename-only.
 
----
+### Cohort-consistency invariant
 
-## Three-Tier Model
-
-| Tier         | Planning artifacts                                   | Task structure                             | Verification                                         | Archive                  |
-|--------------|------------------------------------------------------|--------------------------------------------|------------------------------------------------------|--------------------------|
-| **atomic**   | None                                                 | None (work IS the task)                    | Per-commit T1 gates                                  | PR description           |
-| **quick**    | None (spec via task list header or compact PRD)      | Flat task list (no phases)                 | Tasks complete + T2 gates                            | PR description           |
-| **standard** | plan-\* + PRD                                        | Phased task list (with verification phase) | PRD success criteria + verification phase + T3 gates | Completion doc + archive |
-
-### Boundary tests (objective)
-
-**Atomic vs Quick:** *"Does this work need multiple coordinated commits to do well?"*
-
-- Yes → quick (multi-commit means tasks)
-- No → atomic (single concern, single commit)
-
-**Quick vs Standard:** *"Could a competent engineer execute this work from the existing description
-(issue/ticket/bug/pattern) without writing additional design before they start?"*
-
-- Yes → quick (design space settled, spec is sufficient)
-- No → standard (design space open, PRD required)
-
-The Quick-vs-Standard test is the **design-doc boundary** — well-trodden ground in industry practice
-(Stripe RFC criteria, Google design doc guidance, Basecamp Shape Up's "shaping" tier, GitLab MR-
-driven workflow). The boundary is recognizable in retrospect: when work classified as quick starts
-needing design notes, alternatives, or success-criteria specification, it's promoting to standard.
-
-### Promotion is one-way
-
-The system is asymmetric: easy promotion (atomic → quick → standard adds artifacts), no demotion
-(standard → quick would discard work). Standard tier WUs that turn out smaller than expected just
-complete against their existing artifacts; over-specification is harmless. Quick tier WUs that grow
-get promoted: add the plan-*/PRD, restructure the task list into phases, continue.
+A WU's `**Cohort:**` field must match its `backlog/planned/<cohort>/` parent directory; a cohort doc's
+member-list must match its actual members; and every cohort dir should carry a `cohort-{name}.md`
+(`principle-anchored-core` currently has none — only `cohort-agile-parallelism.md` exists). Field-vs-directory
+drift is a silent failure (a WU assigned to one cohort but filed under another). AWL owns the *invariant*
+(cohort semantics — what a cohort is, its boundaries, membership — is this WU's charter); *enforcement* (a
+backlog-scoped structural guard; `active/` is flat and `completed/` ordinal, so neither applies) routes to
+`quality-gate-hooks`, same family as its existing forbidden-pattern / layout-drift checks.
 
 ---
 
-## Scope
+## Meta Schema Changes
 
-### In scope
+`**Tier:**` and `**Design:**` are schema-owned meta fields with **tier-conditional validity** (a cross-field
+constraint a flat template cannot express), per ADR-022's structured-record meta model; the State machine's
+transitions are schema events, not free-text field edits. See
+`adr-022-managed-operational-state-documents.md` § Coordination.
 
-1. **Three-tier WU model** with structural differentiation per the table above. Constitutional
-   amendment to DEV-RULES.ARC establishing tier definitions, boundary tests, and the
-   tiered-artifacts/invariant-discipline framing. Companion ADR documenting the constitutional
-   shift (parallel scale to ADR-016).
+### `Complexity Tier` field
 
-2. **`**Tier:**` field on every meta file** — source of truth, declared at activation. Existing
-   in-flight WUs migrate to `**Tier: standard**` (matches their current ceremony level).
+Source of truth for the work's complexity classification, declared / ratcheted through the authoring stages
+(§ Mechanism). Values `light` / `full`. Groups with the classification fields (`Depends On` / `Cohort` /
+`Priority`). Recorded always; rendered — open (lean off; § Record but don't necessarily render). Existing
+in-flight WUs migrate to `full` (matches their current ceremony level). **Migration mechanism — open:**
+auto-migrate at session-init vs. manual (PRD / spec decision).
 
-3. **`**Design:**` field on every meta file** — pointer to where the work's specification lives.
-   **Field introduction is upstream:** `**Design:**` is introduced as a generic optional pointer in
-   Session-Operational Flow Phase 1 (planning-session active surface scope, with
-   `**Design:** draft-{name}.md` value). This WU adds tier-specific value semantics and tier-aware
-   validation on top of the already-introduced field.
+### `Design` field
 
-   **Orthogonality with `**Origin:**`** (per WOR's Origin ⊥ Design orthogonality): `**Design:**`
-   always points at an ARC-owned planning artifact. External trackers (GitHub issues, Jira, Linear)
-   go in `**Origin:**`, never `**Design:**`. The two fields are independent — a quick-tier WU can have
-   an external `**Origin:**` and an internal `**Design:** tasks-{name}.md`.
+Pointer to where the work's specification lives. Introduced **upstream** as a generic optional pointer in
+Session-Operational Flow Phase 1 (value `draft-{name}.md` in Planning); AWL adds tier-specific value
+semantics + tier-aware validation on top. **Orthogonality with `Origin`** (WOR's Origin ⊥ Design): `Design`
+always points at an ARC-owned planning artifact; external trackers (GitHub issues, Jira, Linear) go in
+`Origin`, never `Design`. The two are independent.
 
-   Values:
-    - `**Design:** draft-{name}.md` — planning state (introduced upstream)
-    - `**Design:** spec-{name}.md` — standard tier, in-repo PRD
-    - `**Design:** tasks-{name}.md` — quick tier under `pm.layer: arc-pm`, points to Scope section in
-      the task list header (or to a compact PRD doc — see open question below)
-    - omitted for atomic — work is self-evident from PR description; `**Origin:**` carries any
-      external-tracker reference
+Values:
 
-4. **`arc start <name>` command** for fast WU activation. Bounded subset of post-WOR
-   `activate-work-unit.md` workflow — same logic, faster invocation. Flags:
-    - `--tier atomic | quick | standard` (default: `quick`)
-    - `--type <conventional-commit-type>` (default: `feat`; per Work Organization Reform's
-      Conventional Branch alignment — `feat`, `fix`, `chore`, `docs`, `refactor`, `perf`, etc.)
-    - `--branch <branch>` (override default `<type>/<name>`)
-    - `--spec <path-or-url>` (sets the Spec field)
+- `draft-{name}.md` — Planning state (introduced upstream).
+- `spec-{name}.md` — Active+, **all depths** (filename stable / relocatable; depth lives in template + H1,
+  not filename).
+- (Errands have no meta and no `Design` field; any external-tracker reference for WU work goes in `Origin`.)
 
-   Standard tier reached via the planning workflow path (plan → PRD → activate), not via
-   `arc start`.
-
-   **Composition with the cold-start primitive (`draft-worktree-foundation.md` item 11).**
-   `arc start` is the spawn-from-existing-session entry point — it creates the worktree (when
-   applicable per tier), scaffolds the meta file, and reports the new worktree path so a fresh
-   session can pick up via the cold-start primitive. Adopters working in tool-spawned worktrees
-   (Conductor, emdash, Maestro, Warp, Worktrunk, Zed, etc.) still enter through `arc-session`: on
-   finding a bare worktree, its cold-start dispatch scaffolds the meta in place by invoking
-   `arc start --here` — same scaffolding logic, reached through the uniform session entrypoint
-   rather than `arc start` create-new. The command is agent-invoked, not a human-run step. Both
-   paths converge once the meta file is written.
-
-   **Worktree Foundation coordination (2026-05-27).** WF introduces the `arc start` verb with a `--here`
-   (use-existing / cold-start) mode — the invocation surface `arc-session` needs for cold-start (WF 5.3.R).
-   `arc start` here **extends** that command: it adds the create-new modes (worktree creation + tier flags)
-   over the same verb and inherits `--here`, rather than re-registering or redesigning it. The shared
-   scaffolding primitive (`scaffoldIntoWorktree` / `spawnWorktree`) underlies both modes.
-
-5. **Quick-tier task list shape.** Flat task list (no phases). Required `## Scope` prose section at
-   the top (3-5 sentences, bounded by convention) when no external `**Design:**` is set — fills the
-   internal-spec gap under `pm.layer: arc-pm`. New section in `strategy-task-list-formatting.md`
-   § Quick Tier.
-
-6. **Atomic-tier WU shape.** No task list. Meta file minimal (Tier, State, Branch, Origin). Execution
-   discipline preserved at commit boundaries: each commit IS a review increment with mandatory stop.
-   Quality gates: T1 per commit. PR description as archive.
-
-7. **Ceremony scaling for activate / integrate / archive workflows.** Tier-aware branches in each
-   workflow, layered on top of Work Organization Reform's consolidated boundary workflows
-   and sweep-as-you-go foundation:
-    - `activate-work-unit.md` (post-WOR shape — state-transition workflow, not branch creation):
-      skip plan/PRD checks for atomic and quick; require for standard. Standard tier path
-      inherits Work Organization Reform's planning-checkpoint opt-in
-      (`review.planning_checkpoint` config + `pre-execution-graduation` extension) at the
-      state-transition fire-site; atomic and quick tiers bypass the planning workflow entirely
-      (via `arc start`), so the checkpoint doesn't apply to them.
-    - `integrate-work-unit.md` (post-WOR shape — single integration boundary with sweep-as-you-go
-      bundled): skip clean-work-unit and completion-doc steps for atomic; lightweight for quick
-      (PR description as archive); full ceremony for standard. Integration-time updates advance
-      `**State:**` to `Integrating` (WOR folded merge-position into State — no separate
-      `**Integration:**` field) plus a one-line ROADMAP touch (one WU's line) — tracking docs are
-      current at merge, not stale until sweep.
-    - `archive-work-unit.md`: shape depends on Work Organization Reform's resolution of
-      the default `archive.cadence` open question. Under `with-integration` default (current
-      lean), this workflow collapses into `integrate-work-unit.md`; under `deferred` default, it
-      retains its current shape as a separate post-integration ceremony. Tier-aware sweep
-      ceremony applies in both cadences; the cadence-default decision affects the workflow's
-      existence-as-separate-doc, not the tier-awareness logic itself.
-
-7a. **Tier-aware adaptations on top of WOR's foundation.** Implements Session-Operational Flow
-    § Scope → "Metadata-state foundation for WU lifecycle" against the actual lifecycle workflows,
-    consuming Work Organization Reform's sweep-as-you-go foundation. Concrete deliverables
-    that remain in this WU's scope (post-2026-05-08 split):
-
-    - **State enum.** WOR settled the strict 4-state machine `Planning | Active | Integrating |
-      Shipped`, folding merge-position into the `Integrating` state — so there is no separate
-      `**Integration:**` field, and no `Paused` / `In Progress` (the pre-WOR / shift-state
-      vocabulary; see `cohort-agile-parallelism.md`). Partial supersession is an optional
-      `**Superseded By:**` annotation, not a state variant — a partially-superseded WU still ships
-      through `Integrating → Shipped` normally (set by `integrate-work-unit § Handling Partially
-      Superseded Work`; framing settled under WF Phase 7.5.a). Workflow updates compose with WOR's
-      consolidated boundaries: `integrate-work-unit` Step 1 advances State at integration; PR review
-      state lives in the PR (the WU sits in `Integrating` while awaiting review).
-    - **Tier-aware sweep ceremony.** Atomic WUs: trivial sweep (single meta file delete in
-      integration PR). Quick: standard sweep. Standard: full sweep with ROADMAP/PROJECT-STATUS
-      updates. Layered on top of WOR's sweep-as-you-go shape.
-    - **CodeRabbit-flagged contradictoriness fix.** The `State: Complete` + integration-step
-      `Next Action` contradiction is resolved by WOR's `Integrating` state itself — it carries the
-      in-flight workflow position without a separate `Integration:` field.
-
-    **Moved to Work Organization Reform** (load-bearing for per-worktree isolation; not
-    tier-specific):
-
-    - Sweep cadence configuration (`archive.cadence` config key)
-    - Sweep-as-you-go integration PR shape (code → completion → status flip → sweep commit
-      ordering)
-    - Deferred sweep variant (integration PR omits sweep; archive batches with next-WU planning)
-    - Per-worktree isolation invariant (meta file on WU branch only, not on main while in
-      flight)
-
-8. **Atomic companion file retirement — owned by Worktree Foundation.** WF retires the `atomic-*`
-   companion file type in light of the Errand class (WF scope item 14): the "holding area before
-   decision" role evaporates with cheap Errands + worktree-isolated spin-up, and in-WU atomic captures
-   reroute by intent (commit / task / Errand / USER-INBOX § Atomic). This WU's earlier "retire or
-   repurpose" question resolves in the **retire** direction at WF; AWL inherits the cleaned-up capture
-   model rather than owning the decision.
-
-9. **Incidental concept retirement.** With worktree isolation handling "unplanned, interrupts another
-   WU" (an atomic-character interrupt defaults to an **Errand** — launched from the main worktree via
-   `errand-launch`, no worktree — promoted to an atomic-tier WU only when the WU threshold trips) and the
-   tier model handling "lighter ceremony," the incidental concept becomes redundant.
-   Work Organization Reform retires the `incidental/` category prefix as part of its
-   broader category-prefix retirement (`feature/` / `technical/` / `incidental/` → Conventional
-   Branch alignment); this WU retires the remaining conceptual references in workflows, strategy
-   docs, and templates that frame incidental as a distinct WU shape. Mechanical sweep across
-   those surfaces. (WOR already retired the pause-pointer fields; nothing migrates to a shift state —
-   see `cohort-agile-parallelism.md`.)
-
-10. **Documentation cascade.** DEV-RULES.ARC tier definitions and boundary tests;
-    `strategy-task-list-formatting.md` tier-aware task list shapes;
-    `strategy-work-organization.md` tier integration with categories and branch
-    naming, plus § Spec-Flow Invariants updates — name AWL in § Deferred contract as the
-    tier-classification model home, and replace § Escape-hatch guardrails intent-level phrasing
-    with concrete `--tier atomic` flag default (currently abstracted pending this WU per
-    audience-boundary discipline); `template-meta.md` new fields;
-    `template-tasks.md` quick-tier shape variant; quality-gate-commands method
-    tier awareness.
-
-### Out of scope
-
-- **Worktree mechanism and shift lifecycle** — Worktree Foundation.
-- **Focus-role model and concurrent-work conventions** — Concurrent Work Conventions.
-- **Tier-aware quality gate scaling beyond T1/T2/T3 split per tier table** — defer detailed gate
-  tier mapping to Quality Gate Tiers and Hook Integration WU. This WU establishes that
-  tiers exist; gate-tier mapping per WU tier is the gate-tiers WU's PRD work.
-- **Auto-promotion of tier based on commit count or duration thresholds.** Manual promotion only.
-  Structural-detection nudges (warnings) may be considered at PRD time but auto-promotion is too
-  aggressive — promotes work the user hasn't classified.
-- **Demotion paths.** No demotion; standard tier WUs complete against their artifacts.
-- **Atomic-tier workflow generation tooling.** The atomic tier is intentionally workflow-light;
-  scaffolding tooling would defeat the purpose.
+**Tier-aware validation — open:** should pre-commit hooks validate `Design` matches tier expectations
+(`full` points at a `detailed` spec; `light` at `sketch` / `outline`)? Probably warn-not-block; tolerates
+in-flight transitions. External-tracker URLs are out of scope (they live in `Origin`). PRD / spec decision.
 
 ---
 
@@ -1141,118 +912,98 @@ get promoted: add the plan-*/PRD, restructure the task list into phases, continu
 
 ### Tier as structural differentiation, not opt-in optionality
 
-Each tier has a distinct artifact shape — atomic has no tasks, quick has flat tasks no PRD, standard
-has phased tasks plus PRD. This is structural, not "skip optional steps." Reviewers, agents, and
-tooling can detect tier from artifact presence and the explicit `**Tier:**` field; they don't need to
-reason about which optional steps were skipped.
+Each model position has a distinct artifact shape — `light/sketch` (paragraph spec, one phase) vs
+`full/detailed` (PRD / RFC, phased tasks). This is structural, not "skip optional steps." Reviewers, agents,
+and tooling detect tier from artifact presence and the explicit `**Tier:**` field; they don't reason about
+which optional steps were skipped.
 
-### Default tier at `arc start` is `quick`, not `atomic`
+### Scaffolding is depth-agnostic
 
-`quick` is the median case for "I'm spinning up a WU." Defaulting to `atomic` would push every "I'll
-just fix this quickly" into the smallest ceremony tier, where growth becomes awkward (promotion
-required mid-work). Defaulting to `quick` accepts one extra Tier-field declaration for trivial work
-in exchange for safer scaling. Atomic is opt-in (`--tier atomic`) for declared-tiny single-commit
-work.
+`arc start` / `init-work-unit` produce a uniform minimal Planning container; depth is born in the planning
+stage and lives in the content, not the scaffolding act. (Supersedes the original "default tier at
+`arc start` is `quick`" decision — there is no `--tier` flag and no quick tier; the tier field ratchets from
+its default.)
 
-### Quick-tier scope section is prose, not frontmatter
+### The internal spec is always a separate doc
 
-Frontmatter is for metadata; the scope is content. A `## Scope` prose section at the top of the
-quick-tier task list is human-readable, version-controlled, naturally bounded by convention. The
-scope section is the in-repo spec surface regardless of whether an external tracker is the WU's
-Origin — under WOR's Origin ⊥ Design orthogonality, external trackers go in `**Origin:**`, not
-`**Design:**`, and the internal spec always lives in an ARC-owned artifact.
+The lightest spec is a separate `spec-{name}.md` at `sketch` depth — never a `## Scope` header section in the
+task list (ADR-020's invariant floor). This honors the spec-directed principle uniformly: "spec lives in a
+doc, regardless of tier." (Supersedes the original quick-tier "scope section is prose, not frontmatter"
+decision, which assumed a task-list-header spec.)
 
-### Atomic tier preserves task discipline at commit boundaries
+### Discipline preserved below the wrapper
 
-The mandatory stop after each task — ARC's core review-increment discipline — applies at atomic
-tier too, just at commit boundaries instead of task-list-checkbox boundaries. Each commit is a
-review increment; quality gates run per commit; the user reviews and confirms before the next
-commit. Execution discipline preserved; task-list ceremony stripped.
-
-### Incidental retirement, not repurposing
-
-The incidental category was a workaround for ARC not having mobility infrastructure. With worktree
-isolation handling interrupts (an atomic-character interrupt defaults to an **Errand** launched from the
-main worktree, promoting to an atomic-tier WU only when the threshold trips) and the tier model handling
-lighter ceremony, the category has no remaining function. Renaming or repurposing would create migration
-confusion; clean retirement is simpler. Workflows that reference incidental migrate to the tier model +
-Errand / worktree-spawn, not to a shift state.
+The mandatory review-increment stop applies to Errand work too, at commit boundaries instead of
+task-list-checkbox boundaries: each commit is a review increment; quality gates run per commit; the user
+reviews and confirms before the next. This *is* the discipline floor — it does not belong to any tier.
 
 ### Atomic-the-character vs atomic-the-shape
 
-"Atomic" describes the work's character (single bounded concern). The shape it takes adapts to
-protection mode: under `partial`, atomic work goes direct-to-main with no branch or meta file;
-under `full`, the same atomic intent becomes an atomic-tier WU with branch, minimal meta file, and
-PR. The word's meaning is consistent across modes; the framework's shape adapts.
+"Atomic" describes the work's *character* (single bounded concern), not a tier. The shape it takes adapts to
+protection mode: under `partial`, atomic work goes direct-to-main with no branch or meta; under `full`, the
+same atomic intent becomes an **Errand** (a `chore/<slug>` branch + PR), promoting to an atomic-character
+WU only when the WU threshold trips. The word's meaning is consistent across modes; the framework's shape
+adapts. (Coordination history: WF ships its spawn primitive tier-agnostic and leaves the life-phase
+parameter — `Planning` vs `Active` → branch-prefix follows — as the seam; EE owns the `errand` operational
+path; `work-routing-discipline`'s 2026-05-31 re-pivot made the Errand path execution-only via re-enterable
+`run-errand`. AWL owns only the *tier-side* reconciliation — atomic-character defaults to an Errand,
+promoted to a WU when the threshold trips — realized via `run-errand → init-work-unit`.)
 
-**Towards — atomic-tier WU init shape (surfaced 2026-05-20 during WOR Task 6.7.c):** WOR ships
-`init-work-unit.md` as planning-only — Step 2 hardcodes `git checkout -b plan/{name}` and Step 4
-sets `**State:** Planning`. Under WOR-as-shipped, an atomic-tier WU under `full` protection has
-no codified init workflow that skips Planning; the meta file gets hand-created with
-`**State:** Active` on a `<type>/<name>` branch. This WU's `arc start <name>` command (scope item
-4) is the natural home for that path — decide at PRD time whether `arc start` covers atomic-tier
-init directly (no Planning → Active transition), whether `init-work-unit.md` evolves to accept a
-life-phase parameter (Planning vs Active → branch-prefix follows), or whether the conductor
-(`draft-arc-plan-conductor.md`) absorbs both shapes. Surfaced during WOR's cross-reference sweep
-when reframing `2_generate-tasks.md`'s pre-WOR "directly-on-base-branch" bifurcation — that
-workflow narrowed under WOR to the canonical planning-life-phase flow only.
+### Incidental retirement, not repurposing
 
-**WF coordination (2026-05-23):** Worktree Foundation ships its `spawn` primitive **tier-agnostic** —
-always-worktree, built as a thin wrapper over `init-work-unit` — and deliberately leaves the life-phase
-parameter as the seam this WU fills. So the tier-conditional spawn behavior (atomic → no worktree, an
-Errand on the bare-git path; quick / standard → worktree) is **AWL's** to layer onto WF's tier-agnostic
-primitive, and the life-phase param (`Planning` vs `Active` → branch-prefix follows) flows through WF's
-wrapper without reshaping it. WF references whatever tier set this WU lands; this WU references WF's
-spawn contract.
-
-**Errand Enablement coordination (2026-05-25):** The Errand path itself — the `errand-launch` primitive, the
-Errand decision matrix, and the advisory foreign-artifact gate — is **Errand Enablement's** (the floor WU,
-sequenced WF → Errand Enablement → IFA), not AWL's. `arc start` and `errand-launch` are sibling entry verbs.
-AWL owns the *tier-side* reconciliation (atomic-character work defaults to an Errand, promoted to an
-atomic-tier WU when the threshold trips); the Errand operationalization is EE's. The 2026-05-23 note's
-"atomic → an Errand on the bare-git path" routing is realized via EE's matrix.
-
-**Errand-model re-pivot (`work-routing-discipline`, 2026-05-31):** the Errand path is now **execution-only** —
-`errand-launch` (seed/queue) is retired for the re-enterable `run-errand` workflow; an errand is a `chore/<slug>`
-branch (full) / base commit (partial), state derived from branch + PR. AWL's tier-side reconciliation holds, but
-the promote-to-WU path is realized by `run-errand` → `init-work-unit` (mint `meta-*`, rename `chore/` →
-`<type>/`); reconcile the EE references when next iterated.
+The `incidental/` category was a workaround for ARC lacking mobility infrastructure. With worktree isolation
+handling interrupts (an atomic-character interrupt defaults to an Errand) and the tier model handling
+lighter ceremony, the category has no remaining function. Renaming or repurposing would create migration
+confusion; clean retirement is simpler. WOR already retired the `incidental/` category *prefix* (as part of
+Conventional Branch alignment) and the pause-pointer fields; this WU retires the remaining *conceptual*
+references in workflows, strategy docs, and templates that frame incidental as a distinct WU shape — a
+mechanical sweep.
 
 ---
 
 ## Dependencies and Sequencing
 
-### Upstream
+### Upstream (all shipped)
 
-- **Work Organization Reform:** delivers the consolidated boundary workflows (single
-  activate/integrate pair under single-branch-per-WU lifecycle), sweep-as-you-go foundation, and
-  per-worktree isolation invariant. This WU's tier-aware adaptations layer on top. Hard upstream
+- **Work Organization Reform** — the consolidated boundary workflows (single activate / integrate pair under
+  single-branch-per-WU lifecycle), sweep-as-you-go foundation, per-worktree isolation invariant, the 4-state
+  machine, and `archive.cadence` config. This WU's tier-aware adaptations layer on top. Hard upstream
   dependency.
-- **Worktree Foundation:** clean activate/integrate workflows post-pointer-field retirement;
-  the tier model's `arc start` command operates on the worktree-aware activation substrate. Pointer
-  fields are retired in WF; the incidental category retirement here folds in cleanly afterward.
-- **Session-Operational Flow** (shipped): consumes Phase 7 (metadata-state foundation — the
-  `**State:**` model; WOR later folded merge-position into the `Integrating` state, so no separate
-  Integration field). Sweep cadence config moved to WOR; this WU consumes it. Phase 2
-  (meta-file timing split) also informs which fields belong on commit vs handoff.
+- **Worktree Foundation** — worktree-aware activation substrate, the `spawnWorktree` primitive, and
+  `arc start --here` (Planning-only cold-start). The recorded `Depends On: worktree-foundation`.
+- **Session-Operational Flow** — the `**State:**` model and meta-file timing split (which fields belong on
+  commit vs. handoff); introduced the generic `**Design:**` pointer (Phase 1).
 
 ### Downstream
 
-- **Concurrent Work Conventions:** tier model informs concurrency conventions (focus-role
-  model probably doesn't apply to atomic tier; quick-tier WUs are short-lived enough that focus
-  designation is less meaningful).
-- **Quality Gate Tiers and Hook Integration:** gate-tier mapping per WU tier is that
-  WU's PRD work; this WU establishes that tiers exist.
-- **ARCd Rebrand:** tier vocabulary absorbed into rename pass.
+- **Concurrent Work Conventions** — carries `Depends On: agile-wu-lifecycle` (a **formal hard delivery
+  dependency**: CWC's four-WU decomposed delivery cannot be built until AWL ships the scalable spec / task
+  pipeline + the decomposition procedure). The *runtime* edge is dropped (CWC's merge-safety mechanism needs
+  none of AWL's tier model); only the *delivery / build-order* edge is hard. CWC is parked to
+  `backlog/planned/agile-parallelism/` so its settled draft is available on `main` as AWL's worked
+  requirements input and the decomposition procedure's acceptance test. CWC also owns the create-new
+  *worktree-spawning* `arc start` wiring (thin plumbing over WF's `spawnWorktree`); AWL ships only the tier
+  *model* that command consumes.
+- **Quality Gate Tiers and Hook Integration** — gate-tier mapping per WU tier is that WU's PRD work; this WU
+  establishes that tiers exist. Also the enforcement home for both invariants above (relocatability,
+  cohort-consistency).
+- **ARCd Rebrand** — tier vocabulary absorbed into the rename pass.
+
+### Soft coordination (not dependencies)
+
+- **`composable-workflows`** — forward-compat-as-fragment constraint on how AWL writes depth differentiation
+  (§ composable-workflows). Not a `Depends On`.
+- **`arc-plan-conductor`** — AWL defines, the conductor elicits (§ Ownership). AWL does not depend on it;
+  benefits from its tier-aware orchestration if it ships first, degrades gracefully if not (conductor
+  defaults to `full` behavior until AWL's `**Tier:**` field exists). The conductor is P2, blocked on
+  `loadset-composition`.
+- **`configuration` cohort** — if the user-above preference becomes a config knob, its home is the
+  per-developer substrate (`config.user.yml`). Soft.
 
 ### Recommended sequencing
 
-Work Organization Reform → Worktree Foundation → (CLI Substrate Adoption ‖ arc-plan Conductor ‖
-Coord Probe — post-WF parallel candidates) → **Agile WU Lifecycle** → Concurrent Work Conventions.
-Per 2026-05-20 resequence, this WU sequences after the post-WF parallel layer settles; benefits
-especially from arc-plan Conductor's tier-aware orchestration integration if Conductor ships
-first, but degrades gracefully if not (Conductor defaults to standard-tier behavior until this
-WU's `**Tier:**` field exists).
+Work Organization Reform → Worktree Foundation → **Agile WU Lifecycle** → Concurrent Work Conventions. AWL
+is sequenced next-up after the post-WF layer settles.
 
 ---
 
@@ -1260,203 +1011,188 @@ WU's `**Tier:**` field exists).
 
 ### Tier drift via under-specification
 
-Adopters may default to `quick` for everything to avoid PRD ceremony, even when work is genuinely
-standard-tier. Mitigation:
-
-- Boundary test ("does this need a written design document?") is recognizable in retrospect — when
-  design notes start accumulating, promotion is the signal
-- Explicit `**Tier:**` field invites scrutiny: a reviewer reading "Tier: quick" on a complex change
-  has the explicit signal to push back
-- Strategy doc guidance with concrete examples on each side of the boundary
+Adopters may default to `light` for everything to avoid `detailed`-spec ceremony, even when work is
+genuinely `full`. Mitigations: the self-diagnosing lane-switch signal (a heavy downstream artifact over a
+minimal spec *is* the floor-was-set-too-low signal, and reaching for a `detailed` spec *is* the graduation);
+the explicit `**Tier:**` field invites reviewer scrutiny ("Tier: light" on a complex change has the explicit
+signal to push back); strategy-doc guidance with concrete examples on each side of the design-doc line.
 
 ### Constitutional change scope
 
-Tier definitions, boundary tests, and tiered-artifacts/invariant-discipline framing are
-constitutional-level additions to DEV-RULES.ARC. Scope is comparable to ADR-016's commit-control
-downgrade. Companion ADR required to document the architectural shift.
+Tier definitions, the design-doc-line derivation, and the scaled-ceremony / invariant-discipline framing are
+constitutional-level additions to DEV-RULES.ARC, comparable in scope to ADR-016's commit-control downgrade.
+Companion ADR required to document the architectural shift (parallel scale to ADR-016). The flagged
+front-loading-duty sharpening (§ No design-deferral) lands here too.
 
 ### Incidental retirement ripple
 
-Retiring the incidental category affects every reference: workflows, strategies, status template,
-branch-prefix conventions, examples. Mechanical sweep but broad. Risk: orphaned references that
-lint/CI doesn't catch. Mitigation: thorough grep + integration test coverage on activation /
-integration / archive flows.
+Retiring the remaining incidental *concept* references affects workflows, strategies, status template,
+examples. Mechanical but broad. Risk: orphaned references lint / CI doesn't catch. Mitigation: thorough grep +
+integration-test coverage on activate / integrate / archive flows. (The category *prefix* is already
+WOR-retired.)
 
-### `arc start` command novelty
+### `arc start` command surface
 
-ARC currently has no activation command — activation is workflow-based. Adding `arc start` is a
-real shift. Counter-argument: every CLI subcommand adds maintenance, docs, discoverability burden.
-Resolution: `arc start` IS the workflow's automation for the bounded quick-tier case. The workflow
-document (`activate-work-unit.md`) stays as canonical specification; the command is its packaged
-form. Adopters using defaults run the command; adopters deviating read the workflow.
+ARC's activation is workflow-based; the create-new `arc start` surface (CWC-owned) is a real shift, and every
+CLI subcommand adds maintenance / docs / discoverability burden. Resolution: `arc start` is the workflow's
+automation for the bounded case; the workflow document stays canonical specification; the command is its
+packaged form. (AWL adds no flag — only the tier model the command consumes.)
 
-### Atomic-tier discoverability
+### Light-tier WU discoverability
 
-If atomic tier WUs have minimal meta files and short lifetimes, session-init's "active WUs"
-enumeration could become noisy. Mitigation: tier-aware orientation summary ("3 active WUs: 1
-standard, 2 atomic"); auto-cleanup of completed-but-not-archived atomic WUs at session-init.
+Short-lived `light` WUs could make session-init's active-WU enumeration noisy. Mitigation: tier-aware
+orientation summary ("3 active WUs: 1 full, 2 light"); auto-cleanup of completed-but-not-swept WUs at
+session-init. (Less acute than the original "atomic-tier" version of this risk, since atomic-character work
+is now an Errand, not a WU.)
 
 ---
 
-## Open Questions
+## Open Questions / Deferred
 
-### Atomic-companion retirement — resolved at Worktree Foundation (retire)
+Carried into spec / PRD time. Resolved threads are recorded above; these remain genuinely open.
 
-Resolved: WF retires the `atomic-*` companion file type (WF scope item 14) in light of the Errand
-class — the "holding area before decision" role evaporates with cheap Errands + worktree-isolated
-spin-up. In-WU atomic captures reroute by intent (commit / task / Errand / USER-INBOX § Atomic). This
-WU no longer owns the retire-vs-repurpose decision; it inherits the cleaned-up capture model.
+- **`outline` / `sketch` spec template *bodies*** — research-grounded (§ Spec shapes); the template bodies
+  themselves are authored at spec time.
+- **Detailed-subtype template structure** — separate `-prd` / `-rfc` templates vs. one flexing template
+  (felt-difference test + dogfooding).
+- **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
+- **Planning + spec + task shapes** — starting points, explicitly open to post-integration dogfooding
+  refinement (scale up / down within reason).
+- **User-above preference: config knob vs. in-process steer** — deferred until the mechanical design is
+  known; forward-compat binds now (§ User-above preference).
+- **Decomposition pipeline fire-point** — new workflow vs. a phase inside `create-spec`.
+- **Cohort-as-first-class** — free-form field vs. structural entity; earns its keep only if cohorts gain
+  shared lifecycle events.
+- **`Complexity Tier` render-inclusion** — recorded always; rendered only if the parallelism-planning view
+  demonstrates value.
+- **Tier-aware `Design`-field validation** — warn-not-block, probably; PRD / spec decision.
+- **Existing-WU migration mechanism** — auto-migrate at session-init vs. manual, for the `Tier` / `Design`
+  field additions.
+- **Default `Origin` population** — should `arc start` (when CWC delivers create-new) default-populate
+  `Origin` from the current branch's linked PR / issue (via coord-probe) when a `coord.adapter` is
+  configured, or always require explicit `--origin`? Auto-population is convenient but risks pointing at the
+  wrong ticket. PRD decision.
 
-### Default `**Origin:**` population with an external tracker present
+---
 
-Under WOR's Origin ⊥ Design orthogonality, external trackers populate `**Origin:**`, not `**Design:**`
-(retired `pm.layer: external` value, framing collapsed per WOR's design decision). Should
-`arc start --tier quick` default to populating `**Origin:**` from the current branch's linked
-PR/issue (via coord-probe) when a `coord.adapter` is configured? Or always require explicit
-`--origin`? Auto-population is convenient but risks pointing at the wrong ticket if inference is
-wrong. PRD decision.
+## Scope
 
-### Promotion mid-work UX
+### In scope
 
-User starts atomic, scope grows, needs to promote. What's the command shape?
+1. **The complexity / depth model** — `Complexity Tier` (`light` / `full`, derived at the design-doc line) +
+   `formulation depth` (`sketch` / `outline` / `detailed`, per-stage). Constitutional amendment to
+   DEV-RULES.ARC establishing tier definitions, the design-doc-line derivation, the scaled-ceremony /
+   invariant-discipline framing, and the front-loading-duty sharpening. Companion ADR (parallel scale to
+   ADR-016).
+2. **Meta schema** — `**Tier:**` (`Complexity Tier`) and `**Design:**` tier-specific value semantics +
+   tier-aware validation, layered on the upstream-introduced fields; migration handling for existing WUs.
+3. **Spec template family** — `template-spec-sketch.md` / `-outline.md` / `-detailed-*.md` (PRD / RFC
+   subtypes); `Spec ({depth}): {name}` H1; the form-agnostic `create-spec` reframe ("PRD" → "detailed
+   spec"); the depth-relative spec-ready bar.
+4. **Scalable `create-spec` / `generate-tasks`** — per-stage depth self-resolution, flag-free feed-forward,
+   whole-block depth variants (composable-ready); task-list one-grammar (1..N phases + always-present
+   verification); grounding-audit intensity parameterization (per-phase interlock retained).
+5. **`arc-plan` depth-relativity** — depth-relative readiness bar; the three planning shapes; artifact-shape
+   feed-forward. (Light-touch; rich triage stays the conductor's.)
+6. **Decomposition procedure** — the orthogonality discriminator, two guard rails, design-maturity timing,
+   plan-vs-delivery-grouping, Model-B-only; sizing heuristics consuming the `strategy-work-organization`
+   sizing standard. Acceptance test: re-derive CWC's D1–D4.
+7. **Lifecycle integration adaptation** — the single artifact-presence-tolerance requirement on the
+   integrate / archive workflows (§ Lifecycle Integration). No tier fork.
+8. **`spec-review` method + ceremony extension** — depth-scaled default self-review; opt-in external-cadence
+   extension.
+9. **Two structural invariants** — relocatability + cohort-consistency (AWL owns the invariants; rule /
+   enforcement route downstream).
+10. **Incidental concept retirement** — the remaining conceptual references in workflows, strategy docs,
+    templates (the prefix is WOR-retired). Mechanical sweep.
+11. **Documentation cascade** — DEV-RULES.ARC tier definitions / boundary tests;
+    `strategy-task-list-formatting.md` phase-count grammar; `strategy-work-organization.md` tier integration +
+    § Spec-Flow Invariants + § Escape-hatch updates (name AWL as the tier-classification model home,
+    replace intent-level phrasing) + the sizing-norm co-home; `template-meta.md` new fields; `template-tasks.md`
+    depth variants; quality-gate-commands tier awareness; `draft-arc-plan-conductor.md` write-back (retire
+    `## Scope`-header + `minimum/standard/expanded` modes).
 
-- `arc promote-tier <name> --to quick` — explicit
-- Implicit: when a task list is created on an atomic-tier WU, automatically promote with
-  notification
-- Manual: user edits meta file and creates artifacts; framework detects on next session-init
+### Out of scope
 
-Likely manual + structural-detection nudges, but PRD decision.
-
-### Tier-aware Spec field validation
-
-Should pre-commit hooks validate the `**Design:**` field matches tier expectations (standard tier must
-point at PRD; quick must point at task list or compact PRD; atomic omits)? Validation adds
-strictness; relaxed handling tolerates in-flight transitions. Probably warn-not-block; PRD decision.
-External-tracker URLs (now in `**Origin:**`, not `**Design:**`, per WOR's orthogonality framing) are
-out of this validation's scope.
-
-### Quick-tier spec shape — task-list header vs reduced PRD doc
-
-Under WOR's Origin ⊥ Design orthogonality framing, `**Design:**` always points at an ARC-owned
-artifact (external trackers go in `**Origin:**`). The remaining question is where the
-quick-tier internal spec lives:
-
-- **Task-list header `## Scope` section** (current scope item 5): in-repo spec surface as a
-  prose section at the top of `tasks-{name}.md`. Minimal — no separate doc.
-- **Reuse Lite mode's reduced PRD template**: quick tier under `pm.layer: arc-pm` points its
-  `**Design:**` field at a compact PRD doc rather than a section of the task list. Creates
-  cross-mode parallelism: Lite project's PRD has the same shape as Full mode's quick-tier PRD, and
-  graduation Lite → Full preserves the spec shape for the first quick WU.
-
-**Tradeoffs:**
-
-- *(For compact-PRD)* Spec field semantics become uniform — always points at a doc, never at a
-  section-of-another-file. Cleaner contract for tooling and reviewers.
-- *(For compact-PRD)* Reuses Lite mode's reduced PRD template (when it lands) — no separate
-  "scope section" convention to maintain.
-- *(For compact-PRD)* Honors ARC's spec-directed principle more cleanly — "spec lives in a doc,
-  regardless of tier" is consistent with the principle.
-- *(Against compact-PRD)* Adds a doc to quick tier (currently zero docs besides task list + meta
-  file).
-- *(Against compact-PRD)* Spec budget (5-10 min for Lite's PRD) might be 20-50% of total work time
-  for short quick-tier work — boundary check: if you can't articulate the goal in ~5 minutes,
-  you're probably standard tier.
-- *(Against compact-PRD)* "PRD" naming carries weight quick tier may not warrant — could rename
-  for the reduced shape (Spec? Brief? compact-PRD?) but that fragments naming across modes.
-
-**Coordination:** depends on Lite mode's reduced PRD template shape, which is `draft-arc-modes.md`
-§ The Lite PRD scope. If Lite PRD template lands first or in parallel, this WU adopts it for
-quick tier directly. If Lite mode is still iterating, this WU may need to either wait or ship
-with the task-list-header fallback and migrate later.
-
-PRD decision informed by Lite mode's PRD template progress and external research on lightweight
-spec patterns.
-
-### Status template versioning during migration
-
-Adding `**Tier:**` and `**Design:**` fields to template-meta is a template change. Existing in-flight
-meta files don't have the fields. Migration: assume `Tier: standard`, `Spec: prd-{name}.md` if
-PRD exists else `tasks-{name}.md`. Auto-migrate at session-init? Manual? PRD decision.
+- **Worktree mechanism, shift lifecycle, create-new `arc start` wiring** — Worktree Foundation / Concurrent
+  Work Conventions.
+- **Focus-role model and concurrent-work conventions** — Concurrent Work Conventions.
+- **The Errand operational path** (`run-errand`, the decision matrix, the foreign-artifact gate) —
+  Errand Enablement / `work-routing-discipline` (shipped). AWL owns only the tier-side reconciliation.
+- **Tier-aware quality-gate scaling beyond establishing that tiers exist** — gate-tier mapping per WU tier
+  is Quality Gate Tiers and Hook Integration's PRD work; the two invariants' *enforcement* also lands there.
+- **Auto-promotion of tier** (by commit count / duration) — manual + structural-detection nudges only;
+  auto-promotion promotes work the user hasn't classified.
+- **Demotion paths** — none; the tier ratchet is one-way; WUs complete against their artifacts.
+- **External-artifact reconciliation** (`strategy-work-organization` § Task Lists and Branches / § Work
+  Character / § Spec-Flow Invariants rewrites; DEV-RULES.ARC relocatability rule generalization) — these are
+  *execution-time* scope (one sweep at activation), not pre-spec.
 
 ---
 
 ## Scope Estimate
 
-**Large.** Constitutional change scope plus broad sweep of workflows, templates, strategy docs.
-Tier model is conceptually clean but touches many surfaces.
+**Large.** Constitutional change + a broad sweep of workflows, templates, strategy docs, plus the spec
+template family and the scalable authoring pipeline. The model is conceptually clean but touches many
+surfaces.
 
-Phases (provisional):
+**Decompose-before-spec candidate.** This WU is plausibly itself a cohort by its own decomposition
+procedure — the procedure's *first customer is CWC, but this WU is a close second*. Natural orthogonal
+seams: (a) the **constitutional / model** core (DEV-RULES + ADR + meta schema); (b) the **spec pipeline**
+(template family + scalable `create-spec`); (c) the **task pipeline** (`generate-tasks` + grounding-audit
+parameterization + task-list grammar); (d) the **decomposition procedure** + sizing standard; (e) the
+**invariants + enforcement coordination**; (f) the **incidental retirement + doc cascade** sweep. Whether
+these are phases of one WU or a stack of WUs is exactly the call the decomposition procedure makes — run it
+on this WU at spec time. Provisional phase sketch (if it stays one WU):
 
-1. **Constitutional foundation** — ADR drafting, DEV-RULES.ARC tier-definition amendments,
-   tiered-artifacts/invariant-discipline framing, alignment with plan-arc-modes' rejection of
-   "Required vs Available" model (explicit answer in the constitutional language).
-2. **Meta template + Spec field** — `**Tier:**` and `**Design:**` fields on `template-meta.md`
-   (no separate `**Integration:**` field — WOR folded merge-position into `**State:**`); migration
-   handling for existing WUs.
-3. **`arc start` command** — CLI subcommand implementation, default-tier semantics, flag handling,
-   error semantics, tests.
-4. **Integration-workflow restructure** — implements the metadata-state foundation from
-   Session-Operational Flow Phase 7. `**State:**` rollout in workflows (advancing to `Integrating`
-   at integration; no separate Integration field per WOR); sweep cadence configuration;
-   sweep-as-you-go integration PR shape (multi-commit with
-   isolated sweep commit); deferred sweep variant; tier-aware sweep ceremony. Resolves CodeRabbit
-   contradictoriness and stale-tracking-doc inbox concerns.
-5. **Workflow tier-awareness** — activate-work-unit, integrate-work-unit, archive-work-unit
-   tier-aware branches (built on top of Phase 4's restructured workflows); quick-tier task list
-   shape in template-tasks; atomic-tier minimal flow.
-6. **Incidental retirement sweep** — workflows, strategies, status template references, branch-
-   prefix conventions, examples. Mechanical broad sweep.
-7. **Atomic-companion decision and migration** — retire or repurpose per PRD-time decision;
-   existing companion-file content migration.
-8. **Strategy doc cascade** — strategy-task-list-formatting tier-aware shapes, strategy-work-
-   organization tier integration, quality-gate-commands tier awareness.
-9. **External research** — Shape Up shaping criteria, Stripe RFC threshold, Google design doc
-   guidance, GitLab MR-driven workflow. Validates boundary tests against industry idiom; informs
-   PRD-time language refinement.
-10. **Documentation / tests / examples** — standard closing phase.
+1. **Constitutional foundation** — ADR + DEV-RULES.ARC tier definitions / design-doc-line derivation /
+   front-loading duty / scaled-ceremony framing. Gates the rest.
+2. **Meta schema** — `Tier` + `Design` tier-conditional fields; migration handling.
+3. **Spec template family** — sketch / outline / detailed(-prd/-rfc) templates; H1 + form-agnostic reframe;
+   depth-relative spec-ready bar.
+4. **Scalable authoring pipeline** — `create-spec` / `generate-tasks` per-stage self-resolution;
+   whole-block depth variants; task-list one-grammar; grounding-audit intensity.
+5. **`arc-plan` depth-relativity** + `spec-review` method / extension.
+6. **Decomposition procedure** + sizing-norm co-home.
+7. **Lifecycle integration** artifact-presence-tolerance requirement.
+8. **Invariants** (relocatability + cohort-consistency) — AWL-owned statements; enforcement coordination.
+9. **Incidental retirement + documentation cascade** — mechanical broad sweep; conductor write-back.
+10. **Tests / examples** — standard closing phase.
 
-Phase 1 gates everything else (constitutional foundation precedes implementation). Phase 4 has a
-hard upstream dependency on plan-session-operational-flow Phase 7; Phases 2-3 can proceed in
-parallel. Phase 5 depends on Phase 4. Phases 6-8 are sweeps that depend on Phase 5. Phase 9
-(external research) can run alongside any phase but informs Phase 1's language.
+Phase 1 gates everything. Phases 2–3 can parallel after 1. Phase 4 depends on 3. Phases 6–9 are largely
+independent of 4 and of each other.
 
 ---
 
 ## External Research
 
-The Quick-vs-Standard boundary aligns with industry-recognized "design-doc-or-not" criteria. PRD-
-time research validates the boundary tests against idiomatic practice and refines language:
-
-- **Shape Up methodology (Basecamp)** — explicit "shaping" tier vs "small batch" tier with
-  documented criteria.
-- **Google's design doc when-to-write guidance** — public engineering blog material on this exact
-  boundary.
-- **Stripe's RFC process** — documented threshold for when an RFC is required.
-- **GitLab's MR-driven workflow** — published criteria for "just open an MR" vs "needs an issue +
-  design first."
-- **Internal-spec patterns for quick-tier work** — how teams handle "well-defined work that doesn't
-  need a design doc" in practice (issue templates, PR templates, conventional task lists).
-
-Research wouldn't change the boundary itself; it would inform PRD-time language and provide
-concrete examples for the strategy doc.
-
-### Worktree-management tool landscape (completed 2026-05-12)
-
-- `research-worktree-tool-convergence.md` — convergence pass across 11 agentic worktree-management
-  tools (Cluster 1: Zed, Warp, Worktrunk; Cluster 2: Conductor, emdash, Maestro; Cluster 3: Super,
-  Superset, T3code, Soloterm, Nora). Closes the question of whether `arc start` retains a clear
-  role alongside parallel workspace tools — yes, as the spawn-from-existing-session entry point,
-  paired with `draft-worktree-foundation.md` item 11's cold-start primitive (the tool-spawned-
-  worktree entry point). Both entry points produce the same scaffolded meta file; adopters pick
-  per WU based on origin. Tier model survives unchanged — tier selection at `arc start`
-  (`--tier atomic | quick | standard`) and at the cold-start primitive operates on the same
-  meta-* foundation.
-
-## Coordination — ADR-022
-
-`**Tier:**` and `**Design:**` are schema-owned meta fields with tier-conditional validity (a cross-field
-constraint a flat template cannot express), per ADR-022's structured-record meta model. The State
-machine's transitions are schema events, not free-text field edits. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
+- **Lightweight-spec idiom** — completed 2026-06-03 deep-research pass (run `wf_191136b1-518`): cited inline
+  in § Spec shapes by source; **pull full source URLs from that transcript when authoring the spec's
+  External Research.** Sources: Shape Up pitch, ADR / Nygard, GitLab handbook, Go proposal, Oxide RFD-0001,
+  Microsoft eng playbook, Squarespace, Rust RFC.
+- **Decomposition idiom** — stacked-diffs (Graphite), RFC-to-implementation (Google enterprise spec-drift
+  finding), epic / story mapping, review-sizing studies (Google / SmartBear ~200–400 LOC defect-detection
+  cliff). Folded into § Decomposition Model.
+- **Boundary-test idiom (design-doc-or-not)** — Shape Up shaping tier, Stripe / Google / GitLab design-doc
+  thresholds. Substantially covered by the lightweight-spec pass; remaining: concrete strategy-doc examples
+  on each side of the design-doc line.
+- **Worktree-management tool landscape** — completed 2026-05-12 (`research-worktree-tool-convergence.md`,
+  11 tools across 3 clusters). Closed the question of whether `arc start` retains a clear role alongside
+  parallel-workspace tools — yes, as the spawn-from-existing-session entry point paired with the cold-start
+  primitive; both produce the same scaffolded meta. The model survives unchanged.
 
 ---
+
+## Coordination — ADRs
+
+- **ADR-001** (principles) — P1 (spec-directed), P2 (review increment), P4 (quality gates), P7 (tracked
+  lifecycle) anchor the floor model.
+- **ADR-016** (commit-control downgrade) — scope precedent for this WU's constitutional change.
+- **ADR-019** (one-branch-per-WU) — makes Model A inexpressible; the spine of Model-B-only decomposition.
+- **ADR-020** (principle-anchored scalable core) — ratifies the tiered-artifacts / invariant-execution
+  thesis; one `spec-*` filename scaling by template family; spec always a separate doc;
+  intent-verification survives at every tier; resolve-then-load (§9); guided-init project floor (§8).
+- **ADR-021** (Errand threshold) — the wrapper-floor lower bound (Errand vs. WU); mirrored by the
+  decomposition upper bound (WU vs. cohort).
+- **ADR-022** (managed operational-state documents) — `**Tier:**` / `**Design:**` are schema-owned with
+  tier-conditional validity; State transitions are schema events. See that ADR § Coordination.
