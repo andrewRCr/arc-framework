@@ -12,15 +12,17 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Resolved the AWL↔conductor seam (item 4) + the naming/research pass — single ceremony
-  axis: `Complexity Tier` (`light`/`full`, the floor) and `formulation depth` (`sketch`/`outline`/`detailed`,
-  per-stage lane-switchable choice); AWL defines the model, conductor elicits. Committed `20b6cd9f`, `51005b1c`
+- **Last Completed:** Closed the AWL planning agenda — item 5 (standard↔lower mechanical differentiators +
+  `composable-workflows` dep) + item 4's mechanism tail, code-grounded plus a deep-research pass on
+  lightweight-spec idiom: one felt axis (formulation depth) + tier-as-floor; qualified-spec naming
+  (`Spec ({depth}): {name}`) with PRD→feature / RFC→technical `detailed` subtypes; spec-review method + optional
+  ceremony extension; `arc start` `--tier` dropped. Committed `365ccfb4`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `arc-plan` on the final agenda thread — the coupled standard↔lower mechanical
-  differentiators + `composable-workflows` dep (item 5); best started fresh in code-grounded mode (priming in
-  SESSION-NOTES § Additional Context). Then the activation reconciliation sweep (stale pre-ADR-020/021 body,
-  `strategy-work-organization` sections, the 7/7a integration evaluation) before `1_create-spec`.
+- **Next Action:** Pre-`1_create-spec` reconciliation pass — resolve the 7/7a integration-tier evaluation, then
+  consolidate the draft into one coherent doc (apply the model-A correction; see SESSION-NOTES), then run
+  `1_create-spec`. External-artifact reconciliation (`strategy-work-organization` / DEV-RULES) is execution-time,
+  not this pass.
 
 ---
