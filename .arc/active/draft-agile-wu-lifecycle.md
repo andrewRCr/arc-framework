@@ -12,9 +12,12 @@ spec-shape scaling, task-list scaling, the AWL ↔ conductor seam, decomposition
 deep-research pass and the integration-ceremony (former scope items 7 / 7a) evaluation are all resolved and
 folded into one coherent body. The **model-A correction** is applied throughout: Complexity Tier is a
 derived coarsening of the depth ordinal at the `outline | detailed` boundary, never an independent knob.
-Ready for `1_create-spec` readiness assessment. A likely **decompose-before-spec** candidate — this WU is
-large and is the first customer of its own decomposition procedure (§ Scope Estimate). External-artifact
-reconciliation (`strategy-work-organization`, DEV-RULES.ARC) is execution-time scope, not resolved here.
+The cohort-structure / graduation thread is resolved (the `theme ⊃ cohort ⊃ WU` taxonomy + the
+graduate-a-decomposing-WU-into-a-cohort model). **Decision: this WU decomposes and graduates** into a cohort
+`agile-wu-lifecycle` (four member WUs D1–D4) under the `principle-anchored-core` theme — it is its own
+decomposition procedure's second acceptance test and first graduation customer (§ Scope Estimate). Each
+member spec is authored from this draft via `1_create-spec`. External-artifact reconciliation
+(`strategy-work-organization`, DEV-RULES.ARC) is execution-time scope, not resolved here.
 
 **Created:** 2026-04-28 (terminology refresh 2026-05-19; consolidated 2026-06-04).
 
@@ -714,13 +717,103 @@ as one unit and iterate; settled design → decompose. Mechanically: a **provisi
 small, split one too big). Iterative, not a single blind upfront gate. CWC parked at *terminal planning*
 (= design settled) is the proof case: that maturity is exactly what makes it decomposable now.
 
-### Cohorts stay flat — no nesting
+### The bounded grouping taxonomy: theme ⊃ cohort ⊃ WU
 
-Decomposition **expands or creates a flat cohort of peer WUs**; structure rides **dependency edges**, never
-a cohort tree. CWC → D1–D4 become peers of WF / EE / IFA within agile-parallelism, not a sub-cohort under
-"CWC." If a piece itself later splits, its parts are more flat peers. (Avoids the reason-about-it-quickly
-trap.) Cohort semantics reconcile with the cohort-consistency invariant and the `cohort-{name}.md`
-convention (whose codification is shared with CWC + file-classification — ownership map to settle at spec).
+Decomposition does **not** produce an arbitrary cohort tree, but it does need **one bounded level of
+nesting** — because the common case is decomposing a WU that is *already* a cohort member (AWL itself, a
+`principle-anchored-core` member). The grouping levels:
+
+- **Theme** — an optional outer grouping for browsing / dependency legibility. **No coordination doc.**
+  (`principle-anchored-core` is a theme — its members are loosely-coupled thesis siblings.)
+- **Cohort** — the coordinating level. **A cohort always carries a `cohort-{name}.md`** — doc-presence is
+  *constitutive* of cohort-hood, not an optional signal. (`agile-parallelism` is a cohort.)
+- **WU** — the leaf deliverable (one branch, one PR, its own `meta-* / spec-* / tasks-*`).
+
+**The cap is one coordinating level:** never theme ⊃ theme or cohort ⊃ cohort. Each level above the WU is
+optional (`agile-parallelism` is a cohort with no theme above it; a standalone WU has neither). If a *theme*
+ever wants its own coordination doc, that is the signal its cohort boundaries are wrong — refactor, don't add
+a third doc-bearing tier. This keeps the anti-sprawl intent of "no cohort tree" while admitting the one real
+level decomposition needs. (`principle-anchored-core` is correctly doc-less *because* it is a theme — not a
+cohort-consistency gap, as a flatter reading would suggest.)
+
+Nesting lives in a **path-valued `Cohort` field** (`principle-anchored-core/agile-wu-lifecycle`), not a
+distinct artifact type: one `cohort-{name}.md` shape and one `template-cohort.md` at every level — a
+sub-cohort differs from a top-level cohort *only* by path depth (capped at two segments, theme/cohort).
+"Sub-cohort" is prose framing, never a `subcohort-*` prefix or a second type — a level change is then a
+path-value edit, not a rename + retype. The on-disk dir mirrors the path
+(`backlog/planned/<theme>/<cohort>/<wu>/`); the relocatability invariant (pure `git mv` on state
+transitions) is unaffected (just more dir levels), and the cohort-consistency invariant generalizes from
+"field matches parent dir" to "field-path matches dir-path."
+
+### A decomposing WU graduates to a cohort
+
+When a WU decomposes it **graduates into a cohort** carrying the original name: AWL → cohort
+`agile-wu-lifecycle` (members D1–D4), `cohort-agile-wu-lifecycle.md` repurposed from this draft's
+coordination content, sitting under the `principle-anchored-core` theme. This is the recursive shape — a
+*standalone* WU that decomposes *becomes* a cohort; a WU *already* in a cohort graduates to a cohort under
+the (now-recognized) theme. It **preserves the name** — and so the browsing / narrative / mental-model
+references — at the right altitude (the pieces directly serve `agile-wu-lifecycle`, which serves the theme).
+
+The "name loss breaks references" worry splits cleanly and dissolves:
+
+- **Dependency edges (`Depends On`) are always WU→WU**, never group-level. CWC depends on the scalable
+  pipeline + the decomposition procedure = specifically the pieces that deliver them (D1 / D2 / D3, not the
+  D4 sweep), so it re-points to those WUs regardless of the name. Dependencies bind deliverables, not
+  groups — name preservation never had to carry them.
+- **Narrative / browsing references** (WORKING-MEMORY, sibling drafts, the cohort docs) are what the
+  preserved cohort name saves — a WU→cohort *rename*, not a deletion, swept at graduation.
+
+`ROADMAP` / `STATUS.USER` render from metas, so regen handles the WU→cohort shift automatically (no
+`agile-wu-lifecycle` WU node; a cohort grouping of the in-flight pieces) — no manual roster anywhere.
+
+### The cohort doc — a managed coordination record (ADR-022 family)
+
+`cohort-{name}.md` joins the structured-record family alongside the meta record (ADR-022). Shape:
+
+- **H1 + uniform preamble** (from `template-cohort.md`).
+- **H2 — cohort-level content and fields:** thesis, parent-theme pointer, closeout criteria, and shared
+  contracts (cross-member design no single WU owns).
+- **H3-per-WU, keyed by slug — a *partitioned coordination surface*, not a membership roster.** Each member
+  edits only its own H3 section, so parallel writers line-merge cleanly — the git-tree analog of the
+  notes-ref entry-union (no tombstones needed: a tracked file handles deletions natively, and the partition
+  gives convergence).
+
+**Membership stays derived** from each WU's `Cohort` field (the meta record is the source of truth; the
+meta template already declares "sibling list derived"). The H3 set is therefore a *subset* of members — a WU
+gets a section only when it has cross-cutting coordination to record; a missing section just means "nothing
+to coordinate," with no sync obligation and no drift. The doc never carries a roster or a status table (those
+render). Orphan H3 sections (a renamed / removed WU) are caught by the cohort-consistency invariant, which
+doubles as this doc's schema validator (H3 slugs ⊆ derived members; required H2 fields present). The cohort
+doc carries **coordination only — never design that drives a task list** (specs feed task lists and validate
+completion; coordination docs do neither). Exact field / section set is a prototype-iterate artifact, like
+the spec templates.
+
+### The graduation workflow
+
+The decomposition procedure *decides* the cut; a **graduation workflow** *executes* it: mint the cohort
+(dir + `cohort-{name}.md` from the origin draft's coordination content) → scaffold the N member WU stubs
+(`meta-* + draft-*` each) → distribute the origin draft's design into each piece's draft (plan-grouping →
+delivery-grouping) → set the path-valued `Cohort` fields → re-point incoming `Depends On` edges per the cut
+map → retire the origin meta into the cohort doc → regen `ROADMAP`. A standalone workflow referenced by the
+planning workflows, forward-compat with composable-workflows (resolve-then-load fragments).
+**Bootstrapping:** AWL is its own first customer, so the first graduation runs a *manual* path (mirroring the
+interim manual park / resume paths until that tooling lands), with the workflow codified inside the
+decomposition piece.
+
+### Concurrency — the cohort doc is the one shared-mutable planning artifact (CWC seam)
+
+`cohort-{name}.md` is the deliberate exception to per-worktree isolation (every other planning artifact is
+per-WU-on-its-branch). It rides plain git line-merge — *not* the notes-ref convergence machinery — so the
+H3 partition above is what keeps concurrent edits safe. Two notes flow to CWC, which owns runtime
+concurrency safety:
+
+- **The advisory cross-cutting gate has a blind spot here.** The Errand matrix's "advisory gate when the
+  owning WU is in flight" keys on a single owning WU; the cohort doc is owned by the *cohort*, so the gate is
+  ill-defined for it — the most-shared artifact is the least-covered. CWC's behind-base detector is the net
+  that does apply (advisory, at resume).
+- **Escape hatch if partition proves insufficient:** route `cohort-{name}.md` edits as errands through the
+  primary worktree (serialized via `main`) rather than riding WU-branch PRs — trading small errand overhead
+  for eliminating cross-branch contention. Lean: partition-first (cheap); serialize-via-main as the fallback.
 
 ### Plan-grouping ≠ delivery-grouping
 
@@ -748,10 +841,14 @@ wrong.
 ### Open / deferred (decomposition)
 
 - **Pipeline fire-point** for the procedure — a new decomposition workflow vs. a phase inside `create-spec`.
-- **Cohort-as-first-class** — the free-form `**Cohort:**` field (exists) vs. a structural cohort entity with
-  member lists; the structural form earns its keep only *if* cohorts gain shared lifecycle events (one PR
-  for the wave, coordinated rollout) — they don't today, so graph-derived grouping + the field suffice until
-  they do.
+  Couples with the graduation workflow above (decide-the-cut vs. execute-the-cut).
+- **Cohort-as-first-class — resolved** (see § The bounded grouping taxonomy / § The cohort doc): the
+  path-valued `Cohort` field + the constitutive `cohort-{name}.md` managed record, membership derived. The
+  earlier "wait for shared lifecycle events" punt is overtaken — decomposition *is* the recurring event that
+  makes the structure earn its keep. Remaining sub-question: whether a cohort needs a coordinator / DRI for
+  its doc (lean no — over-structure; `Owner` stays WU-level).
+- **`template-cohort.md` body** — the exact H2 field set + H3 section shape are prototype-iterate (like the
+  spec templates).
 - **Reconciliation debt.** `strategy-work-organization` § Task Lists and Branches (stacked-PRs / phased /
   team-sub-branch — pre-ADR-019 leftovers that contradict one-branch-per-WU) needs rewriting to the B-only
   model; § Work Character / § Spec-Flow Invariants § Scaling axes / § Escape-hatch still name the retired
@@ -862,13 +959,16 @@ graduation hit relative-link breakage on move, fixed by converting both drafts t
 
 ### Cohort-consistency invariant
 
-A WU's `**Cohort:**` field must match its `backlog/planned/<cohort>/` parent directory; a cohort doc's
-member-list must match its actual members; and every cohort dir should carry a `cohort-{name}.md`
-(`principle-anchored-core` currently has none — only `cohort-agile-parallelism.md` exists). Field-vs-directory
-drift is a silent failure (a WU assigned to one cohort but filed under another). AWL owns the *invariant*
-(cohort semantics — what a cohort is, its boundaries, membership — is this WU's charter); *enforcement* (a
-backlog-scoped structural guard; `active/` is flat and `completed/` ordinal, so neither applies) routes to
-`quality-gate-hooks`, same family as its existing forbidden-pattern / layout-drift checks.
+A WU's path-valued `**Cohort:**` field must match its `backlog/planned/<theme?>/<cohort>/` parent dir-path
+(generalized from single-segment to path-matching for the grouping taxonomy); **every cohort carries a
+`cohort-{name}.md`** (doc-presence is constitutive of cohort-hood — a doc-less grouping is a *theme*, so
+`principle-anchored-core`'s doc-lessness is correct, not a gap); and a cohort doc's **H3 slugs must be a
+subset of derived members** (no orphan sections — membership is derived from `Cohort` fields, never a roster
+in the doc). Field-vs-dir drift is a silent failure (a WU assigned to one cohort but filed under another).
+AWL owns the *invariant* (cohort semantics — what a cohort is, its boundaries, the theme/cohort/WU taxonomy,
+derived membership — is this WU's charter); the check also serves as the cohort doc's schema validator;
+*enforcement* (a backlog-scoped structural guard; `active/` is flat and `completed/` ordinal, so neither
+applies) routes to `quality-gate-hooks`, same family as its existing forbidden-pattern / layout-drift checks.
 
 ---
 
@@ -905,6 +1005,15 @@ Values:
 **Tier-aware validation — open:** should pre-commit hooks validate `Design` matches tier expectations
 (`full` points at a `detailed` spec; `light` at `sketch` / `outline`)? Probably warn-not-block; tolerates
 in-flight transitions. External-tracker URLs are out of scope (they live in `Origin`). PRD / spec decision.
+
+### `Cohort` field — path-valued
+
+The existing `Cohort` field becomes **path-valued** to carry the grouping taxonomy (§ The bounded grouping
+taxonomy): `<theme>/<cohort>` (e.g. `principle-anchored-core/agile-wu-lifecycle`), or a single segment for a
+top-level cohort, or `[none]` for a standalone WU. Capped at two segments. It stays the source of truth for
+membership (the sibling list is *derived*, never stored as a roster). The path mirrors the on-disk dir-path,
+enforced by the cohort-consistency invariant (§ Invariants). A new sibling **`cohort-{name}.md`** managed
+record (ADR-022 family) is constitutive of every cohort; `template-cohort.md` is a new template deliverable.
 
 ---
 
@@ -1097,20 +1206,26 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
 6. **Decomposition procedure** — the orthogonality discriminator, two guard rails, design-maturity timing,
    plan-vs-delivery-grouping, Model-B-only; sizing heuristics consuming the `strategy-work-organization`
    sizing standard. Acceptance test: re-derive CWC's D1–D4.
-7. **Lifecycle integration adaptation** — the single artifact-presence-tolerance requirement on the
+7. **Grouping taxonomy + cohort-graduation** — the bounded `theme ⊃ cohort ⊃ WU` taxonomy; the path-valued
+   `Cohort` field; the constitutive `cohort-{name}.md` managed record (ADR-022 family, H1 / H2-cohort-level /
+   H3-per-slug, membership-derived) + `template-cohort.md`; and the **graduation workflow** that turns a
+   decomposing WU into a cohort (mint cohort + member stubs, distribute design, re-point `Depends On`, retire
+   origin meta, regen). Forward-compat with composable-workflows.
+8. **Lifecycle integration adaptation** — the single artifact-presence-tolerance requirement on the
    integrate / archive workflows (§ Lifecycle Integration). No tier fork.
-8. **`spec-review` method + ceremony extension** — depth-scaled default self-review; opt-in external-cadence
+9. **`spec-review` method + ceremony extension** — depth-scaled default self-review; opt-in external-cadence
    extension.
-9. **Two structural invariants** — relocatability + cohort-consistency (AWL owns the invariants; rule /
-   enforcement route downstream).
-10. **Incidental concept retirement** — the remaining conceptual references in workflows, strategy docs,
+10. **Three structural invariants** — relocatability + cohort-consistency (now incl. the path-matching +
+    constitutive-doc + H3-subset checks) (AWL owns the invariants; rule / enforcement route downstream).
+11. **Incidental concept retirement** — the remaining conceptual references in workflows, strategy docs,
     templates (the prefix is WOR-retired). Mechanical sweep.
-11. **Documentation cascade** — DEV-RULES.ARC tier definitions / boundary tests;
+12. **Documentation cascade** — DEV-RULES.ARC tier definitions / boundary tests;
     `strategy-task-list-formatting.md` phase-count grammar; `strategy-work-organization.md` tier integration +
     § Spec-Flow Invariants + § Escape-hatch updates (name AWL as the tier-classification model home,
-    replace intent-level phrasing) + the sizing-norm co-home; `template-meta.md` new fields; `template-tasks.md`
-    depth variants; quality-gate-commands tier awareness; `draft-arc-plan-conductor.md` write-back (retire
-    `## Scope`-header + `minimum/standard/expanded` modes).
+    replace intent-level phrasing) + the sizing-norm co-home + the grouping-taxonomy / cohort-doc convention
+    (shared with CWC + file-classification); `template-meta.md` new fields (incl. path-valued `Cohort`);
+    `template-tasks.md` depth variants; `template-cohort.md` (new); quality-gate-commands tier awareness;
+    `draft-arc-plan-conductor.md` write-back (retire `## Scope`-header + `minimum/standard/expanded` modes).
 
 ### Out of scope
 
@@ -1136,31 +1251,37 @@ Carried into spec / PRD time. Resolved threads are recorded above; these remain 
 template family and the scalable authoring pipeline. The model is conceptually clean but touches many
 surfaces.
 
-**Decompose-before-spec candidate.** This WU is plausibly itself a cohort by its own decomposition
-procedure — the procedure's *first customer is CWC, but this WU is a close second*. Natural orthogonal
-seams: (a) the **constitutional / model** core (DEV-RULES + ADR + meta schema); (b) the **spec pipeline**
-(template family + scalable `create-spec`); (c) the **task pipeline** (`generate-tasks` + grounding-audit
-parameterization + task-list grammar); (d) the **decomposition procedure** + sizing standard; (e) the
-**invariants + enforcement coordination**; (f) the **incidental retirement + doc cascade** sweep. Whether
-these are phases of one WU or a stack of WUs is exactly the call the decomposition procedure makes — run it
-on this WU at spec time. Provisional phase sketch (if it stays one WU):
+**Decision: decompose and graduate** (the graduation-aware decomposition, run 2026-06-04). Applying this
+WU's own procedure (§ Decomposition Model): the timing gate passes (design at terminal-planning maturity);
+the upper-boundary test fires on **orthogonality, not size** — four distinct subsystems with clean
+interfaces, several independently deliverable, well past one-sitting reviewability. So AWL **graduates into a
+cohort** `agile-wu-lifecycle` under the `principle-anchored-core` theme; this draft's design distributes into
+four member specs, and its coordination content becomes `cohort-agile-wu-lifecycle.md`. AWL is the procedure's
+**second acceptance test** (CWC is the first) and its **first graduation customer** — so the graduation runs
+the *manual* path (D4 later codifies the workflow).
 
-1. **Constitutional foundation** — ADR + DEV-RULES.ARC tier definitions / design-doc-line derivation /
-   front-loading duty / scaled-ceremony framing. Gates the rest.
-2. **Meta schema** — `Tier` + `Design` tier-conditional fields; migration handling.
-3. **Spec template family** — sketch / outline / detailed(-prd/-rfc) templates; H1 + form-agnostic reframe;
-   depth-relative spec-ready bar.
-4. **Scalable authoring pipeline** — `create-spec` / `generate-tasks` per-stage self-resolution;
-   whole-block depth variants; task-list one-grammar; grounding-audit intensity.
-5. **`arc-plan` depth-relativity** + `spec-review` method / extension.
-6. **Decomposition procedure** + sizing-norm co-home.
-7. **Lifecycle integration** artifact-presence-tolerance requirement.
-8. **Invariants** (relocatability + cohort-consistency) — AWL-owned statements; enforcement coordination.
-9. **Incidental retirement + documentation cascade** — mechanical broad sweep; conductor write-back.
-10. **Tests / examples** — standard closing phase.
+Four flat member WUs (Model B), wired by dependency edges:
 
-Phase 1 gates everything. Phases 2–3 can parallel after 1. Phase 4 depends on 3. Phases 6–9 are largely
-independent of 4 and of each other.
+- **D1 · Model Foundation** — `full`. DEV-RULES.ARC tier definitions + design-doc-line derivation +
+  front-loading-duty + scaled-ceremony framing; companion ADR; meta schema (`Tier` / `Design` /
+  path-valued `Cohort` fields, `template-meta`, migration); the **relocatability invariant** statement. The
+  base; ships standalone (workflows default to `full` until D2). *Depends on: — (worktree-foundation).*
+- **D2 · Scalable Authoring Pipeline** — `full`. Spec template family (sketch / outline / detailed-prd/rfc +
+  prototype-iterate) + create-spec reframe + generate-tasks depth-resolution + grounding-audit intensity +
+  task-list one-grammar + `template-tasks` depth variants + arc-plan depth-relativity + spec-review method /
+  extension + the lifecycle-integration artifact-tolerance requirement. Internally phased (templates →
+  wiring; the feed-forward coupling keeps it one WU per the upper rail). *Depends on: D1.*
+- **D3 · Decomposition & Cohort Machinery** — `full`. The decomposition procedure (discriminator + rails +
+  timing + Model-B) + sizing standard; the `theme ⊃ cohort ⊃ WU` taxonomy; the `cohort-{name}.md` managed
+  record + `template-cohort.md`; the **graduation workflow**; the **cohort-consistency invariant**. (Grew
+  with the cohort-graduation fold-in; a possible decompose-at-spec itself, but it is one coherent design —
+  lean one WU with phases.) *Depends on: D1.* Runs **∥ D2**.
+- **D4 · Incidental Retirement + Doc Cascade Sweep** — `light`. Conceptual-reference sweep + conductor
+  write-back + the manual-graduation codification. Terminal. *Depends on: D1, D2, D3.*
+
+**CWC re-points** its `Depends On` from `agile-wu-lifecycle` to the specific deliverers of the scalable
+pipeline + decomposition procedure — **{D1, D2, D3}, not D4** — so CWC unblocks before the sweep. The cut
+naturally surfaces one `light` WU (D4) under three `full` ones — the tier model dogfooding itself.
 
 ---
 
