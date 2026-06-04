@@ -12,21 +12,20 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Refined the tier model to the **two-axis `Class` + per-stage `process intensity`** shape
-  and swept it through the whole draft: `Class` (`light`/`heavy`) = heavy-iff-either-axis (derivation ∨ scale),
-  decoupled from spec form (the `outline` straddle); `process intensity` (`low`/`medium`/`high`) per stage;
-  `sketch` → `brief`; design-doc-line → derivation-line. Committed `4b9fc47f`. Inboxed the arc-plan-conductor
-  realignment + the `briefs/` → `agent-briefs/` rename.
+- **Last Completed:** Resolved the **theme-vs-cohort blocker → Model B** (one grouping kind; coordination a
+  content continuum; every grouping carries a `cohort-*.md` with a required `Purpose` floor) and swept it plus
+  the `process intensity` → `planning depth` rename (stages: drafting / spec creation / task generation;
+  `lane` → `level`) through the draft. Encoded the graduation discipline (firm-cut at the maturity gate;
+  forced design-vs-coordination boundary; distribution conservation-gate; D3-owned enforcement + a manual
+  graduation checklist; D1 compliance baseline). Committed `82825735`, `f0013b25`.
 - **Next Task:** [none]
-- **Blockers:** **Theme-vs-cohort taxonomy** (blocks decomposition): decide categorical theme/cohort (draft
-  today; doc-presence = cohort-hood) vs. one `cohort` concept with coordination as a *property* (`Coordinated:`
-  flag / doc-presence) — the owner's design intent, which resolves the single-segment `Cohort:` field wrinkle.
-  Decide → update the draft → then graduate. Detail + the two models in SESSION-NOTES.
+- **Blockers:** [none] — theme-vs-cohort resolved to Model B; recorded in the draft.
 
-- **Next Action:** **First** resolve the theme-vs-cohort blocker (above) and update the draft accordingly.
-  **Then** execute AWL's graduation — manual park-shaped path (see SESSION-NOTES playbook); confirmed params:
-  theme dir `principle-anchored-core/` (exists) gains cohort dir `agile-wu-lifecycle/` with
-  `cohort-agile-wu-lifecycle.md`; D1–D4 get `Cohort: principle-anchored-core/agile-wu-lifecycle`; draft → retire
-  (pending blocker outcome). Then init D1 + author its spec via `1_create-spec`.
+- **Next Action:** **Execute AWL's graduation** — the manual park-shaped hand-path in
+  `draft-agile-wu-lifecycle.md` § Graduation delivery lifecycle: mint the `agile-wu-lifecycle` cohort under
+  `principle-anchored-core/` + backfill `cohort-principle-anchored-core.md` (`Purpose`-only) → scaffold D1–D4
+  stubs (`Cohort: principle-anchored-core/agile-wu-lifecycle`) → distribute the draft per the
+  conservation-gate → re-point CWC's `Depends On` → verify (checklist) → retire the origin → regen ROADMAP →
+  park PR to `main`. Then init D1 via `init-work-unit` Path A + author its spec via `1_create-spec`.
 
 ---
