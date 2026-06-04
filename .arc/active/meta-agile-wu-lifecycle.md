@@ -12,17 +12,16 @@
 - **Priority:** P1
 
 - **Task List:** [none]
-- **Last Completed:** Closed the AWL planning agenda — item 5 (standard↔lower mechanical differentiators +
-  `composable-workflows` dep) + item 4's mechanism tail, code-grounded plus a deep-research pass on
-  lightweight-spec idiom: one felt axis (formulation depth) + tier-as-floor; qualified-spec naming
-  (`Spec ({depth}): {name}`) with PRD→feature / RFC→technical `detailed` subtypes; spec-review method + optional
-  ceremony extension; `arc start` `--tier` dropped. Committed `365ccfb4`
+- **Last Completed:** Consolidated the draft into one coherent body (7/7a integration evaluation resolved →
+  not tier-forked; model-A correction applied throughout), then added the cohort-graduation model
+  (theme ⊃ cohort ⊃ WU taxonomy, path-valued `Cohort`, `cohort-{name}.md` managed record, graduation =
+  lifecycle workflow vs. decomposition = method, park-shaped delivery) and **decided the decomposition**:
+  AWL graduates into cohort `agile-wu-lifecycle`, members D1–D4. Committed `da114ec2` / `4a83801c` / `40dc20cf`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Pre-`1_create-spec` reconciliation pass — resolve the 7/7a integration-tier evaluation, then
-  consolidate the draft into one coherent doc (apply the model-A correction; see SESSION-NOTES), then run
-  `1_create-spec`. External-artifact reconciliation (`strategy-work-organization` / DEV-RULES) is execution-time,
-  not this pass.
+- **Next Action:** Execute AWL's graduation into cohort `agile-wu-lifecycle` — manual park-shaped path (no
+  codified tooling yet; see SESSION-NOTES + draft § Graduation delivery lifecycle), then init D1 and author its
+  spec via `1_create-spec`.
 
 ---
