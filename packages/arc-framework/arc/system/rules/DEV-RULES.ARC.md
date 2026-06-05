@@ -412,12 +412,24 @@ does; route process rationale to a planning artifact (specs, drafts, task lists,
 ADRs, work-unit notes, commit `Context:` footers). Substantive references —
 test names describing behavior, comments on non-obvious invariants — stay.
 
+### Artifact relocatability
+
+WU artifacts — `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions — relocate between lifecycle states
+(`active/` ↔ `backlog/` ↔ `completed/`) as their State changes, and every such move is a pure `git mv` with no
+content edit. That holds only if artifacts carry position-independent references — the rule below.
+
 ### `.arc/` artifact references
 
-Movable WU artifacts (`draft-*`, `spec-*`, `tasks-*`, `meta-*`, companions) are project-internal —
-shipped or published content cannot reference them at all. Within internal docs, use backticked
-filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
-"Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
+Movable WU artifacts — `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions — are project-internal: shipped
+or published content cannot reference them at all. Two rules keep internal references stable across relocation:
+
+- **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
+  include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
+- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's own path
+  changes when it relocates, so any relative link it carries would break. Relative paths are legal only in
+  non-moving docs.
+
+Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
 
 ### Write for the reader, not the author
 

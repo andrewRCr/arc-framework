@@ -66,23 +66,25 @@ _Requirements:_ R1, R3–R8, R13–R14.
   means the design was more determinate coming in, not license to defer) rather than spec-form names — keeps it
   coherent with § Scaled Process and avoids importing downstream form vocabulary into always-loaded rules.
 
-### `[ ]` **1.3 State the relocatability invariant and generalize the source-side reference rule**
+### `[x]` **1.3 State the relocatability invariant and generalize the source-side reference rule**
 
 - _Goal:_ DEV-RULES.ARC states the relocatability invariant and the generalized source-side reference rule, so
   lifecycle moves stay pure `git mv` and movable artifacts never carry refs that break when the source relocates.
-- _Note:_ this WU states the rules only; _enforcement_ (the forbidden-pattern hook + the path-style link-def
-  sweep) routes to `quality-gate-hooks`. Edit the package source, then sync the `.arc/` mirror.
 
-    - `[ ]` **1.3.a State the relocatability invariant**
-        - WU artifacts (`meta-*`, `draft-*`, `spec-*`, `tasks-*`, companions) relocate between lifecycle states
-          (`active/` ↔ `backlog/` ↔ `completed/`) as a function of State via a pure `git mv` with no content
-          edit — which holds only if artifacts carry position-independent refs.
+    - `[x]` **1.3.a State the relocatability invariant**
+        - Added § Artifact relocatability to § Documentation Boundaries (both copies): WU artifacts
+          (`meta`/`draft`/`spec`/`tasks`/companions) relocate `active`↔`backlog`↔`completed` by State via a pure
+          `git mv` with no content edit — which holds only if artifacts carry position-independent refs.
 
-    - `[ ]` **1.3.b Generalize the `.arc/` artifact-reference rule (source-side)**
-        - A movable artifact carries no relative-path links at all — filename-only, even to stable docs — with
-          relative paths legal only in non-moving docs. Closes the gap where today's rule mandates filename-only
-          refs _to_ movable artifacts but permits relative paths _to_ stable docs (which break when the source
-          is itself movable).
+    - `[x]` **1.3.b Generalize the `.arc/` artifact-reference rule (source-side)**
+        - Reworked § `.arc/` artifact references into two directional rules: _to_ a movable artifact
+          (filename-only, from anywhere) and _from_ a movable artifact (no relative-path links at all, even to
+          stable docs — the source's own path moves on relocation). Relative paths legal only in non-moving docs.
+
+- _Outcome:_ Set kept WU-scoped — `cohort-*` deliberately excluded (different, non-single-WU-`State` relocation
+  model; this WU owns the `Cohort` field schema only). Forward integration captured to USER-INBOX § Backlog
+  (WU_Target: `decomposition-machinery`). Rules only per spec; enforcement (forbidden-pattern hook + path-style
+  link-def sweep) routes to `quality-gate-hooks`. Both copies byte-identical; lint clean.
 
 ### `[ ]` **1.4 Add the `Class` vocabulary entry to AGENT-BRIEF.ARC**
 
