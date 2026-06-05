@@ -16,6 +16,7 @@
 
 import type { InFlightState } from "../git/in-flight-derivation.js";
 import type { Priority } from "../../commands/active/types.js";
+import { cohortLeaf } from "../active/cohort-path.js";
 
 /** One row of a status view — a work unit's render-relevant fields, pre-resolved. */
 export interface StatusViewRow {
@@ -106,7 +107,9 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
     case "dependsOn":
       return row.dependsOn && row.dependsOn.length > 0 ? row.dependsOn.join(", ") : EM_DASH;
     case "cohort":
-      return row.cohort ?? EM_DASH;
+      // Display the leaf segment for a nested cohort; the full path is retained
+      // on the row for membership and the sort key.
+      return row.cohort !== undefined ? cohortLeaf(row.cohort) : EM_DASH;
   }
 }
 

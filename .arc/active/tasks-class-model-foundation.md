@@ -218,17 +218,11 @@ _Requirements:_ R9–R12, R24.
   the filename), and `Origin`-orthogonality (`Design` names an ARC-owned artifact only; external trackers → `Origin`).
   Documentation only — `validate-meta-spec.ts` shape validation is unchanged.
 
-### `[ ]` **2.4 Make the `Cohort` field path-valued (two-segment cap)**
+### `[x]` **2.4 Make the `Cohort` field path-valued (two-segment cap)**
 
 - _Goal:_ `**Cohort:**` carries a path value — a single segment, `<cohort>/<subcohort>`, or `[none]`, capped at
   two segments — mirroring the on-disk dir-path, with the field remaining the membership source of truth (the
   sibling list is derived, never stored).
-- _Context:_ `Cohort` exists in `META_FIELDS` (default `[none]`) and is read by `status/render.ts`,
-  `status/in-flight-mine.ts`, `git/worktree-roster.ts`, `git/in-flight-derivation.ts` — now all routed through
-  the shared reader (2.1.c). The path-valued change must hold across them; render uses the leaf segment for
-  nested cohorts (matching the current ROADMAP interim).
-- _Note:_ dual-placement (meta + spec header) is the schema rule (stated in 2.5's template guidance);
-  backfilling existing `draft-*` / `spec-*` headers rides downstream template passes, not this WU.
 
     - `[x]` **2.4.a Parse and validate the path-valued `Cohort`**
         - _Outcome:_ New `cohort-path.ts` module — `validateCohortPath` (single / two-segment / `[none]` pass;
@@ -237,11 +231,12 @@ _Requirements:_ R9–R12, R24.
           optional field (absent passes; present validated). Confirmed no existing active/backlog meta exceeds the
           cap, so the gate is safe against current data.
 
-    - `[ ]` **2.4.b Confirm the `Cohort` consumers tolerate path values**
-        - Build `test-first` (one behavior at a time):
-            - the in-flight / roster / render readers (via the shared reader) accept a path-valued `Cohort`
-              without regression.
-            - render shows the leaf segment for a nested cohort; the full path for membership.
+    - `[x]` **2.4.b Confirm the `Cohort` consumers tolerate path values**
+        - _Outcome:_ `render.ts` `cellOf` now displays `cohortLeaf(row.cohort)` for the Cohort column — the leaf
+          segment for a nested cohort — while the stored value and the `(priority, cohort, wu-name)` sort key keep
+          the full path for membership (a test orders two WUs whose leaves and paths disagree to prove the split).
+          Consumer passthrough confirmed without regression: in-flight derivation already carried `core/sub`, and a
+          path-valued roster case was added; in-flight-mine spreads the value verbatim, so it cannot truncate.
 
 ### `[ ]` **2.5 Update `template-meta.md` to the new format: core-block table, `Class`, retire the `Tier` comment**
 

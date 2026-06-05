@@ -65,3 +65,45 @@ describe("renderStatusTable", () => {
     expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).not.toContain("Priority");
   });
 });
+
+describe("renderStatusTable — nested cohort", () => {
+  it("renders the leaf segment of a nested cohort in the Cohort cell", () => {
+    const slice: StatusViewRow[] = [
+      {
+        workUnit: "wu",
+        state: "Active",
+        dependsOn: [],
+        cohort: "principle-anchored-core/agile-wu-lifecycle",
+      },
+    ];
+
+    const table = renderStatusTable(slice, STATUS_USER_COLUMNS);
+    expect(table).toContain("agile-wu-lifecycle");
+    expect(table).not.toContain("principle-anchored-core");
+  });
+
+  it("renders a single-segment cohort unchanged", () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "wu", state: "Active", dependsOn: [], cohort: "ranger" },
+    ];
+
+    expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).toContain("ranger");
+  });
+
+  it("orders by the full cohort path for membership while displaying the leaf", () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "wu-a", state: "Active", dependsOn: [], cohort: "z-parent/a-leaf" },
+      { workUnit: "wu-b", state: "Active", dependsOn: [], cohort: "a-parent/z-leaf" },
+    ];
+
+    const lines = renderStatusTable(slice, STATUS_USER_COLUMNS).split("\n");
+    const aIdx = lines.findIndex((line) => line.includes("wu-a"));
+    const bIdx = lines.findIndex((line) => line.includes("wu-b"));
+    // The full path sorts "a-parent/..." before "z-parent/...", so wu-b precedes
+    // wu-a — even though the displayed leaves ("z-leaf", "a-leaf") would order the
+    // other way. Membership uses the path; the cell shows the leaf.
+    expect(bIdx).toBeLessThan(aIdx);
+    expect(lines.join("\n")).toContain("a-leaf");
+    expect(lines.join("\n")).toContain("z-leaf");
+  });
+});

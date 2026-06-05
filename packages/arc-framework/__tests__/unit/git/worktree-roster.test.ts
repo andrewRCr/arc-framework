@@ -144,6 +144,28 @@ describe("runWorktreeRoster", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("carries a path-valued (nested) cohort through without regression", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout:
+          "worktree /home/dev/repo\nHEAD abc123\nbranch refs/heads/feature/x\n\n",
+        stderr: "",
+      },
+    });
+    const fs = buildFs({
+      "/home/dev/repo/.arc/active/meta-feature-x.md":
+        "# Metadata: feature-x\n\n" +
+        "- **State:** Active\n" +
+        "- **Branch:** feature/x\n" +
+        "- **Cohort:** core/sub\n",
+    });
+
+    const result = await runWorktreeRoster({ exec, fs });
+
+    expect(result.entries[0]?.cohort).toBe("core/sub");
+    expect(result.warnings).toEqual([]);
+  });
+
   it("returns one tuple per worktree when several worktrees have meta files", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
