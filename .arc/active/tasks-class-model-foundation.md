@@ -367,15 +367,10 @@ stays out (R22).
 
 _Requirements:_ R3, R4, R22, R23.
 
-### `[ ]` **4.1 Expand STATUS.USER to in-flight + ready, sized by `Class`**
+### `[x]` **4.1 Expand STATUS.USER to in-flight + ready, sized by `Class`**
 
 - _Goal:_ `STATUS.USER` renders both in-flight and ready (owned by the identity, unblocked, `planned/`) WUs, each
   sized by `Class`, so the view supports the balance decision — what's on my plate, and what fits alongside it.
-- _Context:_ today the view is built entirely from the in-flight oracle (`status/user-view.ts` →
-  `git/in-flight-derivation.ts` → `status/in-flight-mine.ts` → `status/render.ts`), columns
-  `Work unit · State · Depends on · Cohort`. The `Class` field reaches the view only after Phase 2 adds it to the
-  meta schema + shared reader. Auto-render stays gated on `roadmap-tooling`; this defines the content model and
-  refreshes the live instance.
 
     - `[x]` **4.1.a Add the `Class` column to the existing in-flight render**
         - Threaded `Class` through the render path: a `WorkClass` type + case-insensitive `validateClass`
@@ -397,10 +392,19 @@ _Requirements:_ R3, R4, R22, R23.
           degrades the in-flight half to cache — the structured merge of the fresh ready slice into the cached
           document is left to the deferred file-writer.
 
-    - `[ ]` **4.1.c Refresh the live instance and document the shape (one-off)**
-        - Update `STATUS.USER.md` to the in-flight-+-ready shape with the `Class` column, and document that shape
-          in the STATUS.USER render standard (`strategy-work-organization`) — the single source of truth until
-          `roadmap-tooling` lands the writer + template. No auto-render wiring (that is `roadmap-tooling`'s).
+    - `[x]` **4.1.c Refresh the live instance and document the shape (one-off)**
+        - Regenerated the gitignored `.arc/user/andrew/STATUS.USER.md` to the in-flight + ready shape (via
+          `arc status --user`) with the `Class` column. Documented the shape in the render standard
+          (`strategy-work-organization` § Render standard + § STATUS.USER view, package + `.arc/` copies): the
+          two `STATUS.USER` column sets (In Flight + Ready), `Class` always-on (`[TBD]` is a value), and the ready
+          slice as a purely-local always-available input. No auto-render wiring — that stays `roadmap-tooling`'s.
+
+- _Outcome:_ STATUS.USER renders in-flight + ready end to end, each row sized by `Class`. The `Class` column
+  threads the in-flight render path; the ready slice is a local, always-available second source (owned +
+  unblocked-by-absence over `backlog/planned/**`), merged into `## In Flight` + `## Ready` sections and wired
+  through `arc status --user`. The render standard documents the two-table shape; the live instance is refreshed.
+  The offline cached-in-flight + fresh-ready merge is deferred to `roadmap-tooling`'s writer (routed to its
+  inbound buffer).
 
 ### `[ ]` **4.2 Add the `Class` model, spec forms, and boundary-test guidance to `strategy-work-organization`**
 
