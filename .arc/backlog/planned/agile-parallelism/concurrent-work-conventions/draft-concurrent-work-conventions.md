@@ -638,6 +638,18 @@ Post-fold, every upstream below has **shipped** — so these are the substrate C
 - **ARC Operating Modes:** consumes shift lifecycle (delivered by `draft-worktree-foundation.md`)
   as prerequisite; concurrent-work conventions inform mode-specific guidance.
 
+### Sibling — Out-of-WU Session Entry (soft prerequisite, ships ahead)
+
+`out-of-wu-entry` (`../out-of-wu-entry/draft-out-of-wu-entry.md`) realigns `session-init`'s entry dispatch
+so an explicit `--errand` / `--housekeep` signal routes **while a WU is active** (the Resume arm), not only
+when none is — completing the cohort's recorded cold-errand-entry gap (`cohort-agile-parallelism.md`
+§ Known gap, which under-scoped it to the no-originating-session case). CWC's concurrency doctrine — the
+in-session-fork matrix and the all-owner advisory gate at `errand-launch` — **assumes** mid-WU
+errand/housekeep entry already works, so this is a **soft prerequisite** to that doctrine being coherent.
+It is **independently shippable and not gated on CWC or AWL** (it manifests with a single WU today and
+needs none of the parallelism mechanism), so it ships *ahead* of the parked four-WU stack rather than
+within it.
+
 ### Recommended sequencing
 
 Work Organization Reform → `draft-worktree-foundation.md` → **Concurrent Work Conventions**. (All
