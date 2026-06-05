@@ -55,15 +55,16 @@ _Requirements:_ R1, R3–R8, R13–R14.
   downstream cascade pass (candidate: `doc-cascade-sweep`); surfaced, not fixed here (distinct docs / own review
   surfaces).
 
-### `[ ]` **1.2 Sharpen the front-loading-duty rule across all spec forms**
+### `[x]` **1.2 Sharpen the front-loading-duty rule across all spec forms**
 
 - _Goal:_ DEV-RULES.ARC § Design-before-implementation states explicitly that all settle-able design is settled
   upfront across every spec form (best reasonable effort, never a conscious deferral), with genuinely-emergent
   design routed back to the spec — introducing no new deferral mechanism.
-- _Note:_ exact phrasing settles against the existing § Design-before-implementation language; the derivation
-  axis is authoring-labor-_to-settle_, never amount-_left-open_ (`outline` is faster because the design was more
-  determinate coming in, not because it tolerates more open design). The impl-detail latitude ARC already grants
-  is unchanged. Edit the package source, then sync the `.arc/` mirror.
+- _Outcome:_ Sharpened § Design before implementation in both copies: added the explicit "settle all settle-able
+  design up front — never a conscious deferral; route emergent design back to the spec, don't accumulate design
+  debt" rule plus the no-new-deferral guard. Expressed the derivation-axis point via `Class` (a lighter `Class`
+  means the design was more determinate coming in, not license to defer) rather than spec-form names — keeps it
+  coherent with § Scaled Process and avoids importing downstream form vocabulary into always-loaded rules.
 
 ### `[ ]` **1.3 State the relocatability invariant and generalize the source-side reference rule**
 
