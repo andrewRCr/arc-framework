@@ -13,13 +13,12 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Pass 3 grounding audit complete — phases 3-5 audited + revised, suite-coherence pass,
-  pre-save checklist
-- **Next Task:** Task 1.1 — Amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic as a
-  character (line ~25)
+- **Last Completed:** Task 1.5 — Author companion ADR-023 (Phase 1 complete)
+- **Next Task:** Task 2.1 — Establish the meta value-format + IA convention in `renderMetaFile` /
+  `parseMetaRecord` (line ~163)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic
-  as a work character, per `tasks-class-model-foundation.md`.
+- **Next Action:** Begin Task 2.1 — Phase 2 (meta-record modernization); first TypeScript task, test-first per
+  the test-first method.
 
 ---
