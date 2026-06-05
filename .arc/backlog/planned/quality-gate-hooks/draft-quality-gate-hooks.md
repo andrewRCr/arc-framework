@@ -60,6 +60,25 @@
 - *Coordinates with:* the cohort-field↔dir guard in `decomposition-machinery` (same original capture, sibling
   hook-file family) and the rule-side entry in `class-model-foundation`.
 
+### `[ ]` **Markdown-formatting enforcement: table-align auto-fix + emphasis/emoji rules at commit-gate**
+
+- *Routed from:* the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
+  2026-06-05. That WU owns the markdown *content hygiene* (adopting `markdown-table-formatter`, the
+  emphasis MD049/MD050 convention, the emoji-ban rule, one-time sweeps); **this entry is the
+  *enforcement* half it routes here** — the user's explicit (b)+(c) routing.
+- *Concern:* once `markdown-formatting` lands the fix-commands + lint rules, nothing auto-enforces them.
+  Table alignment in particular is *not* gated by `lint:md` today (verified: `MD060` enforces per-file style
+  consistency, not width-alignment in general), so it needs an explicit gate.
+- *Proposed (maps onto this WU's existing scope):* (b) **CI gate** — add `npm run -s format:tables:check`
+  as a `ci.yml` step beside `lint:md`; (c) **pre-commit auto-fix dispatch** — run `format:tables` (auto-fix)
+  on staged markdown in the commit-gate Tier-1 dispatch with **auto-restage** (exactly this WU's
+  "Pre-commit tier 1 dispatch" + "this repo's own adoption as dogfood" scope). The emoji-ban + emphasis
+  rules ride `lint:md` automatically (markdownlint config), so they need no separate gate beyond `lint:md`
+  already being in CI. Doing (b)/(c) **before** the auto-fix hook exists would just produce CI failures
+  contributors hand-fix — so this lands *after* `markdown-formatting` ships its fix-side.
+- *Scope:* S — composes this WU's commit-gate dispatch with one more auto-fix command + one CI step.
+- *Coordinates with:* `markdown-formatting` (owns the fix-commands/rules; this owns the gate wiring).
+
 ---
 
 ## Problem / Motivation
