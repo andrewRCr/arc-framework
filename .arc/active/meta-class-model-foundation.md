@@ -13,12 +13,11 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Task 1.5 — Author companion ADR-023 (Phase 1 complete)
-- **Next Task:** Task 2.1 — Establish the meta value-format + IA convention in `renderMetaFile` /
-  `parseMetaRecord` (line ~163)
+- **Last Completed:** Task 2.1 — Meta value-format + IA convention (render/parse foundation; reader consolidated)
+- **Next Task:** Task 2.2 — Add the `Class` field (`Light` / `Heavy` / `[TBD]`) with ratchet semantics (line ~198)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — Phase 2 (meta-record modernization); first TypeScript task, test-first per
-  the test-first method.
+- **Next Action:** Begin Task 2.2 — the `Class` slot already exists in `META_FIELDS` (added in 2.1, default
+  `[TBD]`, core-table); 2.2 adds the value set + ratchet + tests (Light/Heavy round-trip, absent → null), test-first.
 
 ---
