@@ -416,17 +416,24 @@ _Requirements:_ R3, R4, R22, R23.
   only shippable canonical home. Pull example source URLs from the lightweight-spec deep-research transcript
   (`wf_191136b1-518`, per `spec-class-model-foundation.md` § External Research).
 
-    - `[ ]` **4.2.a Reconcile the stale tier vocabulary**
-        - Replace the retired `atomic` / `quick` / `standard` tier model where this strategy carries it — § Work
-          Character (the WU-scale "atomic tier" line), § Spec-Flow Invariants ("invariant across tiers"),
-          § Scaling axes (the `Tier` axis + deferred contract), § Escape-hatch guardrails (tier-one-way /
-          atomic-tier), and § Archival (tier accommodations) — so the strategy describes only the `Class` model.
-          The broad cross-workflow / template sweep stays `doc-cascade-sweep`'s.
+    - `[x]` **4.2.a Reconcile the stale tier vocabulary**
+        - Replaced the retired `atomic` / `quick` / `standard` tier model with `Class` / Errand / spec-form terms
+          across the five sites: § Work Character (atomic at the WU scale runs below the wrapper as an Errand, not
+          a thin tier), § Spec-Flow Invariants (invariants 2–3 + the `Tier` scaling axis → `Class`; deferred
+          contract reframed to per-_stage_ depth realization), § Escape-hatch guardrails (one-way-tier → the
+          estimate-then-ratchet floor + the wrapper-floor boundary test + `Class`-invariant discipline), and
+          § Archival accommodations (`Class`-uniform). The legitimate ROADMAP render tiers (In Flight / Ready /
+          Blocked) are untouched, and the broad cross-workflow / template sweep stays `doc-cascade-sweep`'s. Both
+          copies in sync.
 
-    - `[ ]` **4.2.b Add the `Class` model + boundary tests with worked examples**
-        - The two axes, the three boundary tests, the estimate-vs-realized ratchet, and the readiness rule, with
-          worked examples on each side of the derivation line and the scale trigger (records-vs-derives;
-          routine-vs-substantial grounding).
+    - `[x]` **4.2.b Add the `Class` model + boundary tests with worked examples**
+        - Added the `## Class Model` section (both copies, + Contents): the two decorrelating axes (derivation /
+          scale), the three boundary tests, a 2×2 of worked examples (one per derivation×scale cell —
+          records-vs-derives, routine-vs-substantial grounding), the estimate-then-ratchet, and the readiness
+          rule (resolved `Class` at `planned/` entry). Cross-links the `classify-work-unit` method (triage) and
+          `graduate-work-unit` (forcing point). Source URLs from the deep-research transcript were not embedded
+          (transcript not in-repo); the idiom is attributed to design-doc practice generically — flagged for
+          backfill.
 
     - `[ ]` **4.2.c Define the `planning depth` ordinal and the three spec forms**
         - State the `planning depth` ordinal (`low` / `medium` / `high`; per-stage, transient, never recorded) and

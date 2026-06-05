@@ -16,6 +16,7 @@ documentation.
 - [Work Categories](#work-categories)
 - [Decision Rules](#decision-rules)
 - [Work Character](#work-character)
+- [Class Model](#class-model)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
 - [Spec-Flow Invariants](#spec-flow-invariants)
@@ -64,10 +65,10 @@ Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *c
 distinction sorts inbox items, individual tasks, and whole work units.
 
 - **Atomic** — single-bounded, indivisible, no internal stages: one review increment, fully resolved when its
-  commit lands. At the **WU scale** it sets the atomic tier (a `meta-*` and little else); at the **task scale**,
-  atomic work surfacing mid-WU folds into the current commit or spins off as an [Errand](#errand-work-class)
-  rather than accreting a holding file; at the **item scale**, deferred atomic work lands in an inbox's
-  `## Atomic` section.
+  commit lands. At the **WU scale** atomic work runs *below* the wrapper as an [Errand](#errand-work-class) (a
+  `chore/<slug>` branch + PR, no meta file) rather than forming a thin work unit; at the **task scale**, atomic
+  work surfacing mid-WU folds into the current commit or spins off as an Errand rather than accreting a holding
+  file; at the **item scale**, deferred atomic work lands in an inbox's `## Atomic` section.
 - **Multi-step** — distinct stages with separate goals; needs decomposition into phases or a task list, and
   (when for-later) matures through the planning pipeline rather than executing as-is.
 
@@ -75,6 +76,95 @@ distinction sorts inbox items, individual tasks, and whole work units.
 on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
 surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
 during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
+
+---
+
+## Class Model
+
+A work unit's **`Class`** is its recorded *weight* — `light` or `heavy` (`[TBD]` until resolved). Weight is the
+work a unit demands across *planning, execution, and review* — intrinsic demand, not output volume. `Class` is the
+signal roadmap and parallelism planning read to balance a worklist; the [classify-work-unit][classify-work-unit]
+method is the triage that sets it, and this section is the model and reasoning behind that triage.
+
+What scales with `Class` is **design-authoring ceremony** — how much spec and planning the work warrants. What
+never scales is **execution discipline**: the review-increment gate and the quality gates hold identically at every
+value. A `heavy` WU is not held to a higher engineering bar than a `light` one; it simply has more design to author
+before a competent engineer can execute it well.
+
+### The two axes
+
+`heavy` iff *either* of two intrinsic axes runs high. They **decorrelate** — each loads a different authoring stage
+— so test them independently rather than collapsing them into one judgment:
+
+- **Derivation** — how much design must be *authored* versus *read off* determinate inputs. This is the
+  **records-vs-derives** line: when the spec merely *records* a design that already follows from the issue and
+  existing patterns, derivation is low; when settling the work *requires authoring* a real design — concerns,
+  alternatives, and tradeoffs that do not exist until someone works them out — derivation is high. Derivation loads
+  the drafting and spec stages, and tracks how novel-vs-routine the execution is and how much validation review
+  demands.
+- **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution* must
+  navigate: the codebase-grounding demand. This is the **routine-vs-substantial** bar: most work carries some
+  grounding, so the bar sits at *substantial* — a large or intricate surface of symbols and call-sites a correct
+  plan must verify, beyond the routine floor. Scale loads the task-generation stage.
+
+`light` iff **both** axes are low. The axes are co-equal: a determinate-but-large refactor is `heavy` by grounding
+demand alone, exactly as a small-but-novel design is `heavy` by derivation alone.
+
+### The three boundary tests
+
+Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
+promote a WU to `heavy`:
+
+1. **Errand vs. WU (the wrapper floor).** *Does this need more than a single logical concern — more than one review
+   increment — to do well?* **No** → it is an [Errand](#errand-work-class), not a WU: it runs below the wrapper
+   (`chore/<slug>` + PR, no meta, no `Class`). **Yes** → it is a WU; continue.
+2. **Derivation trigger (→ `heavy`).** *Must a real design be authored — concerns, alternatives, tradeoffs that do
+   not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`.
+3. **Scale / complexity trigger (→ `heavy`).** *Does producing a correct implementation plan require a substantial
+   codebase-grounding pass, beyond the routine floor?* **Yes** → `heavy`. Guard the bar at *substantial* — a soft
+   bar makes everything `heavy`.
+
+### Worked examples
+
+The two axes form a 2×2; each cell is recognizable in retrospect:
+
+- **Low derivation, low scale → `light`.** A moderate feature whose design reads off a clear issue and existing
+  patterns, over a contained surface. The spec *records* the design; the plan needs only a modest grounding pass.
+- **Low derivation, high scale → `heavy` (scale).** A large mechanical refactor — rename or move a widely-used
+  symbol. The design is determinate (nothing to invent), but a correct plan must verify many call-sites across a
+  broad surface, and that breadth carries into careful execution and heavier review.
+- **High derivation, low scale → `heavy` (derivation).** A tricky algorithm or novel mechanism whose design must be
+  *worked out* — alternatives and tradeoffs that do not exist until authored — even over a small surface.
+- **High derivation, high scale → `heavy` (both).** Novel design over a large, intricate surface; both triggers
+  fire.
+
+The records-vs-derives line and the substantial-grounding bar echo long-standing design-doc practice — deciding
+when a piece of work warrants a written design before implementation — adapted here into two crisp tests that place
+work without author guesswork.
+
+### Estimating and the ratchet
+
+Every WU *has* a `Class`; `[TBD]` is the pre-classification sentinel (distinct from `[none]`), meaning the weight is
+merely not yet resolved. When resolving without complete information, set a **best estimate** against the boundary
+tests — never a blanket `heavy` stamp, which would fabricate the very signal `Class` exists to carry.
+
+`Class` is **estimate-then-ratchet**, not strict one-way:
+
+- The ratchet protects **realized** design-authoring: once a stage has *authored* design at some depth, `Class`
+  never drops below that floor.
+- An **estimate** — a value set before that work exists — is freely revisable in *both* directions until planning
+  substantiates a floor. Correcting a too-high estimate *down* is not a demotion: no work is discarded.
+
+So estimating costs nothing — guessing `heavy` and later correcting to `light` loses nothing — which removes any
+lowball incentive. At each lifecycle touchpoint this is a cheap **confirm-or-ratchet**, not a re-derivation.
+
+### Readiness rule
+
+A startable work unit carries a *resolved* `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
+`backlog/planned/` — the [readiness-ladder](#readiness-ladder) rung the start decision reads — is the **forcing
+point**, because the weight signal must exist *before* a WU becomes a start candidate, not at activation (too late:
+the start decision precedes it). The [graduate-work-unit][graduate-work-unit] workflow performs that rung and forces
+the estimate via the [classify-work-unit][classify-work-unit] method.
 
 ---
 
@@ -145,9 +235,9 @@ weight signal must be present before then. **"Graduation" names a readiness-ladd
 
 ## Spec-Flow Invariants
 
-Three structural invariants hold across the WU lifecycle regardless of mode or tier. Two axes
-govern variation above them. The per-axis policy — which spec form applies under which mode ×
-tier combination — lives downstream of this strategy.
+Three structural invariants hold across the WU lifecycle regardless of mode or `Class`. Two axes
+govern variation above them. The per-axis policy — how each authoring stage realizes the spec form
+its depth selects — lives downstream of this strategy.
 
 ### Invariants
 
@@ -158,12 +248,12 @@ tier combination — lives downstream of this strategy.
    (when applicable) the spec pointer. Workflows, tooling, and renderers consume it across the
    lifecycle.
 
-2. **Task list structure is invariant across tiers.** When a task list exists, its shape is fixed
-   — phase headings, leaf task format, completion markers, Success Criteria section. Tier-aware
-   ceremony scales the artifact's presence and rigor; the structural shape stays uniform.
+2. **Task list structure is invariant across `Class`.** When a task list exists, its shape is fixed
+   — phase headings, leaf task format, completion markers, Success Criteria section. `Class`-scaled
+   ceremony varies the artifact's presence and rigor; the structural shape stays uniform.
 
 3. **A parseable spec exists in some form before task-list generation.** Spec form varies by mode
-   × tier — PRD, plan doc, atomic-companion description, external tracker entry — but existence
+   × `Class` — `brief` / `outline` / `detailed`, or an external tracker entry — but existence
    does not. Task generation always has something to read.
 
 ### Scaling axes
@@ -174,36 +264,39 @@ Variation above the invariants happens along two axes:
   surfaces and spec-artifact sets the framework installs. The invariants hold equally under all
   three; the artifact set carrying them differs.
 
-- **Tier** — atomic / quick / standard. Each tier carries a different artifact set per WU; the
-  structural invariants apply uniformly across all three.
+- **`Class`** — `light` / `heavy`, the WU's recorded weight (see § Class Model and the
+  [classify-work-unit][classify-work-unit] method). `Class` scales the design-authoring ceremony a WU
+  carries — how much spec and planning the work demands — while the structural invariants apply
+  uniformly at both values.
 
 ### Deferred contract
 
-This strategy codifies the invariants and the scaling axes. The per-mode × per-tier optionality
-contract — which spec form applies under which combination, whether `draft-*` is required vs.
-optional, the verification model under tier collapse — is not codified here. The invariants
-establish what's stable; the contract that builds on them lives with the surfaces that
-orchestrate per-mode and per-tier policy.
+This strategy codifies the invariants, the scaling axes, and — below — the `Class` model and the spec
+forms it selects. What stays downstream is the per-*stage* realization: how each authoring stage turns
+the `planning depth` it resolves into concrete ceremony (whether `draft-*` is authored, the rigor of
+each pass), and the per-mode artifact orchestration. The invariants establish what's stable; the
+per-stage contract that builds on them lives with the authoring-pipeline surfaces.
 
 ### Escape-hatch guardrails
 
-The structural cuts above raise a discipline question: how does the framework prevent
-escape-hatching to lower-ceremony tiers for work that warrants higher discipline? Three
-mechanisms:
+The scaling axes above raise a discipline question: how does the framework keep work from
+escape-hatching to lighter ceremony than it warrants? Three mechanisms:
 
-- **Tier is one-way.** Promotion (atomic → quick → standard) is straightforward; demotion is
-  deliberate. Work that grows beyond its initial tier rotates to the higher tier rather than
-  absorbing scope under a thinner shape.
+- **The ratchet protects realized work.** `Class` is estimate-then-ratchet: once a stage has
+  *authored* design at some depth, `Class` never drops below that floor (see the
+  [classify-work-unit][classify-work-unit] method). An estimate is freely revisable until planning
+  substantiates a floor, but realized design-authoring is never silently shed — a WU cannot shrink
+  away from `heavy` once its weight is real.
 
-- **Atomic-tier requires explicit choice.** Atomic shape is the exception, not the path of least
-  resistance — work defaults to the heavier ceremony unless its scope genuinely warrants atomic.
+- **The wrapper floor makes work earn its shape.** Dropping below a WU into an Errand is the
+  Errand-vs-WU boundary test, not a convenience — only genuinely single-concern work runs below the
+  wrapper. Multi-concern work takes the WU shape rather than absorbing scope under a thinner one.
 
-- **Tier-invariant disciplines stay uniform.** Process-task-loop, quality gates, and commit
-  discipline apply identically regardless of tier. Tier scales artifact ceremony, not engineering
-  rigor.
+- **Discipline is `Class`-invariant.** Process-task-loop, quality gates, and commit discipline apply
+  identically at both values. `Class` scales design-authoring ceremony, never engineering rigor.
 
-The invariants supply the structural floor; the guardrails above keep that floor intact
-regardless of tier.
+The invariants supply the structural floor; the guardrails above keep that floor intact at every
+`Class`.
 
 ---
 
@@ -418,11 +511,11 @@ order they shipped, which a plain alphabetical sort would scramble. The subdir c
 that existed at integration time, symmetric with the backlog's per-WU subdir convention (see
 [Planning Module Strategy](strategy-planning-module.md)).
 
-### Tier and async-merge accommodations
+### `Class` and async-merge accommodations
 
-The default is tier-uniform and assumes sync merge — the integration PR ships and archival
-completes before the WU's branch is reused for other work. Tier-specific sweep ceremony
-variations (light-ceremony archival for atomic-scale WUs; scaled coordination for larger-scope
+The default is `Class`-uniform and assumes sync merge — the integration PR ships and archival
+completes before the WU's branch is reused for other work. `Class`-scaled sweep ceremony
+variations (lighter archival for `light` WUs; scaled coordination for `heavy`, larger-scope
 WUs) and async-merge accommodations (handoff and cleanup behavior during awaiting-review
 latency) are reserved for codification in adjacent strategy work. The default applies uniformly
 until those land.
@@ -896,7 +989,7 @@ through its commit footer, and tears down.
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
-subdirs would be redundant. Artifact applicability scales with mode and tier; see
+subdirs would be redundant. Artifact applicability scales with mode and `Class`; see
 [§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
 the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-spec.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
