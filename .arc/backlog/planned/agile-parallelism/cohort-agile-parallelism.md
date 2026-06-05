@@ -169,6 +169,16 @@ leaf instead of collapsing it into WU-discovery, and the optional `<pointer-or-b
 leaf is dispatched (not hard-wired to cold-start) — so the fill attaches without a restructure, mirroring the
 materialize seam left for In-Flight Awareness.
 
+**Update (2026-06-05) — the dual was under-scoped; see `out-of-wu-entry`.** The provisional resolution
+above (and the leaf built to it) covers only the **no-originating-session** case — it lives on
+session-init's Orient (no-active-WU) arm. The **dual** it missed: an explicit out-of-WU intent raised
+*while a WU is active* (the Resume arm), which the same errand/housekeep doctrine endorses and which
+`run-errand` / the `arc-errand` warm skill already support. session-init currently **discards** an
+explicit `--errand` on the Resume arm ("Errand signal not consumed"), and has no `--housekeep` priming
+door at all. Captured — with the bare-`--errand` short-circuit, the atomic-slug capture gap, and the
+`--housekeep`-flag question — in `out-of-wu-entry/draft-out-of-wu-entry.md` (this cohort;
+independently shippable, not gated on CWC/AWL).
+
 ## Deferred — `/arc-shift`
 
 The narrow in-session shift was originally in WF scope (R13/R14/R15, Phase 6) and was deferred at the start
