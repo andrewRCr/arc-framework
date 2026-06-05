@@ -185,34 +185,20 @@ _Requirements:_ R9–R12, R24.
   a schema refinement.
 - **Strategies:** `strategy-testing-methodology.md`.
 
-    - `[ ]` **2.1.a Render the three-way value format + core-block table**
-        - Extend `META_FIELDS` with a per-field render mode (core-table cell vs. bullet) and value class (enum
-          token → Capitalized + backticked; identifier → backticked as-is; sentinel → bracketed, unbackticked;
-          narrative → prose). Render the **core block** as a single-row, pre-aligned table
-          (`State | Owner | Branch | Class | Priority`); render the rest as ordered bullet groups —
-          (`Cohort`, `Depends On`), (`Origin`, `Design`, `Task List`), (`Last Completed`, `Next Task`,
-          `Blockers`), (`Next Action`).
-        - Build `test-first` (one behavior at a time):
-            - the core block renders as a well-formed, column-aligned table with the five fields in order.
-            - enum tokens render Capitalized + backticked; identifiers backticked; sentinels bracketed; narrative
-              fields plain prose.
-            - bullet groups render in the defined order, blank-line-separated.
+    - `[x]` **2.1.a Render the three-way value format + core-block table**
+        - _Outcome:_ `MetaFieldDescriptor` gains declared `render` (`core-table` / `bullet`) + `valueClass`
+          (`enum` / `identifier` / `narrative`) axes; `renderMetaFile` emits the pre-aligned core-block table
+          (`State | Owner | Branch | Class | Priority`, the `Class` slot rendering its `[TBD]` default) plus the
+          ordered bullet groups, under the value-format convention (enum → Capitalized + backticked, identifier →
+          backticked, bracket sentinel → bare, narrative → prose). `META_FIELDS` reordered into the new IA
+          (core / cohort / reference / progress / directive).
 
-    - `[ ]` **2.1.b Parse table + bullets in one guarded `parseMetaRecord`**
-        - Read tolerates both layouts on the core block (table-first, else the legacy flat-bullet scan), so the
-          parser ingests pre-migration metas — the active meta and the whole backlog stay readable in the window
-          between this render/parse change and the Phase 5 file migration, and the migration script can ingest the
-          old shape. Render always emits the new table.
-        - Build `test-first` (one behavior at a time):
-            - `parseMetaRecord` recovers core-block fields from the table (header-label-keyed, column-order
-              tolerant) and the rest from bullets; values strip backticks to bare form, but **bracket sentinels**
-              (`[none]` / `[internal]` / `[TBD]`) are preserved verbatim — the bracket is the typed signal that
-              distinguishes a sentinel from a real value (no `none`-collision), and `[internal]` / `[TBD]` are
-              substantive values, not absence. `null` stays reserved for a marker that is entirely absent.
-            - a legacy meta with a flat-bullet core block (no table) recovers its core fields from bullets.
-            - a `renderMetaFile` → `parseMetaRecord` round-trip preserves every field across the new format.
-            - a core table that is _present but malformed_ (column-count mismatch / missing separator) fails
-              **loud**, not silent-null — the bullet fallback covers only the no-table-at-all case.
+    - `[x]` **2.1.b Parse table + bullets in one guarded `parseMetaRecord`**
+        - _Outcome:_ `parseMetaRecord` recovers core fields from the table (header-label-keyed, column-order
+          tolerant; legacy flat-bullet fallback when no table) and the rest from bullets — backticks stripped,
+          bracket sentinels preserved verbatim, marker-absent → `null`; a present-but-malformed core table
+          (column-count mismatch / orphan separator) throws **loud**. `parseMetaFile` now delegates here (gaining
+          table-tolerance for the session-init read); `parseCandidate` downgrades the throw to a per-file warning.
 
     - `[ ]` **2.1.c Consolidate every meta read through the shared reader**
         - Retire the duplicated `extractField` in `git/worktree-roster.ts` (and any peer) for `parseMetaRecord` /

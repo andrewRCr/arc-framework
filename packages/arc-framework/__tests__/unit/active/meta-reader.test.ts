@@ -394,26 +394,92 @@ const SPAWN_OVERRIDES: MetaFieldOverrides = {
   "Next Action": "Begin planning — draft the spec",
 };
 
-describe("renderMetaFile — fresh Planning scaffold", () => {
-  it("substitutes State, Owner, Branch, and Next Action from the overrides", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
-    expect(md).toContain("- **State:** Planning");
-    expect(md).toContain("- **Owner:** andrew");
-    expect(md).toContain("- **Branch:** plan/foo");
-    expect(md).toContain("- **Next Action:** Begin planning — draft the spec");
+/** The `|`-leading lines of the rendered core block: header, separator, value. */
+function coreTableRows(md: string): string[] {
+  return md.split("\n").filter((line) => line.startsWith("|"));
+}
+
+/** Header/value cells of a `| a | b |` row, trimmed. */
+function tableCells(row: string): string[] {
+  return row
+    .replace(/^\| /, "")
+    .replace(/ \|$/, "")
+    .split(" | ")
+    .map((cell) => cell.trim());
+}
+
+describe("renderMetaFile — core-block table", () => {
+  it("renders the core block as a markdown table with the five fields in order", () => {
+    const rows = coreTableRows(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(rows).toHaveLength(3); // header, separator, value
+    expect(tableCells(rows[0]!)).toEqual(["State", "Owner", "Branch", "Class", "Priority"]);
+    expect(rows[1]!).toMatch(/^[-|\s]+$/); // separator: only dashes, pipes, spaces
+    expect(rows[1]!).toContain("---");
   });
 
-  it("renders every non-substituted field at its declared default", () => {
+  it("pre-aligns the table so the pipes line up across all three rows", () => {
+    const rows = coreTableRows(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(rows[1]!.length).toBe(rows[0]!.length);
+    expect(rows[2]!.length).toBe(rows[0]!.length);
+  });
+
+  it("places the core fields in the table and never as bullets", () => {
     const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    for (const field of ["State", "Owner", "Branch", "Class", "Priority"]) {
+      expect(md).not.toContain(`- **${field}:**`);
+    }
+  });
+});
+
+describe("renderMetaFile — value-format convention", () => {
+  it("renders enum tokens Capitalized + backticked", () => {
+    const md = renderMetaFile("foo", { State: "active", Class: "heavy", Priority: "P1" });
+    expect(md).toContain("`Active`");
+    expect(md).toContain("`Heavy`");
+    expect(md).toContain("`P1`");
+    expect(md).not.toMatch(/`active`|`heavy`/);
+  });
+
+  it("renders identifier values backticked as-is", () => {
+    const md = renderMetaFile("foo", {
+      Owner: "andrew",
+      Branch: "feat/x",
+      Cohort: "core/sub",
+      Design: "spec-foo.md",
+    });
+    expect(md).toContain("`andrew`");
+    expect(md).toContain("`feat/x`");
+    expect(md).toContain("- **Cohort:** `core/sub`");
+    expect(md).toContain("- **Design:** `spec-foo.md`");
+  });
+
+  it("renders bracket sentinels bracketed and unbackticked", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES); // Class, Cohort, Origin all default to sentinels
+    expect(md).toContain("[TBD]");
+    expect(md).not.toContain("`[TBD]`");
     expect(md).toContain("- **Origin:** [internal]");
-    expect(md).toContain("- **Design:** [none]");
-    expect(md).toContain("- **Depends On:** [none]");
     expect(md).toContain("- **Cohort:** [none]");
-    expect(md).toContain("- **Priority:** P3");
-    expect(md).toContain("- **Task List:** [none]");
-    expect(md).toContain("- **Last Completed:** [none]");
-    expect(md).toContain("- **Next Task:** [none]");
-    expect(md).toContain("- **Blockers:** [none]");
+  });
+
+  it("renders narrative fields as plain prose", () => {
+    const md = renderMetaFile("foo", {
+      "Next Action": "Begin planning — draft the spec",
+      "Next Task": "Task 1.2 — next up (line ~20)",
+    });
+    expect(md).toContain("- **Next Action:** Begin planning — draft the spec");
+    expect(md).toContain("- **Next Task:** Task 1.2 — next up (line ~20)");
+  });
+});
+
+describe("renderMetaFile — bullet groups", () => {
+  it("renders the non-core fields as ordered, blank-line-separated bullet groups", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    // contiguous within a group...
+    expect(md).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
+    // ...blank line between groups, in order
+    expect(md).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
+    expect(md).toContain("- **Task List:** [none]\n\n- **Last Completed:** [none]");
+    expect(md).toContain("- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec");
   });
 });
 
@@ -421,18 +487,6 @@ describe("renderMetaFile — projection shape", () => {
   it("opens with the `# Metadata: {wu-name}` H1", () => {
     const md = renderMetaFile("foo", SPAWN_OVERRIDES);
     expect(md.startsWith("# Metadata: foo\n")).toBe(true);
-  });
-
-  it("separates each field group with a single blank line", () => {
-    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
-    expect(md).toContain("- **Branch:** plan/foo\n\n- **Origin:** [internal]");
-    expect(md).toContain("- **Design:** [none]\n\n- **Depends On:** [none]");
-    expect(md).toContain(
-      "- **Cohort:** [none]\n- **Priority:** P3\n\n- **Task List:** [none]",
-    );
-    expect(md).toContain(
-      "- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec",
-    );
   });
 
   it("closes the field block with a trailing `---` and a single newline", () => {
@@ -448,15 +502,112 @@ describe("renderMetaFile — projection shape", () => {
   });
 });
 
+describe("parseMetaRecord — core-block table", () => {
+  it("recovers core fields from the table, stripping backticks and preserving brackets", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| State    | Owner    | Branch     | Class   | Priority |",
+      "| -------- | -------- | ---------- | ------- | -------- |",
+      "| `Active` | `andrew` | `feat/bar` | `Heavy` | `P1`     |",
+      "",
+      "- **Cohort:** `core/sub`",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.State).toBe("Active");
+    expect(record.Owner).toBe("andrew");
+    expect(record.Branch).toBe("feat/bar");
+    expect(record.Class).toBe("Heavy");
+    expect(record.Priority).toBe("P1");
+    expect(record.Cohort).toBe("core/sub");
+  });
+
+  it("keys core fields by header label, tolerating column reordering", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| Priority | Class   | Branch     | Owner    | State    |",
+      "| -------- | ------- | ---------- | -------- | -------- |",
+      "| `P2`     | `[TBD]` | `feat/bar` | `andrew` | `Active` |",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.State).toBe("Active");
+    expect(record.Priority).toBe("P2");
+    expect(record.Class).toBe("[TBD]"); // bracket sentinel preserved verbatim
+    expect(record.Branch).toBe("feat/bar");
+  });
+
+  it("recovers core fields from a legacy flat-bullet block when no table is present", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** Active",
+      "- **Owner:** andrew",
+      "- **Branch:** feat/bar",
+      "- **Priority:** P1",
+      "- **Cohort:** core/sub",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.State).toBe("Active");
+    expect(record.Branch).toBe("feat/bar");
+    expect(record.Priority).toBe("P1");
+    expect(record.Cohort).toBe("core/sub");
+  });
+});
+
+describe("parseMetaRecord — malformed table fails loud", () => {
+  it("throws when the value row has a different column count than the header", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| State    | Owner    | Branch | Class | Priority |",
+      "| -------- | -------- | ------ | ----- | -------- |",
+      "| `Active` | `andrew` |",
+      "",
+    ].join("\n");
+    expect(() => parseMetaRecord(content)).toThrow(/column-count mismatch/);
+  });
+
+  it("throws when a separator row has no adjacent header and value row", () => {
+    const content = ["# Metadata: foo", "", "| --- | --- | --- |", ""].join("\n");
+    expect(() => parseMetaRecord(content)).toThrow(/Malformed meta core-block table/);
+  });
+});
+
+describe("parseMetaFile — reads the core-block table (session-init path)", () => {
+  it("recovers State and Branch from the table form", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| State    | Owner    | Branch     | Class   | Priority |",
+      "| -------- | -------- | ---------- | ------- | -------- |",
+      "| `Active` | `andrew` | `feat/bar` | `Heavy` | `P1`     |",
+      "",
+      "- **Task List:** `tasks-foo.md`",
+      "- **Next Task:** Task 2.1 — go (line ~5)",
+      "",
+    ].join("\n");
+    const parsed = parseMetaFile(content);
+    expect(parsed.state).toBe("Active");
+    expect(parsed.branch).toBe("feat/bar");
+    expect(parsed.taskList).toBe("tasks-foo.md");
+    expect(parsed.nextTask).toBe("Task 2.1 — go (line ~5)");
+  });
+});
+
 describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
   it("recovers every rendered field value through the meta parser", () => {
     const overrides: MetaFieldOverrides = {
       State: "Planning",
       Owner: "andrew",
       Branch: "plan/foo",
+      Class: "Heavy",
       Origin: "tracker-123",
       Design: "draft-foo.md",
-      "Depends On": "alpha beta",
+      "Depends On": "alpha",
       Cohort: "gamma",
       Priority: "P1",
       "Task List": "tasks-foo.md",
@@ -473,11 +624,12 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
 
   it("recovers the declared defaults for non-substituted fields", () => {
     const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(record.Class).toBe("[TBD]");
+    expect(record.Priority).toBe("P3");
     expect(record.Origin).toBe("[internal]");
     expect(record.Design).toBe("[none]");
     expect(record["Depends On"]).toBe("[none]");
     expect(record.Cohort).toBe("[none]");
-    expect(record.Priority).toBe("P3");
     expect(record["Task List"]).toBe("[none]");
     expect(record["Last Completed"]).toBe("[none]");
     expect(record["Next Task"]).toBe("[none]");
