@@ -7,7 +7,7 @@
 - **Origin:** [internal]
 - **Design:** `draft-quality-gate-hooks.md`
 
-- **Depends On:** agile-wu-lifecycle
+- **Depends On:** class-model-foundation
 - **Cohort:** [none]
 - **Priority:** P3
 

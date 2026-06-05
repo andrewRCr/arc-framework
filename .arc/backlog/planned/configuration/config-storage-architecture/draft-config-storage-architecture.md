@@ -21,6 +21,17 @@
 
 ---
 
+### `[ ]` **Short identity (`arc.identity.short`) for rendered surfaces**
+
+- *Routed from:* agile-wu-lifecycle graduation (PR #55), 2026-06-04 — surfaced rendering the ROADMAP Owner
+  column.
+- *Concern:* the Owner field renders the full identity (`andrew` now; a git/source-control username like
+  `andrewRCr` in general), wide and repeated on every row. A second short form (initials, e.g. `aRC`) would let
+  rendered views (ROADMAP, STATUS.USER) show a compact owner without losing the canonical identity.
+- *Approach:* add `arc.identity.short` alongside `arc.identity` in the per-developer config substrate
+  (`config.user.yml`); default to derived initials, user-overridable.
+- *Note:* storage home is this WU; the render consumption is roadmap-tooling's (coordinate at PRD).
+
 ## Problem / Motivation
 
 Per-developer settings (`arc.identity`, `arc.role`, `arc.commitInterlock`, `arc.pushInterlock`, `arc.syncInterlock`,
