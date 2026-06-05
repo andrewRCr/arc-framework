@@ -37,14 +37,13 @@ it does **not** bypass the user's approval gate.
 
 ## Scaled Process, Invariant Discipline
 
-Work in ARC runs from a single-concern (atomic) Errand up to a heavy work unit. Its weight scales the process
-around it — how much design is authored in planning, and how much review and integration ceremony it warrants.
-What never scales is execution discipline: the [review-increment invariant](#review-increment-invariant), the
-interlocks that gate review and merge, and the quality gates hold identically across the whole range.
+A work unit's weight (its `Class`) scales the process around it — how much design is authored in planning, and
+how much review and integration ceremony it warrants. What never scales is execution discipline: the
+[review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
+quality gates hold identically across the whole range, from a single-concern Errand to a heavy work unit.
 
-A work unit records its weight as its **`Class`** — `light`, `heavy`, or `[TBD]` until resolved; work below the
-work-unit floor carries no `Class` and runs as an Errand. Resolve a `Class` with the `classify-work-unit`
-method; the model and worked examples live in the [Work Organization Strategy][work-org].
+Resolve a work unit's `Class` with the `classify-work-unit` method; the model and worked examples live in the
+[Work Organization Strategy][work-org].
 
 ---
 

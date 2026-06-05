@@ -86,26 +86,30 @@ _Requirements:_ R1, R3–R8, R13–R14.
   (WU_Target: `decomposition-machinery`). Rules only per spec; enforcement (forbidden-pattern hook + path-style
   link-def sweep) routes to `quality-gate-hooks`. Both copies byte-identical; lint clean.
 
-### `[ ]` **1.4 Add the `Class` vocabulary entry to AGENT-BRIEF.ARC**
+### `[x]` **1.4 Add the `Class` vocabulary entry to AGENT-BRIEF.ARC**
 
 - _Goal:_ AGENT-BRIEF.ARC introduces `Class` as orientation vocabulary — what it is, the two intrinsic axes
   (either alone raises the floor), that it indicates weight across planning, execution, and review while
   execution discipline stays invariant — so an agent knows the concept exists and what it means without loading
   the method or strategy.
-- _Note:_ two-copy; edit the package source, then sync the `.arc/` mirror.
 
-    - `[ ]` **1.4.a Add the `Class` entry to the Vocabulary section**
-        - `Light` / `Heavy` (`[TBD]` until resolved); `Heavy` when _either_ axis runs high — `derivation`
-          (a real design must be authored) or `scale` / `complexity` (a large or intricate existing-code surface
-          a correct plan and execution must navigate). Indicates weight across planning, execution, and review;
-          tracks intrinsic demand, not output volume or preference; discipline never scales. Capitalized enum
-          tokens in prose-as-values, lowercase as adjectives ("a heavy WU"); match the existing entries' density.
+    - `[x]` **1.4.a Add the `Class` entry to the Vocabulary section**
+        - Added the `Class` entry (both copies), placed between `Work unit` and `Atomic`: `Light`/`Heavy`/`[TBD]`,
+          `Heavy` when _either_ axis runs high (derivation / scale-complexity), indicates weight across planning,
+          execution, and review (intrinsic demand, not output volume), ceremony scales / discipline does not,
+          distinct from the quality-gate `Tier 1/2/3`. Matched the existing entries' density.
 
-    - `[ ]` **1.4.b De-stale the `Work unit` and `Atomic` entries**
-        - Drop the retired tier vocabulary: remove `Tier-invariant (atomic / quick / standard)` from `Work unit`
-          (the weight role is now `Class`'s); reframe `Atomic` as a work character — a single logical concern
-          that fits one review increment (typically one commit, even if multi-file), executed inline in a
-          same-domain WU or as an Errand — dropping the `atomic-tier` reference.
+    - `[x]` **1.4.b De-stale the `Work unit` and `Atomic` entries**
+        - `Work unit`: dropped `Tier-invariant (atomic / quick / standard)` (the weight role is now `Class`'s).
+          `Atomic`: reframed as a work character — a single logical concern that fits one review increment
+          (typically one commit, even if multi-file), executed inline in a same-domain WU or as an Errand —
+          dropping the `atomic-tier` reference.
+
+- _Outcome:_ Seam reconciliation across the two always-loaded surfaces. With AGENT-BRIEF now owning the `Class`
+  definition, trimmed DEV-RULES § Scaled Process (Task 1.1's deliverable) to pure-behavioral: dropped its
+  value-enumeration / floor-definition sentence, keeping the scaling rule + the Errand→heavy-WU range + the
+  method/strategy pointer. AGENT-BRIEF = "what `Class` is"; DEV-RULES = "what to do" — no cross-file duplication.
+  All copies byte-identical; lint clean.
 
 ### `[ ]` **1.5 Author companion ADR-023**
 
