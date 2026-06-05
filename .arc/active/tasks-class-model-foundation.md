@@ -172,6 +172,17 @@ _Requirements:_ R9–R12, R24.
 - _Note:_ `renderMetaFile` emits the table pre-aligned, so generated metas need no hand-alignment
   (`MD013 tables:false` exempts table width). `template-meta.md` reflection is 2.5; migrating existing instances
   is Phase 5.
+- _Forward-compat:_ this task is the proto-record `cli-substrate-adoption` (the zod meta schema) and
+  `operational-state-docs` (the generic render/reconcile engine) lift, per ADR-022. Three execution constraints
+  follow so those lifts stay mechanical: (1) render-mode + value-class are **declared fields on**
+  `MetaFieldDescriptor` (table-data, not render-code branches) — the taxonomy a zod schema maps 1:1 and
+  `schema-introspection-layer` publishes; (2) bracket sentinels are a **declared, typed closed vocabulary**
+  (`[none]` / `[internal]` / `[TBD]`) preserved verbatim in the record, so `[internal]` (a real "no external
+  tracker" value) and `[TBD]` (a real ratchet state) stay distinct from each other and from marker-absent `null`,
+  and a later per-field zod narrows `<typed value> | <sentinel literal>` cleanly; (3) `parseMetaRecord` is the
+  **single reader** every consumer routes through (2.1.c) — the one swap-point a zod backing replaces without
+  touching call sites. Form↔`Class` validity stays advisory (§ Non-Goals), modeled as a `[TBD]`-bearing enum, not
+  a schema refinement.
 - **Strategies:** `strategy-testing-methodology.md`.
 
     - `[ ]` **2.1.a Render the three-way value format + core-block table**
@@ -194,7 +205,10 @@ _Requirements:_ R9–R12, R24.
           old shape. Render always emits the new table.
         - Build `test-first` (one behavior at a time):
             - `parseMetaRecord` recovers core-block fields from the table (header-label-keyed, column-order
-              tolerant) and the rest from bullets; values strip backticks / brackets to bare form.
+              tolerant) and the rest from bullets; values strip backticks to bare form, but **bracket sentinels**
+              (`[none]` / `[internal]` / `[TBD]`) are preserved verbatim — the bracket is the typed signal that
+              distinguishes a sentinel from a real value (no `none`-collision), and `[internal]` / `[TBD]` are
+              substantive values, not absence. `null` stays reserved for a marker that is entirely absent.
             - a legacy meta with a flat-bullet core block (no table) recovers its core fields from bullets.
             - a `renderMetaFile` → `parseMetaRecord` round-trip preserves every field across the new format.
             - a core table that is _present but malformed_ (column-count mismatch / missing separator) fails
