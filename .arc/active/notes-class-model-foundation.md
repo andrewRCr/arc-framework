@@ -140,9 +140,33 @@ definitions.
   shape (`brief` paragraph-spec vs `detailed` phased PRD/RFC); reviewers / agents / tooling read the explicit
   `**Class:**` field and the artifact shapes, not which optional steps were skipped. `Class` is not perfectly
   inferable from spec form (the `outline` straddle), which is exactly why it is recorded explicitly.
-- **Scaffolding is `Class`-agnostic.** `arc start` / `init-work-unit` produce a uniform minimal Planning
-  container; `Class` is born in the planning stage and lives in the content, not the scaffolding act. (No
-  `--class` flag; no quick tier; the field ratchets from its default.)
+- **Scaffolding is `Class`-agnostic; the value is forced at readiness, not creation.** `arc start` /
+  `init-work-unit` produce a uniform minimal Planning container defaulting `Class: [TBD]` (no `--class` flag, no
+  quick tier). But `Class` must be *present* before a WU is a start candidate — so it is forced at **entry into
+  `planned/`** (the `graduate-work-unit` workflow) and lightly re-tuned at each subsequent lifecycle touchpoint.
+  "Born in planning" sharpens to "born at planned-entry / first real triage," not deferred to activation (too
+  late — the start / balance decision precedes it).
+
+- **Estimate-vs-realized ratchet (the lowball-incentive fix).** The one-way ratchet protects *realized*
+  design-authoring work, not estimates: once a stage authors design at some depth, `Class` cannot drop below that
+  floor; but a value set *before* that work (an estimate) is freely revisable in both directions. Correcting a
+  too-high estimate down is not a demotion — no work is discarded. This is what lets the forcing function demand a
+  real value at planned-entry without collapsing the signal: estimating `heavy` costs nothing if planning reveals
+  `light` (you correct down), and an over-high estimate never forces over-heavy planning because depth re-resolves
+  per stage from the axes — so there is no incentive to lowball. `[TBD]` is the pre-estimate sentinel, legal in
+  `provisional/` (a rough capture shouldn't force a guess) but not in `planned/`.
+
+- **`classify-work-unit` as the DRY triage home.** The boundary-test triage plus the ratchet rule are packaged
+  once as a loadable method every touchpoint declares, rather than restated per surface. Methods are the existing
+  loadable-fragment mechanism (no `composable-workflows` dependency); authored as a self-contained extractable
+  block so it fragments cleanly when composition lands.
+
+- **"Graduation" = the readiness ladder, not decomposition.** `provisional → planned → active` are graduation
+  rungs (climbing readiness); `init-work-unit` already graduates `planned → active`, and `graduate-work-unit`
+  adds the `provisional → planned` rung. A WU *splitting into a cohort* is decomposition — it yields a cohort, it
+  is not a promotion — so `decomposition-machinery`'s `WU → cohort` workflow renames off "graduation" (its draft
+  borrows the term by analogy to `init`'s usage; that analogy over-stretches). Routed to its inbound buffer;
+  coordinated in the cohort doc.
 - **The internal spec is always a separate doc.** The lightest spec is a separate `spec-{name}.md` at `brief`
   form — never a `## Scope` header section in the task list (ADR-020's invariant floor). "Spec lives in a doc,
   regardless of `Class`."
@@ -161,10 +185,11 @@ definitions.
 For the companion ADR's risks section and the drift-mitigation guidance.
 
 - **`Class` drift via under-specification.** Adopters may default to `light` to avoid `detailed`-spec ceremony.
-  Mitigations: the self-diagnosing depth-shift signal (a heavy downstream artifact over a minimal spec *is* the
-  floor-was-too-low signal); the explicit `**Class:**` field invites reviewer scrutiny ("Class: light" on a
-  complex change has the signal to push back); strategy-doc guidance with concrete examples on each side of the
-  derivation line and scale trigger.
+  Mitigations: the estimate-vs-realized ratchet removes the *incentive* to lowball (a too-high estimate is freely
+  correctable down, so an honest estimate costs nothing); the self-diagnosing depth-shift signal (a heavy
+  downstream artifact over a minimal spec *is* the floor-was-too-low signal); the explicit `**Class:**` field
+  invites reviewer scrutiny ("Class: light" on a complex change has the signal to push back); strategy-doc
+  guidance with concrete examples on each side of the derivation line and scale trigger.
 - **Constitutional change scope.** The `Class` definitions, boundary tests, and scaled-ceremony framing are
   constitutional-level additions to DEV-RULES.ARC, comparable to ADR-016. Companion ADR required.
 - **Light WU discoverability.** Short-lived `light` WUs could make session-init's active-WU enumeration noisy.

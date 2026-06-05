@@ -33,10 +33,13 @@ this records the contract surface and its consumers.
 
 - **The `Class` model** — `light` / `heavy` planning weight (`heavy` iff either intrinsic axis is high:
   _derivation_ of an open design, or _scale_ of the codebase-grounding a correct plan needs), plus a transient
-  per-stage `planning depth` and three spec forms (`brief` / `outline` / `detailed`). Defined by
-  **`class-model-foundation`**; consumed by **`scalable-authoring-pipeline`** (per-stage depth resolution) and
-  **`decomposition-machinery`** (the WU-vs-cohort upper bound mirrors the Errand-vs-WU lower bound). One-way
-  ratchet — rises when a stage reveals demand, never demotes.
+  per-stage `planning depth`, three spec forms (`brief` / `outline` / `detailed`), the `[TBD]` pre-classification
+  sentinel, and the `classify-work-unit` triage method. Defined by **`class-model-foundation`**; consumed by
+  **`scalable-authoring-pipeline`** (per-stage depth resolution; declares the `classify-work-unit` method at its
+  planning-stage touchpoints) and **`decomposition-machinery`** (the WU-vs-cohort upper bound mirrors the
+  Errand-vs-WU lower bound). **Estimate-then-ratchet** — the ratchet protects _realized_ authoring (never drops
+  below work already done); an estimate set before that work is freely revisable, forced to a real value at entry
+  into `planned/` (`[TBD]` only in `provisional/`).
 - **The path-valued `Cohort` field + grouping taxonomy** — the field _schema_ (path-valued, capped at two
   segments, membership derived) is owned by **`class-model-foundation`**; the _taxonomy_ it expresses (one
   grouping kind, coordination as a content continuum, the constitutive `cohort-{name}.md` record with a
@@ -76,8 +79,11 @@ when it has cross-cutting coordination to record.
 
 The base; ships standalone (workflows default to `heavy` until the pipeline lands).
 
-_Exposes:_ the `Class` model + boundary tests, the `Class` / `Design` / path-valued `Cohort` meta-field schema,
-the relocatability invariant statement, and a backlog-wide cohort-compliance baseline.
+_Exposes:_ the `Class` model + boundary tests, the `Class` / `Design` / path-valued `Cohort` meta-field schema
+(`Class` carries the `[TBD]` sentinel + the estimate-vs-realized ratchet), the `classify-work-unit` triage
+method, the `graduate-work-unit` (`provisional → planned`) workflow that forces the estimate at planned-entry,
+the in-flight-+-ready `STATUS.USER` content model, the relocatability invariant statement, and a backlog-wide
+cohort-compliance baseline.
 
 ### `scalable-authoring-pipeline`
 
@@ -86,13 +92,16 @@ self-resolution with flag-free feed-forward, the task-list one-grammar, groundin
 `arc-plan` depth-relativity, the `spec-review` method + extension, and the artifact-presence-tolerance
 requirement on integration.
 
-_Consumes:_ the `Class` model.
+_Consumes:_ the `Class` model + the `classify-work-unit` method (declared at the `arc-plan` / `create-spec` /
+`generate-tasks` planning-stage touchpoints it owns).
 
 ### `decomposition-machinery`
 
 _Exposes:_ the decomposition method (orthogonality discriminator + two rails + maturity-gated timing +
-Model-B-only), the grouping taxonomy, the `cohort-{name}.md` record + `template-cohort.md`, the **graduation
-workflow**, and the cohort-consistency invariant + its enforcement.
+Model-B-only), the grouping taxonomy, the `cohort-{name}.md` record + `template-cohort.md`, the **`WU → cohort`
+decomposition workflow** (renamed off "graduation" — that term is reserved for the readiness ladder, owned by
+`class-model-foundation`'s `graduate-work-unit`; see this WU's inbound buffer), and the cohort-consistency
+invariant + its enforcement.
 
 _Consumes:_ the path-valued `Cohort` schema and the relocatability invariant from `class-model-foundation`.
 

@@ -32,8 +32,10 @@ execution discipline stays invariant**. This is the execution arm of the `princi
 `Class` classification and the two intrinsic axes that drive it, the per-stage planning-depth ordinal, and the
 three spec forms; it amends DEV-RULES.ARC with the definitions, the boundary tests, and a constitutional
 sharpening of the no-design-deferral rule; it adds the `Class` / `Design` / path-valued `Cohort` meta-schema
-fields; it states the artifact-relocatability invariant and closes a source-side gap in the reference rule; and
-it migrates existing work units' `Cohort` fields into the new schema.
+fields; it states the artifact-relocatability invariant and closes a source-side gap in the reference rule; it
+makes the classification a *present* signal — a `classify-work-unit` method forced at entry into `planned/` via
+a `graduate-work-unit` workflow, re-tuned at lifecycle touchpoints; and it migrates existing work units'
+`Cohort` fields into the new schema.
 
 **Why now:** this WU is the base of the `agile-wu-lifecycle` cohort — `scalable-authoring-pipeline` and
 `decomposition-machinery` both consume the contracts it exposes, and `doc-cascade-sweep` retires the superseded
@@ -43,8 +45,10 @@ the consumers build on it.
 
 ## Goals
 
-- Define a **recorded, objective planning-weight classification** (`Class`: `light` / `heavy`) that downstream
-  roadmap / parallelism planning can read, driven by two intrinsic, stage-decorrelating axes of the work.
+- Define a **recorded, objective planning-weight classification** (`Class`: `light` / `heavy`, `[TBD]` until
+  resolved) that downstream roadmap / parallelism planning can read, driven by two intrinsic, stage-decorrelating
+  axes of the work — and **present when the balance decision needs it** (forced at entry into `planned/`, the
+  readiness rung the start decision reads, not deferred to activation).
 - Make the **classification boundaries crisp** — three recognizable-in-retrospect tests (Errand-vs-WU,
   derivation trigger, scale trigger) that place work without author guesswork.
 - Preserve ARC's identity: **execution discipline is invariant** at every model position; only design-authoring
@@ -120,11 +124,13 @@ Technical work — scenarios that illustrate the model and the migration impact.
    work category into PRD (feature) / RFC (technical); the other two forms do not split. *(The `heavy`/`brief`
    cell is empty: low scale reaches `heavy` only via derivation, which forces `detailed`.)*
 
-5. **`Class` set is `{light, heavy}`; atomic retires as a tier.** Atomic-character work executes as an Errand
-   below the wrapper, or graduates to a WU. ADR-020 §3's spec-in-commit floor exception migrates *out of the
-   tier model into the Errand class* (reconciling the ADR-020 ↔ ADR-021 tension). "Atomic" reverts to a pure
-   character adjective. This WU owns only the *tier-side* reconciliation; the Errand operational path itself
-   has shipped.
+5. **`Class` set is `{light, heavy}` (plus the `[TBD]` pre-classification sentinel); atomic retires as a tier.**
+   The two resolved values are `light` / `heavy`; `[TBD]` is the not-yet-classified state a WU carries before
+   its weight is known — distinct from `[none]` (every WU *has* a `Class`; it is merely unresolved; see R17).
+   Atomic-character work executes as an Errand below the wrapper, or graduates to a WU. ADR-020 §3's
+   spec-in-commit floor exception migrates *out of the tier model into the Errand class* (reconciling the
+   ADR-020 ↔ ADR-021 tension). "Atomic" reverts to a pure character adjective. This WU owns only the *tier-side*
+   reconciliation; the Errand operational path itself has shipped.
 
 6. **Constitutional amendment to DEV-RULES.ARC.** Add: the `Class` definitions and the two `heavy`-axis
    triggers; the three boundary tests; the scaled-ceremony / invariant-discipline framing (discipline floor vs.
@@ -143,12 +149,18 @@ Technical work — scenarios that illustrate the model and the migration impact.
 8. **Companion ADR.** Author an ADR documenting the architectural shift (scaled ceremony / invariant
    discipline, the `Class` model, the boundary tests), parallel in scope to ADR-016's commit-control downgrade.
 
-9. **Meta schema — `Class` field.** Add `**Class:**` (`light` / `heavy`) as a schema-owned field grouped with
-   the classification fields (`Depends On` / `Cohort` / `Priority`), not provenance. Source of truth for
-   planning weight; declared / ratcheted through the authoring stages. The reserved `**Tier:**` slot in
-   `template-meta.md` becomes `**Class:**`. **One-way ratchet:** rises when a stage reveals demand, never
-   demotes (demotion would discard work). `Class`-conditional validity per ADR-022 (a cross-field constraint a
-   flat template cannot express).
+9. **Meta schema — `Class` field.** Add a new `**Class:**` field (`light` / `heavy` / `[TBD]`) as a
+   schema-owned field grouped with the classification fields (`Depends On` / `Cohort` / `Priority`), not
+   provenance. Source of truth for planning weight; declared / ratcheted through the authoring stages, default
+   `[TBD]` until resolved. *(There is no `**Tier:**` field today — only a stale reservation comment in
+   `template-meta.md`'s "Deliberately not added" block, mis-placed in the Identity group. R12 retires that
+   comment; `Class` is added fresh to Coordination, not a rename of an existing slot.)* **Estimate-then-ratchet,
+   not strict one-way:** the ratchet protects *realized* design-authoring work — once a stage has authored
+   design at some depth, `Class` never drops below that floor. An *estimate* (a value set before that work
+   exists) is freely revisable in both directions until planning substantiates a floor; correcting a too-high
+   estimate down is not a demotion (no work is discarded). This removes the lowball incentive — estimating
+   `heavy` costs nothing if planning later reveals `light`. `Class`-conditional validity per ADR-022 (a
+   cross-field constraint a flat template cannot express).
 
 10. **Meta schema — `Design` field.** Define `Class`-aware value semantics for `**Design:**` (introduced
     upstream as a generic optional pointer): `draft-{name}.md` during Planning, `spec-{name}.md` from Active
@@ -166,10 +178,13 @@ Technical work — scenarios that illustrate the model and the migration impact.
     **This WU owns the field *schema* only; `decomposition-machinery` owns the taxonomy *semantics* it
     expresses** (grouping model, the `cohort-{name}.md` record, the nesting cap's rationale).
 
-12. **`template-meta.md` additions.** Reflect R9–R11 in the meta template: `Tier` slot → `Class`; `Design`
-    field with `Class`-aware guidance; `Cohort` path-valued with the dual-placement note. *(Updating the
-    `template-draft` / spec-template family for the `Cohort` header rides `decomposition-machinery` /
-    `scalable-authoring-pipeline` / the `doc-cascade-sweep` template pass, not this WU.)*
+12. **`template-meta.md` additions.** Reflect R9–R11 in the meta template: add `**Class:**` to the Coordination
+    group (default `[TBD]`) **and retire the stale `Tier:` reservation comment** in the "Deliberately not added"
+    block; `Design` field with `Class`-aware guidance; `Cohort` path-valued with the dual-placement note.
+    `init-work-unit` scaffolds `Class: [TBD]` (no `--class` flag — the scaffolding act stays `Class`-agnostic;
+    the value is born at planning, not creation). *(Updating the `template-draft` / spec-template family for the
+    `Cohort` header rides `decomposition-machinery` / `scalable-authoring-pipeline` / the `doc-cascade-sweep`
+    template pass, not this WU.)*
 
 13. **The relocatability invariant (statement).** State in DEV-RULES.ARC: WU artifacts (`meta-*`, `draft-*`,
     `spec-*`, `tasks-*`, companions) relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`)
@@ -192,27 +207,69 @@ Technical work — scenarios that illustrate the model and the migration impact.
     `agile-parallelism`, `principle-anchored-core`, `agile-wu-lifecycle` — already exist with rich shapes;
     minting minimal Purpose-only stubs now would be inconsistent with the format the sibling will formalize.)*
 
-16. **Existing-WU `Class` migration (one-time, manual).** Existing in-flight / backlog WUs acquire `Class:
-    heavy` (matching their current full-ceremony level) via a **one-time manual pass**, bundled with R15's
-    field migration. **No auto-backfill on the session-init hot path.** *(Migration surface is tiny:
-    `class-model-foundation` is effectively the only active WU, and is expected to remain so until
-    `agile-parallelism` fully lands — Concurrent Work Conventions is downstream of this cohort.)*
+16. **Existing-WU `Class` migration (one-time, manual).** Every `backlog/planned/` member acquires a
+    **best-estimate `Class`** against the boundary tests (R2) via a **one-time manual pass**, bundled with R15's
+    field migration — *not* a blanket `heavy` stamp (that would fabricate the very signal `Class` exists to
+    carry, and the ratchet would pin the error). `provisional/` members may stay `[TBD]`. The active WU and the
+    already-classified `agile-wu-lifecycle` siblings keep their real values. Estimates are revisable (R9), so a
+    best-effort read now is safe. **No auto-backfill on the session-init hot path.** *(Surface is small:
+    `class-model-foundation` is effectively the only active WU until `agile-parallelism` fully lands —
+    Concurrent Work Conventions is downstream of this cohort.)*
+
+17. **`Class` forcing convention + lifecycle touchpoints (constitutional).** State where `Class` is set and
+    re-tuned, and the readiness rule that gives the signal meaning:
+    - **Readiness rule:** a `backlog/planned/` (startable) WU carries a resolved `Class` estimate; `[TBD]` is
+      legal only in `backlog/provisional/`. The estimate is the balance signal `STATUS.USER` reads (R22) — it
+      must exist *before* a WU is a start candidate, which is why the forcing point is **entry into `planned/`**,
+      not activation (too late — the start decision precedes it).
+    - **Touchpoint duty:** the `Class` value is lightly re-tuned at each lifecycle surface it passes through —
+      planned-entry (the `graduate-work-unit` forcing point, R20), `init-work-unit` and `activate-work-unit`
+      (wired here, R21), and the three planning stages (`arc-plan` / `create-spec` / `generate-tasks`, wired
+      downstream by `scalable-authoring-pipeline`). Each is a cheap confirm-or-ratchet, not a re-derivation.
+    - The estimate-vs-realized ratchet (R9) governs every touchpoint.
+
+18. **`classify-work-unit` method.** Package the boundary-test triage (R2) plus the estimate-vs-realized ratchet
+    (R9) as a loadable `classify-work-unit` method — the single DRY home every touchpoint (R17) declares in its
+    workflow frontmatter, rather than re-stating the triage per surface. Authored as a self-contained extractable
+    block (forward-compatible with `composable-workflows`'s whole-block fragmentation). This WU wires it into
+    `init-work-unit` / `activate-work-unit` (R21); `scalable-authoring-pipeline` declares it in the
+    planning-stage workflows it owns.
 
 ### P1 — should-have
 
-17. **`Class`-aware `Design` validation — warn-not-block.** A hook warns (never blocks) on a `Class` / spec-form
+19. **`Class`-aware `Design` validation — warn-not-block.** A hook warns (never blocks) on a `Class` / spec-form
     mismatch (`heavy` → expect `detailed`; `light` → expect `brief` / `outline`, modulo the `outline`
-    straddle). Preserves the self-diagnosing depth-shift signal without gating planning iteration.
+    straddle). **`[TBD]` never warns** — there is no form to mismatch before the weight is resolved. Preserves
+    the self-diagnosing depth-shift signal without gating planning iteration. Extends the existing
+    `validate-meta-spec` pre-commit entry point (already validates `Design`-field shape + `State` enum); no new
+    tooling.
 
-18. **`Class` render in STATUS.USER.** Render `Class` in the in-flight (`STATUS.USER`) view to support
-    parallelism planning ("how much genuinely-heavy work is in flight"). *(Recording is always-on regardless;
-    this is the render-inclusion call. ROADMAP render-inclusion stays out — both ROADMAP tables are near max
-    width.)*
+20. **`graduate-work-unit` workflow (provisional → planned).** A lightweight lifecycle workflow — the execution
+    home for R17's readiness rule — that promotes a WU up the readiness ladder: `git mv` `provisional/ →
+    planned/`, run the `classify-work-unit` method (R18) to force the estimate, then regen ROADMAP + STATUS.USER.
+    Mirrors `init-work-unit`'s existing `git mv` + ROADMAP-regen shape (a flat backlog-internal move; none of the
+    cohort-transform / PR-park mechanics). **Reserves "graduation" for the readiness ladder** (`provisional →
+    planned → active`); `decomposition-machinery`'s `WU → cohort` workflow is a *split*, not a promotion, and
+    renames off "graduation" (routed to its inbound buffer; coordinated in the cohort doc).
 
-19. **Strategy-doc guidance with concrete examples.** Add boundary-test guidance to `strategy-work-organization`
-    with concrete strategy-doc examples on each side of the derivation line and the scale trigger
-    (records-vs-derives; routine-vs-substantial grounding). The constitutional rule states the tests; the
-    strategy elaborates with worked examples.
+21. **`init-work-unit` / `activate-work-unit` touchpoint wiring.** Wire the `classify-work-unit` method (R18)
+    into both workflows as a lightweight confirm-or-ratchet step — `init` as the WU enters active planning,
+    `activate` as the pre-implementation settle point. (The planning-stage touchpoints are wired downstream by
+    `scalable-authoring-pipeline`.)
+
+22. **`Class` render in STATUS.USER — in-flight *and* ready.** Render `Class` in `STATUS.USER`, and expand its
+    content model from in-flight-only to **in-flight + ready** WUs (owned by the identity, unblocked,
+    `planned/`) so the view supports the balance decision it exists for — "what's on my plate, and what could I
+    add that fits." Exclude blocked / not-mine. Rendering the data is exposure (the *suggestion* engine over it
+    is downstream — Concurrent Work Conventions); the ready list is what makes the exposed signal usable.
+    Defining the content model + the `Class` column is this WU's; the **auto-render is gated on `roadmap-tooling`**
+    (STATUS.USER auto-refresh isn't wired). Update the live instance + template shape to match as a one-off for
+    consistency. *(ROADMAP render-inclusion stays out — both ROADMAP tables are near max width.)*
+
+23. **Strategy-doc guidance with concrete examples.** Add boundary-test guidance to `strategy-work-organization`
+    — the model's home — with concrete examples on each side of the derivation line and the scale trigger
+    (records-vs-derives; routine-vs-substantial grounding), plus the estimate-vs-realized ratchet and the
+    readiness rule (R17). The constitutional rule states the tests; the strategy elaborates with worked examples.
 
 ## Non-Goals
 
@@ -229,6 +286,16 @@ Explicitly out of scope (with the owning member):
   field-side only (R15).
 - **Relocatability *enforcement*** — the forbidden-pattern hook + the path-style link-def sweep →
   **`quality-gate-hooks`**. This WU states the invariant and generalizes the rule (R13–R14) only.
+- **Planning-stage `Class` touchpoint *wiring*** — declaring the `classify-work-unit` method in `arc-plan` /
+  `create-spec` / `generate-tasks` → **`scalable-authoring-pipeline`** (it owns those workflows' per-stage depth
+  resolution). This WU defines the method + the touchpoint duty (R17–R18) and wires only `init` / `activate`.
+- **The `WU → cohort` graduation-terminology rename** — freeing "graduation" for the readiness ladder by
+  renaming `decomposition-machinery`'s split workflow off the term → **`decomposition-machinery`** (routed to its
+  inbound buffer; coordinated in the cohort doc). This WU claims the term for `provisional → planned` (R20).
+- **Stub-creation `Class` forcing** in `drain-inbox` / new-stub paths (vs. the `graduate-work-unit` forcing
+  point) → the inbox / housekeep owners (`shared-inbox-housekeep` / `inbound-routing-method`), or a
+  `quality-gate-hooks` readiness check. This WU states the readiness rule (R17); enforcement at *those* surfaces
+  routes out.
 - **Per-`Class` quality-gate scaling** beyond establishing that `Class` exists → **Quality Gate Tiers**.
 - **Auto-promotion / demotion of `Class`** — the ratchet is one-way; manual + structural-detection nudges
   only.
@@ -265,8 +332,21 @@ conditional validity).
 template cannot express; state transitions are schema events, not free-text edits. `Class` groups with the
 classification fields; `Design` is a typed pointer orthogonal to `Origin`. The path-valued `Cohort` field is the
 membership source of truth (sibling lists derived). Header dual-placement (meta + spec) makes the flat `active/`
-layout self-describing for grouping. The validation in R17 is a warn-not-block hook on `Class` ↔ spec-form
-consistency — implemented against the existing githook surface, no new tooling.
+layout self-describing for grouping. The validation in R19 is a warn-not-block hook on `Class` ↔ spec-form
+consistency (and never on `[TBD]`) — implemented against the existing `validate-meta-spec` githook surface, no
+new tooling.
+
+### Forcing model & lifecycle touchpoints
+
+`Class`'s value is only useful if it is *present* at the moment the balance decision is made — choosing which
+ready WU to start, by eye, off `STATUS.USER`'s ready list. That decision precedes `init-work-unit`, so the
+forcing point is **entry into `planned/`** (the `graduate-work-unit` workflow, R20), not activation. The
+estimate-vs-realized ratchet (R9) is what makes an early estimate safe: it protects realized authoring, so a
+best-effort read at planned-entry can be corrected as planning reveals the truth — removing the incentive to
+lowball. The triage that resolves the estimate is the boundary tests (R2), packaged once as the
+`classify-work-unit` method (R18) and re-applied — cheaply — at every lifecycle touchpoint (planned-entry, init,
+activate, and the downstream planning stages). "Graduation" is reserved for the readiness ladder (`provisional →
+planned → active`); the `WU → cohort` split is decomposition, not promotion.
 
 ### The felt-difference test (model guardrail / acceptance lens)
 
@@ -299,9 +379,10 @@ stages).
 
 ### Migration & sequencing
 
-The `Class` backfill and the `Cohort` field migration (R15–R16) are one manual pass with a tiny surface; no
-hot-path logic. This WU ships standalone — `scalable-authoring-pipeline` and `decomposition-machinery` build on
-the contracts it exposes, so those contracts (the `Class` model, the path-valued `Cohort` schema, the
+The `Class` backfill (best-estimate against the boundary tests, not a blanket `heavy`) and the `Cohort` field
+migration (R15–R16) are one manual pass with a small surface; no hot-path logic. This WU ships standalone —
+`scalable-authoring-pipeline` and `decomposition-machinery` build on the contracts it exposes, so those
+contracts (the `Class` model, the path-valued `Cohort` schema, the
 relocatability invariant) must be precise, normative, and stable, not internal. The cohort doc records the
 exposes/consumes partition; this spec is the authoritative definition for the surfaces it owns.
 
@@ -314,25 +395,35 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    front-loading-duty sharpening — and the reasoning (two floors, spec-worthiness, topology) is reconstructable
    from the text.
 2. A companion ADR exists, parallel in scope to ADR-016, recording the architectural shift.
-3. `template-meta.md` has `**Class:**` (replacing the `Tier` slot), `**Design:**` with `Class`-aware semantics,
-   and a path-valued `**Cohort:**` with the dual-placement note; `Class`-conditional validity is specified.
+3. `template-meta.md` adds `**Class:**` to the Coordination group (default `[TBD]`) and retires the stale
+   `Tier:` reservation comment; `**Design:**` carries `Class`-aware semantics; `**Cohort:**` is path-valued with
+   the dual-placement note; `Class`-conditional validity is specified.
 4. Every spec-named position passes the felt-difference test (no `light`/`detailed`; the `outline` straddle is
    resolved by `Class` / task-gen scale).
 5. Every WU artifact in `active/` and `backlog/` uses position-independent (filename-only) references; the
    relocatability invariant and the generalized source-side rule are stated in DEV-RULES.ARC.
 6. Every member under `backlog/planned/` has a path-valued `**Cohort:**` field that path-matches its on-disk dir
-   (or `[none]`); existing WUs carry `Class: heavy`.
-7. A warn-not-block `Class` ↔ spec-form validation fires on mismatch; `Class` renders in STATUS.USER;
-   `strategy-work-organization` carries worked boundary-test examples on each side of both `heavy` triggers.
-8. The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
+   (or `[none]`) and a **best-estimate `Class`** (not a blanket `heavy`); the active WU and already-classified
+   siblings retain their values; `provisional/` members may be `[TBD]`.
+7. A warn-not-block `Class` ↔ spec-form validation fires on mismatch (and never on `[TBD]`); `Class` renders in
+   STATUS.USER over an **in-flight + ready** content model (mine, unblocked); `strategy-work-organization`
+   carries worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness
+   rule.
+8. The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
+   `activate-work-unit`; a `graduate-work-unit` (provisional → planned) workflow forces the estimate at
+   planned-entry.
+9. The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
    relocatability invariant) are defined normatively in this spec and the constitution — not left implicit.
 
 ## Open Questions
 
-All three pre-authoring spec decisions are **resolved** (render → STATUS.USER; `Design` validation →
-warn-not-block; migration → manual one-time pass), as is the cohort-baseline split (field-side only) and the
-meta-`Cohort` grouping (stays function-grouped; the header anchor plays the membership role). Remaining items —
-**resolve during work**, not blockers:
+All pre-authoring spec decisions are **resolved** (render → STATUS.USER; `Design` validation → warn-not-block;
+migration → manual one-time pass), as is the cohort-baseline split (field-side only) and the meta-`Cohort`
+grouping (stays function-grouped; the header anchor plays the membership role). Resolved during task-generation
+planning: the `[TBD]` sentinel + estimate-vs-realized ratchet (R9); the forcing model (planned-entry, not
+activation) + the `classify-work-unit` method + the `graduate-work-unit` workflow (R17–R21); the STATUS.USER
+in-flight-+-ready expansion with auto-render gated on `roadmap-tooling` (R22). Remaining items — **resolve during
+work**, not blockers:
 
 - **Exact rule wording for the front-loading-duty sharpening** — the constitutional phrasing that adds no new
   deferral mechanism while making the settle-upfront duty explicit across all forms. Settle at task-execution
