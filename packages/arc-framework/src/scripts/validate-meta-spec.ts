@@ -14,6 +14,7 @@
 
 import { fileURLToPath } from "node:url";
 
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -98,23 +99,37 @@ export function validateSpec(content: string, path: string): string[] {
 /**
  * Validate the `**State:**` field. State is mandatory and must be one of the
  * codified four values (`Planning, Active, Integrating, Shipped`).
+ *
+ * The canonical value comes from the shared meta reader, so State is recovered
+ * from the hoisted core-block table as well as the legacy flat-bullet form
+ * (with inline backticks stripped). The legacy duplicate-`- **State:**`-line
+ * diagnostic still scans bullets directly — a malformation possible only in the
+ * flat form, which the table layout cannot express.
  */
 export function validateLifecycleFields(content: string, path: string): string[] {
   const diagnostics: string[] = [];
-  const stateCaptures = collectFieldValues(content, "State");
 
-  if (stateCaptures.length === 0) {
-    diagnostics.push(`${path}: missing \`**State:**\` line`);
-    return diagnostics;
-  }
-  if (stateCaptures.length > 1) {
+  const bulletStateLines = collectFieldValues(content, "State");
+  if (bulletStateLines.length > 1) {
     diagnostics.push(
-      `${path}: multiple \`**State:**\` lines (found ${stateCaptures.length})`,
+      `${path}: multiple \`**State:**\` lines (found ${bulletStateLines.length})`,
     );
     return diagnostics;
   }
 
-  const state = stateCaptures[0] ?? "";
+  let state: string | null;
+  try {
+    state = parseMetaRecord(content).State;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    diagnostics.push(`${path}: ${message}`);
+    return diagnostics;
+  }
+
+  if (state === null) {
+    diagnostics.push(`${path}: missing \`**State:**\` line`);
+    return diagnostics;
+  }
   if (!VALID_STATES.has(state)) {
     diagnostics.push(
       `${path}: invalid \`**State:**\` value "${state}"; ${EXPECTED_STATE}`,

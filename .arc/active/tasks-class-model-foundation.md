@@ -160,30 +160,11 @@ in the core block, default `[TBD]`; the form ↔ `Class` relationship is documen
 
 _Requirements:_ R9–R12, R24.
 
-### `[ ]` **2.1 Establish the meta value-format + IA convention in `renderMetaFile` / `parseMetaRecord`**
+### `[x]` **2.1 Establish the meta value-format + IA convention in `renderMetaFile` / `parseMetaRecord`**
 
 - _Goal:_ The meta record renders to a uniform, human-legible convention and round-trips through a single parser
   — the three-way value formatting, the hoisted core-block table, the field order, and one consolidated reader —
   so every later field task rides a stable render / parse foundation and no consumer breaks on backticked values.
-- _Context:_ `META_FIELDS` in `packages/arc-framework/src/lib/active/meta-reader.ts` drives both `renderMetaFile`
-  and `parseMetaRecord` (inverses); render already blank-line-groups by `group`, and `extractField` +
-  `stripInlineCode` strip backticks on read. A second, drifted `extractField` in `git/worktree-roster.ts` does
-  **not** strip — retire it for the shared reader.
-- _Note:_ `renderMetaFile` emits the table pre-aligned, so generated metas need no hand-alignment
-  (`MD013 tables:false` exempts table width). `template-meta.md` reflection is 2.5; migrating existing instances
-  is Phase 5.
-- _Forward-compat:_ this task is the proto-record `cli-substrate-adoption` (the zod meta schema) and
-  `operational-state-docs` (the generic render/reconcile engine) lift, per ADR-022. Three execution constraints
-  follow so those lifts stay mechanical: (1) render-mode + value-class are **declared fields on**
-  `MetaFieldDescriptor` (table-data, not render-code branches) — the taxonomy a zod schema maps 1:1 and
-  `schema-introspection-layer` publishes; (2) bracket sentinels are a **declared, typed closed vocabulary**
-  (`[none]` / `[internal]` / `[TBD]`) preserved verbatim in the record, so `[internal]` (a real "no external
-  tracker" value) and `[TBD]` (a real ratchet state) stay distinct from each other and from marker-absent `null`,
-  and a later per-field zod narrows `<typed value> | <sentinel literal>` cleanly; (3) `parseMetaRecord` is the
-  **single reader** every consumer routes through (2.1.c) — the one swap-point a zod backing replaces without
-  touching call sites. Form↔`Class` validity stays advisory (§ Non-Goals), modeled as a `[TBD]`-bearing enum, not
-  a schema refinement.
-- **Strategies:** `strategy-testing-methodology.md`.
 
     - `[x]` **2.1.a Render the three-way value format + core-block table**
         - _Outcome:_ `MetaFieldDescriptor` gains declared `render` (`core-table` / `bullet`) + `valueClass`
@@ -200,13 +181,19 @@ _Requirements:_ R9–R12, R24.
           (column-count mismatch / orphan separator) throws **loud**. `parseMetaFile` now delegates here (gaining
           table-tolerance for the session-init read); `parseCandidate` downgrades the throw to a per-file warning.
 
-    - `[ ]` **2.1.c Consolidate every meta read through the shared reader**
-        - Retire the duplicated `extractField` in `git/worktree-roster.ts` (and any peer) for `parseMetaRecord` /
-          a shared field-reader that strips inline code, so backticked + table-rendered values round-trip through
-          the roster, in-flight derivation, and `validate-meta-spec` without regression.
-        - Build `test-first` (one behavior at a time):
-            - the roster / in-flight / validation readers recover backticked, table-rendered field values without
-              regression.
+    - `[x]` **2.1.c Consolidate every meta read through the shared reader**
+        - _Outcome:_ Retired `worktree-roster`'s drifted no-strip `extractField`; the roster, in-flight derivation,
+          and `validate-meta-spec`'s State check now route through the shared `parseMetaRecord`, so backticked +
+          table-rendered values read in bare form without regression. Each guards the new malformed-table throw per
+          its context — roster degrades to a bare entry + warning, the in-flight oracle to absent fields, the
+          validator to a loud diagnostic.
+
+- _Outcome:_ The render/parse foundation is in place: one descriptor set (`META_FIELDS` with declared `render` +
+  `valueClass` axes) drives both directions, and every meta consumer routes through the single `parseMetaRecord`
+  reader — the proto-record surface `cli-substrate-adoption` (zod) / `schema-introspection-layer` (publish) /
+  `operational-state-docs` (generic engine) inherit per ADR-022. Sentinels stay a typed closed vocabulary
+  (`[none]` / `[internal]` / `[TBD]`); form↔`Class` validity stays advisory (§ Non-Goals), not a schema
+  refinement. Verified across the full suite — the global render-shape change broke no consumer.
 
 ### `[ ]` **2.2 Add the `Class` field (`Light` / `Heavy` / `[TBD]`) to the meta schema with ratchet semantics**
 

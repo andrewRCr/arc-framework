@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { deriveInFlight } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
 /** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Priority, Depends On). */
 function metaContent(
@@ -303,5 +304,56 @@ describe("deriveInFlight", () => {
 
     const materializable = entries.filter((e) => e.kind === "work-unit" && e.remoteOnly);
     expect(materializable.map((e) => e.branch)).toEqual(["feat/elsewhere"]);
+  });
+});
+
+describe("deriveInFlight — shared-reader field recovery", () => {
+  it("recovers fields from a table-rendered, backticked meta", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": renderMetaFile("x", {
+          State: "Active",
+          Owner: "andrew",
+          Cohort: "core/sub",
+          Priority: "P1",
+          Design: "spec-x.md",
+        }),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries[0]).toMatchObject({
+      name: "x",
+      owner: "andrew",
+      cohort: "core/sub",
+      priority: "P1",
+      design: "spec-x.md",
+    });
+  });
+
+  it("degrades a malformed-core-table meta to a WU with absent fields (no crash)", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md":
+          "# Metadata: x\n\n| State | Owner |\n| --- | --- |\n| `Active` |\n",
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ kind: "work-unit", name: "x" });
+    expect(entries[0]).not.toHaveProperty("owner");
   });
 });

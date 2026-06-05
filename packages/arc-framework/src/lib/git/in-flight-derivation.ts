@@ -21,7 +21,7 @@
  */
 
 import type { WorkUnitState } from "../../commands/active/types.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 import { errandSlugOf } from "../session-init/errand-branch.js";
 
 import type { GitExec } from "./exec.js";
@@ -198,6 +198,20 @@ async function classifyBranch(
   return buildWorkUnit(name, content, location, branch.startsWith(PLANNING_BRANCH_PREFIX));
 }
 
+/**
+ * Parse a meta record, degrading a structurally malformed core-block table to
+ * an all-absent record. The in-flight oracle is an advisory read over remote
+ * refs — one broken meta must not crash the whole derivation. (Empty input
+ * yields an all-null record without throwing.)
+ */
+function parseRecordOrEmpty(content: string): MetaRecord {
+  try {
+    return parseMetaRecord(content);
+  } catch {
+    return parseMetaRecord("");
+  }
+}
+
 /** Assemble a work-unit entry from its meta content, location, and life-phase. */
 function buildWorkUnit(
   name: string,
@@ -205,7 +219,7 @@ function buildWorkUnit(
   location: InFlightLocation,
   planning: boolean,
 ): InFlightWorkUnit {
-  const fields = parseMetaRecord(content);
+  const fields = parseRecordOrEmpty(content);
   const { Owner: owner, Design: design, Cohort: cohort, Priority: priority } = fields;
   return {
     kind: "work-unit",

@@ -15,6 +15,7 @@ import type {
   GitExec,
   GitExecOptions,
 } from "../../../src/lib/git/index.js";
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
 type ResponseFn = (
   args: string[],
@@ -473,5 +474,83 @@ describe("resolvePrimaryWorktreePath", () => {
     const { exec } = buildExec({ [WORKTREE_LIST]: { stdout: "" } });
 
     expect(await resolvePrimaryWorktreePath(exec)).toBeNull();
+  });
+});
+
+describe("runWorktreeRoster — shared-reader field recovery", () => {
+  it("recovers backticked, table-rendered fields via the shared meta reader", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stderr: "",
+      },
+    });
+    const fs = buildFs({
+      "/home/dev/repo/.arc/active/meta-x.md": renderMetaFile("x", {
+        State: "Active",
+        Owner: "alice",
+        Branch: "feat/x",
+        Cohort: "parallelism-trio",
+      }),
+    });
+
+    const result = await runWorktreeRoster({ exec, fs });
+
+    expect(result.entries[0]).toMatchObject({
+      branch: "feat/x",
+      state: "Active",
+      identity: "alice",
+      cohort: "parallelism-trio",
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("matches by Branch in a multi-meta worktree when the field is table-rendered (backticked)", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stderr: "",
+      },
+    });
+    const fs = buildFs({
+      "/home/dev/repo/.arc/active/meta-a.md": renderMetaFile("a", {
+        State: "Active",
+        Owner: "alice",
+        Branch: "feat/a",
+      }),
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+        State: "Active",
+        Owner: "bob",
+        Branch: "feat/b",
+      }),
+    });
+
+    const result = await runWorktreeRoster({ exec, fs });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      branch: "feat/b",
+      metaFilePath: "/home/dev/repo/.arc/active/meta-b.md",
+      identity: "bob",
+    });
+  });
+
+  it("degrades to a bare entry with a warning when the core table is malformed", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/x\n\n",
+        stderr: "",
+      },
+    });
+    const fs = buildFs({
+      "/home/dev/repo/.arc/active/meta-x.md":
+        "# Metadata: x\n\n| State | Owner |\n| --- | --- |\n| `Active` |\n",
+    });
+
+    const result = await runWorktreeRoster({ exec, fs });
+
+    expect(result.entries[0]).toMatchObject({ worktreePath: "/home/dev/repo", branch: "feat/x" });
+    expect(result.entries[0]?.state).toBeUndefined();
+    expect(result.warnings.some((w) => /Malformed meta/.test(w))).toBe(true);
   });
 });

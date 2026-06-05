@@ -14,6 +14,7 @@ import {
   classifyPath,
   validateFiles,
 } from "../../../src/scripts/validate-meta-spec.js";
+import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
 const META_PATH_FIXTURE = ".arc/active/technical/meta-foo.md";
 
@@ -312,5 +313,33 @@ describe("validateFiles", () => {
     const result = validateFiles(Object.keys(files), fakeReader(files));
     expect(result.pass).toBe(true);
     expect(result.diagnostics).toEqual([]);
+  });
+});
+
+describe("validateLifecycleFields — core-block table form", () => {
+  it("validates State recovered from the hoisted table (Design bullet unchanged)", () => {
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaFile("foo", { State: "Active", Design: "spec-foo.md" }),
+    };
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("fails an invalid State carried in the table", () => {
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaFile("foo", { State: "Waiting", Design: "[none]" }),
+    };
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => d.includes("State"))).toBe(true);
+  });
+
+  it("fails loud on a malformed core-block table", () => {
+    const content =
+      "# Metadata: Foo\n\n- **Design:** [none]\n| State | Owner |\n| --- | --- |\n| `Active` |\n";
+    const files = { [META_PATH_FIXTURE]: content };
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
+    expect(result.pass).toBe(false);
   });
 });
