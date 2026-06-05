@@ -209,9 +209,11 @@ Technical work — scenarios that illustrate the model and the migration impact.
     (forbidden-pattern hook extended to source-side link-defs + a sweep of path-style link-defs in active /
     backlog movable artifacts) routes to `quality-gate-hooks`.
 
-15. **Cohort-compliance baseline — field-side only (one-time).** A one-time pass over `backlog/planned/`
-    bringing every existing member's `**Cohort:**` field into the new schema and making it path-match its
-    on-disk dir (standalone WUs → `[none]`). **Creating `cohort-{name}.md` records is *not* in this baseline**
+15. **Cohort-compliance baseline — field-side only (one-time).** A one-time pass over `backlog/` (planned +
+    provisional) bringing every existing member's `**Cohort:**` field into the new schema and making it path-match
+    its on-disk dir (standalone WUs → `[none]`); the same pass re-renders every `backlog/` meta to the R24 format
+    (provisional included, so the backlog is one uniform shape — `Class` forcing stays `planned/`-only per R16).
+    **Creating `cohort-{name}.md` records is *not* in this baseline**
     — that moves to `decomposition-machinery`, co-located with the record format, the Purpose floor,
     `template-cohort.md`, and the cohort-consistency enforcement it owns. *(Existing cohort docs —
     `agile-parallelism`, `principle-anchored-core`, `agile-wu-lifecycle` — already exist with rich shapes;
@@ -248,13 +250,6 @@ Technical work — scenarios that illustrate the model and the migration impact.
     planning-stage workflows it owns.
 
 ### P1 — should-have
-
-19. **`Class`-aware `Design` validation — warn-not-block.** A hook warns (never blocks) on a `Class` / spec-form
-    mismatch (`heavy` → expect `detailed`; `light` → expect `brief` / `outline`, modulo the `outline`
-    straddle). **`[TBD]` never warns** — there is no form to mismatch before the weight is resolved. Preserves
-    the self-diagnosing depth-shift signal without gating planning iteration. Extends the existing
-    `validate-meta-spec` pre-commit entry point (already validates `Design`-field shape + `State` enum); no new
-    tooling.
 
 20. **`graduate-work-unit` workflow (provisional → planned).** A lightweight lifecycle workflow — the execution
     home for R17's readiness rule — that promotes a WU up the readiness ladder: `git mv` `provisional/ →
@@ -302,7 +297,10 @@ Technical work — scenarios that illustrate the model and the migration impact.
     - **Reader consolidation (correctness).** Route every meta-field read through the single `parseMetaRecord`
       and retire the duplicated `extractField` (e.g. `git/worktree-roster.ts`, which does not strip inline code)
       so backticked values never break a consumer. The table parse is header-label-keyed with a column-count
-      guard that fails loud, never silent.
+      guard that fails loud, never silent. The core-block read is **migration-tolerant** — table-first, else the
+      legacy flat-bullet scan — so the parser ingests pre-migration metas in the window before the one-time
+      re-render (R15–R16, R24); the loud-fail applies only to a table that is present but malformed, not to its
+      absence. Render always emits the new table.
     - Repo-wide alignment of *hand-edited* tables (a `prettier` / format-step concern) is separate dev tooling,
       not this WU; `renderMetaFile`'s self-aligned output means generated metas never depend on it.
 
@@ -324,6 +322,13 @@ Explicitly out of scope (with the owning member):
 - **Planning-stage `Class` touchpoint *wiring*** — declaring the `classify-work-unit` method in `arc-plan` /
   `create-spec` / `generate-tasks` → **`scalable-authoring-pipeline`** (it owns those workflows' per-stage depth
   resolution). This WU defines the method + the touchpoint duty (R17–R18) and wires only `init` / `activate`.
+- **`Class` ↔ spec-form validation hook** — a warn-not-block consistency check between `Class` and the spec form
+  → routed to **`scalable-authoring-pipeline`** (which makes the spec form a *structured* signal, where the check
+  becomes cheap; today the form is freeform H1 prose and detection is brittle). Routed as a **candidate to
+  evaluate, not a committed requirement**: the `classify-work-unit` lifecycle touchpoints already keep `Class`
+  honest, `Class` / depth are advisory signals (a misclassification is not a structural problem), and a
+  commit-time warning risks reading as a nag — so the sibling decides whether it is a value-add at all, even once
+  it is easy.
 - **The `WU → cohort` graduation-terminology rename** — freeing "graduation" for the readiness ladder by
   renaming `decomposition-machinery`'s split workflow off the term → **`decomposition-machinery`** (routed to its
   inbound buffer; coordinated in the cohort doc). This WU claims the term for `provisional → planned` (R20).
@@ -374,9 +379,8 @@ conditional validity).
 template cannot express; state transitions are schema events, not free-text edits. `Class` sits in the meta's
 core block; `Design` is a typed pointer orthogonal to `Origin`. The path-valued `Cohort` field is the
 membership source of truth (sibling lists derived). Header dual-placement (meta + spec) makes the flat `active/`
-layout self-describing for grouping. The validation in R19 is a warn-not-block hook on `Class` ↔ spec-form
-consistency (and never on `[TBD]`) — implemented against the existing `validate-meta-spec` githook surface, no
-new tooling.
+layout self-describing for grouping. Form-vs-`Class` consistency is left advisory — maintained by the
+`classify-work-unit` lifecycle touchpoints rather than a schema hook (see § Non-Goals).
 
 The record's value-formatting and information architecture are themselves schema-managed (R24): `renderMetaFile`
 emits a hoisted core-block table plus ordered bullet groups under the three-way backtick / casing / sentinel
@@ -453,13 +457,13 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    resolved by `Class` / task-gen scale).
 5. Every WU artifact in `active/` and `backlog/` uses position-independent (filename-only) references; the
    relocatability invariant and the generalized source-side rule are stated in DEV-RULES.ARC.
-6. Every member under `backlog/planned/` has a path-valued `**Cohort:**` field that path-matches its on-disk dir
-   (or `[none]`) and a **best-estimate `Class`** (not a blanket `heavy`); the active WU and already-classified
-   siblings retain their values; `provisional/` members may be `[TBD]`.
-7. A warn-not-block `Class` ↔ spec-form validation fires on mismatch (and never on `[TBD]`); `Class` renders in
-   STATUS.USER over an **in-flight + ready** content model (mine, unblocked); `strategy-work-organization`
-   carries worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness
-   rule.
+6. Every `backlog/` meta (planned + provisional) is re-rendered to the new format with a path-valued
+   `**Cohort:**` field that path-matches its on-disk dir (or `[none]`); every `backlog/planned/` member
+   additionally carries a **best-estimate `Class`** (not a blanket `heavy`), the active WU and already-classified
+   siblings retain their values, and `provisional/` members are `[TBD]`.
+7. `Class` renders in STATUS.USER over an **in-flight + ready** content model (mine, unblocked);
+   `strategy-work-organization` carries the `Class` model, the `planning depth` ordinal, the three spec forms, and
+   worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness rule.
 8. The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
    `activate-work-unit`; a `graduate-work-unit` (provisional → planned) workflow forces the estimate at
    planned-entry.
@@ -473,8 +477,8 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 
 ## Open Questions
 
-All pre-authoring spec decisions are **resolved** (render → STATUS.USER; `Design` validation → warn-not-block;
-migration → manual one-time pass), as is the cohort-baseline split (field-side only) and the meta-`Cohort`
+All pre-authoring spec decisions are **resolved** (render → STATUS.USER; migration → manual one-time pass), as is
+the cohort-baseline split (field-side only) and the meta-`Cohort`
 grouping (stays function-grouped; the header anchor plays the membership role). Resolved during task-generation
 planning: the `[TBD]` sentinel + estimate-vs-realized ratchet (R9); the forcing model (planned-entry, not
 activation) + the `classify-work-unit` method + the `graduate-work-unit` workflow (R17–R21); the STATUS.USER
@@ -484,9 +488,6 @@ work**, not blockers:
 - **Exact rule wording for the front-loading-duty sharpening** — the constitutional phrasing that adds no new
   deferral mechanism while making the settle-upfront duty explicit across all forms. Settle at task-execution
   against DEV-RULES.ARC's existing § Design-before-implementation language.
-- **`Class`-conditional validity mechanics** — the precise cross-field constraints the schema expresses
-  (`heavy` ⇒ `detailed`; the `outline` straddle's two-sided validity) and their warn-not-block surfacing.
-  Resolve when authoring the meta-schema + hook task.
 - **RFC-template interim** — this spec uses the PRD template; the `detailed`·RFC template is
   `scalable-authoring-pipeline`'s. No action here beyond the form note in the H1.
 
@@ -495,7 +496,7 @@ work**, not blockers:
 - **Boundary-test idiom (records-vs-derives + scale).** Shape Up shaping tier; Stripe / Google / GitLab
   design-doc thresholds; the records-vs-derives line and the substantial-grounding bar. Substantially covered by
   the 2026-06-03 lightweight-spec deep-research pass (run `wf_191136b1-518`). Remaining authoring work: the
-  concrete strategy-doc examples on each side of the derivation line and the scale trigger (R19) — pull full
+  concrete strategy-doc examples on each side of the derivation line and the scale trigger (R23) — pull full
   source URLs from that transcript when authoring § Strategy guidance.
 - **Spec-form count.** The three-form decision adapts individually-attested shapes (`brief` / `outline` /
   `detailed`) into one graduated, agent-resolvable ordinal; the Oxide RFD continuum is the

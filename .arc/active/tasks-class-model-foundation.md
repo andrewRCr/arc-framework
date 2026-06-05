@@ -62,12 +62,12 @@ _Requirements:_ R1, R3–R8, R13–R14.
 - _Note:_ this WU states the rules only; _enforcement_ (the forbidden-pattern hook + the path-style link-def
   sweep) routes to `quality-gate-hooks`. Edit the package source, then sync the `.arc/` mirror.
 
-    - `[ ]` **1.4.a State the relocatability invariant**
+    - `[ ]` **1.3.a State the relocatability invariant**
         - WU artifacts (`meta-*`, `draft-*`, `spec-*`, `tasks-*`, companions) relocate between lifecycle states
           (`active/` ↔ `backlog/` ↔ `completed/`) as a function of State via a pure `git mv` with no content
           edit — which holds only if artifacts carry position-independent refs.
 
-    - `[ ]` **1.4.b Generalize the `.arc/` artifact-reference rule (source-side)**
+    - `[ ]` **1.3.b Generalize the `.arc/` artifact-reference rule (source-side)**
         - A movable artifact carries no relative-path links at all — filename-only, even to stable docs — with
           relative paths legal only in non-moving docs. Closes the gap where today's rule mandates filename-only
           refs _to_ movable artifacts but permits relative paths _to_ stable docs (which break when the source
@@ -134,7 +134,8 @@ values (slugs / filenames), bracket sentinels, prose for narrative fields. The *
 single-row table (`State | Owner | Branch | Class | Priority`); the rest as ordered bullet groups. Every read
 routes through one `parseMetaRecord`; the duplicated `extractField` (e.g. `git/worktree-roster.ts`, which never
 strips inline code) is retired so backticked values can't break a consumer. `Class` is a new `META_FIELDS` entry
-in the core block, default `[TBD]`; conditional-validity _mechanics_ resolve at the validation task (4.1).
+in the core block, default `[TBD]`; the form ↔ `Class` relationship is documented guidance in
+`strategy-work-organization` (4.2.c), not a schema-enforced constraint.
 
 _Requirements:_ R9–R12, R24.
 
@@ -166,11 +167,17 @@ _Requirements:_ R9–R12, R24.
             - bullet groups render in the defined order, blank-line-separated.
 
     - `[ ]` **2.1.b Parse table + bullets in one guarded `parseMetaRecord`**
+        - Read tolerates both layouts on the core block (table-first, else the legacy flat-bullet scan), so the
+          parser ingests pre-migration metas — the active meta and the whole backlog stay readable in the window
+          between this render/parse change and the Phase 5 file migration, and the migration script can ingest the
+          old shape. Render always emits the new table.
         - Build `test-first` (one behavior at a time):
             - `parseMetaRecord` recovers core-block fields from the table (header-label-keyed, column-order
               tolerant) and the rest from bullets; values strip backticks / brackets to bare form.
+            - a legacy meta with a flat-bullet core block (no table) recovers its core fields from bullets.
             - a `renderMetaFile` → `parseMetaRecord` round-trip preserves every field across the new format.
-            - a malformed core table (column-count mismatch / missing separator) fails **loud**, not silent-null.
+            - a core table that is _present but malformed_ (column-count mismatch / missing separator) fails
+              **loud**, not silent-null — the bullet fallback covers only the no-table-at-all case.
 
     - `[ ]` **2.1.c Consolidate every meta read through the shared reader**
         - Retire the duplicated `extractField` in `git/worktree-roster.ts` (and any peer) for `parseMetaRecord` /
@@ -186,7 +193,8 @@ _Requirements:_ R9–R12, R24.
   `[TBD]`) that round-trips through render and parse, making the work's weight a first-class structured field.
 - _Context:_ `Class` slots into the core block alongside `State` / `Owner` / `Branch` / `Priority` (2.1),
   rendered as a Capitalized backticked enum token.
-- _Note:_ this task adds the field + its value set; the `Class`-conditional-validity warn check lands in 4.1.
+- _Note:_ this task adds the field + its value set; the form ↔ `Class` relationship is documented as guidance
+  (4.2.c), not enforced by a hook.
 
     - Build `test-first` (one behavior at a time):
         - `META_FIELDS` includes `Class` (core block, default `[TBD]`); `renderMetaFile` emits it in the core
@@ -258,7 +266,7 @@ authored as a self-contained extractable block for later fragmentation. `graduat
 "graduation" for the readiness ladder. The three planning-stage touchpoints route downstream to
 `scalable-authoring-pipeline` — see `spec-class-model-foundation.md` § Non-Goals.
 
-_Requirements:_ R18, R20, R21.
+_Requirements:_ R17, R18, R20, R21.
 
 ### `[ ]` **3.1 Author the `classify-work-unit` method (boundary-test triage + ratchet)**
 
@@ -275,8 +283,10 @@ _Requirements:_ R18, R20, R21.
           best-estimate guidance, and the estimate-vs-realized ratchet. Two-copy.
 
     - `[ ]` **3.1.b Register the method**
-        - Add it to the methods `README` index; confirm the method-trigger audit (`audit-method-triggers`)
-          resolves every workflow that declares it.
+        - Add it to the methods `README` index. The `audit-method-triggers` check requires every method to have at
+          least one declaring workflow (`arc.methods` frontmatter), so land `classify-work-unit.md` together with
+          its first declaration (`graduate-work-unit`, 3.2) — a method committed before any workflow declares it
+          fails the audit and the framework-sync check.
 
 ### `[ ]` **3.2 Add the `graduate-work-unit` workflow (`provisional → planned`)**
 
@@ -286,17 +296,25 @@ _Requirements:_ R18, R20, R21.
 - _Context:_ mirrors `init-work-unit`'s `git mv` (Step 3) + ROADMAP-regen (Step 5) shape; a flat backlog-internal
   move, none of the cohort-transform / PR-park mechanics. Lives in
   `system/workflows/arc/work-unit-lifecycle/` (two-copy); declares the `classify-work-unit` method (3.1).
-- _Note:_ ROADMAP / STATUS.USER regen is hand-rendered until `roadmap-tooling` automates it.
+- _Note:_ ROADMAP / STATUS.USER regen is hand-rendered until `roadmap-tooling` automates it. The `STATUS.USER`
+  regen targets the in-flight-+-ready content model — a graduated WU enters the ready slice — which 4.1 establishes;
+  both ship in this WU, so the regen step is coherent at integration.
 - **Strategies:** `strategy-work-organization.md`, `strategy-workflow-authoring.md`.
 
     - `[ ]` **3.2.a Author the workflow**
         - The three steps (`git mv` → `classify-work-unit` → ROADMAP/STATUS.USER regen), with frontmatter
           declaring the method and passing the workflow-authoring validators. Two-copy.
 
-    - `[ ]` **3.2.b Place it in the readiness ladder and reserve the terminology**
+    - `[ ]` **3.2.b State the readiness rule, place the ladder, and reserve the terminology**
+        - State the readiness rule the workflow enforces: a `backlog/planned/` (startable) WU carries a resolved
+          `Class`; `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point because the
+          start decision — read off `STATUS.USER`'s ready list — precedes activation. The workflow names and loads
+          `classify-work-unit` to resolve the value: it states the lifecycle constraint, not the triage (the method
+          is the DRY home for that).
         - State `provisional → planned → active` as the graduation ladder; cross-reference from
-          `strategy-work-organization` and the lifecycle workflow index. "Graduation" names the ladder only —
-          the `decomposition-machinery` rename is routed (its inbound buffer; the cohort doc).
+          `strategy-work-organization` § Work Unit State, and add a pointer from `init-work-unit` (graduate-work-unit
+          precedes it on the ladder). "Graduation" names the ladder only — the `decomposition-machinery` rename is
+          routed (its inbound buffer; the cohort doc).
 
 ### `[ ]` **3.3 Wire `classify-work-unit` into `init-work-unit` and `activate-work-unit`**
 
@@ -306,116 +324,157 @@ _Requirements:_ R18, R20, R21.
   existing meta-edit points (init Step 3/4 graduation; activate Step 4 state-flip).
 
     - `[ ]` **3.3.a Wire into `init-work-unit`**
-        - Declare the method; add the confirm-or-ratchet step as the WU enters active planning.
+        - Declare the method; add the confirm-or-ratchet step as the WU enters active planning. Two entry states:
+          a WU graduated from `planned/` (Path A) arrives with `Class` already resolved (confirm-or-ratchet); a
+          fresh WU (Path B) is born `[TBD]` from the template default and the step resolves it.
 
     - `[ ]` **3.3.b Wire into `activate-work-unit`**
         - Declare the method; add the settle step at the pre-implementation state-flip.
 
-## **Phase 4:** Validation, render, and strategy guidance
+## **Phase 4:** Render and strategy guidance
 
-_Purpose:_ The validation, render, and doc-elaboration surfaces — a warn-not-block `Class` ↔ spec-form validation,
-the `Class` render over an expanded in-flight-+-ready STATUS.USER, and the model's strategy-doc home with worked
-boundary-test examples. The P1 cluster; each item depends on Phase 1 (definitions) and/or Phase 2 (the `Class`
-field).
+_Purpose:_ The render and doc-elaboration surfaces — the `Class` render over an expanded in-flight-+-ready
+STATUS.USER, and the model's strategy-doc home with worked boundary-test examples, the `planning depth` ordinal,
+and the three spec forms (which need a shippable home). The P1 cluster; each item depends on Phase 1 (definitions)
+and/or Phase 2 (the `Class` field).
 
-_Design decisions:_ validation extends the existing `validate-meta-spec.ts` pre-commit entry point (`[TBD]` never
-warns) — no new tooling. STATUS.USER's content model expands from in-flight-only to in-flight + ready; auto-render
-stays gated on `roadmap-tooling` (live instance + template shape updated as a one-off). `strategy-work-organization`
-is the model's home. ROADMAP render-inclusion stays out (R22).
+_Design decisions:_ STATUS.USER's content model expands from in-flight-only to in-flight + ready: the in-flight
+slice stays the git-derived oracle, the ready slice is a new read over `backlog/planned/` metas (owned,
+unblocked), and the two merge in the user view. Auto-render stays gated on `roadmap-tooling`; this updates the live
+instance and documents the shape in the STATUS.USER render standard — no template file exists, and the writer +
+template are `roadmap-tooling`'s. `strategy-work-organization` is the model's home: it gains the `Class` model +
+worked examples, the `planning depth` ordinal, and the three spec forms, and reconciles its own stale tier
+sections (the broad cross-surface vocabulary sweep stays `doc-cascade-sweep`'s). A `Class` ↔ spec-form validation
+hook is deliberately out of scope — see `spec-class-model-foundation.md` § Non-Goals. ROADMAP render-inclusion
+stays out (R22).
 
-_Requirements:_ R19, R22, R23.
+_Requirements:_ R3, R4, R22, R23.
 
-### `[ ]` **4.1 Add warn-not-block `Class` ↔ spec-form validation (`[TBD]` exempt)**
-
-- _Goal:_ The `validate-meta-spec` pre-commit hook warns (never blocks) on a `Class` ↔ spec-form mismatch and
-  never on `[TBD]`, preserving the self-diagnosing depth-shift signal without gating planning iteration.
-- _Context:_ extends `packages/arc-framework/src/scripts/validate-meta-spec.ts` (already validates `Design`-field
-  shape + `State` enum); resolves the `Class`-conditional-validity mechanics deferred from 2.2.
-- _Note:_ spec-form detection during the RFC-template interim reads the H1 form-note, not the filename — its
-  fidelity is a grounding question for the pre-impl audit (Phase 3 of generation).
-
-    - Build `test-first` (one behavior at a time):
-        - `heavy` + a `detailed` spec → no warning; `heavy` + `brief` / `outline` → warning.
-        - `light` + `brief` / `outline` → no warning; `light` + `detailed` → warning (the empty cell).
-        - the `outline` straddle validates for both `light` and `heavy` (no warning either way).
-        - `Class: [TBD]` → never warns, regardless of form.
-        - every mismatch exits success (warn-not-block) — the hook never fails the commit.
-
-### `[ ]` **4.2 Expand STATUS.USER to in-flight + ready, sized by `Class`**
+### `[ ]` **4.1 Expand STATUS.USER to in-flight + ready, sized by `Class`**
 
 - _Goal:_ `STATUS.USER` renders both in-flight and ready (owned by the identity, unblocked, `planned/`) WUs, each
   sized by `Class`, so the view supports the balance decision — what's on my plate, and what fits alongside it.
-- _Context:_ today the view is built on the in-flight-mine slice (`status/user-view.ts` → `status/in-flight-mine.ts`),
-  columns `Work unit · State · Depends on · Cohort`. The ready slice draws from ROADMAP readiness data. Auto-render
-  stays gated on `roadmap-tooling`; this defines the content model + does a one-off instance/template refresh.
+- _Context:_ today the view is built entirely from the in-flight oracle (`status/user-view.ts` →
+  `git/in-flight-derivation.ts` → `status/in-flight-mine.ts` → `status/render.ts`), columns
+  `Work unit · State · Depends on · Cohort`. The `Class` field reaches the view only after Phase 2 adds it to the
+  meta schema + shared reader. Auto-render stays gated on `roadmap-tooling`; this defines the content model and
+  refreshes the live instance.
 
-    - `[ ]` **4.2.a Add the `Class` column to the existing in-flight render**
+    - `[ ]` **4.1.a Add the `Class` column to the existing in-flight render**
+        - Thread `Class` through the render path: `InFlightWorkUnit` + the field read in `classifyBranch`
+          (`in-flight-derivation.ts`), the slice map (`in-flight-mine.ts`), and `StatusViewRow` /
+          `STATUS_USER_COLUMNS` / `COLUMN_HEADERS` / `cellOf` (`render.ts`). `[TBD]` renders as a value, not a
+          dropped cell.
         - Build `test-first` (one behavior at a time):
             - the in-flight-mine rows carry a `Class` column, including `[TBD]`.
 
-    - `[ ]` **4.2.b Add the ready slice (owned, unblocked, `planned/`)**
+    - `[ ]` **4.1.b Add the ready slice (owned, unblocked, `planned/`)**
+        - A second data source: the ready slice reads `backlog/planned/` metas (the readiness data ROADMAP renders
+          from), filters to owned-by-identity + unblocked (dependencies satisfied), sizes each by `Class`, and
+          merges with the git-derived in-flight slice in the user view. Reconcile the offline path — the in-flight
+          slice degrades to cache when the remote is unreachable, but the ready slice is local and always
+          available.
         - Build `test-first` (one behavior at a time):
             - ready WUs owned by the identity and unblocked appear in the view.
             - blocked and not-mine WUs are excluded from the ready slice.
             - `[TBD]` rows are excluded from any heavy/light composition count.
 
-    - `[ ]` **4.2.c Refresh the live instance and template shape (one-off)**
-        - Update `STATUS.USER.md` and its template to the in-flight-+-ready shape with the `Class` column for
-          consistency; no auto-render wiring (that is `roadmap-tooling`'s).
+    - `[ ]` **4.1.c Refresh the live instance and document the shape (one-off)**
+        - Update `STATUS.USER.md` to the in-flight-+-ready shape with the `Class` column, and document that shape
+          in the STATUS.USER render standard (`strategy-work-organization`) — the single source of truth until
+          `roadmap-tooling` lands the writer + template. No auto-render wiring (that is `roadmap-tooling`'s).
 
-### `[ ]` **4.3 Add the model + boundary-test guidance with worked examples to `strategy-work-organization`**
+### `[ ]` **4.2 Add the `Class` model, spec forms, and boundary-test guidance to `strategy-work-organization`**
 
-- _Goal:_ `strategy-work-organization` carries the `Class` model elaboration — the boundary tests with worked
-  examples on each side of the derivation line and the scale trigger (records-vs-derives; routine-vs-substantial
-  grounding), plus the estimate-vs-realized ratchet and the readiness rule — as the model's strategy home.
-- _Context:_ two-copy; the constitution (Phase 1) states the rules, this elaborates with examples. Pull example
-  source URLs from the lightweight-spec deep-research transcript (`wf_191136b1-518`, per
-  `spec-class-model-foundation.md` § External Research).
+- _Goal:_ `strategy-work-organization` becomes the shippable home for the `Class` model — the boundary tests with
+  worked examples, the `planning depth` ordinal, the three spec forms, the ratchet, and the readiness rule — with
+  its stale tier vocabulary reconciled so the strategy describes one classification system, not two.
+- _Context:_ two-copy; the constitution (Phase 1) states the rules, this elaborates with examples. The ADR (1.5)
+  narrates `planning depth` + the spec forms but is internal-only and does not ship, so this strategy is their
+  only shippable canonical home. Pull example source URLs from the lightweight-spec deep-research transcript
+  (`wf_191136b1-518`, per `spec-class-model-foundation.md` § External Research).
+
+    - `[ ]` **4.2.a Reconcile the stale tier vocabulary**
+        - Replace the retired `atomic` / `quick` / `standard` tier model where this strategy carries it — § Work
+          Character (the WU-scale "atomic tier" line), § Spec-Flow Invariants ("invariant across tiers"),
+          § Scaling axes (the `Tier` axis + deferred contract), § Escape-hatch guardrails (tier-one-way /
+          atomic-tier), and § Archival (tier accommodations) — so the strategy describes only the `Class` model.
+          The broad cross-workflow / template sweep stays `doc-cascade-sweep`'s.
+
+    - `[ ]` **4.2.b Add the `Class` model + boundary tests with worked examples**
+        - The two axes, the three boundary tests, the estimate-vs-realized ratchet, and the readiness rule, with
+          worked examples on each side of the derivation line and the scale trigger (records-vs-derives;
+          routine-vs-substantial grounding).
+
+    - `[ ]` **4.2.c Define the `planning depth` ordinal and the three spec forms**
+        - State the `planning depth` ordinal (`low` / `medium` / `high`; per-stage, transient, never recorded) and
+          the three spec forms (`brief` / `outline` / `detailed`) with the depth → form mapping, the form ↔ `Class`
+          relationship (`heavy` ⇒ `detailed`), and the `outline` straddle — the canonical shippable definitions
+          (the ADR narrates the same, internal-only). Documented as guidance, not a hook-enforced constraint.
 
 ## **Phase 5:** Meta migration — format, `Cohort`, and `Class`
 
-_Purpose:_ One-time pass bringing every `backlog/planned/` member's meta into the modernized schema — re-rendered
-to the new format / IA (core-block table, field order, backtick / casing convention; R24), with `**Cohort:**`
-normalized into the path schema (path-matching its on-disk dir, or `[none]`) and a best-estimate `**Class:**`
-stamped on members that lack one.
+_Purpose:_ One-time pass bringing every `backlog/` meta (planned + provisional) into the modernized schema —
+re-rendered to the new format / IA (core-block table, field order, backtick / casing convention; R24), with
+`**Cohort:**` normalized into the path schema (path-matching its on-disk dir, or `[none]`); `planned/` members
+additionally get a best-estimate `**Class:**`, while `provisional/` members carry the `[TBD]` default.
 
-_Design decisions:_ format normalization rides the new `renderMetaFile` — re-render each meta from its parsed
-record so the format / IA / casing apply uniformly (round-trip-verified), rather than hand-editing. `Class`
-estimates are best-effort against the boundary tests — _not_ a blanket `Heavy` (which would fabricate the signal
-and pin it under the ratchet); `provisional/` members may stay `[TBD]`. The active WU and the three
-already-classified `agile-wu-lifecycle` siblings keep their real values (re-cased to the enum tokens). Watch
-ROADMAP-regen / hook-warning side effects on the sweep commit — see `spec-class-model-foundation.md`
+_Design decisions:_ format normalization rides the new `renderMetaFile` via a one-off (non-shipped) migration
+script — for each meta, tolerant-parse → `renderMetaFile` → write — so the format / IA / casing apply uniformly,
+rather than hand-editing. The re-render relies on Phase 2's `parseMetaRecord` tolerating the legacy flat-bullet
+core block on read (2.1.b); `renderMetaFile`'s enum-casing normalization re-cases the lowercase `heavy` / `light`
+siblings to `Heavy` / `Light` automatically. `Class` estimates are best-effort against the boundary tests — _not_
+a blanket `Heavy` (which would fabricate the signal and pin it under the ratchet); `provisional/` members stay
+`[TBD]` (the render default — `[TBD]` is legal only there per the readiness rule). The active WU and the three
+already-classified `agile-wu-lifecycle` siblings keep their real values. The whole phase lands as **one migration
+commit** (re-render + `Cohort` + `Class` + regen), so the backlog never commits with a `planned/` WU at `[TBD]`.
+Watch ROADMAP-regen / hook side effects on the sweep commit — see `spec-class-model-foundation.md`
 § Migration & sequencing.
 
 _Requirements:_ R15, R16, R24.
 
-### `[ ]` **5.1 Migrate `Cohort` to the path schema and best-estimate `Class` across `backlog/planned/`**
+### `[ ]` **5.1 Re-render every `backlog/` meta to the new format and repair `Cohort`**
 
-- _Goal:_ Every `backlog/planned/` member is re-rendered to the new format / IA and has a path-valued
-  `**Cohort:**` matching its on-disk dir (or `[none]`) and a best-estimate `**Class:**` against the boundary
-  tests, so the backlog enters the modernized schema in a consistent, honest shape.
-- _Context:_ ~40 planned metas; most `Cohort` values already path-match (single segment = parent dir). The active
-  WU and the `agile-wu-lifecycle` siblings already carry both fields. Estimates are best-effort and revisable
-  (the ratchet), so a grounded read now is safe.
-- _Approach:_ one bundled pass — re-render for format, then the value work; surface the per-WU `Class` estimates
-  for review rather than stamping silently.
+- _Goal:_ Every `backlog/` meta (planned + provisional) is re-rendered to the new format / IA and has a
+  path-valued `**Cohort:**` matching its on-disk dir (or `[none]`), so the whole backlog enters the modernized
+  schema in one consistent shape.
+- _Context:_ 45 planned + 10 provisional metas; most `Cohort` values already path-match (single segment = parent
+  dir; the three nested `agile-wu-lifecycle` members already carry the two-segment path). The re-render is
+  mechanical — a one-off script, not hand-editing — and depends on Phase 2's render / parse landing first.
+- _Note:_ provisional metas re-render with `**Class:** [TBD]` from the `renderMetaFile` default — no estimate is
+  forced there (5.2 forces only `planned/`).
 
-    - `[ ]` **5.1.a Re-render every planned meta to the new format**
-        - Re-render each `backlog/planned/` meta through the new `renderMetaFile` (from its parsed record) so the
-          core-block table, field order, and backtick / casing convention apply uniformly; verify each
-          round-trips through `parseMetaRecord`.
+    - `[ ]` **5.1.a Re-render via a one-off migration script**
+        - A throwaway (non-shipped) script globs `backlog/planned/` + `backlog/provisional/` metas and, per file,
+          parses the legacy record (Phase 2's tolerant read, 2.1.b) and writes it back through `renderMetaFile`
+          so the core-block table, field order, and backtick / casing convention apply uniformly. Verify each by
+          re-parse stability (`parseMetaRecord` of the re-rendered file equals the parsed legacy record), not
+          byte-identity — the bytes change by design. Durable re-render / migration tooling is `roadmap-tooling` /
+          `config-migration-registry`'s, not this script.
 
     - `[ ]` **5.1.b Audit and repair `Cohort` path-match**
-        - Across `backlog/planned/`: confirm each `**Cohort:**` path-matches its `<cohort>[/<subcohort>]/` parent
-          dir, or is `[none]` for a standalone WU; repair mismatches.
+        - Across `backlog/`: confirm each `**Cohort:**` path-matches its `<cohort>[/<subcohort>]/` parent dir, or
+          is `[none]` for a standalone WU; repair mismatches. Mostly confirmation — the surface already
+          path-matches.
 
-    - `[ ]` **5.1.c Best-estimate `Class` on members that lack one**
-        - Apply the `classify-work-unit` triage to each member without a `Class` field; leave the active WU and
-          the three already-classified siblings; `provisional/` members may stay `[TBD]`.
+### `[ ]` **5.2 Best-estimate `Class` across `backlog/planned/`**
 
-    - `[ ]` **5.1.d Regen and verify the sweep**
-        - Regen ROADMAP (and STATUS.USER); confirm the warn-not-block hook fires no warnings on the migrated
-          metas (drafts / `[TBD]` are exempt) and that the regen-trigger rule is satisfied.
+- _Goal:_ Every `backlog/planned/` member without a `Class` carries a best-estimate `**Class:**` against the
+  boundary tests, so every startable WU satisfies the readiness rule (a resolved `Class`) in an honest,
+  non-fabricated shape.
+- _Context:_ 42 of 45 planned metas lack `Class` (the three `agile-wu-lifecycle` siblings carry it; the active WU
+  is in `active/`). Estimates are best-effort and revisable (the ratchet), so a grounded read now is safe.
+- _Approach:_ batched — group the WUs by cohort (~3-5 per batch) and apply the `classify-work-unit` triage per WU
+  (dogfooding the method via parallel reads). **Surface all estimates with their rationale for review before
+  stamping** — the estimation produces a reviewable proposal; the stamp lands only on approval, so the review
+  stop is preserved. Leave the three already-classified siblings and the active WU; `provisional/` stays `[TBD]`.
+
+### `[ ]` **5.3 Regen and verify the sweep**
+
+- _Goal:_ The migrated backlog renders consistently and passes the existing gates, committed as one pass.
+- Regen ROADMAP **only if a render field changed** (`Cohort` repairs; `Class` is not a ROADMAP column per R22);
+  refresh STATUS.USER; confirm the existing `validate-meta-spec` hook passes on the migrated metas (`Design`
+  shape + `State` enum); confirm the regen-trigger rule is satisfied. Stage the whole migration as one commit.
 
 ## **Phase 6:** Verification
 
@@ -447,12 +506,13 @@ _Requirements:_ R15, R16, R24.
 - `[ ]` The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
   `activate-work-unit`; the `graduate-work-unit` (`provisional → planned`) workflow forces the estimate at
   planned-entry
-- `[ ]` A warn-not-block `Class` ↔ spec-form validation fires on mismatch and never on `[TBD]`; `Class` renders
-  in STATUS.USER over an in-flight + ready content model (mine, unblocked); `strategy-work-organization` carries
-  worked boundary-test examples on each side of both `heavy` triggers plus the ratchet + readiness rule
-- `[ ]` Every member under `backlog/planned/` has a path-valued `**Cohort:**` that path-matches its on-disk dir
-  (or `[none]`) and a best-estimate `**Class:**` (not a blanket `heavy`); the active WU and already-classified
-  siblings retain their values; `provisional/` members may be `[TBD]`
+- `[ ]` `Class` renders in STATUS.USER over an in-flight + ready content model (mine, unblocked);
+  `strategy-work-organization` carries the `Class` model, the `planning depth` ordinal, the three spec forms, and
+  worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness rule
+- `[ ]` Every `backlog/` meta (planned + provisional) is re-rendered to the new format with a path-valued
+  `**Cohort:**` that path-matches its on-disk dir (or `[none]`); every `backlog/planned/` member additionally
+  carries a best-estimate `**Class:**` (not a blanket `Heavy`), the active WU and already-classified siblings
+  retain their values, and `provisional/` members are `[TBD]`
 - `[ ]` The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
   relocatability invariant) are defined normatively in the spec and the constitution
 - `[ ]` All quality gates pass (tests, linting, type checking)

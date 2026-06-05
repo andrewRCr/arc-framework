@@ -301,6 +301,13 @@ what was produced.
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
 - **Planning + spec + task shapes** — starting points, open to post-integration dogfooding refinement.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
+- **`Class` ↔ spec-form consistency check — worth it at all?** Once this WU makes the spec form a structured
+  signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block `Class` ↔ form consistency check
+  (`heavy` ⇒ `detailed`, etc.) becomes cheap to build. `class-model-foundation` deliberately did **not** build it
+  (the form was freeform prose there, and the lifecycle `classify-work-unit` touchpoints already keep `Class`
+  honest). Open question: does it earn its place *even when easy*? `Class` / depth are advisory signals — a
+  misclassification breaks nothing structural, and a commit-time warning may read as a paternalistic nag. Decide
+  whether to build it, not just how.
 
 ## External research
 

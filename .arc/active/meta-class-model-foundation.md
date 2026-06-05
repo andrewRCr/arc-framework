@@ -13,11 +13,12 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Pass 3 grounding audit — phases 1-2 (constitutional reshape + meta-record modernization)
+- **Last Completed:** Pass 3 grounding audit complete — phases 3-5 audited + revised, suite-coherence pass,
+  pre-save checklist
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue `2_generate-tasks.md` Pass 3 for phases 3-5 (per-phase `arc-task-audit`, top-down),
-  then Step 3.4 suite-coherence + Step 4 commit. Carried-forward cross-phase context in `SESSION-NOTES.md`.
+- **Next Action:** `2_generate-tasks.md` complete (all three passes); task list impl-ready. Activate via
+  `activate-work-unit.md` when ready to begin implementation.
 
 ---
