@@ -238,24 +238,23 @@ _Requirements:_ R9–R12, R24.
           Consumer passthrough confirmed without regression: in-flight derivation already carried `core/sub`, and a
           path-valued roster case was added; in-flight-mine spreads the value verbatim, so it cannot truncate.
 
-### `[ ]` **2.5 Update `template-meta.md` to the new format: core-block table, `Class`, retire the `Tier` comment**
+### `[x]` **2.5 Update `template-meta.md` to the new format: core-block table, `Class`, retire the `Tier` comment**
 
 - _Goal:_ `template-meta.md` reflects the modernized schema — the core-block table with `**Class:** [TBD]`, the
   new field order and bullet groups, the backtick / casing / sentinel convention, the stale `Tier:` reservation
   comment removed, and refreshed `Design` (Class-aware) and `Cohort` (path-valued, dual-placement) guidance — so
   `init-work-unit` scaffolds a schema- and convention-correct meta.
-- _Context:_ two-copy (package source + `.arc/` mirror, currently byte-identical); edit package source, sync the
-  mirror. `init-work-unit` scaffolds `Class: [TBD]` from the `renderMetaFile` default (2.1 / 2.2) — no `--class`
-  flag, the scaffolding act stays `Class`-agnostic.
 - **Strategies:** `strategy-package-project-sync.md`.
-
-    - Reshape the field block to the new IA: the core-block table (`State | Owner | Branch | Class | Priority`)
-      then the bullet groups in order; apply the backtick / casing / sentinel convention throughout.
-    - Add the `**Class:**` comment entry: values `Light` / `Heavy` / `[TBD]`, the ratchet, forced at
-      planned-entry.
-    - Delete the `Tier:` entry from the "Deliberately not added" comment block.
-    - Refresh the `Design` comment (Class-aware: `draft-*` in Planning, `spec-*` from Active) and the `Cohort`
-      comment (path-valued, two-segment cap, dual-placement).
+- _Outcome:_ Rewrote `template-meta.md` (both copies, synced byte-identical) to the new IA — the
+  `State | Owner | Branch | Class | Priority` core-block table over the ordered bullet groups (cohort / reference /
+  progress / directive), matching `renderMetaFile`. Field-semantics comment regrouped to Core / Cohort / Reference /
+  Progress / Directive: new `Class` entry (`Light` / `Heavy` / `[TBD]`, estimate-then-ratchet, best-estimate when
+  startable); the three-way value-format convention; `Design` refreshed Class-aware + Origin-orthogonal;
+  `Cohort` refreshed path-valued (two-segment cap, dual-placement); stale `Tier:` reservation comment deleted.
+  Incidental same-file cleanups: `WU` → `work unit` throughout (adopter-facing terminology), and the `Depends On`
+  comment's "ROADMAP tier grouping" → neutral "project readiness view's dependency grouping" (tier vocab being
+  retired by this WU). The "Retired from prior `template-status.md`" block's transitional framing was left in place
+  and captured to `USER-INBOX § Backlog` as a broad doc-conventions sweep (a distinct concern, not this commit's).
 
 ## **Phase 3:** Classification mechanism — method, graduation, touchpoints
 
