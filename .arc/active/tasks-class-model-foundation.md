@@ -111,30 +111,34 @@ _Requirements:_ R1, R3–R8, R13–R14.
   method/strategy pointer. AGENT-BRIEF = "what `Class` is"; DEV-RULES = "what to do" — no cross-file duplication.
   All copies byte-identical; lint clean.
 
-### `[ ]` **1.5 Author companion ADR-023**
+### `[x]` **1.5 Author companion ADR-023**
 
 - _Goal:_ An internal-only companion ADR (`adr-023-class-model-scaled-ceremony.md`) records the architectural
   shift — scaled ceremony / invariant discipline, the `Class` model, the boundary tests — parallel in scope to
   adr-016, carrying the narrative and risks the enforceable rule omits.
-- _Context:_ ADRs are internal-only (`.arc/reference/adr/`, single-copy, do not ship); next number is 023.
-  Anchors to cite: ADR-001 (P1/P2/P4/P7), ADR-020 (scalable core), ADR-021 (Errand floor), ADR-022 (schema-owned
-  meta).
-- **Strategies:** `strategy-adr-methodology.md`.
 
-    - `[ ]` **1.5.a Draft adr-023 (context / decision / consequences)**
-        - The two-floors model, spec-worthiness, the fixed-floor → scalable-middle → fixed-ceiling topology, the
-          `Class` model + boundary tests, and the planning-depth ordinal + the three spec forms — the
-          architectural reasoning behind the enforceable surfaces. This internal record is its sole home;
-          DEV-RULES carries only the rule + pointer.
+    - `[x]` **1.5.a Draft adr-023 (context / decision / consequences)**
+        - Authored `adr-023-class-model-scaled-ceremony.md` (Status: Proposed, mirroring adr-021's
+          decided-here / ratifies-downstream pattern). Rebuilds the reasoning: the two-floors model,
+          spec-worthiness, the fixed-floor → scalable-middle → fixed-ceiling topology, the two-axis `Class` +
+          three boundary tests, the per-stage planning-depth ordinal + three spec forms, estimate-then-ratchet,
+          and atomic reconciliation. Cites ADR-001/016/019/020/021/022.
 
-    - `[ ]` **1.5.b Record the risks and mitigations**
-        - `Class` drift via under-specification and its mitigations (the estimate-vs-realized ratchet removing
-          the lowball incentive; the self-diagnosing depth-shift signal; reviewer scrutiny; strategy-doc
-          examples). Draw from `notes-class-model-foundation.md` § Pressure points and risks.
+    - `[x]` **1.5.b Record the risks and mitigations**
+        - Consequences § Risks covers `Class` drift via under-specification (ratchet removes the lowball
+          incentive; self-diagnosing depth-shift signal; explicit-field reviewer scrutiny; strategy examples),
+          light-WU discoverability (STATUS.USER render + auto-cleanup), and premature ratification.
 
-    - `[ ]` **1.5.c Wire ADR cross-references**
-        - Add adr-023 to the adr `README` index; confirm the cohort doc's ADR-anchors list resolves. Keep ADR
-          references off adopter-facing surfaces (ADRs do not ship).
+    - `[x]` **1.5.c Wire ADR cross-references**
+        - Confirmed `cohort-agile-wu-lifecycle.md`'s ADR-anchors list resolves (all 6 files exist). README
+          index: none to update — the adr `README` is index-free by design ("no separate index is maintained"),
+          so the task's "add to index" is moot (drift surfaced). adr-023 kept off adopter-facing surfaces
+          (internal-only, single-copy, not mirrored).
+
+- _Outcome:_ Phase 1 (Constitutional foundation) complete. adr-023 is the sole home for the architectural
+  reasoning; the always-loaded surfaces carry only rule + vocabulary. Two judgment calls left for review: Status
+  set to Proposed (not Accepted); and adr-023 deliberately not added to the cohort's ADR-anchors list (it is this
+  WU's _output_, not an input precedent — addable as a now-foundational sibling reference if preferred).
 
 ## **Phase 2:** Meta-record modernization — convention, `Class`, `Design`, `Cohort`
 
