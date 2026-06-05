@@ -1,8 +1,8 @@
 # Metadata: Class Model Foundation
 
-- **State:** Planning
+- **State:** Active
 - **Owner:** andrew
-- **Branch:** plan/class-model-foundation
+- **Branch:** feat/class-model-foundation
 
 - **Origin:** [internal]
 - **Design:** `spec-class-model-foundation.md`
@@ -15,10 +15,11 @@
 - **Task List:** tasks-class-model-foundation.md
 - **Last Completed:** Pass 3 grounding audit complete — phases 3-5 audited + revised, suite-coherence pass,
   pre-save checklist
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic as a
+  character (line ~25)
 - **Blockers:** [none]
 
-- **Next Action:** `2_generate-tasks.md` complete (all three passes); task list impl-ready. Activate via
-  `activate-work-unit.md` when ready to begin implementation.
+- **Next Action:** Begin Task 1.1 — amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic
+  as a work character, per `tasks-class-model-foundation.md`.
 
 ---
