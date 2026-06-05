@@ -16,6 +16,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 ## Contents
 
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
+- [Scaled Process, Invariant Discipline](#scaled-process-invariant-discipline) — process scales, discipline does not
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
 - [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
 - [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
@@ -31,6 +32,19 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 Every review increment closes with a structured approval gate that precedes any commit
 invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
 it does **not** bypass the user's approval gate.
+
+---
+
+## Scaled Process, Invariant Discipline
+
+Work in ARC runs from a single-concern (atomic) Errand up to a heavy work unit. Its weight scales the process
+around it — how much design is authored in planning, and how much review and integration ceremony it warrants.
+What never scales is execution discipline: the [review-increment invariant](#review-increment-invariant), the
+interlocks that gate review and merge, and the quality gates hold identically across the whole range.
+
+A work unit records its weight as its **`Class`** — `light`, `heavy`, or `[TBD]` until resolved; work below the
+work-unit floor carries no `Class` and runs as an Errand. Resolve a `Class` with the `classify-work-unit`
+method; the model and worked examples live in the [Work Organization Strategy][work-org].
 
 ---
 
@@ -184,13 +198,6 @@ Break down a task into subtasks if it requires:
 - More than 50 lines of core logic changes
 - Multiple interdependent changes
 - Complex debugging or investigation
-
-### Atomic-tier infra-edit smell flag
-
-Atomic-tier work shouldn't touch load-bearing infra — `.arc/system/`, `.arc/reference/strategies/`,
-or `arc-config.yml`. Such edits warrant quick-tier at minimum (multi-commit coordination, deliberate
-sequencing). Atomic items captured in ATOMIC-INBOX surfaces that touch infra get reclassified at
-drain time rather than completed in place.
 
 ### Quality gate failure
 

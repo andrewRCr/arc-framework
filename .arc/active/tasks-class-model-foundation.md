@@ -22,28 +22,38 @@ source + `.arc/` mirror); edit the package source, then sync the mirror.
 
 _Requirements:_ R1, R3–R8, R13–R14.
 
-### `[ ]` **1.1 Amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic as a character**
+### `[x]` **1.1 Amend DEV-RULES.ARC with the minimum-viable `Class` rule and reconcile atomic as a character**
 
 - _Goal:_ DEV-RULES.ARC carries the always-loaded `Class` non-negotiable — the discipline-invariance guard
   (`Class` scales design-authoring ceremony, never execution discipline; the review-increment gate and quality
   gates apply identically at every `Class`) — plus a pointer to the `classify-work-unit` method (the triage) and
   `strategy-work-organization` (the model + worked examples). The axis definitions, boundary tests, and reasoning
   live in those on-demand homes, not in always-loaded DEV-RULES.
-- _Note:_ edit the package source, then sync the `.arc/` mirror.
 
-    - `[ ]` **1.1.a State the discipline-invariance guard and the pointer**
-        - `Class` scales how much design must be authored, never execution discipline — the review-increment gate
-          and quality gates hold identically at every `Class`. Point to the `classify-work-unit` method for the
-          boundary-test triage and `strategy-work-organization` for the model; do not restate the axis
-          definitions or the boundary tests here.
+    - `[x]` **1.1.a State the discipline-invariance guard and the pointer**
+        - New `## Scaled Process, Invariant Discipline` section (Contents entry + body, after § Review-Increment
+          Invariant): frames the full Errand→heavy-WU range — process (planning depth + review/integration
+          ceremony) scales with weight; execution discipline (the review-increment invariant, the interlocks
+          gating review/merge, quality gates) does not. `Class` named as the WU-level weight record; pointer to
+          the `classify-work-unit` method (plain backtick — see Outcome re: deferred link) and Work Organization
+          Strategy (`[work-org]`, live link). Held to the minimum-viable operational guard: no axis defs, no
+          boundary tests, no design rationale.
 
-    - `[ ]` **1.1.b Reconcile atomic as a work character, not a tier**
-        - The `Class` set is `{light, heavy}` plus the `[TBD]` pre-classification sentinel; atomic-character work
-          executes as an Errand below the wrapper or graduates to a WU. ADR-020 §3's spec-in-commit floor
-          exception belongs to the Errand class (ADR-020 ↔ ADR-021 reconciliation).
-        - Delete the § Atomic-tier infra-edit smell flag — its intent (load-bearing-infra changes are reviewed)
-          is already owned by the Auto-Merge Lane review threshold in `strategy-work-organization` (constitutional
-          surfaces are reviewed-lane). Confirm no inbound references dangle before removing.
+    - `[x]` **1.1.b Reconcile atomic as a work character, not a tier**
+        - Reconciliation in DEV-RULES is the smell-flag removal plus naming `Class` a WU property: deleted
+          § Atomic-tier infra-edit smell flag from § Task Execution (its review-the-infra intent relocates to the
+          Auto-Merge Lane threshold, Phase 4), leaving no work-tier language in the file (remaining `tier` refs
+          are quality-gate Tier 1/2/3; remaining `atomic` refs are character/inbox routing). No structural dangle.
+        - The positive atomic-as-character definition is **not** restated here — AGENT-BRIEF.ARC § Vocabulary
+          already owns it (de-staled in Task 1.4); the ADR-020 ↔ ADR-021 reasoning rides the companion ADR (1.5).
+
+- _Outcome:_ Scope held to the minimum-viable amendment — the scaling guard + pointer. Both copies (package
+  source + `.arc/` mirror) byte-identical; lint clean. The pre-commit link-resolution hook rejects links to
+  not-yet-existing targets, so the `classify-work-unit` pointer is a plain backtick reference for now —
+  **linkify when the method file lands (Phase 3).** Conceptual citations of the removed smell flag survive in
+  `arc-inbox` SKILL.md (both copies) and `draft-naming-conventions.md` — they name a now-absent rule and want a
+  downstream cascade pass (candidate: `doc-cascade-sweep`); surfaced, not fixed here (distinct docs / own review
+  surfaces).
 
 ### `[ ]` **1.2 Sharpen the front-loading-duty rule across all spec forms**
 
