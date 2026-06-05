@@ -4,9 +4,16 @@ import { deriveInFlight } from "../../../src/lib/git/in-flight-derivation.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
-/** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Priority, Depends On). */
+/** A meta-file body carrying the fields the derivation reads (Owner, Design, Cohort, Class, Priority, Depends On). */
 function metaContent(
-  fields: { owner?: string; design?: string; cohort?: string; priority?: string; dependsOn?: string } = {},
+  fields: {
+    owner?: string;
+    design?: string;
+    cohort?: string;
+    class?: string;
+    priority?: string;
+    dependsOn?: string;
+  } = {},
 ): string {
   return [
     "# Metadata: x",
@@ -16,6 +23,8 @@ function metaContent(
     `- **Design:** ${fields.design ?? "[none]"}`,
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+    // Class line is omitted unless provided — exercises the field-absent path.
+    ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
     `- **Priority:** ${fields.priority ?? "[none]"}`,
     "",
     "---",
@@ -78,6 +87,28 @@ describe("deriveInFlight", () => {
         dependsOn: [],
       },
     ]);
+  });
+
+  it("surfaces the raw Class field on a work unit, keeping [TBD] but dropping an absent field", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/heavy-wu:.arc/active/meta-heavy-wu.md": metaContent({ class: "heavy" }),
+        "origin/feat/tbd-wu:.arc/active/meta-tbd-wu.md": metaContent({ class: "[TBD]" }),
+        "origin/feat/bare-wu:.arc/active/meta-bare-wu.md": metaContent(),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/heavy-wu", "feat/tbd-wu", "feat/bare-wu"],
+      identity: null,
+      teamMode: false,
+    });
+
+    const byName = new Map(entries.map((e) => [e.kind === "work-unit" ? e.name : e.slug, e]));
+    expect(byName.get("heavy-wu")).toMatchObject({ class: "heavy" });
+    expect(byName.get("tbd-wu")).toMatchObject({ class: "[TBD]" });
+    expect(byName.get("bare-wu")).not.toHaveProperty("class");
   });
 
   it("derives a plan/-prefixed branch as an in-flight planning work unit", async () => {

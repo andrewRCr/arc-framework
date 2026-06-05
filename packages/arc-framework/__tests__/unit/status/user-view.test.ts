@@ -4,7 +4,9 @@ import { runStatusUserView } from "../../../src/lib/status/user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
 
 /** A meta body carrying the fields the oracle reads. */
-function metaContent(fields: { cohort?: string; priority?: string; dependsOn?: string } = {}): string {
+function metaContent(
+  fields: { cohort?: string; class?: string; priority?: string; dependsOn?: string } = {},
+): string {
   return [
     "# Metadata: x",
     "",
@@ -12,6 +14,7 @@ function metaContent(fields: { cohort?: string; priority?: string; dependsOn?: s
     "- **Owner:** andrew",
     `- **Depends On:** ${fields.dependsOn ?? "[none]"}`,
     `- **Cohort:** ${fields.cohort ?? "[none]"}`,
+    ...(fields.class !== undefined ? [`- **Class:** ${fields.class}`] : []),
     `- **Priority:** ${fields.priority ?? "[none]"}`,
     "",
     "---",
@@ -52,6 +55,7 @@ describe("runStatusUserView", () => {
       metas: {
         "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
           cohort: "agile-parallelism",
+          class: "heavy",
         }),
       },
     });
@@ -65,7 +69,7 @@ describe("runStatusUserView", () => {
     });
 
     expect(result.source).toBe("rendered");
-    expect(result.output).toContain("| in-flight-awareness | Active | —          | agile-parallelism |");
+    expect(result.output).toContain("| in-flight-awareness | Active | Heavy | —          | agile-parallelism |");
   });
 
   it("degrades to the last-rendered cache when an online remote is unreachable", async () => {

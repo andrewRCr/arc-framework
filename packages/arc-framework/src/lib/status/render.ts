@@ -15,7 +15,7 @@
  */
 
 import type { InFlightState } from "../git/in-flight-derivation.js";
-import type { Priority } from "../../commands/active/types.js";
+import type { Priority, WorkClass } from "../../commands/active/types.js";
 import { cohortLeaf } from "../active/cohort-path.js";
 
 /** One row of a status view — a work unit's render-relevant fields, pre-resolved. */
@@ -24,6 +24,8 @@ export interface StatusViewRow {
   workUnit: string;
   /** Lifecycle phase, surfaced in the State column. */
   state?: InFlightState;
+  /** Recorded weight (`Light` / `Heavy` / `[TBD]`); absent → em-dash cell (the column never drops). */
+  class?: WorkClass | "[TBD]";
   /** Attention level; absent → `P3` baseline for sort and render. */
   priority?: Priority;
   /** Owner; rendered only by tiers whose column set carries Owner. */
@@ -35,15 +37,17 @@ export interface StatusViewRow {
 }
 
 /** A render-standard column. */
-export type StatusColumn = "workUnit" | "state" | "priority" | "owner" | "dependsOn" | "cohort";
+export type StatusColumn = "workUnit" | "state" | "class" | "priority" | "owner" | "dependsOn" | "cohort";
 
 /**
  * The `STATUS.USER` (in-flight-mine) column set — Owner omitted (constant
- * `= me`). `Priority` is conditional: dropped when no row carries a value.
+ * `= me`). `Class` always renders (its `[TBD]` sentinel is a value, not an
+ * absence); `Priority` is conditional, dropped when no row carries a value.
  */
 export const STATUS_USER_COLUMNS = [
   "workUnit",
   "state",
+  "class",
   "priority",
   "dependsOn",
   "cohort",
@@ -87,6 +91,7 @@ function compareCohort(a: string | undefined, b: string | undefined): number {
 const COLUMN_HEADERS: Record<StatusColumn, string> = {
   workUnit: "Work unit",
   state: "State",
+  class: "Class",
   priority: "Priority",
   owner: "Owner",
   dependsOn: "Depends on",
@@ -100,6 +105,9 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
       return row.workUnit;
     case "state":
       return row.state ?? EM_DASH;
+    case "class":
+      // Always a cell: `[TBD]` is a value, and a field-absent WU shows em-dash.
+      return row.class ?? EM_DASH;
     case "priority":
       return row.priority ?? "P3";
     case "owner":

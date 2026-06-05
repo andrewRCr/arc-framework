@@ -52,4 +52,28 @@ describe("buildInFlightMineSlice", () => {
     expect(alpha?.priority).toBe("P1");
     expect(bravo).not.toHaveProperty("priority");
   });
+
+  it("normalizes a Class value to its display form on the row", () => {
+    const entries: InFlightEntry[] = [
+      wu("alpha", { class: "heavy" }),
+      wu("bravo", { class: "Light" }),
+    ];
+
+    const [alpha, bravo] = buildInFlightMineSlice(entries);
+
+    expect(alpha?.class).toBe("Heavy");
+    expect(bravo?.class).toBe("Light");
+  });
+
+  it("keeps an explicit [TBD] Class as a value on the row", () => {
+    const [alpha] = buildInFlightMineSlice([wu("alpha", { class: "[TBD]" })]);
+
+    expect(alpha?.class).toBe("[TBD]");
+  });
+
+  it("omits Class when the entry carries no field", () => {
+    const [alpha] = buildInFlightMineSlice([wu("alpha")]);
+
+    expect(alpha).not.toHaveProperty("class");
+  });
 });

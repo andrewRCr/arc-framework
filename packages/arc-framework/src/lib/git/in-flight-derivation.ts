@@ -79,6 +79,8 @@ export interface InFlightWorkUnit extends InFlightLocation {
   design?: string;
   /** `**Cohort:**` from the meta; absent when unset or `[none]`. */
   cohort?: string;
+  /** Raw `**Class:**` weight from the meta; absent only when the field is unset. The `[TBD]` sentinel is kept. */
+  class?: string;
   /** Raw `**Priority:**` level from the meta; absent when unset or `[none]`. */
   priority?: string;
   /** Parsed `**Depends On:**` WU-names; empty when independent (`[none]`). */
@@ -220,7 +222,7 @@ function buildWorkUnit(
   planning: boolean,
 ): InFlightWorkUnit {
   const fields = parseRecordOrEmpty(content);
-  const { Owner: owner, Design: design, Cohort: cohort, Priority: priority } = fields;
+  const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
   return {
     kind: "work-unit",
     name,
@@ -229,6 +231,9 @@ function buildWorkUnit(
     ...(owner !== null ? { owner } : {}),
     ...(design !== null && design !== "[none]" ? { design } : {}),
     ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+    // Keep `[TBD]`: it is a real value the view renders, unlike the `[none]`
+    // absences above. Drop only a genuinely field-absent (`null`) Class.
+    ...(workClass !== null ? { class: workClass } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),
     dependsOn: parseDependsOn(fields["Depends On"]),
   };

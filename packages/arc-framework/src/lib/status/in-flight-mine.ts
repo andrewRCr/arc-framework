@@ -9,6 +9,9 @@
  * - **Priority** narrows to the codified level, set only when the meta carried an
  *   explicit value so the render core's conditional column drops for an
  *   all-default slice.
+ * - **Class** narrows to the display form (`Light` / `Heavy` / `[TBD]`), set only
+ *   when the meta carried the field — a field-absent WU renders an em-dash, while
+ *   an explicit `[TBD]` renders as the sentinel value (the column is not dropped).
  * - **Depends On** resolves to *unsatisfied in-flight* dependencies: a dep still
  *   present in the in-flight set is shown; a shipped or not-yet-started dep is
  *   absent from the set and renders as satisfied (em-dash). Resolution is scoped
@@ -18,7 +21,7 @@
  * @module
  */
 
-import { validatePriority } from "../../commands/active/types.js";
+import { validateClass, validatePriority } from "../../commands/active/types.js";
 import type { InFlightEntry, InFlightWorkUnit } from "../git/in-flight-derivation.js";
 
 import type { StatusViewRow } from "./render.js";
@@ -41,6 +44,7 @@ export function buildInFlightMineSlice(entries: readonly InFlightEntry[]): Statu
   return workUnits.map((wu) => ({
     workUnit: wu.name,
     state: wu.state,
+    ...(wu.class !== undefined ? { class: validateClass(wu.class) } : {}),
     ...(wu.priority !== undefined ? { priority: validatePriority(wu.priority) } : {}),
     dependsOn: wu.dependsOn.filter((dep) => inFlightNames.has(dep)),
     ...(wu.cohort !== undefined ? { cohort: wu.cohort } : {}),

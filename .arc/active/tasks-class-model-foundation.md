@@ -377,13 +377,14 @@ _Requirements:_ R3, R4, R22, R23.
   meta schema + shared reader. Auto-render stays gated on `roadmap-tooling`; this defines the content model and
   refreshes the live instance.
 
-    - `[ ]` **4.1.a Add the `Class` column to the existing in-flight render**
-        - Thread `Class` through the render path: `InFlightWorkUnit` + the field read in `classifyBranch`
-          (`in-flight-derivation.ts`), the slice map (`in-flight-mine.ts`), and `StatusViewRow` /
-          `STATUS_USER_COLUMNS` / `COLUMN_HEADERS` / `cellOf` (`render.ts`). `[TBD]` renders as a value, not a
-          dropped cell.
-        - Build `test-first` (one behavior at a time):
-            - the in-flight-mine rows carry a `Class` column, including `[TBD]`.
+    - `[x]` **4.1.a Add the `Class` column to the existing in-flight render**
+        - Threaded `Class` through the render path: a `WorkClass` type + case-insensitive `validateClass`
+          (`active/types.ts`), the raw field on `InFlightWorkUnit` read in `buildWorkUnit`
+          (`in-flight-derivation.ts`), normalization to display form in the slice map (`in-flight-mine.ts`), and
+          the `class` column / `StatusViewRow` / `STATUS_USER_COLUMNS` / `COLUMN_HEADERS` / `cellOf`
+          (`render.ts`). `Class` renders always-on between `State` and `Priority`: `[TBD]` is a value, a
+          field-absent WU shows an em-dash. The live `STATUS.USER.md` + render-standard doc are deferred to
+          4.1.c per the subtask split; the golden render-test fixture carries the new shape.
 
     - `[ ]` **4.1.b Add the ready slice (owned, unblocked, `planned/`)**
         - A second data source: the ready slice reads `backlog/planned/` metas (the readiness data ROADMAP renders

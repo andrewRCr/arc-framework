@@ -4,21 +4,21 @@ import { renderStatusTable, STATUS_USER_COLUMNS } from "../../../src/lib/status/
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
 
 /**
- * The canonical in-flight-mine table — byte-identical to the table block in the
- * seeded `.arc/user/{identity}/STATUS.USER.md`. The render standard's
- * byte-stability contract covers this table slice (not the surrounding header /
- * `Updated:` footer), so the renderer must reproduce it exactly.
+ * The canonical in-flight-mine table shape the renderer must reproduce. The
+ * render standard's byte-stability contract covers this table slice (not the
+ * surrounding header / `Updated:` footer); the seeded
+ * `.arc/user/{identity}/STATUS.USER.md` is rendered to this same shape.
  */
 const GOLDEN_IN_FLIGHT_MINE = [
-  "| Work unit           | State  | Depends on | Cohort            |",
-  "| ------------------- | ------ | ---------- | ----------------- |",
-  "| in-flight-awareness | Active | —          | agile-parallelism |",
+  "| Work unit           | State  | Class | Depends on | Cohort            |",
+  "| ------------------- | ------ | ----- | ---------- | ----------------- |",
+  "| in-flight-awareness | Active | Heavy | —          | agile-parallelism |",
 ].join("\n");
 
 describe("renderStatusTable", () => {
   it("renders the in-flight-mine slice to the canonical STATUS.USER table", () => {
     const slice: StatusViewRow[] = [
-      { workUnit: "in-flight-awareness", state: "Active", dependsOn: [], cohort: "agile-parallelism" },
+      { workUnit: "in-flight-awareness", state: "Active", class: "Heavy", dependsOn: [], cohort: "agile-parallelism" },
     ];
 
     expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).toBe(GOLDEN_IN_FLIGHT_MINE);
@@ -46,14 +46,33 @@ describe("renderStatusTable", () => {
     ];
 
     const expected = [
-      "| Work unit | State    | Priority | Depends on | Cohort |",
-      "| --------- | -------- | -------- | ---------- | ------ |",
-      "| alpha     | Active   | P1       | dep-x      | ranger |",
-      "| bravo     | Planning | P1       | —          | ranger |",
-      "| zulu      | Active   | P3       | —          | ranger |",
-      "| yankee    | Active   | P3       | —          | scout  |",
+      "| Work unit | State    | Class | Priority | Depends on | Cohort |",
+      "| --------- | -------- | ----- | -------- | ---------- | ------ |",
+      "| alpha     | Active   | —     | P1       | dep-x      | ranger |",
+      "| bravo     | Planning | —     | P1       | —          | ranger |",
+      "| zulu      | Active   | —     | P3       | —          | ranger |",
+      "| yankee    | Active   | —     | P3       | —          | scout  |",
     ].join("\n");
 
+    expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).toBe(expected);
+  });
+
+  it("renders Class as an always-present column — a value (incl. [TBD]) or an em-dash when absent", () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "alpha", state: "Active", class: "Heavy", dependsOn: [], cohort: "ranger" },
+      { workUnit: "bravo", state: "Active", class: "[TBD]", dependsOn: [], cohort: "ranger" },
+      { workUnit: "charlie", state: "Active", dependsOn: [], cohort: "ranger" },
+    ];
+
+    const expected = [
+      "| Work unit | State  | Class | Depends on | Cohort |",
+      "| --------- | ------ | ----- | ---------- | ------ |",
+      "| alpha     | Active | Heavy | —          | ranger |",
+      "| bravo     | Active | [TBD] | —          | ranger |",
+      "| charlie   | Active | —     | —          | ranger |",
+    ].join("\n");
+
+    // Priority is dropped (no row carries one), but Class renders regardless.
     expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).toBe(expected);
   });
 
