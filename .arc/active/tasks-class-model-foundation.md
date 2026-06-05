@@ -230,11 +230,12 @@ _Requirements:_ R9–R12, R24.
 - _Note:_ dual-placement (meta + spec header) is the schema rule (stated in 2.5's template guidance);
   backfilling existing `draft-*` / `spec-*` headers rides downstream template passes, not this WU.
 
-    - `[ ]` **2.4.a Parse and validate the path-valued `Cohort`**
-        - Build `test-first` (one behavior at a time):
-            - a single segment, a two-segment path, and `[none]` all validate.
-            - a three-segment path is flagged (two-segment cap).
-            - the leaf segment is derivable for render.
+    - `[x]` **2.4.a Parse and validate the path-valued `Cohort`**
+        - _Outcome:_ New `cohort-path.ts` module — `validateCohortPath` (single / two-segment / `[none]` pass;
+          empty-segment and over-`COHORT_SEGMENT_CAP` paths flagged) and `cohortLeaf` (leaf-segment derivation for
+          render). `validate-meta-spec.ts` gains `validateCohort`, wiring the cap into the pre-commit gate as an
+          optional field (absent passes; present validated). Confirmed no existing active/backlog meta exceeds the
+          cap, so the gate is safe against current data.
 
     - `[ ]` **2.4.b Confirm the `Cohort` consumers tolerate path values**
         - Build `test-first` (one behavior at a time):

@@ -6,7 +6,8 @@
  * (`.arc/active/<category>/meta-*.md`) layouts. Validates the `**Design:**`
  * field value against the allowed shapes: empty, `[none]`, bare-basename
  * `.md` filename, or `https?://` URL; requires a valid `**State:**` value
- * from the codified four-value enum. Surrounding whitespace and a single
+ * from the codified four-value enum; and validates the optional `**Cohort:**`
+ * value against the two-segment path cap. Surrounding whitespace and a single
  * pair of wrapping backticks are stripped before matching.
  *
  * @module
@@ -15,6 +16,7 @@
 import { fileURLToPath } from "node:url";
 
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -140,6 +142,25 @@ export function validateLifecycleFields(content: string, path: string): string[]
 }
 
 /**
+ * Validate the optional `**Cohort:**` field's path shape (the two-segment cap).
+ * The field is optional — a meta with no `**Cohort:**` line passes (a standalone
+ * work unit carries `[none]`, but a pre-schema meta may omit it). A present
+ * value is validated against {@link validateCohortPath}; multiple lines are
+ * flagged. Returns one diagnostic per problem; an empty array means pass.
+ */
+export function validateCohort(content: string, path: string): string[] {
+  const captures = collectFieldValues(content, "Cohort");
+
+  if (captures.length === 0) return [];
+  if (captures.length > 1) {
+    return [`${path}: multiple \`**Cohort:**\` lines (found ${captures.length})`];
+  }
+
+  const error = validateCohortPath(captures[0] ?? "");
+  return error === null ? [] : [`${path}: invalid \`**Cohort:**\` value; ${error}`];
+}
+
+/**
  * Validate a set of staged paths. Paths classified as `other` are skipped
  * silently — the hook may invoke this with a broader set than the scope.
  */
@@ -153,6 +174,7 @@ export function validateFiles(
     const content = readFile(path);
     diagnostics.push(...validateSpec(content, path));
     diagnostics.push(...validateLifecycleFields(content, path));
+    diagnostics.push(...validateCohort(content, path));
   }
   return { pass: diagnostics.length === 0, diagnostics };
 }

@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   classifyPath,
+  validateCohort,
   validateFiles,
 } from "../../../src/scripts/validate-meta-spec.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
@@ -341,5 +342,47 @@ describe("validateLifecycleFields — core-block table form", () => {
     const files = { [META_PATH_FIXTURE]: content };
     const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
     expect(result.pass).toBe(false);
+  });
+});
+
+describe("validateCohort — two-segment path cap", () => {
+  it("passes a meta with no Cohort line (the field is optional)", () => {
+    const content = "# Metadata: Foo\n\n- **State:** Active\n- **Design:** [none]\n";
+    expect(validateCohort(content, META_PATH_FIXTURE)).toEqual([]);
+  });
+
+  it("passes single-segment, two-segment, and [none] cohorts", () => {
+    for (const value of ["core", "core/sub", "[none]"]) {
+      const content = renderMetaFile("foo", {
+        State: "Active",
+        Design: "[none]",
+        Cohort: value,
+      });
+      expect(validateCohort(content, META_PATH_FIXTURE)).toEqual([]);
+    }
+  });
+
+  it("flags a three-segment cohort path", () => {
+    const content = renderMetaFile("foo", {
+      State: "Active",
+      Design: "[none]",
+      Cohort: "core/sub/leaf",
+    });
+    const diagnostics = validateCohort(content, META_PATH_FIXTURE);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics.some((d) => d.includes("Cohort"))).toBe(true);
+  });
+
+  it("surfaces a capped cohort through the validateFiles gate", () => {
+    const files = {
+      [META_PATH_FIXTURE]: renderMetaFile("foo", {
+        State: "Active",
+        Design: "[none]",
+        Cohort: "a/b/c",
+      }),
+    };
+    const result = validateFiles([META_PATH_FIXTURE], fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => d.includes("Cohort"))).toBe(true);
   });
 });
