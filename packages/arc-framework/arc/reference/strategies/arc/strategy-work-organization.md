@@ -334,6 +334,24 @@ to "PRD." Projects may pair WUs with lighter-templated specs — compact PRDs, s
 variants, external-tracker-referenced specs — and `**Design:**` still names whichever artifact
 carries the spec for that WU.
 
+### `Design` field value semantics
+
+`**Design:**` always points at the work unit's ARC-owned planning artifact, and its value tracks
+the lifecycle State:
+
+- **Planning** — `draft-{name}.md`, the pre-spec planning artifact under iteration.
+- **Active onward** — `spec-{name}.md`, the formalized spec. The value transitions exactly once,
+  at activation (see § Bounded duplication and drift cost).
+
+The `spec-{name}.md` filename is stable regardless of how heavy or light the spec is — a spec's
+weight is expressed in its H1 and template, not in its filename — so consumers resolve the
+pointer the same way for every work unit.
+
+**Orthogonal to `Origin`.** The two fields answer different questions: `Origin` is *what prompted
+the work*, `Design` is *what defines it*. `**Design:**` names an ARC-owned artifact only; an
+external tracker (issue, ticket, upstream discussion) belongs in `**Origin:**`, never in
+`**Design:**`.
+
 ### Purpose statement lives on the spec
 
 The WU's purpose statement is substantive content, not an upstream pointer. It lives once on

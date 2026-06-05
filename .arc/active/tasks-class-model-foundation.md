@@ -206,15 +206,17 @@ _Requirements:_ R9–R12, R24.
   `null` (table-omitted column and legacy flat-bullet). Ratchet and form↔`Class` validity stay advisory per spec
   § Non-Goals, not a schema hook.
 
-### `[ ]` **2.3 Define `Class`-aware `Design` field value semantics**
+### `[x]` **2.3 Define `Class`-aware `Design` field value semantics**
 
 - _Goal:_ The `**Design:**` field's value semantics are documented as `Class`-aware and `Origin`-orthogonal:
   `draft-{name}.md` during Planning, `spec-{name}.md` from Active onward (all forms — filename stable, the form
   lives in the H1 / template); `Design` always points at an ARC-owned planning artifact, external trackers go in
   `Origin`.
-- _Context:_ `Design` already exists in `META_FIELDS` and `validate-meta-spec.ts` already validates its _shape_;
-  this task defines the _value semantics_ (which artifact in which State), a documentation change, not new
-  validation.
+- _Outcome:_ Added a `Design` field value semantics subsection to `strategy-work-organization` § WU Artifact
+  Headers (both copies): value-by-State (`draft-{name}.md` in Planning → `spec-{name}.md` from Active, transitioning
+  once at activation), the form-stable `spec-{name}.md` filename (a spec's weight lives in its H1 / template, not
+  the filename), and `Origin`-orthogonality (`Design` names an ARC-owned artifact only; external trackers → `Origin`).
+  Documentation only — `validate-meta-spec.ts` shape validation is unchanged.
 
 ### `[ ]` **2.4 Make the `Cohort` field path-valued (two-segment cap)**
 
