@@ -123,6 +123,24 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 | `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
 | `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
+### Readiness ladder
+
+Before a work unit enters the `State` lifecycle above, it climbs a **readiness ladder** through the backlog:
+`provisional → planned → active`. The rungs are directory positions, not `State` values:
+
+- **`backlog/provisional/`** — pre-commitment thinking; the thesis is not yet one the project commits to.
+  `**Class:**` may be `[TBD]`.
+- **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
+  `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy`); `[TBD]` is legal only
+  in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and forces the
+  estimate via the [classify-work-unit][classify-work-unit] method.
+- **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
+  [init-work-unit][init-work-unit] performs `planned → active`.
+
+The forcing rule has teeth because the start decision — read off the ready list — precedes activation, so the
+weight signal must be present before then. **"Graduation" names a readiness-ladder promotion** (the
+`provisional → planned → active` climb) and only that.
+
 ---
 
 ## Spec-Flow Invariants
@@ -895,6 +913,8 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 
 [team-coordination]: strategy-team-coordination.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
+[graduate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/graduate-work-unit.md
+[classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md

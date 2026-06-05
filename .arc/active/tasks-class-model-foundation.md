@@ -282,53 +282,52 @@ authored as a self-contained extractable block for later fragmentation. `graduat
 
 _Requirements:_ R17, R18, R20, R21.
 
-### `[ ]` **3.1 Author the `classify-work-unit` method (boundary-test triage + ratchet)**
+### `[x]` **3.1 Author the `classify-work-unit` method (boundary-test triage + ratchet)**
 
 - _Goal:_ A loadable `classify-work-unit` method states the boundary-test triage and the estimate-vs-realized
   ratchet once, as the single DRY home every touchpoint declares — so classification logic is not re-stated per
   surface.
-- _Context:_ methods live in `system/methods/` (two-copy; loaded via a workflow's `arc.methods` frontmatter).
-  Mirror the existing method shape (contract block + default). Author the decision content as a self-contained
-  extractable block (`composable-workflows` forward-compat).
 - **Strategies:** `strategy-configurability-architecture.md`.
 
-    - `[ ]` **3.1.a Author `system/methods/classify-work-unit.md`**
-        - Contract + default: the boundary-test triage (Errand-vs-WU, derivation, scale), the `[TBD]` →
-          best-estimate guidance, and the estimate-vs-realized ratchet. Two-copy.
+    - `[x]` **3.1.a Author `system/methods/classify-work-unit.md`**
+        - Two-copy method (contract block + `.default`): the three boundary tests (Errand-vs-WU wrapper floor,
+          derivation trigger, scale/complexity trigger), `[TBD]` / best-estimate resolution, and the
+          estimate-vs-realized ratchet — authored as a self-contained extractable block.
 
-    - `[ ]` **3.1.b Register the method**
-        - Add it to the methods `README` index. The `audit-method-triggers` check requires every method to have at
-          least one declaring workflow (`arc.methods` frontmatter), so land `classify-work-unit.md` together with
-          its first declaration (`graduate-work-unit`, 3.2) — a method committed before any workflow declares it
-          fails the audit and the framework-sync check.
+    - `[x]` **3.1.b Register the method**
+        - Added to the methods `README` index (both copies). The `audit-method-triggers` check (CI-only, not the
+          local pre-commit) requires a declaring workflow, so the file's introducing commit bundles with
+          `graduate-work-unit` (3.2), its first declarer — committing it alone fails the audit and framework-sync.
 
-### `[ ]` **3.2 Add the `graduate-work-unit` workflow (`provisional → planned`)**
+- _Outcome:_ The `Class` triage now has a single DRY home; touchpoints (3.2 / 3.3 and the downstream planning
+  stages) declare the method rather than restating the tests. The contract block links `init` / `activate` only
+  — `graduate-work-unit` is named in prose so the file's links resolve ahead of 3.2.
+
+### `[x]` **3.2 Add the `graduate-work-unit` workflow (`provisional → planned`)**
 
 - _Goal:_ A `graduate-work-unit` lifecycle workflow promotes a WU up the readiness ladder — `git mv`
   `provisional/ → planned/`, run `classify-work-unit` to force the estimate, regen ROADMAP + STATUS.USER —
   giving the forcing function an execution home.
-- _Context:_ mirrors `init-work-unit`'s `git mv` (Step 3) + ROADMAP-regen (Step 5) shape; a flat backlog-internal
-  move, none of the cohort-transform / PR-park mechanics. Lives in
-  `system/workflows/arc/work-unit-lifecycle/` (two-copy); declares the `classify-work-unit` method (3.1).
-- _Note:_ ROADMAP / STATUS.USER regen is hand-rendered until `roadmap-tooling` automates it. The `STATUS.USER`
-  regen targets the in-flight-+-ready content model — a graduated WU enters the ready slice — which 4.1 establishes;
-  both ship in this WU, so the regen step is coherent at integration.
 - **Strategies:** `strategy-work-organization.md`, `strategy-workflow-authoring.md`.
 
-    - `[ ]` **3.2.a Author the workflow**
-        - The three steps (`git mv` → `classify-work-unit` → ROADMAP/STATUS.USER regen), with frontmatter
-          declaring the method and passing the workflow-authoring validators. Two-copy.
+    - `[x]` **3.2.a Author the workflow**
+        - Authored `graduate-work-unit.md` (two-copy): pre-condition gate → `git mv` provisional → planned
+          (cohort-wrapper aware) → `classify-work-unit` confirm-or-ratchet → ROADMAP / STATUS.USER regen, with
+          two `workflowCommit` fire-sites. Frontmatter declares the `classify-work-unit` method — which closes the
+          trigger audit for 3.1's method.
 
-    - `[ ]` **3.2.b State the readiness rule, place the ladder, and reserve the terminology**
-        - State the readiness rule the workflow enforces: a `backlog/planned/` (startable) WU carries a resolved
-          `Class`; `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point because the
-          start decision — read off `STATUS.USER`'s ready list — precedes activation. The workflow names and loads
-          `classify-work-unit` to resolve the value: it states the lifecycle constraint, not the triage (the method
-          is the DRY home for that).
-        - State `provisional → planned → active` as the graduation ladder; cross-reference from
-          `strategy-work-organization` § Work Unit State, and add a pointer from `init-work-unit` (graduate-work-unit
-          precedes it on the ladder). "Graduation" names the ladder only — the `decomposition-machinery` rename is
-          routed (its inbound buffer; the cohort doc).
+    - `[x]` **3.2.b State the readiness rule, place the ladder, and reserve the terminology**
+        - Readiness rule (`backlog/planned/` carries a resolved `Class`; `[TBD]` legal only in `provisional/`)
+          stated in the workflow as a lifecycle constraint that names + loads `classify-work-unit` for the triage.
+        - Added a § Readiness ladder subsection to `strategy-work-organization` § Work Unit State stating
+          `provisional → planned → active`, and a pointer from `init-work-unit` Step 3 (graduate-work-unit precedes
+          it). "Graduation" reserved positively (the readiness-ladder climb); the WU→cohort rename coordination is
+          kept out of the adopter-facing docs (it lives in internal buffers per the planning routing).
+
+- _Outcome:_ The `Class` forcing function now has an execution home — `graduate-work-unit` resolves `Class` at
+  the planned-entry rung — and its method declaration closes the `classify-work-unit` trigger-audit gap, so 3.1
+  and 3.2 commit cleanly together. Also documented the `(graduation)` `Context:` qualifier in `commit-footer`
+  (both copies) so the ceremony's commit examples are canonical.
 
 ### `[ ]` **3.3 Wire `classify-work-unit` into `init-work-unit` and `activate-work-unit`**
 

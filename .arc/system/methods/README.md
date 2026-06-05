@@ -22,6 +22,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [commit-footer](commit-footer.md) — `Context:` footer patterns
 - [issue-triage](issue-triage.md) — severity triage, fix-vs-defer decisions
 - [test-first](test-first.md) — decision tree by change type
+- [classify-work-unit](classify-work-unit.md) — boundary-test triage + estimate-vs-realized ratchet for `Class`
 - [session-state](session-state.md) — reading and writing session state
 - [diff-review](diff-review.md) — aggregate diff review activity
 - [review-triage](review-triage.md) — classifying and acting on review findings
