@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { renderStatusTable, STATUS_USER_COLUMNS } from "../../../src/lib/status/render.js";
+import {
+  renderStatusTable,
+  STATUS_USER_COLUMNS,
+  STATUS_USER_READY_COLUMNS,
+} from "../../../src/lib/status/render.js";
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
 
 /**
@@ -82,6 +86,37 @@ describe("renderStatusTable", () => {
     ];
 
     expect(renderStatusTable(slice, STATUS_USER_COLUMNS)).not.toContain("Priority");
+  });
+});
+
+describe("renderStatusTable — ready column set", () => {
+  it("renders Class always-on while omitting the constant State and Depends-on columns", () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "alpha", state: "Planning", class: "Heavy", cohort: "ranger", dependsOn: [] },
+      { workUnit: "bravo", state: "Planning", class: "[TBD]", dependsOn: [] },
+    ];
+
+    const expected = [
+      "| Work unit | Class | Cohort |",
+      "| --------- | ----- | ------ |",
+      "| alpha     | Heavy | ranger |",
+      "| bravo     | [TBD] | —      |",
+    ].join("\n");
+
+    const table = renderStatusTable(slice, STATUS_USER_READY_COLUMNS);
+    expect(table).toBe(expected); // Priority dropped (no row carries one)
+    expect(table).not.toContain("State");
+    expect(table).not.toContain("Depends on");
+  });
+
+  it("renders the conditional Priority column in the ready set when a row carries one", () => {
+    const slice: StatusViewRow[] = [
+      { workUnit: "alpha", state: "Planning", class: "Heavy", priority: "P1", dependsOn: [] },
+    ];
+
+    const table = renderStatusTable(slice, STATUS_USER_READY_COLUMNS);
+    expect(table).toContain("Priority");
+    expect(table).toContain("P1");
   });
 });
 

@@ -386,16 +386,16 @@ _Requirements:_ R3, R4, R22, R23.
           field-absent WU shows an em-dash. The live `STATUS.USER.md` + render-standard doc are deferred to
           4.1.c per the subtask split; the golden render-test fixture carries the new shape.
 
-    - `[ ]` **4.1.b Add the ready slice (owned, unblocked, `planned/`)**
-        - A second data source: the ready slice reads `backlog/planned/` metas (the readiness data ROADMAP renders
-          from), filters to owned-by-identity + unblocked (dependencies satisfied), sizes each by `Class`, and
-          merges with the git-derived in-flight slice in the user view. Reconcile the offline path — the in-flight
-          slice degrades to cache when the remote is unreachable, but the ready slice is local and always
-          available.
-        - Build `test-first` (one behavior at a time):
-            - ready WUs owned by the identity and unblocked appear in the view.
-            - blocked and not-mine WUs are excluded from the ready slice.
-            - `[TBD]` rows are excluded from any heavy/light composition count.
+    - `[x]` **4.1.b Add the ready slice (owned, unblocked, `planned/`)**
+        - Built the ready slice as a local second source: `buildReadyMineSlice` (pure — owned/unattributed +
+          unblocked-by-absence filters, sized by `Class`) over a `ready-mine-source` FS reader that scans
+          `backlog/planned/**` and resolves dependency satisfaction against the active + planned + provisional
+          pipeline (the readiness model's present-set). `classComposition` tallies `Heavy`/`Light`, excluding
+          `[TBD]`/absent. The user view merges the local ready slice (always available) with the git-derived
+          in-flight slice into `## In Flight` + `## Ready` sections (`STATUS_USER_READY_COLUMNS` omits the
+          constant State / Depends-on), wired through the `arc status --user` handler. The unreachable path still
+          degrades the in-flight half to cache — the structured merge of the fresh ready slice into the cached
+          document is left to the deferred file-writer.
 
     - `[ ]` **4.1.c Refresh the live instance and document the shape (one-off)**
         - Update `STATUS.USER.md` to the in-flight-+-ready shape with the `Class` column, and document that shape

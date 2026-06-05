@@ -84,6 +84,7 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runStatusUserView } from "../lib/status/user-view.js";
+import { loadReadyMineSlice } from "../lib/status/ready-mine-source.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -388,6 +389,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         statusUserPath === null
           ? Promise.resolve(null)
           : io.readFile(statusUserPath).then((content) => content, () => null),
+      readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
     });
     if (json) {
       process.stdout.write(`${JSON.stringify(view)}\n`);

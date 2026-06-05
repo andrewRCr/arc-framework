@@ -53,6 +53,19 @@ export const STATUS_USER_COLUMNS = [
   "cohort",
 ] as const satisfies readonly StatusColumn[];
 
+/**
+ * The `STATUS.USER` ready-slice column set — owned, unblocked planned work.
+ * State (constant `Planning`) and Depends on (constant `—`, every dep satisfied)
+ * are omitted as constant across the table, and Owner (constant `= me`) as in the
+ * in-flight set. `Class` always renders; `Priority` stays conditional.
+ */
+export const STATUS_USER_READY_COLUMNS = [
+  "workUnit",
+  "class",
+  "priority",
+  "cohort",
+] as const satisfies readonly StatusColumn[];
+
 /** Cell value for an empty / absent field. */
 const EM_DASH = "—";
 
