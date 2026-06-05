@@ -406,15 +406,11 @@ _Requirements:_ R3, R4, R22, R23.
   The offline cached-in-flight + fresh-ready merge is deferred to `roadmap-tooling`'s writer (routed to its
   inbound buffer).
 
-### `[ ]` **4.2 Add the `Class` model, spec forms, and boundary-test guidance to `strategy-work-organization`**
+### `[x]` **4.2 Add the `Class` model, spec forms, and boundary-test guidance to `strategy-work-organization`**
 
 - _Goal:_ `strategy-work-organization` becomes the shippable home for the `Class` model — the boundary tests with
   worked examples, the `planning depth` ordinal, the three spec forms, the ratchet, and the readiness rule — with
   its stale tier vocabulary reconciled so the strategy describes one classification system, not two.
-- _Context:_ two-copy; the constitution (Phase 1) states the rules, this elaborates with examples. The ADR (1.5)
-  narrates `planning depth` + the spec forms but is internal-only and does not ship, so this strategy is their
-  only shippable canonical home. Pull example source URLs from the lightweight-spec deep-research transcript
-  (`wf_191136b1-518`, per `spec-class-model-foundation.md` § External Research).
 
     - `[x]` **4.2.a Reconcile the stale tier vocabulary**
         - Replaced the retired `atomic` / `quick` / `standard` tier model with `Class` / Errand / spec-form terms
@@ -435,11 +431,20 @@ _Requirements:_ R3, R4, R22, R23.
           (transcript not in-repo); the idiom is attributed to design-doc practice generically — flagged for
           backfill.
 
-    - `[ ]` **4.2.c Define the `planning depth` ordinal and the three spec forms**
-        - State the `planning depth` ordinal (`low` / `medium` / `high`; per-stage, transient, never recorded) and
-          the three spec forms (`brief` / `outline` / `detailed`) with the depth → form mapping, the form ↔ `Class`
-          relationship (`heavy` ⇒ `detailed`), and the `outline` straddle — the canonical shippable definitions
-          (the ADR narrates the same, internal-only). Documented as guidance, not a hook-enforced constraint.
+    - `[x]` **4.2.c Define the `planning depth` ordinal and the three spec forms**
+        - Added the `### Planning depth and spec forms` subsection (both copies): the `low` / `medium` / `high`
+          per-stage transient ordinal, the three spec forms with a depth → form mapping table, and the form ↔
+          `Class` relationships — `brief` ⇒ `light`, `detailed` ⇒ `heavy` (with the PRD/RFC category split), the
+          `outline` straddle (light at moderate scale, heavy via scale), and the empty `heavy`/`brief` cell.
+          Documented as guidance, not a hook-enforced constraint. (Stated `detailed` ⇒ `heavy` precisely rather
+          than a flat `heavy` ⇒ `detailed`, since heavy-by-scale takes `outline`.)
+
+- _Outcome:_ `strategy-work-organization` is now the shippable canonical home for the `Class` model: a `## Class
+  Model` section (two axes, three boundary tests, a 2×2 of worked examples, the ratchet, the readiness rule) plus
+  the `planning depth` ordinal and the three spec forms, with the stale `atomic` / `quick` / `standard` tier
+  vocabulary reconciled so the strategy describes one classification system. The deep-research source URLs were
+  not embedded (transcript not in-repo); the idiom is attributed to design-doc practice generically and flagged
+  for backfill.
 
 ## **Phase 5:** Meta migration — format, `Cohort`, and `Class`
 

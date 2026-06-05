@@ -166,6 +166,40 @@ point**, because the weight signal must exist *before* a WU becomes a start cand
 the start decision precedes it). The [graduate-work-unit][graduate-work-unit] workflow performs that rung and forces
 the estimate via the [classify-work-unit][classify-work-unit] method.
 
+### Planning depth and spec forms
+
+`Class` is the WU-level *weight*; **`planning depth`** is the per-stage *resolution* — how much authoring a given
+stage does. Each authoring stage (drafting, spec, task generation) resolves its own depth on a `low` / `medium` /
+`high` ordinal, independently, from the axis that loads it. Depth is **transient and per-stage**: it is never
+recorded on the meta and may differ across stages (a WU can want a deep spec but shallow task-gen, or the reverse).
+Only the spec stage's depth names a durable artifact — its **spec form**. (How each stage turns its depth into
+concrete ceremony is the authoring-pipeline's; this strategy defines the ordinal and the spec-form mapping.)
+
+The spec stage's depth selects one of three **spec forms** on that same ordinal:
+
+| Spec form  | Spec-stage depth | `Class`            | Splits by category                    |
+| ---------- | ---------------- | ------------------ | ------------------------------------- |
+| `brief`    | `low`            | `light`            | no                                    |
+| `outline`  | `medium`         | `light` or `heavy` | no                                    |
+| `detailed` | `high`           | `heavy`            | yes — PRD (feature) / RFC (technical) |
+
+The form ↔ `Class` relationships:
+
+- **`brief` ⇒ `light`.** A brief records a determinate design over a contained surface.
+- **`detailed` ⇒ `heavy`.** A detailed spec is authored only when the **derivation** axis is high — a real design
+  must be worked out — which forces `heavy`. `detailed` is the one form that splits by work category: a **PRD** for
+  a feature, an **RFC** for a technical change. The other two forms do not split.
+- **`outline` straddles.** An outline serves a `light` WU at moderate scale *and* a `heavy` WU whose weight comes
+  from the **scale** axis — a determinate design over a large surface, where the spec records the design but the
+  implementation plan still needs a substantial grounding pass. The `Class` field and the task-list scale
+  disambiguate the two outline cases.
+- The **`heavy` / `brief` cell is empty.** Low scale reaches `heavy` only through derivation, and derivation forces
+  `detailed` — so heavy work is never brief.
+
+These forms are **guidance, not a hook-enforced constraint**: nothing validates a WU's `Class` against its spec
+form. The mapping orients the author toward the right depth; the boundary tests and the ratchet keep the `Class`
+honest.
+
 ---
 
 ## Task Lists and Branches
