@@ -5,7 +5,7 @@
 - **Branch:** plan/class-model-foundation
 
 - **Origin:** [internal]
-- **Design:** `draft-class-model-foundation.md`
+- **Design:** `spec-class-model-foundation.md`
 
 - **Depends On:** worktree-foundation
 - **Cohort:** principle-anchored-core/agile-wu-lifecycle
@@ -17,10 +17,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `1_create-spec` to author the `detailed` spec (this WU is `heavy`: it derives the
-  `Class` model and amends the constitution). Step 1 first integrates the draft's `## Inbound Buffer` — the
-  movable-artifact reference-rule generalization routed in at the inbox drain — into the body. The base of the
-  cohort; ships standalone, and the authoring workflows default to `heavy` behavior until
-  `scalable-authoring-pipeline` lands.
+- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-class-model-foundation.md` into a task list.
+  The spec is authored at `detailed` depth on the PRD template (RFC form pending `scalable-authoring-pipeline`);
+  reasoning the spec compresses lives in `notes-class-model-foundation.md`. The base of the cohort; ships
+  standalone, and the authoring workflows default to `heavy` behavior until `scalable-authoring-pipeline` lands.
 
 ---
