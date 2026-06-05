@@ -108,9 +108,9 @@
     the chain-model header convention.
 -->
 
-| State | Owner          | Branch | Class | Priority |
-| ----- | -------------- | ------ | ----- | -------- |
-| —     | {arc.identity} | —      | [TBD] | `P3`     |
+| **State** | **Owner**      | **Branch** | **Class** | **Priority** |
+| --------- | -------------- | ---------- | --------- | ------------ |
+| —         | {arc.identity} | —          | [TBD]     | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]

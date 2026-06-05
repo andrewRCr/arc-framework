@@ -412,7 +412,13 @@ describe("renderMetaFile — core-block table", () => {
   it("renders the core block as a markdown table with the five fields in order", () => {
     const rows = coreTableRows(renderMetaFile("foo", SPAWN_OVERRIDES));
     expect(rows).toHaveLength(3); // header, separator, value
-    expect(tableCells(rows[0]!)).toEqual(["State", "Owner", "Branch", "Class", "Priority"]);
+    expect(tableCells(rows[0]!)).toEqual([
+      "**State**",
+      "**Owner**",
+      "**Branch**",
+      "**Class**",
+      "**Priority**",
+    ]);
     expect(rows[1]!).toMatch(/^[-|\s]+$/); // separator: only dashes, pipes, spaces
     expect(rows[1]!).toContain("---");
   });
@@ -521,6 +527,22 @@ describe("parseMetaRecord — core-block table", () => {
     expect(record.Class).toBe("Heavy");
     expect(record.Priority).toBe("P1");
     expect(record.Cohort).toBe("core/sub");
+  });
+
+  it("recovers core fields from a bold-headered table (the render form)", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Active`  | `andrew`  | `feat/bar` | `Heavy`   | `P1`         |",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.State).toBe("Active");
+    expect(record.Owner).toBe("andrew");
+    expect(record.Class).toBe("Heavy");
+    expect(record.Priority).toBe("P1");
   });
 
   it("keys core fields by header label, tolerating column reordering", () => {

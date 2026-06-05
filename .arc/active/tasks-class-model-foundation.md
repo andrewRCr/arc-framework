@@ -256,6 +256,19 @@ _Requirements:_ R9–R12, R24.
   retired by this WU). The "Retired from prior `template-status.md`" block's transitional framing was left in place
   and captured to `USER-INBOX § Backlog` as a broad doc-conventions sweep (a distinct concern, not this commit's).
 
+### `[x]` **2.6 Bold the core-block table headers to match the bullet-field labels**
+
+- _Goal:_ `renderMetaFile` emits the core-block table's column headers bold (`**State**` / `**Owner**` / … ) so
+  the table's keys read as labels in raw markdown, matching the `**Field:**` bullet labels; `parseMetaRecord`
+  strips the bold when keying by header, tolerating both bold (new render) and plain (legacy / hand-edit) headers.
+  `template-meta.md` reflects the bold headers.
+- _Outcome:_ `renderCoreTable` now bolds each core header (`**State**` … ), pre-aligned to the wider cells;
+  `parseCoreTable` strips the bold via a `stripHeaderLabel` helper when keying, so it reads both the new
+  bold-headered render and legacy / hand-edited plain-headered tables. `template-meta.md` (both copies) shows the
+  bold headers. Render-side only — values, parse tolerance, and the flat-bullet fallback are unchanged. Updated the
+  header-order render assertion and added a bold-headered parse test; the plain-header parse fixtures stay green,
+  confirming the tolerance.
+
 ## **Phase 3:** Classification mechanism — method, graduation, touchpoints
 
 _Purpose:_ Make the `Class` signal present and forced — the DRY `classify-work-unit` triage method, the

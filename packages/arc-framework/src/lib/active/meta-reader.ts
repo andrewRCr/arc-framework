@@ -311,7 +311,9 @@ function formatValue(value: string, valueClass: MetaValueClass): string {
  */
 function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): string[] {
   const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
-    const header = f.name;
+    // Bold the header so the table's keys read as labels in raw markdown,
+    // matching the `**Field:**` bullet labels (parse strips the bold on read).
+    const header = `**${f.name}**`;
     const cell = formatValue(valueOf(f), f.valueClass);
     return { header, cell, width: Math.max(header.length, cell.length) };
   });
@@ -369,6 +371,13 @@ function splitTableRow(line: string): string[] {
   return inner.split("|").map((cell) => cell.trim());
 }
 
+/** Strip surrounding bold markers from a header cell, tolerating plain headers
+ *  (the render emits `**State**`; a legacy / hand-edited table may carry `State`). */
+function stripHeaderLabel(cell: string): string {
+  const m = /^\*\*(.*)\*\*$/.exec(cell.trim());
+  return m ? (m[1] ?? "").trim() : cell.trim();
+}
+
 /** Strip a cell/bullet value to bare form: backticks removed, bracket sentinels
  *  preserved, empty → `null`. */
 function normalizeValue(raw: string): string | null {
@@ -401,7 +410,7 @@ function parseCoreTable(section: string): Record<string, string | null> | null {
       "Malformed meta core-block table: separator row without an adjacent header and value row.",
     );
   }
-  const headers = splitTableRow(headerLine);
+  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
   const separators = splitTableRow(separatorLine);
   const cells = splitTableRow(valueLine);
   if (headers.length !== separators.length || headers.length !== cells.length) {
