@@ -3,7 +3,7 @@
 - **Origin:** [internal]
 - **Cohort:** principle-anchored-core/agile-wu-lifecycle
 
-- **Purpose:** Establish the `Class` model — a two-value planning-weight classification (`light` / `heavy`),
+- **Purpose:** Establish the `Class` model — a two-value weight classification (`light` / `heavy`),
   the per-stage `planning depth` concept, and the three spec forms it names — as the constitutional and
   schema foundation the rest of the cohort builds on: scale how much design must be *authored*, never the
   discipline that validates it.
@@ -45,7 +45,7 @@ the consumers build on it.
 
 ## Goals
 
-- Define a **recorded, objective planning-weight classification** (`Class`: `light` / `heavy`, `[TBD]` until
+- Define a **recorded, objective weight classification** (`Class`: `light` / `heavy`, `[TBD]` until
   resolved) that downstream roadmap / parallelism planning can read, driven by two intrinsic, stage-decorrelating
   axes of the work — and **present when the balance decision needs it** (forced at entry into `planned/`, the
   readiness rung the start decision reads, not deferred to activation).
@@ -89,25 +89,31 @@ Technical work — scenarios that illustrate the model and the migration impact.
 ### P0 — must-have
 
 1. **The `Class` model.** Define `Class` as a two-value recorded classification — `light` / `heavy` — that is
-   the WU's *planning weight*. **`heavy` iff *either* of two intrinsic axes is high:**
-    - **Derivation** — how much design must be *authored* versus read off existing inputs. `derived work`
+   the WU's *weight*: the work it demands across planning, execution, and review. **`heavy` iff *either* of two
+   intrinsic axes is high:**
+    - **Derivation** — how much design must be *authored* versus read off determinate inputs. `derived work`
       (settling requires authoring a real design) is always `heavy`; `determinate work` (design determinate
-      from existing inputs; the spec *records* it) is `light` unless scale promotes it.
-    - **Scale** — how much codebase-grounding a correct implementation plan demands. Co-equal: a
-      determinate-but-large WU is `heavy` by grounding demand alone.
+      from existing inputs; the spec *records* it) is `light` unless scale/complexity promotes it. Derivation
+      also tracks how novel vs. routine the execution is, and the validation rigor at review.
+    - **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution*
+      must navigate (the codebase-grounding demand). Co-equal: a determinate-but-large refactor is `heavy` by
+      grounding demand alone, and that largeness carries into careful execution and heavier review.
 
-   The axes **load different authoring stages** (derivation → drafting + spec creation; scale → task-gen) and
-   therefore **decorrelate** — the model must not collapse them into a single per-WU bucket.
+   `Class` is *driven* by these two intrinsic axes alone — not by raw output volume, and not by preference — and
+   *indicates* weight across every phase, not planning alone. What stays invariant at every `Class` is execution
+   *discipline* (the review-increment gate, quality gates), never the depth, novelty, or care the work demands.
+   The axes **load different authoring stages** (derivation → drafting + spec creation; scale/complexity →
+   task-gen) and therefore **decorrelate** — the model must not collapse them into a single bucket.
 
 2. **The three boundary tests** (crisp, recognizable-in-retrospect; a first-class deliverable):
     - **Errand vs. WU (wrapper floor, ADR-021):** *"Does this need more than a single logical concern — more
       than one review increment — to do well?"* No → Errand. Yes → WU.
     - **Derivation trigger (→ `heavy`):** *"Must a real design be authored — concerns, alternatives, tradeoffs
       that don't exist until someone works them out — before a competent engineer can start?"*
-    - **Scale trigger (→ `heavy`):** *"Does producing a correct implementation plan require a **substantial**
-      codebase-grounding / mapping pass — many symbols and relationships to verify — beyond the routine
-      floor?"* Guard the bar at *substantial*: most WUs carry some grounding; a soft bar makes everything
-      `heavy`.
+    - **Scale / complexity trigger (→ `heavy`):** *"Does producing a correct implementation plan require a
+      **substantial** codebase-grounding / mapping pass — a large or intricate surface of symbols and
+      relationships to verify — beyond the routine floor?"* Guard the bar at *substantial*: most WUs carry some
+      grounding; a soft bar makes everything `heavy`.
 
    `light` iff **both** `heavy`-triggers are no.
 
@@ -132,10 +138,13 @@ Technical work — scenarios that illustrate the model and the migration impact.
    ADR-020 ↔ ADR-021 tension). "Atomic" reverts to a pure character adjective. This WU owns only the *tier-side*
    reconciliation; the Errand operational path itself has shipped.
 
-6. **Constitutional amendment to DEV-RULES.ARC.** Add: the `Class` definitions and the two `heavy`-axis
-   triggers; the three boundary tests; the scaled-ceremony / invariant-discipline framing (discipline floor vs.
-   wrapper floor; the floor is identical at every model position — that invariance *is* the ARC feel); and the
-   **front-loading-duty sharpening** (R7).
+6. **Constitutional amendment to DEV-RULES.ARC.** Keep the always-loaded surface minimum-viable: add only the
+   `Class` discipline-invariance guard (ceremony scales with the work's weight; execution discipline — the
+   review-increment gate, quality gates — is identical at every model position, and that invariance *is* the ARC
+   feel) and a pointer to the `classify-work-unit` method (the triage) and `strategy-work-organization` (the
+   model); plus the **front-loading-duty sharpening** (R7). The axis definitions, the boundary tests, and the
+   reasoning (two floors, spec-worthiness, topology) live on-demand in the method, the strategy, and the
+   companion ADR (R8) — not in always-loaded DEV-RULES. AGENT-BRIEF.ARC introduces the `Class` vocabulary.
 
 7. **Front-loading-duty sharpening (constitutional).** Sharpen, across all spec forms, the existing line —
    *design decisions settled upfront (invariant, all forms); implementation detail resolved during work (all
@@ -149,12 +158,12 @@ Technical work — scenarios that illustrate the model and the migration impact.
 8. **Companion ADR.** Author an ADR documenting the architectural shift (scaled ceremony / invariant
    discipline, the `Class` model, the boundary tests), parallel in scope to ADR-016's commit-control downgrade.
 
-9. **Meta schema — `Class` field.** Add a new `**Class:**` field (`light` / `heavy` / `[TBD]`) as a
-   schema-owned field grouped with the classification fields (`Depends On` / `Cohort` / `Priority`), not
-   provenance. Source of truth for planning weight; declared / ratcheted through the authoring stages, default
-   `[TBD]` until resolved. *(There is no `**Tier:**` field today — only a stale reservation comment in
-   `template-meta.md`'s "Deliberately not added" block, mis-placed in the Identity group. R12 retires that
-   comment; `Class` is added fresh to Coordination, not a rename of an existing slot.)* **Estimate-then-ratchet,
+9. **Meta schema — `Class` field.** Add a new `**Class:**` field (`Light` / `Heavy` / `[TBD]`) as a
+   schema-owned field in the meta's core block (`State` / `Owner` / `Branch` / `Class` / `Priority`; see R24),
+   not provenance. Source of truth for the work's weight; declared / ratcheted through the authoring stages,
+   default `[TBD]` until resolved. *(There is no `**Tier:**` field today — only a stale reservation comment in
+   `template-meta.md`'s "Deliberately not added" block. R12 retires that comment; `Class` is added fresh, not a
+   rename of an existing slot.)* **Estimate-then-ratchet,
    not strict one-way:** the ratchet protects *realized* design-authoring work — once a stage has authored
    design at some depth, `Class` never drops below that floor. An *estimate* (a value set before that work
    exists) is freely revisable in both directions until planning substantiates a floor; correcting a too-high
@@ -178,9 +187,10 @@ Technical work — scenarios that illustrate the model and the migration impact.
     **This WU owns the field *schema* only; `decomposition-machinery` owns the taxonomy *semantics* it
     expresses** (grouping model, the `cohort-{name}.md` record, the nesting cap's rationale).
 
-12. **`template-meta.md` additions.** Reflect R9–R11 in the meta template: add `**Class:**` to the Coordination
-    group (default `[TBD]`) **and retire the stale `Tier:` reservation comment** in the "Deliberately not added"
-    block; `Design` field with `Class`-aware guidance; `Cohort` path-valued with the dual-placement note.
+12. **`template-meta.md` additions.** Reflect R9–R11 and the R24 presentation convention in the meta template:
+    add `**Class:**` to the core block (default `[TBD]`) **and retire the stale `Tier:` reservation comment** in
+    the "Deliberately not added" block; `Design` field with `Class`-aware guidance; `Cohort` path-valued with the
+    dual-placement note; apply the new field order, the core-block table, and the backtick / casing rules.
     `init-work-unit` scaffolds `Class: [TBD]` (no `--class` flag — the scaffolding act stays `Class`-agnostic;
     the value is born at planning, not creation). *(Updating the `template-draft` / spec-template family for the
     `Cohort` header rides `decomposition-machinery` / `scalable-authoring-pipeline` / the `doc-cascade-sweep`
@@ -216,8 +226,10 @@ Technical work — scenarios that illustrate the model and the migration impact.
     `class-model-foundation` is effectively the only active WU until `agile-parallelism` fully lands —
     Concurrent Work Conventions is downstream of this cohort.)*
 
-17. **`Class` forcing convention + lifecycle touchpoints (constitutional).** State where `Class` is set and
-    re-tuned, and the readiness rule that gives the signal meaning:
+17. **`Class` forcing convention + lifecycle touchpoints.** State where `Class` is set and re-tuned, and the
+    readiness rule that gives the signal meaning — homed in the `graduate-work-unit` workflow (R20) and
+    `strategy-work-organization` (R23), packaged in the `classify-work-unit` method (R18); not in always-loaded
+    DEV-RULES (an explicitly-triggered workflow owns the forcing, so it earns no global behavioral line):
     - **Readiness rule:** a `backlog/planned/` (startable) WU carries a resolved `Class` estimate; `[TBD]` is
       legal only in `backlog/provisional/`. The estimate is the balance signal `STATUS.USER` reads (R22) — it
       must exist *before* a WU is a start candidate, which is why the forcing point is **entry into `planned/`**,
@@ -269,7 +281,30 @@ Technical work — scenarios that illustrate the model and the migration impact.
 23. **Strategy-doc guidance with concrete examples.** Add boundary-test guidance to `strategy-work-organization`
     — the model's home — with concrete examples on each side of the derivation line and the scale trigger
     (records-vs-derives; routine-vs-substantial grounding), plus the estimate-vs-realized ratchet and the
-    readiness rule (R17). The constitutional rule states the tests; the strategy elaborates with worked examples.
+    readiness rule (R17). The `classify-work-unit` method states the tests; the strategy elaborates with worked
+    examples.
+
+24. **Meta-record presentation convention + reader consolidation.** Establish a uniform value-formatting and
+    information-architecture convention for the meta record, enforced by `renderMetaFile` and recovered by a
+    single `parseMetaRecord` — the meta is both a machine-parsed record and a durable human-read document (most
+    acute in `completed/`, where it accrues completion + release-notes content), and the convention serves both:
+    - **Value formatting (three-way).** Closed-set enum values are Capitalized backticked tokens (`State`,
+      `Class`); identifier / reference values (slugs, filenames, paths) are backticked as-is (`Owner`, `Branch`,
+      `Cohort`, `Depends On`, `Design`, `Task List`, `Priority`); bracket sentinels (`[none]` / `[TBD]` /
+      `[internal]`) are unbackticked; narrative fields (`Last Completed`, `Next Task`, `Next Action`, `Blockers`)
+      stay prose. The backtick marks a literal token (Markdown code-span semantics); the live distinction is
+      token-fields vs. narrative-fields, not uniform backticking.
+    - **Information architecture.** A hoisted **core block** rendered as a single-row table —
+      `State | Owner | Branch | Class | Priority` (fixed short scalars) — then bullet groups in order:
+      (`Cohort`, `Depends On`), the chain-of-authority artifacts (`Origin`, `Design`, `Task List`), the progress
+      pointers (`Last Completed`, `Next Task`, `Blockers`), and the `Next Action` directive. The core table is
+      line-length-exempt (`MD013 tables:false`) and `renderMetaFile` emits it pre-aligned (no hand-alignment).
+    - **Reader consolidation (correctness).** Route every meta-field read through the single `parseMetaRecord`
+      and retire the duplicated `extractField` (e.g. `git/worktree-roster.ts`, which does not strip inline code)
+      so backticked values never break a consumer. The table parse is header-label-keyed with a column-count
+      guard that fails loud, never silent.
+    - Repo-wide alignment of *hand-edited* tables (a `prettier` / format-step concern) is separate dev tooling,
+      not this WU; `renderMetaFile`'s self-aligned output means generated metas never depend on it.
 
 ## Non-Goals
 
@@ -306,6 +341,10 @@ Explicitly out of scope (with the owning member):
   composition). This is *consumption* of the `Class` contract, not its definition → **agile-parallelism /
   Concurrent Work Conventions** (with fit-assessment in the `arc-plan-conductor`). This WU exposes `Class`
   (recorded on the meta, rendered in STATUS.USER); reasoning over it is downstream.
+- **A `Worktree` meta field** — worktree paths are machine-local and derived from the branch
+  (`worktree.location_template`), and one WU = one branch = one worktree, so a stored path is both redundant with
+  `Branch` and *wrong* in a tracked, cross-machine-portable record. Paths resolve live from `git worktree list`,
+  never stored. (Recorded as a Non-Goal so the question isn't re-litigated mid-schema-change.)
 
 ## Technical Considerations
 
@@ -313,14 +352,17 @@ The core of this technical spec — the surfaces touched and the contracts expos
 
 ### Constitutional surface (DEV-RULES.ARC + companion ADR)
 
-The `Class` definitions, the boundary tests, and the scaled-ceremony framing are constitutional-level additions
-to DEV-RULES.ARC, comparable in blast radius to ADR-016. The amendment must **record the reasoning, not only the
-conclusions**, so the model can be rebuilt: the two-floors distinction (discipline floor below the wrapper,
-never scales; wrapper floor = the smallest thing that is a WU), the spec-worthiness defining trait (a WU adds an
-authored spec + a tracked lifecycle over a bare disciplined commit; tracking is a *consequence* of
-spec-worthiness, never an independent cause), and the fixed-floor → scalable-middle → fixed-ceiling topology
-(band width shrinks as pre-impl demand rises along either axis). The companion ADR carries the architectural
-narrative; DEV-RULES.ARC carries the enforceable rule.
+The `Class` model is a constitutional-level change comparable in blast radius to ADR-016, but document-tier
+discipline keeps the always-loaded surface lean. **DEV-RULES.ARC carries only the minimum-viable
+non-negotiable** — the discipline-invariance guard plus a pointer; the front-loading-duty sharpening rides the
+existing § Design-before-implementation. **The companion ADR carries the reasoning**, so the model can be
+rebuilt: the two-floors distinction (discipline floor below the wrapper, never scales; wrapper floor = the
+smallest thing that is a WU), the spec-worthiness defining trait (a WU adds an authored spec + a tracked
+lifecycle over a bare disciplined commit; tracking is a *consequence* of spec-worthiness, never an independent
+cause), the fixed-floor → scalable-middle → fixed-ceiling topology (band width shrinks as pre-impl demand rises
+along either axis), and the planning-depth ordinal + the three spec forms. **The `classify-work-unit` method
+carries the boundary-test triage**, **`strategy-work-organization` the model elaboration + worked examples**, and
+AGENT-BRIEF.ARC the vocabulary — none of these on-demand surfaces is always-loaded.
 
 Anchors to cite: ADR-001 (P1 spec-directed, P2 review increment, P4 quality gates, P7 tracked lifecycle),
 ADR-020 (scalable core; resolve-then-load), ADR-021 (Errand wrapper-floor), ADR-022 (schema-owned meta with
@@ -329,12 +371,18 @@ conditional validity).
 ### Meta-schema surface (ADR-022 structured-record model)
 
 `Class` / `Design` are schema-owned fields with `Class`-conditional validity — a cross-field constraint a flat
-template cannot express; state transitions are schema events, not free-text edits. `Class` groups with the
-classification fields; `Design` is a typed pointer orthogonal to `Origin`. The path-valued `Cohort` field is the
+template cannot express; state transitions are schema events, not free-text edits. `Class` sits in the meta's
+core block; `Design` is a typed pointer orthogonal to `Origin`. The path-valued `Cohort` field is the
 membership source of truth (sibling lists derived). Header dual-placement (meta + spec) makes the flat `active/`
 layout self-describing for grouping. The validation in R19 is a warn-not-block hook on `Class` ↔ spec-form
 consistency (and never on `[TBD]`) — implemented against the existing `validate-meta-spec` githook surface, no
 new tooling.
+
+The record's value-formatting and information architecture are themselves schema-managed (R24): `renderMetaFile`
+emits a hoisted core-block table plus ordered bullet groups under the three-way backtick / casing / sentinel
+convention, and a single guarded `parseMetaRecord` — the one reader every consumer routes through — recovers it.
+This makes the meta legible as a human document (it accrues completion + release-notes content in `completed/`)
+without sacrificing parse robustness; it also retires the drifted duplicate field-extractor.
 
 ### Forcing model & lifecycle touchpoints
 
@@ -370,12 +418,13 @@ validates each. The Oxide continuum is the considered-and-declined alternative (
 
 `Class` (not `Complexity Tier` / bare `Tier`) — a binary *kind* of work; sidesteps the quality-gate `Tier 1/2/3`
 collision. `light` / `heavy` (not `light` / `full`) — natural antonyms; `heavy` accurately reads as "lots of
-total work" now that scale is a legitimate component (guardrail: design-derivation or grounding scale, **not raw
-code volume**). `planning depth` (`low` / `medium` / `high`) — magnitude vocabulary distinct from the spec-form
-names; rejected `rigor` (mis-frames the bottom), `process intensity`. `brief` / `outline` / `detailed` (not
-`sketch` — which connotes rough/will-be-redone, the opposite of a concise-yet-authoritative floor spec).
-`derivation` + `scale` stay *explanation, never labels* (they inverse-correlate with weight and load different
-stages).
+total work" now that scale/complexity is a legitimate component (guardrail: `Class` is *driven* by
+design-derivation or grounding scale/complexity, **not raw code volume** — though a `heavy` WU does *indicate*
+heavier execution and review). `planning depth` (`low` / `medium` / `high`) — magnitude vocabulary distinct from
+the spec-form names; rejected `rigor` (mis-frames the bottom), `process intensity`. `brief` / `outline` /
+`detailed` (not `sketch` — which connotes rough/will-be-redone, the opposite of a concise-yet-authoritative floor
+spec). `derivation` + `scale / complexity` stay *explanation, never labels* (they inverse-correlate with weight
+and load different stages).
 
 ### Migration & sequencing
 
@@ -390,12 +439,14 @@ exposes/consumes partition; this spec is the authoritative definition for the su
 
 Validated explicitly at work-unit completion — concrete checks, not aspirations.
 
-1. DEV-RULES.ARC carries the `Class` definitions, the two `heavy`-axis triggers, all three boundary tests (with
-   the *substantial* guard on the scale trigger), the scaled-ceremony / invariant-discipline framing, and the
-   front-loading-duty sharpening — and the reasoning (two floors, spec-worthiness, topology) is reconstructable
-   from the text.
+1. DEV-RULES.ARC carries the minimum-viable `Class` rule (the discipline-invariance guard + a pointer to the
+   `classify-work-unit` method and `strategy-work-organization`) and the front-loading-duty sharpening; the
+   § Atomic-tier infra-edit smell flag is removed and AGENT-BRIEF.ARC introduces the `Class` vocabulary. The
+   boundary tests (with the *substantial* guard on the scale/complexity trigger) and the reasoning (two floors,
+   spec-worthiness, topology) live in the `classify-work-unit` method, `strategy-work-organization`, and the
+   companion ADR — not in always-loaded DEV-RULES.
 2. A companion ADR exists, parallel in scope to ADR-016, recording the architectural shift.
-3. `template-meta.md` adds `**Class:**` to the Coordination group (default `[TBD]`) and retires the stale
+3. `template-meta.md` adds `**Class:**` to the core block (default `[TBD]`) and retires the stale
    `Tier:` reservation comment; `**Design:**` carries `Class`-aware semantics; `**Cohort:**` is path-valued with
    the dual-placement note; `Class`-conditional validity is specified.
 4. Every spec-named position passes the felt-difference test (no `light`/`detailed`; the `outline` straddle is
@@ -414,6 +465,11 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    planned-entry.
 9. The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
    relocatability invariant) are defined normatively in this spec and the constitution — not left implicit.
+10. The meta record renders to the R24 presentation convention — the core-block table
+    (`State` / `Owner` / `Branch` / `Class` / `Priority`), the three-way value formatting (Capitalized backticked
+    enum tokens, backticked identifiers, bracket sentinels, prose narrative fields), and the field order —
+    recovered by one guarded `parseMetaRecord` that every consumer routes through; the duplicated `extractField`
+    is retired.
 
 ## Open Questions
 

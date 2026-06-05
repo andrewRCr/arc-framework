@@ -36,22 +36,27 @@ discovered *complexity*; tracking comes along for the ride. There is no "needs t
 warrant it" case. Anchors: P1's own test ("Quick fixes with clear scope can rely on well-crafted git commits")
 and ADR-021 threshold #1.
 
-### The scaling axes — derivation and scale (design is always settled)
+### The scaling axes — derivation and scale / complexity (design is always settled)
 
 **Invariant (P1; DEV-RULES.ARC § Design before implementation):** all settle-able design is settled *before*
 implementation — best reasonable effort, never a conscious deferral. What varies is **not whether design is
-settled** but **how much pre-impl work settling it demands**, along **two axes**:
+settled** but **how much work the two axes demand** — concentrated in pre-implementation authoring, but also
+surfacing as execution novelty / care and review rigor — along **two axes**:
 
-- **Derivation** — how much design must be *authored* versus read off existing inputs.
+- **Derivation** — how much design must be *authored* versus read off determinate inputs. Also tracks how novel
+  vs. routine the execution is, and the validation rigor at review.
     - **Errand** — zero authoring. The intent *is* the design. ("Intent *to* design" disqualifies it.)
     - **determinate work** — design is determinate from existing inputs (issue / pattern / clear intent); the
-      spec *records* it lightly, it does not *derive* it. `light` unless scale pushes it `heavy`.
+      spec *records* it lightly, it does not *derive* it. `light` unless scale / complexity pushes it `heavy`.
     - **derived work** — settling *requires authoring* a real design (a PRD's worth): many concerns,
       alternatives, and tradeoffs that do not exist until someone works them out. Always `heavy`.
-- **Scale** — how much codebase-grounding a correct impl plan demands. Co-equal: a determinate-but-large WU (a
-  mechanical refactor) is `heavy` by grounding demand alone.
+- **Scale / complexity** — how large or intricate an existing-code surface a correct impl plan *and execution*
+  must navigate (the codebase-grounding demand). Co-equal: a determinate-but-large refactor is `heavy` by
+  grounding demand alone, and that largeness carries into careful execution and heavier review.
 
-`Class` is `heavy` iff *either* axis is high.
+`Class` is `heavy` iff *either* axis is high. It is *driven* by these intrinsic axes alone — never raw output
+volume or preference — and *indicates* the work's weight across planning, execution, and review; what stays
+invariant at every `Class` is execution *discipline*, never the depth, novelty, or care the work demands.
 
 ### Topology — fixed floor → scalable middle → fixed ceiling (derived, not chosen)
 
@@ -121,8 +126,9 @@ definitions.
 - **`Class`, not `Complexity Tier` or bare `Tier`** — a binary *kind* of work (two characters, not rungs);
   sidesteps the quality-gate `Tier 1/2/3` collision; `Complexity Tier` under-describes a two-axis aggregate.
 - **`light` / `heavy`, not `light` / `full`** — natural antonyms; `heavy` reads as the roadmap intuition and,
-  since scale is now a legitimate component, "heavy = lots of total work" is *accurate*. Guardrail: `heavy` is
-  about design-derivation or grounding scale, **not raw code volume**.
+  since scale / complexity is now a legitimate component, "heavy = lots of total work" is *accurate*. Guardrail:
+  `Class` is *driven* by design-derivation or grounding scale / complexity, **not raw code volume** — though a
+  `heavy` WU does *indicate* heavier execution and review.
 - **`planning depth` (low / medium / high), not `process intensity`** — resolved per stage; needs a *magnitude*
   vocabulary distinct from the spec-form names. `depth` is the noun; `planning` anchors it to the
   `State: Planning` stages it spans. Rejected: `rigor` (mis-frames the bottom — "low rigor" reads as permission
@@ -130,9 +136,9 @@ definitions.
 - **`brief` / `outline` / `detailed`, not `sketch`** — `sketch` connotes rough / will-be-redone, the opposite
   of a floor spec (concise *and* authoritative *and* complete at its scope). Only `detailed` splits by
   feature / technical into PRD / RFC, because only `detailed` derives.
-- **`derivation` + `scale` stay explanation, never labels** — inverse-correlated with "weight" and loading
-  different stages; surfacing them as labels would invert awkwardly. They live in the strategy doc's definition
-  and the boundary tests.
+- **`derivation` + `scale / complexity` stay explanation, never labels** — inverse-correlated with "weight" and
+  loading different stages; surfacing them as labels would invert awkwardly. They live in the strategy doc's
+  definition and the boundary tests.
 
 ## Design decisions
 
