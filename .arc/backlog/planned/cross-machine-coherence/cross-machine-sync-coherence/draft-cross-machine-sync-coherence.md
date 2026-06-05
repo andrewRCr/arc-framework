@@ -55,6 +55,37 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
 - *Scope:* Quick-tier — architecturally bounded (mirrors the worktree channel); ~30-50 lines TS + tests +
   workflow doc updates.
 
+### `[ ]` **Coordinate the base-branch-distance probe slot/primitive with CWC (avoid double-build)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
+  housekeep drain (2026-06-04). Directly coordinates with the "Session-init probe: detect local base-ref
+  staleness" entry above — same shared core. Captured during `concurrent-work-conventions` planning (2026-06-03).
+- *Concern:* this WU's base-ref-staleness probe (proposed `baseBranchSync` slot) and CWC's integration-end
+  **behind-base detector** are the **same shared core** from two subjects: CWC computes `origin/<base>` distance
+  for the *WU branch* (reconcile-triage + real-diff overlap); this WU computes it for the *local base ref*
+  (`main` stale vs `origin/main`, cross-machine). Both want a session-init slot of identical shape (`state`,
+  `ahead`/`behind`, `recommendedAction`, `recommendedPromptText`).
+- *Proposed:* CWC ships first and builds the **ref-parameterized `origin/<base>`-distance primitive + the probe
+  slot** (worktree-channel-shaped). This WU then **extends, not reimplements** — call the primitive on the local
+  base ref, add `session.init_pull.main` config + the cross-machine sync-state / notes-coherence layer (T3).
+  Align the **slot name** and **config namespace** across the two so they don't diverge. The
+  at-branch-creation defensive base-staleness check already shipped — both compose with it.
+
+### `[ ]` **`arc user open`/`close` should clear orphaned WU subdirs in `user/{identity}/`**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
+  housekeep drain (2026-06-04). **Folds with this draft's existing § Scope of the Concern "Retired-subdir
+  detection + cleanup gaps" entry** — same cleanup story, different fire-site. Captured during
+  `agile-wu-lifecycle` graduation (2026-06-03).
+- *Concern:* when a WU is integrated/retired on another machine, this clone's `user/{identity}/<wu>/` subdir
+  lingers as an orphan. `arc user open` only fires a reactive *defensive per-subdir confirm* ("Stale subdir from
+  prior WU. Remove?") when opening a new WU; there is no proactive sweep, and `arc user close` doesn't reconcile
+  orphans either. Cross-machine integration leftovers accumulate.
+- *Proposed:* have `arc user open`/`close` proactively reconcile orphaned WU subdirs (WU shipped/retired and
+  absent from the live set), removing with the `.internal/` backup the docs already promise. Coordinate with the
+  adjacent § Scope-of-the-Concern entry (session-init `retiredSubdirs` probe too time-gated; `arc user load` only
+  warns, doesn't remove; `session-init.md` Step 6 claims an auto-reconcile the tool doesn't perform).
+
 ---
 
 ## Problem / Motivation

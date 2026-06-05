@@ -16,6 +16,28 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Generalize the movable-artifact reference rule — no relative-path links at all**
+
+- *Routed from:* `USER-INBOX § Backlog` (originally `WU_Target: rules-restructure`), agile-wu-lifecycle cohort
+  housekeep drain (2026-06-04). Re-homed here at drain: this WU's § Scope item 3 already claims "the
+  relocatability invariant statement **+ the DEV-RULES.ARC source-side rule generalization**" — the capture
+  predates graduation's ownership partition (captured 2026-06-03).
+- *Concern:* DEV-RULES.ARC § `.arc/` artifact references mandates filename-only refs *to* movable WU artifacts
+  but explicitly permits relative paths *to stable docs* ("paths are for … stable docs"). That carve-out breaks
+  when the **source** is itself a movable artifact: its outbound relative links rot on every lifecycle move. The
+  CWC park and this cohort's graduation both hit it live.
+- *Proposed:* generalize the rule — a movable artifact carries **no relative-path links at all** (filename-only,
+  even to stable docs); relative paths are legal only in non-moving docs. This is the rule half of § The
+  relocatability invariant; the *enforcement* half (forbidden-pattern hook + ~38-def sweep) is `quality-gate-hooks`.
+- *Coordinates with:* the relocatability-enforcement entry in `quality-gate-hooks` (the rule/enforcement split).
+
+---
+
 ## Problem / Motivation
 
 ARC's WU ceremony is uniform regardless of WU size. A 30-minute fix and a 6-week feature go through the same

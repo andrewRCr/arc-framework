@@ -14,6 +14,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Correct the `active/`-layout docs — flat by design, not per-WU subdirs**
+
+- *Routed from:* `USER-INBOX § Atomic`, agile-wu-lifecycle cohort housekeep drain (2026-06-04). Re-homed here at
+  drain (originally slated as a standalone errand): this WU already sweeps the two strategy docs the fix touches,
+  and the cohort owns the canonical layout statement (`class-model-foundation` states the `active/` layout is
+  flat once a WU activates). Folding it in avoids a one-off errand that races the cohort and risks contradicting
+  the canonical statement. Captured during `concurrent-work-conventions` init (2026-06-03).
+- *Concern:* `active/` is flat **by design** — `active/meta-<name>.md` with `draft-*` / `tasks-*` / `notes-*`
+  companions flat alongside — because `active/` never holds more than one WU (multiple in-flight WUs live in
+  separate worktrees, each with its own single-WU `active/`). Impl matches: `meta-reader.ts` `findMetaFiles` is a
+  non-recursive readdir; `worktree-scaffold.ts` `spawnWorktree` writes flat. Two adopter-facing strategies
+  misstate it: `strategy-work-organization.md` § ROADMAP render-walk (`active/**/<wu-name>/meta-<name>.md`) and
+  `strategy-file-classification.md` (`active/api-modernization/`).
+- *Proposed:* correct both strategies to flat, and name **one canonical layout statement** (QUICK-REFERENCE or
+  file-classification) stating not just *what* (flat) but *why* (one WU per worktree; concurrency = more
+  worktrees, not more metas in one `active/`), with the others deferring. The "why" anchors to
+  `class-model-foundation`'s layout model. Not a design fork — flat is correct, the docs are simply wrong; folds
+  into this WU's existing § Scope sweep of the same two files.
+- *Separable follow-on routed elsewhere:* a layout-drift validation hook (documented-layout == reader/scaffold
+  behavior) → `decomposition-machinery` (its layout-drift hook family).
+
+---
+
 ## Problem / Motivation
 
 The `Class` model, the scalable pipeline, and the decomposition machinery introduce new vocabulary

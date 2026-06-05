@@ -15,6 +15,41 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Cohort-field↔dir consistency guard (the cohort half of a bundled hook capture)**
+
+- *Routed from:* `USER-INBOX § Backlog` (originally `WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort
+  housekeep drain (2026-06-04). The capture bundled two structural guards under one hook file; graduation split
+  ownership, so the cohort↔dir half re-homes here (this WU owns the cohort-consistency invariant **and** its
+  enforcement — the forbidden-pattern / layout-drift hook family). Captured 2026-06-03, pre-graduation.
+- *Concern:* a WU's `**Cohort:**` field-path must match its `backlog/planned/<cohort>[/<subcohort>]/` parent
+  dir-path; cohort-doc member-lists must match actual members; every grouping dir should carry a
+  `cohort-{name}.md` (raised while reversing this cohort's own field↔dir drift during graduation).
+- *Proposed:* a backlog-scoped cohort-field↔dir guard (skip `active/` flat + `completed/` ordinal) wired into the
+  layout-drift hook family this WU owns. Co-located with the invariant so it is never defined-but-unenforced.
+- *Coordinates with:* the relocatability source-side ref-enforcement entry in `quality-gate-hooks` (the other
+  half of the same original capture — same hook-file family, different invariant).
+
+### `[ ]` **Layout-drift hook: documented `active/` layout == reader/scaffold behavior**
+
+- *Routed from:* `USER-INBOX § Atomic` follow-on (separable lobe of the `active/`-layout doc-fix; the doc-fix
+  core routed to `doc-cascade-sweep`), agile-wu-lifecycle cohort housekeep drain (2026-06-04). Captured during
+  `concurrent-work-conventions` init (2026-06-03).
+- *Concern:* the documented `active/` layout (flat — `active/meta-<name>.md` with companions flat alongside,
+  because one WU lives per worktree) has no mechanical guard tying it to actual reader/scaffold behavior
+  (`meta-reader.ts` `findMetaFiles` non-recursive readdir; `worktree-scaffold.ts` `spawnWorktree` writing flat).
+  Docs and impl can drift silently — the doc-fix routed to `doc-cascade-sweep` corrects today's drift, this
+  prevents recurrence.
+- *Proposed:* a validation hook (cf. the package-sync drift hooks) asserting documented-layout == reader/scaffold
+  behavior — a natural member of this WU's layout-drift hook family. Decide whether it co-homes with the
+  cohort-field↔dir guard above or is a distinct check.
+
+---
+
 ## Problem / Motivation
 
 `class-model-foundation` answers the *lower* bound of a WU (Errand vs. WU — is this big enough to warrant a
