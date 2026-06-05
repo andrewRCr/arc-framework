@@ -329,20 +329,24 @@ _Requirements:_ R17, R18, R20, R21.
   and 3.2 commit cleanly together. Also documented the `(graduation)` `Context:` qualifier in `commit-footer`
   (both copies) so the ceremony's commit examples are canonical.
 
-### `[ ]` **3.3 Wire `classify-work-unit` into `init-work-unit` and `activate-work-unit`**
+### `[x]` **3.3 Wire `classify-work-unit` into `init-work-unit` and `activate-work-unit`**
 
 - _Goal:_ `init-work-unit` and `activate-work-unit` each invoke `classify-work-unit` as a lightweight
   confirm-or-ratchet step, so `Class` is re-tuned at the two lifecycle surfaces this WU owns.
-- _Context:_ both workflows are two-copy; declare the method in `arc.methods` frontmatter and add the step at the
-  existing meta-edit points (init Step 3/4 graduation; activate Step 4 state-flip).
 
-    - `[ ]` **3.3.a Wire into `init-work-unit`**
-        - Declare the method; add the confirm-or-ratchet step as the WU enters active planning. Two entry states:
-          a WU graduated from `planned/` (Path A) arrives with `Class` already resolved (confirm-or-ratchet); a
-          fresh WU (Path B) is born `[TBD]` from the template default and the step resolves it.
+    - `[x]` **3.3.a Wire into `init-work-unit`**
+        - Declared `classify-work-unit` in frontmatter; added a `**Class:**` confirm-or-ratchet to Step 4 — Path A
+          (backlog graduate: confirm/ratchet a `planned/` value, resolve a `provisional/` `[TBD]`) and Path B (fresh
+          WU: resolve the template `[TBD]` default to a best estimate). Two-copy.
 
-    - `[ ]` **3.3.b Wire into `activate-work-unit`**
-        - Declare the method; add the settle step at the pre-implementation state-flip.
+    - `[x]` **3.3.b Wire into `activate-work-unit`**
+        - Declared the method; added a `**Class:**` settle to the Step 4 state-flip meta edits (the last
+          pre-implementation confirm-or-ratchet) plus a `Settle Class` line in the activation commit example.
+          Two-copy.
+
+- _Outcome:_ `classify-work-unit` is now wired at every lifecycle touchpoint this WU owns — planned-entry
+  (graduation), init, and activate — so `Class` is forced once and re-tuned cheaply across the planning → active
+  surfaces; the method carries three declarers. The planning-stage touchpoints remain downstream scope.
 
 ## **Phase 4:** Render and strategy guidance
 

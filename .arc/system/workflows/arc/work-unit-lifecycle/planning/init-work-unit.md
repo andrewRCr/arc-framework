@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - branch-format
+    - classify-work-unit
   extensions:
     - pre-push-review
 ---
@@ -157,6 +158,9 @@ Reconcile the existing meta-file to reflect the now-active planning state:
 1. **Branch** → current planning branch (e.g., `plan/{name}`)
 2. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
 3. **Next Action** → freeform planning-session prompt
+4. **Class** → confirm-or-ratchet via [`classify-work-unit`][classify-work-unit]. A `planned/` graduate
+   arrives with a resolved estimate — confirm it still holds, or ratchet up to any realized floor. A
+   `provisional/` stub may still read `[TBD]` — resolve it to a best estimate now.
 
 **Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other
 backfilled fields. The backlog stub's intentional metadata survives graduation.
@@ -172,6 +176,9 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 4. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
 5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-spec.md`" or "Continue
    `draft-*` exploration")
+6. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
+   best estimate against the boundary tests. Freely revisable; the ratchet protects only realized work, so
+   an early estimate costs nothing.
 
 Remaining fields take their `template-meta.md` defaults.
 
@@ -314,6 +321,7 @@ spec or notes.
 [in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
+[classify-work-unit]: ../../../../methods/classify-work-unit.md
 [template-meta]: ../../../../../reference/templates/arc/work-unit/template-meta.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
