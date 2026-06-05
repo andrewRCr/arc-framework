@@ -195,20 +195,16 @@ _Requirements:_ R9–R12, R24.
   (`[none]` / `[internal]` / `[TBD]`); form↔`Class` validity stays advisory (§ Non-Goals), not a schema
   refinement. Verified across the full suite — the global render-shape change broke no consumer.
 
-### `[ ]` **2.2 Add the `Class` field (`Light` / `Heavy` / `[TBD]`) to the meta schema with ratchet semantics**
+### `[x]` **2.2 Add the `Class` field (`Light` / `Heavy` / `[TBD]`) to the meta schema with ratchet semantics**
 
 - _Goal:_ The meta schema carries `**Class:**` as a core-block field (`Light` / `Heavy` / `[TBD]`, default
   `[TBD]`) that round-trips through render and parse, making the work's weight a first-class structured field.
-- _Context:_ `Class` slots into the core block alongside `State` / `Owner` / `Branch` / `Priority` (2.1),
-  rendered as a Capitalized backticked enum token.
-- _Note:_ this task adds the field + its value set; the form ↔ `Class` relationship is documented as guidance
-  (4.2.c), not enforced by a hook.
-
-    - Build `test-first` (one behavior at a time):
-        - `META_FIELDS` includes `Class` (core block, default `[TBD]`); `renderMetaFile` emits it in the core
-          table as a Capitalized backticked token.
-        - `parseMetaRecord` recovers `Class`; a render → parse round-trip preserves `Light` / `Heavy` / `[TBD]`.
-        - an absent `Class` parses to `null`; a fresh render with no override emits the `[TBD]` default.
+- _Outcome:_ The `Class` core-block slot was already added generically in 2.1.a (`META_FIELDS` enum entry, default
+  `[TBD]`, casing-normalized on render), so this task locked the value-set semantics with tests rather than new
+  production code: a `Class field — value-set semantics` block in `meta-reader.test.ts` covers the `Light` /
+  `Heavy` round-trip, lower-case → Capitalized normalization, the `[TBD]` sentinel + default, and absent-`Class` →
+  `null` (table-omitted column and legacy flat-bullet). Ratchet and form↔`Class` validity stay advisory per spec
+  § Non-Goals, not a schema hook.
 
 ### `[ ]` **2.3 Define `Class`-aware `Design` field value semantics**
 

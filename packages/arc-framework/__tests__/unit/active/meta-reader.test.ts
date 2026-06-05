@@ -636,3 +636,49 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
     expect(record.Blockers).toBe("[none]");
   });
 });
+
+describe("Class field — value-set semantics", () => {
+  it("round-trips each resolved Class value through render and parse", () => {
+    for (const value of ["Light", "Heavy"] as const) {
+      const record = parseMetaRecord(renderMetaFile("foo", { Class: value }));
+      expect(record.Class).toBe(value);
+    }
+  });
+
+  it("normalizes lower-case Class input to the Capitalized token on render", () => {
+    // render Capitalizes the enum and parse strips backticks, so `light` / `heavy` land Capitalized.
+    expect(parseMetaRecord(renderMetaFile("foo", { Class: "light" })).Class).toBe("Light");
+    expect(parseMetaRecord(renderMetaFile("foo", { Class: "heavy" })).Class).toBe("Heavy");
+  });
+
+  it("preserves the `[TBD]` pre-classification sentinel verbatim through render and parse", () => {
+    expect(parseMetaRecord(renderMetaFile("foo", { Class: "[TBD]" })).Class).toBe("[TBD]");
+  });
+
+  it("emits the `[TBD]` default when no Class override is supplied", () => {
+    expect(parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES)).Class).toBe("[TBD]");
+  });
+
+  it("parses an absent Class to null when the core table omits the column", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "| State    | Owner    | Branch     | Priority |",
+      "| -------- | -------- | ---------- | -------- |",
+      "| `Active` | `andrew` | `feat/bar` | `P1`     |",
+      "",
+    ].join("\n");
+    expect(parseMetaRecord(content).Class).toBeNull();
+  });
+
+  it("parses an absent Class to null in a legacy flat-bullet meta", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** Active",
+      "- **Owner:** andrew",
+      "",
+    ].join("\n");
+    expect(parseMetaRecord(content).Class).toBeNull();
+  });
+});
