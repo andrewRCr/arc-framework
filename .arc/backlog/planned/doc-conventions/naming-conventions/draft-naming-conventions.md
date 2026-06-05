@@ -105,6 +105,22 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 - *Scope:* small ripple — the renamed templates + instances + any cross-doc references quoting H1s. Defer to
   the cascade.
 
+### `[ ]` **Rename `reference/briefs/` → `reference/agent-briefs/` (disambiguate from the `brief` spec form)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: naming-conventions`), agile-wu-lifecycle cohort housekeep
+  drain (2026-06-04). Captured during `agile-wu-lifecycle` planning (2026-06-04) — the `sketch` → `brief` naming
+  decision.
+- *Concern:* AWL adopts `brief` as the floor spec-form name (replacing `sketch`). The existing
+  `reference/briefs/` dir (holding `AGENT-BRIEF.{ARC,PROJECT,CONTRIBUTOR}.md`) now shares a stem with the spec
+  form. The dir name is also independently imprecise — "briefs" implies human-facing summaries, but these are
+  agent-orientation docs (filenames already say `AGENT-BRIEF`).
+- *Proposed:* rename the dir to `agent-briefs/` (matching the `AGENT-BRIEF` filename prefix) and cascade the
+  references — ~39 files reference `reference/briefs`, ~109 touch `briefs/` or `AGENT-BRIEF`; includes the
+  `packages/arc-framework/arc/**` package-source mirror, which must stay in sync. Decoupled from AWL's naming
+  decision (adopting `brief` does not require the rename — filenames don't collide and prose disambiguates by
+  context); a standalone doc-naming-convention cleanup. Could alternatively fold into `doc-cascade-sweep`'s doc
+  cascade.
+
 ---
 
 ## Problem / Motivation

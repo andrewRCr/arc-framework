@@ -26,6 +26,27 @@ post-trio architecture-remediation plans consume.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Uniform non-interactive handling for agent-invoked prompting commands**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cli-substrate-adoption`), agile-wu-lifecycle cohort
+  housekeep drain (2026-06-04). Captured during `agile-wu-lifecycle` graduation (2026-06-03) — `arc user open
+  agile-wu-lifecycle` hung on the stale-CWC-subdir confirm; worked around by seeding the user workspace manually.
+- *Concern:* `arc user open <name>` hangs the agent when its defensive "stale subdir from prior WU" confirm fires
+  — no `--yes` / `--no-input` flag, and the confirm does not auto-skip under non-TTY / agent invocation. Worktree
+  Foundation's cold-start path (`arc start --here`) explicitly designed its confirm to auto-skip the agent's
+  non-interactive call, but that behavior is not uniform — `arc user open` (and likely other prompting
+  subcommands) still block.
+- *Proposed:* audit prompting subcommands; establish a uniform non-interactive contract
+  (auto-skip-to-safe-default under non-TTY, or an explicit flag) so agent / automation invocation never hangs.
+  `arc init --yes` is the established precedent for the flag pattern.
+
+---
+
 ## Problem / Motivation
 
 The CLI has grown to a point where the original "minimal deps" rationale costs more than it saves.

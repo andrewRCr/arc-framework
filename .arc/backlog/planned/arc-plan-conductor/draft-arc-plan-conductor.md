@@ -70,6 +70,58 @@ freeform exploration.
   Absorption" precedent). See spec `§ Drain integration-mode` (R38–R39), `drain-inbox § 5`, and
   `notes § Drain integration-mode` in work-routing-discipline.
 
+### `[ ]` **Realign the conductor to AWL's settled `Class` / intensity model**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: arc-plan-conductor`), agile-wu-lifecycle cohort housekeep
+  drain (2026-06-04). Captured during `agile-wu-lifecycle` planning (2026-06-04), before graduation.
+- *Concern:* AWL settled into a new shape (2026-06-04 two-axis refinement): `Class` (`light` / `heavy`, `heavy`
+  iff either intrinsic stage-decorrelating axis — derivation or scale — is high), a per-stage `process intensity`
+  (`low` / `medium` / `high`), three spec forms (`brief` / `outline` / `detailed`), and `Class` decoupled from
+  spec form (the `outline` straddle). This obsoletes stale references in this draft: it still speaks of `atomic`
+  / `quick` / `standard` tiers (§ "Reads tier intent", § Design Lean § 4), still couples tier → spec form, and
+  still says quick-tier generates a `## Scope` task-list header.
+- *Proposed:* realign tier-awareness to `Class` (`light` / `heavy`); map the three planning-depth modes
+  (`minimum` / `standard` / `expanded`) onto the planning-stage instance of `process intensity`
+  (`low` / `medium` / `high`); drop the tier → spec-form coupling (spec form follows derivation; `Class` is
+  separate); rewrite the `## Scope`-header note to "invoke AWL's `brief`-form spec template"; position the
+  conductor's depth-aware navigation as the correction mechanism for two-axis lane mis-calls (boundary-test
+  thresholds are `class-model-foundation`'s to make crisp). Most of this is this draft's own § 4 / § "Reads tier
+  intent" write-back debt, now with a concrete target model.
+
+### `[ ]` **Decomposition facilitation: team-ownership motivation + lifecycle-timing axis**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: arc-plan-conductor`), agile-wu-lifecycle cohort housekeep
+  drain (2026-06-04). Captured during `concurrent-work-conventions` planning (2026-06-03) — forward-compat
+  write-back from the single-owner-WU decision (this draft's own inbound item #1 asks for exactly this).
+- *Concern:* § 11 already owns plan-splitting (one draft → several) and PRD-decomposition (one plan → many WUs)
+  but frames both around *manageability* / *implementation count* only — never *ownership distribution* — and its
+  splitting is entirely pre-PRD. Two gaps surfaced by CWC's single-owner-WU decision.
+- *Proposed:* (1) add splitting motivated by distributing pieces across distinct single-owner devs — the direct
+  corollary of CWC's "WU = single-owner; cross-person parallelism = decompose into N single-owner WUs, not
+  multi-dev-per-WU"; (2) add a lifecycle-timing axis — smooth/supported at draft + pre-activation stages, with
+  mid-implementation split treated as an explicit costly escape hatch (the inverse of the integration-conflict
+  research's "abandon parallelism, redo as unified").
+
+### `[ ]` **Collaborative team planning — single-author-draft + review model**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), agile-wu-lifecycle cohort housekeep drain
+  (2026-06-04). Re-homed here at drain (capture was TBD): it names a conductor seam and transforms this draft's
+  Open Question 23. Candidate target `strategy-team-coordination` noted below; cohort-grouping flag carried,
+  **not decided**. Captured during `concurrent-work-conventions` planning (2026-06-03).
+- *Concern:* ARC's planning pipeline (`arc-plan` → `create-spec` → `generate-tasks`) and this draft's
+  `refine-plan-loop` assume human+agent co-development, never multi-human team planning — a genuine gap.
+  Idiomatic collaborative planning is single-author/scribe-drives-the-doc + others contributing via
+  review / comments / discussion (the RFC model) — the same single-owner + review pattern CWC blessed for code
+  WUs, applied to planning artifacts.
+- *Proposed:* candidate homes — `strategy-team-coordination` (the "how teams plan together" framing) + a
+  conductor seam (the single-author-draft-plus-review mechanism). Partly subsumes/transforms Open Question 23
+  ("cleanup under team mode — multiple developers on a planning branch"), premised on the multi-dev-per-WU model
+  CWC retires: under single-owner, a planning branch has one owner and collaboration is review, not co-located
+  commits.
+- *Flag (do not decide):* a possible "planning machinery / conventions" cohort grouping the conductor +
+  graduation-cleanup + decomposition + this concern + the contested spec-form templates — this draft is already
+  self-generating split pressure (OQ21 / scope estimate flag "possible split").
+
 ---
 
 ## WOR alignment note (2026-05-19)

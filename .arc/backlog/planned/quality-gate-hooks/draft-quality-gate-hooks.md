@@ -43,6 +43,23 @@
   entry above — all three are staged-content pre-commit checks this WU's hook-integration surface can absorb (or
   consciously reject against the § Out-of-scope "existing structural CHECKs are framework-owned" line).
 
+### `[ ]` **Relocatability enforcement: source-side movable-artifact link-defs (hook + sweep)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort housekeep
+  drain (2026-06-04). The original capture bundled two structural guards under one hook file; graduation split
+  ownership — this is the **relocatability** half (`class-model-foundation` § Scope routes relocatability
+  *enforcement* here), the **cohort↔dir** half re-homed to `decomposition-machinery`. Captured 2026-06-03.
+- *Concern:* DEV-RULES.ARC § `.arc/` artifact references is framed target-side ("don't link *to* a movable
+  artifact"); the dual is a movable artifact's *own* outbound relative-path links, which break when it moves
+  between lifecycle dirs — even links to stable docs. A sweep found ~38 path-style link-defs in active/backlog
+  movable artifacts today.
+- *Proposed:* extend this WU's already-captured forbidden-pattern hook (the sibling "Forbidden-pattern
+  pre-commit checks" entry above) to also flag source-side path-style link-defs inside movable artifacts, and run
+  the ~38-def sweep. This is the enforcement half of the AWL relocatability invariant — the *rule generalization*
+  itself is owned by `class-model-foundation` (its "Generalize the movable-artifact reference rule" buffer entry).
+- *Coordinates with:* the cohort-field↔dir guard in `decomposition-machinery` (same original capture, sibling
+  hook-file family) and the rule-side entry in `class-model-foundation`.
+
 ---
 
 ## Problem / Motivation

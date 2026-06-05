@@ -134,6 +134,33 @@
   (config-storage-architecture) to shrink the Owner column.
 - *Scope:* S — render-standard + renderer; lands with the uniform-columns reconciliation.
 
+### `[ ]` **Render-standard decisions from CWC planning (refinements to existing buffer items)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), agile-wu-lifecycle cohort housekeep drain
+  (2026-06-04). A CWC planning adjacency pass settled five render-standard / STATUS questions that **refine this
+  WU's existing inbound-buffer items** (decisions/refinements, not new scope) — fold each into its target item at
+  integration. Captured during `concurrent-work-conventions` planning (2026-06-03).
+- *B2 — cross-doc column order* (→ the "extract a standalone STATUS render-standard doc" / shared-contract item):
+  adopt "Work unit always col 1; State (where present) always col 2; following columns consistent; column
+  **inclusion** varies by scope (STATUS.USER omits Owner — printing one's own name every row is noise)." Effect:
+  ROADMAP In Flight reorders State col 1 → col 2 to match STATUS.USER (which already conforms).
+- *B1 — uniform columns refinement* (→ the "Render standard: uniform columns" item): keep the already-decided
+  uniform set; **decline** equal-width-across-tables (pad to doc-max) — cosmetic only, and the tier already
+  encodes State for Ready/Blocked so a State column there is empty/redundant. Keep State In-Flight-only.
+- *B3 — priority visual grouping* (→ render-standard work): do **not** separate priority groups with blank lines —
+  a blank line terminates a GFM table, so P2/P3 blocks render broken (verified live, then reverted). Pick at
+  render time: (a) per-priority sub-headings, each its own table; (b) Priority value on the first row of each
+  group only (merged-cell style; risk: a blank cell reads as "no priority"); or (c) leave the readiness table
+  flat and solve scanning via the horizon view (B4).
+- *B4 — by-priority / horizon view* (→ confirms § Unknowns "Direction's home"): now/next/later is a render
+  **mode** over the same meta source (Now = In Flight; Next = Ready, priority-then-dependency ordered; Later =
+  the rest), not a separate file. CWC contributes only the concurrency-safety overlay on the "Next" slice (the
+  existing CWC↔roadmap-tooling seam).
+- *A — STATUS.USER interim honesty* (→ note on the "STATUS.USER on-disk write + refresh is unbuilt" item):
+  considered fixing the header's false freshness claim as a separate interim errand; **decided** to leave it
+  bundled into that item — the file stays knowingly-stale until the writer lands. Recorded so it is not re-raised
+  as separate work.
+
 ---
 
 ## Problem / Motivation
