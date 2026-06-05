@@ -12,14 +12,14 @@
 - **Class:** heavy
 - **Priority:** P1
 
-- **Task List:** [none]
-- **Last Completed:** [none]
+- **Task List:** tasks-class-model-foundation.md
+- **Last Completed:** Task generation Passes 1–2 — structural decomposition + content fill (task list drafted)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` to decompose `spec-class-model-foundation.md` into a task list.
-  The spec is authored at `detailed` depth on the PRD template (RFC form pending `scalable-authoring-pipeline`);
-  reasoning the spec compresses lives in `notes-class-model-foundation.md`. The base of the cohort; ships
-  standalone, and the authoring workflows default to `heavy` behavior until `scalable-authoring-pipeline` lands.
+- **Next Action:** Run `2_generate-tasks.md` Pass 3 (grounding audit): per-phase `arc-task-audit`, top-down from
+  Phase 1 — resolve findings + masked design decisions before editing each phase. Watch Task 4.1's spec-form
+  detection fidelity during the RFC-template interim. Reasoning the spec compresses lives in
+  `notes-class-model-foundation.md`.
 
 ---
