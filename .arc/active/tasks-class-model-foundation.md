@@ -712,7 +712,7 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   `concurrent-work-conventions`, and the broader Work Character ↔ `Class` vocabulary reconciliation to
   `doc-cascade-sweep`'s inbound buffer.
 
-### `[ ]` **5.R.8 Reformat + stamp this WU's own active meta**
+### `[x]` **5.R.8 Reformat + stamp this WU's own active meta**
 
 - _Goal:_ Bring `meta-class-model-foundation.md` into the modernized schema and the three-value model before the
   phase closes — it is the **lone format outlier** (Phase 5 migrated only `backlog/` metas; this WU's own active
@@ -723,6 +723,11 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   `validateClass` must admit `Novel` first). Meta-file edit standing alone → a dedicated `chore(arc):` commit per
   meta-file-commit-shape — a deliberate ceremony touch, not a task-completion code edit. Lands last, immediately
   before Phase 6 verification.
+
+- _Outcome:_ `meta-class-model-foundation.md` now renders through `renderMetaFile()` in the modern core-block
+  schema, with `Class` normalized to `Novel`, token fields backticked / cased by the renderer, and the stale
+  Phase 5.R blocker note reduced to `[none]`. Progress pointers now close Phase 5.R (`Last Completed: Task
+  5.R.8`) and point the WU at Task 6.1 verification.
 
 ## **Phase 6:** Verification
 
