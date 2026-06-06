@@ -1,17 +1,16 @@
 # Metadata: Markdown Formatting Hygiene
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none] (coordinates with quality-gate-hooks for enforcement — soft, downstream)
 
 - **Origin:** [internal]
 - **Design:** `draft-markdown-formatting.md`
-
-- **Depends On:** [none] (coordinates with quality-gate-hooks for enforcement — soft, downstream)
-- **Cohort:** [none]
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
@@ -24,3 +23,5 @@
   sweep over ~127 files); emoji removal + ban rule; discoverability doc in the internal QUICK-REFERENCE.
   Enforcement (CI gate + pre-commit auto-fix) is routed to `quality-gate-hooks`. **All findings verified —
   see `draft-markdown-formatting.md` § Verified findings; do not re-derive.**
+
+---
