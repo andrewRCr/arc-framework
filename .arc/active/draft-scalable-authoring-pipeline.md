@@ -29,10 +29,41 @@ The hard design constraint throughout: **parameterize the one invariant procedur
 a second skill.** A second "flat" grammar or a `light`-variant skill is a parser fork and an internal-dev
 maintenance trap. Depth is a per-context default, never a lock.
 
+## Upstream contract — consumed from `class-model-foundation` (shipped)
+
+`class-model-foundation` shipped as the authoritative upstream for this WU — its spec is SAP's `Depends On` and
+the recurring design source. It **settled** (amending DEV-RULES.ARC, the meta schema, and a companion ADR to
+lock them in) the contracts SAP *consumes*, never re-derives or diverges from:
+
+- **The `Class` model** `{light, heavy, novel}` + `[TBD]`, the two intrinsic axes, the boundary tests, and the
+  estimate-then-ratchet — homed in `classify-work-unit` + `strategy-work-organization`.
+- **The `planning depth` ordinal** `low / medium / high` — transient, per-stage, never recorded. CMF defined
+  *the ordinal and that it resolves per stage*; **how each stage realizes it is SAP's** (an explicit CMF
+  Non-Goal).
+- **The three spec forms** `brief / outline / detailed`, the depth→form map (`low→brief`, `medium→outline`,
+  `high→detailed`), the `Class`↔form constraints (`brief`→always `light`; `detailed`→`heavy`/`novel`; `outline`
+  straddles), and that **only `detailed` splits** (PRD / RFC). SAP builds the form *templates*, not the form
+  *definitions*.
+- **The front-loading-duty sharpening** (now constitutional, all forms): settle all settle-able design upfront;
+  `outline` is faster than `detailed` because the design was *more determinate coming in*, not because it
+  tolerates more open design. SAP's templates must embody this, never relax it.
+
+CMF also **routed forward to SAP by name** (its Non-Goals): per-stage depth *realization* (the template family
+incl. the `detailed`·RFC template, the `create-spec` / `generate-tasks` depth-resolution wiring, the task-list
+one-grammar); the **`classify-work-unit` touchpoint wiring** in `arc-plan` / `create-spec` / `generate-tasks`
+(CMF wired only `init` / `activate`); and the **`Class`↔spec-form validation hook** as a *candidate to evaluate,
+not a committed requirement*.
+
+> The sections below that restate any of the above (§ Spec shapes, the form mapping in § three authoring stages,
+> § detailed-spec subtypes) are now **consumed context** — retained as working detail for spec authoring, but
+> the SAP spec will reference CMF's spec as the source of record rather than re-derive them.
+
 ## The three authoring stages
 
 Each pre-implementation **authoring** stage realizes the depth ordinal in its own units and **self-resolves**
-(§ Mechanism). These shapes are starting points — explicitly open to post-integration dogfooding refinement:
+(§ Mechanism). The shapes below are **sketch-level starting points** — their *structural* design is the
+pre-spec derivation work (§ Derivation pending); only calibration (exact counts, felt cadence) tunes later via
+dogfooding:
 
 1. **Drafting** (the existing `arc-plan`): `low` = quick determinacy-confirm (a couple of targeted questions);
    `medium` = bounded single-pass elicitation (surface the few real decisions + scope, no iteration); `high` =
@@ -273,7 +304,41 @@ what was produced.
   expectation should be available when a WU is inventing concepts or models, not merely composing from existing
   ARC patterns. This WU owns making that available shape concrete in the authoring pipeline (template guidance,
   per-stage depth defaults, and spec-review posture), while preserving the model's "suggest, do not enforce"
-  stance — no hard `Class` ↔ spec-form hook.
+  stance — no hard `Class` ↔ spec-form hook. **The least-derived deliverable in the draft today** — the concrete
+  shape is pending (§ Derivation pending, item 2).
+
+## Derivation pending (pre-spec-ready)
+
+Re-based on shipped CMF, the draft is **spec-stage-heavy**: the spec stage (form family, naming, PRD / RFC
+split) is near-final, but the **drafting (`arc-plan`) and task-gen stages are sketch-level** — their low / med /
+high shapes (§ three authoring stages) are a paragraph each. Per the front-loading-duty rule, the *structural*
+design of all three stages must be settled here, before spec-ready; only *calibration* (exact question counts,
+felt audit cadence) legitimately tunes via post-integration dogfooding. The draft's earlier blanket
+"dogfooding-refinable" framing conflates the two — the spec must not smuggle deferred design under it.
+
+Gating items, worked in the planning iteration (sequence: **task-gen → arc-plan → create-spec**):
+
+1. **Per-stage depth manifestation** — concretely, what `low / medium / high` *is* in each stage, written as
+   **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
+   branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
+2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
+   the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
+   (no hard `Class`↔form hook). The draft's least-derived deliverable today.
+3. **`classify-work-unit` touchpoint wiring** — where the method fires in each of `arc-plan` / `create-spec` /
+   `generate-tasks`, what it does (confirm-or-ratchet `Class` against the stage's resolved depth), and the
+   forward-compat boundary that keeps it light enough not to pre-empt `arc-plan-conductor`.
+4. **RFC form** — research and decide what RFC shape fits ARC as a proper complement to the PRD (genuine
+   derivation; draws on the captured deep-research idiom pass).
+
+Two design subtleties the manifestation work must resolve, not gloss:
+
+- **The three stages resolve depth from different axes** — drafting and spec from **derivation**, task-gen from
+  **scale**. "One mechanism" therefore carries three different *input signals*; the parameterization is not
+  symmetric across stages.
+- **Flag-free feed-forward has a hole on the scale axis.** Spec form recovers the derivation lane, but scale is
+  *not* recoverable from spec form (an `outline` may be `light` or `heavy`), so task-gen must read `Class` (or
+  task-list scale) as an explicit input. "The artifact's shape *is* the signal" holds for derivation, not
+  cleanly for scale — the seam needs a deliberate design.
 
 ## Scope
 
@@ -291,6 +356,10 @@ what was produced.
    No tier fork.
 5. `spec-review` method + ceremony extension — depth-scaled default self-review; opt-in external-cadence
    extension.
+6. **`classify-work-unit` touchpoint wiring** — declare + invoke the method at the `arc-plan` / `create-spec` /
+   `generate-tasks` planning-stage touchpoints (CMF wired only `init` / `activate` and routed these forward).
+   Confirm-or-ratchet `Class` against each stage's resolved depth; kept light to stay forward-compatible with
+   `arc-plan-conductor`.
 
 **Out of scope:**
 
@@ -302,11 +371,14 @@ what was produced.
 
 ## Open questions
 
+> Pre-spec-ready derivation is tracked in § Derivation pending; the items below are finer spec-time calls.
+
 - **`outline` / `brief` spec template *bodies*** — research-grounded; the bodies themselves are authored at
   spec time.
 - **Detailed-subtype template structure** — separate `-prd` / `-rfc` templates vs. one flexing template.
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
-- **Planning + spec + task shapes** — starting points, open to post-integration dogfooding refinement.
+- **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation pending);
+  only calibration is dogfooding-refinable, not a blanket deferral.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
 - **`Class` ↔ spec-form consistency check — worth it at all?** Once this WU makes the spec form a structured
   signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block `Class` ↔ form consistency check
