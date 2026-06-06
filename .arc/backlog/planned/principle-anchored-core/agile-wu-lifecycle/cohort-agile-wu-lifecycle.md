@@ -85,7 +85,7 @@ The base; ships standalone (workflows default to `heavy` until the pipeline land
 _Exposes:_ the `Class` model + boundary tests, the `Class` / `Design` / path-valued `Cohort` meta-field schema
 (`Class` carries the `[TBD]` sentinel + the estimate-vs-realized ratchet + the `novel` invent-vs-compose
 threshold), the `classify-work-unit` triage method, the `graduate-work-unit` (`provisional → planned`) workflow
-that forces the estimate at planned-entry, the in-flight-+-ready `STATUS.USER` content model, the relocatability
+that forces the estimate at planned-entry, the in-flight + ready `STATUS.USER` content model, the relocatability
 invariant statement, and a backlog-wide cohort-compliance baseline.
 
 ### `scalable-authoring-pipeline`

@@ -27,7 +27,7 @@ DEV-RULES.ARC § Commit Discipline.
 Precise meanings — assume the technical sense.
 
 - **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
-  one PR. Artifact group: `meta-{name}.md` plus any present `draft-*`, `tasks-*`, `notes-*`
+  one PR. Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*`
   companions. Not "any chunk of work".
 - **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`
   when _either_ intrinsic axis runs high: derivation (a real design must be authored before work can start) or

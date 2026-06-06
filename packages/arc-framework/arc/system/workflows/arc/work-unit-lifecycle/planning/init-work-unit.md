@@ -127,9 +127,10 @@ arc user open {name}
 > at `backlog/{planned,provisional}/{name}/`.
 
 When resuming from a backlog stub, graduate the per-WU subdir contents into the active workspace.
-This is the `planned → active` rung of the [readiness ladder][work-org-state];
-[graduate-work-unit][graduate-work-unit] precedes it (`provisional → planned`), forcing a resolved `Class`
-before the stub becomes startable.
+On the normal readiness-ladder path, this is the `planned → active` rung;
+[graduate-work-unit][graduate-work-unit] has already performed `provisional → planned` and forced a resolved
+`Class` before the stub became startable. Direct `provisional/` reconciliation is tolerated only as a legacy /
+manual fallback; Path A resolves any remaining `[TBD]` immediately.
 Under the per-WU subdir model, every backlog WU carries `meta-{name}.md` (always) plus any
 draft-doc and companions:
 
@@ -142,7 +143,7 @@ rmdir .arc/backlog/{state}/{name}
 ```
 
 The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
-`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Spec` without
+`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Design` without
 overwriting these fields.
 
 See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
@@ -156,7 +157,7 @@ Two paths depending on Step 3's outcome:
 Reconcile the existing meta-file to reflect the now-active planning state:
 
 1. **Branch** → current planning branch (e.g., `plan/{name}`)
-2. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
+2. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
 3. **Next Action** → freeform planning-session prompt
 4. **Class** → confirm-or-ratchet via [`classify-work-unit`][classify-work-unit]. A `planned/` graduate
    arrives with a resolved estimate — confirm it still holds, or ratchet up to any realized floor. A
@@ -327,6 +328,5 @@ spec or notes.
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[work-org-state]: ../../../../../reference/strategies/arc/strategy-work-organization.md#work-unit-state
 [graduate-work-unit]: ../graduate-work-unit.md
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

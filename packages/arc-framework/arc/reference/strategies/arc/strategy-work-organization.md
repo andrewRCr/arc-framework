@@ -366,7 +366,7 @@ escape-hatching to lighter ceremony than it warrants? Three mechanisms:
   wrapper. Multi-concern work takes the WU shape rather than absorbing scope under a thinner one.
 
 - **Discipline is `Class`-invariant.** Process-task-loop, quality gates, and commit discipline apply
-  identically at both values. `Class` scales design-authoring ceremony, never engineering rigor.
+  identically across all three values. `Class` scales design-authoring ceremony, never engineering rigor.
 
 The invariants supply the structural floor; the guardrails above keep that floor intact at every
 `Class`.
@@ -408,7 +408,7 @@ Branch identity persists across the rename; commits, PR, and history carry forwa
 
 One WU = one branch, from planning through integration. The branch is created at WU inception
 (as `plan/<name>`), rotated at activation (to `<type>/<name>`), and merged to main exactly once
-at integration. WU artifacts (`meta-<name>.md`, `plan-<name>.md`, `prd-<name>.md`,
+at integration. WU artifacts (`meta-<name>.md`, `draft-<name>.md` / `spec-<name>.md`,
 `tasks-<name>.md`, companions) live in `active/` on the WU's branch throughout the lifecycle;
 main carries no in-flight WU artifacts.
 
@@ -1055,7 +1055,7 @@ through its commit footer, and tears down.
 ```text
 .arc/active/
   meta-<name>.md         # WU metadata + state (always present)
-  prd-<name>.md          # product requirements (when WU has a PRD)
+  spec-<name>.md         # formalized spec artifact (PRD or RFC form by category)
   tasks-<name>.md        # execution spec (when WU has a task list)
   notes-<name>.md        # working context (optional; may carry content graduated from draft-*)
 ```
