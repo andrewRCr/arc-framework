@@ -307,6 +307,48 @@ what was produced.
   stance — no hard `Class` ↔ spec-form hook. **The least-derived deliverable in the draft today** — the concrete
   shape is pending (§ Derivation pending, item 2).
 
+## Per-stage manifestation (derived)
+
+The general mechanism behind §§ Mechanism and Depth-shifting, made operational. **Per-stage depth is an
+*estimate* resolved at stage entry, with an axis-keyed re-entry valve** — the direct mirror of `Class`'s
+estimate-then-ratchet. Where a stage's depth keys to the *same* axis that drives `Class` at that stage, **depth
+resolution and the `classify-work-unit` touchpoint are one act** (reading the axis to pick depth is also the
+confirm-or-ratchet moment).
+
+**The re-entry valve (general, all stages).** A resolved depth is never a one-shot commitment. Any pass may
+surface evidence the estimate was too low; the response to a *floor-raising* signal is **capture (durably),
+ratchet, re-enter** — never patch-and-limp at an inadequate depth (a wrong-shaped artifact whose surfaced
+findings say nothing about the ones a deeper pass would catch). The re-entry target is **axis-keyed**:
+
+- **Scale signal** → re-enter the *same* stage at higher depth (nowhere-up from `high`; there, just resolve).
+- **Derivation signal** → route to the stage that owns the design — a masked design decision routes to the
+  *spec*, not a deeper task pass (deepening can't fix an under-derived upstream).
+
+The trigger is **not a new detector**: it is a first-class branch at the stage's *existing* interlock stop. When
+surfaced volume / severity contradicts the resolved depth, the agent's lean includes "capture, ratchet, re-enter
+higher" beside "resolve inline and proceed," with a recommendation — offered, never automatic. The valve fires
+only on a genuine underestimate (rare under an honest estimate; the wasted lighter pass was cheap), so it
+protects the tail without taxing the common case.
+
+### Task-gen
+
+- **Depth keys to the *scale* axis**, which `Class` alone cannot resolve (it merges the axes — `heavy`/detailed
+  small-surface vs. `heavy`/outline large-refactor want opposite task-gen depth) and spec form cannot supply (it
+  tracks derivation). So **task-gen self-resolves from a scale read it performs at entry** (the codebase-grounding
+  breadth at the current Step 1.1), cross-checked against `Class`. This is the scale-axis resolution of the
+  feed-forward hole.
+- **Resolution = the touchpoint.** That entry scale read *is* the `classify-work-unit` confirm-or-ratchet for
+  task-gen (a decomposition revealing more scale than estimated ratchets `Class` → `heavy`). One step, fired at
+  entry, surfaced to the user.
+- **Three knobs move with depth:** pass structure (`low` one combined pass → `medium` passes 1+2 merged, audit
+  retained-lighter → `high` full 3-pass); grounding-audit depth (inline files/symbols-exist → … → full
+  eight-category per-phase); phase count (1 substantive + verification → few → 3–7 + verification).
+- **Per-phase audit interlock is invariant *per phase*** — at `low` (one substantive phase) it degenerates to a
+  single gate, not a fork. The number of *internal* stops scales (1 at `low`, 3+ at `high`); the
+  review-increment invariant is "a gate," not "N gates," so collapse never relaxes discipline.
+- **Novel adds no task-gen depth lane** (Novel is derivation-axis; task-gen is scale-driven). Its only reach is
+  indirect — novelty may drive scale, which drives depth through the normal path.
+
 ## Derivation pending (pre-spec-ready)
 
 Re-based on shipped CMF, the draft is **spec-stage-heavy**: the spec stage (form family, naming, PRD / RFC
@@ -321,6 +363,7 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
 1. **Per-stage depth manifestation** — concretely, what `low / medium / high` *is* in each stage, written as
    **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
    branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
+   **Task-gen resolved** (§ Per-stage manifestation); `arc-plan` + `create-spec` pending.
 2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
    the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
    (no hard `Class`↔form hook). The draft's least-derived deliverable today.
