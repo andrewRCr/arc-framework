@@ -13,12 +13,13 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Task 5.0 — faithful meta projection: narrative code spans + multi-line values now
-  round-trip (`valueClass`-aware parse, indented render)
-- **Next Task:** Task 5.1 — Re-render every `backlog/` meta to the new format and repair `Cohort` (line ~501)
-- **Blockers:** [none]
+- **Last Completed:** Task 5.3 — Phase 5 complete: all 55 `backlog/` metas migrated to the modernized schema
+  (re-render + `Cohort` repair + best-estimate `Class`; 6 `Light` / 36 `Heavy` stamped)
+- **Next Task:** Task 6.1 — Complete verification; load and follow `verify-work-unit.md` (line ~553)
+- **Blockers:** Pre-close (before integrate): decide the within-`heavy` `Class` calibration — see
+  `notes-class-model-foundation.md` § Open calibration: within-heavy derivation resolution
 
-- **Next Action:** Begin Phase 5's migration (5.1–5.3) as one heavy pass — re-render all 55 `backlog/` metas via
-  the now-faithful projection, repair `Cohort`, best-estimate `Class` across `planned/`, then regen + verify.
+- **Next Action:** Begin Phase 6 — Task 6.1 verification (load and follow `verify-work-unit.md`). Resolve the
+  pre-close `Class` calibration blocker before the integration ceremony.
 
 ---
