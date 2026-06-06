@@ -1,17 +1,16 @@
 # Metadata: Schema-Driven CLI Introspection Layer
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `architecture-remediation`
+- **Depends On:** `cli-substrate-adoption`
 
 - **Origin:** [internal]
 - **Design:** `draft-schema-introspection-layer.md`
-
-- **Depends On:** cli-substrate-adoption
-- **Cohort:** architecture-remediation
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

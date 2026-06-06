@@ -1,17 +1,16 @@
 # Metadata: Concurrent Work Conventions
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+
+- **Cohort:** `agile-parallelism`
+- **Depends On:** `scalable-authoring-pipeline, decomposition-machinery`
 
 - **Origin:** [internal]
 - **Design:** `draft-concurrent-work-conventions.md`
-
-- **Depends On:** scalable-authoring-pipeline, decomposition-machinery
-- **Cohort:** agile-parallelism
-- **Priority:** P1
-
 - **Task List:** [none]
+
 - **Last Completed:** Terminal-state settle — 3 PRD-gating opens resolved, four-WU decomposition (D1–D4)
   recorded, AWL coordination note routed, async audit run (`92ac4c5b`)
 - **Next Task:** [none]

@@ -1,17 +1,16 @@
 # Metadata: Task-List Conventions
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `doc-conventions`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-task-list-conventions.md`
-
-- **Depends On:** [none]
-- **Cohort:** doc-conventions
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the work-routing-discipline housekeep drain (2026-06-01) from three
   routed `USER-INBOX` captures.
 - **Next Task:** [none]

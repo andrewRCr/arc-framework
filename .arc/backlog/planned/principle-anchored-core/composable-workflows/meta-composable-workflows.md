@@ -1,17 +1,16 @@
 # Metadata: Composable Workflows
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** `principle-anchored-core`
+- **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
 - **Design:** `draft-composable-workflows.md`
-
-- **Depends On:** work-organization-reform
-- **Cohort:** principle-anchored-core
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

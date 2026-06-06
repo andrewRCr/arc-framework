@@ -1,17 +1,16 @@
 # Metadata: Managed Operational-State Document Model
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** [none]
+- **Depends On:** `cli-substrate-adoption`
 
 - **Origin:** [internal]
 - **Design:** `draft-operational-state-docs.md`
-
-- **Depends On:** cli-substrate-adoption
-- **Cohort:** [none]
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

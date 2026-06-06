@@ -1,17 +1,16 @@
 # Metadata: Coordination Probe
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+
+- **Cohort:** `cross-machine-coherence`
+- **Depends On:** `worktree-foundation`
 
 - **Origin:** [internal]
 - **Design:** `draft-coord-probe.md`
-
-- **Depends On:** worktree-foundation
-- **Cohort:** cross-machine-coherence
-- **Priority:** P1
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

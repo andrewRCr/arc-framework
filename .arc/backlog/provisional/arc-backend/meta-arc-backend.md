@@ -1,16 +1,16 @@
 # Metadata: ARC Backend (north-star)
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-arc-backend.md`
-
-- **Depends On:** [none]
-- **Cohort:** [none]
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

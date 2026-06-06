@@ -498,48 +498,55 @@ _Requirements:_ R15, R16, R24.
   must honor — its re-parse-stability check compares _present_ values and treats `null → default` (Class) as an
   intended migration change, not drift.
 
-### `[ ]` **5.1 Re-render every `backlog/` meta to the new format and repair `Cohort`**
+### `[x]` **5.1 Re-render every `backlog/` meta to the new format and repair `Cohort`**
 
 - _Goal:_ Every `backlog/` meta (planned + provisional) is re-rendered to the new format / IA and has a
   path-valued `**Cohort:**` matching its on-disk dir (or `[none]`), so the whole backlog enters the modernized
   schema in one consistent shape.
-- _Context:_ 45 planned + 10 provisional metas; most `Cohort` values already path-match (single segment = parent
-  dir; the three nested `agile-wu-lifecycle` members already carry the two-segment path). The re-render is
-  mechanical — a one-off script, not hand-editing — and depends on Phase 2's render / parse landing first.
-- _Note:_ provisional metas re-render with `**Class:** [TBD]` from the `renderMetaFile` default — no estimate is
-  forced there (5.2 forces only `planned/`).
 
-    - `[ ]` **5.1.a Re-render via a one-off migration script**
-        - A throwaway (non-shipped) script globs `backlog/planned/` + `backlog/provisional/` metas and, per file,
-          parses the legacy record (Phase 2's tolerant read, 2.1.b) and writes it back through `renderMetaFile`
-          so the core-block table, field order, and backtick / casing convention apply uniformly. Verify each by
-          re-parse stability (`parseMetaRecord` of the re-rendered file equals the parsed legacy record), not
-          byte-identity — the bytes change by design. Durable re-render / migration tooling is `roadmap-tooling` /
-          `config-migration-registry`'s, not this script.
+    - `[x]` **5.1.a Re-render via a one-off migration script**
+        - A throwaway `node` script (native TS, importing `renderMetaFile` / `parseMetaRecord` from source)
+          re-rendered all 55 `backlog/` metas — tolerant-parse → `renderMetaFile` → write — applying the
+          core-block table, field order, and backtick / casing convention uniformly. Verified per file by
+          present-value preservation (every non-null legacy value survives, modulo the intended `null → default`
+          fills and `heavy` / `light` → `Heavy` / `Light` enum recase) **and** fixpoint idempotency (a second
+          render is byte-identical); the re-run over applied files reports zero further change.
 
-    - `[ ]` **5.1.b Audit and repair `Cohort` path-match**
-        - Across `backlog/`: confirm each `**Cohort:**` path-matches its `<cohort>[/<subcohort>]/` parent dir, or
-          is `[none]` for a standalone WU; repair mismatches. Mostly confirmation — the surface already
-          path-matches.
+    - `[x]` **5.1.b Audit and repair `Cohort` path-match**
+        - Cohort audited against on-disk path across all 55. One drift repaired: `cli-readme` claimed
+          `release-readiness` but sits standalone under `provisional/`, so it was blanked to `[none]` (disk is
+          authoritative). All others already path-matched.
 
-### `[ ]` **5.2 Best-estimate `Class` across `backlog/planned/`**
+- _Outcome:_ The whole backlog now renders in the modernized schema. Value-stamps beyond pure format: `Class:
+  [TBD]` filled on 52 metas that lacked it (the 3 `agile-wu-lifecycle` siblings keep real, recased values);
+  `Priority: P3` (the render default) on the 10 `provisional/` metas that carried none — the core table always
+  renders Priority, and provisional WUs never got the earlier `planned/` priority back-fill; and the one
+  `cli-readme` Cohort blanking. `planned/` `Class` estimates remain 5.2's. Tier 1 markdown clean.
+
+### `[x]` **5.2 Best-estimate `Class` across `backlog/planned/`**
 
 - _Goal:_ Every `backlog/planned/` member without a `Class` carries a best-estimate `**Class:**` against the
   boundary tests, so every startable WU satisfies the readiness rule (a resolved `Class`) in an honest,
   non-fabricated shape.
-- _Context:_ 42 of 45 planned metas lack `Class` (the three `agile-wu-lifecycle` siblings carry it; the active WU
-  is in `active/`). Estimates are best-effort and revisable (the ratchet), so a grounded read now is safe.
-- _Approach:_ batched — group the WUs by cohort (~3-5 per batch) and apply the `classify-work-unit` triage per WU
-  (dogfooding the method via parallel reads). **Surface all estimates with their rationale for review before
-  stamping** — the estimation produces a reviewable proposal; the stamp lands only on approval, so the review
-  stop is preserved. Leave the three already-classified siblings and the active WU; `provisional/` stays `[TBD]`.
 
-### `[ ]` **5.3 Regen and verify the sweep**
+- _Outcome:_ Stamped 42 best-estimate `Class` values — **6 `Light`, 36 `Heavy`, no Errands** — via per-cohort
+  subagent triage dogfooding `classify-work-unit` (read-only parallel analysis; the stamp stayed in the primary
+  context, so the review stop and sub-agent-scope rule both held). Calibrated on two batches first — verifying the
+  subagents' scale claims against real line/file counts — then fanned the remainder out; the full estimate set +
+  rationale was surfaced and approved before any stamp. The 3 already-classified `agile-wu-lifecycle` siblings and
+  all `provisional/` (`[TBD]`) were left untouched, leaving every `planned/` member resolved (38 `Heavy` / 7
+  `Light` overall). The dogfood raised a model-resolution question — the `heavy` band is wide for Class's
+  parallelism-load purpose — recorded in `notes-class-model-foundation.md` for pre-close calibration; non-blocking.
+
+### `[x]` **5.3 Regen and verify the sweep**
 
 - _Goal:_ The migrated backlog renders consistently and passes the existing gates, committed as one pass.
-- Regen ROADMAP **only if a render field changed** (`Cohort` repairs; `Class` is not a ROADMAP column per R22);
-  refresh STATUS.USER; confirm the existing `validate-meta-spec` hook passes on the migrated metas (`Design`
-  shape + `State` enum); confirm the regen-trigger rule is satisfied. Stage the whole migration as one commit.
+
+- _Outcome:_ ROADMAP regen **not** triggered — no `active/` / `planned/` render-field changed: the lone `Cohort`
+  repair was on a `provisional/` meta (which ROADMAP doesn't render), and `Class` is not a ROADMAP column (R22).
+  `validate-meta-spec` passes on every migrated meta (`Design` shape + `State` enum); STATUS.USER is user-scoped
+  (gitignored) and re-renders on demand. Phase 5 (5.1 re-render + 5.2 `Class` + 5.3 verify) lands as one
+  migration commit.
 
 ## **Phase 6:** Verification
 

@@ -1,16 +1,16 @@
 # Metadata: CLI README
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-cli-readme.md`
-
-- **Depends On:** [none]
-- **Cohort:** release-readiness
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the `ATOMIC-INBOX` shared-inbox sweep (2026-06-02) from a routed capture —
   the published `@arc-framework/cli` npm page has no README body. Reclassified from atomic to a provisional stub
   because the real scope is quick-tier with design decisions.

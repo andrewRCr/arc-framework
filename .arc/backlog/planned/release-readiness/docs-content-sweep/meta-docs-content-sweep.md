@@ -1,17 +1,16 @@
 # Metadata: Docs Site Content Sweep
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `release-readiness`
+- **Depends On:** `docs-site-refresh`
 
 - **Origin:** [internal]
 - **Design:** `draft-docs-content-sweep.md`
-
-- **Depends On:** docs-site-refresh
-- **Cohort:** release-readiness
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

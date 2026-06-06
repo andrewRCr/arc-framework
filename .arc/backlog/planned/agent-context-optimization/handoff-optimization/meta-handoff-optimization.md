@@ -1,17 +1,16 @@
 # Metadata: Handoff Optimization
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `agent-context-optimization`
+- **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
 - **Design:** `draft-handoff-optimization.md`
-
-- **Depends On:** work-organization-reform
-- **Cohort:** agent-context-optimization
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

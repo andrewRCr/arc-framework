@@ -1,17 +1,16 @@
 # Metadata: Lib-Layer Type Extraction
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `architecture-remediation`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-lib-layer-type-extraction.md`
-
-- **Depends On:** [none]
-- **Cohort:** architecture-remediation
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

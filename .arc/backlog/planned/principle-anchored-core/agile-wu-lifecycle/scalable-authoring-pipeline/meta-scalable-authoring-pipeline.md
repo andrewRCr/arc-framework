@@ -1,18 +1,16 @@
 # Metadata: Scalable Authoring Pipeline
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+
+- **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
+- **Depends On:** `class-model-foundation`
 
 - **Origin:** [internal]
 - **Design:** `draft-scalable-authoring-pipeline.md`
-
-- **Depends On:** class-model-foundation
-- **Cohort:** principle-anchored-core/agile-wu-lifecycle
-- **Class:** heavy
-- **Priority:** P1
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

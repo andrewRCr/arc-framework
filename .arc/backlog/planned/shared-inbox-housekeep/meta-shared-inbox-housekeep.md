@@ -1,17 +1,16 @@
 # Metadata: Shared-Inbox Housekeep
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** `concurrent-work-conventions`
 
 - **Origin:** [internal]
 - **Design:** `draft-shared-inbox-housekeep.md`
-
-- **Depends On:** concurrent-work-conventions
-- **Cohort:** [none]
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the follow-up housekeep drain (2026-06-01) from a discovered-work routing.
 - **Next Task:** [none]
 - **Blockers:** [none]
