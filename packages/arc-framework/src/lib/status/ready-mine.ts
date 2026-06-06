@@ -11,9 +11,9 @@
  * Two resolutions happen here, the boundary between the raw planned facts and the
  * view contract:
  *
- * - **Class** narrows to the display form (`Light` / `Heavy` / `[TBD]`), set only
- *   when the meta carried the field — so the row sizes the work for the balance
- *   decision the view supports.
+ * - **Class** narrows to the display form (`Light` / `Heavy` / `Novel` /
+ *   `[TBD]`), set only when the meta carried the field — so the row sizes the
+ *   work for the balance decision the view supports.
  * - **Priority** narrows to the codified level, set only when the meta carried an
  *   explicit value so the render core's conditional column drops for an
  *   all-default slice.

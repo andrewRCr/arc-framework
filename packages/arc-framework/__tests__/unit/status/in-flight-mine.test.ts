@@ -57,12 +57,14 @@ describe("buildInFlightMineSlice", () => {
     const entries: InFlightEntry[] = [
       wu("alpha", { class: "heavy" }),
       wu("bravo", { class: "Light" }),
+      wu("charlie", { class: "novel" }),
     ];
 
-    const [alpha, bravo] = buildInFlightMineSlice(entries);
+    const [alpha, bravo, charlie] = buildInFlightMineSlice(entries);
 
     expect(alpha?.class).toBe("Heavy");
     expect(bravo?.class).toBe("Light");
+    expect(charlie?.class).toBe("Novel");
   });
 
   it("keeps an explicit [TBD] Class as a value on the row", () => {

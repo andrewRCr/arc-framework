@@ -671,22 +671,16 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   (which has no felt-difference section); the strategy's worked examples carry the felt-distinctness instead. Five
   Framework copies byte-identical; ADR single-copy; lint clean.
 
-### `[ ]` **5.R.5 Schema, render, parse, status**
+### `[x]` **5.R.5 Schema, render, parse, status**
 
-- _Goal:_ Admit `Novel` through the machine surfaces. **Audit-confirmed targets** (the enum is single-source in
-  `types.ts` — `parseMetaRecord` / `renderMetaFile` route casing through it, so they need no direct edit):
-    - `commands/active/types.ts` — the `WorkClass` union (`'Light' | 'Heavy'` → add `'Novel'`) and the
-      `validateClass()` casing switch (add `novel → Novel`). **Load-bearing:** the switch `default`s any
-      unrecognized token to `[TBD]`, so an un-updated `validateClass` renders every `Novel` meta as the sentinel.
-    - `lib/status/class-composition.ts` — the `{ heavy, light }` tally must count `Novel`. **This is the
-      parallelism balance signal**; un-updated, `Novel` rows are silently uncounted in the in-flight + ready
-      composition, dropping exactly the WUs `Novel` exists to surface.
-    - `lib/status/render.ts` / `ready-mine.ts` / `in-flight-mine.ts` — `Class` display + doc comments (confirm no
-      `Class`-ordered sort needs a `Novel` slot above `Heavy`).
-    - `template-meta.md` `**Class:**` enum (`Light` / `Heavy` / `Novel` / `[TBD]`) with `Class`-conditional validity.
-- Tests lock the three-value set: `validateClass('novel') → 'Novel'`, the `class-composition` tally over a
-  `Novel` row, and `ready-mine.test.ts`. Tier 1 + the relevant Tier 2 gates pass. `template-meta` is a Framework
-  file (two copies); the CLI source + tests are single-copy.
+- _Goal:_ Admit `Novel` through the machine surfaces.
+
+- _Outcome:_ `commands/active/types.ts` admits `Novel` in `WorkClass` and `validateClass()` while preserving the
+  `[TBD]` fallback for unknown tokens; ready/in-flight status slices pass `Novel` through the existing
+  parser/render path; `classComposition()` reports `{ novel, heavy, light }`; and `template-meta.md` lists the
+  three resolved values in both Framework copies. No `Class`-ordered sort was added — status ordering remains
+  priority / cohort / work-unit name. Tests lock `Novel` normalization, ready/in-flight slice display, render
+  output, and composition counting.
 
 ### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` backlog WUs**
 

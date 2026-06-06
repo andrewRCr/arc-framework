@@ -91,20 +91,21 @@ export function validatePriority(p: string | null): Priority {
 }
 
 /**
- * Codified work-unit weight — the recorded `Class`. `Light` / `Heavy` are the
- * two resolved values; a WU carries the `[TBD]` sentinel until it is classified.
- * Indicates intrinsic demand across planning, execution, and review — distinct
- * from the quality-gate tier.
+ * Codified work-unit weight — the recorded `Class`. `Light` / `Heavy` /
+ * `Novel` are the resolved values; a WU carries the `[TBD]` sentinel until it
+ * is classified. Indicates intrinsic demand across planning, execution, and
+ * review — distinct from the quality-gate tier.
  */
-export type WorkClass = "Light" | "Heavy";
+export type WorkClass = "Light" | "Heavy" | "Novel";
 
 /**
  * Narrow a raw `**Class:**` field value to the codified `WorkClass`, or the
  * `[TBD]` pre-classification sentinel. Matching is case-insensitive — the field
- * is recorded as either `Heavy` or `heavy` across metas — so `light` / `Light`
- * resolve to `Light` and `heavy` / `Heavy` to `Heavy`. Everything else — `null`,
- * the empty string, `[TBD]`, or any unrecognized token — resolves to `[TBD]`, so
- * an unclassified or absent value renders as the sentinel rather than throwing.
+ * has historical lowercase values across metas — so `light` / `Light` resolve
+ * to `Light`, `heavy` / `Heavy` to `Heavy`, and `novel` / `Novel` to `Novel`.
+ * Everything else — `null`, the empty string, `[TBD]`, or any unrecognized token
+ * — resolves to `[TBD]`, so an unclassified or absent value renders as the
+ * sentinel rather than throwing.
  *
  * Parsers return the raw `Class` string verbatim; callers that need the display
  * form import and apply `validateClass` explicitly.
@@ -118,6 +119,8 @@ export function validateClass(c: string | null): WorkClass | "[TBD]" {
       return "Light";
     case "heavy":
       return "Heavy";
+    case "novel":
+      return "Novel";
     default:
       return "[TBD]";
   }

@@ -65,6 +65,9 @@ describe("validateClass", () => {
     expect(validateClass("light")).toBe("Light");
     expect(validateClass("Heavy")).toBe("Heavy");
     expect(validateClass("heavy")).toBe("Heavy");
+    expect(validateClass("Novel")).toBe("Novel");
+    expect(validateClass("novel")).toBe("Novel");
+    expect(validateClass("  NOVEL  ")).toBe("Novel");
     expect(validateClass("  HEAVY  ")).toBe("Heavy"); // trimmed + case-folded
   });
 

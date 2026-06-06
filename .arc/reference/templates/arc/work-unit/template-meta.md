@@ -25,12 +25,12 @@
   - **Owner** — single `arc.identity` value.
   - **Branch** — branch this work unit lives on; single value
     (single-branch-per-work-unit).
-  - **Class** — `Light` | `Heavy` | `[TBD]` (default `[TBD]` until resolved).
-    The work unit's weight across planning, execution, and review. Carries a
-    best-estimate value once the work unit is ready to start, re-tuned at each
-    lifecycle surface. Estimate-then-ratchet: a pre-planning estimate is freely
-    revisable in either direction, but once a stage has authored design at some
-    depth, `Class` never drops below that floor.
+  - **Class** — `Light` | `Heavy` | `Novel` | `[TBD]` (default `[TBD]` until
+    resolved). The work unit's weight across planning, execution, and review.
+    Carries a best-estimate value once the work unit is ready to start, re-tuned
+    at each lifecycle surface. Estimate-then-ratchet: a pre-planning estimate is
+    freely revisable in either direction, but once a stage has authored design at
+    some depth, `Class` never drops below that floor.
   - **Priority** — `P1` (top focus) | `P2` (elevated) | `P3` (baseline);
     default `P3`. Human-set attention level for triaging a multi-in-flight
     worklist; the in-flight views render and sort on it. No `P0` — its

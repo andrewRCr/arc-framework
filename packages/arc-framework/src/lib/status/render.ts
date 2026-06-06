@@ -24,7 +24,10 @@ export interface StatusViewRow {
   workUnit: string;
   /** Lifecycle phase, surfaced in the State column. */
   state?: InFlightState;
-  /** Recorded weight (`Light` / `Heavy` / `[TBD]`); absent → em-dash cell (the column never drops). */
+  /**
+   * Recorded weight (`Light` / `Heavy` / `Novel` / `[TBD]`); absent → em-dash
+   * cell (the column never drops).
+   */
   class?: WorkClass | "[TBD]";
   /** Attention level; absent → `P3` baseline for sort and render. */
   priority?: Priority;

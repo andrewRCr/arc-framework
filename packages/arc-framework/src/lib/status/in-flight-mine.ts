@@ -9,9 +9,10 @@
  * - **Priority** narrows to the codified level, set only when the meta carried an
  *   explicit value so the render core's conditional column drops for an
  *   all-default slice.
- * - **Class** narrows to the display form (`Light` / `Heavy` / `[TBD]`), set only
- *   when the meta carried the field — a field-absent WU renders an em-dash, while
- *   an explicit `[TBD]` renders as the sentinel value (the column is not dropped).
+ * - **Class** narrows to the display form (`Light` / `Heavy` / `Novel` /
+ *   `[TBD]`), set only when the meta carried the field — a field-absent WU
+ *   renders an em-dash, while an explicit `[TBD]` renders as the sentinel value
+ *   (the column is not dropped).
  * - **Depends On** resolves to *unsatisfied in-flight* dependencies: a dep still
  *   present in the in-flight set is shown; a shipped or not-yet-started dep is
  *   absent from the set and renders as satisfied (em-dash). Resolution is scoped

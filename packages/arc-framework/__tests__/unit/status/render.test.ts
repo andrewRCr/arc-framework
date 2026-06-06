@@ -65,7 +65,8 @@ describe("renderStatusTable", () => {
     const slice: StatusViewRow[] = [
       { workUnit: "alpha", state: "Active", class: "Heavy", dependsOn: [], cohort: "ranger" },
       { workUnit: "bravo", state: "Active", class: "[TBD]", dependsOn: [], cohort: "ranger" },
-      { workUnit: "charlie", state: "Active", dependsOn: [], cohort: "ranger" },
+      { workUnit: "charlie", state: "Active", class: "Novel", dependsOn: [], cohort: "ranger" },
+      { workUnit: "delta", state: "Active", dependsOn: [], cohort: "ranger" },
     ];
 
     const expected = [
@@ -73,7 +74,8 @@ describe("renderStatusTable", () => {
       "| --------- | ------ | ----- | ---------- | ------ |",
       "| alpha     | Active | Heavy | —          | ranger |",
       "| bravo     | Active | [TBD] | —          | ranger |",
-      "| charlie   | Active | —     | —          | ranger |",
+      "| charlie   | Active | Novel | —          | ranger |",
+      "| delta     | Active | —     | —          | ranger |",
     ].join("\n");
 
     // Priority is dropped (no row carries one), but Class renders regardless.
