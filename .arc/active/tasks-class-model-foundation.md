@@ -696,13 +696,21 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   gitignored `STATUS.USER` cache was refreshed, showing the four now-ready novels while leaving the two
   dependency-blocked novels out of Ready.
 
-### `[ ]` **5.R.7 Contract exposure + downstream routing**
+### `[x]` **5.R.7 Contract exposure + downstream routing**
 
 - _Goal:_ Expose `Novel` in the cohort's `Class` contract (the exposes/consumes partition the siblings read), and
   route the realization this WU defines-but-does-not-build: the advisory planning-shape consequences (research /
   ADR path, per-stage depth suggestion) to `scalable-authoring-pipeline`; the plate-balancing / sequencing stance
   to `concurrent-work-conventions` (agile-parallelism). Route the broader Work-Character ↔ `Class` vocabulary
   reconciliation to `doc-cascade-sweep` if it exceeds this WU's framing pass.
+
+- _Outcome:_ The cohort contract now exposes the three-value `Class` model (`light` / `heavy` / `novel`) and names
+  its sibling consumers: `scalable-authoring-pipeline` receives `novel`'s advisory research / ADR planning shape as
+  a depth suggestion, `decomposition-machinery` keeps the upper-bound relationship, and Concurrent Work
+  Conventions receives `novel` as the plate-balance / sequencing signal. Routed the concrete planning-shape
+  realization to `scalable-authoring-pipeline`, the parallelize-vs-serialize doctrine to
+  `concurrent-work-conventions`, and the broader Work Character ↔ `Class` vocabulary reconciliation to
+  `doc-cascade-sweep`'s inbound buffer.
 
 ### `[ ]` **5.R.8 Reformat + stamp this WU's own active meta**
 

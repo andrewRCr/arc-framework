@@ -268,6 +268,13 @@ what was produced.
   Resolution: `arc start` is the workflow's automation for the bounded case; the workflow document stays
   canonical. This WU adds no flag — only the depth resolution the command's content consumes.
 
+- **`Novel` planning-shape realization.** `class-model-foundation` defines `Novel` as primarily a plate-balance
+  / sequencing signal and secondarily an advisory planning-shape signal: a discovery / research phase and ADR
+  expectation should be available when a WU is inventing concepts or models, not merely composing from existing
+  ARC patterns. This WU owns making that available shape concrete in the authoring pipeline (template guidance,
+  per-stage depth defaults, and spec-review posture), while preserving the model's "suggest, do not enforce"
+  stance — no hard `Class` ↔ spec-form hook.
+
 ## Scope
 
 **In scope:**
@@ -303,11 +310,11 @@ what was produced.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
 - **`Class` ↔ spec-form consistency check — worth it at all?** Once this WU makes the spec form a structured
   signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block `Class` ↔ form consistency check
-  (`heavy` ⇒ `detailed`, etc.) becomes cheap to build. `class-model-foundation` deliberately did **not** build it
-  (the form was freeform prose there, and the lifecycle `classify-work-unit` touchpoints already keep `Class`
-  honest). Open question: does it earn its place *even when easy*? `Class` / depth are advisory signals — a
-  misclassification breaks nothing structural, and a commit-time warning may read as a paternalistic nag. Decide
-  whether to build it, not just how.
+  (`heavy` / `novel` ⇒ `detailed`, etc.) becomes cheap to build. `class-model-foundation` deliberately did **not**
+  build it (the form was freeform prose there, and the lifecycle `classify-work-unit` touchpoints already keep
+  `Class` honest). Open question: does it earn its place *even when easy*? `Class` / depth are advisory signals
+  — a misclassification breaks nothing structural, and a commit-time warning may read as a paternalistic nag.
+  Decide whether to build it, not just how.
 
 ## External research
 
