@@ -19,6 +19,16 @@ Optimization WU.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Backstop stale git-state claims in SESSION-NOTES**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 5.1 kickoff.
+- *Concern:* handoff can write git-state prose into SESSION-NOTES, then the handoff push changes the real state
+  and leaves the prose stale. A later session-init can echo the stale note and contradict the live probe.
+- *Approach:* prefer making session-init source git facts only from the probe and never from SESSION-NOTES prose;
+  also consider a write-time backstop that derives any handoff git-state summary from a fresh probe at compose /
+  commit time so the note stays honest for human readers.
+
 ### `[ ]` **SESSION-NOTES post-WOR model cleanup**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).

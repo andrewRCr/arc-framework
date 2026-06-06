@@ -13,6 +13,17 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **STATUS.USER writer offline merge and document chrome**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` ready-slice work.
+- *Concern:* the eventual `STATUS.USER` writer should reconcile cached in-flight data with a fresh local ready
+  slice on the online-but-unreachable path, instead of degrading the whole view to the cached document. The
+  structured writer should own this merge; doing it in the terminal-only composer would be fragile string surgery.
+- *Document chrome:* the writer/template also owns the H1, standing header note, intro blurb, and `Updated:`
+  footer. Re-evaluate the current local blurb wording at template time, including whether "available" should align
+  to the table heading's "ready" vocabulary.
+
 ### `[ ]` **Lifecycle-aware link reanchoring for movable ARC artifacts**
 
 - *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the

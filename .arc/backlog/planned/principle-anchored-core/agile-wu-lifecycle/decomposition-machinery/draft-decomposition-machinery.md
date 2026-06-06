@@ -20,6 +20,17 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Bring `cohort-*` under relocatability and reference hygiene**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 1.3.
+- *Concern:* `cohort-{name}.md` is a movable `.arc/` artifact, but DEV-RULES.ARC currently scopes the movable
+  artifact reference rules to WU artifacts. Its lifecycle differs from a single WU's `State` transition, so this
+  WU must decide whether `cohort-*` adopts the WU-artifact relocatability invariant or gets cohort-specific
+  relocation semantics, including whether outbound relative-path links are forbidden from cohort records.
+- *Context:* no live breakage was found in existing cohort docs; this is the semantics / enforcement integration
+  point for the cohort record this WU formalizes.
+
 ### `[ ]` **Rename the `WU → cohort` workflow off "graduation" (reserve the term for the readiness ladder)**
 
 - *Routed from:* `class-model-foundation` task-generation planning (2026-06-04). That WU adds a
