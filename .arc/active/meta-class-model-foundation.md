@@ -13,13 +13,13 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Task 5.3 — Phase 5 complete: all 55 `backlog/` metas migrated to the modernized schema
-  (re-render + `Cohort` repair + best-estimate `Class`; 6 `Light` / 36 `Heavy` stamped)
-- **Next Task:** Task 6.1 — Complete verification; load and follow `verify-work-unit.md` (line ~553)
-- **Blockers:** Pre-close (before integrate): decide the within-`heavy` `Class` calibration — see
-  `notes-class-model-foundation.md` § Open calibration: within-heavy derivation resolution
+- **Last Completed:** Task 5.R.4 — deep model surfaces (`strategy-work-organization` / `classify-work-unit` /
+  `graduate-work-unit` / ADR-023) carry the three-value `Novel` tier
+- **Next Task:** Task 5.R.5 — Schema, render, parse, status: admit `Novel` through the code (line ~674)
+- **Blockers:** [none] — the within-`heavy` calibration is resolved (the `Novel` tier; Phase 5.R executes it)
 
-- **Next Action:** Begin Phase 6 — Task 6.1 verification (load and follow `verify-work-unit.md`). Resolve the
-  pre-close `Class` calibration blocker before the integration ceremony.
+- **Next Action:** Begin Task 5.R.5 — the `Novel` code surfaces: `commands/active/types.ts` (`WorkClass` +
+  `validateClass`, whose `default` silently sentinels `Novel`) and `lib/status/class-composition.ts` (the balance
+  tally), then `template-meta`, status render, tests. Must land before the 5.R.6 / 5.R.8 re-stamps.
 
 ---
