@@ -597,6 +597,24 @@ describe("parseMetaRecord — malformed table fails loud", () => {
     const content = ["# Metadata: foo", "", "| --- | --- | --- |", ""].join("\n");
     expect(() => parseMetaRecord(content)).toThrow(/Malformed meta core-block table/);
   });
+
+  it("ignores table-shaped narrative content below managed fields", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **State:** Active",
+      "- **Next Action:** Compare alternatives:",
+      "  | Option | Result |",
+      "  | ------ | ------ |",
+      "  | A      | keep   |",
+      "",
+    ].join("\n");
+
+    const record = parseMetaRecord(content);
+
+    expect(record.State).toBe("Active");
+    expect(record["Next Action"]).toContain("| Option | Result |");
+  });
 });
 
 describe("parseMetaFile — reads the core-block table (session-init path)", () => {
@@ -661,16 +679,17 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
 
 describe("Class field — value-set semantics", () => {
   it("round-trips each resolved Class value through render and parse", () => {
-    for (const value of ["Light", "Heavy"] as const) {
+    for (const value of ["Light", "Heavy", "Novel"] as const) {
       const record = parseMetaRecord(renderMetaFile("foo", { Class: value }));
       expect(record.Class).toBe(value);
     }
   });
 
   it("normalizes lower-case Class input to the Capitalized token on render", () => {
-    // render Capitalizes the enum and parse strips backticks, so `light` / `heavy` land Capitalized.
+    // render Capitalizes the enum and parse strips backticks, so lower-case Class values land Capitalized.
     expect(parseMetaRecord(renderMetaFile("foo", { Class: "light" })).Class).toBe("Light");
     expect(parseMetaRecord(renderMetaFile("foo", { Class: "heavy" })).Class).toBe("Heavy");
+    expect(parseMetaRecord(renderMetaFile("foo", { Class: "novel" })).Class).toBe("Novel");
   });
 
   it("preserves the `[TBD]` pre-classification sentinel verbatim through render and parse", () => {

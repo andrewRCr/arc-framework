@@ -258,6 +258,10 @@ export const META_FIELDS = [
   { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
 
+const CORE_FIELD_NAMES = META_FIELDS
+  .filter((field) => field.render === "core-table")
+  .map((field) => field.name);
+
 /** Union of the legal meta field labels, derived from {@link META_FIELDS}. */
 export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
 
@@ -401,13 +405,18 @@ function normalizeValue(raw: string): string | null {
  * header label so column order is tolerated. Returns `null` when the section
  * carries no table at all — the caller falls back to the legacy flat-bullet
  * scan, so pre-migration metas stay readable. A table that is *present but
- * malformed* (a separator row without an adjacent header/value row, or a
- * column-count mismatch across the three rows) throws: structural drift fails
- * loud, never silent-null.
+ * malformed* inside the core block (a separator row without an adjacent
+ * header/value row, or a column-count mismatch across the three rows) throws:
+ * structural drift fails loud, never silent-null. Narrative tables below the
+ * managed bullet fields are ignored.
  */
 function parseCoreTable(section: string): Record<string, string | null> | null {
   const lines = section.split("\n");
-  const sepIdx = lines.findIndex((line) => TABLE_SEPARATOR_RE.test(line.trim()));
+  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
+  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
+  const sepIdx = lines.findIndex(
+    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
+  );
   if (sepIdx === -1) return null;
 
   const headerLine = lines[sepIdx - 1];
@@ -421,6 +430,7 @@ function parseCoreTable(section: string): Record<string, string | null> | null {
     );
   }
   const headers = splitTableRow(headerLine).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) return null;
   const separators = splitTableRow(separatorLine);
   const cells = splitTableRow(valueLine);
   if (headers.length !== separators.length || headers.length !== cells.length) {
@@ -435,6 +445,13 @@ function parseCoreTable(section: string): Record<string, string | null> | null {
     out[header] = cell === undefined ? null : normalizeValue(cell);
   });
   return out;
+}
+
+function isCoreTableHeader(headers: readonly string[]): boolean {
+  return (
+    headers.length === CORE_FIELD_NAMES.length &&
+    CORE_FIELD_NAMES.every((field) => headers.includes(field))
+  );
 }
 
 /**
