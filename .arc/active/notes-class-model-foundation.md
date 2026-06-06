@@ -320,16 +320,22 @@ Five points the dogfood and the model-revision discussion sharpened, all folded 
   (weight) — while keeping `Class` WU-scoped and atomic a character. The felt-difference test widens to admit a
   *sequencing* consequence (not rigor/speed alone), or a literal read would reject `novel`.
 
-### The validation gate (Phase 5.R)
+### The validation gate (Phase 5.R) — result
 
-Re-run the 32 derivation-bearing heavies (9 `derivation`-only + 23 `both`) against the invent-vs-compose test;
-expect ≈ 6–10 of 36 to land `novel` — a meaningful minority (not 1, not 30). The bar is **recognizability**, not
-crispness: the border is inherently a magnitude cut, and that fuzziness is cheap *because depth is advisory* (a
-misread nudges a suggestion; the ratchet corrects it). Eyeballed candidates: `arc-plan-conductor`,
-`operational-state-docs`, `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
-`schema-introspection-layer`, possibly `composable-workflows`; plus the active WU (`class-model-foundation`
-invented the model — the canonical `novel`). A smeary, reader-dependent result falls back to binary `Class` + a
-richer STATUS.USER view rather than shipping a vague tier.
+Ran via parallel read-only triage of the 38 `planned/` heavies against the invent-vs-compose test (the same
+prompt seeds the `classify-work-unit` method update — it dogfooded clean). **Confirmed `novel` set (7):**
+backlog — `decomposition-machinery`, `arc-plan-conductor`, `cross-machine-sync-coherence`, `release-lifecycle`,
+`commit-increments`, `coord-probe`; active — `class-model-foundation` (the canonical, invented the model). A
+recognizable minority with a **stable core** (`decomposition-machinery`, `arc-plan-conductor`,
+`class-model-foundation` — clear from-scratch model invention) and a **fuzzy band** (the rest — discovery-shaped
+or new-conceptual-axis work); `coord-probe` is the weakest, held `novel` as an honest high-uncertainty estimate
+that may ratchet down (the extent of the external-coordination pattern is a live unknown).
+
+The pre-run eyeballed guess was substantially off **in both directions** — five of seven eyeballed WUs came back
+`heavy` (they *realize* an already-invented model — ADR-022's record model, the `Class` model — or consolidate
+existing rules), and five confirmed novels were missed — which is the systematic gate earning its keep. The bar
+was **recognizability**, not crispness; the fuzzy edge is cheap because depth is advisory. (Fallback, had it come
+back smeary: binary `Class` + a richer STATUS.USER view — not triggered.)
 
 ### Why no Phase-5 stamp is throwaway
 

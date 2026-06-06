@@ -611,19 +611,26 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   assertion left live in either (grep-verified). These three (this task list, notes, spec) are single-copy
   internal artifacts — no package-sync; that begins at 5.R.3's Framework surfaces.
 
-### `[ ]` **5.R.2 Validation gate — re-run the derivation-bearing heavies against invent-vs-compose**
+### `[x]` **5.R.2 Validation gate — re-run the derivation-bearing heavies against invent-vs-compose**
 
 - _Goal:_ Confirm the `Novel` tier holds empirically before the Framework surfaces are rewritten: re-triage the
-  32 derivation-bearing `Heavy` WUs (9 `derivation`-only + 23 `both`; the 4 `scale`-only cannot reach `Novel`)
-  against the invent-vs-compose test, and confirm a **stable, recognizable** `Novel` set (≈ 6–10 of 36 — a
-  meaningful minority, not 1, not 30). This is the **go/no-go**: a recognizable set proceeds; a smeary,
-  reader-dependent result stops here and reopens the representation (binary `Class` + richer STATUS.USER view).
-    - Read-only parallel analysis dogfooding the `heavy → novel` test; the decision stays in the primary
-      context (sub-agent-scope rule), as in Task 5.2. Produces the re-stamp list 5.R.6 applies.
-    - Eyeballed candidates to confirm/refute: `arc-plan-conductor`, `operational-state-docs`,
-      `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
-      `schema-introspection-layer`, possibly `composable-workflows`; plus the active WU (`class-model-foundation`
-      invented the model itself — the canonical `Novel`).
+  derivation-bearing `Heavy` WUs against the invent-vs-compose test, and confirm a **stable, recognizable** `Novel`
+  set (a meaningful minority, not 1, not 30). Go/no-go: a recognizable set proceeds; a smeary, reader-dependent
+  result reopens the representation (binary `Class` + richer STATUS.USER view).
+    - Read-only parallel analysis (6 batches over the 38 `planned/` heavies) dogfooding the `heavy → novel` test;
+      the decision stayed in the primary context (sub-agent-scope rule), as in Task 5.2.
+
+- _Outcome:_ **Gate passed.** Confirmed `Novel` set (7): backlog — `decomposition-machinery`, `arc-plan-conductor`,
+  `cross-machine-sync-coherence`, `release-lifecycle`, `commit-increments`, `coord-probe`; active —
+  `class-model-foundation`. Recognizable minority, stable core + fuzzy band; `coord-probe` held as a
+  high-uncertainty estimate (may ratchet down). The eyeballed guess was substantially off both ways (5 of 7
+  eyeballed → `heavy`; 5 confirmed novels missed) — the systematic gate earning its keep; full result in
+  `notes-class-model-foundation.md` § The validation gate — result. The re-stamp list feeds 5.R.6. A
+  **completeness pass over Phases 1–5's delivered surfaces** rode this gate and found two coverage gaps now folded
+  in: (a) the code enum is single-source in `commands/active/types.ts` (`WorkClass` + `validateClass`, whose
+  `default` silently sentinels `Novel`) and the balance-signal tally `lib/status/class-composition.ts` — 5.R.5
+  retargeted off the mis-named `parseMetaRecord`/`renderMetaFile`; (b) `graduate-work-unit.md` enumerates the value
+  set at the forcing point — added to 5.R.4. `init`/`activate` delegate to the method (no edit).
 
 ### `[ ]` **5.R.3 Always-loaded doctrine — DEV-RULES.ARC + AGENT-BRIEF.ARC (lean)**
 
@@ -638,15 +645,28 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   gains `Novel` + the second derivation threshold, the **derivation floor**, worked examples on each side of the
   invent/compose line, the no-ratchet-back distinction, the **widened felt-difference test**, the spec-form-table
   `Novel` mapping, and the **spectrum framing** linking § Work Character ↔ § Class Model; the `classify-work-unit`
-  method gains the `heavy → novel` boundary test and the derivation floor; ADR-023 records the two-→three-value
-  shift (amendment or supersession note). Strategy + method are Framework files (two copies); ADR is internal.
+  method gains the `heavy → novel` boundary test (the gate-validated invent-vs-compose wording) and the derivation
+  floor; the `graduate-work-unit` workflow admits `Novel` where it enumerates `Light` / `Heavy` at the
+  planned-entry forcing point (audit-found gap); ADR-023 records the two-→three-value shift (amendment or
+  supersession note). Strategy + method + `graduate-work-unit` are Framework files (two copies); ADR is internal.
+  (`init` / `activate-work-unit` need no edit — they delegate to the `classify-work-unit` method, not the value set.)
 
 ### `[ ]` **5.R.5 Schema, render, parse, status**
 
-- _Goal:_ Admit `Novel` through the machine surfaces: `template-meta.md` `**Class:**` enum (`Light` / `Heavy` /
-  `Novel` / `[TBD]`) with `Class`-conditional validity; `parseMetaRecord` / `renderMetaFile` value set + casing
-  normalization; the STATUS.USER `Class` column. Tests updated to lock the three-value set; Tier 1 + the relevant
-  Tier 2 gates pass. `template-meta` is a Framework file (two copies); the CLI source + tests are single-copy.
+- _Goal:_ Admit `Novel` through the machine surfaces. **Audit-confirmed targets** (the enum is single-source in
+  `types.ts` — `parseMetaRecord` / `renderMetaFile` route casing through it, so they need no direct edit):
+    - `commands/active/types.ts` — the `WorkClass` union (`'Light' | 'Heavy'` → add `'Novel'`) and the
+      `validateClass()` casing switch (add `novel → Novel`). **Load-bearing:** the switch `default`s any
+      unrecognized token to `[TBD]`, so an un-updated `validateClass` renders every `Novel` meta as the sentinel.
+    - `lib/status/class-composition.ts` — the `{ heavy, light }` tally must count `Novel`. **This is the
+      parallelism balance signal**; un-updated, `Novel` rows are silently uncounted in the in-flight + ready
+      composition, dropping exactly the WUs `Novel` exists to surface.
+    - `lib/status/render.ts` / `ready-mine.ts` / `in-flight-mine.ts` — `Class` display + doc comments (confirm no
+      `Class`-ordered sort needs a `Novel` slot above `Heavy`).
+    - `template-meta.md` `**Class:**` enum (`Light` / `Heavy` / `Novel` / `[TBD]`) with `Class`-conditional validity.
+- Tests lock the three-value set: `validateClass('novel') → 'Novel'`, the `class-composition` tally over a
+  `Novel` row, and `ready-mine.test.ts`. Tier 1 + the relevant Tier 2 gates pass. `template-meta` is a Framework
+  file (two copies); the CLI source + tests are single-copy.
 
 ### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` WUs**
 
