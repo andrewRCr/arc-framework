@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Novel`   | `P1`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `class-model-foundation`

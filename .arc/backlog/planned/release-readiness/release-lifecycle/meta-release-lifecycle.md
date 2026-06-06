@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Novel`   | `P3`         |
 
 - **Cohort:** `release-readiness`
 - **Depends On:** [none]

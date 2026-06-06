@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Novel`   | `P1`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** `worktree-foundation`

@@ -682,7 +682,7 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   priority / cohort / work-unit name. Tests lock `Novel` normalization, ready/in-flight slice display, render
   output, and composition counting.
 
-### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` backlog WUs**
+### `[x]` **5.R.6 Re-stamp the confirmed `Novel` backlog WUs**
 
 - _Goal:_ Apply `Class: Novel` to the six 5.R.1-confirmed `backlog/planned/` novels (`decomposition-machinery`,
   `arc-plan-conductor`, `cross-machine-sync-coherence`, `release-lifecycle`, `commit-increments`, `coord-probe`)
@@ -690,6 +690,11 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   STATUS.USER if any render field changed. A pure upward reclassification of existing `Heavy` estimates — `Light`
   values and the `Light` / `Heavy` boundary untouched. (The active `class-model-foundation` meta is the seventh
   `Novel`; it is stamped separately in 5.R.8, where it also gets the format migration it never received.)
+
+- _Outcome:_ The six confirmed planned WUs were re-rendered through `parseMetaRecord()` → `renderMetaFile()` with
+  only `Class` changed from `Heavy` to `Novel`. `ROADMAP` was unchanged because it has no `Class` column; the
+  gitignored `STATUS.USER` cache was refreshed, showing the four now-ready novels while leaving the two
+  dependency-blocked novels out of Ready.
 
 ### `[ ]` **5.R.7 Contract exposure + downstream routing**
 
