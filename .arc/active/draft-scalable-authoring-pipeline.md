@@ -376,6 +376,30 @@ protects the tail without taxing the common case.
 - **Novel's home stage.** Unlike task-gen, drafting is where `novel`'s advisory discovery / research phase + ADR
   shape primarily lands (derivation axis), as a depth default — suggest, not enforce.
 
+### create-spec
+
+- **Depth *is* the form** — `low→brief`, `medium→outline`, `high→detailed` — and this is the **one** stage whose
+  depth names a *durable* artifact (the form, in the spec H1). So create-spec is the **crystallization point**: it
+  reads a (maybe-absent) `draft-*` and emits the durable form-signal that generate-tasks and the lifecycle read.
+- **Derivation-keyed resolution = the touchpoint** (mirror of draft-design). Resolving the form is the
+  `classify-work-unit` confirm-or-ratchet. Reads the draft's shape when present; at `low` (no draft) the
+  resolution rides `Class` + create-spec's own derivation read — the same not-purely-artifact-shape caveat as the
+  scale axis (second instance of the feed-forward hole).
+- **What scales across the workflow's steps:** discovery depth (intent + scope + one success signal →
+  decision-centric → full checklist) and the template selected (brief / outline / `detailed-prd|rfc`). The
+  **PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks do *not* scale as lanes** — always-on, cost-proportional
+  floors (§ Floors that sit below the depth axis).
+- **Work-category determination becomes `detailed`-only.** Today's always-on "feature vs technical" step (a stale
+  remnant — it feeds nothing now) is **reworked**, not retired: it gates the PRD/RFC subtype split, which applies
+  at `detailed` only; `brief` / `outline` are single, category-agnostic forms.
+- **Re-entry valve: two routes (the middle derivation node).** A floor-raising signal splits on whether the design
+  *direction* is settled: **deepen in-stage** (`outline → detailed`) when the direction is clear but needs more
+  formal derivation; **route back to `draft-design`** when the direction itself is unsettled (you cannot formalize
+  an unshaped design). Contrast: draft-design re-enters-higher only; generate-tasks re-enters for scale /
+  routes-to-spec for derivation.
+- **Novel's other home.** At `detailed`, `novel` suggests the advisory discovery / research phase + ADR
+  expectation — suggest, not enforce (no hard `Class`↔form hook).
+
 ## Pipeline structure & naming (derived)
 
 **The three stages are peer *workflows*; `arc-plan` is a thin dispatcher.** Skills can't compose — the composable
@@ -449,8 +473,7 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
 1. **Per-stage depth manifestation** — concretely, what `low / medium / high` *is* in each stage, written as
    **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
    branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
-   **Task-gen + draft-design resolved** (§ Per-stage manifestation; § Pipeline structure & naming);
-   `create-spec` pending.
+   **All three stages resolved** (§ Per-stage manifestation; § Pipeline structure & naming).
 2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
    the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
    (no hard `Class`↔form hook). The draft's least-derived deliverable today.
@@ -469,6 +492,12 @@ Two design subtleties the manifestation work must resolve, not gloss:
   *not* recoverable from spec form (an `outline` may be `light` or `heavy`), so task-gen must read `Class` (or
   task-list scale) as an explicit input. "The artifact's shape *is* the signal" holds for derivation, not
   cleanly for scale — the seam needs a deliberate design.
+
+**Status:** all three per-stage manifestations are now resolved (§ Per-stage manifestation), both feed-forward
+holes resolved (resolution rides `Class` + a per-stage axis read, not pure artifact-shape), and the wiring shape
+resolved (the touchpoint *is* each stage's depth-resolution act, axis-keyed). **Remaining pre-spec:** the RFC form
+(item 4 — needs research), Novel's concrete discovery / ADR shaping, and the numbering decision — plus a fresh
+holistic reassess (holes / underserved areas / what belongs at draft time vs spec time) before spec authoring.
 
 ## Scope
 
