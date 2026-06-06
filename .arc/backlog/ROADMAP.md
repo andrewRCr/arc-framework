@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a6d2c288`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7ea490aa`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -24,6 +24,7 @@ _None in flight._
 | scalable-authoring-pipeline  | P1       | andrew | —          | agile-wu-lifecycle         |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
+| out-of-wu-entry              | P2       | andrew | —          | agile-parallelism          |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement   |
 | naming-conventions           | P2       | andrew | —          | doc-conventions            |
@@ -49,6 +50,7 @@ _None in flight._
 | arc-reinforce                | P3       | andrew | —          | —                          |
 | contributor-path             | P3       | andrew | —          | —                          |
 | inbound-routing-method       | P3       | andrew | —          | —                          |
+| markdown-formatting          | P3       | andrew | —          | —                          |
 | quality-gate-hooks           | P3       | andrew | —          | —                          |
 | review-method-family         | P3       | andrew | —          | —                          |
 | rules-restructure            | P3       | andrew | —          | —                          |

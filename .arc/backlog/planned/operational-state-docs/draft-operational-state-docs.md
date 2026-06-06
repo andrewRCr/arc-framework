@@ -48,6 +48,23 @@
   `_Created:_` / `_Hold:_` / `WU_Target:`) grouped and blank-line-separated from the prose descriptors, so the
   render engine emits a stable shape.
 
+### `[ ]` **Corpus-wide meta-schema conformance gate (validate the whole corpus, not changed-files-only)**
+
+- _Routed from:_ `backlog-meta-schema-backfill` errand (2026-06-06); surfaced when two planned metas
+  (`out-of-wu-entry`, `markdown-formatting`) reached `main` in the legacy flat-bullet schema with no `Class` —
+  added on sibling branches in parallel with the `class-model-foundation` migration sweep, then merged clean (no
+  conflict, separate files), so the sweep never re-touched them.
+- _Concern:_ the planned downstream catches are each partial against this mode. The Concurrent Work Conventions
+  behind-base detector is advisory and resume-gated — it fires only if the in-flight author resumes after the
+  sibling branches land and acts on the reconcile prompt, so a sweep authored-and-merged in one sitting slips it.
+  `cli-substrate-adoption`'s zod meta record validates round-trip on the records a command reads, not necessarily
+  the entire on-disk corpus at a gate. Neither deterministically flags a malformed or incomplete meta that lands
+  on `main` via a clean merge.
+- _Decision point:_ specify a conformance check that validates **every** `meta-*.md` across `backlog/`, `active/`,
+  and `completed/` against the zod schema, wired to a gate (pre-commit and/or CI) rather than changed-files-only —
+  the timing-independent net that closes the concurrent-merge drift gap. Pairs with the round-trip harness
+  (§ Scope) and the `parseMetaRecord` validation-expectations decision above.
+
 ---
 
 ## Purpose

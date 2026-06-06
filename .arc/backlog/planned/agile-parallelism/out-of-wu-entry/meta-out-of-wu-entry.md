@@ -1,17 +1,16 @@
 # Metadata: Out-of-WU Session Entry
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** `agile-parallelism`
+- **Depends On:** [none] (upstream — errand-enablement, work-routing-discipline, in-flight-awareness — all shipped)
 
 - **Origin:** [internal]
 - **Design:** `draft-out-of-wu-entry.md`
-
-- **Depends On:** [none] (upstream — errand-enablement, work-routing-discipline, in-flight-awareness — all shipped)
-- **Cohort:** agile-parallelism
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
