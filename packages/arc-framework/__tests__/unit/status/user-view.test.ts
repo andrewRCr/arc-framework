@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import { runStatusUserView } from "../../../src/lib/status/user-view.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/exec.js";
+import type { InFlightEntry } from "../../../src/lib/git/in-flight-derivation.js";
 import type { StatusViewRow } from "../../../src/lib/status/render.js";
 
 /** Default ready-slice source — empty unless a test injects one. */
@@ -111,6 +112,47 @@ describe("runStatusUserView", () => {
     // (no State / Depends-on columns — those are constant for ready work).
     expect(result.output).toContain("## Ready");
     expect(result.output).toContain("| ready-thing | Light");
+  });
+
+  it("prefers fresh local in-flight meta over a stale remote-tracking row", async () => {
+    const exec = makeExec({
+      forEachRef: "origin/feat/in-flight-awareness",
+      lsRemote: "sha\trefs/heads/feat/in-flight-awareness",
+      metas: {
+        "origin/feat/in-flight-awareness:.arc/active/meta-in-flight-awareness.md": metaContent({
+          cohort: "agile-parallelism",
+          class: "heavy",
+        }),
+      },
+    });
+    const local: InFlightEntry[] = [
+      {
+        kind: "work-unit",
+        name: "in-flight-awareness",
+        state: "Active",
+        branch: "feat/in-flight-awareness",
+        worktreePath: "/repo",
+        remoteOnly: false,
+        cohort: "agile-parallelism",
+        class: "Novel",
+        priority: "P1",
+        dependsOn: [],
+      },
+    ];
+
+    const result = await runStatusUserView({
+      exec,
+      identity: "andrew",
+      teamMode: false,
+      localOnly: false,
+      readLastRendered: () => Promise.resolve(null),
+      readLocalInFlight: () => Promise.resolve(local),
+      readReadyMine: noReady,
+    });
+
+    expect(result.source).toBe("rendered");
+    expect(result.output).toContain("| in-flight-awareness | Active | Novel | P1");
+    expect(result.output).not.toContain("| in-flight-awareness | Active | Heavy");
   });
 
   it("renders the Ready section even when no work is in flight", async () => {

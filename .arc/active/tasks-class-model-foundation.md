@@ -731,44 +731,52 @@ consume). No new requirement IDs — the model shape changes, the requirement se
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ `npm run typecheck:all`, `npm run lint:ts`, `npm run lint:sh`, `npm run lint:md`,
+  `npm run build`, `npm test` (155 unit/integration files / 2310 tests, plus 12 E2E files / 61 tests), and the
+  three `lint:arc:*` audits all passed. The `tsx` / Node 26 deprecation warning seen on audit scripts is
+  dependency-side and captured to USER-INBOX.
+- _Success criteria:_ 12 / 12 met. Verification surfaced and fixed one local-status freshness gap: `arc status
+  --user` now overlays fresh local worktree meta over stale remote-tracking rows, so the active
+  `class-model-foundation` row renders as `Novel`; the gitignored live `STATUS.USER.md` cache was also updated.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` DEV-RULES.ARC carries the minimum-viable `Class` rule (the discipline-invariance guard + a pointer to
+- `[x]` DEV-RULES.ARC carries the minimum-viable `Class` rule (the discipline-invariance guard + a pointer to
   the `classify-work-unit` method and `strategy-work-organization`) and the front-loading-duty sharpening; the
   § Atomic-tier infra-edit smell flag is removed; AGENT-BRIEF.ARC introduces the `Class` vocabulary and de-stales
   the retired tier references. The boundary tests, axis definitions, and reasoning (two floors, spec-worthiness,
   topology, ratchet) live in the method, strategy, and companion ADR — not in always-loaded DEV-RULES
-- `[ ]` A companion ADR (adr-023) exists, parallel in scope to adr-016, recording the architectural shift
-- `[ ]` `template-meta.md` reflects the modernized schema — `**Class:**` in the core block (default `[TBD]`), the
+- `[x]` A companion ADR (adr-023) exists, parallel in scope to adr-016, recording the architectural shift
+- `[x]` `template-meta.md` reflects the modernized schema — `**Class:**` in the core block (default `[TBD]`), the
   new field order / core-block table / backtick-casing convention, the stale `Tier:` reservation comment retired,
   `**Design:**` Class-aware, `**Cohort:**` path-valued with the dual-placement note; `Class`-conditional validity
   is specified
-- `[ ]` The meta record renders to the value-format + IA convention — core-block table
+- `[x]` The meta record renders to the value-format + IA convention — core-block table
   (`State` / `Owner` / `Branch` / `Class` / `Priority`), three-way value formatting (Capitalized backticked enum
   tokens, backticked identifiers, bracket sentinels, prose narrative fields), and the field order — round-tripped
   through one guarded `parseMetaRecord` that every consumer routes through (the duplicated `extractField`
   retired); existing `backlog/planned/` metas are migrated to it
-- `[ ]` Every spec-named position passes the felt-difference test (no `light`/`detailed`; the `outline` straddle
+- `[x]` Every spec-named position passes the felt-difference test (no `light`/`detailed`; the `outline` straddle
   resolved by `Class` / task-gen scale)
-- `[ ]` Every WU artifact in `active/` and `backlog/` uses position-independent (filename-only) references; the
+- `[x]` Every WU artifact in `active/` and `backlog/` uses position-independent (filename-only) references; the
   relocatability invariant and the generalized source-side rule are stated in DEV-RULES.ARC
-- `[ ]` The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
+- `[x]` The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
   `activate-work-unit`; the `graduate-work-unit` (`provisional → planned`) workflow forces the estimate at
   planned-entry
-- `[ ]` `Class` renders in STATUS.USER over an in-flight + ready content model (mine, unblocked);
+- `[x]` `Class` renders in STATUS.USER over an in-flight + ready content model (mine, unblocked);
   `strategy-work-organization` carries the `Class` model, the `planning depth` ordinal, the three spec forms, and
   worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness rule
-- `[ ]` Every `backlog/` meta (planned + provisional) is re-rendered to the new format with a path-valued
+- `[x]` Every `backlog/` meta (planned + provisional) is re-rendered to the new format with a path-valued
   `**Cohort:**` that path-matches its on-disk dir (or `[none]`); every `backlog/planned/` member additionally
   carries a best-estimate `**Class:**` (not a blanket `Heavy`), the active WU and already-classified siblings
   retain their values, and `provisional/` members are `[TBD]`
-- `[ ]` The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
+- `[x]` The contract surfaces consumed by siblings (the `Class` model, the path-valued `Cohort` schema, the
   relocatability invariant) are defined normatively in the spec and the constitution
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

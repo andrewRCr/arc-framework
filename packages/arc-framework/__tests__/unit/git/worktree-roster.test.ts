@@ -128,6 +128,9 @@ describe("runWorktreeRoster", () => {
         "- **State:** Active\n" +
         "- **Owner:** alice\n" +
         "- **Branch:** feature/x\n" +
+        "- **Class:** Novel\n" +
+        "- **Priority:** P1\n" +
+        "- **Depends On:** alpha, bravo\n" +
         "- **Cohort:** parallelism-trio\n",
     });
 
@@ -140,6 +143,9 @@ describe("runWorktreeRoster", () => {
       metaFilePath: "/home/dev/repo/.arc/active/meta-feature-x.md",
       state: "Active",
       cohort: "parallelism-trio",
+      class: "Novel",
+      priority: "P1",
+      dependsOn: ["alpha", "bravo"],
     });
     expect(result.warnings).toEqual([]);
   });

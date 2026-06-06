@@ -27,8 +27,8 @@ export type WorktreeRosterState = WorkUnitState | "unknown";
 /**
  * One worktree-roster entry. `branch` is always populated — detached-HEAD
  * worktrees are excluded from the result entirely. Meta-derived fields
- * (`identity`, `metaFilePath`, `state`, `cohort`) are absent when no
- * meta file resolves for the worktree.
+ * (`identity`, `metaFilePath`, `state`, `cohort`, `class`, `priority`,
+ * `dependsOn`) are absent when no meta file resolves for the worktree.
  */
 export interface WorktreeRosterEntry {
   worktreePath: string;
@@ -37,6 +37,9 @@ export interface WorktreeRosterEntry {
   metaFilePath?: string;
   state?: WorktreeRosterState;
   cohort?: string;
+  class?: string;
+  priority?: string;
+  dependsOn?: readonly string[];
 }
 
 /**
@@ -291,6 +294,9 @@ function buildEntry(
   const identity = record.Owner;
   const stateRaw = record.State;
   const cohortRaw = record.Cohort;
+  const classRaw = record.Class;
+  const priorityRaw = record.Priority;
+  const dependsOn = parseDependsOn(record["Depends On"]);
   return {
     worktreePath: wt.path,
     branch: wt.branch,
@@ -298,7 +304,22 @@ function buildEntry(
     ...(identity !== null ? { identity } : {}),
     ...(stateRaw !== null ? { state: validateState(stateRaw) } : {}),
     ...(cohortRaw !== null && cohortRaw !== "[none]" ? { cohort: cohortRaw } : {}),
+    ...(classRaw !== null ? { class: classRaw } : {}),
+    ...(priorityRaw !== null && priorityRaw !== "[none]" ? { priority: priorityRaw } : {}),
+    ...(dependsOn.length > 0 ? { dependsOn } : {}),
   };
+}
+
+/**
+ * Parse a `**Depends On:**` field value into WU names: comma-separated,
+ * trimmed, with `[none]` / absent / empty resolving to no dependencies.
+ */
+function parseDependsOn(raw: string | null): readonly string[] {
+  if (raw === null || raw === "[none]") return [];
+  return raw
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
 }
 
 interface RawWorktree {

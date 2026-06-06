@@ -11,11 +11,10 @@
 - **Design:** `spec-class-model-foundation.md`
 - **Task List:** `tasks-class-model-foundation.md`
 
-- **Last Completed:** Task 5.R.8 — active meta re-rendered to the core-block schema and stamped `Novel`
-- **Next Task:** Task 6.1 — Complete verification: load and follow `verify-work-unit.md`
+- **Last Completed:** Task 6.1 — full verification complete; success criteria met and gates passed
+- **Next Task:** integrate-work-unit Step 1 — verify completion
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — load `verify-work-unit.md`, run the final WU verification gates, update success
-  criteria, and prepare integration readiness.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
