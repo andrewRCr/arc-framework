@@ -368,11 +368,11 @@ describe("deriveInFlight — shared-reader field recovery", () => {
     });
   });
 
-  it("degrades a malformed-core-table meta to a WU with absent fields (no crash)", async () => {
+  it("skips a malformed-core-table meta rather than treating it as unattributed", async () => {
     const exec = makeExec({
       metas: {
         "origin/feat/x:.arc/active/meta-x.md":
-          "# Metadata: x\n\n| State | Owner |\n| --- | --- |\n| `Active` |\n",
+          "# Metadata: x\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
       },
     });
 
@@ -383,8 +383,6 @@ describe("deriveInFlight — shared-reader field recovery", () => {
       teamMode: false,
     });
 
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({ kind: "work-unit", name: "x" });
-    expect(entries[0]).not.toHaveProperty("owner");
+    expect(entries).toEqual([]);
   });
 });

@@ -201,16 +201,16 @@ async function classifyBranch(
 }
 
 /**
- * Parse a meta record, degrading a structurally malformed core-block table to
- * an all-absent record. The in-flight oracle is an advisory read over remote
- * refs — one broken meta must not crash the whole derivation. (Empty input
- * yields an all-null record without throwing.)
+ * Parse a meta record, dropping structurally malformed content from the advisory
+ * in-flight oracle. One broken remote meta must not crash the whole derivation,
+ * but treating it as ownerless would leak malformed WUs through identity-scoped
+ * views.
  */
-function parseRecordOrEmpty(content: string): MetaRecord {
+function parseRecord(content: string): MetaRecord | null {
   try {
     return parseMetaRecord(content);
   } catch {
-    return parseMetaRecord("");
+    return null;
   }
 }
 
@@ -220,8 +220,9 @@ function buildWorkUnit(
   content: string,
   location: InFlightLocation,
   planning: boolean,
-): InFlightWorkUnit {
-  const fields = parseRecordOrEmpty(content);
+): InFlightWorkUnit | null {
+  const fields = parseRecord(content);
+  if (fields === null) return null;
   const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
   return {
     kind: "work-unit",
