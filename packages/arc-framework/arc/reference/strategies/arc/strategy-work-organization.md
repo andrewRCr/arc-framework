@@ -294,9 +294,9 @@ Before a work unit enters the `State` lifecycle above, it climbs a **readiness l
 - **`backlog/provisional/`** — pre-commitment thinking; the thesis is not yet one the project commits to.
   `**Class:**` may be `[TBD]`.
 - **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
-  `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy`); `[TBD]` is legal only
-  in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and forces the
-  estimate via the [classify-work-unit][classify-work-unit] method.
+  `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
+  legal only in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and
+  forces the estimate via the [classify-work-unit][classify-work-unit] method.
 - **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
   [init-work-unit][init-work-unit] performs `planned → active`.
 
@@ -337,10 +337,10 @@ Variation above the invariants happens along two axes:
   surfaces and spec-artifact sets the framework installs. The invariants hold equally under all
   three; the artifact set carrying them differs.
 
-- **`Class`** — `light` / `heavy`, the WU's recorded weight (see § Class Model and the
+- **`Class`** — `light` / `heavy` / `novel`, the WU's recorded weight (see § Class Model and the
   [classify-work-unit][classify-work-unit] method). `Class` scales the design-authoring ceremony a WU
   carries — how much spec and planning the work demands — while the structural invariants apply
-  uniformly at both values.
+  uniformly at every resolved value.
 
 ### Deferred contract
 
