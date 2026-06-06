@@ -98,7 +98,7 @@ function extractArcBlock(
   if (parsed === null || typeof parsed !== "object") return undefined;
   const arc = (parsed as Record<string, unknown>).arc;
   if (arc === null || typeof arc !== "object") return undefined;
-  return arc as { methods?: unknown; extensions?: unknown };
+  return arc;
 }
 
 function toStringArray(value: unknown): string[] {

@@ -82,7 +82,7 @@ export async function checkLatestVersion(
   packageName: string,
   // Double cast: FetchFn defines a minimal response interface for DI/testability
   // that doesn't structurally match globalThis.fetch's full Response type.
-  fetchImpl: FetchFn = fetch as unknown as FetchFn,
+  fetchImpl: FetchFn = fetch,
 ): Promise<string | null> {
   // Encode scoped package names: @scope/name → @scope%2Fname
   const parts = packageName.split("/");

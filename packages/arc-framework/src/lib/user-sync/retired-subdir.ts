@@ -126,5 +126,5 @@ function manifestFilePaths(noteContent: string): string[] {
   if (typeof parsed !== "object" || parsed === null) return [];
   const files = (parsed as { files?: unknown }).files;
   if (typeof files !== "object" || files === null) return [];
-  return Object.keys(files as Record<string, unknown>);
+  return Object.keys(files);
 }
