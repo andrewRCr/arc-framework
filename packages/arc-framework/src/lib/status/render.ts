@@ -15,7 +15,8 @@
  */
 
 import type { InFlightState } from "../git/in-flight-derivation.js";
-import type { Priority } from "../../commands/active/types.js";
+import type { Priority, WorkClass } from "../../commands/active/types.js";
+import { cohortLeaf } from "../active/cohort-path.js";
 
 /** One row of a status view — a work unit's render-relevant fields, pre-resolved. */
 export interface StatusViewRow {
@@ -23,6 +24,11 @@ export interface StatusViewRow {
   workUnit: string;
   /** Lifecycle phase, surfaced in the State column. */
   state?: InFlightState;
+  /**
+   * Recorded weight (`Light` / `Heavy` / `Novel` / `[TBD]`); absent → em-dash
+   * cell (the column never drops).
+   */
+  class?: WorkClass | "[TBD]";
   /** Attention level; absent → `P3` baseline for sort and render. */
   priority?: Priority;
   /** Owner; rendered only by tiers whose column set carries Owner. */
@@ -34,17 +40,32 @@ export interface StatusViewRow {
 }
 
 /** A render-standard column. */
-export type StatusColumn = "workUnit" | "state" | "priority" | "owner" | "dependsOn" | "cohort";
+export type StatusColumn = "workUnit" | "state" | "class" | "priority" | "owner" | "dependsOn" | "cohort";
 
 /**
  * The `STATUS.USER` (in-flight-mine) column set — Owner omitted (constant
- * `= me`). `Priority` is conditional: dropped when no row carries a value.
+ * `= me`). `Class` always renders (its `[TBD]` sentinel is a value, not an
+ * absence); `Priority` is conditional, dropped when no row carries a value.
  */
 export const STATUS_USER_COLUMNS = [
   "workUnit",
   "state",
+  "class",
   "priority",
   "dependsOn",
+  "cohort",
+] as const satisfies readonly StatusColumn[];
+
+/**
+ * The `STATUS.USER` ready-slice column set — owned, unblocked planned work.
+ * State (constant `Planning`) and Depends on (constant `—`, every dep satisfied)
+ * are omitted as constant across the table, and Owner (constant `= me`) as in the
+ * in-flight set. `Class` always renders; `Priority` stays conditional.
+ */
+export const STATUS_USER_READY_COLUMNS = [
+  "workUnit",
+  "class",
+  "priority",
   "cohort",
 ] as const satisfies readonly StatusColumn[];
 
@@ -86,6 +107,7 @@ function compareCohort(a: string | undefined, b: string | undefined): number {
 const COLUMN_HEADERS: Record<StatusColumn, string> = {
   workUnit: "Work unit",
   state: "State",
+  class: "Class",
   priority: "Priority",
   owner: "Owner",
   dependsOn: "Depends on",
@@ -99,6 +121,9 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
       return row.workUnit;
     case "state":
       return row.state ?? EM_DASH;
+    case "class":
+      // Always a cell: `[TBD]` is a value, and a field-absent WU shows em-dash.
+      return row.class ?? EM_DASH;
     case "priority":
       return row.priority ?? "P3";
     case "owner":
@@ -106,7 +131,9 @@ function cellOf(row: StatusViewRow, column: StatusColumn): string {
     case "dependsOn":
       return row.dependsOn && row.dependsOn.length > 0 ? row.dependsOn.join(", ") : EM_DASH;
     case "cohort":
-      return row.cohort ?? EM_DASH;
+      // Display the leaf segment for a nested cohort; the full path is retained
+      // on the row for membership and the sort key.
+      return row.cohort !== undefined ? cohortLeaf(row.cohort) : EM_DASH;
   }
 }
 

@@ -11,6 +11,7 @@
  */
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
+import { parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
 
@@ -26,8 +27,8 @@ export type WorktreeRosterState = WorkUnitState | "unknown";
 /**
  * One worktree-roster entry. `branch` is always populated — detached-HEAD
  * worktrees are excluded from the result entirely. Meta-derived fields
- * (`identity`, `metaFilePath`, `state`, `cohort`) are absent when no
- * meta file resolves for the worktree.
+ * (`identity`, `metaFilePath`, `state`, `cohort`, `class`, `priority`,
+ * `dependsOn`) are absent when no meta file resolves for the worktree.
  */
 export interface WorktreeRosterEntry {
   worktreePath: string;
@@ -36,6 +37,9 @@ export interface WorktreeRosterEntry {
   metaFilePath?: string;
   state?: WorktreeRosterState;
   cohort?: string;
+  class?: string;
+  priority?: string;
+  dependsOn?: readonly string[];
 }
 
 /**
@@ -158,8 +162,12 @@ interface EntryResolution {
 interface MetaCandidate {
   name: string;
   metaFilePath: string;
-  content?: string;
+  /** Parsed record — present iff the meta was read and parsed without error. */
+  record?: MetaRecord;
+  /** Set when the meta file could not be read. */
   readError?: string;
+  /** Set when the meta was read but its core-block table is malformed. */
+  parseError?: string;
 }
 
 async function resolveEntry(
@@ -181,15 +189,15 @@ async function resolveEntry(
   if (candidates.length === 1) {
     const c = candidates[0];
     if (c === undefined) return { entry: degraded, warnings: [], metaFilesPresent: true };
-    if (c.content === undefined) {
+    if (c.record === undefined) {
       return {
         entry: degraded,
-        warnings: [`Failed to read ${c.metaFilePath}: ${c.readError ?? "unknown error"}`],
+        warnings: [unreadableWarning(c)],
         metaFilesPresent: true,
       };
     }
     return {
-      entry: buildEntry(wt, c.metaFilePath, c.content),
+      entry: buildEntry(wt, c.metaFilePath, c.record),
       warnings: [],
       metaFilesPresent: true,
     };
@@ -199,11 +207,12 @@ async function resolveEntry(
   // branch. Disambiguates active/ states where stale or unrelated meta files
   // coexist with the live one.
   const readable = candidates.filter(
-    (c): c is MetaCandidate & { content: string } => c.content !== undefined,
+    (c): c is MetaCandidate & { record: MetaRecord } => c.record !== undefined,
   );
-  const matches = readable.filter(
-    (c) => extractField(c.content, "Branch") === wt.branch,
-  );
+  const candidateWarnings = candidates
+    .filter((c) => c.record === undefined)
+    .map(unreadableWarning);
+  const matches = readable.filter((c) => c.record.Branch === wt.branch);
   const activeDir = `${wt.path}/.arc/active`;
   const inventory = metaFiles.join(", ");
 
@@ -211,6 +220,7 @@ async function resolveEntry(
     return {
       entry: degraded,
       warnings: [
+        ...candidateWarnings,
         `Multiple meta files in ${activeDir}/ (${inventory}); none match branch ${wt.branch}`,
       ],
       metaFilesPresent: true,
@@ -224,8 +234,9 @@ async function resolveEntry(
     }
     const names = matches.map((m) => m.name).join(", ");
     return {
-      entry: buildEntry(wt, picked.metaFilePath, picked.content),
+      entry: buildEntry(wt, picked.metaFilePath, picked.record),
       warnings: [
+        ...candidateWarnings,
         `Multiple meta files in ${activeDir}/ match branch ${wt.branch}: ${names}; using ${picked.name}`,
       ],
       metaFilesPresent: true,
@@ -235,8 +246,8 @@ async function resolveEntry(
   const match = matches[0];
   if (match === undefined) return { entry: degraded, warnings: [], metaFilesPresent: true };
   return {
-    entry: buildEntry(wt, match.metaFilePath, match.content),
-    warnings: [],
+    entry: buildEntry(wt, match.metaFilePath, match.record),
+    warnings: candidateWarnings,
     metaFilesPresent: true,
   };
 }
@@ -247,9 +258,9 @@ async function readCandidate(
   name: string,
 ): Promise<MetaCandidate> {
   const metaFilePath = `${worktreePath}/.arc/active/${name}`;
+  let content: string;
   try {
-    const content = await fs.readFile(metaFilePath);
-    return { name, metaFilePath, content };
+    content = await fs.readFile(metaFilePath);
   } catch (err) {
     return {
       name,
@@ -257,49 +268,63 @@ async function readCandidate(
       readError: err instanceof Error ? err.message : String(err),
     };
   }
+  try {
+    return { name, metaFilePath, record: parseMetaRecord(content) };
+  } catch (err) {
+    return {
+      name,
+      metaFilePath,
+      parseError: err instanceof Error ? err.message : String(err),
+    };
+  }
 }
 
+/** Warning text for a candidate that could not be read or parsed. */
+function unreadableWarning(c: MetaCandidate): string {
+  return c.parseError !== undefined
+    ? `Malformed meta ${c.metaFilePath}: ${c.parseError}`
+    : `Failed to read ${c.metaFilePath}: ${c.readError ?? "unknown error"}`;
+}
+
+/**
+ * Build a roster entry from a parsed meta record. The shared reader has already
+ * stripped inline backticks and read the core-block table, so `Owner` / `State`
+ * / `Cohort` arrive in bare form regardless of the meta's rendered shape.
+ */
 function buildEntry(
   wt: { path: string; branch: string },
   metaFilePath: string,
-  content: string,
+  record: MetaRecord,
 ): WorktreeRosterEntry {
-  const fields = parseMetaFields(content);
+  const identity = record.Owner;
+  const stateRaw = record.State;
+  const cohortRaw = record.Cohort;
+  const classRaw = record.Class;
+  const priorityRaw = record.Priority;
+  const dependsOn = parseDependsOn(record["Depends On"]);
   return {
     worktreePath: wt.path,
     branch: wt.branch,
     metaFilePath,
-    ...(fields.identity !== undefined ? { identity: fields.identity } : {}),
-    ...(fields.state !== undefined ? { state: fields.state } : {}),
-    ...(fields.cohort !== undefined ? { cohort: fields.cohort } : {}),
-  };
-}
-
-interface ParsedMetaFields {
-  identity?: string;
-  state?: WorktreeRosterState;
-  cohort?: string;
-}
-
-function parseMetaFields(content: string): ParsedMetaFields {
-  const ownerRaw = extractField(content, "Owner");
-  const stateRaw = extractField(content, "State");
-  const cohortRaw = extractField(content, "Cohort");
-  return {
-    ...(ownerRaw !== null ? { identity: ownerRaw } : {}),
+    ...(identity !== null ? { identity } : {}),
     ...(stateRaw !== null ? { state: validateState(stateRaw) } : {}),
     ...(cohortRaw !== null && cohortRaw !== "[none]" ? { cohort: cohortRaw } : {}),
+    ...(classRaw !== null ? { class: classRaw } : {}),
+    ...(priorityRaw !== null && priorityRaw !== "[none]" ? { priority: priorityRaw } : {}),
+    ...(dependsOn.length > 0 ? { dependsOn } : {}),
   };
 }
 
-function extractField(content: string, label: string): string | null {
-  const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`, "m");
-  const m = re.exec(content);
-  if (!m || m[1] === undefined) return null;
-  const raw = m[1].trim();
-  if (raw === "") return null;
-  return raw;
+/**
+ * Parse a `**Depends On:**` field value into WU names: comma-separated,
+ * trimmed, with `[none]` / absent / empty resolving to no dependencies.
+ */
+function parseDependsOn(raw: string | null): readonly string[] {
+  if (raw === null || raw === "[none]") return [];
+  return raw
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name !== "");
 }
 
 interface RawWorktree {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  validateClass,
   validatePriority,
   validateState,
 } from "../../../../src/commands/active/types.js";
@@ -55,5 +56,34 @@ describe("validatePriority", () => {
     expect(validatePriority("P5")).toBe("P3");
     expect(validatePriority("p1")).toBe("P3"); // case-sensitive
     expect(validatePriority("Bogus")).toBe("P3");
+  });
+});
+
+describe("validateClass", () => {
+  it("normalizes each resolved weight to its display form, case-insensitively", () => {
+    expect(validateClass("Light")).toBe("Light");
+    expect(validateClass("light")).toBe("Light");
+    expect(validateClass("Heavy")).toBe("Heavy");
+    expect(validateClass("heavy")).toBe("Heavy");
+    expect(validateClass("Novel")).toBe("Novel");
+    expect(validateClass("novel")).toBe("Novel");
+    expect(validateClass("  NOVEL  ")).toBe("Novel");
+    expect(validateClass("  HEAVY  ")).toBe("Heavy"); // trimmed + case-folded
+  });
+
+  it("resolves the pre-classification sentinel to [TBD]", () => {
+    expect(validateClass("[TBD]")).toBe("[TBD]");
+  });
+
+  it("resolves a missing or empty value to [TBD]", () => {
+    expect(validateClass(null)).toBe("[TBD]");
+    expect(validateClass("")).toBe("[TBD]");
+    expect(validateClass("   ")).toBe("[TBD]");
+  });
+
+  it("resolves unrecognized values to [TBD] without throwing", () => {
+    expect(validateClass("medium")).toBe("[TBD]");
+    expect(validateClass("[none]")).toBe("[TBD]");
+    expect(validateClass("Bogus")).toBe("[TBD]");
   });
 });

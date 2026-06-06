@@ -227,7 +227,10 @@ the posture as "tolerated" or "principled at modest scale."
 
     - **When to parallelize vs serialize.** Decision rubric — independent WUs (disjoint files /
       modules) → parallel-merge OK; high-overlap WUs (shared module, semantically related code)
-      → serialize. Concrete examples per `research-integration-conflict-handling.md`.
+      → serialize; `Novel` WUs (the higher derivation threshold) count as plate-dominating work even when file
+      overlap is low, so the rubric treats "one novel stream + ordinary heavy/light work" differently from two
+      concurrent novel streams. Concrete examples per `research-integration-conflict-handling.md` plus the
+      `Class` model's worklist-balance rule.
 
     - **Activation-time concurrency check — doctrine over the shipped check.** In-Flight Awareness
       already ships the *mechanism*: an oracle-backed activation check consulted at spawn / cold-start
@@ -655,6 +658,11 @@ within it.
 Work Organization Reform → `draft-worktree-foundation.md` → **Concurrent Work Conventions**. (All
 upstream members — WF, errand-enablement, in-flight-awareness — have shipped, so this WU is Ready.
 `draft-agile-wu-lifecycle.md` is no longer in the chain; it left the cohort and does not block this WU.)
+
+`class-model-foundation` adds one new input to the CWC rubric: `Novel` is the "roughly one genuinely-novel stream"
+signal for plate balancing. CWC consumes that as sequencing guidance in the parallelize-vs-serialize doctrine,
+not as a renderer field or activation gate; the concrete convention belongs in D1's `strategy-concurrent-work`
+spine when the four-WU stack re-enters.
 
 ---
 

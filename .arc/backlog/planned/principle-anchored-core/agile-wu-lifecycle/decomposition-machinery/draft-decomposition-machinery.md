@@ -20,6 +20,20 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Rename the `WU → cohort` workflow off "graduation" (reserve the term for the readiness ladder)**
+
+- *Routed from:* `class-model-foundation` task-generation planning (2026-06-04). That WU adds a
+  `graduate-work-unit` workflow for the `provisional → planned` readiness rung and reserves "graduation" for the
+  readiness ladder (`provisional → planned → active`).
+- *Concern:* this WU's draft calls its `WU → cohort` split a "graduation" (by analogy to `init-work-unit`'s
+  `planned → active` graduation). The analogy over-stretches — decomposing a WU *yields* a cohort; it is a split,
+  not a readiness promotion. With `graduate-work-unit` claiming the term, the overload becomes a genuine
+  collision.
+- *Proposed:* rename the `WU → cohort` workflow (and its prose) to a decomposition-flavored verb
+  (`decompose-work-unit` / a "fan-out"); keep "graduate / graduation" for the readiness ladder only.
+- *Coordinates with:* `class-model-foundation` R20 (the `graduate-work-unit` workflow) + the cohort doc's
+  terminology note.
+
 ### `[ ]` **Cohort-field↔dir consistency guard (the cohort half of a bundled hook capture)**
 
 - *Routed from:* `USER-INBOX § Backlog` (originally `WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort

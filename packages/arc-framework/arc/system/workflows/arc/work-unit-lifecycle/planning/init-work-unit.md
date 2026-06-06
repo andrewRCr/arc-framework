@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - branch-format
+    - classify-work-unit
   extensions:
     - pre-push-review
 ---
@@ -126,6 +127,10 @@ arc user open {name}
 > at `backlog/{planned,provisional}/{name}/`.
 
 When resuming from a backlog stub, graduate the per-WU subdir contents into the active workspace.
+On the normal readiness-ladder path, this is the `planned → active` rung;
+[graduate-work-unit][graduate-work-unit] has already performed `provisional → planned` and forced a resolved
+`Class` before the stub became startable. Direct `provisional/` reconciliation is tolerated only as a legacy /
+manual fallback; Path A resolves any remaining `[TBD]` immediately.
 Under the per-WU subdir model, every backlog WU carries `meta-{name}.md` (always) plus any
 draft-doc and companions:
 
@@ -138,7 +143,7 @@ rmdir .arc/backlog/{state}/{name}
 ```
 
 The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
-`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Spec` without
+`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Design` without
 overwriting these fields.
 
 See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
@@ -152,8 +157,11 @@ Two paths depending on Step 3's outcome:
 Reconcile the existing meta-file to reflect the now-active planning state:
 
 1. **Branch** → current planning branch (e.g., `plan/{name}`)
-2. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
+2. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
 3. **Next Action** → freeform planning-session prompt
+4. **Class** → confirm-or-ratchet via [`classify-work-unit`][classify-work-unit]. A `planned/` graduate
+   arrives with a resolved estimate — confirm it still holds, or ratchet up to any realized floor. A
+   `provisional/` stub may still read `[TBD]` — resolve it to a best estimate now.
 
 **Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other
 backfilled fields. The backlog stub's intentional metadata survives graduation.
@@ -169,6 +177,9 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 4. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
 5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-spec.md`" or "Continue
    `draft-*` exploration")
+6. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
+   best estimate against the boundary tests. Freely revisable; the ratchet protects only realized work, so
+   an early estimate costs nothing.
 
 Remaining fields take their `template-meta.md` defaults.
 
@@ -311,9 +322,11 @@ spec or notes.
 [in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
+[classify-work-unit]: ../../../../methods/classify-work-unit.md
 [template-meta]: ../../../../../reference/templates/arc/work-unit/template-meta.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
+[graduate-work-unit]: ../graduate-work-unit.md
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

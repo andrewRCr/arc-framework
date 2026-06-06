@@ -4,10 +4,12 @@
  * candidates.
  *
  * Also home to the canonical meta field set (`META_FIELDS`) and the projection
- * between a meta's structured field record and its markdown form:
- * `renderMetaFile` emits the markdown from the field set, `parseMetaRecord`
- * recovers the record. Sharing one field definition keeps the rendered and
- * parsed views from disagreeing on structure.
+ * between a meta's structured field record and its markdown form: a hoisted
+ * core-block table (`State | Owner | Branch | Class | Priority`) plus ordered
+ * bullet groups, under a value-format convention (enum / identifier / sentinel
+ * / narrative). `renderMetaFile` emits the markdown from the field set,
+ * `parseMetaRecord` recovers the record. Sharing one field definition keeps the
+ * rendered and parsed views from disagreeing on structure.
  *
  * The directory scan does filesystem work only. Mode-specific shaping (full
  * enumeration vs session-init single-path resolution) lives in the probe
@@ -141,7 +143,14 @@ async function parseCandidate(
     return null;
   }
 
-  const parsed = parseMetaFile(content);
+  let parsed: ParsedMetaFields;
+  try {
+    parsed = parseMetaFile(content);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warnings.push(`Malformed meta in ${relative(cwd, absPath)}: ${message}`);
+    return null;
+  }
   const rel = relative(cwd, absPath).split(sep).join("/");
   const filename = rel.split("/").pop() ?? rel;
   return {
@@ -166,65 +175,92 @@ export interface ParsedMetaFields {
 /**
  * Parse the five session-init-relevant fields from a meta-file body.
  *
- * Field extraction is bounded to the H1-bounded preamble — from immediately
- * after the first `# ...` H1 through the first content `## ...` H2 (or
- * end-of-file). When no H1 anchor resolves, all fields return `null`.
+ * Thin projection over {@link parseMetaRecord} — the single reader every meta
+ * consumer routes through — selecting the subset the probe runners need. Core
+ * fields (`State`, `Branch`) come from the core-block table when present and the
+ * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
+ * fields (`State`, `Branch`, `Task List`) come back bare (backticks stripped);
+ * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
+ * spans and all. Bracket sentinels are preserved; a field whose marker is
+ * absent comes back `null`.
  *
- * Within the region, accepts both list-item (`- **Field:** value`) and
- * bare (`**Field:** value`) forms; bullets and leading whitespace are
- * tolerated. Values are taken verbatim to end of line, trimmed. Inline
- * backticks are stripped so backticked path fields round-trip as plain
- * paths.
- *
- * Returns `null` for any field whose marker isn't present — downstream
- * rendering decides how to surface missing fields.
+ * Throws when the meta carries a structurally malformed core-block table — see
+ * {@link parseMetaRecord}. Callers scanning untrusted files (e.g.
+ * {@link parseCandidate}) catch and downgrade to a warning.
  */
 export function parseMetaFile(content: string): ParsedMetaFields {
-  const section = extractMetadataSection(content) ?? "";
+  const record = parseMetaRecord(content);
   return {
-    branch: extractField(section, "Branch"),
-    state: extractField(section, "State"),
-    nextTask: extractField(section, "Next Task"),
-    taskList: extractField(section, "Task List"),
-    nextAction: extractField(section, "Next Action"),
+    branch: record.Branch,
+    state: record.State,
+    nextTask: record["Next Task"],
+    taskList: record["Task List"],
+    nextAction: record["Next Action"],
   };
 }
 
+/** How a field is laid out in the markdown projection. */
+export type MetaRenderMode = "core-table" | "bullet";
+
+/**
+ * The value-formatting class for a field's *real* (non-sentinel) values. This
+ * is the proto-schema axis a later code-owned schema maps directly: `enum` →
+ * a closed Capitalized token set, `identifier` → a slug / filename / branch,
+ * `narrative` → free prose. Bracket sentinels (`[none]` / `[internal]` /
+ * `[TBD]`) are a cross-cutting form detected at render/parse time and are
+ * orthogonal to this class — a field permits a sentinel when its `default` is
+ * one.
+ */
+export type MetaValueClass = "enum" | "identifier" | "narrative";
+
 /**
  * A managed-meta field descriptor: the bold-marker label, the value rendered
- * when no override is supplied, and the blank-line group the field belongs to.
- * The ordered set in {@link META_FIELDS} is the single definition both the
- * markdown projection ({@link renderMetaFile}) and the structured parse
- * ({@link parseMetaRecord}) derive from.
+ * when no override is supplied, the blank-line group the field belongs to, and
+ * the two projection axes — where it renders (`render`) and how its value is
+ * formatted (`valueClass`). The ordered set in {@link META_FIELDS} is the
+ * single definition the markdown projection ({@link renderMetaFile}) and the
+ * structured parse ({@link parseMetaRecord}) both derive from.
  */
 export interface MetaFieldDescriptor {
   /** Bold-marker label, e.g. `"Next Action"` (rendered as `- **Next Action:** …`). */
   readonly name: string;
   /** Value rendered when the caller supplies no override for this field. */
   readonly default: string;
-  /** Grouping key — fields sharing a group render contiguously; groups are blank-line separated. */
+  /** Grouping key — bullet fields sharing a group render contiguously, blank-line separated. */
   readonly group: string;
+  /** Layout: a cell in the hoisted core-block table, or a grouped bullet. */
+  readonly render: MetaRenderMode;
+  /** Value-formatting class for the field's real values (sentinels bypass it). */
+  readonly valueClass: MetaValueClass;
 }
 
 /**
- * The canonical meta field set — ordered, grouped, with per-field defaults.
- * Declared `as const` so the labels form the {@link MetaFieldName} literal union.
+ * The canonical meta field set — ordered, grouped, with per-field defaults and
+ * the two projection axes. The core block (`render: "core-table"`) hoists into
+ * a single-row table (`State | Owner | Branch | Class | Priority`); the rest
+ * render as ordered bullet groups. Declared `as const` so the labels form the
+ * {@link MetaFieldName} literal union.
  */
 export const META_FIELDS = [
-  { name: "State", default: "—", group: "identity" },
-  { name: "Owner", default: "—", group: "identity" },
-  { name: "Branch", default: "—", group: "identity" },
-  { name: "Origin", default: "[internal]", group: "reference" },
-  { name: "Design", default: "[none]", group: "reference" },
-  { name: "Depends On", default: "[none]", group: "coordination" },
-  { name: "Cohort", default: "[none]", group: "coordination" },
-  { name: "Priority", default: "P3", group: "coordination" },
-  { name: "Task List", default: "[none]", group: "pointers" },
-  { name: "Last Completed", default: "[none]", group: "pointers" },
-  { name: "Next Task", default: "[none]", group: "pointers" },
-  { name: "Blockers", default: "[none]", group: "pointers" },
-  { name: "Next Action", default: "—", group: "directive" },
+  { name: "State", default: "—", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Owner", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Branch", default: "—", group: "core", render: "core-table", valueClass: "identifier" },
+  { name: "Class", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
+  { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
+  { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
+  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
+  { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
+
+const CORE_FIELD_NAMES = META_FIELDS
+  .filter((field) => field.render === "core-table")
+  .map((field) => field.name);
 
 /** Union of the legal meta field labels, derived from {@link META_FIELDS}. */
 export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
@@ -241,14 +277,87 @@ export type MetaFieldOverrides = Partial<Record<MetaFieldName, string>>;
 /** The structured field record recovered from a meta projection by {@link parseMetaRecord}. */
 export type MetaRecord = Record<MetaFieldName, string | null>;
 
+/** The em-dash placeholder for a required-but-unset field (distinct from a `[…]` sentinel). */
+const PLACEHOLDER = "—";
+
+/** A bracket sentinel token — `[none]`, `[internal]`, `[TBD]`. */
+const SENTINEL_RE = /^\[[^\]]+\]$/;
+
+function isSentinel(value: string): boolean {
+  return SENTINEL_RE.test(value.trim());
+}
+
+function capitalizeFirst(value: string): string {
+  return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+/**
+ * Format a field value for the markdown projection per its value class. Bracket
+ * sentinels and the em-dash placeholder render bare (the bracket is itself the
+ * machine signal); enum tokens render Capitalized + backticked, identifiers
+ * backticked as-is, narrative fields as plain prose.
+ */
+function formatValue(value: string, valueClass: MetaValueClass): string {
+  if (value === PLACEHOLDER || isSentinel(value)) return value;
+  switch (valueClass) {
+    case "enum":
+      return `\`${capitalizeFirst(value)}\``;
+    case "identifier":
+      return `\`${value}\``;
+    case "narrative":
+      return value;
+  }
+}
+
+/**
+ * Render the core block as a single-row, pre-aligned markdown table —
+ * `State | Owner | Branch | Class | Priority` — its columns padded so the pipes
+ * line up in raw markdown. (`MD013 tables:false` exempts the table from the
+ * line-length gate.)
+ */
+function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): string[] {
+  const columns = META_FIELDS.filter((f) => f.render === "core-table").map((f) => {
+    // Bold the header so the table's keys read as labels in raw markdown,
+    // matching the `**Field:**` bullet labels (parse strips the bold on read).
+    const header = `**${f.name}**`;
+    const cell = formatValue(valueOf(f), f.valueClass);
+    return { header, cell, width: Math.max(header.length, cell.length) };
+  });
+  const headerRow = `| ${columns.map((c) => c.header.padEnd(c.width)).join(" | ")} |`;
+  const separatorRow = `| ${columns.map((c) => "-".repeat(c.width)).join(" | ")} |`;
+  const valueRow = `| ${columns.map((c) => c.cell.padEnd(c.width)).join(" | ")} |`;
+  return [headerRow, separatorRow, valueRow];
+}
+
+/**
+ * Render the non-core fields as ordered bullet groups, blank-line separated. A
+ * multi-line narrative value (e.g. a wrapped `Next Action`) renders its first
+ * line after the label and indents each continuation two spaces to align under
+ * the bullet — list-continuation-valid markdown that {@link parseMetaRecord}
+ * recovers unchanged.
+ */
+function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[] {
+  const lines: string[] = [];
+  let prevGroup: string | null = null;
+  for (const field of META_FIELDS) {
+    if (field.render !== "bullet") continue;
+    if (prevGroup !== null && field.group !== prevGroup) lines.push("");
+    const [first, ...rest] = formatValue(valueOf(field), field.valueClass).split("\n");
+    lines.push(`- **${field.name}:** ${first}`);
+    for (const continuation of rest) lines.push(`  ${continuation}`);
+    prevGroup = field.group;
+  }
+  return lines;
+}
+
 /**
  * Render a fresh meta-file markdown projection from {@link META_FIELDS}.
  *
- * Emits `# Metadata: {wuName}`, the field bullets grouped with a single blank
- * line between groups, and a trailing `---`. Each field takes its override
- * value when present, otherwise its declared default. No instructional comments
- * and no archive-phase sections are emitted — those materialize later in the
- * lifecycle, not at fresh-scaffold time.
+ * Emits `# Metadata: {wuName}`, the hoisted core-block table, the field bullets
+ * grouped with a single blank line between groups, and a trailing `---`. Each
+ * field takes its override value when present, otherwise its declared default.
+ * No instructional comments and no archive-phase sections are emitted — those
+ * materialize later in the lifecycle, not at fresh-scaffold time.
  *
  * @param wuName - Work-unit name for the H1.
  * @param overrides - Field→value overrides; absent fields render at their default.
@@ -258,29 +367,120 @@ export function renderMetaFile(
   wuName: string,
   overrides: MetaFieldOverrides = {},
 ): string {
+  const valueOf = (field: MetaFieldDescriptor): string =>
+    overrides[field.name as MetaFieldName] ?? field.default;
   const lines: string[] = [`# Metadata: ${wuName}`, ""];
-  let prevGroup: string | null = null;
-  for (const field of META_FIELDS) {
-    if (prevGroup !== null && field.group !== prevGroup) lines.push("");
-    lines.push(`- **${field.name}:** ${overrides[field.name] ?? field.default}`);
-    prevGroup = field.group;
-  }
+  lines.push(...renderCoreTable(valueOf), "");
+  lines.push(...renderBullets(valueOf));
   lines.push("", "---");
   return `${lines.join("\n")}\n`;
 }
 
+/** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
+const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
+
+/** Split a `| a | b | c |` row into trimmed cell strings. */
+function splitTableRow(line: string): string[] {
+  const inner = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return inner.split("|").map((cell) => cell.trim());
+}
+
+/** Strip surrounding bold markers from a header cell, tolerating plain headers
+ *  (the render emits `**State**`; a legacy / hand-edited table may carry `State`). */
+function stripHeaderLabel(cell: string): string {
+  const m = /^\*\*(.*)\*\*$/.exec(cell.trim());
+  return m ? (m[1] ?? "").trim() : cell.trim();
+}
+
+/** Strip a cell/bullet value to bare form: backticks removed, bracket sentinels
+ *  preserved, empty → `null`. */
+function normalizeValue(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  return stripInlineCode(trimmed);
+}
+
 /**
- * Recover the structured field record from a meta projection by reading every
- * {@link META_FIELDS} label out of the H1-bounded preamble. Sharing the field
- * set makes this the inverse of {@link renderMetaFile}: a render → parse
- * round-trip fails loudly if the emitted bullet shape ever stops matching the
- * field extractor. A field whose marker is absent (or empty) comes back `null`.
+ * Recover the core-block fields from the single-row markdown table, keyed by
+ * header label so column order is tolerated. Returns `null` when the section
+ * carries no table at all — the caller falls back to the legacy flat-bullet
+ * scan, so pre-migration metas stay readable. A table that is *present but
+ * malformed* inside the core block (a separator row without an adjacent
+ * header/value row, or a column-count mismatch across the three rows) throws:
+ * structural drift fails loud, never silent-null. Narrative tables below the
+ * managed bullet fields are ignored.
+ */
+function parseCoreTable(section: string): Record<string, string | null> | null {
+  const lines = section.split("\n");
+  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
+  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
+  const sepIdx = lines.findIndex(
+    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
+  );
+  if (sepIdx === -1) return null;
+
+  const headerLine = lines[sepIdx - 1];
+  const separatorLine = lines[sepIdx];
+  const valueLine = lines[sepIdx + 1];
+  const isRow = (line: string | undefined): line is string =>
+    line !== undefined && line.trim().startsWith("|");
+  if (!isRow(headerLine) || !isRow(separatorLine) || !isRow(valueLine)) {
+    throw new Error(
+      "Malformed meta core-block table: separator row without an adjacent header and value row.",
+    );
+  }
+  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) return null;
+  const separators = splitTableRow(separatorLine);
+  const cells = splitTableRow(valueLine);
+  if (headers.length !== separators.length || headers.length !== cells.length) {
+    throw new Error(
+      `Malformed meta core-block table: column-count mismatch ` +
+        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
+    );
+  }
+  const out: Record<string, string | null> = {};
+  headers.forEach((header, i) => {
+    const cell = cells[i];
+    out[header] = cell === undefined ? null : normalizeValue(cell);
+  });
+  return out;
+}
+
+function isCoreTableHeader(headers: readonly string[]): boolean {
+  return (
+    headers.length === CORE_FIELD_NAMES.length &&
+    CORE_FIELD_NAMES.every((field) => headers.includes(field))
+  );
+}
+
+/**
+ * Recover the structured field record from a meta projection — the single
+ * reader every meta consumer routes through. Core-block fields come from the
+ * hoisted table when present (keyed by header label, column-order tolerant) and
+ * the legacy flat-bullet scan otherwise; the rest come from their bullets.
+ * Sharing {@link META_FIELDS} makes this the inverse of {@link renderMetaFile}.
+ *
+ * Backtick stripping is `valueClass`-aware: token fields (`enum` / `identifier`)
+ * strip to bare form so consumers read a clean value; narrative fields are
+ * preserved verbatim — their authored code spans and multi-line continuations
+ * survive, making the record a faithful inverse for the durable human-read
+ * document. Bracket sentinels stay verbatim (`[none]` / `[internal]` / `[TBD]`
+ * stay distinct, and distinct from a marker-absent `null`). A structurally
+ * malformed core-block table throws (see {@link parseCoreTable}).
  */
 export function parseMetaRecord(content: string): MetaRecord {
   const section = extractMetadataSection(content) ?? "";
+  const table = parseCoreTable(section);
   const record = {} as MetaRecord;
   for (const field of META_FIELDS) {
-    record[field.name] = extractField(section, field.name);
+    const fromTable = table && field.name in table ? table[field.name] : undefined;
+    const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
+    // Token fields strip to a bare value; narrative keeps its code spans. (Core
+    // table values arrive pre-stripped and are all non-narrative, so the strip
+    // is a no-op there.)
+    record[field.name] =
+      raw !== null && field.valueClass !== "narrative" ? stripInlineCode(raw) : raw;
   }
   return record;
 }
@@ -303,17 +503,53 @@ function extractMetadataSection(content: string): string | null {
     : afterH1;
 }
 
+/** Any managed `**Label:**` field marker (bullet, bare, or blockquoted) — the
+ *  boundary that ends a preceding field's multi-line value gather. */
+const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
+
+/**
+ * Extract a field's full value from the metadata section, label line plus any
+ * indented continuation lines that wrap the same bullet. Continuations are
+ * gathered until a blank line, the next field marker, a heading, a `---` rule,
+ * or end-of-section; each is stripped of its leading indent and joined with
+ * `\n`, so a multi-line narrative value (e.g. a wrapped `Next Action`) recovers
+ * in full. The value is returned **raw** — inline code spans are preserved here;
+ * {@link parseMetaRecord} strips them per `valueClass` (token fields only), so
+ * narrative prose keeps its backticks. A field whose marker is absent, or whose
+ * value is empty, returns `null`.
+ */
 function extractField(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`, "m");
-  const m = re.exec(content);
-  if (!m || m[1] === undefined) return null;
-  const raw = m[1].trim();
-  if (raw === "") return null;
-  return stripInlineCode(raw);
+  const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    const m = labelRe.exec(line);
+    if (!m) continue;
+    const parts: string[] = [];
+    const first = (m[1] ?? "").trim();
+    if (first !== "") parts.push(first);
+    for (const continuation of lines.slice(i + 1)) {
+      if (continuation.trim() === "") break; // blank → field / group boundary
+      if (FIELD_MARKER_RE.test(continuation)) break; // next field bullet
+      if (/^#{1,6} /.test(continuation)) break; // heading
+      if (continuation.trim() === "---") break; // trailing rule
+      if (!/^\s/.test(continuation)) break; // continuations are indented under the bullet
+      parts.push(continuation.trim());
+    }
+    return parts.length === 0 ? null : parts.join("\n");
+  }
+  return null;
 }
 
-function stripInlineCode(value: string): string {
-  // Strip `backticks` around whole tokens; preserve surrounding prose intact.
+/**
+ * Strip `backtick` code spans to their bare token, leaving surrounding prose
+ * intact. Applied to token fields (`enum` / `identifier`) so consumers read a
+ * bare value (`feat/x`, not `` `feat/x` ``); narrative fields bypass it to keep
+ * their authored code spans. Exported for the one consumer that token-matches a
+ * narrative field ({@link inferSessionType} on `Next Action`).
+ */
+export function stripInlineCode(value: string): string {
   return value.replace(/`([^`]+)`/g, "$1");
 }

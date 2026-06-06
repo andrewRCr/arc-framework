@@ -1,16 +1,16 @@
 # Metadata: WU-Header Metadata Shape
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-wu-header-metadata-shape.md`
-
-- **Depends On:** [none]
-- **Cohort:** [none]
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
   routed research capture.
 - **Next Task:** [none]

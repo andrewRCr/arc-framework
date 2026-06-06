@@ -16,6 +16,7 @@ documentation.
 - [Work Categories](#work-categories)
 - [Decision Rules](#decision-rules)
 - [Work Character](#work-character)
+- [Class Model](#class-model)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
 - [Spec-Flow Invariants](#spec-flow-invariants)
@@ -64,10 +65,10 @@ Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *c
 distinction sorts inbox items, individual tasks, and whole work units.
 
 - **Atomic** — single-bounded, indivisible, no internal stages: one review increment, fully resolved when its
-  commit lands. At the **WU scale** it sets the atomic tier (a `meta-*` and little else); at the **task scale**,
-  atomic work surfacing mid-WU folds into the current commit or spins off as an [Errand](#errand-work-class)
-  rather than accreting a holding file; at the **item scale**, deferred atomic work lands in an inbox's
-  `## Atomic` section.
+  commit lands. At the **WU scale** atomic work runs *below* the wrapper as an [Errand](#errand-work-class) (a
+  `chore/<slug>` branch + PR, no meta file) rather than forming a thin work unit; at the **task scale**, atomic
+  work surfacing mid-WU folds into the current commit or spins off as an Errand rather than accreting a holding
+  file; at the **item scale**, deferred atomic work lands in an inbox's `## Atomic` section.
 - **Multi-step** — distinct stages with separate goals; needs decomposition into phases or a task list, and
   (when for-later) matures through the planning pipeline rather than executing as-is.
 
@@ -75,6 +76,168 @@ distinction sorts inbox items, individual tasks, and whole work units.
 on which artifact happened to produce it. That is why inboxes carry character-named sections rather than
 surface-named ones, and why the same word ("atomic") stays correct at every scale. For the
 during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing.
+
+---
+
+## Class Model
+
+A work unit's **`Class`** is its recorded *weight* — `light`, `heavy`, or `novel` (`[TBD]` until resolved). Weight
+is the work a unit demands across *planning, execution, and review* — intrinsic demand, not output volume. `Class`
+is the signal roadmap and parallelism planning read to balance a worklist; the [classify-work-unit][classify-work-unit]
+method is the triage that sets it, and this section is the model and reasoning behind that triage.
+
+`Class` is the *weight* question of a single work-sizing spectrum; the **Errand-vs-WU character line**
+([§ Work Character](#work-character)) is its companion *cardinality* question, and together they place any work from
+a one-commit Errand (the floor) to a from-scratch `novel` synthesis (the ceiling). The two stay distinct: character
+asks *how many concerns* (one → Errand, below the wrapper; spec-worthy → WU), `Class` asks *how much weight* within
+a WU. Atomic is **not** a `Class` value — `Class` begins at the `light` floor; an Errand carries none.
+
+What scales with `Class` is **design-authoring ceremony** — how much spec and planning the work warrants. What
+never scales is **execution discipline**: the review-increment gate and the quality gates hold identically at every
+value. A `heavy` WU is not held to a higher engineering bar than a `light` one; it simply has more design to author
+before a competent engineer can execute it well.
+
+### The two axes
+
+`heavy` iff *either* of two intrinsic axes runs high. They **decorrelate** — each loads a different authoring stage
+— so test them independently rather than collapsing them into one judgment:
+
+- **Derivation** — how much design must be *authored* versus *read off* determinate inputs. This is the
+  **records-vs-derives** line: when the spec merely *records* a design that already follows from the issue and
+  existing patterns, derivation is low; when settling the work *requires authoring* a real design — concerns,
+  alternatives, and tradeoffs that do not exist until someone works them out — derivation is high. Derivation loads
+  the drafting and spec stages, and tracks how novel-vs-routine the execution is and how much validation review
+  demands. **Floor:** only *spec-worthy* design counts — what a competent engineer must settle before starting; a
+  choice resolved *during* implementation (naming, local structure) is not derivation, even though it involves
+  deciding something. This design-vs-implementation line keeps the derivation trigger from swallowing every WU.
+- **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution* must
+  navigate: the codebase-grounding demand. This is the **routine-vs-substantial** bar: most work carries some
+  grounding, so the bar sits at *substantial* — a large or intricate surface of symbols and call-sites a correct
+  plan must verify, beyond the routine floor. Scale loads the task-generation stage.
+
+`light` iff **both** axes are low. The axes are co-equal: a determinate-but-large refactor is `heavy` by grounding
+demand alone, exactly as a small-but-novel design is `heavy` by derivation alone.
+
+**The top of the derivation axis is `novel`.** Above the `heavy` promotion, a second threshold on derivation alone
+promotes `heavy → novel`: when settling the design requires *inventing* concepts or models that do not yet exist in
+the problem domain (synthesis, research, discovery) rather than *composing* a real design from existing patterns.
+The axes are asymmetric here, and the asymmetry falls out of their nature — **scale is endurance** (breadth that is
+chunkable, parallelizable, and self-limiting, since runaway breadth trips decomposition into a cohort, so it caps at
+`heavy`); **derivation is depth** (serial, context-saturating, unbounded, so only it reaches the top). `novel` is a
+distinct *kind*, not just more weight; its recorded purpose is **primarily** parallelism / sequencing (you can hold
+roughly one genuinely-novel stream — the strongest "don't double up" signal) and **secondarily** an advisory
+distinct planning shape (a discovery / research phase + an ADR), suggested, never forced.
+
+### The boundary tests
+
+Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
+promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation axis alone:
+
+1. **Errand vs. WU (the wrapper floor).** *Does this need more than a single logical concern — more than one review
+   increment — to do well?* **No** → it is an [Errand](#errand-work-class), not a WU: it runs below the wrapper
+   (`chore/<slug>` + PR, no meta, no `Class`). **Yes** → it is a WU; continue.
+2. **Derivation trigger (→ `heavy`).** *Must a real design be authored — concerns, alternatives, tradeoffs that do
+   not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`. Count only
+   *spec-worthy* design (the floor above): a choice resolved during implementation is not derivation.
+3. **Scale / complexity trigger (→ `heavy`).** *Does producing a correct implementation plan require a substantial
+   codebase-grounding pass, beyond the routine floor?* **Yes** → `heavy`. Guard the bar at *substantial* — a soft
+   bar makes everything `heavy`.
+4. **Invent-vs-compose trigger (`heavy → novel`).** *Does settling the design require inventing concepts / models
+   that do not yet exist in the problem domain — versus composing a real design from existing patterns?* **Invent**
+   → `novel`; **compose** → stays `heavy`. Derivation only — scale never reaches `novel`. A magnitude cut within
+   "derivation fired," so it reads fuzzier than the fired-or-not lines; acceptable because the consequence is
+   advisory.
+
+### Worked examples
+
+The two axes form a 2×2; each cell is recognizable in retrospect:
+
+- **Low derivation, low scale → `light`.** A moderate feature whose design reads off a clear issue and existing
+  patterns, over a contained surface. The spec *records* the design; the plan needs only a modest grounding pass.
+- **Low derivation, high scale → `heavy` (scale).** A large mechanical refactor — rename or move a widely-used
+  symbol. The design is determinate (nothing to invent), but a correct plan must verify many call-sites across a
+  broad surface, and that breadth carries into careful execution and heavier review.
+- **High derivation, low scale → `heavy` (derivation).** A tricky algorithm or novel mechanism whose design must be
+  *worked out* — alternatives and tradeoffs that do not exist until authored — even over a small surface.
+- **High derivation, high scale → `heavy` (both).** Novel design over a large, intricate surface; both triggers
+  fire.
+
+The derivation-high cells split again by invent-vs-compose:
+
+- **Compose (high derivation) → `heavy`.** A real design authored from existing ARC patterns and primitives — a
+  routing scheme assembled over known surfaces; the alternatives are real, but the building blocks already exist.
+- **Invent (high derivation) → `novel`.** A design that must synthesize concepts the domain does not yet have — a
+  new model, or a discovery / research pass before drafting is even possible. Scale rides along but does not lift
+  work here: a `both`-high WU and a `derivation`-only-high WU both read `novel` — depth dominates.
+
+The records-vs-derives line and the substantial-grounding bar echo long-standing design-doc practice — deciding
+when a piece of work warrants a written design before implementation — adapted here into two crisp tests that place
+work without author guesswork.
+
+### Estimating and the ratchet
+
+Every WU *has* a `Class`; `[TBD]` is the pre-classification sentinel (distinct from `[none]`), meaning the weight is
+merely not yet resolved. When resolving without complete information, set a **best estimate** against the boundary
+tests — never a blanket `heavy` stamp, which would fabricate the very signal `Class` exists to carry.
+
+`Class` is **estimate-then-ratchet**, not strict one-way:
+
+- The ratchet protects **realized** design-authoring: once a stage has *authored* design at some depth, `Class`
+  never drops below that floor.
+- An **estimate** — a value set before that work exists — is freely revisable in *both* directions until planning
+  substantiates a floor. Correcting a too-high estimate *down* is not a demotion: no work is discarded.
+
+So estimating costs nothing — guessing `heavy` and later correcting to `light` loses nothing — which removes any
+lowball incentive. At each lifecycle touchpoint this is a cheap **confirm-or-ratchet**, not a re-derivation.
+
+**"Execution turned out light" ≠ "the design was determinate."** If a real design *was* authored, realized authoring
+floors `Class` even over a tiny surface; only an over-high *estimate* corrects down. A derivation-heavy / scale-light
+WU feels front-loaded, but it was heavy *when both jobs read the value* — at planning; `Class` is a decision-time
+signal, not a retrospective effort tally.
+
+### Readiness rule
+
+A startable work unit carries a *resolved* `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
+`backlog/planned/` — the [readiness-ladder](#readiness-ladder) rung the start decision reads — is the **forcing
+point**, because the weight signal must exist *before* a WU becomes a start candidate, not at activation (too late:
+the start decision precedes it). The [graduate-work-unit][graduate-work-unit] workflow performs that rung and forces
+the estimate via the [classify-work-unit][classify-work-unit] method.
+
+### Planning depth and spec forms
+
+`Class` is the WU-level *weight*; **`planning depth`** is the per-stage *resolution* — how much authoring a given
+stage does. Each authoring stage (drafting, spec, task generation) resolves its own depth on a `low` / `medium` /
+`high` ordinal, independently, from the axis that loads it. Depth is **transient and per-stage**: it is never
+recorded on the meta and may differ across stages (a WU can want a deep spec but shallow task-gen, or the reverse).
+Only the spec stage's depth names a durable artifact — its **spec form**. (How each stage turns its depth into
+concrete ceremony is the authoring-pipeline's; this strategy defines the ordinal and the spec-form mapping.)
+
+The spec stage's depth selects one of three **spec forms** on that same ordinal:
+
+| Spec form  | Spec-stage depth | `Class`            | Splits by category                    |
+| ---------- | ---------------- | ------------------ | ------------------------------------- |
+| `brief`    | `low`            | `light`            | no                                    |
+| `outline`  | `medium`         | `light` or `heavy` | no                                    |
+| `detailed` | `high`           | `heavy` or `novel` | yes — PRD (feature) / RFC (technical) |
+
+The form ↔ `Class` relationships:
+
+- **`brief` ⇒ `light`.** A brief records a determinate design over a contained surface.
+- **`detailed` ⇒ `heavy` or `novel`.** A detailed spec is authored only when the **derivation** axis is high — a
+  real design must be worked out — which forces `heavy`, or `novel` when that design must be *invented* rather than
+  composed. The two share the `detailed` form; `novel`'s distinct shape is the advisory discovery / research phase +
+  ADR, not a fourth form. `detailed` is the one form that splits by work category: a **PRD** for a feature, an
+  **RFC** for a technical change. The other two forms do not split.
+- **`outline` straddles.** An outline serves a `light` WU at moderate scale *and* a `heavy` WU whose weight comes
+  from the **scale** axis — a determinate design over a large surface, where the spec records the design but the
+  implementation plan still needs a substantial grounding pass. The `Class` field and the task-list scale
+  disambiguate the two outline cases.
+- The **`heavy` / `brief` cell is empty.** Low scale reaches `heavy` only through derivation, and derivation forces
+  `detailed` — so heavy work is never brief.
+
+These forms are **guidance, not a hook-enforced constraint**: nothing validates a WU's `Class` against its spec
+form. The mapping orients the author toward the right depth; the boundary tests and the ratchet keep the `Class`
+honest.
 
 ---
 
@@ -123,13 +286,31 @@ The four values below trace the WU lifecycle; the workflow that sets each is lis
 | `Integrating` | [integrate-work-unit][integrate-work-unit] Step 1 | Tasks complete; the WU is open for review and integration, stable until merge |
 | `Shipped`     | [archive-work-unit][archive-work-unit]            | Merged to the integration target and archived                                 |
 
+### Readiness ladder
+
+Before a work unit enters the `State` lifecycle above, it climbs a **readiness ladder** through the backlog:
+`provisional → planned → active`. The rungs are directory positions, not `State` values:
+
+- **`backlog/provisional/`** — pre-commitment thinking; the thesis is not yet one the project commits to.
+  `**Class:**` may be `[TBD]`.
+- **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
+  `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
+  legal only in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and
+  forces the estimate via the [classify-work-unit][classify-work-unit] method.
+- **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
+  [init-work-unit][init-work-unit] performs `planned → active`.
+
+The forcing rule has teeth because the start decision — read off the ready list — precedes activation, so the
+weight signal must be present before then. **"Graduation" names a readiness-ladder promotion** (the
+`provisional → planned → active` climb) and only that.
+
 ---
 
 ## Spec-Flow Invariants
 
-Three structural invariants hold across the WU lifecycle regardless of mode or tier. Two axes
-govern variation above them. The per-axis policy — which spec form applies under which mode ×
-tier combination — lives downstream of this strategy.
+Three structural invariants hold across the WU lifecycle regardless of mode or `Class`. Two axes
+govern variation above them. The per-axis policy — how each authoring stage realizes the spec form
+its depth selects — lives downstream of this strategy.
 
 ### Invariants
 
@@ -140,12 +321,12 @@ tier combination — lives downstream of this strategy.
    (when applicable) the spec pointer. Workflows, tooling, and renderers consume it across the
    lifecycle.
 
-2. **Task list structure is invariant across tiers.** When a task list exists, its shape is fixed
-   — phase headings, leaf task format, completion markers, Success Criteria section. Tier-aware
-   ceremony scales the artifact's presence and rigor; the structural shape stays uniform.
+2. **Task list structure is invariant across `Class`.** When a task list exists, its shape is fixed
+   — phase headings, leaf task format, completion markers, Success Criteria section. `Class`-scaled
+   ceremony varies the artifact's presence and rigor; the structural shape stays uniform.
 
 3. **A parseable spec exists in some form before task-list generation.** Spec form varies by mode
-   × tier — PRD, plan doc, atomic-companion description, external tracker entry — but existence
+   × `Class` — `brief` / `outline` / `detailed`, or an external tracker entry — but existence
    does not. Task generation always has something to read.
 
 ### Scaling axes
@@ -156,36 +337,39 @@ Variation above the invariants happens along two axes:
   surfaces and spec-artifact sets the framework installs. The invariants hold equally under all
   three; the artifact set carrying them differs.
 
-- **Tier** — atomic / quick / standard. Each tier carries a different artifact set per WU; the
-  structural invariants apply uniformly across all three.
+- **`Class`** — `light` / `heavy` / `novel`, the WU's recorded weight (see § Class Model and the
+  [classify-work-unit][classify-work-unit] method). `Class` scales the design-authoring ceremony a WU
+  carries — how much spec and planning the work demands — while the structural invariants apply
+  uniformly at every resolved value.
 
 ### Deferred contract
 
-This strategy codifies the invariants and the scaling axes. The per-mode × per-tier optionality
-contract — which spec form applies under which combination, whether `draft-*` is required vs.
-optional, the verification model under tier collapse — is not codified here. The invariants
-establish what's stable; the contract that builds on them lives with the surfaces that
-orchestrate per-mode and per-tier policy.
+This strategy codifies the invariants, the scaling axes, and — below — the `Class` model and the spec
+forms it selects. What stays downstream is the per-*stage* realization: how each authoring stage turns
+the `planning depth` it resolves into concrete ceremony (whether `draft-*` is authored, the rigor of
+each pass), and the per-mode artifact orchestration. The invariants establish what's stable; the
+per-stage contract that builds on them lives with the authoring-pipeline surfaces.
 
 ### Escape-hatch guardrails
 
-The structural cuts above raise a discipline question: how does the framework prevent
-escape-hatching to lower-ceremony tiers for work that warrants higher discipline? Three
-mechanisms:
+The scaling axes above raise a discipline question: how does the framework keep work from
+escape-hatching to lighter ceremony than it warrants? Three mechanisms:
 
-- **Tier is one-way.** Promotion (atomic → quick → standard) is straightforward; demotion is
-  deliberate. Work that grows beyond its initial tier rotates to the higher tier rather than
-  absorbing scope under a thinner shape.
+- **The ratchet protects realized work.** `Class` is estimate-then-ratchet: once a stage has
+  *authored* design at some depth, `Class` never drops below that floor (see the
+  [classify-work-unit][classify-work-unit] method). An estimate is freely revisable until planning
+  substantiates a floor, but realized design-authoring is never silently shed — a WU cannot shrink
+  away from `heavy` once its weight is real.
 
-- **Atomic-tier requires explicit choice.** Atomic shape is the exception, not the path of least
-  resistance — work defaults to the heavier ceremony unless its scope genuinely warrants atomic.
+- **The wrapper floor makes work earn its shape.** Dropping below a WU into an Errand is the
+  Errand-vs-WU boundary test, not a convenience — only genuinely single-concern work runs below the
+  wrapper. Multi-concern work takes the WU shape rather than absorbing scope under a thinner one.
 
-- **Tier-invariant disciplines stay uniform.** Process-task-loop, quality gates, and commit
-  discipline apply identically regardless of tier. Tier scales artifact ceremony, not engineering
-  rigor.
+- **Discipline is `Class`-invariant.** Process-task-loop, quality gates, and commit discipline apply
+  identically across all three values. `Class` scales design-authoring ceremony, never engineering rigor.
 
-The invariants supply the structural floor; the guardrails above keep that floor intact
-regardless of tier.
+The invariants supply the structural floor; the guardrails above keep that floor intact at every
+`Class`.
 
 ---
 
@@ -224,7 +408,7 @@ Branch identity persists across the rename; commits, PR, and history carry forwa
 
 One WU = one branch, from planning through integration. The branch is created at WU inception
 (as `plan/<name>`), rotated at activation (to `<type>/<name>`), and merged to main exactly once
-at integration. WU artifacts (`meta-<name>.md`, `plan-<name>.md`, `prd-<name>.md`,
+at integration. WU artifacts (`meta-<name>.md`, `draft-<name>.md` / `spec-<name>.md`,
 `tasks-<name>.md`, companions) live in `active/` on the WU's branch throughout the lifecycle;
 main carries no in-flight WU artifacts.
 
@@ -334,6 +518,24 @@ to "PRD." Projects may pair WUs with lighter-templated specs — compact PRDs, s
 variants, external-tracker-referenced specs — and `**Design:**` still names whichever artifact
 carries the spec for that WU.
 
+### `Design` field value semantics
+
+`**Design:**` always points at the work unit's ARC-owned planning artifact, and its value tracks
+the lifecycle State:
+
+- **Planning** — `draft-{name}.md`, the pre-spec planning artifact under iteration.
+- **Active onward** — `spec-{name}.md`, the formalized spec. The value transitions exactly once,
+  at activation (see § Bounded duplication and drift cost).
+
+The `spec-{name}.md` filename is stable regardless of how heavy or light the spec is — a spec's
+weight is expressed in its H1 and template, not in its filename — so consumers resolve the
+pointer the same way for every work unit.
+
+**Orthogonal to `Origin`.** The two fields answer different questions: `Origin` is *what prompted
+the work*, `Design` is *what defines it*. `**Design:**` names an ARC-owned artifact only; an
+external tracker (issue, ticket, upstream discussion) belongs in `**Origin:**`, never in
+`**Design:**`.
+
 ### Purpose statement lives on the spec
 
 The WU's purpose statement is substantive content, not an upstream pointer. It lives once on
@@ -382,11 +584,11 @@ order they shipped, which a plain alphabetical sort would scramble. The subdir c
 that existed at integration time, symmetric with the backlog's per-WU subdir convention (see
 [Planning Module Strategy](strategy-planning-module.md)).
 
-### Tier and async-merge accommodations
+### `Class` and async-merge accommodations
 
-The default is tier-uniform and assumes sync merge — the integration PR ships and archival
-completes before the WU's branch is reused for other work. Tier-specific sweep ceremony
-variations (light-ceremony archival for atomic-scale WUs; scaled coordination for larger-scope
+The default is `Class`-uniform and assumes sync merge — the integration PR ships and archival
+completes before the WU's branch is reused for other work. `Class`-scaled sweep ceremony
+variations (lighter archival for `light` WUs; scaled coordination for `heavy`, larger-scope
 WUs) and async-merge accommodations (handoff and cleanup behavior during awaiting-review
 latency) are reserved for codification in adjacent strategy work. The default applies uniformly
 until those land.
@@ -474,11 +676,16 @@ that is constant across that table**:
 - **Ready** — Work unit · [Priority] · Owner · Cohort (State is constant `Planning`; Depends on is constant `—`)
 - **Blocked** — Work unit · [Priority] · Owner · Depends on · Cohort (State is constant `Planning`; Depends on
   names the blocking dep)
-- **`STATUS.USER`** (in-flight-mine only) — Work unit · State · [Priority] · Depends on · Cohort (Owner is
-  constant `= me`)
+- **`STATUS.USER` In Flight** — Work unit · State · Class · [Priority] · Depends on · Cohort (Owner is constant
+  `= me`)
+- **`STATUS.USER` Ready** — Work unit · Class · [Priority] · Cohort (Owner is constant `= me`; State is constant
+  `Planning`; Depends on is constant `—`)
 
 `[Priority]` is itself conditional — rendered only when at least one row in the table carries a `**Priority:**`
-value; a table of all-default WUs omits the column.
+value; a table of all-default WUs omits the column. `Class`, by contrast, is **not** conditional in the
+`STATUS.USER` tables: it always renders, because its `[TBD]` pre-classification state is itself a value (a
+field-absent WU shows an em-dash). The project readiness view omits `Class` — both its widest tables already sit
+near the max table width.
 
 **Sort key (uniform).** Rows order by `(priority, cohort, wu-name)` — priority first (`P1` → `P2` → `P3`), then
 cohort cluster, then canonical WU-name. A missing `**Priority:**` resolves to `P3`, so an all-default render
@@ -532,11 +739,13 @@ ROADMAP back into agreement with meta-file state.
 
 ### `STATUS.USER` view
 
-`STATUS.USER` is a **user-scoped, in-flight-mine** rendering of the same source as the project readiness view —
-a filtered mode, not a second generator. It scopes to the slice that is invisible across worktrees: the work
-units in flight *for you*, wherever they live. In-flight is location-based — a WU in `active/**` (equivalently,
-an unmerged WU branch on the remote) is in flight — so the view surfaces actively-*planned* WUs, not only
-executing ones. Everything not in flight stays in the project view.
+`STATUS.USER` is a **user-scoped** rendering of the same source as the project readiness view — a filtered mode,
+not a second generator. It scopes to the two slices that drive *your* balance decision — what is on your plate,
+and what fits alongside it: the work units **in flight** for you (wherever they live), and the **ready** work you
+could start next (owned by you, unblocked). In-flight is location-based — a WU in `active/**` (equivalently, an
+unmerged WU branch on the remote) is in flight — so the in-flight slice surfaces actively-*planned* WUs, not only
+executing ones; the ready slice is your `backlog/planned/**` work whose dependencies have all shipped. Each row is
+sized by `Class` so the balance reads at a glance. Everything else stays in the project view.
 
 **Location and storage.** The file lives at `.arc/user/{identity}/STATUS.USER.md` — gitignored, per-machine. It
 does **not** sync: every machine regenerates it identically from remote refs (and open PRs), so it is an optional
@@ -544,39 +753,46 @@ local cache, never transported content. There is no separate persisted cache —
 cache**. Opening it never regenerates it (the passive path: instant, no network read); it is trustworthy when
 opened because the last relevant trigger refreshed it.
 
-**Columns and sort.** Per § Render standard — the `STATUS.USER` column set (Owner omitted, constant `= me`) and
-the shared `(priority, cohort, wu-name)` sort key. It shares the project view's In-Flight ordering, filtered
-rather than re-sorted.
+**Columns and sort.** Per § Render standard — the two `STATUS.USER` column sets (In Flight and Ready; Owner
+omitted, constant `= me`; `Class` always rendered) and the shared `(priority, cohort, wu-name)` sort key. Each
+table shares the project view's tier ordering, filtered rather than re-sorted.
 
 **Rendered shape.** The file opens with an H1 — `Status (User): {identity}` — and a standing header note (a
 generated, gitignored-local cache refreshed at the triggers below; the single-cache / passive-open invariant
-above). The In Flight table follows. An `Updated:` provenance footer closes the file. The seeded
-`.arc/user/{identity}/STATUS.USER.md` is the canonical worked example a hand-render and the render core both
-reproduce.
+above). The In Flight table follows, then the Ready table. An `Updated:` provenance footer closes the file. The
+seeded `.arc/user/{identity}/STATUS.USER.md` is the canonical worked example a hand-render and the render core
+both reproduce.
 
-**Regeneration triggers.** The view has two slices with different refresh costs:
+**Regeneration triggers.** The in-flight content has two slices with different refresh costs; the ready slice is
+a third, purely-local input that needs no network:
 
-- **Local slice** — your WUs in flight on *this* machine (the identity-filtered roster). It regenerates cheaply,
-  with no network read, at every local ceremony: spawn, activate, integrate, shift, and handoff.
-- **Cross-machine slice** — your WUs in flight only *elsewhere* (remote-only, no local worktree). Surfacing these
-  needs a network round-trip, so it refreshes only at the subset of triggers where cross-machine truth matters:
-  handoff, an explicit `arc sync`, an explicit view request (`arc status --user`), and a session start with no
-  local active WU. Each network read is bounded by a short timeout and degrades to the last-rendered file when
-  the remote is unreachable.
+- **Local in-flight slice** — your WUs in flight on *this* machine (the identity-filtered roster). It regenerates
+  cheaply, with no network read, at every local ceremony: spawn, activate, integrate, shift, and handoff.
+- **Cross-machine in-flight slice** — your WUs in flight only *elsewhere* (remote-only, no local worktree).
+  Surfacing these needs a network round-trip, so it refreshes only at the subset of triggers where cross-machine
+  truth matters: handoff, an explicit `arc sync`, an explicit view request (`arc status --user`), and a session
+  start with no local active WU. Each network read is bounded by a short timeout and degrades to the last-rendered
+  file when the remote is unreachable.
+- **Ready slice** — your owned, unblocked `backlog/planned/**` work. It reads only local metas, so it is always
+  available: it refreshes at every trigger and never degrades when the remote is unreachable. When the in-flight
+  half degrades to cache, the ready half stays fresh.
 
 **Explicit view request.** `arc status --user` is an active re-render request, not a passive file-open: it
-refreshes the local slice always and the cross-machine slice via the bounded network read, then renders the
-in-flight-mine slice. A `--local` / `--no-fetch` flag skips the network read for a fast offline view.
+refreshes the local in-flight slice always and the cross-machine slice via the bounded network read, then renders
+the in-flight slice merged with the always-local ready slice. A `--local` / `--no-fetch` flag skips the network
+read for a fast offline view; the ready slice is unaffected.
 
 **Hand-maintenance procedure.** Refresh the file by hand at the triggers above:
 
 1. Derive your in-flight-mine slice — the render set located in `active/**`, identity-filtered to your WUs. For a
    cross-machine refresh, also include your remote-only in-flight WUs (a WU branch unmerged on the remote with no
    local worktree).
-2. Apply the `STATUS.USER` column set and the `(priority, cohort, wu-name)` sort key from § Render standard.
-3. Write `.arc/user/{identity}/STATUS.USER.md` — the table, plus the standing header note and `Updated:` footer
-   described above. Because the sort is a total order, the rendered slice matches the eventual automated render
-   byte-for-byte; the `Updated:` stamp is the only part that varies.
+2. Derive your ready slice — `backlog/planned/**` metas owned by you whose dependencies have all shipped (absent
+   from the active + planned + provisional pipeline), each sized by `Class`.
+3. Apply the `STATUS.USER` column sets and the `(priority, cohort, wu-name)` sort key from § Render standard.
+4. Write `.arc/user/{identity}/STATUS.USER.md` — the In Flight and Ready tables, plus the standing header note and
+   `Updated:` footer described above. Because the sort is a total order, the rendered slices match the eventual
+   automated render byte-for-byte; the `Updated:` stamp is the only part that varies.
 
 ---
 
@@ -839,14 +1055,14 @@ through its commit footer, and tears down.
 ```text
 .arc/active/
   meta-<name>.md         # WU metadata + state (always present)
-  prd-<name>.md          # product requirements (when WU has a PRD)
+  spec-<name>.md         # formalized spec artifact (PRD or RFC form by category)
   tasks-<name>.md        # execution spec (when WU has a task list)
   notes-<name>.md        # working context (optional; may carry content graduated from draft-*)
 ```
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
-subdirs would be redundant. Artifact applicability scales with mode and tier; see
+subdirs would be redundant. Artifact applicability scales with mode and `Class`; see
 [§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
 the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-spec.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
@@ -877,6 +1093,8 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 
 [team-coordination]: strategy-team-coordination.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
+[graduate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/graduate-work-unit.md
+[classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md

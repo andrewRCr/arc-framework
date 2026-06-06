@@ -4,6 +4,7 @@ audience: agent
 arc:
   methods:
     - branch-format
+    - classify-work-unit
   extensions:
     - pre-activation
     - pre-push-review
@@ -65,6 +66,9 @@ Edit `active/meta-{name}.md`:
 - `**Next Action:**` refresh to point at the first incomplete task in `tasks-{name}.md` (e.g.,
   `Begin Task 1.1 — <task description>`). The pre-activation pointer named this workflow; post-activation
   it should describe the next executable step.
+- `**Class:**` settle via [`classify-work-unit`][classify-work-unit] — pre-implementation is the last cheap
+  confirm-or-ratchet before execution. Ratchet up to the realized floor when planning authored design since
+  the last touchpoint; otherwise confirm the value holds.
 
 Remove any residual draft-doc:
 
@@ -86,6 +90,7 @@ chore(arc): activate {work-name} work unit
 - Flip State: Planning → Active
 - Branch field: plan/{name} → {type}/{name}
 - Refresh Next Action to first task
+- Settle Class (confirm-or-ratchet)
 - Remove draft-{name}.md (graduated to PRD; safety-catch)
 
 Context: meta-{name}.md (activation)
@@ -187,6 +192,7 @@ With activation complete, proceed to task execution:
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
 [branch-format]: ../../../methods/branch-format.md
+[classify-work-unit]: ../../../methods/classify-work-unit.md
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md
 [work-org-branching]: ../../../../reference/strategies/arc/strategy-work-organization.md#branching
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

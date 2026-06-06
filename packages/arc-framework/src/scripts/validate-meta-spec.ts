@@ -6,7 +6,8 @@
  * (`.arc/active/<category>/meta-*.md`) layouts. Validates the `**Design:**`
  * field value against the allowed shapes: empty, `[none]`, bare-basename
  * `.md` filename, or `https?://` URL; requires a valid `**State:**` value
- * from the codified four-value enum. Surrounding whitespace and a single
+ * from the codified four-value enum; and validates the optional `**Cohort:**`
+ * value against the two-segment path cap. Surrounding whitespace and a single
  * pair of wrapping backticks are stripped before matching.
  *
  * @module
@@ -14,6 +15,8 @@
 
 import { fileURLToPath } from "node:url";
 
+import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -98,23 +101,37 @@ export function validateSpec(content: string, path: string): string[] {
 /**
  * Validate the `**State:**` field. State is mandatory and must be one of the
  * codified four values (`Planning, Active, Integrating, Shipped`).
+ *
+ * The canonical value comes from the shared meta reader, so State is recovered
+ * from the hoisted core-block table as well as the legacy flat-bullet form
+ * (with inline backticks stripped). The legacy duplicate-`- **State:**`-line
+ * diagnostic still scans bullets directly — a malformation possible only in the
+ * flat form, which the table layout cannot express.
  */
 export function validateLifecycleFields(content: string, path: string): string[] {
   const diagnostics: string[] = [];
-  const stateCaptures = collectFieldValues(content, "State");
 
-  if (stateCaptures.length === 0) {
-    diagnostics.push(`${path}: missing \`**State:**\` line`);
-    return diagnostics;
-  }
-  if (stateCaptures.length > 1) {
+  const bulletStateLines = collectFieldValues(content, "State");
+  if (bulletStateLines.length > 1) {
     diagnostics.push(
-      `${path}: multiple \`**State:**\` lines (found ${stateCaptures.length})`,
+      `${path}: multiple \`**State:**\` lines (found ${bulletStateLines.length})`,
     );
     return diagnostics;
   }
 
-  const state = stateCaptures[0] ?? "";
+  let state: string | null;
+  try {
+    state = parseMetaRecord(content).State;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    diagnostics.push(`${path}: ${message}`);
+    return diagnostics;
+  }
+
+  if (state === null) {
+    diagnostics.push(`${path}: missing \`**State:**\` line`);
+    return diagnostics;
+  }
   if (!VALID_STATES.has(state)) {
     diagnostics.push(
       `${path}: invalid \`**State:**\` value "${state}"; ${EXPECTED_STATE}`,
@@ -122,6 +139,25 @@ export function validateLifecycleFields(content: string, path: string): string[]
   }
 
   return diagnostics;
+}
+
+/**
+ * Validate the optional `**Cohort:**` field's path shape (the two-segment cap).
+ * The field is optional — a meta with no `**Cohort:**` line passes (a standalone
+ * work unit carries `[none]`, but a pre-schema meta may omit it). A present
+ * value is validated against {@link validateCohortPath}; multiple lines are
+ * flagged. Returns one diagnostic per problem; an empty array means pass.
+ */
+export function validateCohort(content: string, path: string): string[] {
+  const captures = collectFieldValues(content, "Cohort");
+
+  if (captures.length === 0) return [];
+  if (captures.length > 1) {
+    return [`${path}: multiple \`**Cohort:**\` lines (found ${captures.length})`];
+  }
+
+  const error = validateCohortPath(captures[0] ?? "");
+  return error === null ? [] : [`${path}: invalid \`**Cohort:**\` value; ${error}`];
 }
 
 /**
@@ -138,6 +174,7 @@ export function validateFiles(
     const content = readFile(path);
     diagnostics.push(...validateSpec(content, path));
     diagnostics.push(...validateLifecycleFields(content, path));
+    diagnostics.push(...validateCohort(content, path));
   }
   return { pass: diagnostics.length === 0, diagnostics };
 }

@@ -16,6 +16,7 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 ## Contents
 
 - [Review-Increment Invariant](#review-increment-invariant) — universal approval-gate principle
+- [Scaled Process, Invariant Discipline](#scaled-process-invariant-discipline) — process scales, discipline does not
 - [Commit Discipline](#commit-discipline) — control, format, atomicity
 - [Task Execution](#task-execution) — task interlock, sub-agent scope, quality gates, test-first
 - [Discovered Work Routing](#discovered-work-routing) — capture vs. fix, routing table, anti-rider, planning-artifact boundary
@@ -31,6 +32,18 @@ documentation style — live in [DEV-RULES.PROJECT][dev-rules-project]. Contribu
 Every review increment closes with a structured approval gate that precedes any commit
 invocation, wrapped or raw. The release wrapper bypasses the harness's per-invocation prompt;
 it does **not** bypass the user's approval gate.
+
+---
+
+## Scaled Process, Invariant Discipline
+
+A work unit's weight (its `Class`) scales the process around it — how much design is authored in planning, and
+how much review and integration ceremony it warrants. What never scales is execution discipline: the
+[review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
+quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
+
+Resolve a work unit's `Class` with the `classify-work-unit` method; the model and worked examples live in the
+[Work Organization Strategy][work-org].
 
 ---
 
@@ -164,11 +177,16 @@ stop, implied permission, deferred review), load the [process-task-loop workflow
 
 ### Design before implementation (spec-directed work)
 
-ARC is spec-directed: design decisions are made upfront in the spec (`spec-*.md`), not during
-implementation. The task list (`tasks-*.md`) decomposes the spec's design into actionable steps;
-the code realizes the design. When design questions surface during implementation, route them back
-to the spec — don't accumulate design debt in code or task notes. The meta file's `**Design:**`
-field carries this pointer, making the spec the recurring, self-describing upstream of the work.
+ARC is spec-directed: design decisions are settled upfront in the spec (`spec-*.md`), not during
+implementation. The task list (`tasks-*.md`) decomposes that design into actionable steps; the code realizes
+it. The meta file's `**Design:**` field carries the pointer, making the spec the recurring, self-describing
+upstream of the work.
+
+Settle **all settle-able design up front** — best reasonable effort, never a conscious deferral — and route any
+genuinely-emergent design question back to the spec rather than accumulating design debt in code or notes. This
+holds identically at every `Class`: a lighter `Class` means the design was *more determinate coming in*, not
+that more design may be left open. A lighter process is never license to defer design — the
+implementation-detail latitude ARC already grants is unchanged.
 
 ### Sub-agent scope
 
@@ -184,13 +202,6 @@ Break down a task into subtasks if it requires:
 - More than 50 lines of core logic changes
 - Multiple interdependent changes
 - Complex debugging or investigation
-
-### Atomic-tier infra-edit smell flag
-
-Atomic-tier work shouldn't touch load-bearing infra — `.arc/system/`, `.arc/reference/strategies/`,
-or `arc-config.yml`. Such edits warrant quick-tier at minimum (multi-commit coordination, deliberate
-sequencing). Atomic items captured in ATOMIC-INBOX surfaces that touch infra get reclassified at
-drain time rather than completed in place.
 
 ### Quality gate failure
 
@@ -400,12 +411,24 @@ does; route process rationale to a planning artifact (specs, drafts, task lists,
 ADRs, work-unit notes, commit `Context:` footers). Substantive references —
 test names describing behavior, comments on non-obvious invariants — stay.
 
+### Artifact relocatability
+
+WU artifacts — `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions — relocate between lifecycle states
+(`active/` ↔ `backlog/` ↔ `completed/`) as their State changes, and every such move is a pure `git mv` with no
+content edit. That holds only if artifacts carry position-independent references — the rule below.
+
 ### `.arc/` artifact references
 
-Movable WU artifacts (`draft-*`, `spec-*`, `tasks-*`, `meta-*`, companions) are project-internal —
-shipped or published content cannot reference them at all. Within internal docs, use backticked
-filenames only; no Markdown links or paths. For tasks, include task ID + task-list filename:
-"Task X.Y - `tasks-name.md`". Paths are for current-location metadata, commands, and stable docs.
+Movable WU artifacts — `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions — are project-internal: shipped
+or published content cannot reference them at all. Two rules keep internal references stable across relocation:
+
+- **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
+  include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".
+- **From a movable artifact:** no relative-path links at all, even to stable docs — a movable source's own path
+  changes when it relocates, so any relative link it carries would break. Relative paths are legal only in
+  non-moving docs.
+
+Otherwise, paths serve current-location metadata, commands, and links between non-moving docs.
 
 ### Write for the reader, not the author
 

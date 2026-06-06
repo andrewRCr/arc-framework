@@ -16,7 +16,7 @@
 import { stat } from "node:fs/promises";
 import { join, sep } from "node:path";
 
-import { readActiveMetaCandidates } from "../../lib/active/meta-reader.js";
+import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
 import { getCurrentBranch } from "../../lib/git/index.js";
 import type {
   ActiveLayout,
@@ -97,7 +97,10 @@ export function inferSessionType(
   if (taskList === null || TASK_LIST_PLANNING_VALUES.has(taskList)) {
     return "planning";
   }
-  if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(nextAction)) {
+  // Strip code spans for the token match — `parseMetaRecord` preserves narrative
+  // backticks verbatim, so a backticked workflow pointer (`` `integrate-work-unit` ``)
+  // would otherwise miss the `^`-anchored prefix.
+  if (nextAction !== null && INTEGRATION_WORKFLOW_PREFIX.test(stripInlineCode(nextAction))) {
     return "integration";
   }
   return "execution";

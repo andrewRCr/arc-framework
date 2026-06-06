@@ -1,17 +1,16 @@
 # Metadata: Instruction Optimization
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `agent-context-optimization`
+- **Depends On:** `handoff-optimization`
 
 - **Origin:** [internal]
 - **Design:** `draft-instruction-optimization.md`
-
-- **Depends On:** handoff-optimization
-- **Cohort:** agent-context-optimization
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

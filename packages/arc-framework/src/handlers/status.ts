@@ -15,7 +15,7 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -52,6 +52,7 @@ import {
   filterRosterByIdentity,
   gitConfigGet,
   runWorktreeRoster,
+  type WorktreeRosterEntry,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
 import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
@@ -84,6 +85,7 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runStatusUserView } from "../lib/status/user-view.js";
+import { loadReadyMineSlice } from "../lib/status/ready-mine-source.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -388,6 +390,17 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         statusUserPath === null
           ? Promise.resolve(null)
           : io.readFile(statusUserPath).then((content) => content, () => null),
+      readLocalInFlight: async () => {
+        const roster = filterRosterByIdentity(
+          await runWorktreeRoster({
+            exec: gitExec,
+            fs: { readdir, readFile: (path) => readFile(path, "utf8") },
+          }),
+          { identity, teamMode },
+        );
+        return roster.entries.flatMap(localRosterEntryToInFlight);
+      },
+      readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
     });
     if (json) {
       process.stdout.write(`${JSON.stringify(view)}\n`);
@@ -413,4 +426,31 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   p.intro("arc status");
   p.note(buildStatusSummary(result), "Status");
   p.outro("Done.");
+}
+
+const META_FILE_RE = /^meta-(.+)\.md$/;
+
+function workUnitNameFromMetaPath(metaFilePath: string, branch: string): string {
+  const match = META_FILE_RE.exec(basename(metaFilePath));
+  if (match?.[1] !== undefined) return match[1];
+  return branch.replace(/^(feat|fix|chore|plan)\//u, "");
+}
+
+function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[] {
+  if (entry.metaFilePath === undefined) return [];
+  return [
+    {
+      kind: "work-unit",
+      name: workUnitNameFromMetaPath(entry.metaFilePath, entry.branch),
+      state: entry.state === "Planning" ? "Planning" : "Active",
+      branch: entry.branch,
+      worktreePath: entry.worktreePath,
+      remoteOnly: false,
+      ...(entry.identity !== undefined ? { owner: entry.identity } : {}),
+      ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
+      ...(entry.class !== undefined ? { class: entry.class } : {}),
+      ...(entry.priority !== undefined ? { priority: entry.priority } : {}),
+      dependsOn: entry.dependsOn ?? [],
+    },
+  ];
 }

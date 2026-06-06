@@ -1,17 +1,16 @@
 # Metadata: Skill Infrastructure Cleanup
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-skill-infrastructure-cleanup.md`
-
-- **Depends On:** [none]
-- **Cohort:** [none]
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the work-routing-discipline housekeep drain (2026-06-01) from two routed
   `USER-INBOX` captures.
 - **Next Task:** [none]

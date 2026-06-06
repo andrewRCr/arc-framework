@@ -1,17 +1,16 @@
 # Metadata: ROADMAP Tooling
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+
+- **Cohort:** [none]
+- **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
 - **Design:** `draft-roadmap-tooling.md`
-
-- **Depends On:** work-organization-reform
-- **Cohort:** [none]
-- **Priority:** P1
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

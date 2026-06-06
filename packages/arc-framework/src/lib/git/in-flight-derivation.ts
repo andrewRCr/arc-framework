@@ -21,7 +21,7 @@
  */
 
 import type { WorkUnitState } from "../../commands/active/types.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 import { errandSlugOf } from "../session-init/errand-branch.js";
 
 import type { GitExec } from "./exec.js";
@@ -79,6 +79,8 @@ export interface InFlightWorkUnit extends InFlightLocation {
   design?: string;
   /** `**Cohort:**` from the meta; absent when unset or `[none]`. */
   cohort?: string;
+  /** Raw `**Class:**` weight from the meta; absent only when the field is unset. The `[TBD]` sentinel is kept. */
+  class?: string;
   /** Raw `**Priority:**` level from the meta; absent when unset or `[none]`. */
   priority?: string;
   /** Parsed `**Depends On:**` WU-names; empty when independent (`[none]`). */
@@ -198,15 +200,30 @@ async function classifyBranch(
   return buildWorkUnit(name, content, location, branch.startsWith(PLANNING_BRANCH_PREFIX));
 }
 
+/**
+ * Parse a meta record, dropping structurally malformed content from the advisory
+ * in-flight oracle. One broken remote meta must not crash the whole derivation,
+ * but treating it as ownerless would leak malformed WUs through identity-scoped
+ * views.
+ */
+function parseRecord(content: string): MetaRecord | null {
+  try {
+    return parseMetaRecord(content);
+  } catch {
+    return null;
+  }
+}
+
 /** Assemble a work-unit entry from its meta content, location, and life-phase. */
 function buildWorkUnit(
   name: string,
   content: string,
   location: InFlightLocation,
   planning: boolean,
-): InFlightWorkUnit {
-  const fields = parseMetaRecord(content);
-  const { Owner: owner, Design: design, Cohort: cohort, Priority: priority } = fields;
+): InFlightWorkUnit | null {
+  const fields = parseRecord(content);
+  if (fields === null) return null;
+  const { Owner: owner, Design: design, Cohort: cohort, Class: workClass, Priority: priority } = fields;
   return {
     kind: "work-unit",
     name,
@@ -215,6 +232,9 @@ function buildWorkUnit(
     ...(owner !== null ? { owner } : {}),
     ...(design !== null && design !== "[none]" ? { design } : {}),
     ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
+    // Keep `[TBD]`: it is a real value the view renders, unlike the `[none]`
+    // absences above. Drop only a genuinely field-absent (`null`) Class.
+    ...(workClass !== null ? { class: workClass } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),
     dependsOn: parseDependsOn(fields["Depends On"]),
   };

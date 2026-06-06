@@ -1,17 +1,16 @@
 # Metadata: CLI Substrate Adoption
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** [none]
+- **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
 - **Design:** `draft-cli-substrate-adoption.md`
-
-- **Depends On:** work-organization-reform
-- **Cohort:** [none]
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

@@ -1,17 +1,16 @@
 # Metadata: Naming Conventions
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** `doc-conventions`
+- **Depends On:** `work-routing-discipline`
 
 - **Origin:** [internal]
 - **Design:** `draft-naming-conventions.md`
-
-- **Depends On:** work-routing-discipline
-- **Cohort:** doc-conventions
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** Provisional stub captured from Worktree Foundation planning (2026-05-24): the
   `TYPE.QUALIFIER` convention + scope ladder, inbox collapse, and the `STATUS` / `MEMORY` / `NOTES`
   renames.

@@ -91,6 +91,42 @@ export function validatePriority(p: string | null): Priority {
 }
 
 /**
+ * Codified work-unit weight — the recorded `Class`. `Light` / `Heavy` /
+ * `Novel` are the resolved values; a WU carries the `[TBD]` sentinel until it
+ * is classified. Indicates intrinsic demand across planning, execution, and
+ * review — distinct from the quality-gate tier.
+ */
+export type WorkClass = "Light" | "Heavy" | "Novel";
+
+/**
+ * Narrow a raw `**Class:**` field value to the codified `WorkClass`, or the
+ * `[TBD]` pre-classification sentinel. Matching is case-insensitive — the field
+ * has historical lowercase values across metas — so `light` / `Light` resolve
+ * to `Light`, `heavy` / `Heavy` to `Heavy`, and `novel` / `Novel` to `Novel`.
+ * Everything else — `null`, the empty string, `[TBD]`, or any unrecognized token
+ * — resolves to `[TBD]`, so an unclassified or absent value renders as the
+ * sentinel rather than throwing.
+ *
+ * Parsers return the raw `Class` string verbatim; callers that need the display
+ * form import and apply `validateClass` explicitly.
+ *
+ * @param c - Raw `**Class:**` field value, or `null` when absent.
+ * @returns The narrowed `WorkClass`, or `"[TBD]"` when unclassified or absent.
+ */
+export function validateClass(c: string | null): WorkClass | "[TBD]" {
+  switch (c?.trim().toLowerCase()) {
+    case "light":
+      return "Light";
+    case "heavy":
+      return "Heavy";
+    case "novel":
+      return "Novel";
+    default:
+      return "[TBD]";
+  }
+}
+
+/**
  * Resolved session type — drives session-init's per-type loadset (Step 3
  * items 9–10). Inferred from active state.
  *

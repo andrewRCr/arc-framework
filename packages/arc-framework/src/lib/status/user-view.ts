@@ -6,14 +6,26 @@
  * via the pure render core. An active re-render request, not a passive
  * file-open: it resolves fresh state every call.
  *
+ * The view has two sources, merged into an In Flight section and a Ready section:
+ *
+ * - **In Flight** — the git-derived in-flight-mine slice (your WUs in flight
+ *   anywhere), merged with fresh local-worktree meta so local ceremony changes
+ *   win over stale remote-tracking content for the same branch.
+ * - **Ready** — the local ready-mine slice (your owned, unblocked planned work).
+ *   It reads only local metas, so it is always available — it never degrades when
+ *   the remote is unreachable.
+ *
  * Two offline behaviors, kept distinct:
  *
  * - **`--local` / `--no-fetch`** skips the network read and renders from the
- *   last-known local remote-tracking refs — a fast offline view the caller
- *   explicitly asked for. It cannot prune dead refs, so a lingering
- *   merged-and-deleted branch may surface; the online path prunes correctly.
- * - **Online but unreachable** degrades to the last-rendered `STATUS.USER`
- *   cache rather than rendering a half-resolved view — the file is the cache.
+ *   last-known local remote-tracking refs plus fresh local-worktree meta — a
+ *   fast offline view the caller explicitly asked for. It cannot prune dead
+ *   refs, so a lingering merged-and-deleted branch may surface; the online path
+ *   prunes correctly.
+ * - **Online but unreachable** degrades to the last-rendered `STATUS.USER` cache
+ *   rather than rendering a half-resolved in-flight view — the file is the cache.
+ *   Only the in-flight half degrades this way; the structured merge of the fresh
+ *   local ready slice into the cached document is the deferred file-writer's job.
  *
  * This work unit renders to the terminal only; the canonical-file write and
  * reconcile reuse the same render core and land later.
@@ -24,12 +36,18 @@
 import type { GitExec } from "../git/exec.js";
 import {
   deriveInFlight,
+  type InFlightEntry,
   type PrSource,
 } from "../git/in-flight-derivation.js";
 import { resolveInFlightBranchSet } from "../git/remote-ref-reader.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
-import { renderStatusTable, STATUS_USER_COLUMNS } from "./render.js";
+import {
+  renderStatusTable,
+  STATUS_USER_COLUMNS,
+  STATUS_USER_READY_COLUMNS,
+  type StatusViewRow,
+} from "./render.js";
 
 /** What produced the view output. */
 export type StatusUserViewSource = "rendered" | "cache" | "cache-missing" | "no-identity";
@@ -58,6 +76,51 @@ export interface RunStatusUserViewOptions {
   prSource?: PrSource;
   /** Read the last-rendered `STATUS.USER` cache; `null` when absent. */
   readLastRendered: () => Promise<string | null>;
+  /**
+   * Resolve local worktree-backed in-flight WUs. These override stale
+   * remote-tracking rows for the same branch and append when a local WU has no
+   * remote row yet.
+   */
+  readLocalInFlight?: () => Promise<InFlightEntry[]>;
+  /**
+   * Resolve the local ready-mine slice (owned, unblocked planned work). Network-
+   * independent, so it is awaited regardless of remote reachability.
+   */
+  readReadyMine: () => Promise<StatusViewRow[]>;
+}
+
+/** Compose the two-section user view from the resolved in-flight and ready slices. */
+function composeUserView(
+  identity: string,
+  inFlight: readonly StatusViewRow[],
+  ready: readonly StatusViewRow[],
+): string {
+  const inFlightBody =
+    inFlight.length > 0
+      ? renderStatusTable(inFlight, STATUS_USER_COLUMNS)
+      : `No in-flight work units for \`${identity}\`.`;
+  const readyBody =
+    ready.length > 0
+      ? renderStatusTable(ready, STATUS_USER_READY_COLUMNS)
+      : `No ready work units for \`${identity}\`.`;
+  return `## In Flight\n\n${inFlightBody}\n\n## Ready\n\n${readyBody}`;
+}
+
+/**
+ * Merge remote-oracle entries with local worktree entries.
+ *
+ * Remote order is preserved. When a local worktree exists for the same branch,
+ * the local parsed meta wins (fresh local truth beats stale remote-tracking
+ * content). Local-only entries append after the remote set.
+ */
+function mergeInFlightEntries(
+  remote: readonly InFlightEntry[],
+  local: readonly InFlightEntry[],
+): InFlightEntry[] {
+  const byBranch = new Map<string, InFlightEntry>();
+  for (const entry of remote) byBranch.set(entry.branch, entry);
+  for (const entry of local) byBranch.set(entry.branch, entry);
+  return [...byBranch.values()];
 }
 
 /**
@@ -78,11 +141,15 @@ export async function runStatusUserView(
     };
   }
 
+  // The ready slice is local and always available — resolved regardless of
+  // remote reachability so the unreachable path below never has to recompute it.
+  const ready = await options.readReadyMine();
+
   const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
 
-  // Online but unreachable: degrade to the last-rendered cache rather than
-  // render a half-resolved view. `--local` never degrades — it rendered from
-  // local refs by request.
+  // Online but unreachable: the in-flight half can't be refreshed, so degrade to
+  // the last-rendered cache rather than render a half-resolved view. `--local`
+  // never degrades — it rendered from local refs by request.
   if (!localOnly && !reachable) {
     const cached = await options.readLastRendered();
     if (cached !== null) return { output: cached.trimEnd(), source: "cache" };
@@ -92,10 +159,10 @@ export async function runStatusUserView(
     };
   }
 
-  const entries = await deriveInFlight({ exec, branches, identity, teamMode, prSource });
-  const slice = buildInFlightMineSlice(entries);
-  if (slice.length === 0) {
-    return { output: `No in-flight work units for \`${identity}\`.`, source: "rendered" };
-  }
-  return { output: renderStatusTable(slice, STATUS_USER_COLUMNS), source: "rendered" };
+  const [remoteEntries, localEntries] = await Promise.all([
+    deriveInFlight({ exec, branches, identity, teamMode, prSource }),
+    options.readLocalInFlight?.() ?? Promise.resolve([]),
+  ]);
+  const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteEntries, localEntries));
+  return { output: composeUserView(identity, inFlight, ready), source: "rendered" };
 }

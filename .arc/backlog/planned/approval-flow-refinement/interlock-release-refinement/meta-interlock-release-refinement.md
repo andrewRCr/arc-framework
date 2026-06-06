@@ -1,17 +1,16 @@
 # Metadata: Interlock & Release Routing Refinement
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+
+- **Cohort:** `approval-flow-refinement`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-interlock-release-refinement.md`
-
-- **Depends On:** [none]
-- **Cohort:** approval-flow-refinement
-- **Priority:** P2
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

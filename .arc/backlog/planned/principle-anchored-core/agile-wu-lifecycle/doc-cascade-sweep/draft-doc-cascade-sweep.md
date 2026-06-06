@@ -40,6 +40,19 @@
 - *Separable follow-on routed elsewhere:* a layout-drift validation hook (documented-layout == reader/scaffold
   behavior) → `decomposition-machinery` (its layout-drift hook family).
 
+### `[ ]` **Reconcile Work Character ↔ `Class` vocabulary after the `Novel` model**
+
+- *Routed from:* `class-model-foundation` Task 5.R.7 (2026-06-06), after the `Novel` tier was admitted to the
+  cohort contract.
+- *Concern:* `class-model-foundation` now frames work sizing as two questions in one spectrum: Work Character
+  decides whether a concern is atomic / Errand-shaped below the WU wrapper, while `Class` records WU-scoped
+  weight from `light` through `novel`. The surface must keep that relationship clear without flattening atomic
+  work into a fourth `Class` value or leaving old tier-era wording that implies it.
+- *Proposed:* include the one-spectrum framing in the terminal vocabulary sweep: preserve `Atomic` as character,
+  preserve `Class` as WU weight, and update residual `tier`, `atomic tier`, `quick` / `standard`, and
+  `minimum` / `standard` / `expanded` language so it cannot contradict the `Errand` floor → `novel` ceiling
+  model.
+
 ---
 
 ## Problem / Motivation

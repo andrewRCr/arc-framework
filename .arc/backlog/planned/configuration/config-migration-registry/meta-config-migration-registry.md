@@ -1,17 +1,16 @@
 # Metadata: Config-Key Migration Registry
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Light`   | `P3`         |
+
+- **Cohort:** `configuration`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-config-migration-registry.md`
-
-- **Depends On:** [none]
-- **Cohort:** configuration
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the work-routing-discipline `BACKLOG-INBOX` retirement (2026-06-01) from a
   routed capture.
 - **Next Task:** [none]

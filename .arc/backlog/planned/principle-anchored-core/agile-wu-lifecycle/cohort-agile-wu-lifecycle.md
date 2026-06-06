@@ -7,7 +7,7 @@
 
 **Purpose:** Scale work-unit ceremony to the work's actual pre-implementation demand while holding ARC's
 execution discipline invariant — scale how much design must be _authored_, never the discipline that validates
-it. The members deliver the `Class` model (a two-value planning-weight classification plus per-stage planning
+it. The members deliver the `Class` model (a three-value planning-weight classification plus per-stage planning
 depth), the scalable authoring pipeline that consumes it, the decomposition-and-cohort machinery that lets a
 concern outgrow a single WU, and the documentation sweep that retires the superseded tier vocabulary. This is
 the `principle-anchored-core` thesis — **scale grammar, never scale discipline** — applied to the WU lifecycle.
@@ -31,12 +31,18 @@ Cross-member design no single member owns alone. Each contract's authoritative d
 exposing member's spec (a cohort doc holds coordination and pointers, never design that drives a task list);
 this records the contract surface and its consumers.
 
-- **The `Class` model** — `light` / `heavy` planning weight (`heavy` iff either intrinsic axis is high:
-  _derivation_ of an open design, or _scale_ of the codebase-grounding a correct plan needs), plus a transient
-  per-stage `planning depth` and three spec forms (`brief` / `outline` / `detailed`). Defined by
-  **`class-model-foundation`**; consumed by **`scalable-authoring-pipeline`** (per-stage depth resolution) and
-  **`decomposition-machinery`** (the WU-vs-cohort upper bound mirrors the Errand-vs-WU lower bound). One-way
-  ratchet — rises when a stage reveals demand, never demotes.
+- **The `Class` model** — `light` / `heavy` / `novel` planning weight (`heavy` iff either intrinsic axis is high:
+  _derivation_ of an open design, or _scale_ of the codebase-grounding a correct plan needs; `novel` iff
+  derivation crosses the higher invent-vs-compose threshold), plus a transient per-stage `planning depth`, three
+  spec forms (`brief` / `outline` / `detailed`), the `[TBD]` pre-classification sentinel, and the
+  `classify-work-unit` triage method. Defined by **`class-model-foundation`**; consumed by
+  **`scalable-authoring-pipeline`** (per-stage depth resolution; declares the `classify-work-unit` method at its
+  planning-stage touchpoints; realizes `novel`'s suggested research / ADR planning shape) and
+  **`decomposition-machinery`** (the WU-vs-cohort upper bound mirrors the Errand-vs-WU lower bound). The `novel`
+  value is also the plate-balance / sequencing signal consumed cross-cohort by **Concurrent Work Conventions**.
+  **Estimate-then-ratchet** — the ratchet protects _realized_ authoring (never drops below work already done); an
+  estimate set before that work is freely revisable, forced to a real value at entry into `planned/` (`[TBD]`
+  only in `provisional/`).
 - **The path-valued `Cohort` field + grouping taxonomy** — the field _schema_ (path-valued, capped at two
   segments, membership derived) is owned by **`class-model-foundation`**; the _taxonomy_ it expresses (one
   grouping kind, coordination as a content continuum, the constitutive `cohort-{name}.md` record with a
@@ -76,8 +82,11 @@ when it has cross-cutting coordination to record.
 
 The base; ships standalone (workflows default to `heavy` until the pipeline lands).
 
-_Exposes:_ the `Class` model + boundary tests, the `Class` / `Design` / path-valued `Cohort` meta-field schema,
-the relocatability invariant statement, and a backlog-wide cohort-compliance baseline.
+_Exposes:_ the `Class` model + boundary tests, the `Class` / `Design` / path-valued `Cohort` meta-field schema
+(`Class` carries the `[TBD]` sentinel + the estimate-vs-realized ratchet + the `novel` invent-vs-compose
+threshold), the `classify-work-unit` triage method, the `graduate-work-unit` (`provisional → planned`) workflow
+that forces the estimate at planned-entry, the in-flight + ready `STATUS.USER` content model, the relocatability
+invariant statement, and a backlog-wide cohort-compliance baseline.
 
 ### `scalable-authoring-pipeline`
 
@@ -86,13 +95,17 @@ self-resolution with flag-free feed-forward, the task-list one-grammar, groundin
 `arc-plan` depth-relativity, the `spec-review` method + extension, and the artifact-presence-tolerance
 requirement on integration.
 
-_Consumes:_ the `Class` model.
+_Consumes:_ the `Class` model + the `classify-work-unit` method (declared at the `arc-plan` / `create-spec` /
+`generate-tasks` planning-stage touchpoints it owns), including `novel`'s advisory research / ADR planning shape
+as a depth suggestion rather than an enforcement hook.
 
 ### `decomposition-machinery`
 
 _Exposes:_ the decomposition method (orthogonality discriminator + two rails + maturity-gated timing +
-Model-B-only), the grouping taxonomy, the `cohort-{name}.md` record + `template-cohort.md`, the **graduation
-workflow**, and the cohort-consistency invariant + its enforcement.
+Model-B-only), the grouping taxonomy, the `cohort-{name}.md` record + `template-cohort.md`, the **`WU → cohort`
+decomposition workflow** (renamed off "graduation" — that term is reserved for the readiness ladder, owned by
+`class-model-foundation`'s `graduate-work-unit`; see this WU's inbound buffer), and the cohort-consistency
+invariant + its enforcement.
 
 _Consumes:_ the path-valued `Cohort` schema and the relocatability invariant from `class-model-foundation`.
 
@@ -107,7 +120,8 @@ _Exposes:_ the retirement sweep of superseded tier / incidental concept referenc
 strategies, and templates; the `arc-plan-conductor` write-back; and the codification of the graduation workflow
 against this cohort's own bootstrapping run.
 
-_Consumes:_ all three siblings — it sweeps the vocabulary they establish.
+_Consumes:_ all three siblings — it sweeps the vocabulary they establish, including the Work Character ↔ `Class`
+one-spectrum framing (`Errand` floor → `novel` ceiling) without flattening atomic work into a `Class` value.
 
 ## ADR anchors
 

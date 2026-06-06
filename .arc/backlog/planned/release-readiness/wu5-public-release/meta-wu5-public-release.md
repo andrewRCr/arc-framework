@@ -1,17 +1,16 @@
 # Metadata: Public Release (WU5)
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
+
+- **Cohort:** `release-readiness`
+- **Depends On:** `docs-content-sweep`
 
 - **Origin:** [internal]
 - **Design:** `draft-wu5-public-release.md`
-
-- **Depends On:** docs-content-sweep
-- **Cohort:** release-readiness
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

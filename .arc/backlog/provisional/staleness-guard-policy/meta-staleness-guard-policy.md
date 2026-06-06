@@ -1,16 +1,16 @@
 # Metadata: Staleness-Guard Hard-Fail Policy
 
-- **State:** Planning
-- **Owner:** andrew
-- **Branch:** [none]
+| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
+| ---------- | --------- | ---------- | --------- | ------------ |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-staleness-guard-policy.md`
-
-- **Depends On:** [none]
-- **Cohort:** [none]
-
 - **Task List:** [none]
+
 - **Last Completed:** Stub created at the work-routing-discipline housekeep drain (2026-06-01) from a routed
   capture.
 - **Next Task:** [none]

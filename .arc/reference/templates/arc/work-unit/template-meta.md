@@ -1,41 +1,36 @@
 # Metadata: {wu-name}
 
 <!--
-  Field semantics. Core fields always present; `[none]` is the empty-value
-  marker. Wrap `.md` filenames and URL values in backticks for code-span
-  rendering; sentinels like `[none]` stay bare.
+  Field semantics. The core fields (State, Owner, Branch, Class, Priority)
+  render as a single-row table; the remaining fields as ordered bullet groups.
+  Value-format convention: enum tokens render Capitalized and backticked
+  (`Active`, `Heavy`, `P3`); identifier values — slugs, `.md` filenames,
+  branches, URLs — render backticked; bracket sentinels (`[none]`,
+  `[internal]`, `[TBD]`) render bare; narrative fields render as plain prose.
 
   Placeholder conventions used in this template:
-    `{wu-name}`      — interpolation token; replaced with the WU name at
+    `{wu-name}`      — interpolation token; replaced with the work-unit name at
                        meta-file creation (init-work-unit.md)
     `{arc.identity}` — config-key reference; init-work-unit.md substitutes
                        the resolved `arc.identity` value
     `—`              — author / workflow fills in (no sentinel default)
     `[none]`         — empty-value sentinel
 
-  Identity:
+  Core (rendered as the single-row table):
   - **State** — `Planning` | `Active` | `Integrating` | `Shipped` (strict
     4-state machine). Transitions fire at workflow ceremonies:
     init-work-unit → Planning · activate-work-unit → Active ·
     integrate-work-unit → Integrating · archive ceremony → Shipped. Branch
     operations are internal to Planning state.
   - **Owner** — single `arc.identity` value.
-  - **Branch** — branch this WU lives on; single value (single-branch-per-WU).
-
-  Reference (chain-of-authority order: Origin → Design → Task List → PR URL):
-  - **Origin** — default `[internal]`; external tracker URL when applicable.
-    Orthogonal to Design; the chain head.
-  - **Design** — `[none]` | backticked `.md` filename of the upstream design
-    artifact (`draft-{name}.md` during planning; `spec-{name}.md` during
-    execution). Role-named, not artifact-typed — generalizes across spec-form
-    variants and tier × mode combinations. Design-directed: intent is set
-    upfront here; the task list decomposes it.
-
-  Coordination:
-  - **Depends On** — bare WU-name list; default `[none]`. Renders into
-    ROADMAP tier grouping.
-  - **Cohort** — single cohort name; default `[none]`. Source of truth for
-    cohort membership; sibling list derived.
+  - **Branch** — branch this work unit lives on; single value
+    (single-branch-per-work-unit).
+  - **Class** — `Light` | `Heavy` | `Novel` | `[TBD]` (default `[TBD]` until
+    resolved). The work unit's weight across planning, execution, and review.
+    Carries a best-estimate value once the work unit is ready to start, re-tuned
+    at each lifecycle surface. Estimate-then-ratchet: a pre-planning estimate is
+    freely revisable in either direction, but once a stage has authored design at
+    some depth, `Class` never drops below that floor.
   - **Priority** — `P1` (top focus) | `P2` (elevated) | `P3` (baseline);
     default `P3`. Human-set attention level for triaging a multi-in-flight
     worklist; the in-flight views render and sort on it. No `P0` — its
@@ -43,10 +38,31 @@
     cap on concurrent P1s is documentation discipline only — never an
     agent-surfaced nag or render-time signal.
 
-  Task pointers:
+  Cohort:
+  - **Cohort** — path value mirroring the on-disk cohort directory: a single
+    segment for a top-level cohort, `<cohort>/<subcohort>` for a nested one,
+    or `[none]` for a standalone work unit; capped at two segments. Source of
+    truth for cohort membership (the sibling list is derived, never stored).
+    Dual-placement: also carried in the `draft-*` / `spec-*` header (full
+    path) so the spec self-describes its grouping once the work unit activates.
+  - **Depends On** — bare work-unit-name list; default `[none]`. Renders into
+    the project readiness view's dependency grouping.
+
+  Reference (chain-of-authority order: Origin → Design → Task List → PR URL):
+  - **Origin** — default `[internal]`; external tracker URL when applicable.
+    Orthogonal to Design; the chain head. External trackers go here, never in
+    Design.
+  - **Design** — `[none]` | backticked `.md` filename of the upstream design
+    artifact: `draft-{name}.md` during Planning, `spec-{name}.md` from Active
+    onward. Always an ARC-owned planning artifact (external trackers go in
+    Origin). The filename is stable across spec forms — a spec's weight lives
+    in its H1 and template, not its filename. Design-directed: intent is set
+    upfront here; the task list decomposes it.
   - **Task List** — `[none]` during planning; `tasks-{name}.md` filename
     during execution (path derived from this meta file's directory —
     co-located by convention).
+
+  Progress:
   - **Last Completed** — Task ID + title | ceremony marker (e.g.,
     `Work unit activated`) | `[none]` at planning start.
   - **Next Task** — triple-anchor `Task X.Y — title (line ~N)` | `[none]`
@@ -72,40 +88,37 @@
 
   Retired from prior `template-status.md` shape (replaced by positive
   enumeration above):
-  - `Branch(es):` plural form — use singular `Branch:` (single-branch-per-WU
-    forecloses plural).
+  - `Branch(es):` plural form — use singular `Branch:` (single-branch-per
+    -work-unit forecloses plural).
   - `Base Branch:` — invariant under single-branch model; project-level
-    config concern, not per-WU state.
+    config concern, not per-work-unit state.
   - `Sibling Work Unit(s):` — cohort is source of truth; siblings derived.
   - `Integration:` — folds into State as the `Integrating` value.
-  - `Interrupts:` / `Paused At:` / `Paused To:` — incidental WU substrate
-    retired with the broader incidental-model reform.
+  - `Interrupts:` / `Paused At:` / `Paused To:` — incidental-work-unit
+    substrate retired with the broader incidental-model reform.
 
   Deliberately not added:
   - `Worktree:` — per-machine; resolved via roster cascade + worktree
     location template. Tracked content shouldn't carry machine-specific
     state.
-  - `Tier:` — reserved for Agile WU Lifecycle's Identity-group addition
-    alongside `Branch:`.
   - `Created:` / state-transition dates (`Activated:`, etc.) — derivable
     from git log on meta-* edits; metrics-flavor, out of scope here.
-  - `Title:` / `Description:` — WU name in H1 covers identification; the
-    substantive WU thesis lives in the co-located `draft-*` / `spec-*` per
+  - `Title:` / `Description:` — work-unit name in H1 covers identification;
+    the substantive thesis lives in the co-located `draft-*` / `spec-*` per
     the chain-model header convention.
 -->
 
-- **State:** —
-- **Owner:** {arc.identity}
-- **Branch:** —
+| **State** | **Owner**      | **Branch** | **Class** | **Priority** |
+| --------- | -------------- | ---------- | --------- | ------------ |
+| —         | {arc.identity} | —          | [TBD]     | `P3`         |
+
+- **Cohort:** [none]
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** [none]
-
-- **Depends On:** [none]
-- **Cohort:** [none]
-- **Priority:** P3
-
 - **Task List:** [none]
+
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
@@ -142,13 +155,13 @@
   - {security-relevant changes}
 
   Omit any category with no entries (Keep a Changelog norm); keep this order.
-  Release Notes lines are user-facing: neutral voice, no internal WU names or
+  Release Notes lines are user-facing: neutral voice, no internal work-unit names or
   roadmap pointers.
 
   ## Completion Notes
 
   {Narrative synthesis — design intent, what actually shipped, key deviations /
   supersessions from plan, verification outcome. Complements, does NOT repeat, the
-  task list's verbatim record and git history. Internal-dev audience; WU names and
-  cross-references are fine here.}
+  task list's verbatim record and git history. Internal-dev audience; work-unit names
+  and cross-references are fine here.}
 -->
