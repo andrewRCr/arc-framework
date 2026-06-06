@@ -65,6 +65,25 @@
   the timing-independent net that closes the concurrent-merge drift gap. Pairs with the round-trip harness
   (§ Scope) and the `parseMetaRecord` validation-expectations decision above.
 
+### `[ ]` **Blocked/awaiting status for inbox captures (GTD "Waiting For")**
+
+- _Routed from:_ `inbox-awaiting-status` errand (2026-06-06); surfaced deciding the home for a homeless atomic
+  blocked on an external trigger ("remove the TS6 bridge before TypeScript 7" — TS7 not yet released).
+- _Concern:_ the inbox family has no first-class status for a capture that is _correctly blocked on an external
+  trigger_ (vs. merely deferred). `_Remind:_` is time-based — it nags an item that isn't late, only waiting;
+  `_Hold:_` mutes surfacing but records no unblock condition and means "retained," not "blocked." The trigger
+  primitive already exists elsewhere: WORKING-MEMORY's `_Remove when: <trigger>_` is exactly a trigger expression,
+  never yet applied to the inbox to-do surface.
+- _Design direction:_ an `_Awaiting: <trigger>_` managed field on a `§ Atomic` capture that records the unblock
+  condition and suppresses time-nudge surfacing, re-evaluated as a **judgment pointer** at a housekeep pass or
+  WU-init absorption ("trigger met → promote to ready / route to a stub : keep waiting"), never as an automated
+  condition. Evaluation model is scope-dependent: the private `USER-INBOX` is nudge-based (a blocked item sits
+  awkwardly there), while the shared inbox (`ATOMIC-INBOX` → `INBOX.PROJECT`) is sweep-based and nudge-free — the
+  natural host for trigger-gated project concerns. Codify the field in the `§ Atomic` flag schema alongside
+  `_Remind:_` / `_Hold:_`, reusing WORKING-MEMORY's trigger-expression convention for consistency.
+- _Interim:_ `_Awaiting:_` is hand-applied on the re-homed TS7 capture in `ATOMIC-INBOX` now, ahead of
+  codification (the same pattern recorded for `_Slug:_` above).
+
 ---
 
 ## Purpose
