@@ -646,7 +646,7 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   accuracy under the new top. No rationale added; the always-loaded surfaces stay lean. Both Framework copies
   (package source + `.arc/`) byte-identical; lint clean.
 
-### `[ ]` **5.R.4 Deep authoritative surfaces — strategy, method, ADR**
+### `[x]` **5.R.4 Deep authoritative surfaces — strategy, method, ADR**
 
 - _Goal:_ Carry the full model and reasoning on the on-demand surfaces: `strategy-work-organization` § Class Model
   gains `Novel` + the second derivation threshold, the **derivation floor**, worked examples on each side of the
@@ -657,6 +657,19 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   planned-entry forcing point (audit-found gap); ADR-023 records the two-→three-value shift (amendment or
   supersession note). Strategy + method + `graduate-work-unit` are Framework files (two copies); ADR is internal.
   (`init` / `activate-work-unit` need no edit — they delegate to the `classify-work-unit` method, not the value set.)
+
+- _Outcome:_ All four surfaces carry the three-value model. `classify-work-unit`: 4th boundary test
+  (invent-vs-compose, gate-validated wording), the derivation floor, the "execution-light ≠ design-determinate"
+  ratchet clause. `strategy-work-organization` § Class Model: `novel` in the value set, the derivation-axis-top
+  paragraph (asymmetry — scale-endurance / derivation-depth), the floor, the invent-vs-compose boundary test, the
+  invent/compose worked examples, the no-ratchet-back clause, the spec-form table + relationships (`detailed` ⇒
+  `heavy` or `novel`), and the one-spectrum framing bridging § Work Character ↔ § Class Model. `graduate-work-unit`:
+  `Novel` admitted at both value-set enumerations. ADR-023: Status + Alternatives (chosen = three-value;
+  sub-marker / view-only noted as rejected) + a "top tier — `novel`" Decision subsection (dogfood motivation,
+  asymmetry, additive, recognizability gate) + boundary tests + spec forms + two Consequences bullets. **Scoping
+  note:** the widened felt-difference test lives in the spec (5.R.2) and ADR — not duplicated into the strategy
+  (which has no felt-difference section); the strategy's worked examples carry the felt-distinctness instead. Five
+  Framework copies byte-identical; ADR single-copy; lint clean.
 
 ### `[ ]` **5.R.5 Schema, render, parse, status**
 
@@ -675,12 +688,14 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   `Novel` row, and `ready-mine.test.ts`. Tier 1 + the relevant Tier 2 gates pass. `template-meta` is a Framework
   file (two copies); the CLI source + tests are single-copy.
 
-### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` WUs**
+### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` backlog WUs**
 
-- _Goal:_ Apply `Class: Novel` to the 5.R.1-confirmed set across `backlog/planned/` metas (via the established
-  re-render path, not hand-edits) and to the active `class-model-foundation` meta; regen ROADMAP / STATUS.USER if
-  any render field changed. A pure upward reclassification of existing `Heavy` estimates — `Light` values and the
-  `Light` / `Heavy` boundary are untouched.
+- _Goal:_ Apply `Class: Novel` to the six 5.R.1-confirmed `backlog/planned/` novels (`decomposition-machinery`,
+  `arc-plan-conductor`, `cross-machine-sync-coherence`, `release-lifecycle`, `commit-increments`, `coord-probe`)
+  via the established re-render path (tolerant-parse → `renderMetaFile` → write), not hand-edits; regen ROADMAP /
+  STATUS.USER if any render field changed. A pure upward reclassification of existing `Heavy` estimates — `Light`
+  values and the `Light` / `Heavy` boundary untouched. (The active `class-model-foundation` meta is the seventh
+  `Novel`; it is stamped separately in 5.R.8, where it also gets the format migration it never received.)
 
 ### `[ ]` **5.R.7 Contract exposure + downstream routing**
 
@@ -689,6 +704,18 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   ADR path, per-stage depth suggestion) to `scalable-authoring-pipeline`; the plate-balancing / sequencing stance
   to `concurrent-work-conventions` (agile-parallelism). Route the broader Work-Character ↔ `Class` vocabulary
   reconciliation to `doc-cascade-sweep` if it exceeds this WU's framing pass.
+
+### `[ ]` **5.R.8 Reformat + stamp this WU's own active meta**
+
+- _Goal:_ Bring `meta-class-model-foundation.md` into the modernized schema and the three-value model before the
+  phase closes — it is the **lone format outlier** (Phase 5 migrated only `backlog/` metas; this WU's own active
+  meta was edited in place and never re-rendered, so it still carries the legacy flat-bullet block — no core-block
+  table, lowercase `Class: heavy`). Tolerant-parse → `renderMetaFile` → write (core-block table, field order,
+  backtick / casing convention), recase and **stamp `Novel`** (this WU is the canonical `Novel`), and reconcile
+  the now-resolved `Blockers` pointer (the within-`heavy` calibration is settled). Depends on 5.R.5 (the render /
+  `validateClass` must admit `Novel` first). Meta-file edit standing alone → a dedicated `chore(arc):` commit per
+  meta-file-commit-shape — a deliberate ceremony touch, not a task-completion code edit. Lands last, immediately
+  before Phase 6 verification.
 
 ## **Phase 6:** Verification
 

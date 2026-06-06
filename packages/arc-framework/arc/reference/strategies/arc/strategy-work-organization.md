@@ -81,10 +81,16 @@ during-WU-vs-later routing table, see [DEV-RULES.ARC][dev-rules-arc] § Discover
 
 ## Class Model
 
-A work unit's **`Class`** is its recorded *weight* — `light` or `heavy` (`[TBD]` until resolved). Weight is the
-work a unit demands across *planning, execution, and review* — intrinsic demand, not output volume. `Class` is the
-signal roadmap and parallelism planning read to balance a worklist; the [classify-work-unit][classify-work-unit]
+A work unit's **`Class`** is its recorded *weight* — `light`, `heavy`, or `novel` (`[TBD]` until resolved). Weight
+is the work a unit demands across *planning, execution, and review* — intrinsic demand, not output volume. `Class`
+is the signal roadmap and parallelism planning read to balance a worklist; the [classify-work-unit][classify-work-unit]
 method is the triage that sets it, and this section is the model and reasoning behind that triage.
+
+`Class` is the *weight* question of a single work-sizing spectrum; the **Errand-vs-WU character line**
+([§ Work Character](#work-character)) is its companion *cardinality* question, and together they place any work from
+a one-commit Errand (the floor) to a from-scratch `novel` synthesis (the ceiling). The two stay distinct: character
+asks *how many concerns* (one → Errand, below the wrapper; spec-worthy → WU), `Class` asks *how much weight* within
+a WU. Atomic is **not** a `Class` value — `Class` begins at the `light` floor; an Errand carries none.
 
 What scales with `Class` is **design-authoring ceremony** — how much spec and planning the work warrants. What
 never scales is **execution discipline**: the review-increment gate and the quality gates hold identically at every
@@ -101,7 +107,9 @@ before a competent engineer can execute it well.
   existing patterns, derivation is low; when settling the work *requires authoring* a real design — concerns,
   alternatives, and tradeoffs that do not exist until someone works them out — derivation is high. Derivation loads
   the drafting and spec stages, and tracks how novel-vs-routine the execution is and how much validation review
-  demands.
+  demands. **Floor:** only *spec-worthy* design counts — what a competent engineer must settle before starting; a
+  choice resolved *during* implementation (naming, local structure) is not derivation, even though it involves
+  deciding something. This design-vs-implementation line keeps the derivation trigger from swallowing every WU.
 - **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution* must
   navigate: the codebase-grounding demand. This is the **routine-vs-substantial** bar: most work carries some
   grounding, so the bar sits at *substantial* — a large or intricate surface of symbols and call-sites a correct
@@ -110,19 +118,35 @@ before a competent engineer can execute it well.
 `light` iff **both** axes are low. The axes are co-equal: a determinate-but-large refactor is `heavy` by grounding
 demand alone, exactly as a small-but-novel design is `heavy` by derivation alone.
 
-### The three boundary tests
+**The top of the derivation axis is `novel`.** Above the `heavy` promotion, a second threshold on derivation alone
+promotes `heavy → novel`: when settling the design requires *inventing* concepts or models that do not yet exist in
+the problem domain (synthesis, research, discovery) rather than *composing* a real design from existing patterns.
+The axes are asymmetric here, and the asymmetry falls out of their nature — **scale is endurance** (breadth that is
+chunkable, parallelizable, and self-limiting, since runaway breadth trips decomposition into a cohort, so it caps at
+`heavy`); **derivation is depth** (serial, context-saturating, unbounded, so only it reaches the top). `novel` is a
+distinct *kind*, not just more weight; its recorded purpose is **primarily** parallelism / sequencing (you can hold
+roughly one genuinely-novel stream — the strongest "don't double up" signal) and **secondarily** an advisory
+distinct planning shape (a discovery / research phase + an ADR), suggested, never forced.
+
+### The boundary tests
 
 Apply in order. The first sorts work below the wrapper out of the model entirely; the next two each independently
-promote a WU to `heavy`:
+promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation axis alone:
 
 1. **Errand vs. WU (the wrapper floor).** *Does this need more than a single logical concern — more than one review
    increment — to do well?* **No** → it is an [Errand](#errand-work-class), not a WU: it runs below the wrapper
    (`chore/<slug>` + PR, no meta, no `Class`). **Yes** → it is a WU; continue.
 2. **Derivation trigger (→ `heavy`).** *Must a real design be authored — concerns, alternatives, tradeoffs that do
-   not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`.
+   not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`. Count only
+   *spec-worthy* design (the floor above): a choice resolved during implementation is not derivation.
 3. **Scale / complexity trigger (→ `heavy`).** *Does producing a correct implementation plan require a substantial
    codebase-grounding pass, beyond the routine floor?* **Yes** → `heavy`. Guard the bar at *substantial* — a soft
    bar makes everything `heavy`.
+4. **Invent-vs-compose trigger (`heavy → novel`).** *Does settling the design require inventing concepts / models
+   that do not yet exist in the problem domain — versus composing a real design from existing patterns?* **Invent**
+   → `novel`; **compose** → stays `heavy`. Derivation only — scale never reaches `novel`. A magnitude cut within
+   "derivation fired," so it reads fuzzier than the fired-or-not lines; acceptable because the consequence is
+   advisory.
 
 ### Worked examples
 
@@ -137,6 +161,14 @@ The two axes form a 2×2; each cell is recognizable in retrospect:
   *worked out* — alternatives and tradeoffs that do not exist until authored — even over a small surface.
 - **High derivation, high scale → `heavy` (both).** Novel design over a large, intricate surface; both triggers
   fire.
+
+The derivation-high cells split again by invent-vs-compose:
+
+- **Compose (high derivation) → `heavy`.** A real design authored from existing ARC patterns and primitives — a
+  routing scheme assembled over known surfaces; the alternatives are real, but the building blocks already exist.
+- **Invent (high derivation) → `novel`.** A design that must synthesize concepts the domain does not yet have — a
+  new model, or a discovery / research pass before drafting is even possible. Scale rides along but does not lift
+  work here: a `both`-high WU and a `derivation`-only-high WU both read `novel` — depth dominates.
 
 The records-vs-derives line and the substantial-grounding bar echo long-standing design-doc practice — deciding
 when a piece of work warrants a written design before implementation — adapted here into two crisp tests that place
@@ -157,6 +189,11 @@ tests — never a blanket `heavy` stamp, which would fabricate the very signal `
 
 So estimating costs nothing — guessing `heavy` and later correcting to `light` loses nothing — which removes any
 lowball incentive. At each lifecycle touchpoint this is a cheap **confirm-or-ratchet**, not a re-derivation.
+
+**"Execution turned out light" ≠ "the design was determinate."** If a real design *was* authored, realized authoring
+floors `Class` even over a tiny surface; only an over-high *estimate* corrects down. A derivation-heavy / scale-light
+WU feels front-loaded, but it was heavy *when both jobs read the value* — at planning; `Class` is a decision-time
+signal, not a retrospective effort tally.
 
 ### Readiness rule
 
@@ -181,14 +218,16 @@ The spec stage's depth selects one of three **spec forms** on that same ordinal:
 | ---------- | ---------------- | ------------------ | ------------------------------------- |
 | `brief`    | `low`            | `light`            | no                                    |
 | `outline`  | `medium`         | `light` or `heavy` | no                                    |
-| `detailed` | `high`           | `heavy`            | yes — PRD (feature) / RFC (technical) |
+| `detailed` | `high`           | `heavy` or `novel` | yes — PRD (feature) / RFC (technical) |
 
 The form ↔ `Class` relationships:
 
 - **`brief` ⇒ `light`.** A brief records a determinate design over a contained surface.
-- **`detailed` ⇒ `heavy`.** A detailed spec is authored only when the **derivation** axis is high — a real design
-  must be worked out — which forces `heavy`. `detailed` is the one form that splits by work category: a **PRD** for
-  a feature, an **RFC** for a technical change. The other two forms do not split.
+- **`detailed` ⇒ `heavy` or `novel`.** A detailed spec is authored only when the **derivation** axis is high — a
+  real design must be worked out — which forces `heavy`, or `novel` when that design must be *invented* rather than
+  composed. The two share the `detailed` form; `novel`'s distinct shape is the advisory discovery / research phase +
+  ADR, not a fourth form. `detailed` is the one form that splits by work category: a **PRD** for a feature, an
+  **RFC** for a technical change. The other two forms do not split.
 - **`outline` straddles.** An outline serves a `light` WU at moderate scale *and* a `heavy` WU whose weight comes
   from the **scale** axis — a determinate design over a large surface, where the spec records the design but the
   implementation plan still needs a substantial grounding pass. The `Class` field and the task-list scale

@@ -22,7 +22,7 @@ rung; [`init-work-unit`][init-work-unit] covers `planned → active`. "Graduatio
 readiness-ladder promotion — and only it.
 
 **Readiness rule (enforced here):** a `backlog/planned/` work unit carries a resolved `**Class:**`
-(`Light` / `Heavy`); `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point
+(`Light` / `Heavy` / `Novel`); `[TBD]` is legal only in `backlog/provisional/`. Planned-entry is the forcing point
 because the start decision — read off the ready list — precedes activation, and that decision needs the
 weight signal. This workflow states the *lifecycle constraint*; the triage that resolves the value lives in
 the [`classify-work-unit`][classify-work-unit] method (its single DRY home), loaded per the frontmatter
@@ -63,8 +63,8 @@ When the work unit is cohort-nested, move `.arc/backlog/provisional/{cohort}/{na
 Load the [`classify-work-unit`][classify-work-unit] method and apply it as a **confirm-or-ratchet** over the
 work unit's `**Class:**` field:
 
-- A `[TBD]` value is resolved to `Light` / `Heavy` against the boundary tests — a best estimate when planning
-  has not yet substantiated a floor.
+- A `[TBD]` value is resolved to `Light` / `Heavy` / `Novel` against the boundary tests — a best estimate when
+  planning has not yet substantiated a floor.
 - An existing estimate is confirmed, or ratcheted per the method's estimate-vs-realized rule.
 
 A graduated work unit never leaves `planned/` carrying `[TBD]`. Edit `meta-{name}.md`'s `**Class:**` to the
