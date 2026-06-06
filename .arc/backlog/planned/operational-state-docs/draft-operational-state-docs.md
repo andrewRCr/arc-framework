@@ -11,6 +11,27 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Decide the legacy flat-bullet core fallback in `parseMetaRecord`**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 2.1 handoff.
+- _Concern:_ `parseMetaRecord` now reads the core meta block table-first, with a legacy flat-bullet fallback for
+  the five core fields. After the table re-render there are no live bullet-form core metas in this repo, but the
+  fallback may remain valuable as the tolerant recovery importer ADR-022 anticipates.
+- _Decision point:_ keep the fallback as the recovery-import path or retire it so table-absent core fields fail
+  loudly. Either outcome should reframe lingering "pre-migration" / "interim window" prose toward the chosen
+  recovery model.
+
+### `[ ]` **Archive-time semantics for dependency metadata**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured after
+  `class-model-foundation` archival.
+- _Concern:_ `Depends On` is live readiness metadata while a WU is active or planned; after archival the edge is
+  historical lineage. Decide whether completed metas keep the canonical `Depends On` field with documented
+  archive semantics, or render an archive alias such as `Depended On` while parsers normalize both labels.
+- _Scope:_ if aliasing wins, update `template-meta.md`, `archive-work-unit.md`, `renderMetaFile` /
+  `parseMetaRecord`, validation expectations, and completed-corpus migration guidance together.
+
 ### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
 
 - _Routed from:_ work-routing-discipline housekeep drain (2026-06-01) — surfaced classifying the live inbox.

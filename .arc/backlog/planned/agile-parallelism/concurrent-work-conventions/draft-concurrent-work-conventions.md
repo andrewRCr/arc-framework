@@ -42,6 +42,24 @@ size**; solo is the degenerate case.
   soft conventions in the strategy doc, and operational guidance for handling conflicts at
   integration. No new meta-file field, no overlap probe, no formal primacy model.
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Class-aware next-work suggestions in session-init discovery**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` spec authoring.
+- *Concern:* feed meta `Class` through the session-init discovery arm so next-work suggestions account for
+  in-flight work composition: when a heavy or novel stream is already open, prefer a lighter ready WU or at least
+  surface the parallelism caveat before opening another high-weight stream.
+- *Scope:* this consumes the `Class` contract; it does not redefine it. Resolve whether it lands in this WU's
+  parallelism doctrine, its session-init / in-flight mechanism member, or as a coordination note for
+  `arc-plan-conductor`.
+
 ## Delivery plan & parked status (2026-06-03)
 
 > **Parked at terminal planning.** The draft below is design-settled; what remains is *delivery*, which is

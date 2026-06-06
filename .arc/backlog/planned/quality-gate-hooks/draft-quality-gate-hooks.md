@@ -5,6 +5,18 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Sweep and enforce against adopter-facing transitional framing**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 2.5.
+- *Concern:* DEV-RULES.PROJECT already forbids transitional / historical framing in adopter-facing surfaces, but
+  shipped methodology content still needs a grep-driven sweep for phrases like "retired from prior",
+  "replaced by", "under the old model", and "formerly". Preserve useful present-tense guidance while removing
+  framework-evolution narration.
+- *Enforcement angle:* consider folding the search terms into this WU's forbidden-pattern hook family alongside
+  adopter-language and movable-artifact reference checks, with allowlists for legitimate internal-dev or
+  historical-completion contexts.
+
 ### `[ ]` **Enhanced link validation — reference-style compliance + hook hardening**
 
 - *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the

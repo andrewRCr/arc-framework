@@ -16,6 +16,22 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Document-tier placement thresholds for always-loaded surfaces**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` task generation.
+- *Concern:* codify the placement thresholds that keep always-loaded surfaces tight: `DEV-RULES` carries only
+  minimum viable operational non-negotiables, on-demand strategies carry the what/how deep dive, and the docs site
+  carries deep why/rationale. The rule should also name the heuristic that an operation may need to be performed
+  correctly without always loading every explanation of what the thing is or why it exists.
+- *Coordination:* if this becomes a cross-surface routing matrix rather than a load-set membership rule, coordinate
+  with `documentation-surface-routing`; the immediate drift surfaced in always-loaded `DEV-RULES` content.
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in

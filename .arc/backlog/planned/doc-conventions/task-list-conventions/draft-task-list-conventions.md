@@ -14,6 +14,17 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Final task-list requirement traceability across spec forms**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` task generation.
+- *Concern:* `2_generate-tasks.md` codifies R-ID anchors only for the Pass 1 skeleton; the final task-list
+  convention is still undefined. A per-phase `_Requirements:_` line mapping parent tasks to requirement ranges
+  looks like a useful middle altitude, but the convention needs to decide whether anchors persist at all.
+- *Coordination:* `scalable-authoring-pipeline` owns the spec-form family, including the detailed-RFC equivalent
+  to numbered PRD requirements. This WU owns the final task-list grammar / persistence rule and should coordinate
+  that form-dependent anchor shape rather than hard-code PRD-only R-IDs.
+
 ### `[ ]` **Per-phase approval cascade in `2_generate-tasks` audit pass (reconcile with § Scope item 3)**
 
 - *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).

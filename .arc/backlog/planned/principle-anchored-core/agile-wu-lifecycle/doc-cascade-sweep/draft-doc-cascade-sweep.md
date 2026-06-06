@@ -19,6 +19,18 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Class / planning-depth vocabulary and always-loaded coherence pass**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Task 5.2.
+- *Concern:* several surfaces drift against the settled Class / planning-depth model: `arc-plan-conductor` still
+  uses `minimum` / `standard` / `expanded`, `session-init.md` forward-points to the old "Expanded Planning Path"
+  framing, and `AGENT-BRIEF.ARC` explains ceremony scaling without the worklist-balancing / parallelism purpose
+  of `Class`.
+- *Scope:* treat this as the terminal vocabulary sweep's always-loaded coherence pass: align `AGENT-BRIEF.ARC`
+  and `DEV-RULES.ARC`, preserve `Atomic` as work character rather than a `Class`, and remove stale planning-depth
+  vocabulary without duplicating the full strategy model.
+
 ### `[ ]` **Correct the `active/`-layout docs — flat by design, not per-WU subdirs**
 
 - *Routed from:* `USER-INBOX § Atomic`, agile-wu-lifecycle cohort housekeep drain (2026-06-04). Re-homed here at

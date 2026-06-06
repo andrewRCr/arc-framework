@@ -1,5 +1,18 @@
 # Draft: Review Method Family Reshape
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **PR body orientation should surface non-internal `Origin`**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
+  `class-model-foundation` Phase 2 planning.
+- _Concern:_ PR-body orientation points at `Design`, but when a WU carries a real external `Origin`, that provenance
+  is also review-relevant. Surface `Origin` next to `Design` when it is non-internal, and use the pass to decide
+  what the PR body should hoist from the meta versus leave in the meta.
+
 ## Problem / Motivation
 
 Two issues are entwined in the current review-related surface, both surfaced during interlock-foundation
