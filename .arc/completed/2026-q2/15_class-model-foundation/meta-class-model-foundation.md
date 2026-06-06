@@ -2,7 +2,7 @@
 
 | **State**     | **Owner** | **Branch**                    | **Class** | **Priority** |
 | ------------- | --------- | ----------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/class-model-foundation` | `Novel`   | `P1`         |
+| `Shipped`     | `andrew`  | `feat/class-model-foundation` | `Novel`   | `P1`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `worktree-foundation`

@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1a734a16`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a6d2c288`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,9 +12,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit              | Priority | Owner  | Depends on | Cohort             |
-| -------- | ---------------------- | -------- | ------ | ---------- | ------------------ |
-| Active   | class-model-foundation | P1       | andrew | —          | agile-wu-lifecycle |
+_None in flight._
 
 ## Ready
 
@@ -22,6 +20,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | ---------------------------- | -------- | ------ | ---------- | -------------------------- |
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence    |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence    |
+| decomposition-machinery      | P1       | andrew | —          | agile-wu-lifecycle         |
+| scalable-authoring-pipeline  | P1       | andrew | —          | agile-wu-lifecycle         |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
@@ -47,7 +47,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adr-accept-timing            | P3       | andrew | —          | —                          |
 | arc-modes                    | P3       | andrew | —          | —                          |
 | arc-reinforce                | P3       | andrew | —          | —                          |
+| contributor-path             | P3       | andrew | —          | —                          |
 | inbound-routing-method       | P3       | andrew | —          | —                          |
+| quality-gate-hooks           | P3       | andrew | —          | —                          |
 | review-method-family         | P3       | andrew | —          | —                          |
 | rules-restructure            | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                          |
@@ -56,32 +58,23 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on             | Cohort                     |
-| ----------------------------- | -------- | ------ | ---------------------- | -------------------------- |
-| decomposition-machinery       | P1       | andrew | class-model-foundation | agile-wu-lifecycle         |
-| scalable-authoring-pipeline   | P1       | andrew | class-model-foundation | agile-wu-lifecycle         |
-| arc-plan-conductor            | P2       | andrew | loadset-composition    | —                          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness          |
-| contributor-path              | P3       | andrew | class-model-foundation | —                          |
-| quality-gate-hooks            | P3       | andrew | class-model-foundation | —                          |
+| Work unit                     | Priority | Owner  | Depends on                                           | Cohort                     |
+| ----------------------------- | -------- | ------ | ---------------------------------------------------- | -------------------------- |
+| concurrent-work-conventions   | P1       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-parallelism          |
+| arc-plan-conductor            | P2       | andrew | loadset-composition                                  | —                          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                               | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                 | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                 | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                               | architecture-remediation   |
+| doc-cascade-sweep             | P3       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-wu-lifecycle         |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                    | release-readiness          |
 
 ### Depth 2
 
-| Work unit                   | Priority | Owner  | Depends on                                           | Cohort             |
-| --------------------------- | -------- | ------ | ---------------------------------------------------- | ------------------ |
-| concurrent-work-conventions | P1       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-parallelism  |
-| doc-cascade-sweep           | P3       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-wu-lifecycle |
-| wu5-public-release          | P3       | andrew | docs-content-sweep                                   | release-readiness  |
-
-### Depth 3
-
-| Work unit              | Priority | Owner  | Depends on                  | Cohort |
-| ---------------------- | -------- | ------ | --------------------------- | ------ |
-| shared-inbox-housekeep | P3       | andrew | concurrent-work-conventions | —      |
+| Work unit              | Priority | Owner  | Depends on                  | Cohort            |
+| ---------------------- | -------- | ------ | --------------------------- | ----------------- |
+| wu5-public-release     | P3       | andrew | docs-content-sweep          | release-readiness |
+| shared-inbox-housekeep | P3       | andrew | concurrent-work-conventions | —                 |
 
 ---
 
