@@ -13,12 +13,14 @@
 - **Priority:** P1
 
 - **Task List:** tasks-class-model-foundation.md
-- **Last Completed:** Task 3.3 — Wire `classify-work-unit` into init + activate (Phase 3 complete)
-- **Next Task:** Task 4.1 — Expand STATUS.USER to in-flight + ready, sized by `Class` (line ~370)
+- **Last Completed:** Task 4.2 — `Class` model + spec forms + boundary-test guidance in
+  `strategy-work-organization` (Phase 4 complete)
+- **Next Task:** Task 5.1 — Re-render every `backlog/` meta to the new format and repair `Cohort` (line ~470)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 4 / Task 4.1 — expand STATUS.USER from in-flight-only to in-flight + ready
-  (owned, unblocked, `planned/`), each sized by `Class`. First TS-touching phase (the `status/` render path);
-  4.1.a threads the `Class` column test-first, so run `typecheck:all` + tests, not just markdown lint.
+- **Next Action:** Begin Phase 5 / Task 5.1 — the meta-migration phase. Re-render every `backlog/` meta (45
+  planned + 10 provisional) to the new format / IA with a path-valued `**Cohort:**` matching its on-disk dir (or
+  `[none]`). Mechanical but high-volume; pure doc work (markdown lint), no TS. Then 5.2 best-estimates `Class`
+  across `backlog/planned/`, and 5.3 regens + verifies.
 
 ---
