@@ -142,10 +142,13 @@ See the [`commit-footer` method][commit-footer] for the `standalone (...)` paren
      and execute its `.actions` before the merge. Halt-on-fail surfaces an actionable message; user
      fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
 
-   **Auto-merge-lane** — arm native auto-merge so the PR merges itself once required checks pass:
+   **Auto-merge-lane** — resolve `merge.strategy` via the config probe, then arm native auto-merge with the
+   matching merge method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`). Do not parse
+   `arc-config.yml` directly; use `arc config status --json` and read `settings["merge.strategy"]`.
 
    ```bash
-   gh pr merge <pr-number> --auto --squash   # or --merge / --rebase per merge.strategy
+   arc config status --json   # read settings["merge.strategy"]
+   gh pr merge <pr-number> --auto <merge-flag>
    ```
 
    **Reviewed-lane** — leave the PR open for owner review; it merges on approval.
@@ -159,7 +162,10 @@ base-branch push follows the project's normal base-push discipline.
 
 On merge (full) or commit (partial), tear down the locus and clear the capture:
 
-- Remove the `chore/<slug>` branch and any ephemeral worktree spawned at Launch (full only).
+- **Remove the errand locus** (full only) — remove any ephemeral worktree spawned at Launch before deleting the
+  local `chore/<slug>` branch. Do not pass `--delete-branch` to `gh pr merge` while the errand branch is still
+  checked out in an ephemeral worktree; Git refuses to delete a branch that any worktree is using. If the host
+  does not delete the remote PR branch as part of merge, delete the remote branch after merge independently.
 - **Prune the stale remote-tracking ref** (full only) — `git fetch --prune origin` after the merge, so the
   merged-and-deleted `origin/chore/<slug>` ref doesn't linger and surface as phantom in-flight. Targeted here
   because the slug is known in-session; session-init's errand sweep carries the broad backstop for errands
