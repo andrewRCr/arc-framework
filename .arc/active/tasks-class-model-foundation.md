@@ -632,12 +632,19 @@ consume). No new requirement IDs — the model shape changes, the requirement se
   retargeted off the mis-named `parseMetaRecord`/`renderMetaFile`; (b) `graduate-work-unit.md` enumerates the value
   set at the forcing point — added to 5.R.4. `init`/`activate` delegate to the method (no edit).
 
-### `[ ]` **5.R.3 Always-loaded doctrine — DEV-RULES.ARC + AGENT-BRIEF.ARC (lean)**
+### `[x]` **5.R.3 Always-loaded doctrine — DEV-RULES.ARC + AGENT-BRIEF.ARC (lean)**
 
 - _Goal:_ Update the two every-session surfaces to accommodate `Novel` and the spectrum framing at
   **operational-context altitude only** — the `Class` value set and the minimum-viable guard in DEV-RULES.ARC,
   the `Class` vocabulary entry in AGENT-BRIEF.ARC — with **no** added rationale (the why lives in the strategy /
   method / ADR, referenced on demand). Both are Framework files: edit the package source and the `.arc/` copy.
+
+- _Outcome:_ AGENT-BRIEF.ARC `Class` vocabulary entry gains `Novel` (invent-vs-compose, one clause) **and** the
+  long-omitted parallelism/worklist-balance purpose (the notes-flagged gap, fixed here since the entry was open
+  anyway). DEV-RULES.ARC carries no value-set enumeration (it defers to the method / strategy / brief), so its
+  only touch is the § Scaled Process range ceiling — "Errand to a _heavy_ work unit" → "_novel_ work unit" — for
+  accuracy under the new top. No rationale added; the always-loaded surfaces stay lean. Both Framework copies
+  (package source + `.arc/`) byte-identical; lint clean.
 
 ### `[ ]` **5.R.4 Deep authoritative surfaces — strategy, method, ADR**
 

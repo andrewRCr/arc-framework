@@ -29,11 +29,14 @@ Precise meanings — assume the technical sense.
 - **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
   one PR. Artifact group: `meta-{name}.md` plus any present `draft-*`, `tasks-*`, `notes-*`
   companions. Not "any chunk of work".
-- **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` (`[TBD]` until resolved). `Heavy` when
-  _either_ intrinsic axis runs high: derivation (a real design must be authored before work can start) or
-  scale / complexity (a large or intricate existing-code surface a correct plan and execution must navigate).
-  Indicates weight across planning, execution, and review — intrinsic demand, not output volume. Ceremony
-  scales with `Class`; execution discipline does not. Distinct from the quality-gate `Tier 1/2/3`.
+- **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`
+  when _either_ intrinsic axis runs high: derivation (a real design must be authored before work can start) or
+  scale / complexity (a large or intricate existing-code surface a correct plan and execution must navigate);
+  `Novel` when derivation runs high at a second threshold — the design must be _invented_ (concepts / models
+  not yet in the problem domain), not _composed_ from existing patterns. Indicates weight across planning,
+  execution, and review — intrinsic demand, not output volume — and is the signal roadmap and parallelism
+  planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
+  from the quality-gate `Tier 1/2/3`.
 - **Atomic:** Work _character_ — a single logical concern that fits one review increment (typically one
   commit, even if multi-file). Executed inline within a same-domain WU, or on its own as an Errand. Inboxes
   route by character, not wrapper presence. Not "atomic" in the concurrency sense.
