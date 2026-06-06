@@ -70,12 +70,12 @@ describe("parseMetaFile — happy path", () => {
     expect(parsed.state).toBe("Paused (2026-04-12) — waiting for restructure");
   });
 
-  it("preserves backticked task identifiers inside Next Task", () => {
+  it("preserves backticked identifiers verbatim inside the narrative Next Task", () => {
     const content = metaFileBody({
       nextTask: "Task 3.R.k.d — `arc active status` probe (line ~1828)",
     });
     const parsed = parseMetaFile(content);
-    expect(parsed.nextTask).toBe("Task 3.R.k.d — arc active status probe (line ~1828)");
+    expect(parsed.nextTask).toBe("Task 3.R.k.d — `arc active status` probe (line ~1828)");
   });
 });
 
@@ -702,5 +702,101 @@ describe("Class field — value-set semantics", () => {
       "",
     ].join("\n");
     expect(parseMetaRecord(content).Class).toBeNull();
+  });
+});
+
+describe("parseMetaRecord — narrative fidelity", () => {
+  it("preserves narrative code spans verbatim while token fields strip", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **Branch:** `feat/x`",
+      "- **Design:** `spec-foo.md`",
+      "- **Next Action:** Run `1_create-spec.md`, then `2_generate-tasks.md`",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.Branch).toBe("feat/x"); // identifier → bare
+    expect(record.Design).toBe("spec-foo.md"); // identifier → bare
+    expect(record["Next Action"]).toBe("Run `1_create-spec.md`, then `2_generate-tasks.md`"); // narrative → verbatim
+  });
+
+  it("recovers a multi-line narrative value in full, leading indent stripped", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **Next Action:** Author the spec via `1_create-spec` — a detailed PRD,",
+      "  then re-derive the worked example and confirm the boundary tests.",
+      "",
+    ].join("\n");
+    expect(parseMetaRecord(content)["Next Action"]).toBe(
+      "Author the spec via `1_create-spec` — a detailed PRD,\n" +
+        "then re-derive the worked example and confirm the boundary tests.",
+    );
+  });
+
+  it("stops the gather at the next field marker within a contiguous group", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **Last Completed:** Stub created from a routed capture (2026-06-01) from a",
+      "  prior inbox sweep.",
+      "- **Next Task:** [none]",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record["Last Completed"]).toBe(
+      "Stub created from a routed capture (2026-06-01) from a\nprior inbox sweep.",
+    );
+    expect(record["Next Task"]).toBe("[none]");
+  });
+
+  it("stops the gather at a blank-line group boundary", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **Blockers:** waiting on review of the upstream change",
+      "  and a downstream rebase.",
+      "",
+      "- **Next Action:** proceed once unblocked",
+      "",
+    ].join("\n");
+    const record = parseMetaRecord(content);
+    expect(record.Blockers).toBe(
+      "waiting on review of the upstream change\nand a downstream rebase.",
+    );
+    expect(record["Next Action"]).toBe("proceed once unblocked");
+  });
+
+  it("stops the gather at the trailing `---` rule", () => {
+    const content = [
+      "# Metadata: foo",
+      "",
+      "- **Next Action:** finish the migration",
+      "  and regen the readiness view.",
+      "---",
+      "",
+    ].join("\n");
+    expect(parseMetaRecord(content)["Next Action"]).toBe(
+      "finish the migration\nand regen the readiness view.",
+    );
+  });
+});
+
+describe("renderMetaFile — multi-line narrative", () => {
+  it("indents continuation lines two spaces under the bullet", () => {
+    const md = renderMetaFile("foo", {
+      "Next Action": "Author the spec via `1_create-spec`,\nthen re-derive the example.",
+    });
+    expect(md).toContain(
+      "- **Next Action:** Author the spec via `1_create-spec`,\n  then re-derive the example.",
+    );
+  });
+
+  it("round-trips backticks and line breaks through render → parse", () => {
+    const value = "Run `1_create-spec.md` — a detailed PRD,\nthen `2_generate-tasks.md` and verify.";
+    expect(parseMetaRecord(renderMetaFile("foo", { "Next Action": value }))["Next Action"]).toBe(
+      value,
+    );
   });
 });

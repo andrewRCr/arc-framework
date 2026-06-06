@@ -178,9 +178,11 @@ export interface ParsedMetaFields {
  * Thin projection over {@link parseMetaRecord} — the single reader every meta
  * consumer routes through — selecting the subset the probe runners need. Core
  * fields (`State`, `Branch`) come from the core-block table when present and the
- * legacy flat-bullet scan otherwise; the rest come from their bullets. Values
- * have inline backticks stripped (bracket sentinels are preserved); a field
- * whose marker is absent comes back `null`.
+ * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
+ * fields (`State`, `Branch`, `Task List`) come back bare (backticks stripped);
+ * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
+ * spans and all. Bracket sentinels are preserved; a field whose marker is
+ * absent comes back `null`.
  *
  * Throws when the meta carries a structurally malformed core-block table — see
  * {@link parseMetaRecord}. Callers scanning untrusted files (e.g.
@@ -323,14 +325,22 @@ function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): strin
   return [headerRow, separatorRow, valueRow];
 }
 
-/** Render the non-core fields as ordered bullet groups, blank-line separated. */
+/**
+ * Render the non-core fields as ordered bullet groups, blank-line separated. A
+ * multi-line narrative value (e.g. a wrapped `Next Action`) renders its first
+ * line after the label and indents each continuation two spaces to align under
+ * the bullet — list-continuation-valid markdown that {@link parseMetaRecord}
+ * recovers unchanged.
+ */
 function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[] {
   const lines: string[] = [];
   let prevGroup: string | null = null;
   for (const field of META_FIELDS) {
     if (field.render !== "bullet") continue;
     if (prevGroup !== null && field.group !== prevGroup) lines.push("");
-    lines.push(`- **${field.name}:** ${formatValue(valueOf(field), field.valueClass)}`);
+    const [first, ...rest] = formatValue(valueOf(field), field.valueClass).split("\n");
+    lines.push(`- **${field.name}:** ${first}`);
+    for (const continuation of rest) lines.push(`  ${continuation}`);
     prevGroup = field.group;
   }
   return lines;
@@ -433,10 +443,14 @@ function parseCoreTable(section: string): Record<string, string | null> | null {
  * hoisted table when present (keyed by header label, column-order tolerant) and
  * the legacy flat-bullet scan otherwise; the rest come from their bullets.
  * Sharing {@link META_FIELDS} makes this the inverse of {@link renderMetaFile}.
- * Values strip backticks to bare form but preserve bracket sentinels verbatim
- * (`[none]` / `[internal]` / `[TBD]` stay distinct, and distinct from a
- * marker-absent `null`). A structurally malformed core-block table throws (see
- * {@link parseCoreTable}).
+ *
+ * Backtick stripping is `valueClass`-aware: token fields (`enum` / `identifier`)
+ * strip to bare form so consumers read a clean value; narrative fields are
+ * preserved verbatim — their authored code spans and multi-line continuations
+ * survive, making the record a faithful inverse for the durable human-read
+ * document. Bracket sentinels stay verbatim (`[none]` / `[internal]` / `[TBD]`
+ * stay distinct, and distinct from a marker-absent `null`). A structurally
+ * malformed core-block table throws (see {@link parseCoreTable}).
  */
 export function parseMetaRecord(content: string): MetaRecord {
   const section = extractMetadataSection(content) ?? "";
@@ -444,7 +458,12 @@ export function parseMetaRecord(content: string): MetaRecord {
   const record = {} as MetaRecord;
   for (const field of META_FIELDS) {
     const fromTable = table && field.name in table ? table[field.name] : undefined;
-    record[field.name] = fromTable === undefined ? extractField(section, field.name) : fromTable;
+    const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
+    // Token fields strip to a bare value; narrative keeps its code spans. (Core
+    // table values arrive pre-stripped and are all non-narrative, so the strip
+    // is a no-op there.)
+    record[field.name] =
+      raw !== null && field.valueClass !== "narrative" ? stripInlineCode(raw) : raw;
   }
   return record;
 }
@@ -467,17 +486,53 @@ function extractMetadataSection(content: string): string | null {
     : afterH1;
 }
 
+/** Any managed `**Label:**` field marker (bullet, bare, or blockquoted) — the
+ *  boundary that ends a preceding field's multi-line value gather. */
+const FIELD_MARKER_RE = /^[ \t>*+-]*\*\*[^*]+:\*\*/;
+
+/**
+ * Extract a field's full value from the metadata section, label line plus any
+ * indented continuation lines that wrap the same bullet. Continuations are
+ * gathered until a blank line, the next field marker, a heading, a `---` rule,
+ * or end-of-section; each is stripped of its leading indent and joined with
+ * `\n`, so a multi-line narrative value (e.g. a wrapped `Next Action`) recovers
+ * in full. The value is returned **raw** — inline code spans are preserved here;
+ * {@link parseMetaRecord} strips them per `valueClass` (token fields only), so
+ * narrative prose keeps its backticks. A field whose marker is absent, or whose
+ * value is empty, returns `null`.
+ */
 function extractField(content: string, label: string): string | null {
   const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const re = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`, "m");
-  const m = re.exec(content);
-  if (!m || m[1] === undefined) return null;
-  const raw = m[1].trim();
-  if (raw === "") return null;
-  return stripInlineCode(raw);
+  const labelRe = new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*[ \\t]*(.*)$`);
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    const m = labelRe.exec(line);
+    if (!m) continue;
+    const parts: string[] = [];
+    const first = (m[1] ?? "").trim();
+    if (first !== "") parts.push(first);
+    for (const continuation of lines.slice(i + 1)) {
+      if (continuation.trim() === "") break; // blank → field / group boundary
+      if (FIELD_MARKER_RE.test(continuation)) break; // next field bullet
+      if (/^#{1,6} /.test(continuation)) break; // heading
+      if (continuation.trim() === "---") break; // trailing rule
+      if (!/^\s/.test(continuation)) break; // continuations are indented under the bullet
+      parts.push(continuation.trim());
+    }
+    return parts.length === 0 ? null : parts.join("\n");
+  }
+  return null;
 }
 
-function stripInlineCode(value: string): string {
-  // Strip `backticks` around whole tokens; preserve surrounding prose intact.
+/**
+ * Strip `backtick` code spans to their bare token, leaving surrounding prose
+ * intact. Applied to token fields (`enum` / `identifier`) so consumers read a
+ * bare value (`feat/x`, not `` `feat/x` ``); narrative fields bypass it to keep
+ * their authored code spans. Exported for the one consumer that token-matches a
+ * narrative field ({@link inferSessionType} on `Next Action`).
+ */
+export function stripInlineCode(value: string): string {
   return value.replace(/`([^`]+)`/g, "$1");
 }

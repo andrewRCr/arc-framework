@@ -166,6 +166,19 @@ describe("inferSessionType — non-codified State falls through to Next-Action s
     ).toBe("integration");
   });
 
+  it("matches the integration prefix through a backticked workflow pointer", () => {
+    // parseMetaRecord preserves narrative backticks verbatim, so the `^`-anchored
+    // prefix must see past a code-spanned pointer.
+    expect(
+      inferSessionType(
+        "Unknown",
+        "tasks-foo.md",
+        "`integrate-work-unit` Step 7 — push and create PR",
+        "feature/foo",
+      ),
+    ).toBe("integration");
+  });
+
   it("requires a word boundary after the prefix (avoids `integrate-work-unit-helpers`)", () => {
     expect(
       inferSessionType(

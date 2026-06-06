@@ -460,12 +460,43 @@ core block on read (2.1.b); `renderMetaFile`'s enum-casing normalization re-case
 siblings to `Heavy` / `Light` automatically. `Class` estimates are best-effort against the boundary tests — _not_
 a blanket `Heavy` (which would fabricate the signal and pin it under the ratchet); `provisional/` members stay
 `[TBD]` (the render default — `[TBD]` is legal only there per the readiness rule). The active WU and the three
-already-classified `agile-wu-lifecycle` siblings keep their real values. The whole phase lands as **one migration
-commit** (re-render + `Cohort` + `Class` + regen), so the backlog never commits with a `planned/` WU at `[TBD]`.
-Watch ROADMAP-regen / hook side effects on the sweep commit — see `spec-class-model-foundation.md`
-§ Migration & sequencing.
+already-classified `agile-wu-lifecycle` siblings keep their real values. The doc migration (5.1–5.3) lands as
+**one migration commit** (re-render + `Cohort` + `Class` + regen), so the backlog never commits with a `planned/`
+WU at `[TBD]`; Task 5.0's reader/render fidelity fix (TS + tests) is a distinct concern and lands as its own
+commit just before it. Watch ROADMAP-regen / hook side effects on the sweep commit — see
+`spec-class-model-foundation.md` § Migration & sequencing.
 
 _Requirements:_ R15, R16, R24.
+
+### `[x]` **5.0 Make the meta projection faithfully round-trip narrative field values**
+
+- _Goal:_ `renderMetaFile` / `parseMetaRecord` round-trip narrative field values (`Last Completed`, `Next Task`,
+  `Blockers`, `Next Action`) without loss — preserving both their inline code spans and their multi-line
+  continuations — so the 5.1 re-render keeps every meta's content verbatim instead of flattening it.
+
+    - `[x]` **5.0.a Make `parseMetaRecord` faithful — `valueClass`-aware strip + multi-line capture**
+        - `extractField` (`lib/active/meta-reader.ts`) is now line-based: it gathers indented continuation lines
+          after the label line (stopping at a blank line, the next `**Label:**` marker, a heading, `---`, or EOF)
+          and returns the raw value — no longer stripping inline code. `parseMetaRecord` moved the backtick strip
+          into its field loop, gated on `valueClass`: `enum` / `identifier` strip to bare tokens, `narrative` is
+          preserved verbatim. Core-table reads and the legacy flat-bullet fallback are unaffected (all
+          non-narrative). `stripInlineCode` is now exported.
+        - Hardened `inferSessionType` (`status.ts`): its `^`-anchored `integrate-work-unit` / `archive-work-unit`
+          prefix match now runs against a `stripInlineCode`-normalized `Next Action`, so a preserved leading
+          backtick can't break integration inference. No current meta hits this — future-proofing the faithful
+          contract.
+
+    - `[x]` **5.0.b Emit indented continuations in `renderMetaFile`**
+        - `renderBullets` (same file) splits the formatted narrative value on `\n`, emits the first line after the
+          label, and indents each continuation two spaces under the bullet — list-continuation-valid, lint-clean
+          markdown that `parseMetaRecord` recovers unchanged.
+
+- _Outcome:_ The projection is now a faithful inverse for narrative (code spans + line breaks survive) while
+  token fields stay bare — the incidental blanket-strip is corrected to a `valueClass`-gated one. Verified by
+  round-tripping a real multi-line, backticked backlog meta (`adr-accept-timing`): every present value recovers
+  verbatim, with only the intended `Class: null → [TBD]` default-fill differing. That fill is the one caveat 5.1.a
+  must honor — its re-parse-stability check compares _present_ values and treats `null → default` (Class) as an
+  intended migration change, not drift.
 
 ### `[ ]` **5.1 Re-render every `backlog/` meta to the new format and repair `Cohort`**
 
