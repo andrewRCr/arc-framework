@@ -237,12 +237,16 @@ flag. `--class` is dropped. Any eventual create-new `Class` override lives on CW
 
 ### `arc-plan` depth-relativity (touch the existing `arc-plan`, not the future conductor)
 
-The universal planning entrypoint must scale across all three depths *today*. This WU's minimal, light-touch
-addition: **make `arc-plan`'s readiness bar depth-relative** — its synthesis states
+The universal planning entrypoint must scale across all three depths *today*. **Scope correction:** this is *not*
+the "minimal, light-touch addition" originally assumed here — because skills can't compose, it entails extracting
+the drafting stage into the **`draft-design`** workflow and thinning `arc-plan` to a dispatcher (§ Pipeline
+structure & naming; § Per-stage manifestation → draft-design). The depth-relative piece within that: **make the
+drafting stage's readiness bar depth-relative** — its synthesis states
 (`fresh → rough → maturing → formalization-ready`) stay, but "formalization-ready" comes to mean *ready at the
 chosen depth* (a `low` pass hits it after minimal elicitation; a `high` pass needs full maturity) — plus define
 the three planning shapes and the artifact-shape feed-forward. The rich triage / decision-trees stay the
-`arc-plan-conductor`'s job (soft coordination, see cohort doc); this WU is the light-touch enabler.
+`arc-plan-conductor`'s job (soft coordination, see cohort doc); this WU delivers the lanes and self-resolution,
+the conductor adds rich selection and orchestration on top (§ Pipeline structure & naming).
 
 ### `composable-workflows`: forward-compat constraint, no hard dep
 
@@ -349,6 +353,88 @@ protects the tail without taxing the common case.
 - **Novel adds no task-gen depth lane** (Novel is derivation-axis; task-gen is scale-driven). Its only reach is
   indirect — novelty may drive scale, which drives depth through the normal path.
 
+### draft-design (drafting stage)
+
+- **Depth keys to the *derivation* axis** (mirror of task-gen's scale-keying). The stage's `classify-work-unit`
+  touchpoint is the **first** `Class` determination — `Class` is born here — and resolving the drafting depth
+  *is* that touchpoint (reading derivation to pick depth = confirm-or-ratchet `Class`), the same
+  resolution=touchpoint collapse as task-gen on the other axis.
+- **Never skipped; the `draft-*` file is depth-conditional.** The stage always owns the front of the chain — the
+  first `Class` touchpoint and the pre-spec readiness gate ("is the design settled enough to author a spec?") —
+  which every WU passes, instantly at `low`. The *artifact* is a medium/high output, not the stage's reason to
+  exist. It is the only stage whose artifact is optional (create-spec / generate-tasks always produce theirs),
+  which is why this stage alone is named by function, not artifact.
+- **Three lanes:** `low` = resolve depth + confirm determinacy → proceed to a `brief` spec, **no draft file**;
+  `medium` = bounded single-pass shaping, *maybe* a `draft-*`; `high` = an **iterative shaping loop**, a rich
+  `draft-*`.
+- **`high` is a *simple* loop.** The conductor's `refine-plan-loop` *enriches* the high lane (bounded batches,
+  plan-splitting detection, resume-aware refinement) — it is not a fourth level. SAP ships the simple loop and
+  must not build those enrichments.
+- **Re-entry valve: re-enter-higher only.** Drafting is stage one, so a floor-raising signal has no upstream to
+  route to — the valve runs `low → medium → high`; the ceiling (`high`) hands off to the conductor's expanded
+  machinery rather than escalating further within SAP.
+- **Novel's home stage.** Unlike task-gen, drafting is where `novel`'s advisory discovery / research phase + ADR
+  shape primarily lands (derivation axis), as a depth default — suggest, not enforce.
+
+## Pipeline structure & naming (derived)
+
+**The three stages are peer *workflows*; `arc-plan` is a thin dispatcher.** Skills can't compose — the composable
+mechanism (composable-workflows) is workflow-targeted — so depth lanes written into the `arc-plan` *skill* body
+would be a composability dead-end and could not deliver this WU's "arc-plan depth-relativity" as composable
+whole-blocks. Resolution: extract the drafting stage into the **`draft-design`** workflow (peer to `create-spec` /
+`generate-tasks`), and reduce the `arc-plan` skill to a thin trigger that dispatches into it — the established
+arc-`*` skill shape (`arc-session` → `session-init`, etc.). This also makes the trio structurally uniform (three
+peer workflows), which the "scalable authoring pipeline across all three stages" mandate already implies.
+
+**Two layers, and the `arc-plan` skill is the conductor's seed.**
+
+- *Stage layer:* `draft-design` / `create-spec` / `generate-tasks` — each a workflow with depth-lane whole-blocks
+  (root + fragments once composition lands). Durable stage procedures.
+- *Orchestration layer:* the `arc-plan` skill. SAP ships it thin (resolve depth → dispatch into `draft-design`).
+  `arc-plan-conductor` later **grows the same skill** into the conductor (*"promoting it to conductor extends its
+  identity rather than introducing a new mechanism"*), adding rich depth-*selection*, cross-stage orchestration,
+  and the enriched loop. So the dispatcher is the conductor's stable base, not throwaway — write its
+  depth-resolution as a clean seam the conductor can wrap.
+
+**Economy via composition, not skill-gating.** Pre-composition, each workflow loads whole; its lanes are
+whole-blocks. Post-composition, lanes become fragments → resolve-then-load economy, mechanically. The `arc-commit`
+pattern (skill gates loading the heavy workflow on the complex path) is the fallback if `low`'s context cost bites
+before composition lands, but it is not the design — keep the skill thin and let composition own the economy. SAP
+must **not** build the dir-per-workflow package structure (that pulls composition forward); single files,
+whole-block-structured, ready to split.
+
+**Naming model + the settled triad.** Stages are named by **function, depth-agnostically**, verb-object, avoiding
+derivation-implying verbs (they break at `low` — the `derive-draft` / `design-spec` trap) and sibling-reserved
+terms (`decompose` is `decomposition-machinery`'s). Settled triad (the *names*; the number-prefix question is
+open — see Numbering below):
+
+- **`draft-design`** — drafting stage. "Draft" (verb) carries the preliminary/not-concrete semantics; "design" is
+  the evolving-then-concrete substance the `**Design:**` field tracks (reinforcement, not a clash — that clash was
+  only against naming the *spec artifact* a "Design Doc"). Depth-agnostic; artifact-resonant without being literal
+  (its `draft-*` file is optional).
+- **`create-spec`** — kept. Depth-agnostic (a spec is created at every form), existing vocabulary, anchors the
+  form-agnostic reframe.
+- **`generate-tasks`** — kept. Depth-agnostic, implies its spec input, avoids the `decompose` collision.
+
+Reads as a coherent maturity progression — *draft the design → create the spec → generate the tasks* — which is
+the artifact chain itself.
+
+**Numbering — open, decide before spec.** Two live options for the *planning-stage* prefixes: (a) **drop
+entirely** (`draft-design` / `create-spec` / `generate-tasks`); or (b) **renumber the planning trio only**
+(`1_draft-design` / `2_create-spec` / `3_generate-tasks`), reading as instructive of the planning-stage order —
+the three roots a composed package hangs fragments off, so composition does *not* rule it out (the *root* can
+carry the number). The original 1-2-3 defect was scope, not numbering per se: extending it to
+`3_process-task-loop` conflated *planning order* with *whole-process order* (execution is far more than one
+step). So one thing is settled regardless — **`process-task-loop` loses its number**: it is the execution stage,
+a separate concern, not a planning anchor. (a)-vs-(b) stays open until spec.
+
+**Cascade routing.** Whatever the prefix decision, the existing-file rename/renumber cascade — `1_create-spec` /
+`2_generate-tasks` / `3_process-task-loop` plus every cross-reference across workflows / strategies / methods /
+templates / session-init — routes to **`doc-cascade-sweep`** (the cohort's terminal reference-sweep member,
+downstream of this WU), coordinated with `naming-conventions`. SAP names the new drafting workflow `draft-design`
+(prefix per the (a)/(b) call) and does not rewrite the existing files itself; half-renaming breaks references,
+and reconciling the interim mixed state is the terminal sweep's job.
+
 ## Derivation pending (pre-spec-ready)
 
 Re-based on shipped CMF, the draft is **spec-stage-heavy**: the spec stage (form family, naming, PRD / RFC
@@ -363,7 +449,8 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
 1. **Per-stage depth manifestation** — concretely, what `low / medium / high` *is* in each stage, written as
    **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
    branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
-   **Task-gen resolved** (§ Per-stage manifestation); `arc-plan` + `create-spec` pending.
+   **Task-gen + draft-design resolved** (§ Per-stage manifestation; § Pipeline structure & naming);
+   `create-spec` pending.
 2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
    the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
    (no hard `Class`↔form hook). The draft's least-derived deliverable today.
@@ -393,16 +480,20 @@ Two design subtleties the manifestation work must resolve, not gloss:
 2. Scalable `create-spec` / `generate-tasks` — per-stage depth self-resolution, flag-free feed-forward,
    whole-block depth variants (composable-ready); task-list one-grammar (1..N phases + always-present
    verification); grounding-audit depth parameterization (per-phase interlock retained).
-3. `arc-plan` depth-relativity — depth-relative readiness bar; the three planning shapes; artifact-shape
-   feed-forward. (Light-touch; rich triage stays the conductor's.)
+3. **`arc-plan` depth-relativity, via the `draft-design` workflow** — the depth-relative readiness bar, the three
+   planning shapes (`high` = simple loop), artifact-shape feed-forward, and the first `classify-work-unit`
+   touchpoint. Rich selection / orchestration stays the conductor's (the `arc-plan` skill is its seed).
 4. The lifecycle-integration **artifact-presence-tolerance** requirement on the integrate / archive workflows.
    No tier fork.
 5. `spec-review` method + ceremony extension — depth-scaled default self-review; opt-in external-cadence
    extension.
-6. **`classify-work-unit` touchpoint wiring** — declare + invoke the method at the `arc-plan` / `create-spec` /
-   `generate-tasks` planning-stage touchpoints (CMF wired only `init` / `activate` and routed these forward).
+6. **`classify-work-unit` touchpoint wiring** — declare + invoke the method at the `draft-design` / `create-spec`
+   / `generate-tasks` planning-stage touchpoints (CMF wired only `init` / `activate` and routed these forward).
    Confirm-or-ratchet `Class` against each stage's resolved depth; kept light to stay forward-compatible with
    `arc-plan-conductor`.
+7. The **`draft-design` workflow extraction** (`arc-plan` skill → thin dispatcher; drafting becomes a peer
+   workflow) and the **authoring-workflow naming convention** (settled triad names; the prefix-numbering decision
+   open; existing-file cascade routed out). See § Pipeline structure & naming.
 
 **Out of scope:**
 
@@ -411,6 +502,8 @@ Two design subtleties the manifestation work must resolve, not gloss:
 - The decomposition procedure, grouping taxonomy, and graduation workflow — `decomposition-machinery`.
 - The create-new `arc start` wiring and any `--class` override — Concurrent Work Conventions.
 - Per-`Class` quality-gate-tier mapping — Quality Gate Tiers.
+- The existing-file rename/renumber cascade (`create-spec` / `generate-tasks` / `process-task-loop` plus all
+  cross-references) — `doc-cascade-sweep` (coordinated with `naming-conventions`).
 
 ## Open questions
 
@@ -422,6 +515,9 @@ Two design subtleties the manifestation work must resolve, not gloss:
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
 - **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation pending);
   only calibration is dogfooding-refinable, not a blanket deferral.
+- **Planning-stage workflow numbering** — drop prefixes entirely vs. renumber the planning trio
+  (`1_draft-design` / `2_create-spec` / `3_generate-tasks`) as instructive anchors; `process-task-loop` loses its
+  number either way. Decide before spec. See § Pipeline structure & naming.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
 - **`Class` ↔ spec-form consistency check — worth it at all?** Once this WU makes the spec form a structured
   signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block `Class` ↔ form consistency check
