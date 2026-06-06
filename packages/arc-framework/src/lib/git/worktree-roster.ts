@@ -209,6 +209,9 @@ async function resolveEntry(
   const readable = candidates.filter(
     (c): c is MetaCandidate & { record: MetaRecord } => c.record !== undefined,
   );
+  const candidateWarnings = candidates
+    .filter((c) => c.record === undefined)
+    .map(unreadableWarning);
   const matches = readable.filter((c) => c.record.Branch === wt.branch);
   const activeDir = `${wt.path}/.arc/active`;
   const inventory = metaFiles.join(", ");
@@ -217,6 +220,7 @@ async function resolveEntry(
     return {
       entry: degraded,
       warnings: [
+        ...candidateWarnings,
         `Multiple meta files in ${activeDir}/ (${inventory}); none match branch ${wt.branch}`,
       ],
       metaFilesPresent: true,
@@ -232,6 +236,7 @@ async function resolveEntry(
     return {
       entry: buildEntry(wt, picked.metaFilePath, picked.record),
       warnings: [
+        ...candidateWarnings,
         `Multiple meta files in ${activeDir}/ match branch ${wt.branch}: ${names}; using ${picked.name}`,
       ],
       metaFilesPresent: true,
@@ -242,7 +247,7 @@ async function resolveEntry(
   if (match === undefined) return { entry: degraded, warnings: [], metaFilesPresent: true };
   return {
     entry: buildEntry(wt, match.metaFilePath, match.record),
-    warnings: [],
+    warnings: candidateWarnings,
     metaFilesPresent: true,
   };
 }

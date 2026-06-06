@@ -563,6 +563,34 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
     });
   });
 
+  it("keeps the matched entry and surfaces malformed-peer warnings in multi-meta mode", async () => {
+    const { exec } = buildExec({
+      [WORKTREE_LIST]: {
+        stdout: "worktree /home/dev/repo\nHEAD abc\nbranch refs/heads/feat/b\n\n",
+        stderr: "",
+      },
+    });
+    const fs = buildFs({
+      "/home/dev/repo/.arc/active/meta-a.md":
+        "# Metadata: a\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
+      "/home/dev/repo/.arc/active/meta-b.md": renderMetaFile("b", {
+        State: "Active",
+        Owner: "bob",
+        Branch: "feat/b",
+      }),
+    });
+
+    const result = await runWorktreeRoster({ exec, fs });
+
+    expect(result.entries).toHaveLength(1);
+    expect(result.entries[0]).toMatchObject({
+      branch: "feat/b",
+      metaFilePath: "/home/dev/repo/.arc/active/meta-b.md",
+      identity: "bob",
+    });
+    expect(result.warnings.some((w) => /Malformed meta/.test(w))).toBe(true);
+  });
+
   it("degrades to a bare entry with a warning when the core table is malformed", async () => {
     const { exec } = buildExec({
       [WORKTREE_LIST]: {
@@ -572,7 +600,7 @@ describe("runWorktreeRoster — shared-reader field recovery", () => {
     });
     const fs = buildFs({
       "/home/dev/repo/.arc/active/meta-x.md":
-        "# Metadata: x\n\n| State | Owner |\n| --- | --- |\n| `Active` |\n",
+        "# Metadata: x\n\n| State | Owner | Branch | Class | Priority |\n| --- | --- | --- | --- | --- |\n| `Active` |\n",
     });
 
     const result = await runWorktreeRoster({ exec, fs });
