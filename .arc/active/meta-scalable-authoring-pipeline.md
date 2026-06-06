@@ -11,12 +11,13 @@
 - **Design:** `draft-scalable-authoring-pipeline.md`
 - **Task List:** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** Pre-spec design derivation — all three authoring-stage depth manifestations + the
+  pipeline structure / naming decisions (captured in `draft-scalable-authoring-pipeline.md`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Author the spec via `1_create-spec` (a `detailed` spec — `heavy`). Runs in parallel with
-  `decomposition-machinery` on top of `class-model-foundation`. Internally phased (spec template family →
-  workflow wiring); the feed-forward coupling keeps it one WU.
+- **Next Action:** Fresh holistic reassess of `draft-scalable-authoring-pipeline.md` — holes / underserved
+  areas / what belongs at draft-time vs spec-time — then proceed to `1_create-spec`. Open: RFC form shape
+  (needs research), Novel concrete discovery/ADR shaping, planning-stage workflow numbering.
 
 ---
