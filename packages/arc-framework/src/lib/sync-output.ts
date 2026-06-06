@@ -35,10 +35,7 @@ export interface SyncOutputSpinner {
   stop(message?: string): void;
 }
 
-export interface SyncOutputSelectOption<T extends string> {
-  value: T;
-  label: string;
-}
+export type SyncOutputSelectOption<T extends string> = p.Option<T>;
 
 export interface SyncOutputSelectOptions<T extends string> {
   message: string;
@@ -89,8 +86,8 @@ export function createSyncOutput(jsonMode: boolean): SyncOutput {
       confirm: (opts) => p.confirm(opts),
       select: (opts) => p.select({
         message: opts.message,
-        options: opts.options as Parameters<typeof p.select>[0]["options"],
-      }) as Promise<typeof opts.jsonModeDefault | symbol>,
+        options: opts.options,
+      }),
       isCancel: (value) => p.isCancel(value),
     };
   }

@@ -12,7 +12,6 @@ import {
   readLocalSyncState,
   type UserSyncCause,
   type UserSyncCauseConfidence,
-  type UserSyncRefRelation,
 } from "../../lib/user-sync/index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
@@ -196,7 +195,7 @@ async function classifyUserSyncCause(input: {
   if (!refInspection || refInspection.state === "same") return undefined;
 
   return inferUserSyncCause({
-    refRelation: refInspection.state as UserSyncRefRelation,
+    refRelation: refInspection.state,
     localRefHash: refInspection.localHash,
     remoteRefHash: refInspection.remoteHash,
     sourceCommit,
