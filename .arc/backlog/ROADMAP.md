@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `7ea490aa`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `231f718f`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,7 +12,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_None in flight._
+| State    | Work unit                   | Priority | Owner  | Depends on | Cohort             |
+| -------- | --------------------------- | -------- | ------ | ---------- | ------------------ |
+| Planning | scalable-authoring-pipeline | P1       | andrew | —          | agile-wu-lifecycle |
 
 ## Ready
 
@@ -21,7 +23,6 @@ _None in flight._
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence    |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence    |
 | decomposition-machinery      | P1       | andrew | —          | agile-wu-lifecycle         |
-| scalable-authoring-pipeline  | P1       | andrew | —          | agile-wu-lifecycle         |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism          |
