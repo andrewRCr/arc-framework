@@ -548,6 +548,121 @@ _Requirements:_ R15, R16, R24.
   (gitignored) and re-renders on demand. Phase 5 (5.1 re-render + 5.2 `Class` + 5.3 verify) lands as one
   migration commit.
 
+## **Phase 5.R:** Model revision — the `Novel` tier (within-`heavy` calibration)
+
+_Purpose:_ Resolve the pre-close within-`heavy` calibration (the meta `Blockers` pointer) by extending `Class`
+from two values to three — `Light` / `Heavy` / `Novel` — where `Novel` is reachable through the **derivation
+axis only**, at a second (higher) threshold above the `Heavy` promotion. `Novel` is a distinct _kind_ (invention
+/ discovery vs. composition of existing patterns), recorded **primarily** as a parallelism / sequencing balance
+signal (you can hold roughly one genuinely-novel stream) and **secondarily** for an advisory distinct planning
+shape (a research phase + ADR expectation). The change is **additive** to the data — it reclassifies a subset of
+existing `Heavy` WUs upward and disturbs no `Light` value or the `Light` / `Heavy` boundary, so no Phase-5 stamp
+is throwaway — but it is **not** additive to the model surfaces: it amends the shipped two-value normative text
+everywhere it appears, sharpens three under-specified points the Phase-5 dogfood exposed, and adds the
+one-spectrum framing (Errand floor → `Novel` ceiling) connecting work character to `Class`.
+
+_Design decisions:_ `Novel` is a **kind, not a magnitude** — which is what licenses a third _value_ rather than a
+`Heavy` sub-marker, and what makes its register break (`novel` names the cause; `Light` / `Heavy` name weight)
+honest signal rather than a wart. It is reached **only via derivation** because the axes are asymmetric: scale is
+_endurance_ (chunkable, parallelizable, decomposes when it runs away), while derivation is _depth_ (serial,
+context-saturating, plate-dominating) — so the top tier is the saturating axis alone, and the `heavy → novel`
+test is **invent (concepts/models not yet in the problem domain) vs. compose (a real design from existing ARC
+patterns)**. Three sharpenings ride along: (1) the **derivation floor** is the design-vs-implementation-detail
+line (R7) — derivation counts only spec-worthy design a competent engineer must settle _before starting_, never
+in-flight implementation choices (naming, local structure); (2) the **no-ratchet-back** distinction — "execution
+turned out light" ≠ "the design was determinate"; realized authoring floors `Class` at `Heavy`, only an
+over-high _estimate_ corrects down; (3) `Heavy` stays **demand-not-volume**, and the single `Heavy` bit's loss of
+_where_ the weight sits (planning vs. execution) is recovered by per-stage planning depth, not by splitting the
+field. Depth stays **advisory throughout** — ARC forces _presence and the weight-signal_ (a spec must exist; the
+`Class` value is forced at planned-entry), and _suggests_ shape and depth; no spec-vs-`Class` enforcement hook
+(that was already ditched, correctly). The spectrum framing **keeps `Class` WU-scoped and atomic as character** —
+no flattening to a 4-value scale (atomic measures cardinality not weight, and has no meta to record on); it
+surfaces the shared ceremony-scaling thesis as _two questions in one sizing pipeline_, without a new hypernym.
+The **felt-difference test must widen** — as written it is rigor/speed-only, which a literal read would use to
+reject `Novel` (whose felt difference is sequencing + a distinct _available_ planning path); admit the behavioral
+/ sequencing consequence as qualifying. Framework surfaces (DEV-RULES.ARC, AGENT-BRIEF.ARC,
+strategy-work-organization, `template-meta.md`, the `classify-work-unit` method) edit in **both** copies
+(`packages/arc-framework/arc/**` source + `.arc/**` instance) per package-sync; internal-only surfaces (notes,
+spec, ADR-023, this task list) edit once. The validation gate (5.R.1) bars on **recognizability**, not crispness
+— the invent/compose border is inherently fuzzy, and that is cheap _because depth is advisory_ (a
+misclassification nudges a suggestion, the ratchet corrects it); if the re-run yields no stable set, fall back to
+binary `Class` + a richer STATUS.USER view rather than ship a vague tier.
+
+_Requirements:_ revises R1, R2, R5, R9, R23, R24; extends the cohort contract (the `Class` model the siblings
+consume). No new requirement IDs — the model shape changes, the requirement set does not.
+
+### `[x]` **5.R.1 Settle the model in the durable design artifacts (notes + spec)**
+
+- _Goal:_ Update the internal-only design sources so everything downstream derives from a settled record:
+  `notes-class-model-foundation.md` § Open calibration is rewritten from "leading candidate / representation not
+  committed" to the **decided** three-value model (kind-not-magnitude, derivation-only top, primary-balance
+  purpose, the three sharpenings, the spectrum framing); `spec-class-model-foundation.md` amends R1 / R2 / R5 / R9
+  / R23 / R24, the spec-form mapping, the felt-difference-test section, the exposed-contract surfaces, and the
+  Success Criteria to the three-value shape.
+
+- _Outcome:_ Notes § Open calibration → § Resolved: the `novel` tier — the "leading candidate / not committed"
+  framing replaced with the decided three-value model, the kind-vs-magnitude resolution, a `Refinements settled
+  in discussion` block (the derivation floor, no-ratchet-back, demand-not-volume, advisory-depth, one-spectrum
+  framing), and the validation gate; the superseded `{light, heavy}` and "binary kind" mentions recased to three
+  values, atomic explicitly held as character-not-`Class`. Spec amended across Purpose, Goals, R1 / R2 (the
+  invent-vs-compose test + the derivation floor) / R4 / R5 (`{light, heavy, novel}` + the no-flatten spectrum) /
+  R9 (`Novel` enum + the execution-light≠design-determinate clause) / R23, the widened felt-difference test, the
+  naming rationale, and Success Criteria (SC4 / SC7 + a new SC11 for the tier + validation). No two-value
+  assertion left live in either (grep-verified). These three (this task list, notes, spec) are single-copy
+  internal artifacts — no package-sync; that begins at 5.R.3's Framework surfaces.
+
+### `[ ]` **5.R.2 Validation gate — re-run the derivation-bearing heavies against invent-vs-compose**
+
+- _Goal:_ Confirm the `Novel` tier holds empirically before the Framework surfaces are rewritten: re-triage the
+  32 derivation-bearing `Heavy` WUs (9 `derivation`-only + 23 `both`; the 4 `scale`-only cannot reach `Novel`)
+  against the invent-vs-compose test, and confirm a **stable, recognizable** `Novel` set (≈ 6–10 of 36 — a
+  meaningful minority, not 1, not 30). This is the **go/no-go**: a recognizable set proceeds; a smeary,
+  reader-dependent result stops here and reopens the representation (binary `Class` + richer STATUS.USER view).
+    - Read-only parallel analysis dogfooding the `heavy → novel` test; the decision stays in the primary
+      context (sub-agent-scope rule), as in Task 5.2. Produces the re-stamp list 5.R.6 applies.
+    - Eyeballed candidates to confirm/refute: `arc-plan-conductor`, `operational-state-docs`,
+      `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
+      `schema-introspection-layer`, possibly `composable-workflows`; plus the active WU (`class-model-foundation`
+      invented the model itself — the canonical `Novel`).
+
+### `[ ]` **5.R.3 Always-loaded doctrine — DEV-RULES.ARC + AGENT-BRIEF.ARC (lean)**
+
+- _Goal:_ Update the two every-session surfaces to accommodate `Novel` and the spectrum framing at
+  **operational-context altitude only** — the `Class` value set and the minimum-viable guard in DEV-RULES.ARC,
+  the `Class` vocabulary entry in AGENT-BRIEF.ARC — with **no** added rationale (the why lives in the strategy /
+  method / ADR, referenced on demand). Both are Framework files: edit the package source and the `.arc/` copy.
+
+### `[ ]` **5.R.4 Deep authoritative surfaces — strategy, method, ADR**
+
+- _Goal:_ Carry the full model and reasoning on the on-demand surfaces: `strategy-work-organization` § Class Model
+  gains `Novel` + the second derivation threshold, the **derivation floor**, worked examples on each side of the
+  invent/compose line, the no-ratchet-back distinction, the **widened felt-difference test**, the spec-form-table
+  `Novel` mapping, and the **spectrum framing** linking § Work Character ↔ § Class Model; the `classify-work-unit`
+  method gains the `heavy → novel` boundary test and the derivation floor; ADR-023 records the two-→three-value
+  shift (amendment or supersession note). Strategy + method are Framework files (two copies); ADR is internal.
+
+### `[ ]` **5.R.5 Schema, render, parse, status**
+
+- _Goal:_ Admit `Novel` through the machine surfaces: `template-meta.md` `**Class:**` enum (`Light` / `Heavy` /
+  `Novel` / `[TBD]`) with `Class`-conditional validity; `parseMetaRecord` / `renderMetaFile` value set + casing
+  normalization; the STATUS.USER `Class` column. Tests updated to lock the three-value set; Tier 1 + the relevant
+  Tier 2 gates pass. `template-meta` is a Framework file (two copies); the CLI source + tests are single-copy.
+
+### `[ ]` **5.R.6 Re-stamp the confirmed `Novel` WUs**
+
+- _Goal:_ Apply `Class: Novel` to the 5.R.1-confirmed set across `backlog/planned/` metas (via the established
+  re-render path, not hand-edits) and to the active `class-model-foundation` meta; regen ROADMAP / STATUS.USER if
+  any render field changed. A pure upward reclassification of existing `Heavy` estimates — `Light` values and the
+  `Light` / `Heavy` boundary are untouched.
+
+### `[ ]` **5.R.7 Contract exposure + downstream routing**
+
+- _Goal:_ Expose `Novel` in the cohort's `Class` contract (the exposes/consumes partition the siblings read), and
+  route the realization this WU defines-but-does-not-build: the advisory planning-shape consequences (research /
+  ADR path, per-stage depth suggestion) to `scalable-authoring-pipeline`; the plate-balancing / sequencing stance
+  to `concurrent-work-conventions` (agile-parallelism). Route the broader Work-Character ↔ `Class` vocabulary
+  reconciliation to `doc-cascade-sweep` if it exceeds this WU's framing pass.
+
 ## **Phase 6:** Verification
 
 ### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]

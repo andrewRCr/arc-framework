@@ -10,7 +10,7 @@ not only restate the conclusions.
 - [Naming rationale](#naming-rationale)
 - [Design decisions](#design-decisions)
 - [Pressure points and risks](#pressure-points-and-risks)
-- [Open calibration: within-`heavy` derivation resolution](#open-calibration-within-heavy-derivation-resolution-pre-close)
+- [Resolved: the `novel` tier (within-`heavy` calibration)](#resolved-the-novel-tier-within-heavy-calibration)
 
 ---
 
@@ -79,7 +79,10 @@ line and the scale trigger are the two `heavy`-promotions.
 Atomic-character work executes as an **Errand** below the wrapper, or graduates; ADR-020 §3's spec-in-commit
 "floor exception" migrates *out of the tier model into the Errand class*, which reconciles the
 ADR-020 ↔ ADR-021 tension. "Atomic" reverts to a pure character adjective. The `Class` set is
-**{`light`, `heavy`}**.
+**{`light`, `heavy`, `novel`}** (see § Resolved: the `novel` tier). Atomic is *not* a fourth `Class` value: it
+is a *character* (cardinality — one logical concern) below the wrapper, where no meta records a `Class`; `Class`
+is *weight* and begins at the `light` floor. The two are the two questions of one work-sizing spectrum
+(Errand floor → `novel` ceiling), surfaced as framing, never flattened into a single scale.
 
 ### The ceremony stack — three lower-bound layers; `Class` tracks work-demand, not preference
 
@@ -124,12 +127,20 @@ Settled after a focused external-vocabulary research pass and a model-refinement
 names; the calls are the project's. The rejections matter as much as the choices when authoring the
 definitions.
 
-- **`Class`, not `Complexity Tier` or bare `Tier`** — a binary *kind* of work (two characters, not rungs);
-  sidesteps the quality-gate `Tier 1/2/3` collision; `Complexity Tier` under-describes a two-axis aggregate.
+- **`Class`, not `Complexity Tier` or bare `Tier`** — a *kind* of work (not rungs); sidesteps the quality-gate
+  `Tier 1/2/3` collision; `Complexity Tier` under-describes a two-axis aggregate.
 - **`light` / `heavy`, not `light` / `full`** — natural antonyms; `heavy` reads as the roadmap intuition and,
   since scale / complexity is now a legitimate component, "heavy = lots of total work" is *accurate*. Guardrail:
   `Class` is *driven* by design-derivation or grounding scale / complexity, **not raw code volume** — though a
   `heavy` WU does *indicate* heavier execution and review.
+- **`novel`, not `heavy+` or a `light` / `moderate` / `heavy` ordinal** — it names the *cause* (invention) where
+  `light` / `heavy` name *weight*; that register break is *kept on purpose*, because the top is a distinct kind
+  (invention vs. composition), not just more weight, so the word carries the signal and retroactively sharpens
+  what `heavy` is. An ordinal was rejected: it implies uniform single-axis spacing (false — `light↔heavy` and
+  `heavy↔novel` are two different tests, and the asymmetry is a feature), and `moderate`/`heavy` would collide
+  with the `planning depth` ordinal. `heavy+` works structurally but tells the reader nothing about what the top
+  *is*. Mild caveat acknowledged (`novel` names the cause, not the weight); rejected alternatives if it grates:
+  `foundational` (too narrow — implies infra), `deep`, `generative`.
 - **`planning depth` (low / medium / high), not `process intensity`** — resolved per stage; needs a *magnitude*
   vocabulary distinct from the spec-form names. `depth` is the noun; `planning` anchors it to the
   `State: Planning` stages it spans. Rejected: `rigor` (mis-frames the bottom — "low rigor" reads as permission
@@ -204,13 +215,13 @@ For the companion ADR's risks section and the drift-mitigation guidance.
   auto-cleanup of completed-but-not-swept WUs. (Less acute than the original atomic-tier version, since
   atomic-character work is now an Errand, not a WU.)
 
-## Open calibration: within-`heavy` derivation resolution (pre-close)
+## Resolved: the `novel` tier (within-`heavy` calibration)
 
-**Status:** leading candidate identified; the **representation is not yet committed**. Resolve — adopt the candidate,
-keep the binary, or pick an alternative — **before this WU integrates**. Surfaced by the model's first dogfood:
-best-estimate `Class` across the 42 `planned/` metas during the Phase 5 migration. Non-blocking for execution;
-carried as a `Blockers` pointer from the next handoff so it surfaces at session-init. Deliberately deferred to
-benefit from further thought and interim dogfooding.
+**Status:** **resolved** — `Class` becomes three-value (`light` / `heavy` / `novel`), with `novel` a distinct
+*kind* (invention vs. composition) reached through the derivation axis alone. Surfaced by the model's first
+dogfood (best-estimate `Class` across the 42 `planned/` metas during the Phase 5 migration); resolved in design
+discussion before integrate. **Phase 5.R** executes it — the model-surface amendments, the validation re-run,
+and the WU re-stamp. The reasoning below records the derivation; the decision is no longer open.
 
 ### What the dogfood exposed
 
@@ -240,26 +251,37 @@ The two axes are asymmetric in this respect, and the asymmetry falls out of the 
 
 So the missing resolution is **on the derivation axis only**.
 
-### Leading candidate (representation not committed): a three-value `Class` — `light` / `heavy` / `novel`
+### The decision: a three-value `Class` — `light` / `heavy` / `novel`
 
 - `light` ↔ `heavy` is **unchanged**: either axis (derivation OR scale) promotes `light → heavy`. The existing
-  binary boundary tests stay intact.
+  boundary tests stay intact.
 - `heavy → novel` is reachable **only through derivation**, at a second (higher) threshold — a single-trigger top
   tier. Scale never reaches `novel` (it caps at `heavy`, per the breadth-ceiling above).
-- **Decided in discussion:** `novel` is a **second threshold on the same derivation axis**, not a distinct
-  "invention" trigger. This keeps the boundary-test reading clean — derivation resolves `not-fired → fired (heavy)
-  → high (novel)` on one axis — rather than introducing a parallel trigger.
-- The change is **additive**: one new test on one axis, not a re-derivation of the model.
+- `novel` is a **second threshold on the same derivation axis**, not a distinct "invention" trigger. This keeps
+  the boundary-test reading clean — derivation resolves `not-fired → fired (heavy) → high (novel)` on one axis —
+  rather than introducing a parallel trigger.
+- **It is a *kind*, not a magnitude** — which is what licenses a third *value* (rather than a `heavy` sub-marker)
+  and makes the register break honest. Its **primary** recorded purpose is parallelism / sequencing balance (you
+  can hold ~one genuinely-novel stream; one novel + one mechanical-heavy + a couple of lights is a full but
+  *balanced* plate); its **secondary** purpose is to open an advisory distinct planning shape (research /
+  discovery phase + ADR expectation). The balance purpose is why we record it; the kind is why it is a value.
+- The change is **additive** to the data: one new test on one axis, reclassifying a subset of existing `heavy`
+  upward — no `light` value or the `light`/`heavy` boundary disturbed, no Phase-5 stamp thrown away.
 
 ### Why it clears the "is it a real tier?" bar (not just a sizing label)
 
-A third value must gate a *distinct consequence* on at least one of `Class`'s jobs; `novel` does on both:
+A third value must gate a *distinct consequence* on at least one of `Class`'s jobs. `novel` clears it
+**primarily on parallelism** and **secondarily on planning shape** — both real, neither merely modal:
 
-- **Ceremony:** strongly suggests a *discovery / research phase before drafting* + `high` spec depth + a companion
-  ADR expectation — a different planning *shape* than ordinary `heavy`, while remaining a *suggestion* (it
-  preserves `Class`'s suggest-not-dictate stance toward the non-recorded, per-stage planning-depth axis; it does
-  not pin depth).
-- **Parallelism:** the strongest "this one fills the plate by itself / don't double up" signal.
+- **Parallelism (primary):** the strongest "this one fills the plate by itself / don't double up" signal — a
+  *behavioral / sequencing* consequence (it changes what you pick up next), not a rigor/speed one. This is why
+  the felt-difference test must widen to admit sequencing, and why `novel` passes it even when its spec artifact
+  equals a `detailed`/`heavy` one. (The earlier notes framed ceremony and parallelism as co-equal "both jobs";
+  the discussion resolved that parallelism is the load-bearing one and ceremony the advisory second.)
+- **Planning shape (secondary):** opens a distinct *available* path — a discovery / research phase before
+  drafting + a companion ADR expectation — a different planning *shape* than ordinary `heavy`, **suggested not
+  forced** (it preserves `Class`'s suggest-not-dictate stance toward the non-recorded, per-stage planning-depth
+  axis; it does not pin depth).
 - **Ratchet:** extends cleanly — `novel` ↔ `heavy` stays revisable until realized synthesis-depth sets a floor;
   estimate-then-ratchet is unbroken.
 
@@ -273,33 +295,50 @@ inherently a *magnitude* cut *within* "derivation fired," so it will always read
 `light`/`heavy` fired-or-not line — that fuzziness is the tier's principal cost, accepted because the top-end
 signal is worth it.
 
-### Settled vs. still-open
+### Refinements settled in discussion
 
-- **Settled (this discussion):** the three-value shape with the single-trigger top tier; `novel` as a second
-  threshold on the *same* derivation axis; the invent-vs-compose boundary test as the leading formulation; and
-  that `novel`-via-derivation **absorbs scale** — a `both`-high WU and a `derivation`-only-high WU both read
-  `novel`, with no fourth `both`-high box (depth dominates; the extra breadth is secondary endurance).
-- **Open:** the **representation** — a third `Class` *value* (`novel`) vs. a `heavy` sub-marker that keeps the
-  field binary while carrying the gauge-texture; and the **name** (`novel` is the front-runner — evocative,
-  memorable — with a mild register caveat: `light`/`heavy` are *weight* words while `novel` names the *cause*,
-  defensible because the tier is defined by invention; alternatives if it grates: `foundational` (narrower —
-  implies infra), `deep`, `generative`).
-- **Validation step:** re-run the 32 derivation-bearing heavies (9 `derivation`-only + 23 `both`) against the
-  boundary test; expect ≈ 6–10 of 36 to land `novel` — a meaningful minority, the right shape for a top tier
-  (not 1, not 30). Eyeballed candidates: `arc-plan-conductor`, `operational-state-docs`,
-  `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
-  `schema-introspection-layer`, possibly `composable-workflows`. Confirm the split is stable and the rationale
-  holds before committing the representation.
+Five points the dogfood and the model-revision discussion sharpened, all folded into Phase 5.R's surface edits:
 
-### Why this does not block shipping the model
+- **Derivation floor.** Derivation counts only *spec-worthy* design — decisions a competent engineer must settle
+  *before starting* — never in-flight implementation choices (naming a variable, local structure). This is the
+  design-vs-implementation line (R7) viewed from classification; it keeps a pedantic "we had to decide
+  *something*" from tripping `heavy`, and gives the derivation axis a real floor beneath both its thresholds.
+- **No ratchet-back from realized authoring.** "Execution turned out light" ≠ "the design was determinate." If a
+  real design *was* authored, realized authoring floors `Class` at `heavy` even over a tiny surface; only an
+  over-high *estimate* (no authoring realized) corrects down. The derivation-heavy/scale-light cell feels
+  front-loaded, but it was genuinely heavy *when both jobs read it* (at planning) — `Class` is a decision-time
+  signal, not a post-hoc effort descriptor.
+- **`heavy` stays demand-not-volume.** The single `heavy` bit drops *where* the weight sits (planning vs.
+  execution vs. throughout); per-stage planning depth recovers it, so the field is **not** split by
+  axis-of-origin. Adding `novel` *de-strains* `heavy` (it no longer stretches to cover from-scratch synthesis).
+- **Advisory depth, hard floors structural.** ARC forces *presence and the weight-signal* (a spec must exist;
+  the `Class` value is forced at planned-entry) and *suggests* shape and depth. `novel`'s discovery/ADR path is
+  an *available, suggested* path, never forced — which is why the dropped spec-vs-`Class` enforcement hook was
+  the right call, and why the fuzzy invent/compose border is low-stakes.
+- **One-spectrum framing, no flattening.** Surface the shared ceremony-scaling thesis (Errand floor → `novel`
+  ceiling) as *two questions of one sizing pipeline* — the Errand-vs-WU character line (cardinality) and `Class`
+  (weight) — while keeping `Class` WU-scoped and atomic a character. The felt-difference test widens to admit a
+  *sequencing* consequence (not rigor/speed alone), or a literal read would reject `novel`.
 
-The binary `light`/`heavy` stamps are correct under the model as shipped, and a future `novel` tier is **purely
-additive** — it reclassifies a *subset of existing heavies upward* without disturbing any `light` value or the
-`light`/`heavy` boundary. No stamp is throwaway. The decision is a **pre-close calibration**, to be made before
-this WU integrates.
+### The validation gate (Phase 5.R)
 
-**Related (already routed):** the always-loaded `AGENT-BRIEF.ARC` `Class` definition omits this
-parallelism/worklist-balancing purpose (it states only ceremony-scaling) — the omission is what muddied the
-framing while this was first discussed. Captured to `doc-cascade-sweep` via `USER-INBOX`, alongside the
-`minimum/standard/expanded` → `low/medium/high` planning-depth vocabulary staleness and the `session-init.md`
-forward-pointer.
+Re-run the 32 derivation-bearing heavies (9 `derivation`-only + 23 `both`) against the invent-vs-compose test;
+expect ≈ 6–10 of 36 to land `novel` — a meaningful minority (not 1, not 30). The bar is **recognizability**, not
+crispness: the border is inherently a magnitude cut, and that fuzziness is cheap *because depth is advisory* (a
+misread nudges a suggestion; the ratchet corrects it). Eyeballed candidates: `arc-plan-conductor`,
+`operational-state-docs`, `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
+`schema-introspection-layer`, possibly `composable-workflows`; plus the active WU (`class-model-foundation`
+invented the model — the canonical `novel`). A smeary, reader-dependent result falls back to binary `Class` + a
+richer STATUS.USER view rather than shipping a vague tier.
+
+### Why no Phase-5 stamp is throwaway
+
+The Phase-5 `light`/`heavy` stamps remain correct: the `novel` tier is **purely additive to the data** — it
+reclassifies a *subset of existing heavies upward* without disturbing any `light` value or the `light`/`heavy`
+boundary. Phase 5.R re-stamps only the confirmed `novel` set; every other Phase-5 estimate stands.
+
+**Related:** the always-loaded `AGENT-BRIEF.ARC` `Class` definition omits the parallelism / worklist-balancing
+purpose (it states only ceremony-scaling) — the omission is what muddied the framing while this was first
+discussed. The one-clause balance-purpose fix rides Phase 5.R's doctrine update (5.R.3), which already touches
+that entry for `novel`; the broader `minimum/standard/expanded` → `low/medium/high` planning-depth vocabulary
+staleness and the `session-init.md` forward-pointer stay `doc-cascade-sweep`'s (captured via `USER-INBOX`).

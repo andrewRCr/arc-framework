@@ -3,10 +3,10 @@
 - **Origin:** [internal]
 - **Cohort:** principle-anchored-core/agile-wu-lifecycle
 
-- **Purpose:** Establish the `Class` model — a two-value weight classification (`light` / `heavy`),
-  the per-stage `planning depth` concept, and the three spec forms it names — as the constitutional and
-  schema foundation the rest of the cohort builds on: scale how much design must be *authored*, never the
-  discipline that validates it.
+- **Purpose:** Establish the `Class` model — a three-value weight classification (`light` / `heavy` / `novel`,
+  the top reachable through the derivation axis alone), the per-stage `planning depth` concept, and the three
+  spec forms it names — as the constitutional and schema foundation the rest of the cohort builds on: scale how
+  much design must be *authored*, never the discipline that validates it.
 
 > *Form note (interim): a `detailed` technical spec authored on the PRD template. The dedicated RFC template
 > for `detailed`·technical work is a `scalable-authoring-pipeline` deliverable and does not exist yet; this
@@ -45,12 +45,16 @@ the consumers build on it.
 
 ## Goals
 
-- Define a **recorded, objective weight classification** (`Class`: `light` / `heavy`, `[TBD]` until
+- Define a **recorded, objective weight classification** (`Class`: `light` / `heavy` / `novel`, `[TBD]` until
   resolved) that downstream roadmap / parallelism planning can read, driven by two intrinsic, stage-decorrelating
-  axes of the work — and **present when the balance decision needs it** (forced at entry into `planned/`, the
-  readiness rung the start decision reads, not deferred to activation).
-- Make the **classification boundaries crisp** — three recognizable-in-retrospect tests (Errand-vs-WU,
-  derivation trigger, scale trigger) that place work without author guesswork.
+  axes of the work — `novel` a distinct *kind* (invention vs. composition) reachable through the derivation axis
+  alone, recorded primarily as the parallelism / sequencing balance signal — and **present when the balance
+  decision needs it** (forced at entry into `planned/`, the readiness rung the start decision reads, not deferred
+  to activation).
+- Make the **classification boundaries crisp** — recognizable-in-retrospect tests (Errand-vs-WU, then the
+  derivation and scale triggers that promote to `heavy`, then the invent-vs-compose threshold that promotes
+  `heavy → novel`) that place work without author guesswork, each floored against the design-vs-implementation
+  line so trivial in-flight decisions never count as derivation.
 - Preserve ARC's identity: **execution discipline is invariant** at every model position; only design-authoring
   ceremony scales.
 - Express the model in the **meta schema** with `Class`-conditional validity, and make WU artifacts carry
@@ -88,32 +92,59 @@ Technical work — scenarios that illustrate the model and the migration impact.
 
 ### P0 — must-have
 
-1. **The `Class` model.** Define `Class` as a two-value recorded classification — `light` / `heavy` — that is
-   the WU's *weight*: the work it demands across planning, execution, and review. **`heavy` iff *either* of two
-   intrinsic axes is high:**
+1. **The `Class` model.** Define `Class` as a three-value recorded classification — `light` / `heavy` / `novel`
+   — that is the WU's *weight*: the work it demands across planning, execution, and review. **`heavy` iff
+   *either* of two intrinsic axes is high; `novel` iff the derivation axis is high at a second, higher
+   threshold:**
     - **Derivation** — how much design must be *authored* versus read off determinate inputs. `derived work`
       (settling requires authoring a real design) is always `heavy`; `determinate work` (design determinate
       from existing inputs; the spec *records* it) is `light` unless scale/complexity promotes it. Derivation
-      also tracks how novel vs. routine the execution is, and the validation rigor at review.
+      also tracks how novel vs. routine the execution is, and the validation rigor at review. **Floor:**
+      derivation counts only *spec-worthy* design — decisions a competent engineer must settle *before starting*
+      — never in-flight implementation choices (naming, local structure); this is the design-vs-implementation
+      line (R7) viewed from the classification side, and it keeps trivial "we had to decide something" from
+      tripping `heavy`.
     - **Scale / complexity** — how large or intricate an existing-code surface a correct plan *and execution*
       must navigate (the codebase-grounding demand). Co-equal: a determinate-but-large refactor is `heavy` by
       grounding demand alone, and that largeness carries into careful execution and heavier review.
+
+   **`novel` is a distinct *kind*, not merely more weight** — work whose design requires *inventing* concepts /
+   models that do not yet exist in the problem domain (synthesis, external research, discovery), versus
+   *composing* a real design from existing ARC patterns and primitives. It is reached **through derivation
+   alone**: the axes are asymmetric — scale is *endurance* (chunkable, parallelizable, and self-limiting because
+   runaway breadth trips decomposition into a cohort), while derivation is *depth* (serial, context-saturating,
+   plate-dominating and unbounded). So `novel` sits at the top of the saturating axis only; scale never reaches
+   it. Its **primary** purpose is the parallelism / sequencing balance signal (the strongest "this fills the
+   plate by itself — don't double up" marker); its **secondary** purpose is to open a distinct *available*
+   planning shape (a research / discovery phase + ADR expectation), advisory rather than forced.
 
    `Class` is *driven* by these two intrinsic axes alone — not by raw output volume, and not by preference — and
    *indicates* weight across every phase, not planning alone. What stays invariant at every `Class` is execution
    *discipline* (the review-increment gate, quality gates), never the depth, novelty, or care the work demands.
    The axes **load different authoring stages** (derivation → drafting + spec creation; scale/complexity →
-   task-gen) and therefore **decorrelate** — the model must not collapse them into a single bucket.
+   task-gen) and therefore **decorrelate** — the model must not collapse them into a single bucket. The single
+   `heavy` bit deliberately drops *where* the weight sits (planning vs. execution); per-stage planning depth
+   recovers it, so the field is not split by axis-of-origin.
 
-2. **The three boundary tests** (crisp, recognizable-in-retrospect; a first-class deliverable):
+2. **The boundary tests** (crisp, recognizable-in-retrospect; a first-class deliverable). Apply in order — the
+   first sorts work below the wrapper out of the model; the next two each independently promote to `heavy`; the
+   last promotes `heavy → novel` on the derivation axis only:
     - **Errand vs. WU (wrapper floor, ADR-021):** *"Does this need more than a single logical concern — more
       than one review increment — to do well?"* No → Errand. Yes → WU.
     - **Derivation trigger (→ `heavy`):** *"Must a real design be authored — concerns, alternatives, tradeoffs
-      that don't exist until someone works them out — before a competent engineer can start?"*
+      that don't exist until someone works them out — before a competent engineer can start?"* Apply the floor:
+      a decision a competent engineer resolves *during* implementation (naming, local structure) is not
+      derivation, even though it is "deciding something."
     - **Scale / complexity trigger (→ `heavy`):** *"Does producing a correct implementation plan require a
       **substantial** codebase-grounding / mapping pass — a large or intricate surface of symbols and
       relationships to verify — beyond the routine floor?"* Guard the bar at *substantial*: most WUs carry some
       grounding; a soft bar makes everything `heavy`.
+    - **Invent-vs-compose trigger (`heavy → novel`):** *"Does settling the design require **inventing** concepts
+      / models that do not yet exist in the problem domain (synthesis, external research, discovery) — versus
+      **composing** a real design from existing ARC patterns and primitives?"* Invent → `novel`; compose →
+      `heavy`. This is a *magnitude cut within* "derivation fired," so it reads fuzzier than the fired-or-not
+      lines above — tolerable because the consequence is advisory (a misread nudges a suggestion; the ratchet
+      corrects it). Scale never reaches `novel`.
 
    `light` iff **both** `heavy`-triggers are no.
 
@@ -124,19 +155,31 @@ Technical work — scenarios that illustrate the model and the migration impact.
    and that it resolves per stage.)*
 
 4. **The three spec forms.** Define `brief` / `outline` / `detailed`, mapped from spec-stage depth
-   (`low → brief`, `medium → outline`, `high → detailed`). `brief` → always `light`; `detailed` → always
-   `heavy` (derivation forces it); `outline` → **either** (`light` at moderate scale, `heavy` when impl needs a
+   (`low → brief`, `medium → outline`, `high → detailed`). `brief` → always `light`; `detailed` → always `heavy`
+   *or* `novel` (derivation forces it; the invent-vs-compose threshold separates the two, which share the
+   `detailed` form — `novel`'s distinct shape is the advisory discovery phase + ADR expectation, not a fourth
+   form); `outline` → **either** `light` or `heavy` (`light` at moderate scale, `heavy` when impl needs a
    substantial grounding pass — disambiguated by the `Class` field / task-list scale). `detailed` splits by
    work category into PRD (feature) / RFC (technical); the other two forms do not split. *(The `heavy`/`brief`
    cell is empty: low scale reaches `heavy` only via derivation, which forces `detailed`.)*
 
-5. **`Class` set is `{light, heavy}` (plus the `[TBD]` pre-classification sentinel); atomic retires as a tier.**
-   The two resolved values are `light` / `heavy`; `[TBD]` is the not-yet-classified state a WU carries before
-   its weight is known — distinct from `[none]` (every WU *has* a `Class`; it is merely unresolved; see R17).
-   Atomic-character work executes as an Errand below the wrapper, or graduates to a WU. ADR-020 §3's
-   spec-in-commit floor exception migrates *out of the tier model into the Errand class* (reconciling the
-   ADR-020 ↔ ADR-021 tension). "Atomic" reverts to a pure character adjective. This WU owns only the *tier-side*
-   reconciliation; the Errand operational path itself has shipped.
+5. **`Class` set is `{light, heavy, novel}` (plus the `[TBD]` pre-classification sentinel); atomic retires as a
+   tier.** The three resolved values are `light` / `heavy` / `novel`; `[TBD]` is the not-yet-classified state a
+   WU carries before its weight is known — distinct from `[none]` (every WU *has* a `Class`; it is merely
+   unresolved; see R17). Atomic-character work executes as an Errand below the wrapper, or graduates to a WU.
+   ADR-020 §3's spec-in-commit floor exception migrates *out of the tier model into the Errand class*
+   (reconciling the ADR-020 ↔ ADR-021 tension). "Atomic" reverts to a pure character adjective. This WU owns
+   only the *tier-side* reconciliation; the Errand operational path itself has shipped.
+
+   **One sizing spectrum, two questions — atomic stays *character*, not a `Class` value.** `Class` and the
+   Errand-vs-WU character line are the two questions of a single work-sizing pipeline — ceremony scales from one
+   disciplined commit (Errand, the floor) to a from-scratch synthesis (`novel`, the ceiling). But they measure
+   *different* dimensions and must not flatten into a four-value scale: the character line is *cardinality* (one
+   logical concern → Errand; spec-worthy → WU), `Class` is *weight* within a WU. Atomic is not "below `light`":
+   a tricky one-liner and a trivial one-liner are *both* atomic, so atomic measures concern-count, not weight —
+   and an Errand has no meta to record a `Class` on. So `Class` stays WU-scoped (it begins at the `light` floor),
+   atomic stays a character of work below the wrapper, and the spectrum is surfaced as framing, not as a merged
+   taxonomy.
 
 6. **Constitutional amendment to DEV-RULES.ARC.** Keep the always-loaded surface minimum-viable: add only the
    `Class` discipline-invariance guard (ceremony scales with the work's weight; execution discipline — the
@@ -158,7 +201,7 @@ Technical work — scenarios that illustrate the model and the migration impact.
 8. **Companion ADR.** Author an ADR documenting the architectural shift (scaled ceremony / invariant
    discipline, the `Class` model, the boundary tests), parallel in scope to ADR-016's commit-control downgrade.
 
-9. **Meta schema — `Class` field.** Add a new `**Class:**` field (`Light` / `Heavy` / `[TBD]`) as a
+9. **Meta schema — `Class` field.** Add a new `**Class:**` field (`Light` / `Heavy` / `Novel` / `[TBD]`) as a
    schema-owned field in the meta's core block (`State` / `Owner` / `Branch` / `Class` / `Priority`; see R24),
    not provenance. Source of truth for the work's weight; declared / ratcheted through the authoring stages,
    default `[TBD]` until resolved. *(There is no `**Tier:**` field today — only a stale reservation comment in
@@ -168,8 +211,11 @@ Technical work — scenarios that illustrate the model and the migration impact.
    design at some depth, `Class` never drops below that floor. An *estimate* (a value set before that work
    exists) is freely revisable in both directions until planning substantiates a floor; correcting a too-high
    estimate down is not a demotion (no work is discarded). This removes the lowball incentive — estimating
-   `heavy` costs nothing if planning later reveals `light`. `Class`-conditional validity per ADR-022 (a
-   cross-field constraint a flat template cannot express).
+   `heavy` costs nothing if planning later reveals `light`. **Crucial distinction:** "execution turned out
+   light" is *not* "the design was determinate" — if a real design *was* authored, realized authoring floors
+   `Class` at `heavy` even when the surface is small and execution is trivial; only an over-high *estimate*
+   (no authoring yet realized) corrects down. `Class`-conditional validity per ADR-022 (a cross-field
+   constraint a flat template cannot express).
 
 10. **Meta schema — `Design` field.** Define `Class`-aware value semantics for `**Design:**` (introduced
     upstream as a generic optional pointer): `draft-{name}.md` during Planning, `spec-{name}.md` from Active
@@ -274,10 +320,14 @@ Technical work — scenarios that illustrate the model and the migration impact.
     consistency. *(ROADMAP render-inclusion stays out — both ROADMAP tables are near max width.)*
 
 23. **Strategy-doc guidance with concrete examples.** Add boundary-test guidance to `strategy-work-organization`
-    — the model's home — with concrete examples on each side of the derivation line and the scale trigger
-    (records-vs-derives; routine-vs-substantial grounding), plus the estimate-vs-realized ratchet and the
-    readiness rule (R17). The `classify-work-unit` method states the tests; the strategy elaborates with worked
-    examples.
+    — the model's home — with concrete examples on each side of the derivation line, the scale trigger, and the
+    invent-vs-compose (`heavy → novel`) line (records-vs-derives; routine-vs-substantial grounding;
+    compose-vs-invent), plus the derivation floor (design-vs-implementation), the estimate-vs-realized ratchet
+    with the "execution-light ≠ design-determinate" distinction, the readiness rule (R17), and the widened
+    felt-difference test (rigor / speed / *sequencing*). State the **one-spectrum framing** here — connect
+    § Work Character (the Errand-vs-WU cardinality line) to § Class Model (the weight line) as two questions of
+    one work-sizing pipeline, while keeping `Class` WU-scoped and atomic a character (no four-value flattening).
+    The `classify-work-unit` method states the tests; the strategy elaborates with worked examples.
 
 24. **Meta-record presentation convention + reader consolidation.** Establish a uniform value-formatting and
     information-architecture convention for the meta record, enforced by `renderMetaFile` and recovered by a
@@ -402,13 +452,18 @@ planned → active`); the `WU → cohort` split is decomposition, not promotion.
 
 ### The felt-difference test (model guardrail / acceptance lens)
 
-**Every position the model exposes must be distinguishable to the *user* in rigor and/or speed; a distinction
-visible only to the author is arbitrary and must collapse.** The three spec forms pass (they differ in speed and
-rigor). The two `Class` values pass, including the straddle: a `heavy`/`outline` WU (large refactor) is
-felt-distinct from a `light`/`outline` WU by its task-gen depth. There is no `light`/`detailed` position
-(`detailed` *derives*, forcing `heavy`). The test *rejects* the arbitrary-lever trap — a knob producing
-identical artifacts distinguished only modally. `Class` avoids it: it is the aggregate weight of two genuinely
-independent, each-felt axes (derivation as up-front cognitive load; scale as a task-gen grounding grind).
+**Every position the model exposes must be distinguishable to the *user* in rigor, speed, *or how the work is
+sequenced against other work*; a distinction visible only to the author is arbitrary and must collapse.** The
+test admits a *behavioral / sequencing* consequence, not rigor and speed alone — otherwise it would reject
+`novel`, whose felt difference is precisely a sequencing one (you can hold ~one genuinely-novel stream) plus a
+distinct *available* planning path, even when its spec artifact equals a `detailed`/`heavy` one. The three spec
+forms pass (they differ in speed and rigor). The `Class` values pass: `heavy`/`outline` (large refactor) is
+felt-distinct from `light`/`outline` by task-gen depth; `novel` is felt-distinct from `heavy` by the plate it
+fills and the discovery/ADR path it opens. There is no `light`/`detailed` position (`detailed` *derives*,
+forcing `heavy` or `novel`). The test *rejects* the arbitrary-lever trap — a knob producing identical artifacts
+distinguished only modally — and `novel` clears it on the sequencing axis, not by pretending to a different
+artifact. `Class` is the aggregate weight of two genuinely independent, each-felt axes (derivation as up-front
+cognitive load; scale as a task-gen grounding grind), with `novel` marking the saturating top of the first.
 
 ### Why three spec forms (not two)
 
@@ -420,15 +475,21 @@ validates each. The Oxide continuum is the considered-and-declined alternative (
 
 ### Naming (settled; research-informed, project's call)
 
-`Class` (not `Complexity Tier` / bare `Tier`) — a binary *kind* of work; sidesteps the quality-gate `Tier 1/2/3`
-collision. `light` / `heavy` (not `light` / `full`) — natural antonyms; `heavy` accurately reads as "lots of
-total work" now that scale/complexity is a legitimate component (guardrail: `Class` is *driven* by
+`Class` (not `Complexity Tier` / bare `Tier`) — a *kind* of work, not a rung; sidesteps the quality-gate
+`Tier 1/2/3` collision. `light` / `heavy` (not `light` / `full`) — natural antonyms; `heavy` accurately reads as
+"lots of total work" now that scale/complexity is a legitimate component (guardrail: `Class` is *driven* by
 design-derivation or grounding scale/complexity, **not raw code volume** — though a `heavy` WU does *indicate*
-heavier execution and review). `planning depth` (`low` / `medium` / `high`) — magnitude vocabulary distinct from
-the spec-form names; rejected `rigor` (mis-frames the bottom), `process intensity`. `brief` / `outline` /
-`detailed` (not `sketch` — which connotes rough/will-be-redone, the opposite of a concise-yet-authoritative floor
-spec). `derivation` + `scale / complexity` stay *explanation, never labels* (they inverse-correlate with weight
-and load different stages).
+heavier execution and review). `novel` (not `heavy+` / a `light`-`moderate`-`heavy` ordinal) — it names the
+*cause* (invention) where `light` / `heavy` name *weight*; the register break is accepted *because* the top is a
+distinct kind, not just more weight, so the word carries that signal and retroactively sharpens what `heavy`
+covers. An ordinal was rejected (it implies uniform single-axis spacing, false here — the `light↔heavy` and
+`heavy↔novel` seams are two different tests — and `moderate`/`heavy` would collide with the `planning depth`
+ordinal); `heavy+` was rejected as telling the reader nothing about what the top *is*. `planning depth` (`low` /
+`medium` / `high`) — magnitude vocabulary distinct from the spec-form and `Class` names; rejected `rigor`
+(mis-frames the bottom), `process intensity`. `brief` / `outline` / `detailed` (not `sketch` — which connotes
+rough/will-be-redone, the opposite of a concise-yet-authoritative floor spec). `derivation` +
+`scale / complexity` stay *explanation, never labels* (they inverse-correlate with weight and load different
+stages).
 
 ### Migration & sequencing
 
@@ -453,8 +514,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 3. `template-meta.md` adds `**Class:**` to the core block (default `[TBD]`) and retires the stale
    `Tier:` reservation comment; `**Design:**` carries `Class`-aware semantics; `**Cohort:**` is path-valued with
    the dual-placement note; `Class`-conditional validity is specified.
-4. Every spec-named position passes the felt-difference test (no `light`/`detailed`; the `outline` straddle is
-   resolved by `Class` / task-gen scale).
+4. Every spec-named position passes the (sequencing-widened) felt-difference test (no `light`/`detailed`; the
+   `outline` straddle resolved by `Class` / task-gen scale; `novel` felt-distinct from `heavy` on the
+   sequencing axis + the discovery/ADR path it opens, not by a different artifact).
 5. Every WU artifact in `active/` and `backlog/` uses position-independent (filename-only) references; the
    relocatability invariant and the generalized source-side rule are stated in DEV-RULES.ARC.
 6. Every `backlog/` meta (planned + provisional) is re-rendered to the new format with a path-valued
@@ -462,8 +524,10 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    additionally carries a **best-estimate `Class`** (not a blanket `heavy`), the active WU and already-classified
    siblings retain their values, and `provisional/` members are `[TBD]`.
 7. `Class` renders in STATUS.USER over an **in-flight + ready** content model (mine, unblocked);
-   `strategy-work-organization` carries the `Class` model, the `planning depth` ordinal, the three spec forms, and
-   worked boundary-test examples on each side of both `heavy` triggers, plus the ratchet + readiness rule.
+   `strategy-work-organization` carries the `Class` model (incl. `novel` and the invent-vs-compose line + the
+   derivation floor), the `planning depth` ordinal, the three spec forms, the one-spectrum framing, and worked
+   boundary-test examples on each side of both `heavy` triggers and the `heavy → novel` line, plus the ratchet +
+   readiness rule.
 8. The `classify-work-unit` method exists as the DRY triage home and is wired into `init-work-unit` /
    `activate-work-unit`; a `graduate-work-unit` (provisional → planned) workflow forces the estimate at
    planned-entry.
@@ -474,6 +538,11 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
     enum tokens, backticked identifiers, bracket sentinels, prose narrative fields), and the field order —
     recovered by one guarded `parseMetaRecord` that every consumer routes through; the duplicated `extractField`
     is retired.
+11. The `Class` set is `{light, heavy, novel}` — `novel` reachable through the derivation axis alone
+    (invent-vs-compose), validated against a re-triage of the derivation-bearing heavies that yields a stable,
+    recognizable minority (≈ 6–10 of 36); the confirmed subset of prior `heavy` estimates is reclassified
+    upward with no `light` value and no `light`/`heavy` boundary disturbed; the schema, render, parse,
+    `template-meta`, and STATUS.USER surfaces admit the third value.
 
 ## Open Questions
 
