@@ -10,6 +10,7 @@ not only restate the conclusions.
 - [Naming rationale](#naming-rationale)
 - [Design decisions](#design-decisions)
 - [Pressure points and risks](#pressure-points-and-risks)
+- [Open calibration: within-`heavy` derivation resolution](#open-calibration-within-heavy-derivation-resolution-pre-close)
 
 ---
 
@@ -202,3 +203,103 @@ For the companion ADR's risks section and the drift-mitigation guidance.
   Mitigation: the STATUS.USER `Class` render (the in-flight view carries the heavy/light composition);
   auto-cleanup of completed-but-not-swept WUs. (Less acute than the original atomic-tier version, since
   atomic-character work is now an Errand, not a WU.)
+
+## Open calibration: within-`heavy` derivation resolution (pre-close)
+
+**Status:** leading candidate identified; the **representation is not yet committed**. Resolve — adopt the candidate,
+keep the binary, or pick an alternative — **before this WU integrates**. Surfaced by the model's first dogfood:
+best-estimate `Class` across the 42 `planned/` metas during the Phase 5 migration. Non-blocking for execution;
+carried as a `Blockers` pointer from the next handoff so it surfaces at session-init. Deliberately deferred to
+benefit from further thought and interim dogfooding.
+
+### What the dogfood exposed
+
+Stamping 42 WUs produced **6 `light` / 36 `heavy`**, and the `heavy` band is wide: within the 36, **23 fired
+`both` axes · 9 `derivation`-only · 4 `scale`-only** — and even `both` hides a `both`-high vs `both`-moderate
+gradient. Two WUs an order of magnitude apart in design demand — a from-scratch methodology-model synthesis (this
+very WU) vs. a compose-a-routing-scheme-from-known-surfaces WU (e.g. `arc-reinforce`) — both read a flat `heavy`.
+
+That is signal loss against one of `Class`'s two stated purposes. `Class` is not only the design-authoring ceremony
+gate; it is also **the signal roadmap and parallelism planning read to balance a worklist** (§ Class Model) — a
+*magnitude / cognitive-load* signal that lets a developer judge "is my plate full?" when opening parallel work. A
+wide, flat `heavy` degrades exactly that load-balancing at the top of the range, where it matters most (a second
+`heavy` of moderate derivation is a different commitment than a second from-scratch synthesis).
+
+### Diagnosis — ceiling, not threshold
+
+The derivation trigger is *correctly* a low bar: any real design-authoring promotes to `heavy`, because the
+consequence (a derived spec, heavier review) is binary. The gap is that `heavy` has **no ceiling on derivation**.
+The two axes are asymmetric in this respect, and the asymmetry falls out of the model rather than being bolted on:
+
+- **Scale = breadth** — determinate, chunkable, parallelizable, "endurance." It also *self-caps*: runaway breadth
+  trips the *decompose* threshold (multiple concerns → cohort) rather than climbing without bound. The exception —
+  a single coherent high-breadth WU (a 200-file rename) — stays one concern, but its load is endurance, not
+  juggling. So scale has a natural ceiling at `heavy`.
+- **Derivation = depth** — novel, serial, context-saturating, **uncapped**. Depth is what actually saturates a
+  person's plate, so it is the load-dominant dimension for parallelism.
+
+So the missing resolution is **on the derivation axis only**.
+
+### Leading candidate (representation not committed): a three-value `Class` — `light` / `heavy` / `novel`
+
+- `light` ↔ `heavy` is **unchanged**: either axis (derivation OR scale) promotes `light → heavy`. The existing
+  binary boundary tests stay intact.
+- `heavy → novel` is reachable **only through derivation**, at a second (higher) threshold — a single-trigger top
+  tier. Scale never reaches `novel` (it caps at `heavy`, per the breadth-ceiling above).
+- **Decided in discussion:** `novel` is a **second threshold on the same derivation axis**, not a distinct
+  "invention" trigger. This keeps the boundary-test reading clean — derivation resolves `not-fired → fired (heavy)
+  → high (novel)` on one axis — rather than introducing a parallel trigger.
+- The change is **additive**: one new test on one axis, not a re-derivation of the model.
+
+### Why it clears the "is it a real tier?" bar (not just a sizing label)
+
+A third value must gate a *distinct consequence* on at least one of `Class`'s jobs; `novel` does on both:
+
+- **Ceremony:** strongly suggests a *discovery / research phase before drafting* + `high` spec depth + a companion
+  ADR expectation — a different planning *shape* than ordinary `heavy`, while remaining a *suggestion* (it
+  preserves `Class`'s suggest-not-dictate stance toward the non-recorded, per-stage planning-depth axis; it does
+  not pin depth).
+- **Parallelism:** the strongest "this one fills the plate by itself / don't double up" signal.
+- **Ratchet:** extends cleanly — `novel` ↔ `heavy` stays revisable until realized synthesis-depth sets a floor;
+  estimate-then-ratchet is unbroken.
+
+### The `heavy → novel` test (agreed leading formulation)
+
+*Does settling the design require **inventing concepts / models that do not yet exist in the problem domain**
+(synthesis, external research, discovery) — versus **composing a real design from existing ARC patterns and
+primitives**?* Invent → `novel`; compose → `heavy`. Worked anchors: this WU **invented the `Class` model itself**
+(→ `novel`); `arc-reinforce` **assembles a routing scheme from existing ARC surfaces** (→ `heavy`). This border is
+inherently a *magnitude* cut *within* "derivation fired," so it will always read slightly fuzzier than the
+`light`/`heavy` fired-or-not line — that fuzziness is the tier's principal cost, accepted because the top-end
+signal is worth it.
+
+### Settled vs. still-open
+
+- **Settled (this discussion):** the three-value shape with the single-trigger top tier; `novel` as a second
+  threshold on the *same* derivation axis; the invent-vs-compose boundary test as the leading formulation; and
+  that `novel`-via-derivation **absorbs scale** — a `both`-high WU and a `derivation`-only-high WU both read
+  `novel`, with no fourth `both`-high box (depth dominates; the extra breadth is secondary endurance).
+- **Open:** the **representation** — a third `Class` *value* (`novel`) vs. a `heavy` sub-marker that keeps the
+  field binary while carrying the gauge-texture; and the **name** (`novel` is the front-runner — evocative,
+  memorable — with a mild register caveat: `light`/`heavy` are *weight* words while `novel` names the *cause*,
+  defensible because the tier is defined by invention; alternatives if it grates: `foundational` (narrower —
+  implies infra), `deep`, `generative`).
+- **Validation step:** re-run the 32 derivation-bearing heavies (9 `derivation`-only + 23 `both`) against the
+  boundary test; expect ≈ 6–10 of 36 to land `novel` — a meaningful minority, the right shape for a top tier
+  (not 1, not 30). Eyeballed candidates: `arc-plan-conductor`, `operational-state-docs`,
+  `documentation-surface-routing`, `compaction-recovery`, `customization-arch-realign`,
+  `schema-introspection-layer`, possibly `composable-workflows`. Confirm the split is stable and the rationale
+  holds before committing the representation.
+
+### Why this does not block shipping the model
+
+The binary `light`/`heavy` stamps are correct under the model as shipped, and a future `novel` tier is **purely
+additive** — it reclassifies a *subset of existing heavies upward* without disturbing any `light` value or the
+`light`/`heavy` boundary. No stamp is throwaway. The decision is a **pre-close calibration**, to be made before
+this WU integrates.
+
+**Related (already routed):** the always-loaded `AGENT-BRIEF.ARC` `Class` definition omits this
+parallelism/worklist-balancing purpose (it states only ceremony-scaling) — the omission is what muddied the
+framing while this was first discussed. Captured to `doc-cascade-sweep` via `USER-INBOX`, alongside the
+`minimum/standard/expanded` → `low/medium/high` planning-depth vocabulary staleness and the `session-init.md`
+forward-pointer.
