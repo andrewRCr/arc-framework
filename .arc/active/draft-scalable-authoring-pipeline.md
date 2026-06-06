@@ -141,9 +141,10 @@ axis (already classified at create-spec Step 2):
 
 Subtypes apply **at `detailed` only** — where derivation makes feature / technical genuinely diverge. `brief`
 and `outline` *record* rather than derive, so category-divergence is minimal; they stay single,
-category-agnostic shapes (bounding proliferation to four templates, not six). **Open (spec-time):** separate
-`-prd` / `-rfc` templates vs. one detailed template that flexes by category — felt-difference test + dogfooding
-decide.
+category-agnostic shapes (bounding proliferation to four templates, not six). **Deferred to the dedicated
+RFC / PRD session (rides item 4):** separate `-prd` / `-rfc` templates vs. one detailed template that flexes by
+category. This cannot resolve until the RFC shape is derived — whether RFC and PRD share a template structure is
+downstream of knowing the RFC form — so it rides the same pass that derives RFC and realigns PRD.
 
 ## Floors that sit *below* the depth axis (do not scale)
 
@@ -208,22 +209,70 @@ decision. This makes `arc-plan`'s readiness states depth-relative (§ arc-plan d
 ## Spec-review procedure — a method (default) + an extension (optional ceremony)
 
 The review *gate* is invariant (a spec-finalization review increment always fires); its *content* and
-*cadence* scale and are configurable:
+*cadence* scale and are configurable.
+
+**Scaling model — the method inherits the form, never re-resolves.** spec-review fires *at* create-spec, which is
+derivation-keyed, so its depth is simply the **just-crystallized spec form** — a fourth instance of the
+"depth *is* the form" collapse (§ create-spec), not an independent resolution. `brief` → quick, `outline` →
+moderate, `detailed` → full. The *gate* is the invariant floor: a review increment always fires, collapsing at
+`brief` to a single minimal check (coherence + falsifiable success signal + named-things-exist), the same way the
+per-phase audit interlock collapses to one gate at `low`. Non-empty floor, never zero. Keep its grounding slice
+**distinct from task-gen's audit**: spec-review's is the light coherence-grounding pass at spec-finalization
+(form-keyed); `arc-task-audit` is the deep per-phase audit at task-gen (scale-keyed) — different checks, stages,
+and axes.
 
 - **`spec-review` method** — always loaded by create-spec; ships a **lightweight default self-review**
-  (coherence + grounding pass, depth-scaled: quick at `brief`, fuller at `detailed`), overridable. (May co-home
-  with a broader review-method-family rather than this WU owning it outright — settle at spec.)
+  (coherence + grounding pass, form-scaled per above), overridable. **SAP owns it outright** — it is intrinsically
+  coupled to the spec-form family this WU builds (the scaling keys to the form), so it cannot cleanly home
+  elsewhere yet. Written as a clean standalone method; a future review-method-family, if it ever materializes,
+  *absorbs* it (extend identity, don't fork — the `arc-plan` → conductor move), not a hard dep now.
 - **`spec-review`-ceremony extension** — fires at the spec-finalization fire-point, **inactive / empty by
   default**; opt-in to point at a team's procedure (async-PR / comment-window / committee cadences). The
   strategy doc carries those as informative precedent + a mapping, not ARC-enforced.
 
-## Mechanism — per-stage self-resolution, flag-free feed-forward
+## Mechanism — per-stage entry-assessment, flag-free by construction
 
 **Self-resolution over a conductor through-line — confirmed by the code.** The authoring workflows are already
 self-contained stage-entries that resolve their own context at entry; per-stage depth resolution is the natural
-extension. **Feed-forward is flag-free: the upstream artifact's shape *is* the depth signal** — `generate-tasks`
-reads the spec's realized template variant; `create-spec` reads the draft's shape; each then self-resolves
-within the ratcheting `Class` floor. No threaded value, no orchestrator state — the resolve-then-load posture.
+extension.
+
+**Each stage performs one entry-assessment: a read of its keyed axis against the best available evidence.** The
+upstream artifact, when present, is the *richest input* to that read — never a separate "feed-forward" mechanism
+that a fallback substitutes for. This is forced, not a convenience: CMF makes `planning depth` **transient,
+per-stage, never recorded** (only the spec stage's depth names a durable artifact — the form), so there is no
+recorded depth to thread and each stage *must* re-derive from evidence every time. "Flag-free feed-forward" is
+therefore just this — no threaded depth value, because the entry-assessment re-derives, so nothing needs
+threading. Feed-forward and the axis-read are **one act**, the read consuming a high-quality input. No orchestrator
+state; the resolve-then-load posture.
+
+The three stages share that one shape and differ only in **which axis** they read and **what evidence is present**:
+
+- **draft-design (derivation, stage 1):** no upstream. Evidence = the problem framing / origin + a quick
+  compose-vs-invent scan over existing ARC patterns — the opening move of the elicitation itself, not a new
+  detector. Doubles as the first `classify-work-unit` touchpoint (Class is born here).
+- **create-spec (derivation):** evidence = the `draft-*` *when present* (rich — its shape indicates the form
+  directly), else `Class` + a direct read of the problem. Absence is not "nothing to read": draft-design omits the
+  draft at `low` **or** at `medium`-without-draft, so absence narrows the read to a **brief-vs-outline
+  disambiguation**, cheap precisely because the entry-read is forced anyway.
+- **generate-tasks (scale):** the irreducible case — **no upstream artifact ever carries scale** (spec and draft
+  both track derivation). So task-gen's scale read is *necessarily* a direct read of the work surface (the
+  grounding breadth Step 1.1 already surfaces), cross-checked against `Class`. Not a patch over a hole: the scale
+  axis is **structurally feed-forward-immune**, so the direct read is load-bearing by design.
+
+Each read is **measurement vs. the standing `Class` estimate**: the direct read resolves, `Class` is the prior
+bound, and a read that exceeds the estimate is the ratchet trigger — so the entry-read *being* each stage's
+`classify-work-unit` touchpoint falls straight out of estimate-then-ratchet, identically on both axes (no
+circularity — the same evidence drives both the depth and the `Class` update). The **structural** design is
+settled here (each stage has one entry-assessment, its evidence profile, scale's feed-forward-immunity, the
+read=touchpoint collapse); only the **thresholds** (what breadth reads `high`, how many open decisions read
+`medium`) calibrate via dogfooding.
+
+**The ratchet is decision-live, persistence-deferred.** A touchpoint may ratchet mid-stage (task-gen's entry
+scale-read can ratchet before the task list exists). The decision is *live* at the interlock — surfaced at once,
+driving that stage's depth immediately — but the `**Class:**` *write* defers to the stage's planning-ceremony
+commit (spec-generation / task-list generation / draft-capture), never a mid-stage meta edit. The value is never
+lost (it is surfaced and drives behavior the moment it resolves); it simply persists at the ceremony boundary,
+honoring meta-timing's no-mid-session-churn rule. Per-stage commit homes: § Derivation pending item 3.
 
 ### `arc start` verb fate + no `--tier` flag
 
@@ -339,8 +388,9 @@ protects the tail without taxing the common case.
 - **Depth keys to the *scale* axis**, which `Class` alone cannot resolve (it merges the axes — `heavy`/detailed
   small-surface vs. `heavy`/outline large-refactor want opposite task-gen depth) and spec form cannot supply (it
   tracks derivation). So **task-gen self-resolves from a scale read it performs at entry** (the codebase-grounding
-  breadth at the current Step 1.1), cross-checked against `Class`. This is the scale-axis resolution of the
-  feed-forward hole.
+  breadth at the current Step 1.1), cross-checked against `Class`. The scale axis is **structurally
+  feed-forward-immune** — no upstream artifact encodes it — so this direct read is load-bearing by design, not a
+  patch over a hole.
 - **Resolution = the touchpoint.** That entry scale read *is* the `classify-work-unit` confirm-or-ratchet for
   task-gen (a decomposition revealing more scale than estimated ratchets `Class` → `heavy`). One step, fired at
   entry, surfaced to the user.
@@ -365,8 +415,12 @@ protects the tail without taxing the common case.
   exist. It is the only stage whose artifact is optional (create-spec / generate-tasks always produce theirs),
   which is why this stage alone is named by function, not artifact.
 - **Three lanes:** `low` = resolve depth + confirm determinacy → proceed to a `brief` spec, **no draft file**;
-  `medium` = bounded single-pass shaping, *maybe* a `draft-*`; `high` = an **iterative shaping loop**, a rich
-  `draft-*`.
+  `medium` = bounded single-pass shaping, *optionally* a `draft-*`; `high` = an **iterative shaping loop**, a rich
+  `draft-*`. The draft stays optional at `medium` **by design** — CMF names only the *spec* stage's depth as
+  producing a durable artifact and treats `draft-*` as a generic optional pointer, so the draft is never a
+  depth-mandated artifact. Absence therefore spans `{low, medium-no-draft}`; create-spec's forced entry-read
+  (§ create-spec; § Mechanism) disambiguates brief-vs-outline at no extra cost, so nothing is lost by leaving the
+  medium draft optional.
 - **`high` is a *simple* loop.** The conductor's `refine-plan-loop` *enriches* the high lane (bounded batches,
   plan-splitting detection, resume-aware refinement) — it is not a fourth level. SAP ships the simple loop and
   must not build those enrichments.
@@ -382,9 +436,10 @@ protects the tail without taxing the common case.
   depth names a *durable* artifact (the form, in the spec H1). So create-spec is the **crystallization point**: it
   reads a (maybe-absent) `draft-*` and emits the durable form-signal that generate-tasks and the lifecycle read.
 - **Derivation-keyed resolution = the touchpoint** (mirror of draft-design). Resolving the form is the
-  `classify-work-unit` confirm-or-ratchet. Reads the draft's shape when present; at `low` (no draft) the
-  resolution rides `Class` + create-spec's own derivation read — the same not-purely-artifact-shape caveat as the
-  scale axis (second instance of the feed-forward hole).
+  `classify-work-unit` confirm-or-ratchet. Its entry-read consumes the `draft-*` when present (rich); when absent
+  it consumes `Class` + a direct read of the problem, narrowing to a **brief-vs-outline disambiguation** (absence
+  spans `{low, medium-no-draft}`). Not a fallback over a feed-forward hole — the entry-read is forced regardless
+  (depth is never recorded — § Mechanism), so the disambiguation is already paid for.
 - **What scales across the workflow's steps:** discovery depth (intent + scope + one success signal →
   decision-centric → full checklist) and the template selected (brief / outline / `detailed-prd|rfc`). The
   **PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks do *not* scale as lanes** — always-on, cost-proportional
@@ -443,14 +498,17 @@ open — see Numbering below):
 Reads as a coherent maturity progression — *draft the design → create the spec → generate the tasks* — which is
 the artifact chain itself.
 
-**Numbering — open, decide before spec.** Two live options for the *planning-stage* prefixes: (a) **drop
-entirely** (`draft-design` / `create-spec` / `generate-tasks`); or (b) **renumber the planning trio only**
-(`1_draft-design` / `2_create-spec` / `3_generate-tasks`), reading as instructive of the planning-stage order —
-the three roots a composed package hangs fragments off, so composition does *not* rule it out (the *root* can
-carry the number). The original 1-2-3 defect was scope, not numbering per se: extending it to
-`3_process-task-loop` conflated *planning order* with *whole-process order* (execution is far more than one
-step). So one thing is settled regardless — **`process-task-loop` loses its number**: it is the execution stage,
-a separate concern, not a planning anchor. (a)-vs-(b) stays open until spec.
+**Numbering — decided: drop the prefixes entirely.** Stages are named bare (`draft-design` / `create-spec` /
+`generate-tasks`), and `process-task-loop` likewise loses its number. The two candidates were (a) drop entirely
+vs. (b) renumber the planning trio only (`1_draft-design` / `2_create-spec` / `3_generate-tasks`). Chosen **(a)**,
+for two reasons: the names already self-sequence (*draft the design → create the spec → generate the tasks*), so a
+prefix is redundant for ordering; and stamping `1_2_3_` reasserts a rigid linearity against exactly the
+depth-relative, re-entrant pipeline this WU establishes (draft-design may emit nothing; stages re-enter on
+axis-keyed valves; depth floats per stage). The differential cost over (b) was negligible — the sweep renumbers
+`process-task-loop` either way, and (b)'s only extra cost was a transient duplicate-`1_` window — so the call is
+pure signal value, and the bare names carry it. Reversible if the planning-order signal is ever missed. The
+original 1-2-3 defect was scope (extending it to `3_process-task-loop` conflated planning order with
+whole-process order); dropping resolves that cleanly.
 
 **Cascade routing.** Whatever the prefix decision, the existing-file rename/renumber cascade — `1_create-spec` /
 `2_generate-tasks` / `3_process-task-loop` plus every cross-reference across workflows / strategies / methods /
@@ -477,27 +535,42 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
 2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
    the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
    (no hard `Class`↔form hook). The draft's least-derived deliverable today.
-3. **`classify-work-unit` touchpoint wiring** — where the method fires in each of `arc-plan` / `create-spec` /
-   `generate-tasks`, what it does (confirm-or-ratchet `Class` against the stage's resolved depth), and the
-   forward-compat boundary that keeps it light enough not to pre-empt `arc-plan-conductor`.
+3. **`classify-work-unit` touchpoint wiring** — where the method fires in each of `draft-design` / `create-spec`
+   / `generate-tasks`, what it does (confirm-or-ratchet `Class` against the stage's resolved depth), and the
+   forward-compat boundary that keeps it light enough not to pre-empt `arc-plan-conductor`. **Commit-timing
+   (resolved):** each touchpoint's `Class` write rides its stage's own planning-ceremony commit — `create-spec`
+   on spec-generation (already a listed meta-touching ceremony), `generate-tasks` on task-list generation
+   (alongside the `**Task List:**` write), `draft-design` on draft-capture (or, at `low`, riding the next
+   ceremony rather than a meta-only micro-commit). The ratchet is **decision-live, persistence-deferred**
+   (§ Mechanism). Remaining deliverable: amend DEV-RULES.ARC's ceremony list to name the planning-stage ops
+   explicitly, so the three new write-sites don't read as meta-timing violations to a future author.
 4. **RFC form** — research and decide what RFC shape fits ARC as a proper complement to the PRD (genuine
-   derivation; draws on the captured deep-research idiom pass).
+   derivation; draws on the captured deep-research idiom pass). **Its own dedicated session:** the research must
+   hold the current PRD shape in frame — RFC and PRD have to complement *and* each stand alone, so the PRD is
+   likely realigned in the same pass; the detailed-subtype template-structure call (§ Detailed-spec subtypes)
+   rides along, since it cannot resolve until the RFC shape is known.
 
 Two design subtleties the manifestation work must resolve, not gloss:
 
 - **The three stages resolve depth from different axes** — drafting and spec from **derivation**, task-gen from
   **scale**. "One mechanism" therefore carries three different *input signals*; the parameterization is not
   symmetric across stages.
-- **Flag-free feed-forward has a hole on the scale axis.** Spec form recovers the derivation lane, but scale is
-  *not* recoverable from spec form (an `outline` may be `light` or `heavy`), so task-gen must read `Class` (or
-  task-list scale) as an explicit input. "The artifact's shape *is* the signal" holds for derivation, not
-  cleanly for scale — the seam needs a deliberate design.
+- **The scale axis is feed-forward-immune** (resolved — § Mechanism). Spec form recovers the derivation lane, but
+  scale is *not* recoverable from any upstream artifact (an `outline` may be `light` or `heavy`), so task-gen reads
+  it directly at entry (grounding breadth, cross-checked against `Class`). Reframed from "a hole" to a property of
+  the axis: the entry-read is load-bearing by design — and since depth is never recorded, every stage re-derives
+  regardless, so there is nothing to thread.
 
-**Status:** all three per-stage manifestations are now resolved (§ Per-stage manifestation), both feed-forward
-holes resolved (resolution rides `Class` + a per-stage axis read, not pure artifact-shape), and the wiring shape
-resolved (the touchpoint *is* each stage's depth-resolution act, axis-keyed). **Remaining pre-spec:** the RFC form
-(item 4 — needs research), Novel's concrete discovery / ADR shaping, and the numbering decision — plus a fresh
-holistic reassess (holes / underserved areas / what belongs at draft time vs spec time) before spec authoring.
+**Status:** all three per-stage manifestations are resolved (§ Per-stage manifestation); the **entry-read
+mechanism is resolved** — reframed as one *forced* per-stage entry-assessment reading the keyed axis from best
+available evidence (the upstream artifact is its richest input, not a separate mechanism), with the scale axis
+named **feed-forward-immune by design** and each read doubling as the stage's `classify-work-unit` touchpoint
+(§ Mechanism). Settled this session: spec-review scaling (form-inherited, SAP-owned — § Spec-review procedure);
+the `Class` ↔ spec-form check declined (§ Open questions); numbering — prefixes dropped (§ Pipeline structure &
+naming); and the **`Class`-write commit-timing** — each touchpoint's write rides its stage's planning-ceremony
+commit, decision-live / persistence-deferred (§ Mechanism; item 3 — leaves a small ceremony-list amendment as the
+only residual). **Remaining pre-spec:** (1) Novel's concrete discovery / ADR shaping; and (2) the RFC form, now
+its own dedicated session (item 4), with the detailed-subtype call riding along.
 
 ## Scope
 
@@ -521,8 +594,14 @@ holistic reassess (holes / underserved areas / what belongs at draft time vs spe
    Confirm-or-ratchet `Class` against each stage's resolved depth; kept light to stay forward-compatible with
    `arc-plan-conductor`.
 7. The **`draft-design` workflow extraction** (`arc-plan` skill → thin dispatcher; drafting becomes a peer
-   workflow) and the **authoring-workflow naming convention** (settled triad names; the prefix-numbering decision
-   open; existing-file cascade routed out). See § Pipeline structure & naming.
+   workflow) and the **authoring-workflow naming convention** (settled triad names, prefixes dropped;
+   existing-file cascade routed out). See § Pipeline structure & naming.
+8. **Workflow-authoring conformance** — the new and restructured authoring workflows (`draft-design` + the
+   reworked `create-spec` / `generate-tasks`) follow `strategy-workflow-authoring`: frontmatter schema (method /
+   extension declarations), body conventions, and **correct interlock / release fire-point placement** — the
+   `classify-work-unit` touchpoints, the per-phase grounding-audit interlock, the spec-finalization review gate,
+   and any commit / push fire-sites carry the right stops and class tags. A standing requirement, surfaced here so
+   it is not deferred or forgotten at authoring time rather than a separate deliverable.
 
 **Out of scope:**
 
@@ -541,20 +620,20 @@ holistic reassess (holes / underserved areas / what belongs at draft time vs spe
 - **`outline` / `brief` spec template *bodies*** — research-grounded; the bodies themselves are authored at
   spec time.
 - **Detailed-subtype template structure** — separate `-prd` / `-rfc` templates vs. one flexing template.
+  Deferred to the dedicated RFC / PRD session (coupled to item 4 — resolves once the RFC shape is known).
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
 - **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation pending);
   only calibration is dogfooding-refinable, not a blanket deferral.
-- **Planning-stage workflow numbering** — drop prefixes entirely vs. renumber the planning trio
-  (`1_draft-design` / `2_create-spec` / `3_generate-tasks`) as instructive anchors; `process-task-loop` loses its
-  number either way. Decide before spec. See § Pipeline structure & naming.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
-- **`Class` ↔ spec-form consistency check — worth it at all?** Once this WU makes the spec form a structured
-  signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block `Class` ↔ form consistency check
-  (`heavy` / `novel` ⇒ `detailed`, etc.) becomes cheap to build. `class-model-foundation` deliberately did **not**
-  build it (the form was freeform prose there, and the lifecycle `classify-work-unit` touchpoints already keep
-  `Class` honest). Open question: does it earn its place *even when easy*? `Class` / depth are advisory signals
-  — a misclassification breaks nothing structural, and a commit-time warning may read as a paternalistic nag.
-  Decide whether to build it, not just how.
+- **`Class` ↔ spec-form consistency check — declined (revisit only on dogfooding evidence).** Once this WU makes
+  the spec form a structured signal (the `Spec ({form}): {name}` H1 + the template family), a warn-not-block
+  `Class` ↔ form check (`heavy` / `novel` ⇒ `detailed`, etc.) would be cheap to build — but **SAP evaluates and
+  declines it** (`class-model-foundation` routed it forward as a candidate, not a requirement). Rationale, in
+  order: the `classify-work-unit` touchpoints (init / activate + the three authoring touchpoints SAP adds) already
+  keep `Class` honest by *active* confirm-or-ratchet, so a passive warn is redundant; `Class` / form are advisory,
+  so a mismatch breaks nothing structural and the gate would prevent no harm; an enforcement-flavored warn
+  undercuts CMF's "suggest, not enforce" stance at the very surface meant to embody it; and it is trivially
+  addable later if drift ever appears (YAGNI) — the structured form signal will be sitting right there if wanted.
 
 ## External research
 
