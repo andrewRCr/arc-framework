@@ -11,17 +11,14 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Task 1.4 — `Design` multi-value plumbing, completing **Phase 1**: a shared
-  `parseIdentifierList` helper (consolidating the three `parseDependsOn` copies), a new `identifier-list`
-  valueClass rendering `Depends On` / `Design` per-element backticked (`` `a`, `b` ``, not the compound
-  `` `a, b` ``), and `validate-meta-spec` accepting one _or_ two `Design` refs. Record-level parse stays
-  render-form-blind via the global `stripInlineCode`.
-- **Next Task:** Task 2.1 — Extract the `draft-design` workflow (Phase 2, line ~125)
+- **Last Completed:** Task 2.3 — `resolve-planning-depth` method authored and wired into `draft-design` (with
+  2.1 the `draft-design` workflow and 2.2 the `arc-plan` dispatcher reduction — Phase 2 tasks 2.1–2.3 done).
+- **Next Task:** Task 2.4 — Depth-relative readiness bar + `high`-only coherence-consolidation criteria
+  (Phase 2, line ~226)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 2, Task 2.1 — author the `draft-design` workflow (peer to create-spec /
-  generate-tasks): one whole-block file with `low` / `medium` / `high` depth lanes, declaring
-  `resolve-planning-depth` + `classify-work-unit` (the methods themselves are authored later in 2.3). Mode shift
-  to workflow authoring — consult strategy-workflow-authoring; two-copy edit, mirror to the package source.
+- **Next Action:** Begin Task 2.4 — make `draft-design`'s synthesis states (`fresh → rough → maturing →
+  formalization-ready`) depth-relative, and realize the three `high`-only coherence-consolidation criteria
+  (gate / interim softcap / no-detail-loss) per spec § Coherence-consolidation. Workflow authoring; two-copy edit.
 
 ---
