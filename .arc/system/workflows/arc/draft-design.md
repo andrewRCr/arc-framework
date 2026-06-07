@@ -28,8 +28,9 @@ and no meta file may exist yet.
 Make **one evidence read** on the derivation axis — the problem framing / origin plus a quick compose-vs-invent
 scan. That single read drives both methods:
 
-- `resolve-planning-depth` yields the **level** — `low` / `medium` / `high`. Which evidence reads which level is
-  the method's to define; this stage initiates it on the derivation axis and consumes the result.
+- [`resolve-planning-depth`][resolve-planning-depth] yields the **level** — `low` / `medium` / `high`. Which
+  evidence reads which level is the method's to define; this stage initiates it on the derivation axis and
+  consumes the result.
 - [`classify-work-unit`][classify-work-unit] confirms-or-ratchets the work unit's **`Class`** — born here, as
   this is its first touchpoint.
 
@@ -118,6 +119,7 @@ entry evidence.
 
 ---
 
+[resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

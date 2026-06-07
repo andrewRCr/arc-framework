@@ -184,7 +184,7 @@ rather than introducing a new mechanism).
   preserved structurally — the skill stays the orchestration entry point — with no forward-reference to the
   conductor in the body.
 
-### `[ ]` **2.3 Author the `resolve-planning-depth` method + wire draft-design (first touchpoint)**
+### `[x]` **2.3 Author the `resolve-planning-depth` method + wire draft-design (first touchpoint)**
 
 - _Goal:_ A new SAP-owned `resolve-planning-depth` method defines the shared one-entry-assessment shape (read the
   stage's keyed axis against best-available evidence → resolve the transient `planning depth` ordinal), and
@@ -197,21 +197,31 @@ rather than introducing a new mechanism).
 - _Note:_ Structural design settled; only thresholds (what evidence reads `high`) calibrate via dogfooding.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **2.3.a Author the `resolve-planning-depth` method**
-        - The shared shape (keyed-axis read vs. best evidence → `low`/`medium`/`high`), with the three stages'
-          per-axis rows documented (lifted from R1). Mirrored to the package source; CI method-coverage is
-          satisfied by the three planning-workflow declarations.
+    - `[x]` **2.3.a Author the `resolve-planning-depth` method**
+        - Authored `resolve-planning-depth.md` (both copies, byte-identical): the shared one-read shape (keyed
+          axis vs. best evidence → `low`/`medium`/`high`), the level semantics (authoring distance, not the bar's
+          height; a measurement against the standing `Class`), the three per-axis rows (draft-design / create-spec
+          = derivation, generate-tasks = scale and feed-forward-immune), and the paired-not-merged relationship
+          with `classify-work-unit`. CI coverage is satisfied by draft-design's existing declaration; create-spec
+          and generate-tasks declare it at their stages. On-demand / re-entry firing is left to the cross-stage
+          phase.
 
-    - `[ ]` **2.3.b Wire draft-design's invocation, paired with `classify-work-unit`**
-        - The single derivation read drives both the depth ordinal and the `Class` confirm-or-ratchet. The
-          `**Class:**` write defers to the draft-capture ceremony commit (2.1.d); the persistence-deferred _rule_
-          lands in 5.2. Add `draft-design` to `classify-work-unit`'s `> Workflow:` header.
+    - `[x]` **2.3.b Wire draft-design's invocation, paired with `classify-work-unit`**
+        - Linked `resolve-planning-depth` in draft-design's Step 1 (the single derivation read drives both the
+          level and the `Class` confirm-or-ratchet; `**Class:**` write still defers to the draft-capture ceremony
+          commit, with the persistence rule landing in 5.2) and added `draft-design` to `classify-work-unit`'s
+          `> Workflow:` header (both method copies).
 
-    - `[ ]` **2.3.c Re-examine `draft-design` against the landed method**
-        - With `resolve-planning-depth` authored, revisit `draft-design`'s Step 1: replace the bare-name
-          reference with a direct link, confirm the thin initiate-and-consume seam still holds against the
-          method's actual contract, and reconcile any drift (the depth→evidence mapping stays wholly the
-          method's, not restated in the workflow).
+    - `[x]` **2.3.c Re-examine `draft-design` against the landed method**
+        - Verified against the now-authored method: Step 1 carries the direct link and explicitly defers the
+          evidence→level mapping to the method ("the method's to define"); Step 2 is procedure only. The thin
+          initiate-and-consume seam holds — no drift, no restatement. The workflow's compose-vs-invent step-up cue
+          is consistent with (not a duplicate of) the method's level semantics.
+
+- _Outcome:_ `resolve-planning-depth` lands as the shared DRY home with `draft-design` as its first wired
+  consumer. Following the `classify-work-unit` precedent, the method's `> Workflow:` header tracks actual
+  declarers incrementally — so 3.1.d / 4.1.b now carry explicit reminders to add create-spec / generate-tasks to
+  both method headers when they wire it.
 
 ### `[ ]` **2.4 Depth-relative readiness bar + `high`-only coherence-consolidation criterion**
 
@@ -266,8 +276,9 @@ written as a standalone method a future review-method-family absorbs rather than
         - Add both to create-spec's `arc.methods` — create-spec has **no `arc:` frontmatter block today**, so add
           one. The single derivation read (evidence = the `draft-*` when present, else `Class` + a problem read,
           narrowing to brief-vs-outline) drives depth and the `Class` confirm-or-ratchet; `**Class:**` write
-          defers to the spec-generation ceremony commit (5.2). Add create-spec to `classify-work-unit`'s
-          `> Workflow:` header. The new `arc:` block accrues coherently across this phase — `spec-review` joins
+          defers to the spec-generation ceremony commit (5.2). Add create-spec to both `resolve-planning-depth`'s
+          and `classify-work-unit`'s `> Workflow:` headers. The new `arc:` block accrues coherently across this
+          phase — `spec-review` joins
           `arc.methods` (3.3.b) and `pre-spec-finalization-review` joins `arc.extensions` (3.4.a).
 
     - `[ ]` **3.1.e Keep alignment checks always-on**
@@ -351,7 +362,8 @@ grammar only; never a second "flat" variant.
 
     - `[ ]` **4.1.b Confirm-or-ratchet + deferred write**
         - The same read confirms or ratchets `Class`; `**Class:**` write defers to the task-list generation
-          ceremony commit (5.2). Add generate-tasks to `classify-work-unit`'s `> Workflow:` header.
+          ceremony commit (5.2). Add generate-tasks to both `resolve-planning-depth`'s and
+          `classify-work-unit`'s `> Workflow:` headers.
 
 ### `[ ]` **4.2 One-grammar depth variants — pass structure + phase count**
 
