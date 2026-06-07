@@ -40,42 +40,39 @@ mirror); the plumbing is single-source CLI code under `packages/arc-framework/sr
   dropped author-facing taxonomy meta from the template bodies (rationale stays in the spec). Spec R2 (H1
   convention) + R3 (outline section set) reconciled to match; two-copy edit (`.arc/` + package mirror).
 
-### `[ ]` **1.2 `template-spec-detailed-prd.md` — de-straddle + complementary-use note**
+### `[x]` **1.2 `template-spec-detailed-prd.md` — de-straddle + complementary-use note**
 
 - _Goal:_ The detailed PRD form exists as a cleanly product/feature template — evolved from the current full
   spec shape — with the technical-design straddle stripped out and a complementary-use note for layered mode.
-- _Context:_ Evolves today's `template-prd.md`; the old file's retirement + create-spec's repointing land in
-  Phase 3 (3.1) so the reference and the file move together, keeping every between-phase commit coherent.
 
-    - `[ ]` **1.2.a Author the detailed-PRD template**
-        - Lead with the Spec (`detailed` · `PRD`): {wu-name} H1; keep numbered P0/P1/P2 Requirements + concrete
-          Success Criteria (the current full-spec substance).
+    - `[x]` **1.2.a Author the detailed-PRD template**
+        - New `template-spec-detailed-prd.md` evolved from `template-prd.md` (left in place — retires in Phase 3):
+          H1 Spec (`detailed` · `PRD`): {wu-name}, P0/P1/P2 Requirements framed as the validation substrate,
+          Success Criteria → Open Questions tail; placeholder aligned to `{wu-name}`.
 
-    - `[ ]` **1.2.b De-straddle the PRD**
-        - Strip "For technical work: system scenarios" from User Stories; reframe Technical Considerations from
-          "the core of technical PRDs" to constraints/dependencies/integration points for downstream design.
-          Technical _design_ now lives in the RFC.
+    - `[x]` **1.2.b De-straddle the PRD**
+        - User Stories now features-only; Technical Considerations reframed to constraints / dependencies /
+          integration points that _bound_ the downstream design (technical design lives in the RFC).
 
-    - `[ ]` **1.2.c Complementary-use note**
-        - In-template guidance for the layered path: spine-removal + PRD-referencing (no separate "pure" template
-          — the templates are already "remove what doesn't apply").
+    - `[x]` **1.2.c Complementary-use note**
+        - Realized structurally rather than as prose: an `omit-when-paired` heading flag + a non-rendering
+          scaffolding comment on the droppable section (PRD keeps the spine; Technical Considerations moves to
+          the RFC when paired). The when/why-to-pair advisory moves to create-spec.
 
-### `[ ]` **1.3 `template-spec-detailed-rfc.md` — RFC section set + complementary-use note**
+### `[x]` **1.3 `template-spec-detailed-rfc.md` — RFC section set + complementary-use note**
 
 - _Goal:_ The detailed RFC form exists realizing the RFC section set, carrying its enumerable substance in a
   structured Proposed Design (replacing the PRD's User Stories + Requirements), with the complementary-use note.
-- _Note:_ Ground the section set in the 2026-06-06 RFC/technical-design-doc research pass (sources: Rust RFC, Go
-  proposal, IETF RFC 7322, Oxide RFD-0001, Design Docs at Google, GitLab/Squarespace/Uber, Pragmatic Engineer).
 
-    - `[ ]` **1.3.a RFC spine + divergent middle**
-        - H1 Spec (`detailed` · `RFC`): {wu-name} + Purpose · Introduction/Context · Goals/Non-Goals · **Proposed
-          Design** (architecture, interfaces, data model, behavior) · **Alternatives & Rationale** ·
-          **Cross-cutting Considerations** (security/perf/testing/migration/rollout) · Success Criteria · Open
-          Questions. Omit the P0/P1/P2 Requirements enumeration (un-idiomatic for design docs).
+    - `[x]` **1.3.a RFC spine + divergent middle**
+        - New `template-spec-detailed-rfc.md`: H1 Spec (`detailed` · `RFC`): {wu-name}, Introduction/Context ·
+          Goals · Non-Goals · Proposed Design (the substrate) · Alternatives & Rationale · Cross-cutting
+          Considerations (user-facing impact folded in) · Success Criteria · Open Questions. No P0/P1/P2 enum.
 
-    - `[ ]` **1.3.b Complementary-use note**
-        - Referential mode: drop the shared spine, point at the upstream PRD (the RFC goes referential in layered
-          use).
+    - `[x]` **1.3.b Complementary-use note**
+        - Realized structurally: the three context-spine sections each carry an `omit-when-paired` heading flag,
+          plus a top scaffolding comment (referential mode — the PRD owns the spine, the RFC drops it when
+          paired). When/why-to-pair advisory moves to create-spec.
 
 ### `[ ]` **1.4 `Design` multi-value plumbing — shared parse helper + validation**
 
