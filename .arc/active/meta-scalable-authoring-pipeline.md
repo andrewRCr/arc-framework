@@ -8,21 +8,20 @@
 - **Depends On:** `class-model-foundation`
 
 - **Origin:** [internal]
-- **Design:** `draft-scalable-authoring-pipeline.md`
+- **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** [none]
 
-- **Last Completed:** RFC-form derivation + draft consolidation — derived the RFC section set, reframed the
-  PRD / RFC subtype axis as *derivation-kind* (one spec per WU; "want both" = decompose), de-straddled the PRD,
-  decided separate `-prd` / `-rfc` templates, added the opt-in layered model (committed meta `**Design:**`
-  multi-value plumbing), restated validation as Success-Criteria-plus-grounding, then consolidated the draft to a
-  coherent spec-input and codified a `high`-only coherence-consolidation backstop at draft-design's formalization
-  gate (all in `draft-scalable-authoring-pipeline.md`)
+- **Last Completed:** Spec creation — formalized the spec-ready draft into `spec-scalable-authoring-pipeline.md`,
+  a `detailed`·RFC authored on `template-prd.md` (interim form-note in the H1, mirroring CMF): P0/P1 requirements
+  plus concrete Success Criteria, the draft's design carried forward intact. Both PROJECT-PRD (*Operational friction
+  down, judgment friction up*) and TECHNICAL-OVERVIEW (§ 2) alignment checks passed. Draft retired (no `notes-*`
+  warranted — residual value was derivation narrative, preserved in git history).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** The draft is **spec-ready** — proceed to `create-spec`. Author this WU's own detailed·technical
-  spec on `template-prd.md` (interim constraint — SAP ships the RFC template it would otherwise use), noting the
-  form in the H1. Residual spec-time items: template bodies + the small DEV-RULES.ARC ceremony-list amendment
-  (§ Derivation pending item 3).
+- **Next Action:** Run `generate-tasks` — decompose `spec-scalable-authoring-pipeline.md` into the task list.
+  Residual spec-/implementation-time items are folded into the spec's § Open Questions: the four template *bodies*;
+  the DEV-RULES.ARC meta-timing ceremony-list amendment (the three planning-stage `Class`-write sites); and
+  threshold calibration.
 
 ---
