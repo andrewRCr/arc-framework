@@ -160,19 +160,29 @@ rather than introducing a new mechanism).
   (reconciled + directly linked at 2.3.c). The workflow stands whole; `arc-plan` still holds the live procedure
   until its dispatcher reduction.
 
-### `[ ]` **2.2 Reduce the `arc-plan` skill to a thin dispatcher into `draft-design`**
+### `[x]` **2.2 Reduce the `arc-plan` skill to a thin dispatcher into `draft-design`**
 
 - _Goal:_ The `arc-plan` skill is a thin trigger that resolves depth and dispatches into `draft-design` — the
   established arc-`*` skill shape (`arc-session` → `session-init`) — with the depth-resolution left as a clean
   seam the conductor later wraps.
 
-    - `[ ]` **2.2.a Rewrite `SKILL.md` to dispatch**
-        - Move the inline elicitation/synthesis procedure into the workflow; keep the skill to depth-resolve +
-          dispatch. Preserve the seam where the conductor's rich selection/orchestration later attaches.
+    - `[x]` **2.2.a Rewrite `SKILL.md` to dispatch**
+        - Rewrote `arc-plan/SKILL.md` to the thin-dispatcher shape (modeled on `arc-session` → `session-init`):
+          it dispatches into `draft-design` and describes what that workflow does — resolve the planning-depth
+          level on the derivation axis (paired with `Class`), then draft at depth — with a positional arg for the
+          starting point. The elicitation/synthesis procedure already moved to `draft-design` in 2.1, so this
+          strips it from the skill; the not-during-execution and not-a-spec-gate guards are kept.
 
-    - `[ ]` **2.2.b Sync canonical → package mirror**
-        - Update both canonical copies (`.arc/system/.internal/skills/arc-plan/` and the package mirror); note the
-          gitignored harness-copy drift per the self-hosting convention.
+    - `[x]` **2.2.b Sync canonical → package mirror**
+        - Both committed copies updated byte-identical (`.arc/system/.internal/skills/arc-plan/` + package
+          mirror); the gitignored `.claude/` harness copy was refreshed for live correctness (not committed, per
+          the self-hosting drift convention).
+
+- _Outcome:_ The skill _describes_ the depth resolution rather than performing it — `draft-design`'s Step 1 owns
+  the read, so there is no duplication; the goal's "resolve depth → dispatch" is realized as "dispatch into the
+  workflow that resolves depth," exactly as `arc-session` dispatches into `session-init`. The conductor seam is
+  preserved structurally — the skill stays the orchestration entry point — with no forward-reference to the
+  conductor in the body.
 
 ### `[ ]` **2.3 Author the `resolve-planning-depth` method + wire draft-design (first touchpoint)**
 
