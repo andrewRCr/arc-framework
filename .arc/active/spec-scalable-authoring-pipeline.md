@@ -198,10 +198,15 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
    (R1) wired into both workflows, written as **whole-block depth variants** (a `low` task-pass structure vs a
    `high` one), never fine-grained "if light, skip this sentence" — so they extract cleanly to fragments when
    composition lands (forward-compat, `composable-workflows`; soft coordination, no hard dep). Includes:
-    - **create-spec:** discovery depth scales (intent+scope+one signal → decision-centric → full checklist); the
-      template selected scales (brief / outline / detailed-prd|rfc); the `detailed`-only subtype gate (R4). The
-      **PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks do not scale as lanes** — always-on, cost-proportional
-      floors (§ Floors below the depth axis).
+    - **create-spec:** discovery depth scales (intent+scope+one signal → decision-centric → full completeness
+      pass); the template selected scales (brief / outline / detailed-prd|rfc); the `detailed`-only subtype gate
+      (R4). create-spec's discovery is **spec-crystallization** — completeness and concreteness against the form's
+      enumerable substrate + Success Criteria — distinct from draft-design's design-shaping elicitation; the two
+      stages do not overlap. Consequently the legacy discovery-checklist / spec-readiness *procedure* relocates out
+      of `strategy-work-planning` into the workflows (draft-design already inlines the design-shaping elicitation;
+      create-spec carries its own completeness pass), the strategy keeping conventions only — procedure belongs in
+      workflows, not strategy docs. The **PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks do not scale as
+      lanes** — always-on, cost-proportional floors (§ Floors below the depth axis).
     - **generate-tasks (one-grammar):** one task-list grammar parameterized by depth — pass structure (`low` one
       combined pass → `medium` passes 1+2 merged → `high` full 3-pass); phase count (1 substantive + always-
       present verification → few → 3–7 + dedicated verification); grounding-audit depth (R8). Never a second

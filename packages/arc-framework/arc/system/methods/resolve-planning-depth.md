@@ -6,7 +6,7 @@ override-active: false
 
 # Method: resolve-planning-depth
 
-> - **Workflow:** [draft-design.md][draft-design]
+> - **Workflow:** [draft-design.md][draft-design], [1_create-spec.md][create-spec]
 > - **When:** A planning stage performs its single entry-assessment — the one evidence read that opens the stage.
 >
 > - **Contract:** Given the stage's keyed axis and the best available evidence, resolve the **planning-depth
@@ -56,4 +56,5 @@ Structural design is settled; only the **thresholds** — what breadth reads `hi
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md
+[create-spec]: ../workflows/arc/1_create-spec.md
 [classify-work-unit]: classify-work-unit.md

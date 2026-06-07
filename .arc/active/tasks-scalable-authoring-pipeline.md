@@ -268,34 +268,43 @@ written as a standalone method a future review-method-family absorbs rather than
   full checklist); the template selected scales with it.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.1.a Whole-block discovery depth variants**
-        - Rework create-spec's discovery (Step 3 today) into `low`/`medium`/`high` whole blocks.
+    - `[x]` **3.1.a Whole-block discovery depth variants**
+        - Reworked create-spec's discovery into `low`/`medium`/`high` whole blocks as **spec-crystallization**
+          content (completeness against the form's enumerable substrate + Success Criteria), distinct from
+          draft-design's design-shaping — the two stages no longer overlap. Added a stage-boundary note (unsettled
+          _design_ surfacing here is a derivation signal → step back, don't re-shape) and an open-questions guard
+          separating settle-able design (must settle pre-impl) from genuine impl-detail latitude (may stay open).
+          The `detailed`-only subtype folds into the `detailed` lane, not a discrete skippable step (composability).
+          Recorded the framing in spec § R7 (spec-crystallization vs shaping; procedure relocates to the workflows).
 
     - `[ ]` **3.1.b Template selection + retire `template-prd.md`**
-        - Point create-spec at the four-template family; retire the old `template-prd.md` and repoint its
-          reference link (coordinates with Phase 1, where the detailed-PRD template was authored).
+        - Template **selection** done — create-spec's Step 5 points at the four-template family
+          (`brief`/`outline`/`detailed`-prd|rfc) with link defs. **Retirement** of `template-prd.md` (both copies)
+          plus its live reference cascade (`strategy-work-planning`, `strategy-file-classification`, the template
+          READMEs, the package-sync dependency list) is the remaining half — split into its own commit.
 
-    - `[ ]` **3.1.c Form-agnostic reframe**
-        - Replace generic "PRD = any spec" usage with "detailed spec" across create-spec's surfaces; keep
-          `PROJECT-PRD` as a distinct, named artifact.
+    - `[x]` **3.1.c Form-agnostic reframe**
+        - Reframed PRD→spec across create-spec — title `# Workflow: Create Spec`, the `purpose` line, and the body;
+          kept `PROJECT-PRD` a distinct named artifact (the "Not the PROJECT-PRD" note). File name unchanged
+          (`1_create-spec.md`) — the `1_` prefix drop is `doc-cascade-sweep`'s.
 
-    - `[ ]` **3.1.d Declare + invoke `resolve-planning-depth` + `classify-work-unit`**
-        - Add both to create-spec's `arc.methods` — create-spec has **no `arc:` frontmatter block today**, so add
-          one. The single derivation read (evidence = the `draft-*` when present, else `Class` + a problem read,
-          narrowing to brief-vs-outline) drives depth and the `Class` confirm-or-ratchet; `**Class:**` write
-          defers to the spec-generation ceremony commit (5.2). Add create-spec to both `resolve-planning-depth`'s
-          and `classify-work-unit`'s `> Workflow:` headers. The new `arc:` block accrues coherently across this
-          phase — `spec-review` joins
-          `arc.methods` (3.3.b) and `pre-spec-finalization-review` joins `arc.extensions` (3.4.a).
+    - `[x]` **3.1.d Declare + invoke `resolve-planning-depth` + `classify-work-unit`**
+        - Added create-spec's `arc:` frontmatter block (`resolve-planning-depth`, `classify-work-unit`) — none
+          existed. Step 1 is the single derivation read driving both depth (→ form: `low`→`brief` /
+          `medium`→`outline` / `high`→`detailed`) and the `Class` confirm-or-ratchet; `**Class:**` write defers to
+          the Step 6 spec-generation ceremony commit (persistence rule lands in 5.2). Added create-spec to both
+          `resolve-planning-depth`'s and `classify-work-unit`'s `> Workflow:` headers + link defs (both copies).
+          `spec-review` / `pre-spec-finalization-review` join the `arc:` block at 3.3.b / 3.4.a.
 
-    - `[ ]` **3.1.e Keep alignment checks always-on**
-        - PROJECT-PRD / TECHNICAL-OVERVIEW checks stay binary always-on floors, not depth lanes.
+    - `[x]` **3.1.e Keep alignment checks always-on**
+        - PROJECT-PRD (Step 3) and TECHNICAL-OVERVIEW (Step 4) checks kept as binary always-on floors, labeled as
+          such — cost-proportional to spec surface, never depth-laned.
 
-    - `[ ]` **3.1.f Strip template scaffolding markers on emit**
-        - When create-spec emits a spec, strip the detailed templates' mechanical markers — the
-          `omit-when-paired` heading flags and the non-rendering paired-mode scaffolding comments — so a
-          finalized spec carries none. Universal (standalone strips too); the paired path additionally drops the
-          flagged context-spine sections (R16 / the detailed templates).
+    - `[x]` **3.1.f Strip template scaffolding markers on emit**
+        - create-spec's Step 5 strips the detailed templates' scaffolding on emit — the top paired-mode comment
+          block, the `omit-when-paired` / `optional | omit-when-paired` heading flags (heading text kept), and the
+          inline non-rendering comments — so a finalized spec carries none. Standalone strips markers only; the
+          paired path additionally drops the flagged sections (PRD Technical Considerations; RFC context spine).
 
 ### `[ ]` **3.2 `detailed`-only subtype gate — PRD vs RFC by dominant derivation-kind**
 
@@ -303,6 +312,10 @@ written as a standalone method a future review-method-family absorbs rather than
   dominates_ (product/requirements → PRD; technical-design → RFC), reworking today's always-on
   "feature vs technical" step into this detailed-only gate; `brief` / `outline` stay single category-agnostic
   forms.
+- _Note:_ 3.1 (Chunk A) already removed the stale feature/technical step and seeded the minimal derivation-kind
+  gate at the head of create-spec's `detailed` discovery lane (folded into the lane, not a discrete step). 3.2 now
+  **enriches** that seam — chiefly 3.2.b's want-both decomposition signal — rather than building the gate from
+  scratch; 3.2.a collapses to confirming the seed reads cleanly and any phrasing polish.
 
     - `[ ]` **3.2.a Rework the feature-vs-technical step into the subtype gate**
         - Replace create-spec's stale always-on Step 2 — the feature/technical classification, which **feeds
@@ -563,7 +576,9 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
 - _Goal:_ The strategy docs carry the scaled-pipeline conventions — the spec-form taxonomy
   (brief/outline/detailed-prd/rfc), the depth model and its three asymmetric axes, and the validation contract
   (Success Criteria universal; task list against the form's enumerable substrate) — across work-organization /
-  work-planning / file-classification.
+  work-planning / file-classification. Also **relocates procedure out of `strategy-work-planning`** into the
+  workflows (the discovery-checklist / spec-readiness content): procedure belongs in workflows, the strategy
+  keeping conventions only.
 - **Strategies:** strategy-package-project-sync.md
 
     - `[ ]` **6.4.a Form taxonomy + depth model → `strategy-work-planning`**
@@ -579,6 +594,14 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
     - `[ ]` **6.4.c Spec-form naming → `strategy-file-classification`**
         - Add the spec-form naming + the spec template family to `strategy-file-classification` (the file-taxonomy
           home), cross-referencing the convention from 6.3 if useful.
+
+    - `[ ]` **6.4.d Relocate procedure out of `strategy-work-planning` into the workflows**
+        - Delete the now-dead **Discovery Checklist** + **Spec Readiness** sections — procedure belongs in
+          workflows, not strategy docs: the design-shaping elicitation already lives inline in draft-design, and
+          the readiness signal is draft-design's depth-relative formalization-ready states (2.4). Reframe **Spec
+          Conventions** to the four-form family (drop "PRD = default form" / `# PRD:` H1 framing). Fix the dangling
+          `discovery checklist` references (`STRATEGY-INDEX`, `strategy-planning-module`). No-loss check: confirm
+          draft-design carries everything the deleted checklist held (e.g. an explicit "why now").
 
 ## **Phase 7:** Verification
 
