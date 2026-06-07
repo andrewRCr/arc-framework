@@ -11,17 +11,17 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Tasks 1.1–1.3 — the four-form spec template family (`template-spec-brief` / `-outline` /
-  `-detailed-prd` / `-detailed-rfc`), two-copy, carrying the H1 grammar (backticked form/subtype + ` · ` middot,
-  natural WU name) and `Success Criteria` as the form-invariant validation anchor; layered mode handled by
-  structural `omit-when-paired` markers. Spec R2/R3/R5/R16 + SC #1 reconciled to parity.
-- **Next Task:** Task 1.4 — `Design` multi-value plumbing (Phase 1, line ~77)
+- **Last Completed:** Task 1.4 — `Design` multi-value plumbing, completing **Phase 1**: a shared
+  `parseIdentifierList` helper (consolidating the three `parseDependsOn` copies), a new `identifier-list`
+  valueClass rendering `Depends On` / `Design` per-element backticked (`` `a`, `b` ``, not the compound
+  `` `a, b` ``), and `validate-meta-spec` accepting one _or_ two `Design` refs. Record-level parse stays
+  render-form-blind via the global `stripInlineCode`.
+- **Next Task:** Task 2.1 — Extract the `draft-design` workflow (Phase 2, line ~125)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.4 — the isolated `Design` multi-value CLI plumbing: extract a shared
-  `parseIdentifierList` helper (consolidating the three `parseDependsOn` copies), teach `validate-meta-spec` to
-  accept one _or_ two comma-separated `Design` refs (keep the multiple-_lines_ rejection), confirm consumer-site
-  tolerance + create-spec's write. Test-first; single-source CLI under `packages/arc-framework/src/` (no `.arc/`
-  mirror).
+- **Next Action:** Begin Phase 2, Task 2.1 — author the `draft-design` workflow (peer to create-spec /
+  generate-tasks): one whole-block file with `low` / `medium` / `high` depth lanes, declaring
+  `resolve-planning-depth` + `classify-work-unit` (the methods themselves are authored later in 2.3). Mode shift
+  to workflow authoring — consult strategy-workflow-authoring; two-copy edit, mirror to the package source.
 
 ---
