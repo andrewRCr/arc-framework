@@ -317,6 +317,58 @@ describe("validateFiles", () => {
   });
 });
 
+describe("validateFiles — Design multi-value (one or two refs)", () => {
+  it("passes a two-value Design in per-element backtick form", () => {
+    const files = { [META_PATH_FIXTURE]: metaFile("- **Design:** `spec-a.md`, `spec-b.md`") };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("tolerates a two-value Design in the legacy compound whole-value form", () => {
+    const files = { [META_PATH_FIXTURE]: metaFile("- **Design:** `spec-a.md, spec-b.md`") };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("flags a malformed element in an otherwise-valid two-value Design", () => {
+    const files = { [META_PATH_FIXTURE]: metaFile("- **Design:** `spec-a.md`, `garbage`") };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    const diag = result.diagnostics.find((d) => d.includes(META_PATH_FIXTURE));
+    expect(diag).toBeDefined();
+    expect(diag).toContain("garbage");
+    expect(diag).toContain("expected:");
+  });
+
+  it("rejects more than two references on one Design line", () => {
+    const files = { [META_PATH_FIXTURE]: metaFile("- **Design:** `a.md`, `b.md`, `c.md`") };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    const diag = result.diagnostics.find((d) => d.includes(META_PATH_FIXTURE));
+    expect(diag).toBeDefined();
+    expect(diag).toContain("Design");
+    expect(diag).toMatch(/two|2/);
+  });
+
+  it("still rejects multiple Design *lines* (the convention is one comma-separated bullet)", () => {
+    const content = [
+      "# Metadata: Foo",
+      "",
+      "- **State:** Active",
+      "- **Design:** `spec-a.md`",
+      "- **Design:** `spec-b.md`",
+      "- **Task List:** tasks-foo.md",
+      "",
+    ].join("\n");
+    const files = { [META_PATH_FIXTURE]: content };
+    const result = validateFiles(Object.keys(files), fakeReader(files));
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => d.includes("multiple"))).toBe(true);
+  });
+});
+
 describe("validateLifecycleFields — core-block table form", () => {
   it("validates State recovered from the hoisted table (Design bullet unchanged)", () => {
     const files = {

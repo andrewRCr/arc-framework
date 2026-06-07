@@ -74,35 +74,12 @@ mirror); the plumbing is single-source CLI code under `packages/arc-framework/sr
           plus a top scaffolding comment (referential mode — the PRD owns the spine, the RFC drops it when
           paired). When/why-to-pair advisory moves to create-spec.
 
-### `[ ]` **1.4 `Design` multi-value plumbing — shared parse helper + validation**
+### `[x]` **1.4 `Design` multi-value plumbing — shared parse helper + validation**
 
 - _Goal:_ The meta `**Design:**` field is accepted as one _or_ two references end-to-end (parse, validation,
   consuming sites, create-spec's write), following the `Depends On` convention — one bullet, comma-separated,
   each element individually backticked (`` `a`, `b` `` — two discrete tokens, not the compound `` `a, b` ``) — so
   the layered pattern and create-spec's two-reference write are real rather than fiction.
-- _Context:_ `Design` and `Depends On` share the `render: "bullet"` descriptor; this work moves both to a new
-  `valueClass: "identifier-list"` whose `formatValue` renders each comma-separated element individually backticked
-  (the per-element convention, chosen over the compound whole-value form). The record-level **parse needs no
-  change** — the global `stripInlineCode` recovers the comma-joined value from either render form, so consumers
-  are blind to it. The only parse duplication is the comma-split: three byte-identical private `parseDependsOn`
-  helpers (`ready-mine-source.ts`, `in-flight-derivation.ts`, `worktree-roster.ts`), consolidated into the shared
-  helper that also drives the render. `validate-meta-spec.ts` actively rejects more than one `Design` value today.
-- _Note:_ Spans ~6 files (the shared helper + `formatValue`/descriptors + 3 refactored `Depends On` sites +
-  `validate-meta-spec.ts`), plus migrating the two existing two-value `Depends On` metas to the per-element form.
-  Single-source CLI code under `packages/arc-framework/src/` — no `.arc/` mirror; the two migrated metas live in
-  `.arc/backlog/planned/`.
-- **Strategies:** strategy-testing-methodology.md
-
-    Build `test-first` (one behavior at a time):
-
-    - the shared `parseIdentifierList` helper splits a comma-separated value, trims, and resolves `[none]` /
-      empty / absent to no references
-    - it returns results identical to the three `parseDependsOn` copies it replaces (behavior-preserving refactor)
-    - a single `Design` reference parses to one value; two comma-separated refs parse to a list
-    - `validateSpec` accepts one ref; accepts two comma-separated refs; still rejects more than one `**Design:**`
-      _line_; flags a malformed element
-    - a two-value list field renders each element individually backticked (`` `a.md`, `b.md` ``, never the
-      compound `` `a.md, b.md` ``) via `formatValue`, and round-trips back through the shared parse unchanged
 
     - `[x]` **1.4.a Shared `parseIdentifierList` helper + `identifier-list` per-element render + consolidate**
         - Exported `parseIdentifierList` from `meta-reader.ts` and refactored the three byte-identical private
@@ -114,14 +91,24 @@ mirror); the plumbing is single-source CLI code under `packages/arc-framework/sr
           comma-joined value). Migrated the two existing two-value `Depends On` metas
           (`concurrent-work-conventions`, `doc-cascade-sweep`) to the per-element form.
 
-    - `[ ]` **1.4.b Accept one _or_ two `Design` refs in `validate-meta-spec.ts`**
-        - Split the captured `Design` value via the shared helper and shape-check each element (1 or 2); retain
-          the existing multiple-_lines_ rejection (the convention is one comma-separated bullet).
+    - `[x]` **1.4.b Accept one _or_ two `Design` refs in `validate-meta-spec.ts`**
+        - `validateSpec` strips code spans globally then splits, so one _or_ two comma-separated `Design` refs pass
+          (per-element `` `a`, `b` `` and the legacy compound `` `a, b` `` both), each element shape-checked; a
+          third ref and multiple `**Design:**` _lines_ still fail. `collectFieldValues` now returns raw values
+          (Cohort normalizes at its call site; State only counts lines).
 
-    - `[ ]` **1.4.c Consuming-site tolerance + create-spec write**
-        - Confirm the single-string `Design` readers (e.g. `in-flight-derivation.ts`) tolerate a two-value comma
-          string; create-spec's write passes a comma-joined value that renders per-element backticked via the
-          `identifier-list` `formatValue` path (no per-site render code).
+    - `[x]` **1.4.c Consuming-site tolerance + create-spec write**
+        - Confirmed: the single-string `Design` readers (`in-flight-derivation.ts`) carry a two-value comma string
+          unchanged (parse strips per-element backticks globally → comma-joined value); the write path
+          (`worktree-scaffold` → `renderMetaFile`) renders per-element via the `identifier-list` `formatValue`, no
+          per-site render code. No standalone `create-spec` CLI write exists yet (workflow-driven).
+
+- _Outcome:_ `Design` accepts one _or_ two references end-to-end. One shared `parseIdentifierList` split drives
+  both the per-element render (new `identifier-list` valueClass) and every consumer's parse; the validator accepts
+  one or two refs; single-string readers carry the comma-joined value unchanged. Because the record-level parse is
+  render-form-blind (the global `stripInlineCode`), the convention was upgraded mid-execution from the planned
+  compound `` `a, b` `` to per-element `` `a`, `b` `` at zero consumer cost — the two existing two-value
+  `Depends On` metas migrated to match.
 
 ## **Phase 2:** The `draft-design` stage + `arc-plan` dispatcher
 
