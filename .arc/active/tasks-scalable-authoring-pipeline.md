@@ -197,20 +197,29 @@ rather than introducing a new mechanism).
           `**Class:**` write defers to the draft-capture ceremony commit (2.1.d); the persistence-deferred _rule_
           lands in 5.2. Add `draft-design` to `classify-work-unit`'s `> Workflow:` header.
 
+    - `[ ]` **2.3.c Re-examine `draft-design` against the landed method**
+        - With `resolve-planning-depth` authored, revisit `draft-design`'s Step 1: replace the bare-name
+          reference with a direct link, confirm the thin initiate-and-consume seam still holds against the
+          method's actual contract, and reconcile any drift (the depth→evidence mapping stays wholly the
+          method's, not restated in the workflow).
+
 ### `[ ]` **2.4 Depth-relative readiness bar + `high`-only coherence-consolidation criterion**
 
 - _Goal:_ draft-design's synthesis states (`fresh → rough → maturing → formalization-ready`) become
-  depth-relative — "formalization-ready" means ready _at the chosen depth_ — and a `high`-only
-  coherence-consolidation criterion reconciles accreted draft layers into one clean input before handoff.
+  depth-relative — "formalization-ready" means ready _at the chosen depth_ — and `high`-only
+  coherence-consolidation criteria (a consolidation rewrite at the gate, an interim accretion softcap, and a
+  no-detail-loss check) reconcile accreted draft layers into one clean input without dropping substance.
 
     - `[ ]` **2.4.a Depth-relative readiness states**
         - Carry the existing synthesis states into the workflow, re-anchored so the bar's _height_ is invariant
           but the _distance_ scales with the chosen depth.
 
-    - `[ ]` **2.4.b `high`-only coherence-consolidation criterion**
-        - A producer-consolidates-before-handoff lean at the formalization-ready gate (suggest-not-enforce).
-          Ships the _criterion_ only; the rich accretion-detection / batched reconciliation machinery is the
-          conductor's.
+    - `[ ]` **2.4.b `high`-only coherence-consolidation criteria**
+        - Three suggest-not-enforce criteria on the `high` lane: a producer-consolidates-before-handoff rewrite as
+          a formalization-ready pre-req; an interim softcap that suggests an integrating rewrite mid-loop when
+          amendment accretion grows costly to resume against; and a no-detail-loss check that every consolidation
+          rewrite preserves surviving substance. Ships the _criteria_ only — the accretion-detection / batched
+          reconciliation / diff-based survival machinery is the conductor's.
 
 ## **Phase 3:** `create-spec` rework — depth variants, subtype gate, `spec-review`
 

@@ -69,8 +69,9 @@ requirement* (SAP evaluates and declines it — see § Non-Goals).
 Technical scenarios that illustrate per-stage depth resolution across the pipeline.
 
 1. **Determinate moderate feature.** Design reads off a clear issue and existing patterns. draft-design resolves
-   `low`/`medium` (quick determinacy-confirm, no required draft) → create-spec emits an `outline` spec (records
-   the design) → generate-tasks reads a modest scale surface, resolves a light pass. The author never touches a
+   `low`/`medium` — a quick determinacy-confirm (no draft) at `low`, a bounded draft at `medium` → create-spec
+   emits an `outline` spec (records the design) → generate-tasks reads a modest scale surface, resolves a light
+   pass. The author never touches a
    full PRD template or a three-pass generation. *Before:* the only mode produced all three at full weight.
 
 2. **Determinate large refactor (the `outline` straddle).** Design is determinate (rename/move a widely-used
@@ -421,14 +422,28 @@ readiness states depth-relative (R12). At `high`, the formalization-ready gate a
 ### Coherence-consolidation at the formalization-ready gate (`high`-only, iteration-sensitive)
 
 Distinct from the re-entry valve (which catches a depth *underestimate*), this catches artifact *incoherence*: a
-draft that iterates across many sessions can accrete superseded sketch beside current design, so the design is
-settled yet the document is not a single coherent spec-input. Before declaring formalization-ready, a `high`-lane
-draft reconciles current truth vs. superseded layers into one clean input — producer-consolidates-before-handoff,
-the *leave-it-cleaner* floor applied to the WU's own artifact. **Friction-bounded:** `low` has no draft and
-`medium` is single-pass, so neither accretes — `high`-only, and even there a single-sitting draft is coherent by
-construction and resolves it instantly; **suggest-not-enforce**, a lean at the gate, never a hard block. SAP
-ships the *criterion* (the readiness bar); the rich machinery (mechanical accretion-detection, batched/resume-
-aware reconciliation) is `arc-plan-conductor` enrichment of the high lane.
+`high`-lane draft that iterates across many sessions accretes superseded sketch beside current design, so the
+design is settled yet the document is not a single coherent spec-input. The working pattern is
+*amend-then-integrate*: each session amends the evolving draft as decisions settle, and a holistic rewrite
+reconciles the accreted layers into one clean input — producer-consolidates-before-handoff, the
+*leave-it-cleaner* floor applied to the WU's own artifact. Three criteria govern it, all `high`-only and
+**suggest-not-enforce** (a lean, never a hard block):
+
+- **Consolidation is a formalization-ready pre-req.** Before a `high`-lane draft is declared formalization-ready
+  (the gate into create-spec), its accreted layers reconcile into one coherent input.
+- **An interim softcap.** When amendment accretion makes the draft costly to *resume against* mid-loop — each
+  session re-parsing a pile of separate amendments to continue iterating — the loop suggests an integrating
+  rewrite *before* everything is settled, so derivation continues against a clean artifact rather than a growing
+  pile.
+- **No-detail-loss on every rewrite.** Each consolidation, interim or final, must preserve every settled decision
+  and surviving detail — a coherence rewrite must not silently drop substance. The producer self-checks the
+  rewrite against the pre-rewrite layers.
+
+**Friction-bounded:** `low` has no draft and `medium`'s drafting is bounded, so neither accretes materially —
+`high`-only, and even there a single-sitting draft is coherent by construction and resolves all three instantly.
+SAP ships the *criteria* (the readiness bar, the softcap rule-of-thumb, the no-loss check); the *machinery* —
+mechanical accretion-detection, batched/resume-aware reconciliation, and diff-based survival verification — is
+`arc-plan-conductor` enrichment of the high lane.
 
 ### Pipeline structure: peer workflows + a thin dispatcher (R12, R18)
 
