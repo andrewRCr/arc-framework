@@ -9,19 +9,20 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-scalable-authoring-pipeline.md`
-- **Task List:** [none]
+- **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Spec creation — formalized the spec-ready draft into `spec-scalable-authoring-pipeline.md`,
-  a `detailed`·RFC authored on `template-prd.md` (interim form-note in the H1, mirroring CMF): P0/P1 requirements
-  plus concrete Success Criteria, the draft's design carried forward intact. Both PROJECT-PRD (*Operational friction
-  down, judgment friction up*) and TECHNICAL-OVERVIEW (§ 2) alignment checks passed. Draft retired (no `notes-*`
-  warranted — residual value was derivation narrative, preserved in git history).
-- **Next Task:** [none]
+- **Last Completed:** Task generation — decomposed `spec-scalable-authoring-pipeline.md` into
+  `tasks-scalable-authoring-pipeline.md` (6 substantive phases + verification, 23 parents) via the three-pass
+  flow. Pass 3 grounding propagated corrections back to the spec: the shared `resolve-planning-depth` method (R1)
+  paired with `classify-work-unit`; the corrected `Design` multi-value plumbing (R16 — consolidate the duplicated
+  `parseDependsOn`, no render change); the re-entry valve folded into the method (R9); substrate generalization
+  (R6); `pre-spec-finalization-review` extension naming (R14); and the SC #15 rename-vs-rewrite clarification.
+- **Next Task:** Task 1.1 — `template-spec-brief.md` + `template-spec-outline.md` (Phase 1, line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks` — decompose `spec-scalable-authoring-pipeline.md` into the task list.
-  Residual spec-/implementation-time items are folded into the spec's § Open Questions: the four template *bodies*;
-  the DEV-RULES.ARC meta-timing ceremony-list amendment (the three planning-stage `Class`-write sites); and
-  threshold calibration.
+- **Next Action:** Run `activate-work-unit` to flip `State` → `Active` and rename `plan/` → the implementation
+  branch, then begin Task 1.1. Activation can be deferred while planning further; nothing blocks it. Open spec-/
+  implementation-time items remain in the spec's § Open Questions (the four template _bodies_; meta-timing
+  amendment wording; threshold calibration).
 
 ---

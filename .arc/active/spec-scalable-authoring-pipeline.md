@@ -119,6 +119,11 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
     `classify-work-unit` touchpoint falls out of estimate-then-ratchet (no circularity: one evidence read drives
     both depth and the `Class` update). The **structural** design is settled here; only **thresholds** (what
     breadth reads `high`, how many open decisions read `medium`) calibrate via dogfooding.
+    The shared shape is **realized as a SAP-owned `resolve-planning-depth` method** (the keyed-axis read → depth
+    ordinal), declared by all three planning workflows and **paired with — not merged into — `classify-work-unit`**
+    (CMF's, which owns the recorded `Class`): one evidence read per stage, applied to both methods. A method now,
+    a composable-workflow fragment once composition lands — the same trajectory as `classify-work-unit`. This is
+    the DRY home that keeps the one mechanism from being copied verbatim into three workflows.
 
 2. **Spec template family (four templates, separate not flexing).** Ship `template-spec-brief.md` /
    `template-spec-outline.md` / `template-spec-detailed-prd.md` / `template-spec-detailed-rfc.md` — four, holding
@@ -174,9 +179,10 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
     - **Implementation validated against → Success Criteria.** Invariant across every form (even the `brief`
       floor's "one falsifiable success signal"); concrete, falsifiable, validated at completion.
     - **Task list validated against → the form's enumerable substrate, via the grounding audit.** The substrate
-      differs by form — numbered **Requirements** (PRD) or structured **Proposed Design** elements (RFC) — but
-      the mechanism (`arc-task-audit` coverage) is identical. The design *is* the enumerable unit set; it just is
-      not always called "requirements."
+      differs by form — numbered **Requirements** (PRD), structured **Proposed Design** elements (RFC), settled
+      **Decisions** (`outline`), the one falsifiable **signal** (`brief`) — but the mechanism (`arc-task-audit`
+      coverage) is identical. The design *is* the enumerable unit set; it just is not always called
+      "requirements."
 
 7. **Scalable `create-spec` / `generate-tasks` — whole-block depth variants.** Per-stage depth self-resolution
    (R1) wired into both workflows, written as **whole-block depth variants** (a `low` task-pass structure vs a
@@ -211,7 +217,10 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
     re-entry target is **axis-keyed**: a **scale** signal re-enters the *same* stage higher (nowhere-up from
     `high`); a **derivation** signal routes to the stage that owns the design (a masked design decision routes to
     the *spec*, not a deeper task pass). The trigger is a first-class branch at the stage's **existing** interlock
-    stop, not a new detector — offered with a recommendation, never automatic.
+    stop, not a new detector — offered with a recommendation, never automatic. Mechanically it is the **mid-stage
+    firing of `resolve-planning-depth`** (the same axis measurement, on demand rather than at entry), so the
+    routing lives once in that method's contract — not copied into three interlocks — coordinating with
+    `classify-work-unit` for the `Class` ratchet.
 
 10. **The ratchet is decision-live, persistence-deferred.** A touchpoint may ratchet mid-stage; the decision is
     *live* at the interlock (surfaced at once, driving that stage's depth immediately), but the `**Class:**`
@@ -255,8 +264,9 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
       Written as a clean standalone method a future review-method-family would *absorb* (extend, not fork).
       Its grounding slice is kept **distinct from task-gen's audit** (form-keyed coherence-grounding at
       spec-finalization vs. scale-keyed deep per-phase audit at task-gen).
-    - **`spec-review`-ceremony extension** — fires at the spec-finalization fire-point, **inactive/empty by
-      default**; opt-in to point at a team's procedure (async-PR / comment-window / committee cadences). The
+    - **`pre-spec-finalization-review` ceremony extension** (named by its lifecycle gate, the `pre-*-review`
+      family) — fires at the spec-finalization fire-point, **inactive/empty by default**; opt-in to point at a
+      team's procedure (async-PR / comment-window / committee cadences). The
       strategy doc carries those as informative precedent + a mapping, not ARC-enforced.
 
 15. **Novel realization — an advisory overlay (no fourth form, no hard hook).** Novel is a *kind* (invent-vs-
@@ -294,8 +304,13 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
       referencing (no separate "pure" template file — the templates are already "remove what doesn't apply").
     - **Plumbing (committed — the affordance is fiction without it):** the meta `**Design:**` field, its parser,
       consuming sites, and create-spec's write **tolerate one *or* two** spec references, following the existing
-      `**Depends On:**` multi-value convention (`meta-reader.ts` already gives `Design` the same
-      `render: bullet` / `valueClass: identifier` shape; `Depends On` already parses/renders as a list). Bounded.
+      `**Depends On:**` multi-value convention — one bullet, comma-separated, whole-value backticked
+      (`` `a, b` ``). `Design` and `Depends On` already share the `render: bullet` / `valueClass: identifier`
+      descriptor and the whole-value-backticked render via `formatValue`; the comma-split *parse* is duplicated
+      across three private `parseDependsOn` copies. The work consolidates that split into one shared helper (used
+      by `Depends On` and `Design`), teaches `validate-meta-spec` to accept one *or* two comma-separated `Design`
+      refs (keeping the multiple-*lines* rejection), and confirms consumer-site tolerance. No render change.
+      Bounded.
     - **Forward-compat (binds now):** keep the form model + filename convention tolerant of two detailed
       artifacts per WU, so a future config knob (`spec.model: unified | layered`) or a create-spec layered mode
       is a cheap late-binding addition — never an architectural fork. No config knob or workflow fork now.
@@ -418,10 +433,15 @@ structure.
 ### CLI / schema surface — `Design` multi-value plumbing (R16)
 
 The only code surface: the meta `**Design:**` field accepting one *or* two references, following the existing
-`**Depends On:**` multi-value convention. `meta-reader.ts` already gives `Design` the same `render: bullet` /
-`valueClass: identifier` shape; `Depends On` already parses/renders as a list (`parseDependsOn` / `join`). The
-parse, the consuming sites, and create-spec's write tolerate one or two values. No new dependency, framework, or
-infrastructure — an extension of the existing parser within the established three-layer CLI structure.
+`**Depends On:**` multi-value convention — one bullet, comma-separated, whole-value backticked (`` `a, b` ``).
+`Design` and `Depends On` already share the `render: bullet` / `valueClass: identifier` descriptor and the
+whole-value-backticked render path (`formatValue`), so the render needs no change. What is *not* shared today: the
+comma-split parse is duplicated across three byte-identical private `parseDependsOn` helpers (`ready-mine-source`,
+`in-flight-derivation`, `worktree-roster`), and `validate-meta-spec` actively rejects more than one `Design`
+value. The work: consolidate the split into one shared `parseIdentifierList` helper (home: `meta-reader.ts`),
+refactor the three `Depends On` sites onto it and use it for `Design`; teach `validate-meta-spec` to accept one
+*or* two comma-separated `Design` refs (retaining the multiple-*lines* guard); confirm consumer-site tolerance.
+No new dependency, framework, or infrastructure — an extension within the established three-layer CLI structure.
 
 ### Anchors to cite
 
@@ -452,8 +472,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    `classify-work-unit` confirm-or-ratchet touchpoint, with the `Class` write deferred to the stage's ceremony
    commit. The depth differentiation is written as whole-block variants (composable-ready), not fine-grained
    inline branches.
-6. The re-entry valve is a first-class branch at each stage's existing interlock (capture → ratchet → re-enter),
-   axis-keyed: scale → same stage higher; derivation → route to the spec; draft-design → re-enter-higher only.
+6. The re-entry valve is the mid-stage firing of `resolve-planning-depth` at each stage's existing interlock
+   (capture → ratchet → re-enter), axis-keyed: scale → same stage higher; derivation → route to the spec;
+   draft-design → re-enter-higher only. The routing lives once in the method contract, not copied per interlock.
    Down-switching honors the demand floor; no produced heavier artifact is torn down.
 7. `arc-plan` is a thin dispatcher and the drafting stage is extracted into the **`draft-design`** workflow (peer
    to `create-spec` / `generate-tasks`), with a depth-relative readiness bar (incl. the `high`-only,
@@ -468,8 +489,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    user-facing); the invariant spec-presence/alignment gate survives and cost-scales. No `Class`-keyed tier fork
    anywhere in integration.
 10. The `spec-review` method ships (always loaded by create-spec; lightweight default self-review scaled to the
-    crystallized form; grounding slice distinct from task-gen's audit) and the `spec-review`-ceremony extension
-    ships inactive/empty by default with strategy-doc precedent + mapping. The review *gate* fires at every form,
+    crystallized form; grounding slice distinct from task-gen's audit) and the `pre-spec-finalization-review`
+    extension ships inactive/empty by default with strategy-doc precedent + mapping. The review *gate* fires at
+    every form,
     collapsing at `brief` to a single minimal check.
 11. Novel is realized as an advisory overlay on the `high`-draft + `detailed` lanes only (Novel ⟹ both):
     draft-design recommends an orient-then-research sub-phase; create-spec surfaces a subtype-keyed ADR-companion
@@ -485,8 +507,10 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 14. DEV-RULES.ARC's meta-timing ceremony list names the three planning-stage `Class`-write sites (draft-capture /
     spec-generation / task-list generation), so the decision-live/persistence-deferred writes do not read as
     meta-timing violations.
-15. SAP names only the new `draft-design` workflow; it does not rewrite the existing `create-spec` /
-    `generate-tasks` / `process-task-loop` files or their cross-references (that cascade is `doc-cascade-sweep`'s).
+15. SAP names only the new `draft-design` workflow; it does not **rename or renumber** the existing `create-spec`
+    / `generate-tasks` / `process-task-loop` files or rewrite their cross-references (that prefix-dropping cascade
+    is `doc-cascade-sweep`'s). The R7 *content* rework of create-spec / generate-tasks (depth variants,
+    form-agnostic reframe) is in scope — the carve-out is the file rename/renumber, not the content.
 
 ## Open Questions
 
