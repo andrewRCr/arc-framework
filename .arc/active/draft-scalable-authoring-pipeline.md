@@ -54,53 +54,33 @@ one-grammar); the **`classify-work-unit` touchpoint wiring** in `arc-plan` / `cr
 (CMF wired only `init` / `activate`); and the **`Class`↔spec-form validation hook** as a *candidate to evaluate,
 not a committed requirement*.
 
-> The sections below that restate any of the above (§ Spec shapes, the form mapping in § three authoring stages,
-> § detailed-spec subtypes) are now **consumed context** — retained as working detail for spec authoring, but
-> the SAP spec will reference CMF's spec as the source of record rather than re-derive them.
+> Where the sections below restate any of the above (§ Spec shapes; the form mapping in § three authoring
+> stages) it is **consumed context** — retained as working detail for spec authoring, but the SAP spec will
+> reference CMF's spec as the source of record rather than re-derive it.
 
 ## The three authoring stages
 
-Each pre-implementation **authoring** stage realizes the depth ordinal in its own units and **self-resolves**
-(§ Mechanism). The shapes below are **sketch-level starting points** — their *structural* design is the
-pre-spec derivation work (§ Derivation pending); only calibration (exact counts, felt cadence) tunes later via
-dogfooding:
+Each pre-implementation **authoring** stage realizes the depth ordinal in its own units and **self-resolves** at
+entry (§ Mechanism). The operational design of each lives in § Per-stage manifestation; the orienting summary:
 
-1. **Drafting** (the existing `arc-plan`): `low` = quick determinacy-confirm (a couple of targeted questions);
-   `medium` = bounded single-pass elicitation (surface the few real decisions + scope, no iteration); `high` =
-   full iterative facilitation (today's `arc-plan`). Driven by **derivation**.
-2. **Spec creation** (`1_create-spec`): a template family — the depth level names the form. `low` → `brief` =
-   intent + scope boundary + one falsifiable success signal; `medium` → `outline` = decision-centric record;
-   `high` → `detailed` = the current full PRD, subtyped PRD / RFC. Driven by **derivation**.
-3. **Task generation** (`2_generate-tasks`): pass-structure + phase count, driven by **scale**. `low` = single
-   combined pass with inline light grounding, one substantive phase + verification gate-check; `medium` =
-   merged structure+content pass with the grounding audit retained, few phases; `high` = full 3-pass
-   (structure → content → per-phase grounding audit) + 3–7 phases + dedicated verification phase — forced at
-   large scale regardless of spec form (the `heavy`/`outline` refactor).
+1. **Drafting** (`draft-design`) — driven by **derivation**. `low` = quick determinacy-confirm; `medium` =
+   bounded single-pass shaping; `high` = iterative facilitation. The `draft-*` file is depth-conditional.
+2. **Spec creation** (`create-spec`) — driven by **derivation**; depth *is* the form (`low→brief`,
+   `medium→outline`, `high→detailed`, the last subtyped PRD / RFC — § Detailed-spec forms).
+3. **Task generation** (`generate-tasks`) — driven by **scale**. Pass-structure, phase count, and grounding-audit
+   depth scale together (`low` single combined pass / one substantive phase → `high` full 3-pass / 3–7 phases +
+   dedicated verification), forced high at large scale regardless of spec form.
 
-## Spec shapes (research-grounded)
+## Spec shapes
 
-Refined with the 2026-06-03 deep-research pass on industry idiom for lightweight specs. Research posture:
-**inform and adapt, never adopt.** (Full source URLs live in the deep-research transcript — run
-`wf_191136b1-518`; pull them when authoring the spec's External Research. Sources nameable even if the
-transcript is gone: Shape Up pitch, ADR / Nygard, GitLab handbook, Go proposal, Oxide RFD-0001, Microsoft eng
-playbook, Squarespace, Rust RFC.)
+The three non-`detailed` forms, research-grounded (2026-06-03 lightweight-spec idiom pass; posture *inform and
+adapt, never adopt* — findings + sources in § External research). The `brief` / `outline` *bodies* are authored
+at spec time; the shapes below are the design. The load-bearing idiom finding: a full spec **derives** a design
+that didn't exist while the middle **records** one that was mostly determinate — so the middle excludes
+requirement-ID enumeration and success-criteria matrices (anti-up-drift) while fixing the decision + scope
+sections (anti-down-drift).
 
-What the idiom confirmed:
-
-- **Decision-centric middle: confirmed** (high confidence, 3-0). Shape Up's pitch, the ADR, GitLab's
-  lightweight-ADR all *record* settled design + an explicit scope boundary + the one-or-two open items, while
-  deliberately *excluding* requirement-ID enumeration and success-criteria matrices. The exclusion is the
-  anti-up-drift mechanism; the fixed decision+scope sections are the anti-down-drift. **A full spec *derives* a
-  design that didn't exist; the middle *records* one that was mostly determinate.**
-- **Floor: convergent** — GitLab "start with one paragraph and evolve"; Go "brief issue… no design document at
-  this point." Intent-first, accretes through learning. (Our floor adds *one falsifiable success signal* — a
-  P1-driven addition, not industry-converged.)
-- **Procedure: async-first and scales with tier** — author-owned PR + bounded comment window (Oxide 3–5 days),
-  escalate to sync after ~2 round-trips (Microsoft), committee only for high-blast-radius (Squarespace).
-- **Caveats:** several procedure findings are single-company existence-proofs (adapt-from, not norms); ADR's
-  "fixed 5 fields" holds only for canonical Nygard; Amazon PR/FAQ went unexamined (the heavy boundary).
-
-The three shapes (concrete, starting points — dogfooding-refinable):
+The three shapes:
 
 - **`brief` (floor):** ~1 evolving paragraph — intent + scope boundary + one falsifiable success signal. Not
   trivial, not an Errand (intent-verification stays at every level, so a brief is still checkable).
@@ -134,27 +114,12 @@ H1 label:
   referenced by the meta `**Design:**` field. The single-file `spec-{name}.md` convention is unchanged for the
   default unified model.
 
-## Detailed-spec subtypes (PRD / RFC) — adopted as direction
-
-The `detailed` spec — the one form that *derives* — splits by the existing feature / technical work-category
-axis (already classified at create-spec Step 2):
-
-- **feature → `PRD`** (`Spec (detailed · PRD): {name}`) — product requirements; now true to the name.
-- **technical → `RFC`** (`Spec (detailed · RFC): {name}`) — technical design; its comment-process heritage
-  dovetails with the review-ceremony extension. (Exact label — `RFC` vs `design-doc` vs `technical-spec` — is a
-  minor spec-time call.)
-
-Subtypes apply **at `detailed` only** — where derivation makes feature / technical genuinely diverge. `brief`
-and `outline` *record* rather than derive, so category-divergence is minimal; they stay single,
-category-agnostic shapes (bounding proliferation to four templates, not six). **Resolved (the RFC-form session):**
-separate `-prd` / `-rfc` templates, the axis reframed as derivation-kind, the section sets derived, and the
-PRD / RFC relationship settled — see § Detailed-spec forms below, which supersedes the sketch in this section.
-
 ## Detailed-spec forms: PRD & RFC (derived)
 
 The `detailed` spec — the one form that *derives* — has two species, `PRD` and `RFC`. This section settles their
 shapes, their relationship, and the two usage models, derived from the 2026-06-06 RFC-form research pass (sources
-in § External research). It supersedes the sketch in § Detailed-spec subtypes.
+in § External research). Subtypes apply **at `detailed` only** — `brief` and `outline` *record* rather than
+derive, so they stay single, category-agnostic shapes (bounding proliferation to four templates, not six).
 
 **One genus, two species — selected by derivation-kind, not "is it technical."** Both PRD and RFC are the
 `detailed` spec; they are variants by *which kind of derivation dominates the WU*, not two different artifacts. ARC
@@ -189,16 +154,16 @@ The RFC is the technical-design species. Its section set maps the research-confi
 (Summary → Motivation → Proposed Design → Rationale & Alternatives → Open questions, plus Goals/Non-Goals and
 Cross-cutting concerns) onto ARC's spec idiom, complementing the PRD:
 
-| Section                                  | Role                                                           | vs PRD                                   |
-| ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------------- |
-| H1 `Spec (detailed · RFC): {name}` + Purpose | ARC-universal                                              | shared                                   |
-| Introduction / Context                   | technical problem framing, "why now"                          | shared spine (technical angle)           |
-| Goals / Non-Goals                        | technical objectives + out-of-scope                           | shared spine                             |
-| **Proposed Design**                      | the heart — architecture, interfaces / APIs, data model, behavior | replaces PRD's User Stories + Requirements |
-| **Alternatives & Rationale**             | derivation heart — options, tradeoffs, why this               | RFC-unique                               |
-| Cross-cutting Considerations             | security / perf / testing / migration / rollout (remove what doesn't apply) | RFC-unique                  |
-| Success Criteria                         | technical, concrete, validated at completion                  | shared spine                             |
-| Open Questions                           | resolve-before / resolve-during                               | shared spine                             |
+- **H1 `Spec (detailed · RFC): {name}` + Purpose** — ARC-universal. *(shared)*
+- **Introduction / Context** — technical problem framing, "why now". *(shared spine, technical angle)*
+- **Goals / Non-Goals** — technical objectives + out-of-scope. *(shared spine)*
+- **Proposed Design** — the heart: architecture, interfaces / APIs, data model, behavior. *(RFC-side of the
+  divergent middle — replaces the PRD's User Stories + Requirements)*
+- **Alternatives & Rationale** — the derivation heart: options, tradeoffs, why this. *(RFC-unique)*
+- **Cross-cutting Considerations** — security / perf / testing / migration / rollout (remove what doesn't apply).
+  *(RFC-unique)*
+- **Success Criteria** — technical, concrete, validated at completion. *(shared spine)*
+- **Open Questions** — resolve-before / resolve-during. *(shared spine)*
 
 The shared spine (Intro / Goals / Non-Goals / Success / Open) is the stand-alone backbone; the divergent middles
 (PRD: User Stories + prioritized Requirements + Design Considerations; RFC: Proposed Design + Alternatives +
@@ -328,7 +293,9 @@ know it worked?* What varies is the **distance** to it (authoring cost), not the
 fast, `outline` at moderate cost, `detailed` at full cost. Same for the spec → task-gen ("finalized") bar — one
 invariant (spec coherent + design settled), with the grounding audit as the residual-catcher routing any
 straggler design decision back to the spec (still pre-impl). No form leaves the spec stage with an open design
-decision. This makes `arc-plan`'s readiness states depth-relative (§ arc-plan depth-relativity).
+decision. This makes `arc-plan`'s readiness states depth-relative (§ arc-plan depth-relativity). At `high`, the
+formalization-ready gate additionally carries a **coherence-consolidation** criterion — reconcile an iterated
+draft's accreted layers into one coherent spec-input before handoff (§ Per-stage manifestation → draft-design).
 
 ## Spec-review procedure — a method (default) + an extension (optional ceremony)
 
@@ -396,7 +363,7 @@ scale-read can ratchet before the task list exists). The decision is *live* at t
 driving that stage's depth immediately — but the `**Class:**` *write* defers to the stage's planning-ceremony
 commit (spec-generation / task-list generation / draft-capture), never a mid-stage meta edit. The value is never
 lost (it is surfaced and drives behavior the moment it resolves); it simply persists at the ceremony boundary,
-honoring meta-timing's no-mid-session-churn rule. Per-stage commit homes: § Derivation pending item 3.
+honoring meta-timing's no-mid-session-churn rule. Per-stage commit homes: § Derivation record.
 
 ### `arc start` verb fate + no `--tier` flag
 
@@ -548,6 +515,17 @@ protects the tail without taxing the common case.
 - **Re-entry valve: re-enter-higher only.** Drafting is stage one, so a floor-raising signal has no upstream to
   route to — the valve runs `low → medium → high`; the ceiling (`high`) hands off to the conductor's expanded
   machinery rather than escalating further within SAP.
+- **Coherence-consolidation at the formalization-ready gate (`high`; iteration-sensitive).** Distinct from the
+  re-entry valve (which catches a depth *underestimate*), this catches artifact *incoherence*: a draft that
+  iterates across many sessions can accrete superseded sketch beside current design, so the design is settled yet
+  the document is not a single coherent spec-input. Before declaring formalization-ready, a `high`-lane draft
+  reconciles current truth vs superseded layers into one clean input — producer-consolidates-before-handoff, the
+  *leave-it-cleaner* floor applied to the WU's own artifact. **Friction-bounded:** `low` has no draft and `medium`
+  is single-pass, so neither accretes — this is a `high`-only criterion, and even there a single-sitting draft is
+  coherent by construction and resolves it instantly; it is **suggest-not-enforce**, a lean at the gate, never a
+  hard block. SAP ships the *criterion* (the readiness bar); the rich machinery (mechanical accretion-detection,
+  batched / resume-aware reconciliation) is `arc-plan-conductor` enrichment of the high lane — the same
+  simple-loop-vs-enriched-loop split as elsewhere.
 - **Novel's primary home.** Drafting is where `novel`'s advisory discovery / research phase primarily lands
   (derivation axis) — an **advisory overlay** on the `high` lane (Novel ⟹ `high`), not a depth default; free-form
   and self-sequencing (orient-then-research, never preemptive). See § Novel realization.
@@ -566,9 +544,11 @@ protects the tail without taxing the common case.
   decision-centric → full checklist) and the template selected (brief / outline / `detailed-prd|rfc`). The
   **PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks do *not* scale as lanes** — always-on, cost-proportional
   floors (§ Floors that sit below the depth axis).
-- **Work-category determination becomes `detailed`-only.** Today's always-on "feature vs technical" step (a stale
-  remnant — it feeds nothing now) is **reworked**, not retired: it gates the PRD/RFC subtype split, which applies
-  at `detailed` only; `brief` / `outline` are single, category-agnostic forms.
+- **Subtype selection becomes `detailed`-only, keyed to derivation-kind.** Today's always-on "feature vs
+  technical" step (a stale remnant — it feeds nothing now) is **reworked**, not retired: it becomes the
+  `detailed`-only gate picking PRD vs RFC, its criterion sharpened to **which derivation dominates**
+  (product-derivation → PRD; technical-design-derivation → RFC — § Detailed-spec forms), not mere presence of
+  technical content. `brief` / `outline` stay single, category-agnostic forms.
 - **Re-entry valve: two routes (the middle derivation node).** A floor-raising signal splits on whether the design
   *direction* is settled: **deepen in-stage** (`outline → detailed`) when the direction is clear but needs more
   formal derivation; **route back to `draft-design`** when the direction itself is unsettled (you cannot formalize
@@ -682,44 +662,22 @@ consistency check), written as whole-block conditionals per the workflow-authori
 the `draft-*` / `spec-*` WU artifacts). So lifecycle integration does not special-case Novel: it consumes the ADR
 if present, like any durable doc — no Novel branch in integration.
 
-## Derivation pending (pre-spec-ready)
+## Derivation record (resolved)
 
-Re-based on shipped CMF, the draft is **spec-stage-heavy**: the spec stage (form family, naming, PRD / RFC
-split) is near-final, but the **drafting (`arc-plan`) and task-gen stages are sketch-level** — their low / med /
-high shapes (§ three authoring stages) are a paragraph each. Per the front-loading-duty rule, the *structural*
-design of all three stages must be settled here, before spec-ready; only *calibration* (exact question counts,
-felt audit cadence) legitimately tunes via post-integration dogfooding. The draft's earlier blanket
-"dogfooding-refinable" framing conflates the two — the spec must not smuggle deferred design under it.
+All pre-spec-ready derivation is settled — the draft is **spec-ready** (proceed to `create-spec`). Per the
+front-loading-duty rule, the *structural* design of all three stages is settled here, not deferred under a
+"dogfooding-refinable" blanket (only *calibration* — exact question counts, felt audit cadence — tunes later):
+§ Per-stage manifestation, § Pipeline structure & naming, § Detailed-spec forms, and § Novel realization carry it.
 
-Gating items, worked in the planning iteration (sequence: **task-gen → arc-plan → create-spec**):
+What remains is genuinely spec-/implementation-time, not deferred design:
 
-1. **Per-stage depth manifestation** — concretely, what `low / medium / high` *is* in each stage, written as
-   **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
-   branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
-   **All three stages resolved** (§ Per-stage manifestation; § Pipeline structure & naming).
-2. **Novel realization shape** — *resolved* (§ Novel realization): an advisory overlay on the `high`-draft +
-   `detailed` lanes (Novel ⟹ both) — a free-form, self-sequencing discovery / research sub-phase at draft-design
-   (orient-then-research, never preemptive); an advisory ADR-companion at create-spec; a posture-shift at
-   spec-review; nothing at task-gen. Suggest-not-enforce throughout, no hard hook. Residual (rides the RFC
-   session): the PRD-vs-RFC ADR-affordance nuance.
-3. **`classify-work-unit` touchpoint wiring** — where the method fires in each of `draft-design` / `create-spec`
-   / `generate-tasks`, what it does (confirm-or-ratchet `Class` against the stage's resolved depth), and the
-   forward-compat boundary that keeps it light enough not to pre-empt `arc-plan-conductor`. **Commit-timing
-   (resolved):** each touchpoint's `Class` write rides its stage's own planning-ceremony commit — `create-spec`
-   on spec-generation (already a listed meta-touching ceremony), `generate-tasks` on task-list generation
-   (alongside the `**Task List:**` write), `draft-design` on draft-capture (or, at `low`, riding the next
-   ceremony rather than a meta-only micro-commit). The ratchet is **decision-live, persistence-deferred**
-   (§ Mechanism). Remaining deliverable: amend DEV-RULES.ARC's ceremony list to name the planning-stage ops
-   explicitly, so the three new write-sites don't read as meta-timing violations to a future author.
-4. **RFC form** — *resolved* (the RFC-form session; § Detailed-spec forms). The RFC section set is derived (the
-   research-confirmed RFC spine onto ARC's idiom), the feature / technical axis reframed as **derivation-kind**
-   (one spec per WU, never both; "want both" = a decomposition signal), the PRD realigned (de-straddled), the
-   detailed-subtype call decided (separate `-prd` / `-rfc` templates), and a **layered model** added for teams
-   with a real PM / eng split (opt-in, documented pattern + template affordance, committed meta `**Design:**`
-   multi-value plumbing). Validation restated as Success-Criteria-plus-grounding (form-invariant). The Novel
-   PRD-vs-RFC ADR nuance resolved (subtype-keyed). Riders all discharged.
+- **Spec-time:** the `brief` / `outline` / `detailed` template *bodies* (§ Open questions).
+- **Implementation-time:** amend DEV-RULES.ARC's meta-timing ceremony list to name the three planning-stage
+  `Class`-write sites — `draft-design` draft-capture, `create-spec` spec-generation, `generate-tasks` task-list
+  generation — so they don't read as meta-timing violations to a future author. The writes are **decision-live,
+  persistence-deferred** (§ Mechanism).
 
-Two design subtleties the manifestation work must resolve, not gloss:
+Two design subtleties the spec must carry forward, not gloss:
 
 - **The three stages resolve depth from different axes** — drafting and spec from **derivation**, task-gen from
   **scale**. "One mechanism" therefore carries three different *input signals*; the parameterization is not
@@ -729,23 +687,6 @@ Two design subtleties the manifestation work must resolve, not gloss:
   it directly at entry (grounding breadth, cross-checked against `Class`). Reframed from "a hole" to a property of
   the axis: the entry-read is load-bearing by design — and since depth is never recorded, every stage re-derives
   regardless, so there is nothing to thread.
-
-**Status:** all three per-stage manifestations are resolved (§ Per-stage manifestation); the **entry-read
-mechanism is resolved** — reframed as one *forced* per-stage entry-assessment reading the keyed axis from best
-available evidence (the upstream artifact is its richest input, not a separate mechanism), with the scale axis
-named **feed-forward-immune by design** and each read doubling as the stage's `classify-work-unit` touchpoint
-(§ Mechanism). Settled this session: spec-review scaling (form-inherited, SAP-owned — § Spec-review procedure);
-the `Class` ↔ spec-form check declined (§ Open questions); numbering — prefixes dropped (§ Pipeline structure &
-naming); the **`Class`-write commit-timing** — each touchpoint's write rides its stage's planning-ceremony commit,
-decision-live / persistence-deferred (§ Mechanism; item 3 — leaves a small ceremony-list amendment as the only
-residual); and **Novel realization** (§ Novel realization — an advisory overlay on the high-draft + detailed
-lanes, free-form self-sequencing discovery, advisory ADR companion). Resolved in the RFC-form session: the **RFC
-form and the PRD / RFC relationship** (item 4; § Detailed-spec forms) — the RFC section set, the derivation-kind
-axis reframe (one spec per WU; "want both" = decompose), the PRD de-straddle, separate `-prd` / `-rfc` templates,
-the unified / layered usage models with the committed meta `**Design:**` multi-value plumbing, the
-Success-Criteria-plus-grounding validation restatement, and the subtype-keyed Novel ADR nuance. **The draft is
-spec-ready** — proceed to `create-spec`. (The only remaining items are spec-time bodies and the small DEV-RULES.ARC
-ceremony-list amendment in item 3, both executed inside the spec / implementation phase.)
 
 ## Scope
 
@@ -758,9 +699,11 @@ ceremony-list amendment in item 3, both executed inside the spec / implementatio
 2. Scalable `create-spec` / `generate-tasks` — per-stage depth self-resolution, flag-free feed-forward,
    whole-block depth variants (composable-ready); task-list one-grammar (1..N phases + always-present
    verification); grounding-audit depth parameterization (per-phase interlock retained).
-3. **`arc-plan` depth-relativity, via the `draft-design` workflow** — the depth-relative readiness bar, the three
-   planning shapes (`high` = simple loop), artifact-shape feed-forward, and the first `classify-work-unit`
-   touchpoint. Rich selection / orchestration stays the conductor's (the `arc-plan` skill is its seed).
+3. **`arc-plan` depth-relativity, via the `draft-design` workflow** — the depth-relative readiness bar (including
+   the `high`-only, iteration-sensitive **coherence-consolidation** criterion — § Per-stage manifestation →
+   draft-design), the three planning shapes (`high` = simple loop), artifact-shape feed-forward, and the first
+   `classify-work-unit` touchpoint. Rich selection / orchestration (and the rich consolidation machinery) stays
+   the conductor's (the `arc-plan` skill is its seed).
 4. The lifecycle-integration **artifact-presence-tolerance** requirement on the integrate / archive workflows.
    No tier fork.
 5. `spec-review` method + ceremony extension — depth-scaled default self-review; opt-in external-cadence
@@ -798,7 +741,7 @@ ceremony-list amendment in item 3, both executed inside the spec / implementatio
 
 ## Open questions
 
-> Pre-spec-ready derivation is tracked in § Derivation pending; the items below are finer spec-time calls.
+> Pre-spec-ready derivation is recorded in § Derivation record; the items below are finer spec-time calls.
 
 - **`outline` / `brief` spec template *bodies*** — research-grounded; the bodies themselves are authored at
   spec time.
@@ -806,7 +749,7 @@ ceremony-list amendment in item 3, both executed inside the spec / implementatio
   The section sets are near-disjoint, so a flexing template would re-import the merge anti-pattern; four templates
   total. The template *bodies* are still authored at spec time.
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
-- **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation pending);
+- **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation record);
   only calibration is dogfooding-refinable, not a blanket deferral.
 - **User-above preference: config knob vs. in-process steer** — deferred; forward-compat binds now.
 - **`Class` ↔ spec-form consistency check — declined (revisit only on dogfooding evidence).** Once this WU makes
