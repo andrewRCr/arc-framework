@@ -11,13 +11,14 @@
 - **Design:** `draft-scalable-authoring-pipeline.md`
 - **Task List:** [none]
 
-- **Last Completed:** Pre-spec design derivation — all three authoring-stage depth manifestations + the
-  pipeline structure / naming decisions (captured in `draft-scalable-authoring-pipeline.md`)
+- **Last Completed:** Holistic pre-spec reassess — resolved spec-review scaling, numbering (prefixes dropped),
+  the declined `Class`↔spec-form check, the entry-read mechanism reframe, `Class`-write commit-timing, and Novel
+  realization (captured in `draft-scalable-authoring-pipeline.md`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Fresh holistic reassess of `draft-scalable-authoring-pipeline.md` — holes / underserved
-  areas / what belongs at draft-time vs spec-time — then proceed to `1_create-spec`. Open: RFC form shape
-  (needs research), Novel concrete discovery/ADR shaping, planning-stage workflow numbering.
+- **Next Action:** Run the RFC-form dedicated session — research the RFC shape with the current PRD in frame
+  (likely realign the PRD; carries the detailed-subtype template-structure call + the Novel PRD-vs-RFC ADR
+  nuance). It is the last pre-spec item; the draft is spec-ready once it lands, then proceed to `1_create-spec`.
 
 ---
