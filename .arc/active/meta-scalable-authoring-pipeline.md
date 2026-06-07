@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
 | ---------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/scalable-authoring-pipeline` | `Heavy`   | `P1`         |
+| `Active`   | `andrew`  | `feat/scalable-authoring-pipeline` | `Heavy`   | `P1`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `class-model-foundation`
@@ -20,9 +20,8 @@
 - **Next Task:** Task 1.1 — `template-spec-brief.md` + `template-spec-outline.md` (Phase 1, line ~20)
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit` to flip `State` → `Active` and rename `plan/` → the implementation
-  branch, then begin Task 1.1. Activation can be deferred while planning further; nothing blocks it. Open spec-/
-  implementation-time items remain in the spec's § Open Questions (the four template _bodies_; meta-timing
-  amendment wording; threshold calibration).
+- **Next Action:** Begin Task 1.1 — author `template-spec-brief.md` + `template-spec-outline.md` (Phase 1). Open
+  spec-/implementation-time items remain in the spec's § Open Questions (the four template _bodies_; meta-timing
+  amendment wording; threshold calibration) — resolved during work, none blocking.
 
 ---
