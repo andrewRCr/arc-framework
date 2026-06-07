@@ -146,7 +146,7 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
     - **`outline` (middle, *records*):** ~1–2 pages (ADR length norm). Section set: Problem/Context · settled
       Decision(s) · Scope boundary (No-gos) · Consequences/risks · **Success Criteria** (concise, checkable —
       the form-invariant validation anchor of R6, not a P0/P1/P2 matrix) · Open items (worked out, not
-      deferred); an optional bounded Appetite/effort line sits with the metadata fields. **No requirement IDs,
+      deferred). **No requirement IDs,
       no success-criteria matrix** (anti-up-drift) while fixing the decision + scope sections (anti-down-drift).
       Structurally different from a PRD, not "PRD minus sections"; a *spec* (feeds a task list, validates
       completion), distinct from an ARC ADR (a posterity record that feeds nothing) — do not conflate.
@@ -173,7 +173,10 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
    heart — architecture, interfaces, data model, behavior; replaces the PRD's User Stories + Requirements) ·
    **Alternatives & Rationale** (the derivation heart) · **Cross-cutting Considerations** (security/perf/
    testing/migration/rollout) · Success Criteria · Open Questions. The shared spine (Intro/Goals/Non-Goals/
-   Success/Open) is the stand-alone backbone; the divergent middles are *why* the forms are separate. The RFC
+   Success/Open) is the stand-alone backbone; the divergent middles are *why* the forms are separate. Under
+   layered use only the **context spine** (Intro/Goals/Non-Goals) drops — the companion PRD owns it; Success
+   Criteria and Open items stay form-specific (a design's checks and open questions differ from the product's).
+   The RFC
    omits P0/P1/P2 **Requirements** enumeration (un-idiomatic for design docs) and carries its enumerable
    substance in a structured **Proposed Design** instead. Correspondingly, **de-straddle the PRD**: strip "For
    technical work: system scenarios" from User Stories and reframe Technical Considerations from "the core of
@@ -306,8 +309,12 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
     PRD). ARC is solo today, so support is deliberately light (YAGNI):
     - The strategy documents the layered model as a **sanctioned** path with the two-file naming convention
       `spec-{name}-prd.md` + `spec-{name}-rfc.md`, the meta `**Design:**` referencing both.
-    - The detailed templates carry an explicit **"Complementary use" note** guiding spine-removal + PRD-
-      referencing (no separate "pure" template file — the templates are already "remove what doesn't apply").
+    - The detailed templates mark the droppable **context spine** structurally — an `omit-when-paired` heading
+      flag plus a non-rendering scaffolding comment on each affected section (the PRD keeps the spine; the RFC
+      drops it and goes referential) — rather than a prose note. create-spec carries the when/why-to-pair
+      advisory and **strips the scaffolding markers** (heading flags + comments) whenever it emits a finalized
+      spec — universally, with the paired case additionally omitting the flagged sections. No separate "pure"
+      template file — the templates are already "remove what doesn't apply".
     - **Plumbing (committed — the affordance is fiction without it):** the meta `**Design:**` field, its parser,
       consuming sites, and create-spec's write **tolerate one *or* two** spec references, following the existing
       `**Depends On:**` multi-value convention — one bullet, comma-separated, whole-value backticked
@@ -461,7 +468,8 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 
 1. Four spec templates ship — `template-spec-brief.md` / `-outline.md` / `-detailed-prd.md` / `-detailed-rfc.md`
    — separate (not one flexing); each carries the `Spec ({form}): {name}` H1 convention; the `detailed` pair
-   carries the "Complementary use" note (R16). No fifth/sixth template (the "four not six" bound holds).
+   marks the droppable context spine structurally (`omit-when-paired`) per R16. No fifth/sixth template (the
+   "four not six" bound holds).
 2. `create-spec` resolves spec form by a derivation entry-read (R1), selects the template accordingly, and the
    `detailed`-only subtype gate picks PRD vs RFC by **dominant derivation-kind** (not "is it technical"); the
    stale always-on "feature vs technical" step is reworked, not merely removed; `brief` / `outline` stay single
