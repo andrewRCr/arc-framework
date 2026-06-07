@@ -352,13 +352,10 @@ what was produced.
   Resolution: `arc start` is the workflow's automation for the bounded case; the workflow document stays
   canonical. This WU adds no flag — only the depth resolution the command's content consumes.
 
-- **`Novel` planning-shape realization.** `class-model-foundation` defines `Novel` as primarily a plate-balance
-  / sequencing signal and secondarily an advisory planning-shape signal: a discovery / research phase and ADR
-  expectation should be available when a WU is inventing concepts or models, not merely composing from existing
-  ARC patterns. This WU owns making that available shape concrete in the authoring pipeline (template guidance,
-  per-stage depth defaults, and spec-review posture), while preserving the model's "suggest, do not enforce"
-  stance — no hard `Class` ↔ spec-form hook. **The least-derived deliverable in the draft today** — the concrete
-  shape is pending (§ Derivation pending, item 2).
+- **`Novel` planning-shape realization.** Owned and now derived (§ Novel realization): the advisory discovery /
+  research phase + ADR expectation, realized as an **overlay on the `high`-draft + `detailed` lanes** (Novel ⟹
+  both), holding CMF's "suggest, do not enforce" — no hard `Class` ↔ spec-form hook. Residual: the PRD-vs-RFC
+  ADR-affordance nuance, which rides the RFC session.
 
 ## Per-stage manifestation (derived)
 
@@ -427,8 +424,9 @@ protects the tail without taxing the common case.
 - **Re-entry valve: re-enter-higher only.** Drafting is stage one, so a floor-raising signal has no upstream to
   route to — the valve runs `low → medium → high`; the ceiling (`high`) hands off to the conductor's expanded
   machinery rather than escalating further within SAP.
-- **Novel's home stage.** Unlike task-gen, drafting is where `novel`'s advisory discovery / research phase + ADR
-  shape primarily lands (derivation axis), as a depth default — suggest, not enforce.
+- **Novel's primary home.** Drafting is where `novel`'s advisory discovery / research phase primarily lands
+  (derivation axis) — an **advisory overlay** on the `high` lane (Novel ⟹ `high`), not a depth default; free-form
+  and self-sequencing (orient-then-research, never preemptive). See § Novel realization.
 
 ### create-spec
 
@@ -452,8 +450,8 @@ protects the tail without taxing the common case.
   formal derivation; **route back to `draft-design`** when the direction itself is unsettled (you cannot formalize
   an unshaped design). Contrast: draft-design re-enters-higher only; generate-tasks re-enters for scale /
   routes-to-spec for derivation.
-- **Novel's other home.** At `detailed`, `novel` suggests the advisory discovery / research phase + ADR
-  expectation — suggest, not enforce (no hard `Class`↔form hook).
+- **Novel's secondary home.** At `detailed` (Novel ⟹ `detailed`), `novel` surfaces the advisory **ADR-companion**
+  recommendation — suggest, not enforce (no hard `Class`↔form hook). See § Novel realization.
 
 ## Pipeline structure & naming (derived)
 
@@ -510,12 +508,50 @@ pure signal value, and the bare names carry it. Reversible if the planning-order
 original 1-2-3 defect was scope (extending it to `3_process-task-loop` conflated planning order with
 whole-process order); dropping resolves that cleanly.
 
-**Cascade routing.** Whatever the prefix decision, the existing-file rename/renumber cascade — `1_create-spec` /
+**Cascade routing.** The existing-file rename cascade — dropping the prefixes on `1_create-spec` /
 `2_generate-tasks` / `3_process-task-loop` plus every cross-reference across workflows / strategies / methods /
 templates / session-init — routes to **`doc-cascade-sweep`** (the cohort's terminal reference-sweep member,
 downstream of this WU), coordinated with `naming-conventions`. SAP names the new drafting workflow `draft-design`
-(prefix per the (a)/(b) call) and does not rewrite the existing files itself; half-renaming breaks references,
-and reconciling the interim mixed state is the terminal sweep's job.
+and does not rewrite the existing files itself; half-renaming breaks references, and reconciling the interim
+mixed state is the terminal sweep's job.
+
+## Novel realization (derived)
+
+Novel is a **kind**, not a depth (CMF: invent-vs-compose, reached through *derivation alone*; scale never reaches
+it), and **not a fourth spec form** — it shares `detailed`. SAP owns only its *secondary* purpose: opening the
+**advisory discovery / research phase + ADR expectation**. (The *primary* purpose — the parallelism / sequencing
+balance signal — is roadmap territory, not this WU's.)
+
+**The invariant that bounds it: Novel ⟹ `high` draft-design + `detailed` create-spec.** Derivation-high forces
+both, so Novel never co-occurs with brief / outline / low / medium. It is therefore not a lane or a depth
+selector but an **advisory overlay decorating exactly those two lanes** — the derivation reduces to saying what
+the overlay *adds*. Every item below is a recommendation at the stage interlock (`Class == Novel`-keyed, surfaced,
+accepted-or-declined) — never a gate, no hard `Class` ↔ form hook (the same stance behind the declined
+consistency check), written as whole-block conditionals per the workflow-authoring conformance requirement.
+
+- **draft-design (`high`, primary):** the invent-vs-compose read that *is* the derivation entry-read = classify
+  touchpoint (§ Mechanism) lands `novel` → the workflow **recommends a discovery / research sub-phase** opening
+  the high lane. **Free-form, and self-sequencing — never preemptive:** the suggestion to *have* a research
+  element fires early (off the invent-vs-compose read), but the concrete research targets are not knowable until
+  the problem space is oriented — what is already known, what lives in the codebase vs. what must be derived. So
+  the sub-phase **orients first** (establishes known / unknown and the compose-vs-invent boundary), and the actual
+  research emerges from that, never dispatched up front. Output populates the rich `draft-*`'s discovery /
+  research / alternatives sections (offered as *optional* template scaffolding — use or ignore); no separate
+  artifact.
+- **create-spec (`detailed`, secondary):** the same `detailed` template, plus a surfaced **ADR-companion
+  recommendation** — author an ADR capturing the invented model's rationale (mirroring CMF's own companion ADR).
+  Optional, not a required section. *(PRD-vs-RFC nuance — a technical RFC plausibly warrants an ADR more readily
+  than a feature PRD — stays a lean, deferred to the RFC session where the subtypes get nailed.)*
+- **spec-review posture:** for a novel spec the default self-review shifts — **extra coherence / grounding care**
+  (no existing pattern to lean on) + an advisory **"was the rationale captured / ADR considered?"** nudge.
+  Absence is a suggestion, never a block.
+- **task-gen:** **nothing.** Novel is derivation-axis; task-gen is scale-driven, reaching novelty only indirectly
+  (novelty may drive scale, which drives task-gen depth through the normal path). Kept explicit so no phantom lane
+  is added.
+
+**The companion ADR is a non-moving artifact** — authored in place under `reference/adr/`, never relocated (unlike
+the `draft-*` / `spec-*` WU artifacts). So lifecycle integration does not special-case Novel: it consumes the ADR
+if present, like any durable doc — no Novel branch in integration.
 
 ## Derivation pending (pre-spec-ready)
 
@@ -532,9 +568,11 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
    **whole-block variants** (composable-workflows' extract-whole-blocks constraint), not fine-grained inline
    branches. This is the spine: the Novel shape and the wiring placement largely fall out of it.
    **All three stages resolved** (§ Per-stage manifestation; § Pipeline structure & naming).
-2. **Novel realization shape** — make the advisory discovery / research phase + ADR expectation concrete across
-   the three stages' depth defaults, template guidance, and spec-review posture, holding "suggest, not enforce"
-   (no hard `Class`↔form hook). The draft's least-derived deliverable today.
+2. **Novel realization shape** — *resolved* (§ Novel realization): an advisory overlay on the `high`-draft +
+   `detailed` lanes (Novel ⟹ both) — a free-form, self-sequencing discovery / research sub-phase at draft-design
+   (orient-then-research, never preemptive); an advisory ADR-companion at create-spec; a posture-shift at
+   spec-review; nothing at task-gen. Suggest-not-enforce throughout, no hard hook. Residual (rides the RFC
+   session): the PRD-vs-RFC ADR-affordance nuance.
 3. **`classify-work-unit` touchpoint wiring** — where the method fires in each of `draft-design` / `create-spec`
    / `generate-tasks`, what it does (confirm-or-ratchet `Class` against the stage's resolved depth), and the
    forward-compat boundary that keeps it light enough not to pre-empt `arc-plan-conductor`. **Commit-timing
@@ -567,10 +605,12 @@ available evidence (the upstream artifact is its richest input, not a separate m
 named **feed-forward-immune by design** and each read doubling as the stage's `classify-work-unit` touchpoint
 (§ Mechanism). Settled this session: spec-review scaling (form-inherited, SAP-owned — § Spec-review procedure);
 the `Class` ↔ spec-form check declined (§ Open questions); numbering — prefixes dropped (§ Pipeline structure &
-naming); and the **`Class`-write commit-timing** — each touchpoint's write rides its stage's planning-ceremony
-commit, decision-live / persistence-deferred (§ Mechanism; item 3 — leaves a small ceremony-list amendment as the
-only residual). **Remaining pre-spec:** (1) Novel's concrete discovery / ADR shaping; and (2) the RFC form, now
-its own dedicated session (item 4), with the detailed-subtype call riding along.
+naming); the **`Class`-write commit-timing** — each touchpoint's write rides its stage's planning-ceremony commit,
+decision-live / persistence-deferred (§ Mechanism; item 3 — leaves a small ceremony-list amendment as the only
+residual); and **Novel realization** (§ Novel realization — an advisory overlay on the high-draft + detailed
+lanes, free-form self-sequencing discovery, advisory ADR companion). **Remaining pre-spec — one item:** the RFC
+form, its own dedicated session (item 4), carrying the PRD realign + the detailed-subtype structure + the Novel
+PRD-vs-RFC ADR nuance. With that session done, the draft is spec-ready.
 
 ## Scope
 
