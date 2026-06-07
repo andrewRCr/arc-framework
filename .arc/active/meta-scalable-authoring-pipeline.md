@@ -11,14 +11,17 @@
 - **Design:** `draft-scalable-authoring-pipeline.md`
 - **Task List:** [none]
 
-- **Last Completed:** Holistic pre-spec reassess — resolved spec-review scaling, numbering (prefixes dropped),
-  the declined `Class`↔spec-form check, the entry-read mechanism reframe, `Class`-write commit-timing, and Novel
-  realization (captured in `draft-scalable-authoring-pipeline.md`)
+- **Last Completed:** RFC-form session — derived the RFC section set, reframed the PRD / RFC subtype axis as
+  *derivation-kind* (one spec per WU; "want both" = decompose), de-straddled the PRD, decided separate
+  `-prd` / `-rfc` templates, added the opt-in layered model with committed meta `**Design:**` multi-value plumbing,
+  and restated validation as Success-Criteria-plus-grounding (captured in `draft-scalable-authoring-pipeline.md`
+  § Detailed-spec forms)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run the RFC-form dedicated session — research the RFC shape with the current PRD in frame
-  (likely realign the PRD; carries the detailed-subtype template-structure call + the Novel PRD-vs-RFC ADR
-  nuance). It is the last pre-spec item; the draft is spec-ready once it lands, then proceed to `1_create-spec`.
+- **Next Action:** The draft is **spec-ready** — proceed to `create-spec`. Author this WU's own detailed·technical
+  spec on `template-prd.md` (interim constraint — SAP ships the RFC template it would otherwise use), noting the
+  form in the H1. Residual spec-time items: template bodies + the small DEV-RULES.ARC ceremony-list amendment
+  (§ Derivation pending item 3).
 
 ---

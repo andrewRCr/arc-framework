@@ -111,8 +111,9 @@ The three shapes (concrete, starting points — dogfooding-refinable):
   *form*, but is a *spec* (feeds a task list, validates completion) — distinct from an ARC ADR (a posterity
   record that feeds nothing); do not conflate. Stabilizing principle: structurally different, not "PRD minus
   sections" (drifts up) or "brief plus a bit" (drifts down).
-- **`detailed` (ceiling, derives):** the current full spec, subtyped PRD (feature) / RFC (technical) — full
-  requirement enumeration + success criteria; derives an open design.
+- **`detailed` (ceiling, derives):** the current full spec, subtyped PRD / RFC by derivation-kind (§ Detailed-spec
+  forms) — full enumeration of the form's derivation substrate (requirements for PRD, structured Proposed Design
+  for RFC) + concrete success criteria; derives an open design.
 
 ## Spec naming & variants
 
@@ -128,6 +129,10 @@ H1 label:
 - **`PRD` retires as the catch-all term** — replace generic "PRD = any spec" usage with "detailed spec" across
   surfaces (the create-spec form-agnostic reframe). `PROJECT-PRD` is a different artifact (project constitution)
   and is preserved.
+- **Layered-mode exception (opt-in):** when a single WU carries a complementary PRD + RFC pair (§ Detailed-spec
+  forms → layered model), the two artifacts split the filename: `spec-{name}-prd.md` + `spec-{name}-rfc.md`, both
+  referenced by the meta `**Design:**` field. The single-file `spec-{name}.md` convention is unchanged for the
+  default unified model.
 
 ## Detailed-spec subtypes (PRD / RFC) — adopted as direction
 
@@ -141,10 +146,129 @@ axis (already classified at create-spec Step 2):
 
 Subtypes apply **at `detailed` only** — where derivation makes feature / technical genuinely diverge. `brief`
 and `outline` *record* rather than derive, so category-divergence is minimal; they stay single,
-category-agnostic shapes (bounding proliferation to four templates, not six). **Deferred to the dedicated
-RFC / PRD session (rides item 4):** separate `-prd` / `-rfc` templates vs. one detailed template that flexes by
-category. This cannot resolve until the RFC shape is derived — whether RFC and PRD share a template structure is
-downstream of knowing the RFC form — so it rides the same pass that derives RFC and realigns PRD.
+category-agnostic shapes (bounding proliferation to four templates, not six). **Resolved (the RFC-form session):**
+separate `-prd` / `-rfc` templates, the axis reframed as derivation-kind, the section sets derived, and the
+PRD / RFC relationship settled — see § Detailed-spec forms below, which supersedes the sketch in this section.
+
+## Detailed-spec forms: PRD & RFC (derived)
+
+The `detailed` spec — the one form that *derives* — has two species, `PRD` and `RFC`. This section settles their
+shapes, their relationship, and the two usage models, derived from the 2026-06-06 RFC-form research pass (sources
+in § External research). It supersedes the sketch in § Detailed-spec subtypes.
+
+**One genus, two species — selected by derivation-kind, not "is it technical."** Both PRD and RFC are the
+`detailed` spec; they are variants by *which kind of derivation dominates the WU*, not two different artifacts. ARC
+is a SWE methodology — all work is technical — so the axis is **not** the presence of technical content. It is
+where the WU's open, hard questions sit:
+
+- **Product / requirements derivation → PRD.** The uncertainty is *what should this do, what's the right product
+  shape, what's the scope*; the technical approach may be obvious. (Building a user-facing capability.)
+- **Technical-design derivation → RFC.** There is no real "requirements" question; the uncertainty is *what's the
+  right technical design and what are the tradeoffs*. (A refactor, infra migration, internal architecture change,
+  perf rework.)
+
+This is the natural extension of the derivation axis (which already drives `detailed`) into derivation *of what*.
+It is **not** the industry PRD-plus-RFC split, which is **role-driven** — a PM owns the PRD, an engineer owns the
+RFC, with a handoff between them. ARC's developer-agent pair holds both roles in one loop, so the *organizational*
+reason for two layered docs evaporates; hence one form per WU by derivation-kind, the secondary dimension carried
+as a subsection (a PRD's Technical Considerations as constraints; an RFC's note on user-facing impact).
+
+**Default: one spec per WU, never both.** A WU resolves to one form. "I want both a PRD and an RFC" is a
+**decomposition signal** (heavy product-derivation *and* heavy technical-design-derivation = two WUs, one of each
+shape — `decomposition-machinery`'s domain), not a two-spec WU.
+
+**The shared spine is load-bearing, not confusion.** PRD and RFC overlap on Introduction / Goals / Non-Goals /
+Success Criteria / Open Questions *because each is the sole spec for its WU and must stand alone* — the overlap is
+the mechanism that makes one document self-sufficient. This is **not** the "merge PRD + RFC into one doc"
+anti-pattern (the research's named failure mode): the model *selects* the dominant form and absorbs the secondary
+dimension as a subsection, never stuffs both full section-sets into one file.
+
+### The RFC section set (derived)
+
+The RFC is the technical-design species. Its section set maps the research-confirmed RFC spine
+(Summary → Motivation → Proposed Design → Rationale & Alternatives → Open questions, plus Goals/Non-Goals and
+Cross-cutting concerns) onto ARC's spec idiom, complementing the PRD:
+
+| Section                                  | Role                                                           | vs PRD                                   |
+| ---------------------------------------- | ------------------------------------------------------------- | ---------------------------------------- |
+| H1 `Spec (detailed · RFC): {name}` + Purpose | ARC-universal                                              | shared                                   |
+| Introduction / Context                   | technical problem framing, "why now"                          | shared spine (technical angle)           |
+| Goals / Non-Goals                        | technical objectives + out-of-scope                           | shared spine                             |
+| **Proposed Design**                      | the heart — architecture, interfaces / APIs, data model, behavior | replaces PRD's User Stories + Requirements |
+| **Alternatives & Rationale**             | derivation heart — options, tradeoffs, why this               | RFC-unique                               |
+| Cross-cutting Considerations             | security / perf / testing / migration / rollout (remove what doesn't apply) | RFC-unique                  |
+| Success Criteria                         | technical, concrete, validated at completion                  | shared spine                             |
+| Open Questions                           | resolve-before / resolve-during                               | shared spine                             |
+
+The shared spine (Intro / Goals / Non-Goals / Success / Open) is the stand-alone backbone; the divergent middles
+(PRD: User Stories + prioritized Requirements + Design Considerations; RFC: Proposed Design + Alternatives +
+Cross-cutting) are *why* they are separate forms. The RFC deliberately omits the P0 / P1 / P2 **Requirements**
+enumeration — un-idiomatic for design docs (you cannot ship half a refactor; technical prioritization is usually
+inherent) — carrying its enumerable substance in a structured **Proposed Design** instead.
+
+### PRD realignment (de-straddle)
+
+Pulling RFC out lets the PRD shed the technical straddle the research flags as the "PRD with a giant
+technical-considerations section" anti-pattern (today's `template-prd.md`): strip "For technical work: system
+scenarios" from User Stories; reframe Technical Considerations from "often the core of technical PRDs" to
+*constraints / dependencies / integration points surfaced for downstream design* (constraints, not design). The
+PRD becomes cleanly product / feature; technical *design* lives in the RFC. (Template bodies are authored at spec
+time; this settles the decision, not the body.)
+
+### Separate templates, not one flexing (decided)
+
+The divergent middles are ~3 substantial, near-disjoint sections each, so the forms get **separate** templates —
+`template-spec-detailed-prd.md` / `template-spec-detailed-rfc.md` — not one template that flexes by category
+(which would re-import the merge anti-pattern as conditionals). Four templates total
+(`brief` / `outline` / `detailed-prd` / `detailed-rfc`), holding the "four not six" bound. Resolves the
+§ Open-questions template-structure call.
+
+### Validation: Success Criteria is the universal contract
+
+Requirement-numbering was never the validation mechanism — it is a PRD-idiom traceability convenience. Validation
+hangs on two form-invariant anchors:
+
+- **Implementation validated against → Success Criteria.** Invariant across every form (it is even the `brief`
+  floor: "one falsifiable success signal"); written as concrete, falsifiable checks, validated at completion. A
+  refactor RFC's criteria ("all existing tests pass; public API unchanged; no perf regression > X; all N call
+  sites migrated") are perfectly checkable.
+- **Task list validated against → the form's enumerable substrate, via the grounding audit.** generate-tasks
+  grounds the task list against the spec; the substrate differs by form — numbered **Requirements** (PRD) or
+  structured **Proposed Design** elements (RFC) — but the mechanism (`arc-task-audit` coverage) is identical. The
+  design *is* the enumerable unit set; it just is not called "requirements."
+
+This refines § Spec shapes' earlier PRD-centric "full requirement enumeration" to form-specific: *detailed forms
+carry full enumeration of their derivation substrate — requirements for PRD, design elements for RFC — plus
+concrete Success Criteria.*
+
+### Two usage models: unified (default) and layered (opt-in)
+
+- **Unified model (default):** one self-contained `detailed` spec per WU, form by derivation-kind, spine present
+  (stand-alone). Everything above describes the unified model.
+- **Layered model (opt-in — teams with a real PM / eng role split):** a complementary PRD **and** RFC for one WU,
+  with **no overlap** — the RFC goes **referential**, dropping the shared spine and pointing at the upstream PRD
+  for context / goals, leaving a *pure* technical-design doc. This is the industry-standard layered workflow,
+  supported for teams that genuinely have the role separation, **never the default**, and not required of every WU
+  even for those teams.
+
+**Realization — documented pattern + template affordance, not built machinery.** ARC is solo today and the
+role-split is a future-adopter scenario, so layered support is deliberately light (YAGNI; no speculative
+config / workflow fork for zero current users):
+
+- The detailed templates are already "remove what doesn't apply" (idiomatic), so a referential RFC needs no
+  separate "pure" template *file* — it is the same template with the spine cut. The templates carry an explicit
+  **"Complementary use" note** guiding the spine-removal + PRD-referencing.
+- The strategy documents the layered model as a **sanctioned** path with the two-file naming convention:
+  `spec-{name}-prd.md` + `spec-{name}-rfc.md` for the one WU, the meta `**Design:**` field referencing both.
+- **Plumbing (committed — the affordance is fiction without it):** the meta `**Design:**` field must accept a
+  pair, following the existing `**Depends On:**` multi-value convention (comma-separated → list; `meta-reader.ts`
+  already gives Design the same `render: bullet` / `valueClass: identifier` shape, and `Depends On` already
+  parses / renders as a list via `parseDependsOn` / `join`). The parse, the consuming sites, and create-spec's
+  write of one-or-two references tolerate one or two values. Bounded — not a major change.
+- **Forward-compat (binds now):** keep the form model and filename convention tolerant of two detailed artifacts
+  per WU, so a future config knob (`spec.model: unified | layered`) or a create-spec layered mode is a cheap,
+  late-binding addition if an adopter ever needs it — never an architectural fork (mirrors the knob-vs-steer
+  treatment in § User-above preference).
 
 ## Floors that sit *below* the depth axis (do not scale)
 
@@ -354,8 +478,8 @@ what was produced.
 
 - **`Novel` planning-shape realization.** Owned and now derived (§ Novel realization): the advisory discovery /
   research phase + ADR expectation, realized as an **overlay on the `high`-draft + `detailed` lanes** (Novel ⟹
-  both), holding CMF's "suggest, do not enforce" — no hard `Class` ↔ spec-form hook. Residual: the PRD-vs-RFC
-  ADR-affordance nuance, which rides the RFC session.
+  both), holding CMF's "suggest, do not enforce" — no hard `Class` ↔ spec-form hook. The PRD-vs-RFC ADR-affordance
+  nuance is now resolved (subtype-keyed: strong at RFC, weak / omitted at PRD — § Novel realization).
 
 ## Per-stage manifestation (derived)
 
@@ -538,10 +662,15 @@ consistency check), written as whole-block conditionals per the workflow-authori
   research emerges from that, never dispatched up front. Output populates the rich `draft-*`'s discovery /
   research / alternatives sections (offered as *optional* template scaffolding — use or ignore); no separate
   artifact.
-- **create-spec (`detailed`, secondary):** the same `detailed` template, plus a surfaced **ADR-companion
+- **create-spec (`detailed`, secondary):** the `detailed` template, plus a surfaced **ADR-companion
   recommendation** — author an ADR capturing the invented model's rationale (mirroring CMF's own companion ADR).
-  Optional, not a required section. *(PRD-vs-RFC nuance — a technical RFC plausibly warrants an ADR more readily
-  than a feature PRD — stays a lean, deferred to the RFC session where the subtypes get nailed.)*
+  Optional, not a required section. **PRD-vs-RFC nuance (resolved, the RFC session):** the recommendation is
+  **keyed to the subtype** — strong at `detailed·RFC`, weak / omitted at `detailed·PRD`. RFC-novelty *is* an
+  invented architectural model = a cross-cutting decision = an ADR's home turf; and because the spec is a movable
+  WU artifact that retires with the WU while the ADR is non-moving posterity (§ "the companion ADR is a non-moving
+  artifact" below), the RFC's inline Alternatives & Rationale does *not* make the ADR redundant — they capture
+  different scopes (this-design rationale vs. the durable cross-cutting decision). PRD-novelty is product-concept
+  novelty, far less ADR-shaped, so the nudge there is weak or absent.
 - **spec-review posture:** for a novel spec the default self-review shifts — **extra coherence / grounding care**
   (no existing pattern to lean on) + an advisory **"was the rationale captured / ADR considered?"** nudge.
   Absence is a suggestion, never a block.
@@ -582,11 +711,13 @@ Gating items, worked in the planning iteration (sequence: **task-gen → arc-pla
    ceremony rather than a meta-only micro-commit). The ratchet is **decision-live, persistence-deferred**
    (§ Mechanism). Remaining deliverable: amend DEV-RULES.ARC's ceremony list to name the planning-stage ops
    explicitly, so the three new write-sites don't read as meta-timing violations to a future author.
-4. **RFC form** — research and decide what RFC shape fits ARC as a proper complement to the PRD (genuine
-   derivation; draws on the captured deep-research idiom pass). **Its own dedicated session:** the research must
-   hold the current PRD shape in frame — RFC and PRD have to complement *and* each stand alone, so the PRD is
-   likely realigned in the same pass; the detailed-subtype template-structure call (§ Detailed-spec subtypes)
-   rides along, since it cannot resolve until the RFC shape is known.
+4. **RFC form** — *resolved* (the RFC-form session; § Detailed-spec forms). The RFC section set is derived (the
+   research-confirmed RFC spine onto ARC's idiom), the feature / technical axis reframed as **derivation-kind**
+   (one spec per WU, never both; "want both" = a decomposition signal), the PRD realigned (de-straddled), the
+   detailed-subtype call decided (separate `-prd` / `-rfc` templates), and a **layered model** added for teams
+   with a real PM / eng split (opt-in, documented pattern + template affordance, committed meta `**Design:**`
+   multi-value plumbing). Validation restated as Success-Criteria-plus-grounding (form-invariant). The Novel
+   PRD-vs-RFC ADR nuance resolved (subtype-keyed). Riders all discharged.
 
 Two design subtleties the manifestation work must resolve, not gloss:
 
@@ -608,17 +739,22 @@ the `Class` ↔ spec-form check declined (§ Open questions); numbering — pref
 naming); the **`Class`-write commit-timing** — each touchpoint's write rides its stage's planning-ceremony commit,
 decision-live / persistence-deferred (§ Mechanism; item 3 — leaves a small ceremony-list amendment as the only
 residual); and **Novel realization** (§ Novel realization — an advisory overlay on the high-draft + detailed
-lanes, free-form self-sequencing discovery, advisory ADR companion). **Remaining pre-spec — one item:** the RFC
-form, its own dedicated session (item 4), carrying the PRD realign + the detailed-subtype structure + the Novel
-PRD-vs-RFC ADR nuance. With that session done, the draft is spec-ready.
+lanes, free-form self-sequencing discovery, advisory ADR companion). Resolved in the RFC-form session: the **RFC
+form and the PRD / RFC relationship** (item 4; § Detailed-spec forms) — the RFC section set, the derivation-kind
+axis reframe (one spec per WU; "want both" = decompose), the PRD de-straddle, separate `-prd` / `-rfc` templates,
+the unified / layered usage models with the committed meta `**Design:**` multi-value plumbing, the
+Success-Criteria-plus-grounding validation restatement, and the subtype-keyed Novel ADR nuance. **The draft is
+spec-ready** — proceed to `create-spec`. (The only remaining items are spec-time bodies and the small DEV-RULES.ARC
+ceremony-list amendment in item 3, both executed inside the spec / implementation phase.)
 
 ## Scope
 
 **In scope:**
 
-1. The spec template family (`template-spec-brief.md` / `-outline.md` / `-detailed-prd/rfc`); the
-   `Spec ({form}): {name}` H1; the form-agnostic `create-spec` reframe ("PRD" → "detailed spec"); the
-   depth-relative spec-ready bar.
+1. The spec template family (`template-spec-brief.md` / `-outline.md` / `-detailed-prd` / `-detailed-rfc` — four,
+   separate not flexing); the `Spec ({form}): {name}` H1; the form-agnostic `create-spec` reframe
+   ("PRD" → "detailed spec"); the RFC section set + the PRD de-straddle realignment; the derivation-kind subtype
+   selection (one spec per WU, unified model default); the depth-relative spec-ready bar. See § Detailed-spec forms.
 2. Scalable `create-spec` / `generate-tasks` — per-stage depth self-resolution, flag-free feed-forward,
    whole-block depth variants (composable-ready); task-list one-grammar (1..N phases + always-present
    verification); grounding-audit depth parameterization (per-phase interlock retained).
@@ -642,6 +778,13 @@ PRD-vs-RFC ADR nuance. With that session done, the draft is spec-ready.
    `classify-work-unit` touchpoints, the per-phase grounding-audit interlock, the spec-finalization review gate,
    and any commit / push fire-sites carry the right stops and class tags. A standing requirement, surfaced here so
    it is not deferred or forgotten at authoring time rather than a separate deliverable.
+9. **Layered-mode (complementary PRD + RFC) support** — the opt-in, non-default path for teams with a real
+   PM / eng role split (§ Detailed-spec forms → layered model): the strategy documentation of the sanctioned
+   pattern + the `spec-{name}-prd.md` / `spec-{name}-rfc.md` two-file naming convention; the detailed templates'
+   "Complementary use" note (referential RFC, spine removal); and the **committed meta `**Design:**` multi-value
+   plumbing** — the field, parser, consuming sites, and create-spec write tolerate one *or* two spec references,
+   following the existing `**Depends On:**` convention. Documented pattern + affordance only; no config knob or
+   workflow fork (forward-compat keeps a future built mode cheap).
 
 **Out of scope:**
 
@@ -659,8 +802,9 @@ PRD-vs-RFC ADR nuance. With that session done, the draft is spec-ready.
 
 - **`outline` / `brief` spec template *bodies*** — research-grounded; the bodies themselves are authored at
   spec time.
-- **Detailed-subtype template structure** — separate `-prd` / `-rfc` templates vs. one flexing template.
-  Deferred to the dedicated RFC / PRD session (coupled to item 4 — resolves once the RFC shape is known).
+- **Detailed-subtype template structure — decided: separate `-prd` / `-rfc` templates** (§ Detailed-spec forms).
+  The section sets are near-disjoint, so a flexing template would re-import the merge anti-pattern; four templates
+  total. The template *bodies* are still authored at spec time.
 - **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm at spec.
 - **Planning + spec + task shapes** — the *structural* shape is pre-spec derivation (§ Derivation pending);
   only calibration is dogfooding-refinable, not a blanket deferral.
@@ -681,6 +825,14 @@ PRD-vs-RFC ADR nuance. With that session done, the draft is spec-ready.
   § Spec shapes by source. Pull full source URLs from that transcript when authoring the spec's External
   Research. Sources: Shape Up pitch, ADR / Nygard, GitLab handbook, Go proposal, Oxide RFD-0001, Microsoft eng
   playbook, Squarespace, Rust RFC.
+- **RFC / technical-design-doc idiom** — completed 2026-06-06 focused research pass (four `external-research-analyst`
+  subagents: RFC section sets; design-doc templates vs PRD; PRD + RFC coexistence; rationale / alternatives vs ADR).
+  Grounds § Detailed-spec forms. Findings: a stable RFC spine (Summary → Motivation → Proposed Design → Rationale &
+  Alternatives → Open questions, plus Goals/Non-Goals + Cross-cutting); RFC vs PRD differ in section *set* not just
+  emphasis; complement-and-stand-alone is the documented norm; the industry split is role-driven; RFC inline
+  rationale ≠ ADR-redundant (different scope). Sources: Rust RFC template, Go proposal template, IETF RFC 7322,
+  Oxide RFD-0001, "Design Docs at Google" (industrialempathy), GitLab / Squarespace / Uber design-doc templates,
+  Pragmatic Engineer (RFCs & design docs), Nygard / Fowler on ADRs.
 
 ## Scope estimate
 
