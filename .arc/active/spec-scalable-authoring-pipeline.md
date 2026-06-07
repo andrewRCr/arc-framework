@@ -317,13 +317,16 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
       template file — the templates are already "remove what doesn't apply".
     - **Plumbing (committed — the affordance is fiction without it):** the meta `**Design:**` field, its parser,
       consuming sites, and create-spec's write **tolerate one *or* two** spec references, following the existing
-      `**Depends On:**` multi-value convention — one bullet, comma-separated, whole-value backticked
-      (`` `a, b` ``). `Design` and `Depends On` already share the `render: bullet` / `valueClass: identifier`
-      descriptor and the whole-value-backticked render via `formatValue`; the comma-split *parse* is duplicated
-      across three private `parseDependsOn` copies. The work consolidates that split into one shared helper (used
-      by `Depends On` and `Design`), teaches `validate-meta-spec` to accept one *or* two comma-separated `Design`
-      refs (keeping the multiple-*lines* rejection), and confirms consumer-site tolerance. No render change.
-      Bounded.
+      `**Depends On:**` multi-value convention — one bullet, comma-separated, each element individually backticked
+      (`` `a`, `b` `` — two discrete tokens, not one compound `` `a, b` `` span). `Design` and `Depends On` share
+      the `render: bullet` descriptor; the work moves both to a new `valueClass: identifier-list` whose
+      `formatValue` renders each comma-separated element backticked, and consolidates the comma-split *parse*
+      (duplicated across three private `parseDependsOn` copies) into one shared `parseIdentifierList` helper that
+      drives both that render and every consumer's parse. The record-level parse is unchanged — the global
+      `stripInlineCode` recovers the comma-joined value, so consumers are blind to the render form. The work also
+      teaches `validate-meta-spec` to accept one *or* two comma-separated `Design` refs (keeping the
+      multiple-*lines* rejection), confirms consumer-site tolerance, and migrates the two existing two-value
+      `Depends On` metas to the per-element form. Bounded.
     - **Forward-compat (binds now):** keep the form model + filename convention tolerant of two detailed
       artifacts per WU, so a future config knob (`spec.model: unified | layered`) or a create-spec layered mode
       is a cheap late-binding addition — never an architectural fork. No config knob or workflow fork now.
@@ -446,15 +449,20 @@ structure.
 ### CLI / schema surface — `Design` multi-value plumbing (R16)
 
 The only code surface: the meta `**Design:**` field accepting one *or* two references, following the existing
-`**Depends On:**` multi-value convention — one bullet, comma-separated, whole-value backticked (`` `a, b` ``).
-`Design` and `Depends On` already share the `render: bullet` / `valueClass: identifier` descriptor and the
-whole-value-backticked render path (`formatValue`), so the render needs no change. What is *not* shared today: the
-comma-split parse is duplicated across three byte-identical private `parseDependsOn` helpers (`ready-mine-source`,
-`in-flight-derivation`, `worktree-roster`), and `validate-meta-spec` actively rejects more than one `Design`
-value. The work: consolidate the split into one shared `parseIdentifierList` helper (home: `meta-reader.ts`),
-refactor the three `Depends On` sites onto it and use it for `Design`; teach `validate-meta-spec` to accept one
-*or* two comma-separated `Design` refs (retaining the multiple-*lines* guard); confirm consumer-site tolerance.
-No new dependency, framework, or infrastructure — an extension within the established three-layer CLI structure.
+`**Depends On:**` multi-value convention — one bullet, comma-separated, each element individually backticked
+(`` `a`, `b` ``, not the compound `` `a, b` ``). `Design` and `Depends On` share the `render: bullet` descriptor;
+the work moves both to a new `valueClass: identifier-list` whose `formatValue` renders each element backticked.
+The render-side change is small and contained to `formatValue`; the record-level parse needs no change, because
+the global `stripInlineCode` already recovers the comma-joined value from either render form, so consumers are
+blind to which form a meta was written in. What is *not* shared today: the comma-split parse is duplicated across
+three byte-identical private `parseDependsOn` helpers (`ready-mine-source`, `in-flight-derivation`,
+`worktree-roster`), and `validate-meta-spec` actively rejects more than one `Design` value. The work: consolidate
+the split into one shared `parseIdentifierList` helper (home: `meta-reader.ts`) that drives both the per-element
+render and every consumer's parse, refactor the three `Depends On` sites onto it and use it for `Design`; teach
+`validate-meta-spec` to accept one *or* two comma-separated `Design` refs (retaining the multiple-*lines* guard);
+confirm consumer-site tolerance; and migrate the two existing two-value `Depends On` metas to the per-element
+form. No new dependency, framework, or infrastructure — an extension within the established three-layer CLI
+structure.
 
 ### Anchors to cite
 

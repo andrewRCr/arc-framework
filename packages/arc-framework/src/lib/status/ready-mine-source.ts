@@ -23,7 +23,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { basename, join } from "node:path";
 
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
 
 import { buildReadyMineSlice, type PlannedWorkUnit } from "./ready-mine.js";
 import type { StatusViewRow } from "./render.js";
@@ -75,18 +75,6 @@ function wuNameOf(metaPath: string): string {
   return match?.[1] ?? basename(metaPath);
 }
 
-/**
- * Parse a `**Depends On:**` value into WU-names: comma-separated, trimmed, with
- * `[none]` / absent / empty resolving to no dependencies.
- */
-function parseDependsOn(raw: string | null): string[] {
-  if (raw === null || raw === "[none]") return [];
-  return raw
-    .split(",")
-    .map((name) => name.trim())
-    .filter((name) => name !== "");
-}
-
 /** Parse one planned meta into its render-relevant fields. */
 async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit> {
   const content = await readFile(metaPath, "utf8");
@@ -101,7 +89,7 @@ async function parsePlanned(metaPath: string): Promise<PlannedWorkUnit> {
   return {
     name: wuNameOf(metaPath),
     ...(owner !== null ? { owner } : {}),
-    dependsOn: parseDependsOn(record["Depends On"]),
+    dependsOn: parseIdentifierList(record["Depends On"]),
     ...(cohort !== null && cohort !== "[none]" ? { cohort } : {}),
     ...(workClass !== null ? { class: workClass } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),

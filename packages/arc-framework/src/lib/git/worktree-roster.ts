@@ -11,7 +11,7 @@
  */
 
 import { validateState, type WorkUnitState } from "../../commands/active/types.js";
-import { parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 
 import type { GitExec } from "./exec.js";
 
@@ -301,7 +301,7 @@ function buildEntry(
   const cohortRaw = record.Cohort;
   const classRaw = record.Class;
   const priorityRaw = record.Priority;
-  const dependsOn = parseDependsOn(record["Depends On"]);
+  const dependsOn = parseIdentifierList(record["Depends On"]);
   return {
     worktreePath: wt.path,
     branch: wt.branch,
@@ -313,18 +313,6 @@ function buildEntry(
     ...(priorityRaw !== null && priorityRaw !== "[none]" ? { priority: priorityRaw } : {}),
     ...(dependsOn.length > 0 ? { dependsOn } : {}),
   };
-}
-
-/**
- * Parse a `**Depends On:**` field value into WU names: comma-separated,
- * trimmed, with `[none]` / absent / empty resolving to no dependencies.
- */
-function parseDependsOn(raw: string | null): readonly string[] {
-  if (raw === null || raw === "[none]") return [];
-  return raw
-    .split(",")
-    .map((name) => name.trim())
-    .filter((name) => name !== "");
 }
 
 interface RawWorktree {
