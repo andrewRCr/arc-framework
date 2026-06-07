@@ -17,24 +17,28 @@ different character (markdown authoring vs. test-first TS), but both prerequisit
 Every template edit is a two-copy edit (`.arc/reference/templates/**` and the `packages/arc-framework/arc/**`
 mirror); the plumbing is single-source CLI code under `packages/arc-framework/src/`.
 
-### `[ ]` **1.1 `template-spec-brief.md` + `template-spec-outline.md`**
+### `[x]` **1.1 `template-spec-brief.md` + `template-spec-outline.md`**
 
 - _Goal:_ The two lighter spec forms exist as separate templates with research-grounded bodies, each leading
   with the `Spec ({form}): {name}` H1, so create-spec can select and emit a `brief` or an `outline` spec.
-- _Note:_ Pull source URLs for each template's External Research guidance from the completed lightweight-spec
-  research pass (run `wf_191136b1-518`). Posture: inform and adapt, never adopt.
 
-    - `[ ]` **1.1.a `template-spec-brief.md` — the floor**
-        - Body: ~1 evolving paragraph — intent + scope boundary + one falsifiable success signal. No requirement
-          IDs, no success-criteria matrix. H1 `Spec (brief): {name}`. Guidance frames it as checkable, not an
-          Errand.
+    - `[x]` **1.1.a `template-spec-brief.md` — the floor**
+        - H1 Spec (`brief`): {wu-name}, an `Origin` field, one evolving paragraph (intent + scope boundary + one
+          falsifiable signal), a one-line brief→outline sizing pointer, and a `**Success Criteria:**` anchor line.
+          No requirement IDs, no matrix.
 
-    - `[ ]` **1.1.b `template-spec-outline.md` — the recording middle**
-        - Section set: Problem/Context · settled Decision(s) · Scope boundary (No-gos) · Open items (worked out,
-          not deferred) · Consequences/risks · optional bounded Appetite/effort line. No requirement IDs / success
-          matrix (anti-up-drift) while fixing the decision + scope sections (anti-down-drift).
-        - Template guidance distinguishes it from an ARC ADR (a spec feeds a task list + validates completion; an
-          ADR is a posterity record that feeds nothing) — do not conflate.
+    - `[x]` **1.1.b `template-spec-outline.md` — the recording middle**
+        - Sections: Problem/Context · Decision(s) · Scope boundary (No-gos) · Consequences & Risks · Success
+          Criteria · Open items; `Appetite` as an optional top field. Decisions framed as the substrate the task
+          list is built from and validated against; no requirement IDs / matrix.
+
+- _Outcome:_ Settled the spec-form H1 convention across the whole family: form (and the `detailed` subtype) as
+  backticked codified tokens joined by a ` · ` middot, the WU's natural name as plain prose (matching the
+  `# Metadata:` / `# Task List:` H1s), kebab slug confined to filenames/cross-refs — e.g. Spec (`outline`): Name
+  and Spec (`detailed` · `PRD`): Name. Made `Success Criteria` the form-invariant validation anchor (R6),
+  present in every form and scaling from a one-line field (`brief`) to a short non-matrix list (`outline`);
+  dropped author-facing taxonomy meta from the template bodies (rationale stays in the spec). Spec R2 (H1
+  convention) + R3 (outline section set) reconciled to match; two-copy edit (`.arc/` + package mirror).
 
 ### `[ ]` **1.2 `template-spec-detailed-prd.md` — de-straddle + complementary-use note**
 
@@ -44,8 +48,8 @@ mirror); the plumbing is single-source CLI code under `packages/arc-framework/sr
   Phase 3 (3.1) so the reference and the file move together, keeping every between-phase commit coherent.
 
     - `[ ]` **1.2.a Author the detailed-PRD template**
-        - Lead with `Spec (detailed-prd): {name}` H1; keep numbered P0/P1/P2 Requirements + concrete Success
-          Criteria (the current full-spec substance).
+        - Lead with the Spec (`detailed` · `PRD`): {wu-name} H1; keep numbered P0/P1/P2 Requirements + concrete
+          Success Criteria (the current full-spec substance).
 
     - `[ ]` **1.2.b De-straddle the PRD**
         - Strip "For technical work: system scenarios" from User Stories; reframe Technical Considerations from
@@ -64,7 +68,7 @@ mirror); the plumbing is single-source CLI code under `packages/arc-framework/sr
   proposal, IETF RFC 7322, Oxide RFD-0001, Design Docs at Google, GitLab/Squarespace/Uber, Pragmatic Engineer).
 
     - `[ ]` **1.3.a RFC spine + divergent middle**
-        - H1 `Spec (detailed-rfc): {name}` + Purpose · Introduction/Context · Goals/Non-Goals · **Proposed
+        - H1 Spec (`detailed` · `RFC`): {wu-name} + Purpose · Introduction/Context · Goals/Non-Goals · **Proposed
           Design** (architecture, interfaces, data model, behavior) · **Alternatives & Rationale** ·
           **Cross-cutting Considerations** (security/perf/testing/migration/rollout) · Success Criteria · Open
           Questions. Omit the P0/P1/P2 Requirements enumeration (un-idiomatic for design docs).

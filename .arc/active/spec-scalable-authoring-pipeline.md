@@ -1,4 +1,4 @@
-# PRD: Scalable Authoring Pipeline
+# Spec (`detailed` · `RFC`): Scalable Authoring Pipeline
 
 - **Origin:** [internal]
 - **Cohort:** principle-anchored-core/agile-wu-lifecycle
@@ -8,8 +8,8 @@
   the *grammar* (template weight, phase count, audit depth) per stage to the work's pre-impl demand; never scale
   the discipline (the review-increment gate is invariant at every depth).
 
-> *Form note (interim): a `detailed`·RFC (technical-design) spec authored on the PRD template with technical
-> emphasis. The dedicated `detailed`·RFC template is this work unit's own deliverable and does not exist yet, so
+> *Form note (interim): a `detailed` · `RFC` (technical-design) spec authored on the PRD template with technical
+> emphasis. The dedicated `detailed` · `RFC` template is this work unit's own deliverable and does not exist yet, so
 > this spec uses `template-prd.md` until SAP ships it — the last spec that needs the interim treatment. The spec
 > form lives here in the H1 and template, not in the filename (filename stays stable across forms per the
 > `Design`-field semantics).*
@@ -130,20 +130,26 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
    the "four not six" bound (subtypes apply at `detailed` only). The divergent middles (PRD: User Stories +
    prioritized Requirements + Design Considerations; RFC: Proposed Design + Alternatives + Cross-cutting) are
    ~3 near-disjoint sections each, so the forms get **separate** templates, never one flexing by conditionals
-   (which would re-import the merge anti-pattern). The H1 leads with the artifact type — `Spec ({form}): {name}`
-   (e.g. `Spec (outline): payment-retry`). One genre noun — **Spec** — keeps ARC's `spec-*` vocabulary and avoids
-   a `Design Doc` ↔ `**Design:**`-field clash. Template *bodies* are authored at spec time (§ Open Questions).
+   (which would re-import the merge anti-pattern). The H1 leads with the codified form — backticked — then the
+   WU's natural name in plain prose, e.g. Spec (`brief`): Payment Retry or Spec (`outline`): Payment Retry. The
+   `detailed` form additionally carries its subtype, joined by a middot and likewise backticked:
+   Spec (`detailed` · `PRD`): Payment Retry / Spec (`detailed` · `RFC`): Payment Retry. Form and subtype are
+   codified taxonomy (backticked); the name is the WU's display name (plain prose, matching the `# Metadata:` /
+   `# Task List:` H1s), while the kebab slug stays in the filename and every cross-reference. One genre noun —
+   **Spec** — keeps ARC's `spec-*` vocabulary and avoids a `Design Doc` ↔ `**Design:**`-field clash. Template
+   *bodies* are authored at spec time (§ Open Questions).
 
 3. **The three spec shapes (research-grounded designs).** The brief/outline/detailed shapes are settled design
    (bodies authored at spec time):
     - **`brief` (floor):** ~1 evolving paragraph — intent + scope boundary + one falsifiable success signal.
       Checkable, not an Errand.
     - **`outline` (middle, *records*):** ~1–2 pages (ADR length norm). Section set: Problem/Context · settled
-      Decision(s) · Scope boundary (No-gos) · Open items (worked out, not deferred) · Consequences/risks —
-      optionally a bounded Appetite/effort line. **No requirement IDs, no success-criteria matrix** (anti-up-drift)
-      while fixing the decision + scope sections (anti-down-drift). Structurally different from a PRD, not "PRD
-      minus sections"; a *spec* (feeds a task list, validates completion), distinct from an ARC ADR (a posterity
-      record that feeds nothing) — do not conflate.
+      Decision(s) · Scope boundary (No-gos) · Consequences/risks · **Success Criteria** (concise, checkable —
+      the form-invariant validation anchor of R6, not a P0/P1/P2 matrix) · Open items (worked out, not
+      deferred); an optional bounded Appetite/effort line sits with the metadata fields. **No requirement IDs,
+      no success-criteria matrix** (anti-up-drift) while fixing the decision + scope sections (anti-down-drift).
+      Structurally different from a PRD, not "PRD minus sections"; a *spec* (feeds a task list, validates
+      completion), distinct from an ARC ADR (a posterity record that feeds nothing) — do not conflate.
     - **`detailed` (ceiling, *derives*):** the current full spec, subtyped PRD / RFC by derivation-kind (R4) +
       concrete Success Criteria.
 
