@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
-- **Depends On:** `scalable-authoring-pipeline, decomposition-machinery`
+- **Depends On:** `scalable-authoring-pipeline`, `decomposition-machinery`
 
 - **Origin:** [internal]
 - **Design:** `draft-doc-cascade-sweep.md`
