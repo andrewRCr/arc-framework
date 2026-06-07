@@ -355,7 +355,7 @@ written as a standalone method a future review-method-family absorbs rather than
           minimal check at `brief`. (The gate is Step 6, not the plan's "Step 7" — the Chunk A rework dropped the
           old work-category step.)
 
-### `[ ]` **3.4 `pre-spec-finalization-review` extension (inactive default) + strategy precedent**
+### `[x]` **3.4 `pre-spec-finalization-review` extension (inactive default) + strategy precedent**
 
 - _Goal:_ A `pre-spec-finalization-review` ceremony extension ships inactive/empty by default, firing co-located
   with the spec-finalization review gate (create-spec Step 7) as the opt-in seam for a team's procedure (async-PR
@@ -363,13 +363,18 @@ written as a standalone method a future review-method-family absorbs rather than
 - _Rationale:_ Named by its lifecycle gate (the `pre-*-review` family — parallel to `pre-merge-review` ↔
   `diff-review`), distinct from the `spec-review` method it augments; family membership is the additive signal.
 
-    - `[ ]` **3.4.a Author + register the extension**
-        - `pre-spec-finalization-review.md` with default-inactive `.actions`; declare it in create-spec's
-          `arc.extensions` (structural no-op when absent); register it in `extensions/README.md` (the Index + the
-          Extension Points table).
+    - `[x]` **3.4.a Author + register the extension**
+        - Authored `pre-spec-finalization-review.md` (both copies, `active: false`, `[No extension configured]`)
+          modeled on `pre-merge-review`. Declared it in create-spec's `arc.extensions` with a
+          `· #pre-spec-finalization-review` fire-point at Step 6 (after `spec-review`, before the finalization
+          interlock) + link def; registered in `extensions/README.md` (Index + Extension Points table, at the
+          planning stage of the lifecycle order).
 
-    - `[ ]` **3.4.b Strategy-doc precedent + mapping**
-        - Document the team-cadence precedents as informative (not ARC-enforced) with a mapping to the extension.
+    - `[x]` **3.4.b Strategy-doc precedent + mapping**
+        - Registered in `strategy-configurability-architecture` § Extension Points — added to the Fire-point family
+          table (now six) and the Reserved-names list (now three); the latter carries the team-cadence precedents
+          (async-PR review / comment window / committee sign-off) mapped to the extension as informative-only,
+          ARC-enforced by none.
 
 ## **Phase 4:** `generate-tasks` one-grammar rework
 

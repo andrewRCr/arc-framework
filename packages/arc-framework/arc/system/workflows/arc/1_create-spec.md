@@ -6,6 +6,8 @@ arc:
     - resolve-planning-depth
     - classify-work-unit
     - spec-review
+  extensions:
+    - pre-spec-finalization-review
 ---
 
 # Workflow: Create Spec
@@ -179,6 +181,11 @@ coherence + grounding pass scaled to the form (it collapses to a single minimal 
 fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is a
 derivation signal — route it to the design, not into the spec.
 
+- **Extensions** · `#pre-spec-finalization-review`: If `pre-spec-finalization-review` appears in the
+  active-extensions list (established at session init), load and execute its
+  [`.actions`][pre-spec-finalization-review] — a team's own spec-review ceremony layered on the default
+  self-review. Otherwise, skip.
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the spec is saved and self-reviewed. Surface the spec location and the
 > self-review findings for review; await approval before proceeding to draft retirement + meta update + commit.
@@ -218,6 +225,7 @@ Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this s
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [spec-review]: ../../methods/spec-review.md
+[pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md
 [template-spec-outline]: ../../../reference/templates/arc/work-unit/spec/template-spec-outline.md
 [template-spec-detailed-prd]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md

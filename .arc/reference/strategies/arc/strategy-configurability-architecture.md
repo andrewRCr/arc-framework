@@ -383,15 +383,16 @@ step or git operation:
 
 ### Fire-point family
 
-Five extension fire-points span the work-unit lifecycle:
+Six extension fire-points span the work-unit lifecycle:
 
-| Extension           | Fire-point                                                | Wired into                                   | Default                         |
-|---------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-activation`    | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
-| `pre-commit-review` | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
-| `pre-pr-review`     | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
-| `pre-push-review`   | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
-| `pre-merge-review`  | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
+| Extension                      | Fire-point                                                | Wired into                                   | Default                         |
+|--------------------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
+| `pre-spec-finalization-review` | `1_create-spec.md` finalization gate, post-`spec-review`  | `1_create-spec.md`                           | inactive; no default `.actions` |
+| `pre-activation`               | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
+| `pre-commit-review`            | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
+| `pre-pr-review`                | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
+| `pre-push-review`              | Any push via the push wrapper                             | `arc release push` / `arc sync` push pathway | inactive; no default `.actions` |
+| `pre-merge-review`             | `integrate-work-unit.md` post-review-response, pre-merge  | `integrate-work-unit.md`                     | inactive; no default `.actions` |
 
 All extensions ship as inactive by default — teams populate `.actions` and flip `active: true` in frontmatter
 to opt in. Entries marked "no default `.actions`" ship as no-op shells without a provided action body; teams
@@ -400,8 +401,11 @@ supplying their own actions activate them like any other extension.
 ### Reserved names
 
 Some extension names ship as files but without a default `.actions` body — namespace reserved for project use
-or for future defaults. Two entries from the family above carry this status today:
+or for future defaults. Three entries from the family above carry this status today:
 
+- `pre-spec-finalization-review` — fires at `1_create-spec.md`'s spec-finalization gate, after the `spec-review`
+  self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
+  comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
 - `pre-push-review` — fires for any push via the push wrapper.
 - `pre-merge-review` — fires post-review-response, pre-merge at `integrate-work-unit.md`.
 
