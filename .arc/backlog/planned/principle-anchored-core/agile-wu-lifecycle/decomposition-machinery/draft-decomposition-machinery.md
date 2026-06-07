@@ -73,6 +73,26 @@
   behavior — a natural member of this WU's layout-drift hook family. Decide whether it co-homes with the
   cohort-field↔dir guard above or is a distinct check.
 
+### `[ ]` **At-cap decomposition: a WU already at the nesting cap has no sub-cohort to graduate into**
+
+- *Routed from:* `scalable-authoring-pipeline` planning (2026-06-06), surfaced while checking whether SAP itself
+  warranted decomposition.
+- *Concern:* graduation assumes room to nest — *"a WU already in a cohort graduates to a sub-cohort under its
+  existing parent."* But when the parent is *already* a sub-cohort (a two-segment `Cohort` path, at the nesting
+  cap), graduating would mint a forbidden third grouping segment. The draft never carves out this precondition,
+  and it bites this very cohort: every `agile-wu-lifecycle` member (`principle-anchored-core/agile-wu-lifecycle/*`)
+  sits at the cap, so if any needed to decompose, the graduation model has no legal target.
+- *The structural escape is lateral, not nested:* an at-cap WU must decompose into **sibling WUs under its existing
+  parent** (peers of its current siblings), not a nested cohort. That forfeits graduation's name-preservation
+  guarantee — at the cap you cannot mint the cohort that *carries the old name*, so the "name loss breaks
+  references" reassurance (a WU→cohort rename) does not hold; narrative refs must re-point to the specific members,
+  and the "these came from one concern" grouping survives only as a naming convention (`<name>-pt1` / `-pt2` or a
+  shared prefix).
+- *Decide:* accept lateral-decomposition-with-tradeoffs as a third graduation arm (alongside standalone→top-level
+  and in-cohort→sub-cohort); or raise the cap; or treat hitting-the-cap-needing-decomposition as the signal the
+  parent cohort was mis-scoped and route to a parent restructure. Couples with the nesting-cap rationale
+  (§ The bounded grouping taxonomy) and the name-preservation argument (§ A decomposing WU graduates to a cohort).
+
 ---
 
 ## Problem / Motivation
