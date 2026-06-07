@@ -223,23 +223,30 @@ rather than introducing a new mechanism).
   declarers incrementally — so 3.1.d / 4.1.b now carry explicit reminders to add create-spec / generate-tasks to
   both method headers when they wire it.
 
-### `[ ]` **2.4 Depth-relative readiness bar + `high`-only coherence-consolidation criterion**
+### `[x]` **2.4 Depth-relative readiness bar + `high`-only coherence-consolidation criterion**
 
 - _Goal:_ draft-design's synthesis states (`fresh → rough → maturing → formalization-ready`) become
   depth-relative — "formalization-ready" means ready _at the chosen depth_ — and `high`-only
   coherence-consolidation criteria (a consolidation rewrite at the gate, an interim accretion softcap, and a
   no-detail-loss check) reconcile accreted draft layers into one clean input without dropping substance.
 
-    - `[ ]` **2.4.a Depth-relative readiness states**
-        - Carry the existing synthesis states into the workflow, re-anchored so the bar's _height_ is invariant
-          but the _distance_ scales with the chosen depth.
+    - `[x]` **2.4.a Depth-relative readiness states**
+        - Recovered the `fresh → rough → maturing → formalization-ready` states (stripped from `arc-plan`
+          SKILL.md at 2.2) and wove them into the `high` lane's existing per-pass continuity synthesis — the
+          state is now a field recorded alongside Resolved / Open / Next (step 4), not a parallel tracker. Added a
+          "one bar, depth-relative distance" block: the formalization-ready bar's _height_ is invariant (the same
+          gate `low`/`medium` clear faster), only the _distance_ scales.
 
-    - `[ ]` **2.4.b `high`-only coherence-consolidation criteria**
-        - Three suggest-not-enforce criteria on the `high` lane: a producer-consolidates-before-handoff rewrite as
-          a formalization-ready pre-req; an interim softcap that suggests an integrating rewrite mid-loop when
-          amendment accretion grows costly to resume against; and a no-detail-loss check that every consolidation
-          rewrite preserves surviving substance. Ships the _criteria_ only — the accretion-detection / batched
-          reconciliation / diff-based survival machinery is the conductor's.
+    - `[x]` **2.4.b `high`-only coherence-consolidation criteria**
+        - Added a `high`-only, suggest-not-enforce coherence-consolidation block to the `high` lane: the three
+          leans (consolidate-before-formalization-ready, interim accretion softcap, no-detail-loss self-check)
+          under the _amend-then-integrate_ / _leave-it-cleaner_ framing. Criteria only — kept as judgment leans,
+          no mechanical accretion-detection or survival-verification machinery.
+
+- _Outcome:_ Both lands target only the `high` lane (by construction `low`/`medium` don't accrete and clear the
+  states instantly), realized as two scannable reference blocks below the unchanged 5-step loop rather than inline
+  prose. No forward-reference to the deferred machinery: the workflow is adopter-facing, so the criteria-vs-machinery
+  split is conveyed purely as _suggest-not-enforce_ (no internal-roadmap pointer per § Audience Boundaries).
 
 ## **Phase 3:** `create-spec` rework — depth variants, subtype gate, `spec-review`
 

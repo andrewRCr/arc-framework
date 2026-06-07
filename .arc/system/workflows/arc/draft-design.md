@@ -59,8 +59,8 @@ not a pass count. Step up when the space proves open-ended: exploration or inven
 
 ### `high` — iterative shaping (evolving draft)
 
-An open-ended or substantial design must be authored. Shape it as an evolving `draft-*`, looping until it is
-formalization-ready — settled at the chosen depth.
+An open-ended or substantial design must be authored. Shape it as an evolving `draft-*`, looping until it reaches
+**formalization-ready** — at the depth this design demands (the readiness states below).
 
 1. **Start.** If a `draft-*` already exists (a prior idea or session), read it as the continuity artifact — do
    not rediscover from scratch. Otherwise start from the problem framing.
@@ -75,11 +75,42 @@ formalization-ready — settled at the chosen depth.
    and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The developer
    formulates _with_ the agent; the agent does not produce a finished design for sign-off.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
-   re-deriving: what is **Resolved**, the **Open** items (masked design decisions, unvalidated assumptions, soft
-   scope boundaries), and the **Next** move. This matters most for multi-session work — common at `Class: Novel`.
+   re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
+   decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for
+   multi-session work — common at `Class: Novel`.
 5. **Amend** the draft as each open decision settles, and loop until formalization-ready.
 
-This is a lightweight, facilitation-driven loop — re-synthesis pass by pass, no heavier machinery.
+**Readiness states — one bar, depth-relative distance.** The draft moves through a progression toward the
+formalization-ready gate:
+
+- **fresh** — no `draft-*` yet; the idea is still being shaped.
+- **rough** — a `draft-*` exists but carries significant gaps or unresolved direction.
+- **maturing** — scope is known; the open items are detail-design, not fundamentals.
+- **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
+  for create-spec.
+
+The **height** of the formalization-ready bar is invariant — the same _is all settle-able design settled, and
+can I state how I'll know it worked?_ gate the `low` and `medium` lanes clear, just reached faster there. What
+scales is the **distance**: a deeper design crosses more passes to reach the same bar. "Formalization-ready"
+always means ready _at the depth this design demanded_ — never a lower bar.
+
+**Coherence-consolidation (`high`-only, suggest-not-enforce).** A draft that iterates across many sessions
+accretes superseded sketch beside current design — the design can be settled while the document is not yet a
+single coherent input. The working pattern is _amend-then-integrate_: amend each pass (above), and reconcile the
+accreted layers with a holistic rewrite — producer-consolidates-before-handoff, the _leave-it-cleaner_ floor
+applied to the WU's own artifact. Three leans, never hard gates:
+
+- **Consolidate before formalization-ready.** Reconcile the accreted layers into one coherent input before the
+  draft crosses into create-spec.
+- **Interim softcap.** When accretion makes the draft costly to _resume against_ mid-loop — each session
+  re-parsing a pile of separate amendments to continue — suggest an integrating rewrite _before_ everything is
+  settled, so derivation runs against a clean artifact rather than a growing pile.
+- **No detail loss.** Every consolidation, interim or final, preserves each settled decision and surviving
+  detail; self-check the rewrite against the pre-rewrite layers. A coherence rewrite must not silently drop
+  substance.
+
+This stays a lightweight, facilitation-driven loop — re-synthesis pass by pass. A single-sitting draft is
+coherent by construction and clears all three criteria at once; they bite only when accretion is real.
 
 ## Step 3: Feed the spec form forward
 
