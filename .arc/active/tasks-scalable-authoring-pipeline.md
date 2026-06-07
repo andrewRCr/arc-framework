@@ -333,21 +333,27 @@ written as a standalone method a future review-method-family absorbs rather than
           one spec per resulting WU by derivation-kind; not two specs in one WU). Phrased neutrally — no
           forward-pointer to the WU that will own decomposition machinery (§ Audience Boundaries).
 
-### `[ ]` **3.3 `spec-review` method — form-scaled lightweight default self-review**
+### `[x]` **3.3 `spec-review` method — form-scaled lightweight default self-review**
 
 - _Goal:_ A new `spec-review` method ships, always loaded by create-spec, providing a lightweight default
   self-review (coherence + grounding) scaled to the just-crystallized form (`brief`→quick, `outline`→moderate,
   `detailed`→full), with its grounding slice kept distinct from task-gen's scale-keyed audit.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **3.3.a Author the `spec-review` method**
-        - Standalone method (form-scaled default self-review); written so a future review-method-family extends,
-          not forks, it.
+    - `[x]` **3.3.a Author the `spec-review` method**
+        - Authored `spec-review.md` (both copies) on the `.override` / `.default` method convention: two slices —
+          **coherence** (decisions ↔ scope ↔ success criteria ↔ substrate agree; no orphan sections; substrate
+          complete) and **grounding** (concrete refs real) — scaled to form (`brief`→quick / `outline`→moderate /
+          `detailed`→full). Grounding kept **light** and explicitly distinct from task-gen's scale-keyed per-phase
+          audit; posture fix-inline-or-surface; a design-reopening finding routes back as a derivation signal.
+          Standalone/clean so a future review-method-family absorbs (not forks) it.
 
-    - `[ ]` **3.3.b Wire create-spec to load + invoke it**
-        - Add `spec-review` to create-spec's `arc.methods`; the method runs at the spec-finalization review gate —
-          the **existing Step 7 `workflow-interlock`**, the invariant review increment — firing at every form,
-          collapsing to a single minimal check at `brief`. No new interlock; it rides the finalization stop.
+    - `[x]` **3.3.b Wire create-spec to load + invoke it**
+        - Added `spec-review` to create-spec's `arc.methods` + link def, and named create-spec in the method's
+          `> Workflow:` header. The method runs at the head of create-spec's **Step 6** (Finalize), feeding the
+          **existing** finalization `workflow-interlock` — no new stop; fires at every form, collapsing to a single
+          minimal check at `brief`. (The gate is Step 6, not the plan's "Step 7" — the Chunk A rework dropped the
+          old work-category step.)
 
 ### `[ ]` **3.4 `pre-spec-finalization-review` extension (inactive default) + strategy precedent**
 

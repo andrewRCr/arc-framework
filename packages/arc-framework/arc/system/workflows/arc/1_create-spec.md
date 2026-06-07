@@ -5,6 +5,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - spec-review
 ---
 
 # Workflow: Create Spec
@@ -171,11 +172,16 @@ context or overly long compound names.
 - **none / external**: `.arc/active/spec-{name}.md` — specs save directly to active (no backlog directory). Create
   the directory first if it doesn't exist: `mkdir -p .arc/active/`
 
-## Step 6: Finalize — retire the draft, persist `Class`, commit
+## Step 6: Finalize — review, retire the draft, persist `Class`, commit
+
+Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote — a
+coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
+fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is a
+derivation signal — route it to the design, not into the spec.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the spec is saved. Surface the spec location for review; await approval before
-> proceeding to draft retirement + meta update + commit.
+> `workflow-interlock`: Stop after the spec is saved and self-reviewed. Surface the spec location and the
+> self-review findings for review; await approval before proceeding to draft retirement + meta update + commit.
 
 If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemeral — they serve exploration and are
 deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft Documents).
@@ -211,6 +217,7 @@ Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this s
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
+[spec-review]: ../../methods/spec-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md
 [template-spec-outline]: ../../../reference/templates/arc/work-unit/spec/template-spec-outline.md
 [template-spec-detailed-prd]: ../../../reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md
