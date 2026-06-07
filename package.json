@@ -31,5 +31,8 @@
     "husky": "^9.1.7",
     "markdownlint-cli2": "0.22.1",
     "tsx": "^4.22.4"
+  },
+  "allowScripts": {
+    "esbuild": true
   }
 }
