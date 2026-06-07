@@ -85,7 +85,9 @@ Work the form to completeness across its substrate and validation surface:
   derivation → **PRD** (the open question is _what should this do_); technical-design derivation → **RFC** (the
   open question is _what's the right technical design and its tradeoffs_ — refactor, migration, internal
   architecture, performance rework). One spec per work unit by derivation-kind; the secondary dimension rides as a
-  subsection (a PRD's technical constraints; an RFC's note on user-facing impact).
+  subsection (a PRD's technical constraints; an RFC's note on user-facing impact). If the work seems to want
+  **both** a full PRD and a full RFC, treat that as a **decomposition signal** — the work unit holds two concerns
+  and wants splitting (one spec per resulting WU by derivation-kind), not two specs authored here.
 - **Substrate completeness.** The enumerable unit set the task list is built from and validated against — numbered
   **Requirements** (PRD) or the structured **Proposed Design** (RFC) — is complete and unambiguous.
 - **Success criteria.** Concrete, falsifiable, validated at completion — the form-invariant validation anchor.

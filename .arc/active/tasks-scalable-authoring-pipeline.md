@@ -312,7 +312,7 @@ written as a standalone method a future review-method-family absorbs rather than
   alignment checks preserved as always-on floors. `template-prd.md` retirement re-homed to 6.4.d (entangled with
   the strategy reframe), so the remaining Phase-3 work is the 3.2 subtype-gate enrichment + 3.3/3.4 review seam.
 
-### `[ ]` **3.2 `detailed`-only subtype gate — PRD vs RFC by dominant derivation-kind**
+### `[x]` **3.2 `detailed`-only subtype gate — PRD vs RFC by dominant derivation-kind**
 
 - _Goal:_ When the resolved form is `detailed`, create-spec selects PRD vs RFC by _which kind of derivation
   dominates_ (product/requirements → PRD; technical-design → RFC), reworking today's always-on
@@ -323,14 +323,15 @@ written as a standalone method a future review-method-family absorbs rather than
   **enriches** that seam — chiefly 3.2.b's want-both decomposition signal — rather than building the gate from
   scratch; 3.2.a collapses to confirming the seed reads cleanly and any phrasing polish.
 
-    - `[ ]` **3.2.a Rework the feature-vs-technical step into the subtype gate**
-        - Replace create-spec's stale always-on Step 2 — the feature/technical classification, which **feeds
-          nothing under arc-in-git** (the save path is category-agnostic) — with the `detailed`-only gate keyed to
-          derivation-kind.
+    - `[x]` **3.2.a Rework the feature-vs-technical step into the subtype gate**
+        - Done across Chunk A — the stale feature/technical step was removed and the `detailed`-only gate seeded at
+          the head of create-spec's `detailed` discovery lane (subtype by dominant derivation-kind, secondary
+          dimension as a subsection); confirmed it reads cleanly.
 
-    - `[ ]` **3.2.b "Both PRD and RFC" → decomposition signal**
-        - Surface the want-both case as a `decomposition-machinery` signal, not a two-spec WU (one spec per WU by
-          derivation-kind; the secondary dimension rides as a subsection).
+    - `[x]` **3.2.b "Both PRD and RFC" → decomposition signal**
+        - Added the want-both → **decomposition-signal** sentence to the detailed-lane Subtype bullet (split the WU,
+          one spec per resulting WU by derivation-kind; not two specs in one WU). Phrased neutrally — no
+          forward-pointer to the WU that will own decomposition machinery (§ Audience Boundaries).
 
 ### `[ ]` **3.3 `spec-review` method — form-scaled lightweight default self-review**
 
