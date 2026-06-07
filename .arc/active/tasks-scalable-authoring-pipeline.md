@@ -259,7 +259,7 @@ lanes — cost is naturally proportional to spec surface). The stale always-on "
 _reworked_ into the `detailed`-only subtype gate, not merely removed. `spec-review` is SAP-owned outright,
 written as a standalone method a future review-method-family absorbs rather than forks.
 
-### `[ ]` **3.1 Depth resolution + template selection + form-agnostic reframe**
+### `[x]` **3.1 Depth resolution + template selection + form-agnostic reframe**
 
 - _Goal:_ create-spec resolves spec form from a derivation entry-read, selects the matching template from the
   four-template family, and the form-agnostic reframe replaces generic "PRD = any spec" usage with "detailed
@@ -277,11 +277,11 @@ written as a standalone method a future review-method-family absorbs rather than
           The `detailed`-only subtype folds into the `detailed` lane, not a discrete skippable step (composability).
           Recorded the framing in spec § R7 (spec-crystallization vs shaping; procedure relocates to the workflows).
 
-    - `[ ]` **3.1.b Template selection + retire `template-prd.md`**
-        - Template **selection** done — create-spec's Step 5 points at the four-template family
-          (`brief`/`outline`/`detailed`-prd|rfc) with link defs. **Retirement** of `template-prd.md` (both copies)
-          plus its live reference cascade (`strategy-work-planning`, `strategy-file-classification`, the template
-          READMEs, the package-sync dependency list) is the remaining half — split into its own commit.
+    - `[~]` **3.1.b Template selection + retire `template-prd.md`**
+        - Template **selection** landed in Chunk A (create-spec's Step 5 points at the four-template family with
+          link defs). **Retirement** of `template-prd.md` re-homed to 6.4.d — its live references sit in the
+          `strategy-work-planning` sections 6.4.d deletes/reframes, so retiring it there (not here) keeps each
+          referrer single-touch and avoids fixing-then-deleting the same links.
 
     - `[x]` **3.1.c Form-agnostic reframe**
         - Reframed PRD→spec across create-spec — title `# Workflow: Create Spec`, the `purpose` line, and the body;
@@ -305,6 +305,12 @@ written as a standalone method a future review-method-family absorbs rather than
           block, the `omit-when-paired` / `optional | omit-when-paired` heading flags (heading text kept), and the
           inline non-rendering comments — so a finalized spec carries none. Standalone strips markers only; the
           paired path additionally drops the flagged sections (PRD Technical Considerations; RFC context spine).
+
+- _Outcome:_ create-spec is the depth-variant, stage-discrete spec stage — form resolved from one derivation read
+  (`low`→`brief` / `medium`→`outline` / `high`→`detailed`), discovery re-scoped to spec-crystallization (distinct
+  from draft-design's shaping), the `detailed` subtype folded into its lane, scaffolding stripped on emit, and the
+  alignment checks preserved as always-on floors. `template-prd.md` retirement re-homed to 6.4.d (entangled with
+  the strategy reframe), so the remaining Phase-3 work is the 3.2 subtype-gate enrichment + 3.3/3.4 review seam.
 
 ### `[ ]` **3.2 `detailed`-only subtype gate — PRD vs RFC by dominant derivation-kind**
 
@@ -602,6 +608,11 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
           Conventions** to the four-form family (drop "PRD = default form" / `# PRD:` H1 framing). Fix the dangling
           `discovery checklist` references (`STRATEGY-INDEX`, `strategy-planning-module`). No-loss check: confirm
           draft-design carries everything the deleted checklist held (e.g. an explicit "why now").
+        - **Retire `template-prd.md` here (re-homed from 3.1.b).** `git rm` both copies and fix all remaining live
+          references as part of this reframe: `strategy-work-planning` (its template-prd refs fold into the
+          Spec-Readiness delete + Spec-Conventions reframe above), `strategy-file-classification` (swap the example
+          filename — pairs with 6.4.c), the template `README`s, and the `strategy-package-project-sync` dependency
+          list. Retiring it here, not at 3.1.b, keeps each referrer single-touch and avoids interim dangling links.
 
 ## **Phase 7:** Verification
 
