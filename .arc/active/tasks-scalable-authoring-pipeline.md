@@ -246,6 +246,12 @@ written as a standalone method a future review-method-family absorbs rather than
     - `[ ]` **3.1.e Keep alignment checks always-on**
         - PROJECT-PRD / TECHNICAL-OVERVIEW checks stay binary always-on floors, not depth lanes.
 
+    - `[ ]` **3.1.f Strip template scaffolding markers on emit**
+        - When create-spec emits a spec, strip the detailed templates' mechanical markers — the
+          `omit-when-paired` heading flags and the non-rendering paired-mode scaffolding comments — so a
+          finalized spec carries none. Universal (standalone strips too); the paired path additionally drops the
+          flagged context-spine sections (R16 / the detailed templates).
+
 ### `[ ]` **3.2 `detailed`-only subtype gate — PRD vs RFC by dominant derivation-kind**
 
 - _Goal:_ When the resolved form is `detailed`, create-spec selects PRD vs RFC by _which kind of derivation
