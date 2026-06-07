@@ -11,11 +11,12 @@
 - **Design:** `draft-scalable-authoring-pipeline.md`
 - **Task List:** [none]
 
-- **Last Completed:** RFC-form session — derived the RFC section set, reframed the PRD / RFC subtype axis as
-  *derivation-kind* (one spec per WU; "want both" = decompose), de-straddled the PRD, decided separate
-  `-prd` / `-rfc` templates, added the opt-in layered model with committed meta `**Design:**` multi-value plumbing,
-  and restated validation as Success-Criteria-plus-grounding (captured in `draft-scalable-authoring-pipeline.md`
-  § Detailed-spec forms)
+- **Last Completed:** RFC-form derivation + draft consolidation — derived the RFC section set, reframed the
+  PRD / RFC subtype axis as *derivation-kind* (one spec per WU; "want both" = decompose), de-straddled the PRD,
+  decided separate `-prd` / `-rfc` templates, added the opt-in layered model (committed meta `**Design:**`
+  multi-value plumbing), restated validation as Success-Criteria-plus-grounding, then consolidated the draft to a
+  coherent spec-input and codified a `high`-only coherence-consolidation backstop at draft-design's formalization
+  gate (all in `draft-scalable-authoring-pipeline.md`)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
