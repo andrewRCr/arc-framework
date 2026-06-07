@@ -5,7 +5,7 @@
 ---
 
 {One evolving paragraph — the floor form. State the **intent** (what this work is and why it's worth doing
-now), the **scope boundary** (what is deliberately *not* in scope), and **one falsifiable success signal**
+now), the **scope boundary** (what is deliberately _not_ in scope), and **one falsifiable success signal**
 (how you'll know it worked). Keep it to a paragraph: a `brief` records a determinate, low-derivation change
 where the design is settled coming in. Revise the paragraph in place as understanding sharpens — it is a
 living record, not a one-time pitch.}
