@@ -122,31 +122,43 @@ _Design decisions:_ SAP ships single whole-block-structured files, not the dir-p
 `refine-plan-loop`; the skill is written as the conductor's clean seed (promoting it later extends its identity
 rather than introducing a new mechanism).
 
-### `[ ]` **2.1 Extract the `draft-design` workflow (depth-lane whole-blocks)**
+### `[x]` **2.1 Extract the `draft-design` workflow (depth-lane whole-blocks)**
 
 - _Goal:_ A new `draft-design` workflow exists as a peer to create-spec / generate-tasks — a single
   whole-block-structured file carrying the drafting-stage procedure that today lives implicitly in the
   `arc-plan` skill.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Workflow scaffold + frontmatter**
-        - Author `draft-design.md` per `template-workflow.md`, declaring `resolve-planning-depth` +
-          `classify-work-unit` in `arc.methods` (the method itself is authored in 2.3). Ships **unnumbered**
-          beside `1_`/`2_`/`3_` — the interim mixed-numbering state is intentional; the prefix-dropping cascade is
-          `doc-cascade-sweep`'s. Single file, mirrored to the package source.
+    - `[x]` **2.1.a Workflow scaffold + frontmatter**
+        - Authored `draft-design.md` (`audience: collaborative`; `arc.methods` declares both
+          `resolve-planning-depth` and `classify-work-unit`), shipped **unnumbered** beside `1_`/`2_`/`3_` and
+          byte-identical across the
+          `.arc/` instance and the package source. Plain `.md` (no `.template.md`): no init-time conditional
+          blocks, matching `1_create-spec.md`.
 
-    - `[ ]` **2.1.b Whole-block depth lanes**
-        - `low` (quick determinacy-confirm, no required draft) / `medium` (single-pass) / `high` (a simple
-          iterative loop). Written as whole blocks, extractable to fragments when composition lands.
+    - `[x]` **2.1.b Whole-block depth lanes**
+        - Three planning-depth levels, each selecting a path through the stage — `low` (determinacy-confirm, no
+          draft) / `medium` (bounded draft — composed from existing patterns) / `high` (evolving-draft iterative
+          loop with cross-session continuity: Resolved / Open / Next) — rebuilt on the `arc-plan` body (starting
+          point, context gathering, facilitation, synthesis). The `medium`↔`high` boundary is bounded-composition
+          vs open-ended-invention, not pass count; each level carries a step-up escape.
 
-    - `[ ]` **2.1.c Artifact-shape feed-forward**
-        - The draft's produced shape signals the downstream spec form (rich draft → detailed; thin → brief/
-          outline), feeding create-spec's entry-read without threading a recorded depth value.
+    - `[x]` **2.1.c Artifact-shape feed-forward**
+        - The hand-forward is the draft's _produced shape_ (rich → `detailed`; thin / determinacy-confirm →
+          `brief`/`outline`), not a recorded depth — create-spec re-reads the derivation axis at its own entry
+          with the draft as evidence.
 
-    - `[ ]` **2.1.d Draft-capture commit fire-point**
-        - A ceremony commit fire-site where the draft is captured and `Class` is first persisted — the write site
-          the meta-timing amendment (5.2) legitimizes. Placed per the interlock/fire-point conventions; conformance
-          is re-checked in 6.2.
+    - `[x]` **2.1.d Draft-capture commit fire-point**
+        - A `workflow-interlock` stop + `workflowCommit` draft-capture fire-site persisting `Class` to the meta;
+          the `Class` decision is live from the Step 1 read but its write defers to this ceremony commit. Staging
+          sets the shape (bundled draft + meta for `medium`/`high`; dedicated meta-only `chore(arc):` for `low`).
+
+- _Outcome:_ Both methods are declared in frontmatter though `resolve-planning-depth` is authored downstream —
+  the forward declaration is intentional and commit-safe: pre-commit validates only method/extension files' own
+  frontmatter, and the reverse coverage audit (CI-only) ignores a not-yet-existent method. Step 1 is a thin
+  initiate-and-consume — the depth→evidence mapping stays the method's (the DRY home), not restated here
+  (reconciled + directly linked at 2.3.c). The workflow stands whole; `arc-plan` still holds the live procedure
+  until its dispatcher reduction.
 
 ### `[ ]` **2.2 Reduce the `arc-plan` skill to a thin dispatcher into `draft-design`**
 
