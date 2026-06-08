@@ -10,12 +10,17 @@ arc:
 
 # Workflow: Generate Task List
 
-**When to use**: After a spec has been created and reviewed, when work is ready for implementation
-planning.
+The third authoring stage — peer to [draft-design](draft-design.md) and
+[create-spec](1_create-spec.md). It transforms a reviewed spec into an executable task list, scaled by planning
+depth — the plan that implementation is built and reviewed against. Run it once the spec has been created and
+reviewed.
 
-**Branch context:** Task generation happens on the WU's planning branch (`plan/<name>`) —
-verify you're still on it. See [init-work-unit][init-work-unit] for how the planning branch
-is created.
+This stage reads the **scale** axis: the implementation surface and the codebase-grounding breadth a correct
+task plan needs.
+
+**Branch context:** Under full protection (`branch.protection: full`), task generation runs on the WU's planning
+branch (`plan/<name>`) — verify you're still on it (created via [init-work-unit][init-work-unit]). Under partial
+protection (the default), it may run directly on the base branch.
 
 Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
 `**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
@@ -35,7 +40,7 @@ re-entry valve.
 
 The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the work
 surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but its write
-defers to the Finalize ceremony commit, never a mid-stage meta edit.
+defers to the Finalize ceremony commit.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel overlay
 (it reaches novelty only indirectly, through scale).
@@ -401,9 +406,15 @@ against the pre-save checklist and bundles the commit.
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
+**Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with
+`**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read),
+set `**Task List:**` to the bare `tasks-{name}.md` filename, and advance `**Next Action:**` to the
+post-generation step (e.g., "Run `activate-work-unit.md`"). The write rides this ceremony commit. Skip otherwise
+(no meta file exists pre-init under non-planning-branch flows).
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location
-> for review; await direction before updating the status file and committing (`workflowCommit`).
+> for review; await direction before updating the meta file and committing (`workflowCommit`).
 
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 

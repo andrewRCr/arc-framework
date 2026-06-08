@@ -668,10 +668,18 @@ set into the `6.2` conformance pass.
   ADR-methodology strategy, the SAP spec) or was pure meta; no extraction or 6.4 routing needed. Both copies of
   each file synced; lint clean.
 
-### `[ ]` **5.R.4 Legacy-prose polish**
+### `[x]` **5.R.4 Legacy-prose polish**
 
 - _Goal:_ Touch up pre-pipeline prose across the three workflows — content carried from earlier in ARC's
   development and unexamined since — for clarity and concision, behavior unchanged.
+- _Outcome:_ `generate-tasks` intro rewritten to the family pattern (third authoring stage + peer links, names
+  the **scale** axis), branch-context aligned to the full/partial split its siblings already carried, and the
+  dangling "status file" interlock made a real `Update planning-state meta file` substep (sets `**Task List:**`,
+  advances `**Next Action:**`, persists `**Class:**`) — fulfilling the Resolve section's deferred-write promise.
+  `draft-design`: Gather/Facilitate bullets tightened, `roadmap or status view` → `ROADMAP.md`. `create-spec`:
+  stray "numbered options" line dropped. Trimmed the redundant "never a mid-stage meta edit" tails across all
+  three (covered by DEV-RULES.ARC § Meta-file timing) and deduped `create-spec`'s double statement. SC15 held
+  (no rename/renumber, no new design); both copies synced, lint clean.
 
 ### `[ ]` **5.R.5 Reflow to the wrap target**
 
@@ -779,6 +787,14 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
           Spec-Readiness delete + Spec-Conventions reframe above), `strategy-file-classification` (swap the example
           filename — pairs with 6.4.c), the template `README`s, and the `strategy-package-project-sync` dependency
           list. Retiring it here, not at 3.1.b, keeps each referrer single-touch and avoids interim dangling links.
+
+    - `[ ]` **6.4.e Reconcile branch-from-inception vs. partial-mode spec-then-branch sequencing**
+        - `strategy-work-organization` § Branch Protection Modes (Partially Protected) states planned work units
+          "require a branch from inception," but the authoring workflows' branch-context (draft-design /
+          create-spec / generate-tasks) document a partial-mode path where a spec/draft is authored on the base
+          branch with no planning branch or meta yet (spec-then-branch). Reconcile the wording so the two read
+          coherently — e.g. clarify that "from inception" governs the tracked WU (post-init/activation) while
+          pre-formalization spec exploration on the base branch is sanctioned under partial. Surfaced at 5.R.4.
 
 ## **Phase 7:** Verification
 

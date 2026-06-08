@@ -54,7 +54,7 @@ missing concrete detail the spec would need to specify. If the draft is not read
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but its
-write defers to the spec-generation ceremony commit (Finalize), never a mid-stage meta edit.
+write defers to the spec-generation ceremony commit (Finalize).
 
 ## Conduct discovery (spec-crystallization, depth-relative)
 
@@ -108,8 +108,6 @@ an ADR under `reference/adr/` capturing the invented model's durable, cross-cutt
 recommend it strongly at `detailed`·RFC, weak or omitted at `detailed`·PRD. Accept-or-decline, never a gate. An
 accepted ADR is a **non-moving artifact** — it stays under `reference/adr/` through the WU lifecycle (no
 relocation, no Novel branch at integration) and rides the normal ceremony commit.
-
-For interactive sessions, provide numbered options to keep responses quick.
 
 ## PROJECT-PRD alignment check
 
@@ -207,10 +205,9 @@ deleted once the spec captures the conclusions (see [Work Planning Strategy][wor
 2. **Delete the draft**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it, unless they
    have independent archival value — e.g., research files may belong in `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with
-   `**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read) and
-   advance its `**Next Action:**` to the post-spec step (e.g., "Run `2_generate-tasks.md`"). The `Class` write
-   lands here, at this ceremony commit — never as a mid-stage meta edit. Skip otherwise (no meta file exists
-   pre-init under non-planning-branch flows).
+   `**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read)
+   and advance its `**Next Action:**` to the post-spec step (e.g., "Run `2_generate-tasks.md`"). Skip otherwise
+   (no meta file exists pre-init under non-planning-branch flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git),

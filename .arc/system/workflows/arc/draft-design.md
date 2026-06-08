@@ -67,16 +67,16 @@ a gate: accept, decline, or right-size it; the iterative shaping loop below then
 
 1. **Start.** If a `draft-*` already exists (a prior idea or session), read it as the continuity artifact — do
    not rediscover from scratch. Otherwise start from the problem framing.
-2. **Gather context** as the design needs it; summarize relevance and skip what does not apply: project
-   direction (where this fits against the roadmap or status view); related prior work (active and archived work
-   units touching this area — decisions made, what was deferred); captured ideas (backlog or inbox entries,
-   other drafts); design context (ADRs and project strategies that constrain the approach); codebase state (the
-   modules and patterns the work would touch).
-3. **Facilitate.** Surface ambiguity, assumptions, alternatives, risks, and scope boundaries. Follow ambiguity
-   rather than forcing a sequence — when something is underspecified or contradictory, work it through before
-   moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries; alternatives
-   and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The developer
-   formulates _with_ the agent; the agent does not produce a finished design for sign-off.
+2. **Gather context** as the design needs it; note relevance and skip what doesn't apply: project direction
+   (where this fits against `ROADMAP.md`); related prior work (active and archived work units touching this area
+   — decisions made, what was deferred); captured ideas (backlog or inbox entries, other drafts); design context
+   (ADRs and project strategies that constrain the approach); codebase state (modules and patterns the work
+   would touch).
+3. **Facilitate.** Surface ambiguity, assumptions, alternatives, risks, and scope boundaries — and follow the
+   ambiguity rather than force a sequence: when something is underspecified or contradictory, work it through
+   before moving on. Prompt material, not a questionnaire: problem and motivation; success and boundaries;
+   alternatives and why; assumptions and unknowns; risks and dependencies; the minimum viable version. The
+   developer formulates _with_ the agent; the agent does not produce a finished design for sign-off.
 4. **Re-synthesize** into the draft each pass, and record continuity so the next session resumes without
    re-deriving: the draft's **readiness state** (below), what is **Resolved**, the **Open** items (masked design
    decisions, unvalidated assumptions, soft scope boundaries), and the **Next** move. This matters most for
@@ -126,7 +126,7 @@ ship a too-thin draft.
 
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
-at the draft-capture ceremony commit, never as a mid-stage meta edit.
+at the draft-capture ceremony commit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class`
 write; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):` commit
