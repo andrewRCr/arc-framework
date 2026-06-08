@@ -525,15 +525,12 @@ _Design decisions:_ Designed once, cross-stage, so the axis-keyed routing and th
 rather than diverging per stage. Every Novel item and every re-entry offer is accept-or-decline — no hard
 `Class`↔form hook.
 
-### `[ ]` **5.1 Re-entry valve — fold the mid-stage trigger into `resolve-planning-depth`**
+### `[x]` **5.1 Re-entry valve — fold the mid-stage trigger into `resolve-planning-depth`**
 
 - _Goal:_ The re-entry valve (capture durably → ratchet → re-enter) is realized as the mid-stage firing of
   `resolve-planning-depth`'s axis measurement, axis-keyed: a **scale** signal re-resolves the _same_ stage higher
   (nowhere-up from `high`); a **derivation** signal routes to the stage that owns the design (a masked design
   decision routes to the _spec_, not a deeper task pass); draft-design re-enters-higher only.
-- _Approach:_ The routing logic lives once in the method contract; each stage's existing interlock _fires_ it,
-  offered with a recommendation — never a new automatic detector, never three divergent copies. Coordinates with
-  `classify-work-unit` for the `Class` ratchet (the derivation signal).
 
     - `[x]` **5.1.a Extend the method contract with the mid-stage re-entry trigger**
         - Added `§ Mid-stage re-entry` to `resolve-planning-depth` holding the routing once — "route to the stage
@@ -542,9 +539,15 @@ rather than diverging per stage. Every Novel item and every re-entry offer is ac
           Each stage's interlock fires it by reference; create-spec's two ad-hoc mentions consolidated, and
           generate-tasks' spec-propagation marked the in-place sibling.
 
-    - `[ ]` **5.1.b Down-switch floor + no-demotion guardrails**
-        - Down-switching bounded by the demand floor; the `Class` ratchet is one-way; per-stage depth floats
-          within the band; no produced heavier artifact is torn down.
+    - `[x]` **5.1.b Down-switch floor + no-demotion guardrails**
+        - Added `§ Depth band & guardrails` to `resolve-planning-depth`: depth is a re-selectable choice within a
+          `Class`-derived band; down-switching is floored at the realized demand floor (one-way, deferring to
+          `classify-work-unit`'s ratchet rather than restating it) and a heavier already-produced artifact is
+          never torn down to match a lighter later pick.
+
+- _Outcome:_ The depth band is now bounded in one place — upper edge by the valve (nowhere-up from `high`), lower
+  edge by the demand floor + no-demotion — with the axis-keyed re-entry routing single-sourced in the method and
+  referenced (not copied) by all three stage interlocks.
 
 ### `[ ]` **5.2 Decision-live / persistence-deferred ratchet + DEV-RULES.ARC meta-timing amendment**
 

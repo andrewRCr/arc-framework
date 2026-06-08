@@ -56,6 +56,20 @@ artifact — so it reads the work surface directly.
 Structural design is settled; only the **thresholds** — what breadth reads `high`, how many open decisions read
 `medium` — calibrate against real use.
 
+### Depth band & guardrails
+
+A stage's level is a **choice within a band**, not a lock: entry sets a default cascade derived from `Class`, and
+the author may re-select it per stage at each transition — a `light` WU can still warrant a careful pass over one
+tricky stage. Depth is the per-context default, never a `Class`-lock. Two guardrails bound the float:
+
+- **Down-switch floor.** Down-switching is bounded by the **demand floor** — never below the forced
+  derivation / scale floor the stage's axis requires. That floor is the realized `Class` floor, which only
+  ratchets up (per [classify-work-unit][classify-work-unit] § Estimate-vs-realized ratchet); depth floats freely
+  above it.
+- **No-demotion.** The choice is forward — how much to author going into a **not-yet-started** stage. A heavier
+  artifact **already produced** is never torn down to match a lighter later pick; re-selection lowers the next
+  stage's effort, never un-authors a settled one.
+
 ### Mid-stage re-entry (the re-entry valve)
 
 The same keyed-axis read, fired **on demand at a stage's existing interlock** rather than only at entry. A
