@@ -93,8 +93,9 @@ Identify the depth-appropriate phase count that organizes the work into logical,
 - **`medium`** — a few substantive phases plus the always-present verification phase.
 - **`high`** — 3-7 substantive phases plus the dedicated verification phase.
 
-For each phase, draft parent-task skeletons — titles only, with anchors citing which part of the spec each parent
-satisfies.
+For each phase, draft parent-task skeletons — titles only, with anchors citing which of the spec's **enumerable
+units** each parent satisfies — the form's traceable elements: numbered Requirements (PRD), structured Proposed
+Design elements (RFC), settled Decisions (`outline`), or the single falsifiable signal (`brief`).
 
 **Principles:**
 
@@ -116,8 +117,8 @@ Pass 1 file shape below. It stays on disk through Passes 2-3 and Step 4.
 - Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
   block stating key calls
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
-  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing spec anchors
-  (which part of the spec does this parent satisfy?)
+  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable
+  units (which units does this parent satisfy?)
 - Rough subtask-count signal per parent (1 / 2-3 / many) — flags decomposition asymmetry
 - **At `high`:** no task bodies, descriptions, or Goals yet. Those land in Pass 2. At `medium` / `low`, this
   skeleton shape is immediately filled in the merged pass.
@@ -136,7 +137,8 @@ differ; this is what catches asymmetries the user would otherwise raise cold.
 
 **Internal lenses for this pass:**
 
-- **Coverage** — every part of the spec covered by some task
+- **Coverage** — every enumerable unit covered by some task (the task list is validated against the form's
+  enumerable substrate; implementation is validated separately against Success Criteria)
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
 - **Ordering** — phase sequence minimizes dependencies
 
@@ -304,7 +306,7 @@ from now.
 A coherence **read** across the full suite — `tasks-{name}.md`, `spec-{name}.md`, and `notes-{name}.md` — after
 every phase has been revised. Not a re-audit: it checks cross-phase consistency (terminology, cross-references,
 ordering language), suite-level alignment (the spec's Goals / Success Criteria / Open Questions match the
-amended spec content; resolved open-questions reflected), dangling references, and that the task list reads as one
+amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads as one
 coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase revision was
 clean, heavier when phases interlock tightly. If this pass surfaces a *new design issue* (not mere inconsistency),
 loop back to that phase's Step 3.2 — the coherence pass is not a second decision venue.

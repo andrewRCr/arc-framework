@@ -494,7 +494,7 @@ grammar only; never a second "flat" variant.
   workflow — while the per-phase gate cadence holds invariant across levels and the full audit stays available
   mid-implementation. The skill also now mandates durable, impl-time-visible capture of carry-as-context findings.
 
-### `[ ]` **4.4 Validation substrate — audit against the form's enumerable units**
+### `[x]` **4.4 Validation substrate — audit against the form's enumerable units**
 
 - _Goal:_ The grounding audit validates the task list against the form's enumerable substrate — generalizing
   beyond requirement-numbering to whatever units the form carries: numbered Requirements (PRD), structured
@@ -507,6 +507,13 @@ grammar only; never a second "flat" variant.
     - _Owns the unit vocabulary._ This task settles and defines how the per-form enumerable units are named —
       whether one umbrella term or per-form names — and applies it across the generate-tasks prose that `4.R.b`
       left as form-agnostic placeholders ("part of the spec"). No undefined unit-noun ships unresolved.
+
+- _Outcome:_ Adopted the spec's existing vocabulary — "the spec's **enumerable units**" (the form's traceable
+  elements: Requirements / Proposed Design elements / Decisions / the `brief`'s one signal), no new coinage —
+  glossed at first use in generate-tasks and applied across the Pass 1 anchors, the Coverage lens, and the
+  suite-coherence read (replacing `4.R.b`'s "part of the spec" placeholders). The task list validates against the
+  enumerable substrate; Success Criteria stays the separate implementation-validation anchor. Mechanism
+  unchanged — `arc-task-audit` coverage is identical across forms; no skill edit needed.
 
 ## **Phase 5:** Cross-stage dynamics — re-entry valve, ratchet, Novel overlay
 
