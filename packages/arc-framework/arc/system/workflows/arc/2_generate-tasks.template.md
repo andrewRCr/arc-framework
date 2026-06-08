@@ -1,5 +1,5 @@
 ---
-purpose: Transform a reviewed PRD into an executable task list with phases, sub-tasks, and test-first ordering.
+purpose: Transform a reviewed spec into an executable task list scaled by planning depth.
 audience: collaborative (human and agent)
 arc:
   methods:
@@ -10,7 +10,7 @@ arc:
 
 # Workflow: Generate Task List
 
-**When to use**: After a PRD has been created and reviewed, when work is ready for implementation
+**When to use**: After a spec has been created and reviewed, when work is ready for implementation
 planning.
 
 ---
@@ -21,26 +21,13 @@ planning.
 verify you're still on it. See [init-work-unit][init-work-unit] for how the planning branch
 is created.
 
-Before starting, read the PRD thoroughly. If the PRD has pre-activation metadata (`**State:**` and/or
+Before starting, read the spec thoroughly. If the spec has pre-activation metadata (`**State:**` and/or
 `**Related Work:**` fields), check whether dependencies are resolved. If any show unresolved blockers, stop and
 confirm with the user before proceeding — generating tasks against unresolved dependencies produces a plan that
 can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
 leave the fields in place during task generation.
 
-**Three passes with explicit stops.** Generation runs structural decomposition (Pass 1), content
-fill (Pass 2), and grounding audit (Pass 3) — each pass has a deliverable the user reviews before
-the next begins. This prevents the one-shot-to-impl-ready pattern that masks design decisions and
-ungrounded assumptions until impl time.
-
-**The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` at the
-destination path resolved per Step 4's `Destination path` rule. Passes 2 and 3 edit the file in
-place. Step 4 collapses to pre-save checklist verification + ceremony commit. The file is
-in-progress until Step 4's checklist passes — staging
-discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
-durable across handoffs and lets each pass's review happen against the rendered file rather than
-reproduced conversation.
-
-### Entry step: Resolve task-generation depth (one scale read)
+### Entry step: Resolve planning depth (one scale read)
 
 Make **one evidence read** on the scale axis: inspect the implementation surface and the codebase-grounding
 breadth required for a correct task plan. That single read drives both methods:
@@ -55,16 +42,42 @@ artifact carries scale, so task generation reads the work surface directly and c
 `Class`. The `**Class:**` decision is live from this read but its write defers to Step 4's ceremony commit, never
 a mid-stage meta edit.
 
+**Depth-selected pass structure with explicit stops.** Generation runs one task-list grammar parameterized by the
+resolved level:
+
+- **`low`** — one combined pass creates the single substantive phase, task bodies, always-present verification
+  phase, and grounding revision before one review stop.
+- **`medium`** — structural decomposition and content fill run as one merged draft pass over a few substantive
+  phases, then grounding audit runs as its own pass.
+- **`high`** — the full three-pass form: structural decomposition (Pass 1), content fill (Pass 2), and grounding
+  audit (Pass 3), each with a deliverable the user reviews before the next begins.
+
+The procedure is still one grammar, not a `light` fork: the same artifacts, checks, and review discipline apply;
+depth changes how much is separated for review. This prevents the one-shot-to-impl-ready pattern where heavier
+work masks design decisions and ungrounded assumptions until implementation.
+
+**The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` at the
+destination path resolved per Step 4's `Destination path` rule. Passes 2 and 3 edit the file in
+place. Step 4 collapses to pre-save checklist verification + ceremony commit. The file is
+in-progress until Step 4's checklist passes — staging
+discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
+durable across handoffs and lets each pass's review happen against the rendered file rather than
+reproduced conversation.
+
 ### Pass 1: Structural decomposition
 
 Identify phases and parent-task skeletons. Boundaries first; no content fill yet.
+
+**Depth variant:** At `high`, run Pass 1 as a standalone skeleton pass. At `medium`, merge this with Pass 2
+before stopping. At `low`, fold structural decomposition, content fill, and grounding revision into one combined
+pass.
 
 #### Step 1.1: Assess codebase and relevant strategies
 
 Review the existing codebase to understand what you're working with:
 
 - Existing patterns and architecture to leverage
-- Components or modules related to the PRD requirements
+- Components or modules related to the spec scope
 - Files that will need modification
 - Testing patterns and quality standards in use
 
@@ -74,9 +87,14 @@ strategies before designing phases — they directly influence task structure an
 
 #### Step 1.2: Design phases and parent-task skeletons
 
-Identify 3-7 major phases that organize the work into logical, testable milestones. For each phase,
-draft parent-task skeletons — titles only, with R-ID anchors citing which PRD requirements each
-parent satisfies.
+Identify the depth-appropriate phase count that organizes the work into logical, testable milestones:
+
+- **`low`** — one substantive phase plus the always-present verification phase.
+- **`medium`** — a few substantive phases plus the always-present verification phase.
+- **`high`** — 3-7 substantive phases plus the dedicated verification phase.
+
+For each phase, draft parent-task skeletons — titles only, with anchors citing which part of the spec each parent
+satisfies.
 
 **Principles:**
 
@@ -98,14 +116,16 @@ Pass 1 file shape below. It stays on disk through Passes 2-3 and Step 4.
 - Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
   block stating key calls
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
-  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing R-ID
-  anchors (which PRD requirements does this parent satisfy?)
+  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing spec anchors
+  (which part of the spec does this parent satisfy?)
 - Rough subtask-count signal per parent (1 / 2-3 / many) — flags decomposition asymmetry
-- **No task bodies, no descriptions, no Goals yet.** Those land in Pass 2.
+- **At `high`:** no task bodies, descriptions, or Goals yet. Those land in Pass 2. At `medium` / `low`, this
+  skeleton shape is immediately filled in the merged pass.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the Pass 1 deliverable is drafted. Surface the phase
-> decomposition with reflection woven in; await direction before proceeding to Pass 2.
+> `workflow-interlock`: At `high`, stop after the Pass 1 deliverable is drafted. Surface the phase
+> decomposition with reflection woven in; await direction before proceeding to Pass 2. At `medium` / `low`, this
+> stop is absorbed into the merged pass selected by depth.
 
 **Surface the deliverable with reflection woven in.** Before surfacing, trace through the
 lenses below as your own checks — don't present them as a separate review section. Weave
@@ -116,7 +136,7 @@ differ; this is what catches asymmetries the user would otherwise raise cold.
 
 **Internal lenses for this pass:**
 
-- **Coverage** — every PRD requirement covered by some task
+- **Coverage** — every part of the spec covered by some task
 - **Asymmetry** — single parents overcommitting (subtask-count signal flags candidates)
 - **Ordering** — phase sequence minimizes dependencies
 
@@ -127,6 +147,9 @@ Proceed to the next pass only when the deliverable has settled.
 
 For each parent task: write the body. Goal first (required); peer descriptors only when genuinely
 load-bearing; subtasks if decomposing; Build test-first lists where applicable.
+
+**Depth variant:** At `medium`, this is the merged Pass 1+2 draft stop. At `low`, it is part of the one combined
+pass. At `high`, run it after the reviewed Pass 1 skeleton.
 
 #### Step 2.1: Write Goals (required on every parent)
 
@@ -190,8 +213,9 @@ restructure is needed.
 - Test-first lists where applicable
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the Pass 2 draft is written. Surface with reflection woven
-> in; await direction before proceeding to Pass 3.
+> `workflow-interlock`: At `medium` / `high`, stop after the Pass 2 draft is written. Surface with reflection
+> woven in; await direction before proceeding to Pass 3. At `low`, this stop is absorbed into the one combined
+> pass.
 
 Same surfacing discipline as Pass 1 — weave observations into the deliverable, don't present
 a separate review section. Surface borderline calls explicitly with the agent's lean and
@@ -217,6 +241,10 @@ boundaries. The **verification phase is audit-exempt** — its single `verify-wo
 to ground.
 
 Run Steps 3.1–3.3 for each non-verification phase in order; run Step 3.4 once, after the last phase.
+
+**Depth variant:** At `low`, the one substantive phase makes this a single grounding/revision gate folded into
+the combined pass. At `medium` / `high`, run it after the content draft; the number of gates follows the
+substantive phase count.
 
 #### Step 3.1: Audit the phase
 
@@ -248,9 +276,9 @@ correction / "pending" provenance in the task bodies (per [DEV-RULES.ARC][dev-ru
 reader: document what *is*, not what *was*). Fold "fix before starting" findings into Goals, bodies, and
 subtasks directly; a corrected mechanism *becomes* the design statement, not an annotation on the old one.
 
-**Spec-propagation.** When a finding corrects a *spec-level* assumption — a requirement's named mechanism,
-shape, or interface was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task
-list, so the whole WU suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation).
+**Spec-propagation.** When a finding corrects a *spec-level* assumption — a named mechanism, shape, or interface
+was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
+suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation).
 
 **Generation-time durable-capture discipline.** "Carry as context" findings need a durable
 home before save — at generation time, no implementing-session context exists to absorb them
@@ -272,10 +300,10 @@ from now.
 A coherence **read** across the full suite — `tasks-{name}.md`, `spec-{name}.md`, and `notes-{name}.md` — after
 every phase has been revised. Not a re-audit: it checks cross-phase consistency (terminology, cross-references,
 ordering language), suite-level alignment (the spec's Goals / Success Criteria / Open Questions match the
-amended requirements; resolved open-questions reflected), dangling references, and that the task list reads as
-one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase revision
-was clean, heavier when phases interlock tightly. If this pass surfaces a *new design issue* (not mere
-inconsistency), loop back to that phase's Step 3.2 — the coherence pass is not a second decision venue.
+amended spec content; resolved open-questions reflected), dangling references, and that the task list reads as one
+coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase revision was
+clean, heavier when phases interlock tightly. If this pass surfaces a *new design issue* (not mere inconsistency),
+loop back to that phase's Step 3.2 — the coherence pass is not a second decision venue.
 
 **Internal lenses:**
 
@@ -342,7 +370,7 @@ against the pre-save checklist and bundles the commit.
 - **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md`
   (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
 
-Name matches the PRD (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
+Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location

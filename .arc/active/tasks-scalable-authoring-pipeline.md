@@ -406,7 +406,7 @@ grammar only; never a second "flat" variant.
   first discrete step and `classify-work-unit` touchpoint in both framework copies, while keeping `Class`
   persistence deferred to the generation ceremony.
 
-### `[ ]` **4.2 One-grammar depth variants — pass structure + phase count**
+### `[x]` **4.2 One-grammar depth variants — pass structure + phase count**
 
 - _Goal:_ generate-tasks runs one task-list grammar parameterized by depth — pass structure (`low` one combined
   pass → `medium` passes 1+2 merged → `high` full 3-pass) and phase count (1 substantive + always-present
@@ -415,16 +415,48 @@ grammar only; never a second "flat" variant.
   fine-grained "if light, skip this sentence."
 - **Strategies:** strategy-task-list-formatting.md, strategy-workflow-authoring.md
 
-    - `[ ]` **4.2.a Pass-structure variants**
-        - `low` one combined pass / `medium` passes 1+2 merged / `high` the full three-pass form.
+    - `[x]` **4.2.a Pass-structure variants**
+        - `2_generate-tasks` now documents one depth-selected grammar: `low` folds structural decomposition,
+          content fill, and grounding revision into one combined pass; `medium` merges Passes 1+2 before audit;
+          `high` keeps the full three-pass form.
 
-    - `[ ]` **4.2.b Phase-count scaling**
-        - 1 substantive phase + always-present verification → few → 3–7 + dedicated verification; the verification
-          phase is never dropped.
+    - `[x]` **4.2.b Phase-count scaling**
+        - Phase-count guidance now scales from one substantive phase + always-present verification (`low`), to a
+          few substantive phases + verification (`medium`), to 3-7 substantive phases + dedicated verification
+          (`high`); the verification phase is never dropped.
 
-    - `[ ]` **4.2.c Form-agnostic prose reframe**
-        - Reframe generate-tasks' "PRD = any spec" language to form-agnostic "spec" (8 references today),
-          mirroring 3.1.c for create-spec. Content-only — the file rename/renumber stays `doc-cascade-sweep`'s.
+    - `[x]` **4.2.c Form-agnostic prose reframe**
+        - Reframed `generate-tasks` from "PRD = any spec" to form-agnostic spec language, including frontmatter
+          purpose, `When to use`, spec pre-read, source anchors, suite coherence, and task-list naming prose.
+          Content-only — the file rename/renumber stays `doc-cascade-sweep`'s.
+
+- _Outcome:_ The task-generation workflow now expresses one grammar parameterized by the resolved scale depth:
+  pass separation and phase count scale together, while form-agnostic spec language removes the stale PRD-shaped
+  description without renaming the workflow.
+
+### `[x]` **4.R Phase 4 remedial — terminology, scope-back, entry-flow correction**
+
+- _Goal:_ Correct accuracy/consistency defects in the just-landed 4.1/4.2 work before 4.3 grafts onto it — align
+  to the canonical **planning depth** model, drop a premature term coinage, and fix the entry-flow inversion so
+  the workflow reads as a clean base. Surfaced in review, not originally planned.
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+    - `[x]` **4.R.a Planning-depth terminology**
+        - `task-generation depth` → `planning depth` (the canonical model — the **scale** axis is the input
+          signal, not a new depth name) in the frontmatter `purpose` and the entry-step heading, both copies.
+
+    - `[x]` **4.R.b Scope-back the unit reframe (hand to 4.4)**
+        - Drop the unscoped `spec unit` coinage introduced in 4.2.c; restate the four anchor/coverage references
+          form-agnostically ("part of the spec") without inventing a noun. The considered enumerable-unit
+          vocabulary is 4.4's to define.
+
+    - `[x]` **4.R.c Entry-flow correction**
+        - Resolve planning depth (the entry-step read) _before_ the depth-selected pass-structure overview — the
+          prior order described all three levels before resolving one. Heading-level/label unification across the
+          three stage workflows is `5.R`'s, not here.
+
+- _Outcome:_ generate-tasks uses canonical depth language, carries no premature unit coinage, and resolves depth
+  before describing the depth-scaled structure — a clean base for 4.3/4.4.
 
 ### `[ ]` **4.3 Grounding-audit depth parameterization (per-phase interlock retained)**
 
@@ -453,6 +485,9 @@ grammar only; never a second "flat" variant.
     - Success Criteria stays the form-invariant anchor implementation is validated against (even the `brief`
       floor's one falsifiable signal); the enumerable substrate is what the _task list_ is validated against.
     - The audit mechanism is identical across forms; only the unit set it enumerates differs by form.
+    - _Owns the unit vocabulary._ This task settles and defines how the per-form enumerable units are named —
+      whether one umbrella term or per-form names — and applies it across the generate-tasks prose that `4.R.b`
+      left as form-agnostic placeholders ("part of the spec"). No undefined unit-noun ships unresolved.
 
 ## **Phase 5:** Cross-stage dynamics — re-entry valve, ratchet, Novel overlay
 
