@@ -731,19 +731,30 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   `archive-work-unit.md`, `integrate-work-unit.md`, and `template-meta.md` across both package + `.arc` copies;
   lint clean, copies synced.
 
-### `[ ]` **6.2 Workflow-authoring conformance pass over the new + reworked workflows**
+### `[x]` **6.2 Workflow-authoring conformance pass over the new + reworked workflows**
 
 - _Goal:_ draft-design + the reworked create-spec / generate-tasks pass `strategy-workflow-authoring`
   conformance — frontmatter method/extension declarations, body conventions, and correct interlock/release
   fire-point placement.
 - **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **6.2.a Frontmatter + body-convention conformance**
-        - Verify method/extension declarations and body conventions across the three workflows.
+    - `[x]` **6.2.a Frontmatter + body-convention conformance**
+        - Audited all three: frontmatter declarations match in-body method/extension loads exactly (draft-design
+          `resolve-planning-depth` + `classify-work-unit`; create-spec adds `spec-review` + the
+          `pre-spec-finalization-review` extension; generate-tasks adds `test-first`), and the H1 / reference-link
+          / no-duplicate-callout conventions hold. Conformant — no edits.
 
-    - `[ ]` **6.2.b Interlock / release fire-point placement**
-        - Confirm the `classify-work-unit` touchpoints, the per-phase grounding-audit interlock, the
-          spec-finalization review gate, and any commit/push fire-sites carry the right stops and class tags.
+    - `[x]` **6.2.b Interlock / release fire-point placement**
+        - The `classify-work-unit` touchpoints, the per-phase grounding-audit interlock, and the spec-finalization
+          review gate are all correctly placed; the three authoring workflows carry no push fire-sites. Fixed two
+          commit fire-sites that entangled gate with fire: generate-tasks Finalize folded `workflowCommit` into the
+          interlock marker with no separate fire block (broke it out into a `[!CAUTION]` release block);
+          create-spec stated the subject inline rather than in a `text` codeblock (normalized to the codeblock).
+
+- _Outcome:_ The three authoring workflows conform to `strategy-workflow-authoring`; with the two fire-site fixes,
+  the planning/lifecycle commit fire-sites now share the uniform pure-gate + `[!CAUTION]` `workflowCommit`
+  codeblock shape. Touched `1_create-spec.md` (both copies) and `2_generate-tasks` (package `.template.md` +
+  rendered `.arc` copy).
 
 ### `[ ]` **6.3 Route the workflow rename/renumber cascade to `doc-cascade-sweep`'s stub**
 

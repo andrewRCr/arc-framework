@@ -401,8 +401,19 @@ List:**` to the bare `tasks-{name}.md` filename, and advance `**Next Action:**` 
 pre-init under non-planning-branch flows).
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location
-> for review; await direction before updating the meta file and committing (`workflowCommit`).
+> `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
+> await direction before the meta update and commit.
+
+Bundle the task list with the planning-state meta update (above).
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): generate tasks-{name}
+
+Context: tasks-{name}.md (planning)
+```
 
 See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
 

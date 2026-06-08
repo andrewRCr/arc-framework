@@ -216,8 +216,16 @@ After substeps 1-3, stage all edits — spec save (Write and save), any promotio
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Subject `chore(arc): create spec-{name}`; body itemizes
-> the bundled changes per [DEV-RULES.ARC][dev-rules-arc] § Commit format and § Meta-file commit shape.
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): create spec-{name}
+
+Context: spec-{name}.md (planning)
+```
+
+Body itemizes the bundled changes (spec save, draft retirement, `notes-*` migration, meta update) per
+[DEV-RULES.ARC][dev-rules-arc] § Commit format and § Meta-file commit shape.
 
 ---
 
