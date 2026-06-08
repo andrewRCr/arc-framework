@@ -681,11 +681,14 @@ set into the `6.2` conformance pass.
   three (covered by DEV-RULES.ARC § Meta-file timing) and deduped `create-spec`'s double statement. SC15 held
   (no rename/renumber, no new design); both copies synced, lint clean.
 
-### `[ ]` **5.R.5 Reflow to the wrap target**
+### `[x]` **5.R.5 Reflow to the wrap target**
 
 - _Goal:_ Reflow all three workflows — plus the `arc-task-audit` skill (touched in Phase 4; its body still wraps
   narrow at ~75) — to the ~110-char deep-indent target (per DEV-RULES.PROJECT § Documentation Standards); they
   drift narrow in places (mid-phrase breaks at ~60 chars). Mechanical; no content change.
+- _Outcome:_ Reflowed the three authoring workflows and `arc-task-audit` across package + `.arc` copies, including
+  folded YAML `purpose` scalars where needed to keep frontmatter under the 120-char hard limit. Preserved
+  package/project parity and the `2_generate-tasks` template-to-render relationship.
 
 ## **Phase 6:** Lifecycle tolerance, conformance & strategy codification
 

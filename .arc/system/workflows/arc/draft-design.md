@@ -1,5 +1,7 @@
 ---
-purpose: Shape the design draft — the first authoring stage — resolving planning depth and the work unit's Class before spec creation.
+purpose: >-
+  Shape the design draft — the first authoring stage — resolving planning depth and the work unit's Class before
+  spec creation.
 audience: collaborative (human and agent)
 arc:
   methods:
@@ -9,10 +11,10 @@ arc:
 
 # Workflow: Draft Design
 
-The first authoring stage — peer to [create-spec](1_create-spec.md) and
-[generate-tasks](2_generate-tasks.md). It shapes the design before a spec crystallizes it: surface the problem,
-work the alternatives, and settle the direction, producing a `draft-*` of the right richness — or, when the
-design is already determinate, no draft at all. The `arc-plan` skill dispatches into this workflow.
+The first authoring stage — peer to [create-spec](1_create-spec.md) and [generate-tasks](2_generate-tasks.md).
+It shapes the design before a spec crystallizes it: surface the problem, work the alternatives, and settle the
+direction, producing a `draft-*` of the right richness — or, when the design is already determinate, no draft at
+all. The `arc-plan` skill dispatches into this workflow.
 
 This stage reads the **derivation** axis: how much design must be authored before a competent engineer can
 start.
@@ -26,12 +28,13 @@ and no meta file may exist yet.
 ## Resolve depth & Class
 
 Make **one derivation-axis read** — the problem framing / origin plus a quick compose-vs-invent scan — then run
-[`resolve-planning-depth`][resolve-planning-depth] and [`classify-work-unit`][classify-work-unit] off it: one read
-drives both, yielding this stage's **level** (`low` / `medium` / `high`) and confirming-or-ratcheting **`Class`**,
-born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage re-entry valve.
+[`resolve-planning-depth`][resolve-planning-depth] and [`classify-work-unit`][classify-work-unit] off it: one
+read drives both, yielding this stage's **level** (`low` / `medium` / `high`) and confirming-or-ratcheting
+**`Class`**, born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage
+re-entry valve.
 
-The resolved level selects this stage's path below — the stage default, re-selectable, never below the derivation
-floor.
+The resolved level selects this stage's path below — the stage default, re-selectable, never below the
+derivation floor.
 
 ## Draft in the resolved level
 
@@ -55,15 +58,16 @@ not a pass count. Step up when the space proves open-ended: exploration or inven
 
 ### `high` — iterative shaping (evolving draft)
 
-An open-ended or substantial design must be authored. Shape it as an evolving `draft-*`, looping until it reaches
-**formalization-ready** — at the depth this design demands (the readiness states below).
+An open-ended or substantial design must be authored. Shape it as an evolving `draft-*`, looping until it
+reaches **formalization-ready** — at the depth this design demands (the readiness states below).
 
 **Novel overlay** (`Class == Novel`, advisory). When the invent-vs-compose read lands `novel`, open the `high`
-path with a **free-form, self-sequencing orient-then-research sub-phase** — never a preemptive research dump. **Orient
-first:** establish what is known and unknown and where the compose-vs-invent boundary actually falls; the research
-to do emerges from that orientation, not from a fixed checklist. Its output populates the rich `draft-*`'s
-discovery / research / alternatives sections (optional scaffolding) — no separate artifact. A recommendation, not
-a gate: accept, decline, or right-size it; the iterative shaping loop below then runs as usual.
+path with a **free-form, self-sequencing orient-then-research sub-phase** — never a preemptive research dump.
+**Orient first:** establish what is known and unknown and where the compose-vs-invent boundary actually falls;
+the research to do emerges from that orientation, not from a fixed checklist. Its output populates the rich
+`draft-*`'s discovery / research / alternatives sections (optional scaffolding) — no separate artifact. A
+recommendation, not a gate: accept, decline, or right-size it; the iterative shaping loop below then runs as
+usual.
 
 1. **Start.** If a `draft-*` already exists (a prior idea or session), read it as the continuity artifact — do
    not rediscover from scratch. Otherwise start from the problem framing.

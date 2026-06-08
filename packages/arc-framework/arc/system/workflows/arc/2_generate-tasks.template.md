@@ -10,10 +10,9 @@ arc:
 
 # Workflow: Generate Task List
 
-The third authoring stage — peer to [draft-design](draft-design.md) and
-[create-spec](1_create-spec.md). It transforms a reviewed spec into an executable task list, scaled by planning
-depth — the plan that implementation is built and reviewed against. Run it once the spec has been created and
-reviewed.
+The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](1_create-spec.md). It
+transforms a reviewed spec into an executable task list, scaled by planning depth — the plan that implementation
+is built and reviewed against. Run it once the spec has been created and reviewed.
 
 This stage reads the **scale** axis: the implementation surface and the codebase-grounding breadth a correct
 task plan needs.
@@ -38,12 +37,12 @@ one read drives both, yielding this run's **level** (`low` / `medium` / `high`) 
 correcting **`Class`** against that same read. The methods own how the read maps to a level, and the mid-stage
 re-entry valve.
 
-The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the work
-surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but its write
-defers to the Finalize ceremony commit.
+The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the
+work surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but
+its write defers to the Finalize ceremony commit.
 
-**No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel overlay
-(it reaches novelty only indirectly, through scale).
+**No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel
+overlay (it reaches novelty only indirectly, through scale).
 
 ## Generate in the resolved level
 
@@ -132,9 +131,9 @@ Review the existing codebase to understand what you're working with:
 - Files that will need modification
 - Testing patterns and quality standards in use
 
-Check [STRATEGY-INDEX.md][strategy-index] for project-level strategies relevant to
-this work (e.g., testing methodology, component patterns, service layer conventions). Read applicable
-strategies before designing phases — they directly influence task structure and approach.
+Check [STRATEGY-INDEX.md][strategy-index] for project-level strategies relevant to this work (e.g., testing
+methodology, component patterns, service layer conventions). Read applicable strategies before designing phases
+— they directly influence task structure and approach.
 
 ### Design phases and parent-task skeletons
 
@@ -161,15 +160,14 @@ below. It stays on disk through the remaining procedures and Finalize.
 
 **Structural skeleton — the file shape this procedure produces:**
 
-- Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**`
-  chain-of-authority pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on
-  `tasks-*`: Purpose lives on the spec, branch on `meta-*`. See
-  [strategy-task-list-formatting § Task List Headers][task-list-formatting]
-- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_`
-  block stating key calls
+- Header per [`template-tasks.md`][template-tasks] planned variant — the single `**Design:**` chain-of-authority
+  pointer (bare spec filename). No `Purpose` / `Branch` / `Base Branch` on `tasks-*`: Purpose lives on the spec,
+  branch on `meta-*`. See [strategy-task-list-formatting § Task List Headers][task-list-formatting]
+- Phase shapes: `## **Phase X:**` headings with `_Purpose:_` line; optional `_Design decisions:_` block stating
+  key calls
 - Parent-task skeletons (titles only — H3 headings with backtick-wrapped marker per
-  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable
-  units (which units does this parent satisfy?)
+  [strategy-task-list-formatting § Parent Tasks][task-list-formatting]), each citing the spec's enumerable units
+  (which units does this parent satisfy?)
 - Rough subtask-count signal per parent (1 / 2-3 / many) — flags decomposition asymmetry
 - When **Content fill** runs as a separate pass (the `high` path), the skeleton carries no task bodies,
   descriptions, or Goals yet — those land in that procedure. When the two run as one merged pass (`medium` /
@@ -193,15 +191,15 @@ structural skeleton (header, phase preambles, parent-task skeletons) stays as-is
 
 ### Write Goals (required on every parent)
 
-Goal articulates the outcome the task targets — not the change being made. Title describes the
-change ("Wire validation into save handler"); Goal describes the outcome ("Save handler rejects
-malformed input before disk write"). Goal opens the task body — first bullet at root.
+Goal articulates the outcome the task targets — not the change being made. Title describes the change ("Wire
+validation into save handler"); Goal describes the outcome ("Save handler rejects malformed input before disk
+write"). Goal opens the task body — first bullet at root.
 
-**Diagnostic test for each Goal:** would removing it make verification harder? If yes, keep it.
-If no, rewrite (title-restating Goal is noise) or drop (subtask-only).
+**Diagnostic test for each Goal:** would removing it make verification harder? If yes, keep it. If no, rewrite
+(title-restating Goal is noise) or drop (subtask-only).
 
-For subtasks, Goal is opt-in. Default: no Goal on subtasks. Opt in when the subtask carries
-separable sub-intent that doesn't reduce to "slice of parent Goal."
+For subtasks, Goal is opt-in. Default: no Goal on subtasks. Opt in when the subtask carries separable sub-intent
+that doesn't reduce to "slice of parent Goal."
 
 See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for the full rule.
 
@@ -210,52 +208,46 @@ See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for
 For each parent task, fill in the body:
 
 - Small enough to complete in a single work session (typically < 3 files modified)
-- Include quality checkpoints at appropriate stages
-  (see [Quality Gates Strategy][quality-gates] for tier guidance)
+- Include quality checkpoints at appropriate stages (see [Quality Gates Strategy][quality-gates] for tier
+  guidance)
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
-- **Note relevant strategies** when a task touches a domain with codified guidance. Add a
-  `**Strategies:**` line under the task description listing applicable strategy filenames
-  (e.g., `**Strategies:** strategy-testing-methodology.md`). This helps the executing agent
-  know what to consult without re-scanning STRATEGY-INDEX. Use when the connection isn't
-  obvious from the task title.
+- **Note relevant strategies** when a task touches a domain with codified guidance. Add a `**Strategies:**` line
+  under the task description listing applicable strategy filenames (e.g., `**Strategies:**
+  strategy-testing-methodology.md`). This helps the executing agent know what to consult without re-scanning
+  STRATEGY-INDEX. Use when the connection isn't obvious from the task title.
 
 <!-- arc:if team.mode == true -->
-**Task ownership:** In team mode, add `(@name)` markers to task checkboxes to assign ownership.
-Place markers at the end of the checkbox line: `- [ ] **1.1 Task description** (@alice)`. Phase
-headers can carry area-level ownership: `### Phase 3: Auth Layer (@alice)`. Markers are optional
-during generation — tasks can be assigned later. See
-[strategy-task-list-formatting][task-list-formatting] § Task Ownership Markers and
-[Team Coordination Strategy][team-coordination] § Task Ownership for conventions.
+**Task ownership:** In team mode, add `(@name)` markers to task checkboxes to assign ownership. Place markers at
+the end of the checkbox line: `- [ ] **1.1 Task description** (@alice)`. Phase headers can carry area-level
+ownership: `### Phase 3: Auth Layer (@alice)`. Markers are optional during generation — tasks can be assigned
+later. See [strategy-task-list-formatting][task-list-formatting] § Task Ownership Markers and [Team Coordination
+Strategy][team-coordination] § Task Ownership for conventions.
 <!-- arc:endif -->
 
-**Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API
-endpoints, business logic, complex algorithms), group test and implementation together in each
-task — named by module or concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):`
-marker line to introduce the behavior list; the executing agent treats this as the signal to apply the
-red-green-refactor loop. See [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the
-decision tree, and [strategy-task-list-formatting][task-list-formatting] § Test-First Task
-Structure for the full pattern.
+**Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
+business logic, complex algorithms), group test and implementation together in each task — named by module or
+concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):` marker line to introduce the
+behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
+[DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
+[strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
 
-**If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`),
-consult it for project-specific test patterns and coverage expectations.
+**If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`), consult it for
+project-specific test patterns and coverage expectations.
 
 **Content-fill additions to the file:**
 
 - Full task bodies with `_Goal:_` first on every parent
-- Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) where
-  framing is genuinely load-bearing — siblings of Goal at root, after Goal
+- Peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`, `_Shape:_`, `_Note:_`) where framing is
+  genuinely load-bearing — siblings of Goal at root, after Goal
 - Subtasks with description bullets where work warrants decomposition
 - Test-first lists where applicable
 
 **Internal lenses:**
 
-- **Goal articulation** — does each Goal name the outcome the task targets, not the change
-  being made?
-- **Meaningful intent** — does each task carry intent the title alone doesn't, or is it just
-  step-shape?
-- **Peer descriptor framing** — where present, do peer descriptors carry framing the Goal
-  can't?
+- **Goal articulation** — does each Goal name the outcome the task targets, not the change being made?
+- **Meaningful intent** — does each task carry intent the title alone doesn't, or is it just step-shape?
+- **Peer descriptor framing** — where present, do peer descriptors carry framing the Goal can't?
 
 → **Pass boundary:** if your path places a stop after this procedure, stop and surface now (per the surfacing
 discipline above) before continuing.
@@ -263,8 +255,8 @@ discipline above) before continuing.
 ## Grounding audit & coherent revision
 
 A per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
-findings and any design decisions, confirm before editing, then revise the phase coherently. The
-**verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
+findings and any design decisions, confirm before editing, then revise the phase coherently. The **verification
+phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
 
 Run **Audit the phase** → **Surface findings + decisions, then confirm** → **Revise the phase coherently** for
 each non-verification phase in order; run **Final suite-coherence pass** once, after the last phase. The
@@ -284,8 +276,8 @@ Generation-time framing differs from the skill's typical pre-impl use:
 
 - **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path / symbol assumptions
   are common. Focus on grounding (verifying named files and symbols exist).
-- **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved.
-  "Carry as context" findings can ride.
+- **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved. "Carry as
+  context" findings can ride.
 
 ### Surface findings + decisions, then confirm
 
@@ -298,46 +290,44 @@ Generation-time framing differs from the skill's typical pre-impl use:
 Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
 
 **Re-entry valve (the loop's floor-raising back-edge):** when a finding is a floor-raising signal rather than a
-local fix, fire it per
-[`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise (the grounding surface is
-wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation** surprise (a masked design
-decision needing fresh design) routes to the spec. A merely-wrong mechanism is the in-place case below
-(Revise the phase coherently → spec-propagation), not a re-entry.
+local fix, fire it per [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise
+(the grounding surface is wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation**
+surprise (a masked design decision needing fresh design) routes to the spec. A merely-wrong mechanism is the
+in-place case below (Revise the phase coherently → spec-propagation), not a re-entry.
 
 ### Revise the phase coherently
 
 Apply the confirmed corrections so the phase reads **as if the design were always this way** — no audit /
-correction / "pending" provenance in the task bodies (per [DEV-RULES.ARC][dev-rules-arc] § Write for the
-reader: document what _is_, not what _was_). Fold "fix before starting" findings into Goals, bodies, and
-subtasks directly; a corrected mechanism _becomes_ the design statement, not an annotation on the old one.
+correction / "pending" provenance in the task bodies (per [DEV-RULES.ARC][dev-rules-arc] § Write for the reader:
+document what _is_, not what _was_). Fold "fix before starting" findings into Goals, bodies, and subtasks
+directly; a corrected mechanism _becomes_ the design statement, not an annotation on the old one.
 
 **Spec-propagation.** When a finding corrects a _spec-level_ assumption — a named mechanism, shape, or interface
 was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
-suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the **in-place**
-sibling of the re-entry valve (Surface findings + decisions, then confirm): an existing decision was wrong and is
-corrected in place — distinct from re-entering the spec to _author_ design that does not yet exist (see
-[`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
+suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the
+**in-place** sibling of the re-entry valve (Surface findings + decisions, then confirm): an existing decision
+was wrong and is corrected in place — distinct from re-entering the spec to _author_ design that does not yet
+exist (see [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
 
-**Generation-time durable-capture discipline.** "Carry as context" findings need a durable
-home before save — at generation time, no implementing-session context exists to absorb them
-later. Routing convention:
+**Generation-time durable-capture discipline.** "Carry as context" findings need a durable home before save — at
+generation time, no implementing-session context exists to absorb them later. Routing convention:
 
-- **Inline `_Note:_` peer descriptor on the affected parent / leaf** — brief one-liners
-  (≤ 2 lines) where context fits next to the task without bulking the body
-- **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale,
-  alternatives, edge-case enumerations, mapping tables) where inline would crowd the task list.
-  Each affected task body cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
+- **Inline `_Note:_` peer descriptor on the affected parent / leaf** — brief one-liners (≤ 2 lines) where
+  context fits next to the task without bulking the body
+- **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale, alternatives,
+  edge-case enumerations, mapping tables) where inline would crowd the task list. Each affected task body
+  cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
 
 ### Final suite-coherence pass (once, after all phases)
 
 A coherence **read** across the full suite — `tasks-{name}.md`, `spec-{name}.md`, and `notes-{name}.md` — after
 every phase has been revised. Not a re-audit: it checks cross-phase consistency (terminology, cross-references,
 ordering language), suite-level alignment (the spec's Goals / Success Criteria / Open Questions match the
-amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads as one
-coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase revision was
-clean, heavier when phases interlock tightly. If this pass surfaces a _new design issue_ (not mere inconsistency),
-loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the coherence pass is not a
-second decision venue.
+amended enumerable units; resolved open-questions reflected), dangling references, and that the task list reads
+as one coherent forward artifact. Always read; **edit only on drift** — often a near-no-op when per-phase
+revision was clean, heavier when phases interlock tightly. If this pass surfaces a _new design issue_ (not mere
+inconsistency), loop back to that phase's confirm gate (Surface findings + decisions, then confirm) — the
+coherence pass is not a second decision venue.
 
 **Internal lenses:**
 
@@ -352,22 +342,21 @@ second decision venue.
 
 By now, `tasks-{name}.md` is already on disk (created during **Structural decomposition**, iterated through the
 content-fill and grounding procedures). Implementation notes, technical context, and design rationale belong in
-the dedicated notes file (`notes-{name}.md`), not in the task list. Finalize verifies the file
-against the pre-save checklist and bundles the commit.
+the dedicated notes file (`notes-{name}.md`), not in the task list. Finalize verifies the file against the
+pre-save checklist and bundles the commit.
 
 **Verify the file against this checklist:**
 
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
-      `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on
-      `meta-*`). Incidental retains `## Context` + `## Scope` (it is its own spec)
+      `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
+      Incidental retains `## Context` + `## Scope` (it is its own spec)
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
 - [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
       links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
 - [ ] Parent tasks are H3 headings with backtick-wrapped marker — see
       [strategy-task-list-formatting § Parent Tasks][task-list-formatting] for the canonical form
 - [ ] Subtasks use letter numbering with backtick-wrapped markers (matching parent task heading
-      style — keeps preview rendering consistent across parent and subtask). Bold when detail
-      bullets follow.
+      style — keeps preview rendering consistent across parent and subtask). Bold when detail bullets follow.
 - [ ] Third level uses letters (`X.Y.a`, `X.Y.b`), not numbers (`X.Y.1`, `X.Y.2`) — letters signal depth
 - [ ] Every parent task has `_Goal:_` first at root, articulating outcome (not restating title);
       diagnostic test passes (would removing the Goal make verification harder?)
@@ -378,8 +367,7 @@ against the pre-save checklist and bundles the commit.
 - [ ] Blank lines between every subtask (always — see § Blank-Line Discipline in the strategy doc)
 - [ ] Unnumbered bullets for implementation details (no checkboxes, no numbers)
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
-      `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles
-      (`**X.Y Title**`)
+      `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
 - [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
@@ -392,25 +380,25 @@ against the pre-save checklist and bundles the commit.
       provenance (grounding-audit corrections folded into the design, per [DEV-RULES.ARC][dev-rules-arc] § Write
       for the reader)
 - [ ] Task instructions targeting shipped or published files are written in the shipped-content
-      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` /
-      companions) that would survive verbatim execution into the target. See
-      [strategy-task-list-formatting § Instruction Audience][task-list-formatting]
+      register — no movable WU artifact references (`draft-*` / `spec-*` / `tasks-*` / `meta-*` / companions)
+      that would survive verbatim execution into the target. See [strategy-task-list-formatting § Instruction
+      Audience][task-list-formatting]
 - [ ] Success Criteria section at bottom with checkboxes (checked during verification phase)
 
 **Destination path** (referenced by **Structural decomposition**'s file creation; depends on
 [`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/tasks-{{WORK_NAME}}.md`
-- **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md`
-  (create the directory first if it doesn't exist: `mkdir -p .arc/active/`)
+- **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md` (create the directory first if it
+  doesn't exist: `mkdir -p .arc/active/`)
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
-**Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with
-`**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read),
-set `**Task List:**` to the bare `tasks-{name}.md` filename, and advance `**Next Action:**` to the
-post-generation step (e.g., "Run `activate-work-unit.md`"). The write rides this ceremony commit. Skip otherwise
-(no meta file exists pre-init under non-planning-branch flows).
+**Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
+Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read), set `**Task
+List:**` to the bare `tasks-{name}.md` filename, and advance `**Next Action:**` to the post-generation step
+(e.g., "Run `activate-work-unit.md`"). The write rides this ceremony commit. Skip otherwise (no meta file exists
+pre-init under non-planning-branch flows).
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location
@@ -422,19 +410,19 @@ See [Task Processing Loop](3_process-task-loop.md) for how task lists are execut
 
 ## Task List Format
 
-See [template-tasks.md][template-tasks] for the header and body skeleton (header with the single
-`**Design:**` pointer, Tasks with phase preambles, Verification Phase, Success Criteria). See
+See [template-tasks.md][template-tasks] for the header and body skeleton (header with the single `**Design:**`
+pointer, Tasks with phase preambles, Verification Phase, Success Criteria). See
 [strategy-task-list-formatting.md][task-list-formatting] for formatting rules and conventions.
 
-`**Design:**` is a bare spec filename — the path derives from the task list's directory, so a
-backlog → active move needs no field edit.
+`**Design:**` is a bare spec filename — the path derives from the task list's directory, so a backlog → active
+move needs no field edit.
 
 ---
 
 ## Next Step
 
-**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and rename
-`plan/<name>` to `<type>/<name>`. Implementation begins on the renamed branch.
+**→ [activate-work-unit.md][activate-work-unit]** — Flip `**State:**` to `Active` and rename `plan/<name>` to
+`<type>/<name>`. Implementation begins on the renamed branch.
 
 Activation can be deferred if planning ahead. Activate when implementation is about to begin.
 
