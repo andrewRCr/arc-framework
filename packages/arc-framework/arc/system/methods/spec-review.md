@@ -58,6 +58,11 @@ decision at the finalization stop rather than adding a gate. A finding that reop
 an unsettled fundamental — is a derivation signal: route it back to the design (draft / spec), never paper over it
 in the spec.
 
+**Novel overlay** (`Class == Novel`, `detailed` only, advisory). Novel work warrants extra coherence and grounding
+care — an invented model has no established pattern to lean on. Add an advisory nudge: was the invented model's
+rationale captured, and was an **ADR-companion** considered (per create-spec's Novel overlay)? A recommendation at
+the finalization stop, never a gate.
+
 ---
 
 [create-spec]: ../workflows/arc/1_create-spec.md

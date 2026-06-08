@@ -575,31 +575,35 @@ rather than diverging per stage. Every Novel item and every re-entry offer is ac
   enumeration added nothing the principle didn't, and was already three divergent copies. Propagated the reframe
   back to the spec (R10, SC14) and struck the now-resolved Open Question on amendment wording.
 
-### `[ ]` **5.3 Novel advisory overlay across `draft-design` / `create-spec` / `spec-review`**
+### `[x]` **5.3 Novel advisory overlay across `draft-design` / `create-spec` / `spec-review`**
 
 - _Goal:_ Novel is realized as an advisory overlay on the `high`-draft + `detailed` lanes only (Novel ⟹ both) —
   every item accept-or-decline, no hard `Class`↔form hook — decorating draft-design, create-spec, and
   spec-review; task-gen adds nothing.
-- _Note:_ Unlike depth-resolution and the re-entry valve, Novel stays **per-stage whole-block conditionals**, not
-  a shared method (R15): its content genuinely differs per stage (research sub-phase at draft-design; ADR-
-  companion at create-spec; posture shift at spec-review) — there is no shared shape to extract. The asymmetry is
-  intentional.
 
-    - `[ ]` **5.3.a draft-design (`high`, primary)**
-        - On an invent-vs-compose read of `novel`, recommend a free-form, self-sequencing orient-then-research
-          sub-phase (orient first; research emerges from that). Output populates the rich draft's discovery /
-          research / alternatives sections — no separate artifact.
+    - `[x]` **5.3.a draft-design (`high`, primary)**
+        - Added a `Class == Novel` advisory overlay opening the `high` lane: a free-form, self-sequencing
+          orient-then-research sub-phase (orient first; research emerges from that), populating the rich draft's
+          discovery / research / alternatives sections — no separate artifact, accept-or-decline.
 
-    - `[ ]` **5.3.b create-spec (`detailed`, secondary)**
-        - Surface a subtype-keyed ADR-companion recommendation — strong at `detailed`·RFC, weak/omitted at
-          `detailed`·PRD. The companion ADR is authored under `reference/adr/` as a non-moving artifact (no Novel
-          branch in integration).
+    - `[x]` **5.3.b create-spec (`detailed`, secondary)**
+        - Added a `Class == Novel` overlay at the `detailed` lane: a subtype-keyed ADR-companion recommendation
+          (strong at `detailed`·RFC, weak/omitted at `detailed`·PRD), the companion ADR a non-moving
+          `reference/adr/` artifact with no Novel branch at integration.
 
-    - `[ ]` **5.3.c spec-review posture**
-        - Extra coherence/grounding care + an advisory "was the rationale captured / ADR considered?" nudge.
+    - `[x]` **5.3.c spec-review posture**
+        - Added a `Class == Novel` (`detailed`-only) overlay to the `spec-review` method: extra coherence/grounding
+          care + an advisory "was the rationale captured / ADR-companion considered?" nudge at the finalization
+          stop.
 
-    - `[ ]` **5.3.d task-gen — explicitly nothing**
-        - Kept explicit so no phantom lane is added (Novel is derivation-axis; task-gen is scale-driven).
+    - `[x]` **5.3.d task-gen — explicitly nothing**
+        - Added an explicit "No Novel overlay" note at generate-tasks' entry (Novel is derivation-axis; task-gen
+          is scale-driven) so no phantom lane is introduced.
+
+- _Outcome:_ Realized as four **per-stage whole-block conditionals**, deliberately _not_ a shared method (unlike
+  the re-entry valve) — the content genuinely differs per stage (research sub-phase / ADR-companion / review
+  posture / nothing), so there is no shared shape to extract. All keyed on `Class == Novel`, advisory and
+  accept-or-decline, with no hard `Class`↔form hook anywhere.
 
 ## **Phase 5.R:** Cross-stage coherence & polish — the three authoring workflows as one piece
 

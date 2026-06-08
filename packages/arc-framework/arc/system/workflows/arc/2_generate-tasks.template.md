@@ -42,6 +42,9 @@ artifact carries scale, so task generation reads the work surface directly and c
 `Class`. The `**Class:**` decision is live from this read but its write defers to Step 4's ceremony commit, never
 a mid-stage meta edit.
 
+**No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel overlay
+(it reaches novelty only indirectly, through scale). Stated explicitly so no phantom lane is introduced here.
+
 **Depth-selected pass structure with explicit stops.** Generation runs one task-list grammar parameterized by the
 resolved level:
 

@@ -62,6 +62,13 @@ not a pass count. Step up when the space proves open-ended: exploration or inven
 An open-ended or substantial design must be authored. Shape it as an evolving `draft-*`, looping until it reaches
 **formalization-ready** — at the depth this design demands (the readiness states below).
 
+**Novel overlay** (`Class == Novel`, advisory). When the invent-vs-compose read lands `novel`, open the `high`
+path with a **free-form, self-sequencing orient-then-research sub-phase** — never a preemptive research dump. **Orient
+first:** establish what is known and unknown and where the compose-vs-invent boundary actually falls; the research
+to do emerges from that orientation, not from a fixed checklist. Its output populates the rich `draft-*`'s
+discovery / research / alternatives sections (optional scaffolding) — no separate artifact. A recommendation, not
+a gate: accept, decline, or right-size it; the iterative shaping loop below then runs as usual.
+
 1. **Start.** If a `draft-*` already exists (a prior idea or session), read it as the continuity artifact — do
    not rediscover from scratch. Otherwise start from the problem framing.
 2. **Gather context** as the design needs it; summarize relevance and skip what does not apply: project

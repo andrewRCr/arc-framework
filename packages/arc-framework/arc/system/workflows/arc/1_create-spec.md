@@ -106,6 +106,14 @@ Work the form to completeness across its substrate and validation surface:
   decision: a derivation signal — route it to the design (draft / spec), never park it as an open question or push
   it into the task list. See [DEV-RULES.ARC][dev-rules-arc] § Design before implementation.
 
+**Novel overlay** (`Class == Novel`, advisory). At `detailed`, an invented model warrants an **ADR-companion** —
+an ADR under `reference/adr/` capturing the invented model's durable, cross-cutting rationale. **Subtype-keyed:**
+recommend it strongly at `detailed`·RFC (an invented architectural model is ADR's home turf, and the RFC's inline
+Alternatives & Rationale is not redundant — this-design rationale vs. a durable cross-cutting decision), weak or
+omitted at `detailed`·PRD (product-concept novelty is far less ADR-shaped). Accept-or-decline, never a gate. An
+accepted ADR is a **non-moving artifact** — it stays under `reference/adr/` through the WU lifecycle (no
+relocation, no Novel branch at integration) and rides the normal ceremony commit.
+
 For interactive sessions, provide numbered options to keep responses quick.
 
 ## Step 3: PROJECT-PRD alignment check
