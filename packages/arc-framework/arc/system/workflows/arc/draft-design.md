@@ -23,26 +23,22 @@ and no meta file may exist yet.
 
 ---
 
-## Step 1: Resolve planning depth (one derivation read)
+## Resolve depth & Class
 
-Make **one evidence read** on the derivation axis — the problem framing / origin plus a quick compose-vs-invent
-scan. That single read drives both methods:
+Make **one derivation-axis read** — the problem framing / origin plus a quick compose-vs-invent scan — then run
+[`resolve-planning-depth`][resolve-planning-depth] and [`classify-work-unit`][classify-work-unit] off it: one read
+drives both, yielding this stage's **level** (`low` / `medium` / `high`) and confirming-or-ratcheting **`Class`**,
+born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage re-entry valve.
 
-- [`resolve-planning-depth`][resolve-planning-depth] yields the **level** — `low` / `medium` / `high`. Which
-  evidence reads which level is the method's to define; this stage initiates it on the derivation axis and
-  consumes the result.
-- [`classify-work-unit`][classify-work-unit] confirms-or-ratchets the work unit's **`Class`** — born here, as
-  this is its first touchpoint.
+The resolved level selects this stage's path below — the stage default, re-selectable, never below the derivation
+floor.
 
-The resolved level selects this stage's path below. It is the stage default — re-selectable, never set below the
-derivation floor.
+## Draft in the resolved level
 
-## Step 2: Draft in the resolved level
-
-Each level maps to a path — the drafting procedure at that depth. Run the one Step 1 selected; if a path
+Each level maps to a path — the drafting procedure at that depth. Run the one the entry read selected; if a path
 surfaces heavier derivation than the read assumed, step up.
 
-### `low` — quick determinacy-confirm (no draft)
+### `low` — quick determinacy-confirm (no draft artifact)
 
 The design is determinate; there is nothing to derive. Confirm that directly: state the intent, the scope
 boundary, and the one falsifiable signal that says it worked. No `draft-*` is produced — carry the confirmation
@@ -97,7 +93,7 @@ formalization-ready gate:
   for create-spec.
 
 The **height** of the formalization-ready bar is invariant — the same _is all settle-able design settled, and
-can I state how I'll know it worked?_ gate the `low` and `medium` lanes clear, just reached faster there. What
+can I state how I'll know it worked?_ gate the `low` and `medium` paths clear, just reached faster there. What
 scales is the **distance**: a deeper design crosses more passes to reach the same bar. "Formalization-ready"
 always means ready _at the depth this design demanded_ — never a lower bar.
 
@@ -119,25 +115,19 @@ applied to the WU's own artifact. Three leans, never hard gates:
 This stays a lightweight, facilitation-driven loop — re-synthesis pass by pass. A single-sitting draft is
 coherent by construction and clears all three criteria at once; they bite only when accretion is real.
 
-## Step 3: Feed the spec form forward
-
-Hand forward the draft's produced shape, not a depth value: a rich, fully-shaped `draft-*` feeds a `detailed`
-spec; a thin draft or a determinacy-confirm feeds a `brief` / `outline`. The planning-depth level is never
-recorded, so create-spec re-reads the derivation axis at its own entry with the draft as its richest evidence.
-
-## Step 4: Capture the draft
+## Capture the draft
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
 
-**Re-entry valve:** if review surfaces that the design runs deeper than the resolved level authored, the
-floor-raising response is to re-enter `draft-design` higher — the derivation headwater re-enters itself only —
-per [resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
+**Re-entry valve (the loop's floor-raising back-edge):** if review surfaces that the design runs deeper than the
+resolved level authored, re-enter `draft-design` higher — the derivation headwater re-enters itself only — per
+[resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
 ship a too-thin draft.
 
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
-is live from the Step 1 read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
+is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
 at the draft-capture ceremony commit, never as a mid-stage meta edit.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class`
@@ -157,8 +147,9 @@ Context: meta-{name}.md (draft-design)
 
 ## Next Step
 
-Run [create-spec](1_create-spec.md) — it consumes the draft (or the determinacy confirmation) as its richest
-entry evidence.
+Run [create-spec](1_create-spec.md) — it re-reads the derivation axis at its own entry, with the draft (or the
+determinacy confirmation) as its richest evidence. The draft's _shape_ carries forward, not a depth value: the
+planning-depth level is never recorded.
 
 ---
 

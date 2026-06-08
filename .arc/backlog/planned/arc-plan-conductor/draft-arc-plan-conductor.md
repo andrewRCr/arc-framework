@@ -60,10 +60,10 @@ freeform exploration.
 
 - *Routed from:* work-routing-discipline Phase 6.R (drain integration-mode floor), 2026-06-01.
 - *Concern:* work-routing-discipline landed the **floor** — the two-mode routing rule, the `## Inbound Buffer —
-  Pending Integration` convention, and a minimal forcing hook in `1_create-spec.md` Step 1 (integrate the buffer
-  before the plan feeds the PRD). The **ceiling** is this conductor's: a first-class buffer-drain step in the
-  refine-plan loop / iteration moment that mandatorily integrates a draft's `Inbound Buffer` into the body and
-  **supersedes** the minimal create-spec hook.
+  Pending Integration` convention, and a minimal forcing hook in `1_create-spec.md` § Resolve depth & Class
+  (integrate the buffer before the plan feeds the PRD). The **ceiling** is this conductor's: a first-class
+  buffer-drain step in the refine-plan loop / iteration moment that mandatorily integrates a draft's `Inbound
+  Buffer` into the body and **supersedes** the minimal create-spec hook.
 - *Also:* placement/visibility refinement (the buffer is an interstitial after Origin/Purpose, set off by `---`)
   and any structured-buffer schema belong here.
 - *Why here:* the conductor owns the planning-iteration moment (and already carries the "Backlog Inbox

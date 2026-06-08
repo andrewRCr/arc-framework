@@ -617,13 +617,23 @@ re-touched piecemeal — tightening `generate-tasks` alone now would only be red
 Criteria 15: **no** file rename/renumber (that cascade is `doc-cascade-sweep`'s) and no new design. Feeds a clean
 set into the `6.2` conformance pass.
 
-### `[ ]` **5.R.1 Structural coherence + DRY the shared touchpoint**
+### `[x]` **5.R.1 Structural coherence + DRY the shared touchpoint**
 
 - _Goal:_ The near-verbatim "one evidence read drives both methods" entry block (and the analogous interlock
   framing) repeats across all three workflows, differing only by axis. Shrink each to minimal inline plus the
   method body as the source of truth — keeping only the stage-specific bits (which axis, what the read inspects,
   what the level drives here) — and unify the entry-step heading/label/structure so the three read as one family.
 - **Strategies:** strategy-workflow-authoring.md
+- _Outcome:_ Settled a family structural convention (recorded in `notes-scalable-authoring-pipeline.md`): an
+  identical spine anchor (`## Resolve depth & Class`) + `## Next Step` across all three, descriptive per-workflow
+  body and terminal-ceremony headings, a Resolve→Setup→Iterate→Finalize loop envelope with the re-entry valve as
+  its named back-edge, and `path` as the single depth-alternative term (`lane`/`variant` retired; `lane` reserved
+  to `composable-workflows` via inbox). Applied across all three: entry blocks DRY'd to method-delegated
+  minimal-inline; `generate-tasks`' `## Process` wrapper dropped (Passes promoted to `##`, `Step 4` → `## Finalize
+  the task list`); `create-spec` de-numbered to named sections with all internal `Step N` cross-refs reflowed;
+  `draft-design`'s `Feed the spec form forward` folded into `Next Step`. Renamed-heading citations cascaded to
+  `STRATEGY-INDEX`, `strategy-task-list-formatting`, `template-tasks`, `drain-inbox`, and the `arc-plan-conductor`
+  draft. Bounded by spec § SC15 — no file rename/renumber, no new design; markdown lint clean, both copies synced.
 
 ### `[ ]` **5.R.2 Composable-workflows forward-compatibility**
 

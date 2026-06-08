@@ -4,7 +4,7 @@ Templates and guidance for task lists created during the [2_generate-tasks.md][g
 
 See [strategy-task-list-formatting.md][task-list-formatting] for the authoritative format rules, element
 reference, test-first patterns, and annotated examples. The Quick Format Checklist in [2_generate-tasks.md
-§ Step 4][generate-tasks] covers the final-save checks.
+§ Finalize the task list][generate-tasks] covers the final-save checks.
 
 ---
 

@@ -13,10 +13,6 @@ arc:
 **When to use**: After a spec has been created and reviewed, when work is ready for implementation
 planning.
 
----
-
-## Process
-
 **Branch context:** Task generation happens on the WU's planning branch (`plan/<name>`) —
 verify you're still on it. See [init-work-unit][init-work-unit] for how the planning branch
 is created.
@@ -27,23 +23,22 @@ confirm with the user before proceeding — generating tasks against unresolved 
 can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
 leave the fields in place during task generation.
 
-### Entry step: Resolve planning depth (one scale read)
+---
 
-Make **one evidence read** on the scale axis: inspect the implementation surface and the codebase-grounding
-breadth required for a correct task plan. That single read drives both methods:
+## Resolve depth & Class
 
-- [`resolve-planning-depth`][arc-methods-rpd] yields the **level** — `low` / `medium` / `high`. Which breadth
-  reads which level is the method's to define; this stage initiates it on the scale axis and consumes the result.
-- [`classify-work-unit`][arc-methods-cwu] confirms, ratchets, or corrects the recorded **`Class`** against that
-  same read.
+Make **one scale-axis read** — the implementation surface and the codebase-grounding breadth a correct task plan
+needs — then run [`resolve-planning-depth`][arc-methods-rpd] and [`classify-work-unit`][arc-methods-cwu] off it:
+one read drives both, yielding this run's **level** (`low` / `medium` / `high`) and confirming, ratcheting, or
+correcting **`Class`** against that same read. The methods own how the read maps to a level, and the mid-stage
+re-entry valve.
 
-The resolved level is transient and drives this task-generation run. It is feed-forward-immune: no upstream
-artifact carries scale, so task generation reads the work surface directly and cross-checks the result against
-`Class`. The `**Class:**` decision is live from this read but its write defers to Step 4's ceremony commit, never
-a mid-stage meta edit.
+The level is transient and feed-forward-immune — no upstream artifact carries scale, so this stage reads the work
+surface directly and cross-checks against `Class`. The `**Class:**` decision is live from this read, but its write
+defers to the Finalize ceremony commit, never a mid-stage meta edit.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel overlay
-(it reaches novelty only indirectly, through scale). Stated explicitly so no phantom lane is introduced here.
+(it reaches novelty only indirectly, through scale). Stated explicitly so no phantom path is introduced here.
 
 **Depth-selected pass structure with explicit stops.** Generation runs one task-list grammar parameterized by the
 resolved level:
@@ -60,14 +55,14 @@ depth changes how much is separated for review. This prevents the one-shot-to-im
 work masks design decisions and ungrounded assumptions until implementation.
 
 **The task list file lives on disk from Pass 1 onward.** Pass 1 creates `tasks-{name}.md` at the
-destination path resolved per Step 4's `Destination path` rule. Passes 2 and 3 edit the file in
-place. Step 4 collapses to pre-save checklist verification + ceremony commit. The file is
-in-progress until Step 4's checklist passes — staging
+destination path resolved per Finalize's `Destination path` rule. Passes 2 and 3 edit the file in
+place. Finalize collapses to pre-save checklist verification + ceremony commit. The file is
+in-progress until the Finalize checklist passes — staging
 discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
 durable across handoffs and lets each pass's review happen against the rendered file rather than
 reproduced conversation.
 
-### Pass 1: Structural decomposition
+## Pass 1: Structural decomposition
 
 Identify phases and parent-task skeletons. Boundaries first; no content fill yet.
 
@@ -75,7 +70,7 @@ Identify phases and parent-task skeletons. Boundaries first; no content fill yet
 before stopping. At `low`, fold structural decomposition, content fill, and grounding revision into one combined
 pass.
 
-#### Step 1.1: Assess codebase and relevant strategies
+### Step 1.1: Assess codebase and relevant strategies
 
 Review the existing codebase to understand what you're working with:
 
@@ -88,7 +83,7 @@ Check [STRATEGY-INDEX.md][strategy-index] for project-level strategies relevant 
 this work (e.g., testing methodology, component patterns, service layer conventions). Read applicable
 strategies before designing phases — they directly influence task structure and approach.
 
-#### Step 1.2: Design phases and parent-task skeletons
+### Step 1.2: Design phases and parent-task skeletons
 
 Identify the depth-appropriate phase count that organizes the work into logical, testable milestones:
 
@@ -108,8 +103,8 @@ Design elements (RFC), settled Decisions (`outline`), or the single falsifiable 
 - **Always end with a verification phase** — single task pointing to `verify-work-unit.md`. See
   [task-list-formatting strategy][task-list-formatting] § Verification Phase for conventions
 
-**Save before stopping.** Create `tasks-{name}.md` at the Step 4 destination path with the
-Pass 1 file shape below. It stays on disk through Passes 2-3 and Step 4.
+**Save before stopping.** Create `tasks-{name}.md` at the Finalize destination path with the
+Pass 1 file shape below. It stays on disk through Passes 2-3 and Finalize.
 
 **Pass 1 file shape:**
 
@@ -148,7 +143,7 @@ differ; this is what catches asymmetries the user would otherwise raise cold.
 **Iterative.** User feedback can prompt revision before declaring this pass complete.
 Proceed to the next pass only when the deliverable has settled.
 
-### Pass 2: Content fill
+## Pass 2: Content fill
 
 For each parent task: write the body. Goal first (required); peer descriptors only when genuinely
 load-bearing; subtasks if decomposing; Build test-first lists where applicable.
@@ -156,7 +151,7 @@ load-bearing; subtasks if decomposing; Build test-first lists where applicable.
 **Depth variant:** At `medium`, this is the merged Pass 1+2 draft stop. At `low`, it is part of the one combined
 pass. At `high`, run it after the reviewed Pass 1 skeleton.
 
-#### Step 2.1: Write Goals (required on every parent)
+### Step 2.1: Write Goals (required on every parent)
 
 Goal articulates the outcome the task targets — not the change being made. Title describes the
 change ("Wire validation into save handler"); Goal describes the outcome ("Save handler rejects
@@ -170,7 +165,7 @@ separable sub-intent that doesn't reduce to "slice of parent Goal."
 
 See [strategy-task-list-formatting § Goal/Note Lines][task-list-formatting] for the full rule.
 
-#### Step 2.2: Write task bodies and subtasks
+### Step 2.2: Write task bodies and subtasks
 
 For each parent task, fill in the body:
 
@@ -228,7 +223,7 @@ rationale.
 
 **Iterative.** User feedback can prompt revision before declaring this pass complete.
 
-### Pass 3: Grounding audit + coherent revision
+## Pass 3: Grounding audit + coherent revision
 
 Per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
 findings and any design decisions, confirm before editing, then revise the phase coherently. Settling each
@@ -243,7 +238,7 @@ substantive phase. At `low`, the one substantive phase makes this a single groun
 the combined pass: the gate collapses by phase count, not by relaxing the interlock. At `medium` / `high`, run it
 after the content draft; the number of gates follows the substantive phase count.
 
-#### Step 3.1: Audit the phase
+### Step 3.1: Audit the phase
 
 Invoke the [arc-task-audit][arc-task-audit] skill scoped to the phase, at the depth the resolved level selects:
 `grounding-only` at `low`, `full` at `medium` / `high`. The skill defines each depth — `grounding-only` is the
@@ -259,7 +254,7 @@ Generation-time framing differs from the skill's typical pre-impl use:
 - **Pre-impl-ready gate:** the phase isn't ready until "fix before starting" findings are resolved.
   "Carry as context" findings can ride.
 
-#### Step 3.2: Surface findings + decisions, then confirm
+### Step 3.2: Surface findings + decisions, then confirm
 
 > [!IMPORTANT]
 > `workflow-interlock`: Surface the phase's findings — per-finding (category → severity → finding →
@@ -269,13 +264,14 @@ Generation-time framing differs from the skill's typical pre-impl use:
 
 Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
 
-**Re-entry valve:** when a finding is a floor-raising signal rather than a local fix, fire it per
+**Re-entry valve (the loop's floor-raising back-edge):** when a finding is a floor-raising signal rather than a
+local fix, fire it per
 [`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise (the grounding surface is
 wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation** surprise (a masked design
 decision needing fresh design) routes to the spec. A merely-wrong mechanism is the in-place case below
 (Step 3.3 spec-propagation), not a re-entry.
 
-#### Step 3.3: Revise the phase coherently
+### Step 3.3: Revise the phase coherently
 
 Apply the confirmed corrections so the phase reads **as if the design were always this way** — no audit /
 correction / "pending" provenance in the task bodies (per [DEV-RULES.ARC][dev-rules-arc] § Write for the
@@ -304,7 +300,7 @@ lives in the implementing agent's session memory. Generation-time durability is 
 the implementing agent will be a different session, possibly different agent, weeks or months
 from now.
 
-#### Step 3.4: Final suite-coherence pass (once, after all phases)
+### Step 3.4: Final suite-coherence pass (once, after all phases)
 
 A coherence **read** across the full suite — `tasks-{name}.md`, `spec-{name}.md`, and `notes-{name}.md` — after
 every phase has been revised. Not a re-audit: it checks cross-phase consistency (terminology, cross-references,
@@ -323,11 +319,11 @@ loop back to that phase's Step 3.2 — the coherence pass is not a second decisi
 
 **Iterative.** User feedback can prompt revision before declaring impl-ready.
 
-### Step 4: Pre-save verification + ceremony commit
+## Finalize the task list
 
-By Step 4, `tasks-{name}.md` is already on disk (created at Pass 1, iterated through Passes 2-3).
+By now, `tasks-{name}.md` is already on disk (created at Pass 1, iterated through Passes 2-3).
 Implementation notes, technical context, and design rationale belong in the dedicated notes file
-(`notes-{name}.md`), not in the task list. Step 4 verifies the file
+(`notes-{name}.md`), not in the task list. Finalize verifies the file
 against the pre-save checklist and bundles the commit.
 
 **Verify the file against this checklist:**

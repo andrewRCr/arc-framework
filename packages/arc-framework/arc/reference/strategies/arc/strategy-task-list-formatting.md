@@ -6,7 +6,7 @@
 
 Authoritative formatting rules for task lists. Agent reference for task list generation and
 maintenance. For skeletons, see [`template-tasks.md`][template-tasks]. For the pre-save format
-checklist, see [2_generate-tasks.md § Step 4][generate-tasks].
+checklist, see [2_generate-tasks.md § Finalize the task list][generate-tasks].
 
 **Referenced by:**
 

@@ -33,39 +33,37 @@ verify you are on one before proceeding (created via [init-work-unit][init-work-
 
 ---
 
-## Step 1: Resolve spec form (one derivation read)
+## Resolve depth & Class
 
-Make **one evidence read** on the derivation axis, and let that single read drive both methods:
+Make **one derivation-axis read**, then run [`resolve-planning-depth`][resolve-planning-depth] and
+[`classify-work-unit`][classify-work-unit] off it: one read drives both, yielding this stage's **level**
+(`low` / `medium` / `high`) — which it maps to the spec **form** (`low` → `brief`, `medium` → `outline`,
+`high` → `detailed`) — and confirming-or-ratcheting **`Class`** against that same read. The methods own how the read
+maps to a level, and the mid-stage re-entry valve.
 
-- [`resolve-planning-depth`][resolve-planning-depth] yields the **level** — `low` / `medium` / `high` — which this
-  stage maps to the spec **form**: `low` → `brief`, `medium` → `outline`, `high` → `detailed`. Which evidence
-  reads which level is the method's to define; this stage initiates it on the derivation axis and consumes the
-  result.
-- [`classify-work-unit`][classify-work-unit] confirms-or-ratchets the work unit's **`Class`** against that same
-  read.
-
-The richest evidence is the **`draft-*`** when one exists (from draft-design) — read it as the primary input, and
-let its produced shape indicate the form: a rich, fully-shaped draft feeds `detailed`; a thin draft or a
-determinacy-confirm feeds `brief` / `outline`. When no draft exists, read the standing `Class` plus the problem
-directly, narrowing to a **brief-vs-outline** disambiguation.
+The richest evidence is the **`draft-*`** when one exists (from draft-design): read it as the primary input, and let
+its produced shape indicate the form — a rich, fully-shaped draft feeds `detailed`; a thin draft or a
+determinacy-confirm feeds `brief` / `outline`. With no draft, read the standing `Class` plus the problem directly,
+narrowing to a **brief-vs-outline** disambiguation.
 
 If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
 draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
 feeds the spec, never carried forward as-is. Then assess readiness: unresolved design decisions, open unknowns, or
-missing concrete detail the spec would need to specify. If the draft is not ready, surface the gaps and resolve
-them (or return to drafting) before investing in spec writing.
+missing concrete detail the spec would need to specify. If the draft is not ready, surface the gaps and resolve them
+(or return to drafting) before investing in spec writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
-discovery pass (Step 2) and the template (Step 5). The `**Class:**` decision is live from this read but its write
-defers to the spec-generation ceremony commit (Step 6), never a mid-stage meta edit.
+discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but its
+write defers to the spec-generation ceremony commit (Finalize), never a mid-stage meta edit.
 
-## Step 2: Conduct discovery (spec-crystallization, depth-relative)
+## Conduct discovery (spec-crystallization, depth-relative)
 
 Discovery here confirms the design is **complete and concrete enough to write — and to validate against — at this
 form**, then closes the remaining gaps. With a settled draft this is targeted gap-filling, not open exploration;
 without one it covers the same ground from the problem directly. The pass is discover-then-write: work the block
-for the resolved form, then write (Step 5) and lightly iterate. If discovery surfaces heavier derivation than the
-form assumed, fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry —
+for the resolved form, then write and lightly iterate (Write and save, below). If discovery surfaces heavier
+derivation than the form assumed, fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth]
+§ Mid-stage re-entry —
 re-resolve the form higher, or route to `draft-design` when the design direction is unshaped — rather than
 patch-and-limp.
 
@@ -116,10 +114,10 @@ relocation, no Novel branch at integration) and rides the normal ceremony commit
 
 For interactive sessions, provide numbered options to keep responses quick.
 
-## Step 3: PROJECT-PRD alignment check
+## PROJECT-PRD alignment check
 
 Always-on floor — fires at every form, its cost naturally proportional to the spec's surface (a `brief` clears it
-near-instantly). Evaluate the spec's scope (crystallized in Step 2) against PROJECT-PRD's Principles and Out of
+near-instantly). Evaluate the spec's scope (crystallized in discovery) against PROJECT-PRD's Principles and Out of
 Scope — the principle catalog is the project's vision contract.
 
 **Halt-and-ask conditions:**
@@ -132,11 +130,12 @@ On either, halt and surface the specific conflict — user direction needed befo
 **On pass — cite the principle by name.** Not "checked, passes" — "checked against the _Configurability_
 principle — passes". Substantive citation keeps the alignment check load-bearing rather than ornamental.
 
-## Step 4: TECHNICAL-OVERVIEW alignment check (conditional)
+## TECHNICAL-OVERVIEW alignment check (conditional)
 
 Always-on floor, conditional on surface: fires only when the spec touches technical surfaces — tech stack,
-architecture, runtime, dependencies, or infrastructure. Independent of Step 3: PROJECT-PRD covers problem / scope /
-principles; TECHNICAL-OVERVIEW covers technical surfaces. A single spec may trigger both, one, or neither.
+architecture, runtime, dependencies, or infrastructure. Independent of the PROJECT-PRD check: PROJECT-PRD covers
+problem / scope / principles; TECHNICAL-OVERVIEW covers technical surfaces. A single spec may trigger both, one, or
+neither.
 
 **Halt-and-ask condition:** The spec introduces tech (component, framework, dependency, infrastructure choice) not
 in TECHNICAL-OVERVIEW. On detection, halt and surface the drift — user direction needed before save.
@@ -146,10 +145,10 @@ The companion downstream condition ("TECHNICAL-OVERVIEW edited since the spec wa
 create-spec time the spec hasn't been approved yet.
 
 **On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture Components —
-passes". Section-based citation reflects TECHNICAL-OVERVIEW's structure (parallel to Step 3's named-principle
-citation).
+passes". Section-based citation reflects TECHNICAL-OVERVIEW's structure (parallel to the PROJECT-PRD check's
+named-principle citation).
 
-## Step 5: Write and save the spec
+## Write and save the spec
 
 Select the template for the resolved form (and subtype) from the spec template family, and generate the spec from
 it:
@@ -184,7 +183,7 @@ context or overly long compound names.
 - **none / external**: `.arc/active/spec-{name}.md` — specs save directly to active (no backlog directory). Create
   the directory first if it doesn't exist: `mkdir -p .arc/active/`
 
-## Step 6: Finalize — review, retire the draft, persist `Class`, commit
+## Finalize — review, retire the draft, persist `Class`, commit
 
 Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote — a
 coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
@@ -212,12 +211,13 @@ deleted once the spec captures the conclusions (see [Work Planning Strategy][wor
 2. **Delete the draft**: `git rm` the `draft-*.md` file (and any supplemental files that fed into it, unless they
    have independent archival value — e.g., research files may belong in `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with
-   `**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from Step 1) and
+   `**State:** Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read) and
    advance its `**Next Action:**` to the post-spec step (e.g., "Run `2_generate-tasks.md`"). The `Class` write
    lands here, at this ceremony commit — never as a mid-stage meta edit. Skip otherwise (no meta file exists
    pre-init under non-planning-branch flows).
 
-After substeps 1-3, stage all edits — spec save (Step 5), any promotion-write inbox deletion (Step 5, arc-in-git),
+After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
+save, arc-in-git),
 draft deletion + `notes-*` migration, meta update.
 
 > [!CAUTION]
