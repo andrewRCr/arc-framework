@@ -233,15 +233,19 @@ to ground.
 
 Run Steps 3.1–3.3 for each non-verification phase in order; run Step 3.4 once, after the last phase.
 
-**Depth variant:** At `low`, the one substantive phase makes this a single grounding/revision gate folded into
-the combined pass. At `medium` / `high`, run it after the content draft; the number of gates follows the
-substantive phase count.
+**Depth variant:** The per-phase audit → confirm → revise gate is retained at every level — one gate per
+substantive phase. At `low`, the one substantive phase makes this a single grounding/revision gate folded into
+the combined pass: the gate collapses by phase count, not by relaxing the interlock. At `medium` / `high`, run it
+after the content draft; the number of gates follows the substantive phase count.
 
 #### Step 3.1: Audit the phase
 
-Invoke the [arc-task-audit][arc-task-audit] skill scoped to the phase. It surfaces the eight issue categories
-(unexposed assumptions, masked design decisions, codebase drift, ordering risks, scope ambiguity, interface
-contracts, test strategy gaps, missing acceptance criteria).
+Invoke the [arc-task-audit][arc-task-audit] skill scoped to the phase, at the depth the resolved level selects:
+`grounding-only` at `low`, `full` at `medium` / `high`. The skill defines each depth — `grounding-only` is the
+named-files-and-symbols-exist floor, never dropped.
+
+The level only sets a generation-time default, not a ceiling — the full audit stays available on demand
+mid-implementation, regardless of the resolved level or `Class`.
 
 Generation-time framing differs from the skill's typical pre-impl use:
 

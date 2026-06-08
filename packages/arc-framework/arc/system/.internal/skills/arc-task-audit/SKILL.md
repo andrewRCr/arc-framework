@@ -10,13 +10,23 @@ Pre-implementation analysis pass. Read-only — no edits, no implementation. The
 when the cost of an audit is justified; never invoke this proactively before starting tasks.
 
 **Also invoked by [2_generate-tasks.md][generate-tasks] Pass 3** as the grounding-audit gate at
-generation time, phase-by-phase. In that context the workflow is the trigger; the same audit
-logic below applies.
+generation time, phase-by-phase, at the depth its resolved level selects. In that context the
+workflow is the trigger; the same audit logic below applies.
 
-1. Determine audit scope.
+**Two caller inputs: scope and depth.** _Scope_ is which tasks to audit (step 1). _Depth_ selects how far
+the analysis goes:
+
+- **`full`** (default) — grounding plus the full eight-category analysis (steps 2–5).
+- **`grounding-only`** — the grounding floor alone (step 2): verify the referenced files and symbols exist and
+  note drift, then report exists / missing. Skip the eight-category analysis (step 3); steps 4–5 cover only the
+  grounding findings.
+
+Absent an explicit depth, audit at `full`.
+
+1. Determine audit scope and depth.
 
    - The user specifies which tasks to audit: a single task, a range, a phase, or the full
-     task list.
+     task list — and the audit depth (`full` or `grounding-only`; default `full`).
    - Read the active status file to locate the active task list, then read the relevant sections.
    - For single-task audits, read the task and its immediate neighbors (predecessor and
      successor) for ordering context.
@@ -31,7 +41,8 @@ logic below applies.
      renamed functions, moved files, changed signatures, deleted modules.
    - Check imports, exports, and call sites to understand the dependency surface.
 
-3. Analyze each task against the following issue categories.
+3. Analyze each task against the following issue categories. **Skip this step at `grounding-only` depth** —
+   step 2's grounding results are the entire finding set.
 
    - **Unexposed assumptions** — Task assumes something about codebase state, available
      APIs, data shapes, or environmental conditions that isn't verified or stated. Flag what
@@ -65,8 +76,17 @@ logic below applies.
    - Assign severity to each finding:
      - **Fix before starting** — Task description should be updated or a design decision
        resolved before implementation begins.
-     - **Carry as context** — Not a blocker, but the implementer should be aware of this
-       during execution.
+     - **Carry as context** — Not a blocker, but the implementer must be aware of this during
+       execution. The implementer may be a _different, later session_ — possibly several
+       sessions downstream — so a carry-as-context finding is useful only if recorded durably
+       (below), never left in the audit conversation alone.
+   - **Give carry-as-context findings a durable home.** Surfacing one in the audit output is not
+     enough — record it where the implementing session will meet it: absorbed into the relevant
+     task's description, or, when a `notes-{name}.md` companion exists, documented there and
+     cross-referenced **explicitly from the task-level description** (not the phase) so it is
+     read at impl time. A significant finding with no notes file is a signal to create one. Sole
+     exception: an audit scoped to a single task the auditing agent is about to implement
+     directly — the context lives in its own working memory.
    - For multi-task audits, include a brief cross-cutting summary at the top: overall
      readiness assessment, highest-risk tasks, and any systemic patterns across findings.
    - If the audit is clean (no findings), say so briefly — don't manufacture concerns.

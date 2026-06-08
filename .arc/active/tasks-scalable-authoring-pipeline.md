@@ -458,22 +458,41 @@ grammar only; never a second "flat" variant.
 - _Outcome:_ generate-tasks uses canonical depth language, carries no premature unit coinage, and resolves depth
   before describing the depth-scaled structure — a clean base for 4.3/4.4.
 
-### `[ ]` **4.3 Grounding-audit depth parameterization (per-phase interlock retained)**
+### `[x]` **4.3 Grounding-audit depth parameterization (per-phase interlock retained)**
 
 - _Goal:_ The grounding audit scales by _depth_ (a light files/symbols-exist pass at `low` vs the full
   eight-category `arc-task-audit` at `high`, keyed to the scale axis) while the per-phase interlock cadence is
   retained — collapsing to a single gate at `low` without forking, with the full variant always available
   mid-impl regardless of `Class`.
 
-    - `[ ]` **4.3.a Depth-parameterize the audit invocation**
-        - Light grounding (named files/symbols exist) ↔ full eight-category audit, selected by the scale read.
-          Workflow-side only — `arc-task-audit` already takes caller-specified scope, so depth is an invocation
-          directive from generate-tasks, **not** a skill edit.
+    - `[x]` **4.3.a Depth-parameterize the audit invocation**
+        - Step 3.1 now selects the audit depth by the resolved level — `grounding-only` at `low`, `full` at
+          `medium` / `high` — with the depth semantics owned by the skill (4.3.c), not restated in the workflow.
+          The selection is a generation-time default, not a ceiling: the full audit stays available mid-impl
+          regardless of level or `Class`.
 
-    - `[ ]` **4.3.b Retain the per-phase interlock cadence**
-        - Single-gate degeneration at `low` (the review-increment invariant is "a gate," not "N gates"); mid-impl
-          always offers the full variant. _Confirm the per-phase-interlock invariance at authoring_ — the spec
-          flags it a lean, not a settled 100% (§ Open Questions).
+    - `[x]` **4.3.b Retain the per-phase interlock cadence**
+        - Confirmed invariant: the per-phase audit → confirm → revise gate is kept at every level; `low` collapses
+          to a single gate by phase count, not by relaxing the interlock. Resolves the spec's § Open Questions lean
+          on per-phase-interlock invariance — confirmed, not relaxed.
+
+    - `[x]` **4.3.c Formalize `depth` in the `arc-task-audit` skill**
+        - The skill gains an explicit `depth` input alongside `scope`: `full` (default — grounding + the
+          eight-category analysis) and `grounding-only` (the grounding floor; skip the eight-category analysis).
+          Default `full` leaves standalone / mid-impl invocation unchanged; the workflow selects the depth. Both
+          canonical copies (`.arc/system/.internal/skills/` + package source).
+
+    - `[x]` **4.3.d Carry-as-context durability (multi-session)** — adjacent audit-skill coherence fix surfaced
+      during 4.3.
+        - The skill now requires carry-as-context findings to be recorded durably — the implementer may be a
+          later / downstream session: absorb into the task description, or document in `notes-{name}.md` with an
+          **explicit task-level** cross-ref (create the notes file if significant and absent). Sole exception: a
+          single-task audit the auditing agent implements directly. Both canonical copies.
+
+- _Outcome:_ The grounding audit lightens to a grounding-only floor at `low` and runs the full eight-category
+  audit at `medium` / `high` — the two depths formalized in the `arc-task-audit` skill and selected by the
+  workflow — while the per-phase gate cadence holds invariant across levels and the full audit stays available
+  mid-implementation. The skill also now mandates durable, impl-time-visible capture of carry-as-context findings.
 
 ### `[ ]` **4.4 Validation substrate — audit against the form's enumerable units**
 
@@ -604,8 +623,9 @@ set into the `6.2` conformance pass.
 
 ### `[ ]` **5.R.5 Reflow to the wrap target**
 
-- _Goal:_ Reflow all three workflows to the ~110-char deep-indent target (per DEV-RULES.PROJECT § Documentation
-  Standards); they drift narrow in places (mid-phrase breaks at ~60 chars). Mechanical; no content change.
+- _Goal:_ Reflow all three workflows — plus the `arc-task-audit` skill (touched in Phase 4; its body still wraps
+  narrow at ~75) — to the ~110-char deep-indent target (per DEV-RULES.PROJECT § Documentation Standards); they
+  drift narrow in places (mid-phrase breaks at ~60 chars). Mechanical; no content change.
 
 ## **Phase 6:** Lifecycle tolerance, conformance & strategy codification
 

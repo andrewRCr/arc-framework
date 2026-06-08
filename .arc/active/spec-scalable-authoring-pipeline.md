@@ -562,8 +562,6 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 
 - **`brief` / `outline` / `detailed-prd` / `detailed-rfc` template *bodies*** — research-grounded shapes are
   settled (R3, R5); the bodies themselves are authored at spec time / during template-building task work.
-- **Per-phase grounding-audit interlock invariance** — lean invariant, not 100%; confirm during task-gen
-  authoring.
 - **Thresholds / calibration** — what grounding breadth reads `high`, how many open decisions read `medium`,
   the felt audit cadence — calibrate via dogfooding, not a design deferral.
 - **Exact DEV-RULES.ARC meta-timing amendment wording** (R10) — settle at implementation against the existing
