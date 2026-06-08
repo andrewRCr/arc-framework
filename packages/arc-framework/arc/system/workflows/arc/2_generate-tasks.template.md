@@ -3,6 +3,8 @@ purpose: Transform a reviewed PRD into an executable task list with phases, sub-
 audience: collaborative (human and agent)
 arc:
   methods:
+    - resolve-planning-depth
+    - classify-work-unit
     - test-first
 ---
 
@@ -37,6 +39,21 @@ in-progress until Step 4's checklist passes — staging
 discipline keeps it from landing in commits before then. On-disk iteration keeps partial work
 durable across handoffs and lets each pass's review happen against the rendered file rather than
 reproduced conversation.
+
+### Entry step: Resolve task-generation depth (one scale read)
+
+Make **one evidence read** on the scale axis: inspect the implementation surface and the codebase-grounding
+breadth required for a correct task plan. That single read drives both methods:
+
+- [`resolve-planning-depth`][arc-methods-rpd] yields the **level** — `low` / `medium` / `high`. Which breadth
+  reads which level is the method's to define; this stage initiates it on the scale axis and consumes the result.
+- [`classify-work-unit`][arc-methods-cwu] confirms, ratchets, or corrects the recorded **`Class`** against that
+  same read.
+
+The resolved level is transient and drives this task-generation run. It is feed-forward-immune: no upstream
+artifact carries scale, so task generation reads the work surface directly and cross-checks the result against
+`Class`. The `**Class:**` decision is live from this read but its write defers to Step 4's ceremony commit, never
+a mid-stage meta edit.
 
 ### Pass 1: Structural decomposition
 
@@ -358,6 +375,8 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [strategy-index]: ../../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
+[arc-methods-rpd]: ../../methods/resolve-planning-depth.md
+[arc-methods-cwu]: ../../methods/classify-work-unit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
 [arc-task-audit]: ../../.internal/skills/arc-task-audit/SKILL.md

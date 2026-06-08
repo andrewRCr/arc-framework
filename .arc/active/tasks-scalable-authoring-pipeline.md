@@ -386,22 +386,25 @@ _Design decisions:_ The scale axis is feed-forward-immune — no upstream artifa
 track derivation) — so the direct entry read is load-bearing by design, cross-checked against `Class`. One
 grammar only; never a second "flat" variant.
 
-### `[ ]` **4.1 Invoke `resolve-planning-depth` (scale) + `classify-work-unit` touchpoint**
+### `[x]` **4.1 Invoke `resolve-planning-depth` (scale) + `classify-work-unit` touchpoint**
 
 - _Goal:_ generate-tasks invokes the shared `resolve-planning-depth` method on the **scale** axis — reading the
   work surface directly at entry (codebase-grounding breadth, feed-forward-immune) — and the same read is its
   `classify-work-unit` touchpoint, cross-checked against `Class`.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **4.1.a Declare + invoke the shared methods (scale axis)**
-        - Add `resolve-planning-depth` + `classify-work-unit` to generate-tasks' `arc.methods` (alongside the
-          existing `test-first`); the scale read resolves `low`/`medium`/`high` from grounding breadth directly
-          (no upstream depth to thread).
+    - `[x]` **4.1.a Declare + invoke the shared methods (scale axis)**
+        - `2_generate-tasks` now declares `resolve-planning-depth` + `classify-work-unit` alongside `test-first`;
+          its entry read resolves `low`/`medium`/`high` from grounding breadth directly (no upstream depth to
+          thread).
 
-    - `[ ]` **4.1.b Confirm-or-ratchet + deferred write**
-        - The same read confirms or ratchets `Class`; `**Class:**` write defers to the task-list generation
-          ceremony commit (5.2). Add generate-tasks to both `resolve-planning-depth`'s and
-          `classify-work-unit`'s `> Workflow:` headers.
+    - `[x]` **4.1.b Confirm-or-ratchet + deferred write**
+        - The same read confirms, ratchets, or corrects `Class`, with any `**Class:**` write deferred to Step 4's
+          ceremony commit; both methods' `> Workflow:` headers now include `2_generate-tasks`.
+
+- _Outcome:_ The `generate-tasks` entrypoint now has the shared scale-axis depth read wired as the
+  first discrete step and `classify-work-unit` touchpoint in both framework copies, while keeping `Class`
+  persistence deferred to the generation ceremony.
 
 ### `[ ]` **4.2 One-grammar depth variants — pass structure + phase count**
 
