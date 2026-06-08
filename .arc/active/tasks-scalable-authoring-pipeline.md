@@ -535,9 +535,12 @@ rather than diverging per stage. Every Novel item and every re-entry offer is ac
   offered with a recommendation — never a new automatic detector, never three divergent copies. Coordinates with
   `classify-work-unit` for the `Class` ratchet (the derivation signal).
 
-    - `[ ]` **5.1.a Extend the method contract with the mid-stage re-entry trigger**
-        - Add the axis-keyed re-entry routing to `resolve-planning-depth` (the same measurement fired mid-stage,
-          not at entry); wire each stage's interlock (draft-design / create-spec / generate-tasks) to fire it.
+    - `[x]` **5.1.a Extend the method contract with the mid-stage re-entry trigger**
+        - Added `§ Mid-stage re-entry` to `resolve-planning-depth` holding the routing once — "route to the stage
+          that owns the signal's axis, re-entered one level higher" (scale → same stage, nowhere-up from `high`;
+          derivation → upstream owner; draft-design headwater re-enters itself), plus the re-entry-vs-in-place cut.
+          Each stage's interlock fires it by reference; create-spec's two ad-hoc mentions consolidated, and
+          generate-tasks' spec-propagation marked the in-place sibling.
 
     - `[ ]` **5.1.b Down-switch floor + no-demotion guardrails**
         - Down-switching bounded by the demand floor; the `Class` ratchet is one-way; per-stage depth floats

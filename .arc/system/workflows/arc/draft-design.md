@@ -124,6 +124,11 @@ recorded, so create-spec re-reads the derivation axis at its own entry with the 
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
 
+**Re-entry valve:** if review surfaces that the design runs deeper than the resolved level authored, the
+floor-raising response is to re-enter `draft-design` higher — the derivation headwater re-enters itself only —
+per [resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry: capture, ratchet, re-enter rather than
+ship a too-thin draft.
+
 On approval, capture what the level produced and persist the resolved `Class` to the meta. The `Class` decision
 is live from the Step 1 read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
 at the draft-capture ceremony commit, never as a mid-stage meta edit.

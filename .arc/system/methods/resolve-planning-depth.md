@@ -8,13 +8,15 @@ override-active: false
 
 > - **Workflow:** [draft-design.md][draft-design], [1_create-spec.md][create-spec],
 >   [2_generate-tasks.md][generate-tasks]
-> - **When:** A planning stage performs its single entry-assessment — the one evidence read that opens the stage.
+> - **When:** A planning stage performs its entry-assessment — the one evidence read that opens the stage — or
+>   re-fires that read mid-stage at an interlock when a floor-raising signal surfaces (the re-entry valve).
 >
 > - **Contract:** Given the stage's keyed axis and the best available evidence, resolve the **planning-depth
 >   level** — `low` / `medium` / `high`. The level is transient, per-stage, and never recorded; it sets the
->   stage's depth and is re-derived from evidence at each stage rather than threaded forward. Run **paired with —
->   not merged into** — [classify-work-unit][classify-work-unit]: one evidence read drives both, this method
->   yielding the transient depth and `classify-work-unit` the recorded `Class`.
+>   stage's depth and is re-derived from evidence at each stage rather than threaded forward — and re-fired
+>   mid-stage when a floor-raising signal surfaces (§ Mid-stage re-entry). Run **paired with — not merged into** —
+>   [classify-work-unit][classify-work-unit]: one evidence read drives both, this method yielding the transient
+>   depth and `classify-work-unit` the recorded `Class`.
 
 ## resolve-planning-depth.override
 
@@ -53,6 +55,37 @@ artifact — so it reads the work surface directly.
 
 Structural design is settled; only the **thresholds** — what breadth reads `high`, how many open decisions read
 `medium` — calibrate against real use.
+
+### Mid-stage re-entry (the re-entry valve)
+
+The same keyed-axis read, fired **on demand at a stage's existing interlock** rather than only at entry. A
+resolved level is never a one-shot commitment: any pass may surface that the estimate was too low — a masked
+design decision, or a scale surface wider than the level assumed. The response to such a **floor-raising signal**
+is **capture (durably) → ratchet → re-enter**, never patch-and-limp a too-light artifact over it. The valve is
+**offered with a recommendation at the interlock, never a new automatic detector** — accept-or-decline, like
+every other depth read.
+
+On accept, re-fire the keyed-axis read and route by the axis the signal belongs to. The rule is one line: **route
+to the stage that owns the signal's axis, re-entered one level higher.** Scale is owned by `generate-tasks`;
+derivation by the design stages (`draft-design` / `create-spec`).
+
+- **Already in the owning stage (or the headwater)** → re-enter *this* stage higher, **nowhere-up from `high`**. A
+  scale signal at `generate-tasks` re-resolves `generate-tasks`; `draft-design` is the derivation headwater, so it
+  only re-enters itself.
+- **Owning stage is upstream** → route there. A derivation signal at `generate-tasks` routes to the **spec** (a
+  masked design decision belongs in the design, not a deeper task pass); a derivation signal at `create-spec`
+  whose *direction* is unshaped routes to `draft-design`, while a merely-underestimated *form* re-resolves
+  `create-spec` higher.
+
+The re-entry read is a `classify-work-unit` confirm-or-ratchet exactly as the entry read is: a floor-raising
+signal ratchets `Class` **up** to the realized floor (scale → `Heavy`; derivation → `Heavy` / `Novel`),
+coordinating with [classify-work-unit][classify-work-unit].
+
+**Re-entry vs. in-place correction.** Re-entry is for an *unshaped or under-derived* design direction — the
+owning stage must be re-entered to author it at the right depth. A *local* correction — a named mechanism, shape,
+or interface that is merely wrong — is propagated to the spec in place without re-entering the stage (the
+in-place sibling is `generate-tasks`'s grounding-audit spec-propagation). The cut is whether new design must be
+*authored* (re-enter) or an existing decision *corrected* (propagate).
 
 ---
 

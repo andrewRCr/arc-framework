@@ -64,8 +64,10 @@ defers to the spec-generation ceremony commit (Step 6), never a mid-stage meta e
 Discovery here confirms the design is **complete and concrete enough to write — and to validate against — at this
 form**, then closes the remaining gaps. With a settled draft this is targeted gap-filling, not open exploration;
 without one it covers the same ground from the problem directly. The pass is discover-then-write: work the block
-for the resolved form, then write (Step 5) and lightly iterate. If a block surfaces heavier derivation than the
-form assumed, step up — capture, ratchet, re-enter at the higher form.
+for the resolved form, then write (Step 5) and lightly iterate. If discovery surfaces heavier derivation than the
+form assumed, fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage re-entry —
+re-resolve the form higher, or route to `draft-design` when the design direction is unshaped — rather than
+patch-and-limp.
 
 ### `brief` — intent + scope + one signal
 
@@ -179,7 +181,8 @@ context or overly long compound names.
 Before surfacing the spec for approval, run the [spec-review][spec-review] self-review on what you just wrote — a
 coherence + grounding pass scaled to the form (it collapses to a single minimal check at `brief`). Fold in the
 fixes it surfaces; carry anything that needs a decision into the review below. A finding that reopens design is a
-derivation signal — route it to the design, not into the spec.
+derivation signal — fire the re-entry valve per [resolve-planning-depth][resolve-planning-depth] § Mid-stage
+re-entry (route it to the design, never patch it into the spec).
 
 - **Extensions** · `#pre-spec-finalization-review`: If `pre-spec-finalization-review` appears in the
   active-extensions list (established at session init), load and execute its

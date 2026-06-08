@@ -266,6 +266,12 @@ Generation-time framing differs from the skill's typical pre-impl use:
 
 Don't apply edits in this step. Masked design decisions are confirmed here, not deferred into the task body.
 
+**Re-entry valve:** when a finding is a floor-raising signal rather than a local fix, fire it per
+[`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry — a **scale** surprise (the grounding surface is
+wider than the level assumed) re-resolves `generate-tasks` higher; a **derivation** surprise (a masked design
+decision needing fresh design) routes to the spec. A merely-wrong mechanism is the in-place case below
+(Step 3.3 spec-propagation), not a re-entry.
+
 #### Step 3.3: Revise the phase coherently
 
 Apply the confirmed corrections so the phase reads **as if the design were always this way** — no audit /
@@ -275,7 +281,10 @@ subtasks directly; a corrected mechanism *becomes* the design statement, not an 
 
 **Spec-propagation.** When a finding corrects a *spec-level* assumption — a named mechanism, shape, or interface
 was wrong — route the correction back to the spec (`spec-{name}.md`), not only the task list, so the whole WU
-suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation).
+suite stays coherent (per [DEV-RULES.ARC][dev-rules-arc] § Design before implementation). This is the **in-place**
+sibling of the re-entry valve (Step 3.2): an existing decision was wrong and is corrected in place — distinct from
+re-entering the spec to *author* design that does not yet exist (see
+[`resolve-planning-depth`][arc-methods-rpd] § Mid-stage re-entry).
 
 **Generation-time durable-capture discipline.** "Carry as context" findings need a durable
 home before save — at generation time, no implementing-session context exists to absorb them
