@@ -563,6 +563,50 @@ rather than diverging per stage. Every Novel item and every re-entry offer is ac
     - `[ ]` **5.3.d task-gen — explicitly nothing**
         - Kept explicit so no phantom lane is added (Novel is derivation-axis; task-gen is scale-driven).
 
+## **Phase 5.R:** Cross-stage coherence & polish — the three authoring workflows as one piece
+
+_Purpose:_ With all three stage workflows (`draft-design`, `create-spec`, `generate-tasks`) and their shared
+cross-stage content landed (Phases 2–5), audit and refine them as a coherent set: factor out duplication, unify
+structure, strip model rationale that doesn't belong in a workflow, polish legacy prose, and reflow. A
+remedial/revision phase — surfaced mid-implementation, not in the original plan.
+
+_Design decisions:_ Done late and holistically so the three are tightened against their final shape, not
+re-touched piecemeal — tightening `generate-tasks` alone now would only be redone here. Bounded by spec § Success
+Criteria 15: **no** file rename/renumber (that cascade is `doc-cascade-sweep`'s) and no new design. Feeds a clean
+set into the `6.2` conformance pass.
+
+### `[ ]` **5.R.1 Structural coherence + DRY the shared touchpoint**
+
+- _Goal:_ The near-verbatim "one evidence read drives both methods" entry block (and the analogous interlock
+  framing) repeats across all three workflows, differing only by axis. Shrink each to minimal inline plus the
+  method body as the source of truth — keeping only the stage-specific bits (which axis, what the read inspects,
+  what the level drives here) — and unify the entry-step heading/label/structure so the three read as one family.
+- **Strategies:** strategy-workflow-authoring.md
+
+### `[ ]` **5.R.2 Composable-workflows forward-compatibility**
+
+- _Goal:_ The depth differentiation renders as whole-block, extractable depth lanes — each lane lifts to a
+  `composable-workflows` fragment unchanged — not the fine-grained inline `**Depth variant:**` sprinkle 4.2
+  currently uses (per spec § Success Criteria 5). Settled, not open: convert the sprinkle to whole blocks across
+  all three workflows; single-file whole-block form, never a dir-per-workflow package.
+
+### `[ ]` **5.R.3 Strip model/design rationale from the workflows**
+
+- _Goal:_ A workflow carries only the operational grounding an agent needs to run it correctly — not rationale or
+  education about the underlying model/design, which lives in the strategies, ADRs, and docs site. Remove the
+  why-the-design-exists prose across all three; for each removed rationale, confirm a home exists in a durable
+  reference surface and route any gap (coordinate with `6.4`).
+
+### `[ ]` **5.R.4 Legacy-prose polish**
+
+- _Goal:_ Touch up pre-pipeline prose across the three workflows — content carried from earlier in ARC's
+  development and unexamined since — for clarity and concision, behavior unchanged.
+
+### `[ ]` **5.R.5 Reflow to the wrap target**
+
+- _Goal:_ Reflow all three workflows to the ~110-char deep-indent target (per DEV-RULES.PROJECT § Documentation
+  Standards); they drift narrow in places (mid-phrase breaks at ~60 chars). Mechanical; no content change.
+
 ## **Phase 6:** Lifecycle tolerance, conformance & strategy codification
 
 _Purpose:_ Make integrate / archive artifact-presence-tolerant, run the workflow-authoring conformance pass over
