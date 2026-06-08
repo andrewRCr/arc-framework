@@ -239,10 +239,10 @@ Technical scenarios that illustrate per-stage depth resolution across the pipeli
 
 10. **The ratchet is decision-live, persistence-deferred.** A touchpoint may ratchet mid-stage; the decision is
     *live* at the interlock (surfaced at once, driving that stage's depth immediately), but the `**Class:**`
-    *write* defers to the stage's planning-ceremony commit (draft-capture / spec-generation / task-list
-    generation), never a mid-stage meta edit — honoring meta-timing's no-mid-session-churn rule. This requires an
-    **implementation-time amendment to DEV-RULES.ARC's meta-timing ceremony list** to name the three
-    planning-stage `Class`-write sites, so they do not read as meta-timing violations to a future author.
+    *write* defers to the stage's planning-ceremony commit, never a mid-stage meta edit — honoring meta-timing's
+    no-mid-session-churn rule. DEV-RULES.ARC's meta-timing rule is stated as a **principle** — the meta is written
+    only where a ceremony workflow explicitly instructs it — so these planning-stage writes are sanctioned by the
+    rule without an enumerated list to amend, and do not read as meta-timing violations to a future author.
 
 11. **`classify-work-unit` touchpoint wiring.** Declare + invoke the `classify-work-unit` method (CMF's) at the
     `draft-design` / `create-spec` / `generate-tasks` planning-stage touchpoints (CMF wired only `init` /
@@ -546,9 +546,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
     workflow fork added.
 13. The new and restructured authoring workflows pass `strategy-workflow-authoring` conformance (frontmatter
     method/extension declarations, body conventions, correct interlock/release fire-point placement).
-14. DEV-RULES.ARC's meta-timing ceremony list names the three planning-stage `Class`-write sites (draft-capture /
-    spec-generation / task-list generation), so the decision-live/persistence-deferred writes do not read as
-    meta-timing violations.
+14. DEV-RULES.ARC's meta-timing rule is principle-based — the meta is written only where a ceremony workflow
+    explicitly instructs it — so the decision-live/persistence-deferred planning-stage writes are sanctioned
+    without an enumerated list, and do not read as meta-timing violations.
 15. SAP names only the new `draft-design` workflow; it does not **rename or renumber** the existing `create-spec`
     / `generate-tasks` / `process-task-loop` files or rewrite their cross-references (that prefix-dropping cascade
     is `doc-cascade-sweep`'s). The R7 *content* rework of create-spec / generate-tasks (depth variants,
@@ -564,8 +564,6 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
   settled (R3, R5); the bodies themselves are authored at spec time / during template-building task work.
 - **Thresholds / calibration** — what grounding breadth reads `high`, how many open decisions read `medium`,
   the felt audit cadence — calibrate via dogfooding, not a design deferral.
-- **Exact DEV-RULES.ARC meta-timing amendment wording** (R10) — settle at implementation against the existing
-  ceremony-list language.
 - **RFC-template interim** — this spec uses the PRD template; no action beyond the H1 form note. (SAP is the last
   spec that needs the interim, since SAP ships the RFC template.)
 

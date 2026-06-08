@@ -549,25 +549,31 @@ rather than diverging per stage. Every Novel item and every re-entry offer is ac
   edge by the demand floor + no-demotion — with the axis-keyed re-entry routing single-sourced in the method and
   referenced (not copied) by all three stage interlocks.
 
-### `[ ]` **5.2 Decision-live / persistence-deferred ratchet + DEV-RULES.ARC meta-timing amendment**
+### `[x]` **5.2 Decision-live / persistence-deferred ratchet + DEV-RULES.ARC meta-timing amendment**
 
 - _Goal:_ The `Class` ratchet is decision-live at the interlock (surfaced at once, driving that stage's depth
   immediately) but its `**Class:**` _write_ defers to each stage's planning-ceremony commit, and DEV-RULES.ARC's
-  meta-timing ceremony list names the three planning-stage write sites so the deferred writes don't read as
-  meta-timing violations to a future author.
+  meta-timing rule reads as a principle (the meta is written only where a ceremony workflow explicitly instructs
+  it) so the deferred writes don't read as meta-timing violations to a future author.
 - **Strategies:** strategy-package-project-sync.md
-- _Note:_ Exact amendment wording is settled at implementation against the existing ceremony-list language
-  (spec § Open Questions).
 
-    - `[ ]` **5.2.a Decision-live / persistence-deferred at each touchpoint**
-        - Drive depth immediately at the interlock; defer the meta write to the stage's ceremony commit
-          (draft-capture / spec-generation / task-list generation), honoring the no-mid-session-churn rule.
+    - `[x]` **5.2.a Decision-live / persistence-deferred at each touchpoint**
+        - The entry-read touchpoints already deferred the `**Class:**` write to each stage's ceremony commit (in
+          the stage workflows from earlier phases). Extended the same rule to the mid-stage re-entry ratchet in
+          `resolve-planning-depth` § Mid-stage re-entry: the ratchet drives the (re-)entered stage's depth at once
+          but its write defers to that stage's planning-ceremony commit, never a mid-stage meta edit.
 
-    - `[ ]` **5.2.b Amend DEV-RULES.ARC § Commit Discipline meta-timing list**
-        - The list `(activate / integrate / sweep / deactivate / spec generation / planning-lifecycle ops)`
-          already names `spec generation`; add `draft-capture` and `task-list generation` explicitly (today
-          implicit under `planning-lifecycle ops`) as the planning-stage `Class`-write sites. Mirror to the
-          package source.
+    - `[x]` **5.2.b Reframe the DEV-RULES.ARC meta-timing rule to a principle**
+        - The enumerated ceremony list (`activate / integrate / sweep / deactivate / spec generation /
+          planning-lifecycle ops`) was a maintenance treadmill — duplicated across DEV-RULES.ARC and
+          `strategy-session-operations` with mutually inconsistent, non-canonical names (`spec generation` vs
+          `PRD generation`; drafts "captured" not designed). Replaced it with the principle: the meta is written
+          only where a ceremony workflow explicitly instructs the write. Reframed both DEV-RULES.ARC sites + the
+          strategy duplicate; dropped the parenthetical from the method (5.2.a). Mirrored to package source.
+
+- _Outcome:_ Pivoted from "name the three planning-stage sites in the list" to a principle-based rule — the
+  enumeration added nothing the principle didn't, and was already three divergent copies. Propagated the reframe
+  back to the spec (R10, SC14) and struck the now-resolved Open Question on amendment wording.
 
 ### `[ ]` **5.3 Novel advisory overlay across `draft-design` / `create-spec` / `spec-review`**
 
@@ -792,8 +798,8 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   documented as a sanctioned pattern with the `spec-{name}-prd.md` / `spec-{name}-rfc.md` naming, with no config
   knob or workflow fork added.
 - `[ ]` The new and restructured authoring workflows pass `strategy-workflow-authoring` conformance.
-- `[ ]` DEV-RULES.ARC's meta-timing ceremony list names the three planning-stage `Class`-write sites, so the
-  decision-live/persistence-deferred writes do not read as meta-timing violations.
+- `[ ]` DEV-RULES.ARC's meta-timing rule is principle-based (the meta is written only where a ceremony workflow
+  explicitly instructs it), so the decision-live/persistence-deferred writes do not read as meta-timing violations.
 - `[ ]` SAP names only the new `draft-design` workflow; it does not rewrite the existing `create-spec` /
   `generate-tasks` / `process-task-loop` files or their cross-references.
 - `[ ]` All quality gates pass (tests, linting, type checking).
