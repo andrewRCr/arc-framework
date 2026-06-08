@@ -44,8 +44,8 @@ The categories every part of these workflows falls into (replaces ad-hoc Step / 
 - **Pass** — a repeated sweep over the same artifact. Used only where the workflow genuinely re-traverses
   (`generate-tasks`). Not a synonym for Step.
 - **Path** — a depth-selected whole-block alternative (`low` / `medium` / `high`; `brief` / `outline` /
-  `detailed`). Parallel across workflows; each path encodes its loop-shape choice (see envelope). 5.R.2 converts
-  the inline sprinkle to these whole blocks — shape locked here, conversion deferred there.
+  `detailed`). Parallel across workflows; each path encodes its loop-shape choice (see envelope). 5.R.2 converted
+  `generate-tasks`' inline sprinkle to these whole blocks (depth-spine — see § 5.R.2 resolution).
 - **Finalize** — the terminal persist + commit ceremony. *Named*, never `Step 4` / `Step 6`. Parallel across all
   three (`draft-design` Capture, `create-spec` Finalize, `generate-tasks` pre-save + commit).
 - **Next Step** — transition to the next stage (all three already have it).
@@ -111,8 +111,31 @@ Non-light paths share one shape: **Resolve → Setup → Iterate → Finalize �
 
 - **5.R.1** — settle this convention (this note) + apply: Resolve-unification, entry-block DRY, and the
   unambiguous structural fixes (drop `## Process`, `Step 4` → `Finalize`, terminology → `path`, citation updates).
-- **5.R.2** — paths → whole extractable blocks (the envelope already names path = loop-shape block).
+- **5.R.2** — **done.** Paths → whole extractable blocks. `draft-design` / `create-spec` already complied; the
+  conversion target was `generate-tasks`, resolved **depth-spine (shape D)** — see § 5.R.2 resolution below.
 - **5.R.4 / 5.R.5** — legacy-prose polish / reflow to the ~110-char deep-indent target.
+
+### 5.R.2 resolution — `generate-tasks` depth-spine (executed)
+
+`generate-tasks` was the lone non-compliant surface (the other two already use whole-block paths). Resolved
+**depth-spine (shape D)**: the depth `### low` / `### medium` / `### high` blocks under `## Generate in the
+resolved level` are the spine and the **execution driver**; the three Passes demote to a shared, depth-agnostic,
+stopless **procedure library** (`## Structural decomposition` / `## Content fill` / `## Grounding audit &
+coherent revision`) the paths invoke by name. Mirrors the siblings' depth-as-spine shape.
+
+Key cut — **de-conflate `Pass`**: "Pass" stops naming a procedure and becomes purely the **review increment** the
+paths own (which procedures group into which pass, and where the inter-pass stops fall). Procedure-identity is
+invariant and stopless; increment-cadence is depth-selected. So the inter-pass stops (skeleton / draft) live in
+the paths; the grounding audit's per-phase confirm gate stays in its procedure (depth-invariant — fires per
+substantive phase at every level). Intra-procedure parameters (phase count, audit depth) stay inline.
+
+Hardening (from an execution-time fresh-eyes read): the paths preamble states the procedures are reference detail
+the path invokes, not a standalone linear sequence; each non-terminal procedure ends with a depth-agnostic
+**pass-boundary reminder** ("if your path places a stop after this procedure, stop and surface now") so an agent
+can't sail past a `high` / `medium` review stop that lives up in the path.
+
+Routed the structural finding to `composable-workflows` (`USER-INBOX § Backlog`): procedure-fragments + thin
+orchestration-fragments as a second composition shape for that WU's core/fragment boundary.
 
 ### Cross-reference blast radius (live corpus)
 
@@ -124,6 +147,8 @@ in-scope consequences of in-scope restructure, and naming an anchor is *more* st
   `strategy-task-list-formatting.md`, `template-tasks.md` (two-copy each), and `analysis-cross-cutting-dependencies.md`
   (single). (`strategy-task-list-formatting.md`'s other `generate-tasks` ref is a filename link — heading-agnostic,
   untouched.)
-- `generate-tasks` `Pass 3`: `arc-task-audit/SKILL.md` — survives (Passes kept); no change.
+- `generate-tasks` `Pass 3` → grounding-audit procedure (5.R.2 de-conflated `Pass`): `arc-task-audit/SKILL.md`'s
+  "invoked by … Pass 3" reworded to "… grounding-audit procedure" (two-copy) — now correct at every depth, not
+  just `high`.
 - `create-spec` `Step 1` → `§ Resolve depth & Class` — **done**: `drain-inbox.md:131` (two-copy).
 - Filename links elsewhere (methods, strategies, templates, `session-init`) are heading-agnostic — untouched.

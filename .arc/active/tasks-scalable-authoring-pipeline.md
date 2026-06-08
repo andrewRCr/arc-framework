@@ -635,12 +635,21 @@ set into the `6.2` conformance pass.
   `STRATEGY-INDEX`, `strategy-task-list-formatting`, `template-tasks`, `drain-inbox`, and the `arc-plan-conductor`
   draft. Bounded by spec § SC15 — no file rename/renumber, no new design; markdown lint clean, both copies synced.
 
-### `[ ]` **5.R.2 Composable-workflows forward-compatibility**
+### `[x]` **5.R.2 Composable-workflows forward-compatibility**
 
 - _Goal:_ The depth differentiation renders as whole-block, extractable depth lanes — each lane lifts to a
   `composable-workflows` fragment unchanged — not the fine-grained inline `**Depth variant:**` sprinkle 4.2
   currently uses (per spec § Success Criteria 5). Settled, not open: convert the sprinkle to whole blocks across
   all three workflows; single-file whole-block form, never a dir-per-workflow package.
+
+- _Outcome:_ `generate-tasks` converted to **depth-spine (shape D)**: whole-block `### low` / `### medium` /
+  `### high` paths under `## Generate in the resolved level` drive execution; the three Passes demote to a shared,
+  depth-agnostic, stopless procedure library they invoke. `Pass` de-conflated to the review increment the paths
+  own — inter-pass stops live in the paths, the grounding audit's per-phase gate stays intrinsic — hardened with
+  paths-as-driver framing + per-procedure pass-boundary reminders. `draft-design` / `create-spec` already
+  complied (untouched). Template + rendered `.arc` copy verified in sync; `arc-task-audit` Pass-3 reference
+  updated (two-copy); structural finding routed to `composable-workflows`. See
+  `notes-scalable-authoring-pipeline.md` § 5.R.2 resolution.
 
 ### `[ ]` **5.R.3 Strip model/design rationale from the workflows**
 
