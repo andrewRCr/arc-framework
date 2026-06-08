@@ -11,15 +11,15 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Task 4.4 — validate task lists against the form's enumerable units (Phase 4 complete:
-  generate-tasks one-grammar depth rework + `arc-task-audit` `depth` input and carry-as-context durability).
-- **Next Task:** Task 5.1 — Re-entry valve: fold the mid-stage trigger into `resolve-planning-depth`
-  (Phase 5, line ~528)
+- **Last Completed:** Task 5.3 — Novel advisory overlay across the planning stages (Phase 5 complete: re-entry
+  valve + depth-band guardrails, decision-live/persistence-deferred ratchet, meta-timing reframed to a principle,
+  and the per-stage Novel overlay).
+- **Next Task:** Task 5.R.1 — Structural coherence + DRY the shared touchpoint (Phase 5.R, line ~620)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5 / Task 5.1 — the axis-keyed re-entry valve at each stage's existing interlock
-  (capture → ratchet → re-enter); per spec § SC6 the routing lives once in the `resolve-planning-depth` method
-  contract, not copied per interlock. Note: Phase 5.R (cross-stage coherence/polish) now sits between Phase 5 and
-  Phase 6; `template-prd.md` retirement remains re-homed to Task 6.4.d.
+- **Next Action:** Begin Phase 5.R / Task 5.R.1 — shrink the near-verbatim "one evidence read drives both methods"
+  entry block (and the analogous interlock framing) across the three workflows to minimal inline + the method body
+  as source of truth, and unify the entry-step heading/label/structure. Phase 5.R is coherence/polish, bounded by
+  spec § SC15: no file rename/renumber, no new design.
 
 ---
