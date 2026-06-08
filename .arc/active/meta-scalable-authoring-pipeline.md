@@ -11,14 +11,12 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Task 5.R.1 — Structural coherence + DRY the shared touchpoint (the three authoring workflows
-  unified on one structural skeleton: identical `Resolve depth & Class` spine, whole-block paths, `path`
-  terminology, entry blocks DRY'd to the method; committed `70b96a17`).
-- **Next Task:** Task 5.R.2 — Composable-workflows forward-compatibility (Phase 5.R, line ~638)
+- **Last Completed:** Task 5.R.3 — Strip model/design rationale from the three authoring workflows
+  (B-calibration trim to operational kernels; committed `85859367`).
+- **Next Task:** Task 5.R.4 — Legacy-prose polish (Phase 5.R, line ~671)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.R.2 — convert `generate-tasks`' inline `**Depth variant:**` sprinkle to whole-block
-  depth variants (draft-design / create-spec already comply); needs a shape decision first (see SESSION-NOTES +
-  `notes-scalable-authoring-pipeline.md`).
+- **Next Action:** Begin Task 5.R.4 — touch up pre-pipeline prose across the three authoring workflows for
+  clarity and concision (behavior unchanged); 5.R.5 (reflow to the ~110-char wrap target) follows.
 
 ---
