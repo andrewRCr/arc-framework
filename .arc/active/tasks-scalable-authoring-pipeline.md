@@ -700,32 +700,36 @@ _Design decisions:_ Integration is **not** tier-forked — one invariant procedu
 produced; the surviving gate is the invariant spec-presence / spec-alignment gate. SAP names only `draft-design`;
 the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
 
-### `[ ]` **6.1 Integrate / archive artifact-presence-tolerance + self-sizing completion record**
+### `[x]` **6.1 Integrate / archive artifact-presence-tolerance + self-sizing completion record**
 
 - _Goal:_ The integrate / archive workflows consume whatever the resolved depth produced — a `brief` spec, a
   one-phase task list, an absent separate completion doc — without requiring full-shape artifacts; the completion
   record is meta-appended and self-sizing; the invariant spec-presence / alignment gate survives and cost-scales.
   No `Class`-keyed tier fork anywhere in integration.
-- _Context:_ `archive-work-unit.md` Step 3 still sweeps `prd-{name}.md` (a stale "PRD = any spec" assumption) and
-  `integrate-work-unit.md` composes fixed-shape Release Notes + Completion Notes — both are
-  artifact-presence-_assuming_ today.
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-    - `[ ]` **6.1.a Form-agnostic, presence-tolerant sweep (archive)**
-        - Fix the `prd-{name}.md` sweep reference to `spec-{name}.md` — a **pre-existing staleness** (specs are
-          already named `spec-`, so the line is wrong today), corrected as part of the form-agnostic reframe.
-          Tolerate an absent task list / notes (the sweep already adjusts "to what exists").
+    - `[x]` **6.1.a Form-agnostic, presence-tolerant sweep (archive)**
+        - `archive-work-unit.md` Step 3: swapped the stale `prd-{name}.md` sweep line to `spec-{name}.md`,
+          retitled the step "(form-agnostic, presence-tolerant)", and reframed the trailing prose — only `meta-`
+          and the resolved spec are guaranteed (spec by the spec-presence gate; a layered design moves as its
+          `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair), task list + notes move when present.
 
-    - `[ ]` **6.1.b Self-sizing completion record (integrate + `template-meta.md`)**
-        - Compose a meta-appended completion record sized to what there is to say — a `light` mechanical change
-          writes two sentences and may omit Release Notes when nothing is user-facing; a `heavy` WU writes
-          paragraphs. Touches **both** `integrate-work-unit.md` (Steps 8–9 composition) and `template-meta.md`
-          (mark the Release Notes Entry / Completion Notes archive-phase sections omittable in the schema).
+    - `[x]` **6.1.b Self-sizing completion record (integrate + `template-meta.md`)**
+        - `integrate-work-unit.md` Steps 8–9 now self-size — Release Notes omittable when nothing is user-facing,
+          Completion Notes always-present but scaled to what there is to say; Step 10's interlock surface + commit
+          body drop the Release Notes bullet on omission. `template-meta.md` marks both archive-phase sections
+          omittable / self-sizing in the schema comment and the fill skeleton.
 
-    - `[ ]` **6.1.c Preserve the invariant spec-presence / alignment gate**
-        - Keep the spec-alignment checks (cost-scales, near-instant for a `brief`) and add the explicit
-          spec-**presence** assertion ("a spec exists at the resolved form") that integration currently only
-          assumes; no "bypass planning" branch, no tier fork.
+    - `[x]` **6.1.c Preserve the invariant spec-presence / alignment gate**
+        - `integrate-work-unit.md` Step 7 renamed "Spec-presence + alignment gate": added an explicit
+          spec-presence assertion (Design resolves to a present `spec-{name}.md` or layered pair; a missing spec
+          hard-stops) ahead of the existing PROJECT-PRD / TECHNICAL-OVERVIEW alignment checks, framed as one
+          form-blind, cost-scaling gate with no tier fork or bypass-planning branch.
+
+- _Outcome:_ Integration is now one presence-tolerant procedure end-to-end — sweep, composition, and gate each
+  cost-scale with what the resolved depth produced, with no `Class`-keyed fork anywhere. Touched
+  `archive-work-unit.md`, `integrate-work-unit.md`, and `template-meta.md` across both package + `.arc` copies;
+  lint clean, copies synced.
 
 ### `[ ]` **6.2 Workflow-authoring conformance pass over the new + reworked workflows**
 

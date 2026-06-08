@@ -41,8 +41,8 @@ Edit `active/meta-{name}.md`: `**State:** Integrating` → `**State:** Shipped`.
 ```bash
 mkdir -p .arc/completed/{dated}/{NN}_{name}
 git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{NN}_{name}/
-git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{NN}_{name}/   # when WU has a PRD
-git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when WU has a task list
+git mv .arc/active/spec-{name}.md   .arc/completed/{dated}/{NN}_{name}/   # or the spec-{name}-prd.md / -rfc.md pair
+git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
 git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
 ```
 

@@ -126,14 +126,17 @@ After review-response settles, fire the `pre-merge-review` extension. If active,
 `.actions`; halt-on-fail surfaces an actionable message. Default-inactive — when absent, this step is
 a structural no-op.
 
-### 7) Final alignment checks
+### 7) Spec-presence + alignment checks
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before composition begins. Surface that review is settled (open threads resolved,
 > required approvals received, checks green); await approval before proceeding to alignment + composition.
 
-Both soft; rarely block if [`1_create-spec.md`][create-spec]'s alignment checks passed. Surface any conflicts
-discovered against final reviewed scope.
+First confirm the WU's `**Design:**` field resolves to a spec present in `active/` — a `spec-{name}.md` or the
+layered `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair; if absent, stop and surface.
+
+The alignment checks below are soft; rarely block if [`1_create-spec.md`][create-spec]'s alignment checks passed.
+Surface any conflicts discovered against final reviewed scope.
 
 #### PROJECT-PRD
 
@@ -147,7 +150,8 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 ### 8) Compose Release Notes Entry — uncommitted
 
 Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
-[`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope.
+[`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope. Omit the section entirely when
+nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
 
 Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
@@ -155,14 +159,15 @@ before the commit fires.
 ### 9) Compose Completion Notes — uncommitted
 
 Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-[`template-meta.md`][template-meta]'s schema. Same uncommitted-surfacing pattern as Step 8.
+[`template-meta.md`][template-meta]'s schema, sized to what there is to say. Always present — not omittable,
+unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
 
 ### 10) Commit completion content
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop before commit + sweep + push. Surface:
 >
-> 1. Composed Release Notes Entry + Completion Notes (Steps 8–9)
+> 1. Composed completion content — Completion Notes, plus the Release Notes Entry when present (Steps 8–9)
 > 2. Planned sweep target: `active/meta-{name}.md` → `completed/<dated>/{NN}_{name}/meta-{name}.md` (Step 11 under
 >    `with-integration`)
 > 3. ROADMAP delta the upcoming regen will produce (Step 11 under `with-integration`)
@@ -182,6 +187,8 @@ chore(arc): compose archive-phase content for {name}
 
 Context: meta-{name}.md (integration)
 ```
+
+When Step 8 omitted the Release Notes section (nothing user-facing), drop its bullet from the commit body.
 
 See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` method][commit-footer].
 
