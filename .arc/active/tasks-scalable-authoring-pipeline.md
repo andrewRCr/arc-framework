@@ -651,12 +651,22 @@ set into the `6.2` conformance pass.
   updated (two-copy); structural finding routed to `composable-workflows`. See
   `notes-scalable-authoring-pipeline.md` § 5.R.2 resolution.
 
-### `[ ]` **5.R.3 Strip model/design rationale from the workflows**
+### `[x]` **5.R.3 Strip model/design rationale from the workflows**
 
 - _Goal:_ A workflow carries only the operational grounding an agent needs to run it correctly — not rationale or
   education about the underlying model/design, which lives in the strategies, ADRs, and docs site. Remove the
   why-the-design-exists prose across all three; for each removed rationale, confirm a home exists in a durable
   reference surface and route any gap (coordinate with `6.4`).
+
+- _Outcome:_ B-calibration trim across all three workflows — removed model-education, why-the-design-exists
+  prose, alternative-defenses, and cross-principle framing; kept operational kernels (and one-clause whys that
+  change how a rule is applied). `draft-design`: the bar height/distance abstraction + consolidation
+  cross-principle framing; `create-spec`: open-question justification, two alignment-citation rationales, the
+  ADR-subtype justification; `generate-tasks`: the one-shot-pattern rationale, why-on-disk, per-phase
+  justification, durable-capture elaboration. No homeless rationale surfaced — each cut is covered by an existing
+  surface (DEV-RULES § Design-before-impl / § leave-it-cleaner, the `resolve-planning-depth` method,
+  ADR-methodology strategy, the SAP spec) or was pure meta; no extraction or 6.4 routing needed. Both copies of
+  each file synced; lint clean.
 
 ### `[ ]` **5.R.4 Legacy-prose polish**
 

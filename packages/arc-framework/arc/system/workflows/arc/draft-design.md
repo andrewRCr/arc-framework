@@ -92,16 +92,14 @@ formalization-ready gate:
 - **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
   for create-spec.
 
-The **height** of the formalization-ready bar is invariant — the same _is all settle-able design settled, and
-can I state how I'll know it worked?_ gate the `low` and `medium` paths clear, just reached faster there. What
-scales is the **distance**: a deeper design crosses more passes to reach the same bar. "Formalization-ready"
-always means ready _at the depth this design demanded_ — never a lower bar.
+The formalization-ready bar is the same at every level — _is all settle-able design settled, and can I state how
+I'll know it worked?_ — reached faster at `low` / `medium`, crossed over more passes at `high`. It always means
+ready _at the depth this design demanded_, never a lower bar.
 
 **Coherence-consolidation (`high`-only, suggest-not-enforce).** A draft that iterates across many sessions
 accretes superseded sketch beside current design — the design can be settled while the document is not yet a
-single coherent input. The working pattern is _amend-then-integrate_: amend each pass (above), and reconcile the
-accreted layers with a holistic rewrite — producer-consolidates-before-handoff, the _leave-it-cleaner_ floor
-applied to the WU's own artifact. Three leans, never hard gates:
+single coherent input. Amend each pass (above), then reconcile the accreted layers with a holistic rewrite.
+Three leans, never hard gates:
 
 - **Consolidate before formalization-ready.** Reconcile the accreted layers into one coherent input before the
   draft crosses into create-spec.
@@ -112,8 +110,8 @@ applied to the WU's own artifact. Three leans, never hard gates:
   detail; self-check the rewrite against the pre-rewrite layers. A coherence rewrite must not silently drop
   substance.
 
-This stays a lightweight, facilitation-driven loop — re-synthesis pass by pass. A single-sitting draft is
-coherent by construction and clears all three criteria at once; they bite only when accretion is real.
+A single-sitting draft is coherent by construction and clears all three criteria at once; they bite only when
+accretion is real.
 
 ## Capture the draft
 

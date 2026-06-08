@@ -97,18 +97,15 @@ Work the form to completeness across its substrate and validation surface:
 - **Scope precision.** In- and out-of-scope boundaries are crisp; no soft edges left to creep under pressure.
 - **Cross-cutting surface.** The non-functional concerns the form calls for — security, performance, testing,
   migration / rollout (RFC); constraints, dependencies, integration points (PRD).
-- **Open questions — open for the right reason.** Genuine implementation detail may be left open, and sometimes
-  should be: the "how" within a settled "what / why" belongs to implementation, and a call that truly turns on
-  what implementation reveals is better made then than guessed now. What may **not** be left open is _settle-able
-  design_ — a decision that could and should be made pre-implementation. Deferring one is a masked design
-  decision: a derivation signal — route it to the design (draft / spec), never park it as an open question or push
-  it into the task list. See [DEV-RULES.ARC][dev-rules-arc] § Design before implementation.
+- **Open questions — open for the right reason.** Genuine implementation detail may be left open. What may
+  **not** be left open is _settle-able design_ — a decision that could and should be made pre-implementation.
+  Deferring one is a masked design decision: a derivation signal — route it to the design (draft / spec), never
+  park it as an open question or push it into the task list. See [DEV-RULES.ARC][dev-rules-arc] § Design before
+  implementation.
 
 **Novel overlay** (`Class == Novel`, advisory). At `detailed`, an invented model warrants an **ADR-companion** —
 an ADR under `reference/adr/` capturing the invented model's durable, cross-cutting rationale. **Subtype-keyed:**
-recommend it strongly at `detailed`·RFC (an invented architectural model is ADR's home turf, and the RFC's inline
-Alternatives & Rationale is not redundant — this-design rationale vs. a durable cross-cutting decision), weak or
-omitted at `detailed`·PRD (product-concept novelty is far less ADR-shaped). Accept-or-decline, never a gate. An
+recommend it strongly at `detailed`·RFC, weak or omitted at `detailed`·PRD. Accept-or-decline, never a gate. An
 accepted ADR is a **non-moving artifact** — it stays under `reference/adr/` through the WU lifecycle (no
 relocation, no Novel branch at integration) and rides the normal ceremony commit.
 
@@ -128,7 +125,7 @@ Scope — the principle catalog is the project's vision contract.
 On either, halt and surface the specific conflict — user direction needed before save.
 
 **On pass — cite the principle by name.** Not "checked, passes" — "checked against the _Configurability_
-principle — passes". Substantive citation keeps the alignment check load-bearing rather than ornamental.
+principle — passes".
 
 ## TECHNICAL-OVERVIEW alignment check (conditional)
 
@@ -145,8 +142,7 @@ The companion downstream condition ("TECHNICAL-OVERVIEW edited since the spec wa
 create-spec time the spec hasn't been approved yet.
 
 **On pass — cite the section by name.** Not "checked, passes" — "checked against § 2 Architecture Components —
-passes". Section-based citation reflects TECHNICAL-OVERVIEW's structure (parallel to the PROJECT-PRD check's
-named-principle citation).
+passes".
 
 ## Write and save the spec
 

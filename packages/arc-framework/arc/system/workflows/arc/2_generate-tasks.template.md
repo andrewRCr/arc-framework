@@ -38,7 +38,7 @@ surface directly and cross-checks against `Class`. The `**Class:**` decision is 
 defers to the Finalize ceremony commit, never a mid-stage meta edit.
 
 **No Novel overlay.** `Novel` is a derivation-axis kind; task generation is scale-driven and adds no Novel overlay
-(it reaches novelty only indirectly, through scale). Stated explicitly so no phantom path is introduced here.
+(it reaches novelty only indirectly, through scale).
 
 ## Generate in the resolved level
 
@@ -50,8 +50,7 @@ path calls for it.
 
 Every path runs the **same** procedures, artifacts, checks, and review discipline — a lower depth separates
 _less for review_, it does not do _less work_. Depth changes only how the work is sliced into passes and where
-the review stops fall. This prevents the one-shot-to-impl-ready pattern where heavier work masks design
-decisions and ungrounded assumptions until implementation.
+the review stops fall.
 
 **Surfacing discipline (every stop).** Surface the deliverable with reflection woven in: trace the relevant
 procedure's internal lenses as your own checks and weave observations into the deliverable presentation, rather
@@ -64,8 +63,7 @@ proceeds.
 creates `tasks-{name}.md` at the destination path resolved per Finalize's `Destination path` rule; the later
 procedures edit it in place. Finalize collapses to pre-save checklist verification + ceremony commit. The file
 is in-progress until the Finalize checklist passes — staging discipline keeps it from landing in commits before
-then. On-disk iteration keeps partial work durable across handoffs and lets each pass's review happen against
-the rendered file rather than reproduced conversation.
+then.
 
 ### `low` — one combined pass
 
@@ -260,10 +258,8 @@ discipline above) before continuing.
 ## Grounding audit & coherent revision
 
 A per-phase pre-impl-readiness gate, run **one phase at a time, top-down**: audit the phase, surface its
-findings and any design decisions, confirm before editing, then revise the phase coherently. Settling each
-phase before the next keeps it commit- and handoff-able mid-pass, and surfaces cross-phase dependencies at the
-boundaries. The **verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing
-to ground.
+findings and any design decisions, confirm before editing, then revise the phase coherently. The
+**verification phase is audit-exempt** — its single `verify-work-unit.md` pointer has nothing to ground.
 
 Run **Audit the phase** → **Surface findings + decisions, then confirm** → **Revise the phase coherently** for
 each non-verification phase in order; run **Final suite-coherence pass** once, after the last phase. The
@@ -326,11 +322,6 @@ later. Routing convention:
 - **`notes-{name}.md` companion file** — substantive findings (multi-bullet, design rationale,
   alternatives, edge-case enumerations, mapping tables) where inline would crowd the task list.
   Each affected task body cross-refs via `_Notes:_ See \`notes-{name}.md\` § <section>`
-
-Differs from pre-impl audit invocations during task-list execution, where carry-as-context
-lives in the implementing agent's session memory. Generation-time durability is mandatory —
-the implementing agent will be a different session, possibly different agent, weeks or months
-from now.
 
 ### Final suite-coherence pass (once, after all phases)
 
