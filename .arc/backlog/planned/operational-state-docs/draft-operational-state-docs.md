@@ -84,6 +84,23 @@
 - _Interim:_ `_Awaiting:_` is hand-applied on the re-homed TS7 capture in `ATOMIC-INBOX` now, ahead of
   codification (the same pattern recorded for `_Slug:_` above).
 
+### `[ ]` **Carry the `identifier-list` valueClass into the managed-doc structured schema + round-trip harness**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` Task 1.4.
+- _Concern:_ SAP (Task 1.4) added an `identifier-list` valueClass to the meta projection (`meta-reader.ts`
+  `META_FIELDS` / `formatValue` / `parseMetaRecord`) for `Depends On` / `Design`: per-element backtick render
+  with a comma-joined record string recovered via the **global** `stripInlineCode`. The meta-reader docstring
+  frames `valueClass` as "the proto-schema axis a later code-owned schema maps directly" — that later schema is
+  this WU's deliverable.
+- _Proposed:_ when formalizing the managed-doc structured schemas + render/reconcile engine, model list
+  cardinality as a first-class axis (the `identifier-list` member), preserving the per-element render rule and
+  the render↔parse round-trip invariant (per-element render → global-strip parse → comma-joined value). The
+  round-trip harness must cover multi-value list fields so a regression to the compound whole-value form fails
+  loud.
+- _Scope:_ `meta-reader.ts` is the managed-doc surface this WU absorbs; coordinate with roadmap-tooling's
+  sibling note on ROADMAP dep-cell rendering of the same fields.
+
 ---
 
 ## Purpose

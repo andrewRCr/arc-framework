@@ -19,6 +19,33 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Sweep stale local branches whose upstream is `gone` and are merged (cross-machine + primary-worktree)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: coord-probe`), housekeep drain (2026-06-08); captured while
+  cleaning up two stale local branches left from cross-machine development of `scalable-authoring-pipeline`.
+- _Concern:_ No ARC ceremony reaps a local branch whose upstream is `gone` and which is merged to `main` when no
+  worktree backs it. Two facets surfaced live: (1) **cross-machine `plan/` orphan** — `activate-work-unit`
+  Step 5's `git branch -m plan/<name> → <type>/<name>` is a local-only ref op, so the machine that did _not_ run
+  activation keeps its stale local `plan/` forever (`origin/plan` deleted at activation → local shows `[gone]`);
+  (2) **`feat/` orphan** — `integrate-work-unit` Step 13 only runs `git branch -d <wu-branch>` on the
+  linked-worktree→`removable` arm; the primary-worktree (in-place WU) arm does _no_ branch delete, so a `feat/`
+  materialized into the primary worktree is never reaped. Session-init's stale sweep is **worktree-only** (probe
+  `sweep` field); branch-gone recovery only fires for the _current_ branch.
+- _Proposed:_ a "stale local-branch sweep" at session-init (primary worktree): detect local branches with a
+  `gone` upstream merged to `branch.base`, surface them with an interlock-gated `git branch -d` offer
+  (merged-only-safe; never `-D`) — mirroring the stale-worktree sweep. Reuse this WU's `gone`-upstream +
+  recently-active-remote-branch detection machinery rather than building a second scanner. The cross-machine
+  `plan/` orphan is structural to the local-only rename model, so a sweep is the right remedy, not a rename
+  change.
+- _Scope:_ probe surface (`sweep` sibling), session-init orientation arm, possibly a CLI primitive. **Possible
+  standalone split:** the `integrate-work-unit` Step 13 primary-worktree sub-gap (add a `git branch -d` on the
+  in-place arm) is a contained workflow fix that could land independently.
+
 ## Problem / Motivation
 
 Session-init has no answer to "given my identity, where should I be working" when in-git signals fail or
@@ -27,7 +54,7 @@ are insufficient:
 - **Cross-machine resume:** the canonical case. Work continued elsewhere; this machine's branch is
   merged-and-gone; status files in `.arc/active/` may or may not reflect current state depending on how
   recently this machine pulled.
-- **Multi-WU sessions** (post-mobility): multiple status files exist; which is primary for *this*
+- **Multi-WU sessions** (post-mobility): multiple status files exist; which is primary for _this_
   identity?
 - **Team scale** (above ~5 devs): in-git tracking has a hard staleness ceiling. Tracked status is only
   as fresh as the most recent merge to a branch this machine has pulled. Real teams coordinate via
@@ -290,7 +317,7 @@ error in orientation? PRD decision.
 
 ADR-020 collapses `pm.mode: external` into `module-off + tracker-configured` — `external` ceases to be a
 config value. `coord.adapter` therefore no longer keys off `pm.mode == external`: it activates whenever a
-tracker pointer is configured, in *any* Planning Module state — including the newly-expressible
+tracker pointer is configured, in _any_ Planning Module state — including the newly-expressible
 `module-on + tracker` (an in-git backlog whose `Origin`s link to an external tracker). The
 single-`coord.adapter` / multi-tracker-foreclosed stance is preserved and reinforced (per-WU `Origin`
 carries heterogeneous trackers; the project-level adapter stays singular). Absorb at PRD.

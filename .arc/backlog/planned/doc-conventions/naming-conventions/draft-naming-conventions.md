@@ -121,6 +121,22 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   context); a standalone doc-naming-convention cleanup. Could alternatively fold into `doc-cascade-sweep`'s doc
   cascade.
 
+### `[ ]` **Adopt "specification" full-word in titles/prose; keep "spec" as identifier + short form**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: doc-naming-convention` → corrected to this stub at drain),
+  housekeep drain (2026-06-08); captured at `scalable-authoring-pipeline` Phase 4.
+- *Concern:* "spec" is an unambiguous standard abbreviation, but forcing the short form into every H1 title /
+  prose position reads awkward (e.g. `# Workflow: Create Spec`). Spelling out "specification" where it reads more
+  naturally — keeping `spec` as filename/identifier and short form — may feel more polished.
+- *Proposed:* Do **not** use a soft "where it feels natural" rule — it drifts and yields a worse half-and-half
+  state than uniform "spec," especially beside the fixed identifiers (`spec-*`, `create-spec`, `spec-review`).
+  If pursued, do it as a crisp, complete, ruled pass — e.g. spell out "Specification" only in H1
+  workflow/template titles + the first defining sentence per doc; "spec" everywhere else and always as
+  identifier/filename. Lean: marginal / optional — but if done, ruled and complete.
+- *Scope:* ARC-wide naming convention — templates, `create-spec`, `spec-review`, docs-site, all three authoring
+  workflow H1s. Pairs with the `ROADMAP → STATUS.PROJECT` rename this WU's family owns. Explicitly **not** the
+  SAP 5.R workflow-coherence pass (too narrow for an ARC-wide convention).
+
 ---
 
 ## Problem / Motivation

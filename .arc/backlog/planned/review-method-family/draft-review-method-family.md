@@ -13,6 +13,23 @@
   is also review-relevant. Surface `Origin` next to `Design` when it is non-internal, and use the pass to decide
   what the PR body should hoist from the meta versus leave in the meta.
 
+### `[ ]` **Post-PR-open external-review _trigger_ extension (capture parts 2+3 shipped via errand)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: review-method-family`), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` PR #67 review cycle. Parts 2+3 of the original capture
+  (retry-round recommendation + body-comment/outside-diff handling in `address-pr-review.md`) were carved off
+  and delivered as a standalone errand at this drain; only the trigger-extension part remains here.
+- _Concern:_ In the manual-trigger review shape, after opening a WU PR the agent should ask whether to trigger
+  an external AI review (rather than relying on automatic review). This is a new fire point, distinct from
+  `pre-pr-review` (which fires _before_ PR open).
+- _Proposed:_ Add an inactive-by-default extension around the post-PR-open trigger point (or nearest clean
+  pre-review-response point), applying only to **work-unit** PRs, not Errand PRs. In this project it would ask
+  the user whether to post `@coderabbitai review`; on approval, post the comment and wait for user signal without
+  polling.
+- _Relationship:_ this WU already owns `review-response` / `address-pr-review` integration; this adds the
+  missing _trigger_ decision around that cycle. Touches the extension family + `integrate-work-unit.md` fire
+  point (point-scanner CHECK 16) + the project `address-pr-review.md` override.
+
 ## Problem / Motivation
 
 Two issues are entwined in the current review-related surface, both surfaced during interlock-foundation

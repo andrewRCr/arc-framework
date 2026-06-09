@@ -8,6 +8,28 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Backstop shipped-file inventory drift (recipe / manifest omissions)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: self-hosting-manifest-freshness`), housekeep drain
+  (2026-06-08); captured at `scalable-authoring-pipeline` PR #67 review cycle.
+- _Concern:_ PR #67 exposed a shipped-file inventory gap: new package-source authoring surfaces (`draft-design`,
+  planning-depth methods, `spec-review`, `pre-spec-finalization-review`) existed in
+  `packages/arc-framework/arc/**` but were missing from `packages/arc-framework/init-recipe.json`, so fresh
+  installs would ship broken references. The same WU's verification also caught a stale retired-template entry in
+  the recipe / manifest path. This WU covers tracked manifest/pristine drift; this is the **additive**
+  development-time backstop: catch recipe / manifest inventory omissions whenever a shippable file is added,
+  renamed, or removed. (The one-off #67 fixes already landed; this is the recurrence guard.)
+- _Proposed:_ a project-level guard (not adopter-shipped): compare package-source shippable files against
+  `init-recipe.json` and the self-host `.arc/system/.internal/manifest.json`, with an explicit allowlist for
+  intentionally-unshipped internal-dev files. Decide whether it belongs as a unit/integration test,
+  package-sync validator, CI check, or pre-PR/Tier-3 audit.
+- _Scope:_ repo development-time validation and tests/scripts only; do not ship the guard to adopters.
+
 ## Problem / Motivation
 
 The self-hosting repo never runs `arc update` against itself (per DEV-RULES.PROJECT § Package-Project Sync), so
