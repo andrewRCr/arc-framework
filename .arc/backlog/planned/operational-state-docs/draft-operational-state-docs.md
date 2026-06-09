@@ -101,6 +101,42 @@
 - _Scope:_ `meta-reader.ts` is the managed-doc surface this WU absorbs; coordinate with roadmap-tooling's
   sibling note on ROADMAP dep-cell rendering of the same fields.
 
+### `[ ]` **Take tombstones out of the rendered `USER-INBOX` / `WORKING-MEMORY` files (record field, not in-band)**
+
+- _Routed from:_ `USER-INBOX`, 2026-06-09.
+- _Concern:_ deletion tombstones (`## Removed:` markers) render in-band in the human-facing `USER-INBOX` /
+  `WORKING-MEMORY` files and only GC at merge time once past their TTL, so removed entries pile up in the files
+  read raw (the inbox ran ~98% tombstones, 55 dead / 1 live). The clutter is a direct artifact of markdown being
+  both the canonical store and the viewing surface.
+- _Proposed:_ make tombstones non-projected fields of the notes-stored structured record (this WU's model); the
+  `.md` becomes a rendered projection that emits live entries and omits tombstones, so they never reach the human
+  file even when read raw. They still sync because the record syncs (git note today → local store → backend — the
+  store these files already materialize from).
+- _Design fork (do NOT do):_ do not carve a synced exception into `user/{identity}/.internal/`. The dot-prefix ⇒
+  never-synced rule is intentional and double-enforced (`classifier.ts` + the serialize-walk dotfile prefilter,
+  chosen deliberately "rather than carving out only `.internal/`"). The coupling to break is hidden ⇔
+  never-synced (tombstones want hidden AND synced) — break it in the record/projection layer, never by bolting an
+  exception onto the dotfile rule.
+- _Interim (if a sidecar predates this WU):_ a visible synced sibling file (a flat non-dot path is already
+  `cross-wu`, zero sync-layer change), or stay in-band with a short TTL (shipped via PR #72, 90 → 7 days). Applies
+  to BOTH `USER-INBOX` and `WORKING-MEMORY`.
+
+### `[ ]` **Make the tombstone GC TTL a configurable per-user value**
+
+- _Routed from:_ `USER-INBOX`, 2026-06-09.
+- _Concern:_ the tombstone GC window is a hardcoded constant `TOMBSTONE_TTL_MS` in
+  `packages/arc-framework/src/lib/user-sync/merge.ts` (7 days as of PR #72) — not configurable, so the
+  legibility-vs-correctness tradeoff can't be tuned per project or developer.
+- _Proposed:_ expose it as config. Interim: a project-level global key mirroring `inbox.remind_after_days`, whose
+  `arc-config.yml` comment already documents the pattern ("conceptually a per-user preference; lives here today,
+  migrating to a per-user config substrate later"); wire it through the merge (config → TTL into
+  `mergeCrossWuFile`), status-reader, and config types.
+- _Eventual home:_ `arc-config.user.yml` under `config-storage-architecture` (the per-user substrate); if that
+  lands first, target it directly.
+- _Note:_ once the sibling capture (record/projection) lands and tombstones leave the rendered file, the default
+  can rise again — TTL becomes purely a merge-correctness knob (sized to the merge-window staleness horizon), not
+  a legibility constraint.
+
 ---
 
 ## Purpose
