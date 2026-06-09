@@ -29,6 +29,15 @@
 - _Concern:_ `Depends On` is live readiness metadata while a WU is active or planned; after archival the edge is
   historical lineage. Decide whether completed metas keep the canonical `Depends On` field with documented
   archive semantics, or render an archive alias such as `Depended On` while parsers normalize both labels.
+- _Boundary (routed from `decomposition-machinery` planning, 2026-06-09):_ the live→lineage flip may be earlier
+  than archival — a dependency is functionally fulfilled once the dependent WU _activates_ (start precedes
+  completion), so the field's scheduling job is done at activation, not just at ship. Decide whether the
+  transition keys on **activation** or **archival**.
+- _Lean (same routing):_ `Depends On` is atemporal structural truth (the build graph) — `A depends on B` stays
+  true as structure regardless of completion. So **don't mutate / rename / null the stored edge**; treat
+  staleness as a _render-relevance_ concern (the renderer stops showing — or de-emphasizes — `Depends On` for
+  active / completed rows) and keep the canonical field for impact-analysis / archaeology. Favors "keep
+  canonical, handle at render" over the `Depended On` alias; nulling destroys data to manage presentation.
 - _Scope:_ if aliasing wins, update `template-meta.md`, `archive-work-unit.md`, `renderMetaFile` /
   `parseMetaRecord`, validation expectations, and completed-corpus migration guidance together.
 
