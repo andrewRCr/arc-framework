@@ -275,12 +275,16 @@ export function appendRemovalTombstones(
 }
 
 /**
- * Generous fixed TTL after which a tombstone stops propagating and drops at
- * merge time. The contract is the mechanism (time-based, filter-at-merge), not
- * the constant — the failure mode past the window is re-deleting a note, not
- * data loss.
+ * Fixed TTL after which a tombstone stops propagating and drops at merge time.
+ * Sized to outlive the staleness of any copy that could realistically re-enter
+ * the merge window, no more — past the window the failure mode is re-deleting a
+ * note, not data loss, so a short value is safe. Kept short while tombstones
+ * render in-band (they crowd the human-facing file until GC), pending a
+ * configurable per-user value and the projected-record model that takes them
+ * out of the rendered document entirely. The contract is the mechanism
+ * (time-based, filter-at-merge), not the constant.
  */
-const TOMBSTONE_TTL_MS = 90 * 24 * 60 * 60 * 1000;
+const TOMBSTONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Heading of a deletion tombstone — `## Removed: {key}`. */
 const TOMBSTONE_HEADING = /^## Removed:\s*(.+?)\s*$/;
