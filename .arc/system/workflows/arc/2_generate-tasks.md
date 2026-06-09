@@ -380,8 +380,8 @@ pre-save checklist and bundles the commit.
 **Destination path** (referenced by **Structural decomposition**'s file creation; depends on
 [`arc-config.yml`][arc-config] → `pm.mode`):
 
-- **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{{WORK_NAME}}/tasks-{{WORK_NAME}}.md`
-- **none / external** (no backlog): `.arc/active/tasks-{{WORK_NAME}}.md` (create the directory first if it
+- **arc-in-git** (backlog pipeline): `.arc/backlog/{provisional,planned}/{name}/tasks-{name}.md`
+- **none / external** (no backlog): `.arc/active/tasks-{name}.md` (create the directory first if it
   doesn't exist: `mkdir -p .arc/active/`)
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
