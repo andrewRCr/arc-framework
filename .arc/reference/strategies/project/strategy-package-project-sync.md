@@ -176,7 +176,6 @@ arc-in-git files are annotated explicitly.
 - `reference/templates/arc/template-adr.md`
 - `reference/templates/arc/template-contributing.md`
 - `reference/templates/arc/work-unit/template-draft.md`
-- `reference/templates/arc/work-unit/spec/template-prd.md`
 
 **System:**
 

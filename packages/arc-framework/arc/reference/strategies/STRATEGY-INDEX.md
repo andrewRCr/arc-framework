@@ -17,8 +17,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: working with backlog structure, routing deferred work, evaluating PM mode fit
 - `arc/strategy-file-classification.md` - File taxonomy and naming conventions
     - Consult when: classifying new files, naming new artifacts, determining merge strategies
-- `arc/strategy-work-planning.md` - Planning pipeline, plan-\* conventions, discovery checklist, PRD guidance
-    - Consult when: creating PRDs, setting up discovery phases, planning work units
+- `arc/strategy-work-planning.md` - Planning pipeline, depth model, spec forms (brief/outline/detailed), layered specs
+    - Consult when: authoring specs, resolving planning depth, planning work units
 - `arc/strategy-quality-gates.md` - Tiered quality gate system, checkpoint identification, task list integration
     - Consult when: running quality gates beyond Tier 1, identifying integration checkpoints, escalation decisions
 - `arc/strategy-session-operations.md` - Context loading model, monitoring, auto-compaction, session state portability

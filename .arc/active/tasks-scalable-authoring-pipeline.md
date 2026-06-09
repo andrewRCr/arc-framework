@@ -767,7 +767,7 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   `generate-tasks` template/render pair and the package-sync dependency map), coordinated with
   `naming-conventions`. Points back to spec R18 as the decision-record; SAP renames nothing itself.
 
-### `[ ]` **6.4 Strategy-doc updates — form taxonomy, depth model, validation contract**
+### `[x]` **6.4 Strategy-doc updates — form taxonomy, depth model, validation contract**
 
 - _Goal:_ The strategy docs carry the scaled-pipeline conventions — the spec-form taxonomy
   (brief/outline/detailed-prd/rfc), the depth model and its three asymmetric axes, and the validation contract
@@ -777,40 +777,40 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   keeping conventions only.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **6.4.a Form taxonomy + depth model → `strategy-work-planning`**
-        - Document the spec-form taxonomy and the depth model (one mechanism, three asymmetric axes;
-          feed-forward-immune scale; the `resolve-planning-depth` method) in `strategy-work-planning` — the
-          planning-pipeline home.
+    - `[x]` **6.4.a Form taxonomy + depth model → `strategy-work-planning`**
+        - Added a `## Planning Depth` section codifying the `resolve-planning-depth` mechanism (per-stage entry
+          read, flag-free), the three asymmetric axes (draft-design / create-spec → derivation, generate-tasks →
+          scale), the feed-forward-immune scale axis, depth→form selection, and the depth-floats / floor-holds
+          re-entry rule. Cross-refs work-org § Planning depth and spec forms for the form↔`Class` table rather
+          than duplicating it.
 
-    - `[ ]` **6.4.b Validation contract → `strategy-work-organization`; layered pattern → `strategy-work-planning`**
-        - Validation contract (R6) lands in `strategy-work-organization`, alongside CMF's `Class` model it already
-          homes; the layered model (sanctioned pattern, `spec-{name}-prd.md` / `spec-{name}-rfc.md` naming, no
-          config knob / workflow fork) lands in `strategy-work-planning`.
+    - `[x]` **6.4.b Validation contract → `strategy-work-organization`; layered pattern → `strategy-work-planning`**
+        - work-org gained a `### Validation contract` subsection (Success Criteria universal; task list vs. the
+          form's enumerable substrate) beside the `Class` model; work-planning gained a `## Layered Specs` section
+          (sanctioned PRD+RFC pattern, `spec-{name}-prd.md` / `spec-{name}-rfc.md` naming, no config knob / fork).
 
-    - `[ ]` **6.4.c Spec-form naming → `strategy-file-classification`**
-        - Add the spec-form naming + the spec template family to `strategy-file-classification` (the file-taxonomy
-          home), cross-referencing the convention from 6.3 if useful.
+    - `[x]` **6.4.c Spec-form naming → `strategy-file-classification`**
+        - Reframed the `spec-*` form note to the `Spec ({form}): {name}` H1 convention plus the four-template
+          family, cross-referencing work-planning § Spec Conventions; swapped the dead `template-prd.md` examples.
 
-    - `[ ]` **6.4.d Relocate procedure out of `strategy-work-planning` into the workflows**
-        - Delete the now-dead **Discovery Checklist** + **Spec Readiness** sections — procedure belongs in
-          workflows, not strategy docs: the design-shaping elicitation already lives inline in draft-design, and
-          the readiness signal is draft-design's depth-relative formalization-ready states (2.4). Reframe **Spec
-          Conventions** to the four-form family (drop "PRD = default form" / `# PRD:` H1 framing). Fix the dangling
-          `discovery checklist` references (`STRATEGY-INDEX`, `strategy-planning-module`). No-loss check: confirm
-          draft-design carries everything the deleted checklist held (e.g. an explicit "why now").
-        - **Retire `template-prd.md` here (re-homed from 3.1.b).** `git rm` both copies and fix all remaining live
-          references as part of this reframe: `strategy-work-planning` (its template-prd refs fold into the
-          Spec-Readiness delete + Spec-Conventions reframe above), `strategy-file-classification` (swap the example
-          filename — pairs with 6.4.c), the template `README`s, and the `strategy-package-project-sync` dependency
-          list. Retiring it here, not at 3.1.b, keeps each referrer single-touch and avoids interim dangling links.
+    - `[x]` **6.4.d Relocate procedure out of `strategy-work-planning` into the workflows**
+        - Deleted the Discovery Checklist + Spec Readiness sections (no-loss verified — draft-design's facilitate
+          step carries all seven prompts, "why now" under motivation) and reframed Spec Conventions to the
+          four-form family, dropping the "PRD = default form" / `# PRD:` H1 framing.
+        - Retired `template-prd.md` (`git rm` both copies) and swept every live reference: work-planning,
+          file-classification, the template `README`, the package-sync inventory, `STRATEGY-INDEX`, and the
+          planning-module discovery-checklist / `prd-<wu-name>` refs. Install manifest's stale entry left as-is
+          (generated artifact, not hand-maintained under self-hosting).
 
-    - `[ ]` **6.4.e Reconcile branch-from-inception vs. partial-mode spec-then-branch sequencing**
-        - `strategy-work-organization` § Branch Protection Modes (Partially Protected) states planned work units
-          "require a branch from inception," but the authoring workflows' branch-context (draft-design /
-          create-spec / generate-tasks) document a partial-mode path where a spec/draft is authored on the base
-          branch with no planning branch or meta yet (spec-then-branch). Reconcile the wording so the two read
-          coherently — e.g. clarify that "from inception" governs the tracked WU (post-init/activation) while
-          pre-formalization spec exploration on the base branch is sanctioned under partial. Surfaced at 5.R.4.
+    - `[x]` **6.4.e Reconcile branch-from-inception vs. partial-mode spec-then-branch sequencing**
+        - Clarified work-org § Partially Protected: "from inception" governs the **tracked** WU (meta-carrying),
+          while pre-formalization draft / spec exploration on the base branch is sanctioned, the branch cut when
+          the work formalizes into a tracked WU.
+
+- _Outcome:_ The strategy docs now present one scaled four-form pipeline (`brief` / `outline` /
+  `detailed`-PRD|RFC) resolved by planning depth, replacing the retired PRD-default model + `template-prd.md`.
+  Division of labor: work-org owns the form↔`Class` table + validation contract; work-planning owns the
+  depth-resolution mechanism, Spec Conventions, and layered specs; file-classification owns form naming.
 
 ## **Phase 7:** Verification
 

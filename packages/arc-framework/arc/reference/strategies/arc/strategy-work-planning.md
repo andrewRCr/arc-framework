@@ -4,10 +4,10 @@
 requirements. Covers the full lifecycle: idea → draft documents → specs → task lists, with
 conventions for each stage.
 
-**Layer:** Core with arc-in-git extensions. Draft documents, specs, task lists, and the discovery
-checklist are Core artifacts available in all PM modes. The backlog directory structure and
-graduation pipeline (backlog → active transitions) require `pm.mode: arc-in-git`. Sections with
-arc-in-git-specific content are marked below.
+**Layer:** Core with arc-in-git extensions. Draft documents, specs, and task lists are Core
+artifacts available in all PM modes. The backlog directory structure and graduation pipeline
+(backlog → active transitions) require `pm.mode: arc-in-git`. Sections with arc-in-git-specific
+content are marked below.
 
 **Scope:** Planning artifact conventions, discovery guidance, and stage transitions. For backlog
 structure and triage, see [Planning Module][planning-module] **(arc-in-git)**. For active work
@@ -19,10 +19,10 @@ Task Loop][process-loop].
 ## Contents
 
 - [The Planning Pipeline](#the-planning-pipeline)
+- [Planning Depth](#planning-depth)
 - [Draft Documents](#draft-documents)
-- [Discovery Checklist](#discovery-checklist)
-- [Spec Readiness](#spec-readiness)
 - [Spec Conventions](#spec-conventions)
+- [Layered Specs](#layered-specs)
 - [Anti-Patterns](#anti-patterns)
 
 ---
@@ -56,6 +56,74 @@ during implementation.
 Not every piece of work needs every stage. Small, well-understood work can skip the draft stage and
 go directly to a spec. The draft stage exists for work that benefits from exploration before
 requirements crystallize.
+
+---
+
+## Planning Depth
+
+The pipeline above is a fixed sequence of stages, but each stage **scales** to the work in front of it. How
+much authoring a stage does is its **`planning depth`** — a `low` / `medium` / `high` resolution each stage
+settles independently at entry. Depth is transient and per-stage: it is never recorded, and it may differ
+across stages (a determinate design over a large surface wants a light spec but a deep task-generation pass; a
+tricky algorithm over a small surface wants the reverse). The ordinal, the spec forms it selects, and the
+`Class` constraints on those forms are defined in [Work Organization][work-org] § Planning depth and spec
+forms; this section codifies **how each stage resolves its depth**.
+
+### One mechanism, read per stage
+
+Every authoring stage resolves depth the same way — one entry-assessment through the
+[resolve-planning-depth][resolve-planning-depth] method: a read of the stage's keyed axis against the best
+evidence available, with the upstream artifact (when present) the richest input. The stages share one shape and
+differ only in **which axis** they read and **what evidence** is at hand:
+
+| Stage            | Keyed axis | Evidence at entry                                                           |
+| ---------------- | ---------- | --------------------------------------------------------------------------- |
+| `draft-design`   | derivation | the problem framing / origin + a quick compose-vs-invent scan (no upstream) |
+| `create-spec`    | derivation | the `draft-*` when present (its shape signals the form), else `Class` alone |
+| `generate-tasks` | scale      | the implementation surface read directly — codebase-grounding breadth       |
+
+Because depth is never recorded, there is no value to thread forward — each stage re-derives from evidence.
+That same entry read doubles as the stage's [classify-work-unit][classify-work-unit] confirm-or-ratchet
+touchpoint: one evidence read drives both the stage's depth and any `Class` update.
+
+### Why the axes are asymmetric
+
+The mechanism is uniform; the **input signal is not**. Drafting and spec creation resolve depth from
+**derivation** — how much design must be worked out. Task generation resolves from **scale** — how large and
+intricate the implementation surface is. The two axes are independent: a determinate design (low derivation)
+can still span a large surface (high scale), and a small surface can still demand an invented design.
+
+That independence has a load-bearing consequence — the **scale axis is feed-forward-immune**. The spec form
+recovers the derivation lane for the stages downstream of it (an `outline` tells create-spec's reader that
+derivation was moderate), but **no upstream artifact carries scale**: an `outline` spec may front either a light
+or a heavy implementation. So task generation cannot inherit its depth from the spec — it reads the work surface
+directly at entry, cross-checked against `Class`. The direct read is correct by construction, not a gap:
+because depth is never recorded, every stage re-derives regardless.
+
+### The spec stage's depth names a form
+
+Only the spec stage's depth produces a durable artifact — the **spec form**. The derivation depth create-spec
+resolves selects it: `low` → `brief`, `medium` → `outline`, `high` → `detailed`. The `detailed` form splits
+once more, by the *kind* of derivation that dominates — a **PRD** when the open question is product (*what
+should this do*), an **RFC** when it is technical design (*what is the right design, and its tradeoffs*).
+`brief` and `outline` are single, category-agnostic forms; only `detailed` splits. The form ↔ `Class`
+constraints (`brief` ⇒ `light`; `detailed` ⇒ `heavy` / `novel`; `outline` straddles) are canonical in
+[Work Organization][work-org] § Planning depth and spec forms.
+
+### Depth floats; the floor holds
+
+Depth is re-selectable at each stage transition — entry sets a default cascade derived from `Class`, and the
+author may resolve a not-yet-started stage lighter or heavier within the band. Two guardrails keep that freedom
+honest:
+
+- **A pass may re-fire the read.** When work surfaces that the entry estimate was too low, the
+  [resolve-planning-depth][resolve-planning-depth] method fires again mid-stage — capture the signal, ratchet,
+  re-enter — rather than patch a too-light artifact onward. The re-entry is axis-keyed: a **scale** signal
+  re-enters the same stage higher; a **derivation** signal routes to the stage that owns the design (a masked
+  design decision goes back to the spec, not into a deeper task pass).
+- **The floor never drops.** Down-switching is bounded by the work's demand floor, and a heavier artifact
+  already produced is never torn down — the `Class` ratchet is one-way (see the
+  [classify-work-unit][classify-work-unit] method). Per-stage depth floats within the band the floor sets.
 
 ---
 
@@ -139,81 +207,70 @@ These follow the same ephemeral convention: delete or archive after the work gra
 
 ---
 
-## Discovery Checklist
-
-Before a draft is "ready" to become a spec, these questions should be addressed. This is guidance, not
-a gate — not every question applies to every piece of work, and some answers may be "not applicable"
-or "we'll figure this out during implementation."
-
-The purpose is to prevent shallow scoping by ensuring the important questions get asked early, when
-course-correction is cheap.
-
-1. **What problem are we solving?** Frame as a problem, not a solution.
-2. **Why now?** What makes this worth doing at this point?
-3. **What alternatives exist?** At least consider one other approach, even briefly.
-4. **What could cause this to fail?** Risks, dependencies, unknowns.
-5. **What are we explicitly not doing?** Scope boundaries prevent creep.
-6. **What assumptions are we making?** Which are validated, which are risky?
-7. **What's the minimum viable version?** The smallest useful increment.
-
-**For AI agents:** Treat these as prompts for discovery questions to ask the human before drafting
-requirements. Revisit them iteratively as the conversation develops — especially where ambiguity,
-assumptions, or trade-offs appear. Better discovery produces better specs — resist the pull to
-generate output before understanding the problem.
-
----
-
-## Spec Readiness
-
-Lightweight signals that a draft has matured enough to become a spec. These are indicators, not a
-formal approval gate.
-
-**The draft is likely ready when:**
-
-- The problem and motivation are clear to someone who wasn't involved in exploration
-- At least one alternative approach was considered (even if briefly)
-- Key unknowns are identified (not necessarily resolved — but known)
-- Scope is bounded enough to write requirements against
-- Major dependencies are identified
-
-**The draft is likely not ready when:**
-
-- The problem statement keeps shifting
-- No alternatives were explored (first idea accepted without question)
-- Fundamental unknowns remain that could change the entire approach
-- Scope is unbounded or growing with each discussion
-
-**When ready:** Create the spec using the [create-spec workflow][create-spec] and a spec template (the
-[PRD template][template-prd] is the default form). The draft is disposed at planning-branch
-integration — graduated path `git rm`s it (the spec captures what matters); shelved path moves it back
-to backlog when exploration ended without producing an active WU.
-
----
-
 ## Spec Conventions
 
 Specs (`spec-*.md`) are the structured, semi-permanent requirements documents that bridge exploration
-and execution. They define _what_ and _why_; task lists define _how_. The filename is uniform
-(`spec-*`); the spec's form varies by template choice and is signalled by the H1 — the PRD template
-(`# PRD: ...`) is the default, with lighter variants available for smaller work.
+and execution. They define *what* and *why*; task lists define *how*. The filename is uniform
+(`spec-*`); the spec's **form** varies and is signalled by the H1 — `Spec ({form}): {name}` with the form
+backticked, e.g. Spec (`outline`): Payment Retry. There is no single default form; create-spec resolves
+it from the work's derivation depth (see [Planning Depth](#planning-depth)).
 
-**Template:** See [template-prd.md][template-prd] for the copy-ready default (PRD-shape) form.
+**The four forms** — one template each, separate rather than one template flexing by conditionals:
+
+| Form | Records | Template |
+| --- | --- | --- |
+| `brief` | ~1 paragraph: intent + scope boundary + one falsifiable success signal | `template-spec-brief.md` |
+| `outline` | ~1-2 pages: Problem, Decision(s), No-gos, Consequences, Success Criteria, Open items | `template-spec-outline.md` |
+| `detailed` (PRD) | full product spec: User Stories + prioritized Requirements | `template-spec-detailed-prd.md` |
+| `detailed` (RFC) | full technical spec: Proposed Design + Alternatives + Cross-cutting | `template-spec-detailed-rfc.md` |
+
+The `detailed` form carries its subtype in the H1, middot-joined and backticked, e.g.
+Spec (`detailed` · `RFC`): Payment Retry. The kebab slug stays in the filename and every cross-reference;
+the display name is plain prose, matching the `# Metadata:` / `# Task List:` H1s. For which depth selects
+which form and the form ↔ `Class` constraints, see [Work Organization][work-org] § Planning depth and spec
+forms.
 
 **Key conventions:**
 
-- **One spec per work unit** — a spec maps to a branch and task list
+- **One spec per work unit** — a spec maps to a branch and task list. "I want both a PRD and an RFC" is a
+  decomposition signal, not a two-spec work unit; the [layered exception](#layered-specs) is the one
+  sanctioned multi-spec shape.
 - **Created when work becomes active** — not speculatively during backlog
 - **Living document with controlled change** — updated as understanding evolves during
   implementation, but changes should be intentional (not scope creep)
 - **Problem-first framing** — lead with why, not what. "Why now" matters as much as "what to build"
-- **Requirements are prioritized** — distinguish must-have from nice-to-have when scope is large
-  enough to warrant it (P0/P1/P2 or similar)
+- **Validation hangs on Success Criteria** — concrete and falsifiable, present at every form (even the
+  `brief` floor's single signal); the task list validates against the form's enumerable substrate. See
+  [Work Organization][work-org] § Validation contract.
 
 **Relationship to drafts:** The spec synthesizes and crystallizes what the draft explored. It doesn't
 preserve the exploration — it captures the conclusions. The draft is disposed at planning-branch
 integration via the graduated path (`git rm`) once all the specs it feeds are active. One draft may
 produce multiple specs when the explored scope splits into distinct work units with different
 deliverables, dependencies, or review boundaries.
+
+---
+
+## Layered Specs
+
+The **one-spec-per-work-unit** rule has a single sanctioned exception: a team with a genuine product /
+engineering role split may author a complementary **PRD and RFC** for the same work unit — the product
+requirements and the technical design as two documents with two distinct authors.
+
+This is an opt-in, non-default pattern. A developer-agent pair normally holds both roles in one loop, so a
+single spec keyed to the dominant derivation-kind is the default; reach for layering only when two distinct
+authors genuinely own the two halves.
+
+**Convention when layering:**
+
+- **Two files, slug-paired:** `spec-{name}-prd.md` + `spec-{name}-rfc.md`. The meta `**Design:**` field
+  references both (one bullet, comma-separated, each backticked — the same multi-value shape as
+  `**Depends On:**`).
+- **No overlap:** the PRD owns the shared context spine (Introduction / Goals / Non-Goals); the RFC goes
+  **referential**, dropping that spine and pointing at the PRD. Each keeps its own Success Criteria and Open
+  items — a design's checks and questions differ from the product's.
+- **No machinery:** layering adds no config knob and no workflow fork. It is a naming convention plus the
+  multi-value `Design` affordance — nothing more.
 
 ---
 
@@ -227,15 +284,15 @@ without proportional value.
 that change constantly or miss the actual need. Invest in exploration first.
 
 **Kitchen-sink specs.** Specs that try to be both requirements and implementation detail. Requirements
-define _what_ and _why_; implementation details belong in task planning.
+define *what* and *why*; implementation details belong in task planning.
 
 **Zombie drafts.** Draft documents that persist past planning-branch integration. The graduated path
 disposes them via `git rm` once the spec is the authoritative artifact; leaving them around will only
 cause confusion alongside the spec they fed.
 
 **Skipping discovery.** Jumping from "I have an idea" to "here are the requirements" without asking
-the hard questions about scope, alternatives, and risks. The discovery checklist exists to prevent
-this.
+the hard questions about scope, alternatives, and risks. The draft stage exists to surface them while
+course-correction is still cheap.
 
 ---
 
@@ -243,8 +300,8 @@ this.
 
 - [Planning Module][planning-module] — Backlog structure, triage flow, atomic tasks **(arc-in-git)**
 - [Work Organization][work-org] — Work categories, branching model, directory structure
+- [Draft Design Workflow][draft-design] — Design-shaping stage upstream of the spec
 - [Create Spec Workflow][create-spec] — Step-by-step spec creation process
-- [PRD Template][template-prd] — Copy-ready default (PRD-shape) spec form
 - [Draft Template][template-draft] — Optional draft document structure
 - [ADR Methodology][adr-methodology] — Comparable lifecycle for architectural decisions
 - [Process Task Loop][process-loop] — Task execution workflow (downstream of the spec)
@@ -254,8 +311,10 @@ this.
 [planning-module]: strategy-planning-module.md
 [work-org]: strategy-work-organization.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
+[draft-design]: ../../../system/workflows/arc/draft-design.md
 [create-spec]: ../../../system/workflows/arc/1_create-spec.md
-[template-prd]: ../../templates/arc/work-unit/spec/template-prd.md
+[resolve-planning-depth]: ../../../system/methods/resolve-planning-depth.md
+[classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [template-draft]: ../../templates/arc/work-unit/template-draft.md
 [adr-methodology]: strategy-adr-methodology.md
 [process-loop]: ../../../system/workflows/arc/3_process-task-loop.md

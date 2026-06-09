@@ -113,8 +113,8 @@ Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep dra
 `backlog/ATOMIC-INBOX.md` if homeless; § Backlog items route to an existing stub, or graduate to a
 *provisional* stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
 Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
-ready) `prd-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the plan → PRD pipeline
-and discovery checklist.
+ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
+pipeline.
 
 For the full intent × mode routing table (including `pm.mode: external` and `pm.mode: none`),
 see [DEV-RULES.ARC][dev-rules] § Discovered Work Routing.
@@ -254,7 +254,7 @@ events to external trackers.
 
 ## Related Documentation
 
-- [Work Planning][work-planning] — Planning pipeline, plan/PRD conventions, discovery checklist
+- [Work Planning][work-planning] — Planning pipeline, spec forms, depth model
 - [Work Organization][work-org] — Branching, archival, ROADMAP render algorithm, state semantics
 - [DEV-RULES.ARC][dev-rules] § Discovered Work Routing — Full intent × mode capture routing table
 - [Process Task Loop][process-loop] § Atomic Task Completion — atomic task execution and routing
