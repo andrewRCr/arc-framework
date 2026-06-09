@@ -264,6 +264,17 @@ describe("resolveFileList — actual recipe", () => {
     });
     expect(files).toContain(TEAM_COORD);
   });
+
+  it("ships the scalable authoring method and workflow files", () => {
+    const files = resolveFileList(actualRecipe, {
+      "pm.mode": "none", "tools": "", "team.mode": "false",
+    });
+    expect(files).toContain("system/methods/classify-work-unit.md");
+    expect(files).toContain("system/methods/resolve-planning-depth.md");
+    expect(files).toContain("system/methods/spec-review.md");
+    expect(files).toContain("system/extensions/pre-spec-finalization-review.md");
+    expect(files).toContain("system/workflows/arc/draft-design.md");
+  });
 });
 
 // --- toOutputPath ---
@@ -302,8 +313,12 @@ describe("classifyFile", () => {
 
   it("classifies Configurable files", () => {
     expect(classifyFile("system/arc-config.yml")).toBe("Configurable");
+    expect(classifyFile("system/methods/classify-work-unit.md")).toBe("Configurable");
     expect(classifyFile("system/methods/commit-format.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/resolve-planning-depth.md")).toBe("Configurable");
+    expect(classifyFile("system/methods/spec-review.md")).toBe("Configurable");
     expect(classifyFile("system/extensions/post-task-quality.md")).toBe("Configurable");
+    expect(classifyFile("system/extensions/pre-spec-finalization-review.md")).toBe("Configurable");
     expect(classifyFile("system/rules/DEV-RULES.PROJECT.md")).toBe("Configurable");
     expect(classifyFile("reference/briefs/AGENT-BRIEF.PROJECT.template.md")).toBe("Configurable");
     expect(classifyFile("reference/QUICK-REFERENCE.template.md")).toBe("Configurable");
