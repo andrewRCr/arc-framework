@@ -15,9 +15,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume pre-spec design drafting on `draft-decomposition-machinery.md` via `arc-plan`, then
-  author a `detailed` spec (`heavy`) via `1_create-spec`. Runs in parallel with `scalable-authoring-pipeline` on
-  top of `class-model-foundation`. Owns the **graduation workflow** that codifies this cohort's own
-  (manually-run) graduation; verify the spec re-derives the worked example.
+- **Next Action:** Continue pre-spec drafting on `draft-decomposition-machinery.md` via `arc-plan` — drain the
+  three buffered concerns (cohort-* relocatability; cohort-field↔dir guard; layout-drift hook), then author a
+  `detailed` spec (`heavy`) via `1_create-spec`. Runs in parallel with `scalable-authoring-pipeline` on top of
+  `class-model-foundation`. Owns the **`decompose-work-unit` workflow** that codifies this cohort's own
+  (manually-run) decomposition; verify the spec re-derives the worked example.
 
 ---

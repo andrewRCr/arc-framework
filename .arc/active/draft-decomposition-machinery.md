@@ -4,14 +4,14 @@
 - **Cohort:** principle-anchored-core/agile-wu-lifecycle
 
 - **Purpose:** Deliver the machinery for a concern that outgrows one WU: the planning-time **decomposition
-  method** (when and how to cut a concern into a cohort of self-contained WUs) and the lifecycle **graduation
-  workflow** (how to execute a confirmed cut on a live WU). Plus the structures they need — the bounded
-  nested-cohort grouping taxonomy, the path-valued `Cohort` field's *semantics*, the constitutive
-  `cohort-{name}.md` managed record + `template-cohort.md`, and the **cohort-consistency invariant + its
-  enforcement**. The decomposition method is the *decide* half (a planning method, like test-first); the
-  graduation workflow is the *execute* half (a lifecycle workflow, like init / integrate). This WU is its own
-  acceptance test's second customer and the first graduation customer — this cohort was itself created by
-  running the (manual) graduation this WU codifies.
+  method** (when and how to cut a concern into a cohort of self-contained WUs) and the lifecycle
+  **`decompose-work-unit` workflow** (how to execute a confirmed cut on a live WU). Plus the structures they
+  need — the bounded nested-cohort grouping taxonomy, the path-valued `Cohort` field's *semantics*, the
+  constitutive `cohort-{name}.md` managed record + `template-cohort.md`, and the **cohort-consistency invariant +
+  its enforcement**. The decomposition method is the *decide* half (a planning method, like test-first); the
+  `decompose-work-unit` workflow is the *execute* half (a lifecycle workflow, like init / integrate). This WU is
+  its own acceptance test's second customer and the first `decompose-work-unit` customer — this cohort was itself
+  created by running the (manual) decomposition this WU codifies.
 
 ---
 
@@ -31,29 +31,15 @@
 - *Context:* no live breakage was found in existing cohort docs; this is the semantics / enforcement integration
   point for the cohort record this WU formalizes.
 
-### `[ ]` **Rename the `WU → cohort` workflow off "graduation" (reserve the term for the readiness ladder)**
-
-- *Routed from:* `class-model-foundation` task-generation planning (2026-06-04). That WU adds a
-  `graduate-work-unit` workflow for the `provisional → planned` readiness rung and reserves "graduation" for the
-  readiness ladder (`provisional → planned → active`).
-- *Concern:* this WU's draft calls its `WU → cohort` split a "graduation" (by analogy to `init-work-unit`'s
-  `planned → active` graduation). The analogy over-stretches — decomposing a WU *yields* a cohort; it is a split,
-  not a readiness promotion. With `graduate-work-unit` claiming the term, the overload becomes a genuine
-  collision.
-- *Proposed:* rename the `WU → cohort` workflow (and its prose) to a decomposition-flavored verb
-  (`decompose-work-unit` / a "fan-out"); keep "graduate / graduation" for the readiness ladder only.
-- *Coordinates with:* `class-model-foundation` R20 (the `graduate-work-unit` workflow) + the cohort doc's
-  terminology note.
-
 ### `[ ]` **Cohort-field↔dir consistency guard (the cohort half of a bundled hook capture)**
 
 - *Routed from:* `USER-INBOX § Backlog` (originally `WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort
-  housekeep drain (2026-06-04). The capture bundled two structural guards under one hook file; graduation split
+  housekeep drain (2026-06-04). The capture bundled two structural guards under one hook file; decomposition split
   ownership, so the cohort↔dir half re-homes here (this WU owns the cohort-consistency invariant **and** its
-  enforcement — the forbidden-pattern / layout-drift hook family). Captured 2026-06-03, pre-graduation.
+  enforcement — the forbidden-pattern / layout-drift hook family). Captured 2026-06-03, pre-decomposition.
 - *Concern:* a WU's `**Cohort:**` field-path must match its `backlog/planned/<cohort>[/<subcohort>]/` parent
   dir-path; cohort-doc member-lists must match actual members; every grouping dir should carry a
-  `cohort-{name}.md` (raised while reversing this cohort's own field↔dir drift during graduation).
+  `cohort-{name}.md` (raised while reversing this cohort's own field↔dir drift during decomposition).
 - *Proposed:* a backlog-scoped cohort-field↔dir guard (skip `active/` flat + `completed/` ordinal) wired into the
   layout-drift hook family this WU owns. Co-located with the invariant so it is never defined-but-unenforced.
 - *Coordinates with:* the relocatability source-side ref-enforcement entry in `quality-gate-hooks` (the other
@@ -72,26 +58,6 @@
 - *Proposed:* a validation hook (cf. the package-sync drift hooks) asserting documented-layout == reader/scaffold
   behavior — a natural member of this WU's layout-drift hook family. Decide whether it co-homes with the
   cohort-field↔dir guard above or is a distinct check.
-
-### `[ ]` **At-cap decomposition: a WU already at the nesting cap has no sub-cohort to graduate into**
-
-- *Routed from:* `scalable-authoring-pipeline` planning (2026-06-06), surfaced while checking whether SAP itself
-  warranted decomposition.
-- *Concern:* graduation assumes room to nest — *"a WU already in a cohort graduates to a sub-cohort under its
-  existing parent."* But when the parent is *already* a sub-cohort (a two-segment `Cohort` path, at the nesting
-  cap), graduating would mint a forbidden third grouping segment. The draft never carves out this precondition,
-  and it bites this very cohort: every `agile-wu-lifecycle` member (`principle-anchored-core/agile-wu-lifecycle/*`)
-  sits at the cap, so if any needed to decompose, the graduation model has no legal target.
-- *The structural escape is lateral, not nested:* an at-cap WU must decompose into **sibling WUs under its existing
-  parent** (peers of its current siblings), not a nested cohort. That forfeits graduation's name-preservation
-  guarantee — at the cap you cannot mint the cohort that *carries the old name*, so the "name loss breaks
-  references" reassurance (a WU→cohort rename) does not hold; narrative refs must re-point to the specific members,
-  and the "these came from one concern" grouping survives only as a naming convention (`<name>-pt1` / `-pt2` or a
-  shared prefix).
-- *Decide:* accept lateral-decomposition-with-tradeoffs as a third graduation arm (alongside standalone→top-level
-  and in-cohort→sub-cohort); or raise the cap; or treat hitting-the-cap-needing-decomposition as the signal the
-  parent cohort was mis-scoped and route to a parent restructure. Couples with the nesting-cap rationale
-  (§ The bounded grouping taxonomy) and the name-preservation argument (§ A decomposing WU graduates to a cohort).
 
 ---
 
@@ -164,9 +130,11 @@ When the cut produces members, **their slugs must read legibly out of context.**
 (`**Depends On:**`) carry bare WU-names with no cohort path, so a downstream WU reads `Depends On: <slug>` cold:
 a slug like `model-foundation` or `cohort-machinery` is opaque, while `class-model-foundation` or
 `decomposition-machinery` self-describes. The naming step is part of the cut, not an afterthought — surfaced
-during this cohort's own graduation, where the provisional `model-foundation` / `cohort-machinery` slugs were
+during this cohort's own decomposition, where the provisional `model-foundation` / `cohort-machinery` slugs were
 sharpened to their self-describing forms before CWC's `Depends On` re-point wired them (a rename after wiring is
-rework). Fold into the sizing protocol: name members for standalone legibility.
+rework). Fold into the sizing protocol: name members for standalone legibility. **Never encode order in the
+slug** — no `-pt1` / `-pt2` ordinals (they fabricate sequencing and aren't self-describing); inter-member order,
+when it exists, lives in `Depends On`.
 
 ## Two guard rails
 
@@ -218,24 +186,59 @@ differs from a top-level one *only* by path depth (capped at two segments) and b
 relocatability invariant (pure `git mv`) is unaffected (just more dir levels); the cohort-consistency invariant
 generalizes from "field matches parent dir" to "field-path matches dir-path."
 
-## A decomposing WU graduates to a cohort
+## A decomposing WU becomes a cohort — three arms by parent position
 
-When a WU decomposes it **graduates into a cohort** carrying the original name, members nested beneath it,
-`cohort-{name}.md` repurposed from the origin draft's coordination content. A *standalone* WU that decomposes
-*becomes* a top-level cohort; a WU *already* in a cohort graduates to a **sub-cohort** under its existing
-parent. It **preserves the name** — and so the browsing / narrative / mental-model references — at the right
-altitude.
+When a WU decomposes it **becomes a cohort**, `cohort-{name}.md` repurposed from the origin draft's coordination
+content. Which arm runs is selected by the parent's position relative to the nesting cap:
 
-The "name loss breaks references" worry dissolves:
+1. **Standalone WU → top-level cohort.** A WU in no cohort becomes a new top-level cohort carrying its name,
+   members nested beneath. **Name preserved.**
+2. **In-cohort WU (single-segment parent) → sub-cohort.** A WU already in a cohort becomes a **sub-cohort** under
+   its existing parent, members nested one level deeper. **Name preserved.**
+3. **At-cap WU (two-segment parent) → lateral fan-out.** A WU *already at the nesting cap* has no legal nested
+   target — minting a cohort beneath it would be a forbidden third grouping segment. It decomposes **laterally**
+   into sibling WUs under its *existing* parent (peers of its current siblings). **The name is not preserved as a
+   grouping node** (no new cohort doc, no path segment); grouping identity moves off the slug and onto an
+   explicit provenance record (below).
+
+Arms 1–2 preserve the name — and so the browsing / narrative / mental-model references — at the right altitude.
+Across all three arms the "name loss breaks references" worry dissolves:
 
 - **Dependency edges (`Depends On`) are always WU→WU**, never group-level. A downstream WU re-points to the
   specific pieces that deliver what it needs, regardless of the name. Dependencies bind deliverables, not
-  groups.
+  groups — so they survive every arm unchanged.
 - **Narrative / browsing references** (WORKING-MEMORY, sibling drafts, the cohort docs) are what the preserved
-  cohort name saves — a WU→cohort *rename*, not a deletion, swept at graduation.
+  cohort name saves in arms 1–2 — a WU→cohort *rename*, not a deletion, swept at decomposition. In arm 3, the
+  cap denies a name-carrying node, so the same "these came from one concern" fact is carried by the provenance
+  record instead.
 
 `ROADMAP` / `STATUS.USER` render from metas, so regen handles the WU→cohort shift automatically — no manual
 roster anywhere.
+
+### The at-cap arm: grouping as provenance, not live grouping
+
+Because no cohort node is minted at the cap, the "these came from one concern" fact is preserved as **provenance
+(an immutable past-event record), not live grouping (maintained membership).** That distinction is the whole
+design — a maintained roster / identifier / per-section tag would re-mint the very grouping node the cap denied,
+introduce a second source of truth against the membership-is-derived rule, and sit invisible to the
+cohort-consistency invariant (which keys on the `Cohort` path, identical across these siblings). So:
+
+- **The original concern name is the stable common identifier** — recorded once, write-once at fan-out, as an
+  explicit **cohort-level provenance note in the parent cohort doc**, in a recognizable greppable phrasing:
+  *"Fanned out from `<origin>`: `<m1>`, `<m2>`, `<m3>` (at-cap lateral decomposition)."* It never drifts (it
+  records a past event), needs no guard, and is stronger than any slug convention — the compensating record for
+  the cohort node the cap denied.
+- **Slugs stay content-legible** (the member-slug heuristic), **never ordinal**. A shared *meaningful* root is
+  welcome where it falls out naturally, but never forced and never abbreviated — the slug's primary job stays
+  out-of-context legibility for `Depends On`, not grouping.
+- **Inter-member order, if any, lives in `Depends On`** — parallel-able siblings carry no inter-edges and imply
+  no sequence, preserving parallel delivery as a real option rather than baking artificial order into a name.
+- **Coordination for the new siblings rides the parent cohort doc** — they are members of it now, so they take
+  per-member sections there. The cap means "no new grouping node; reuse the parent's."
+- **Mis-scope reality-check (judgment prompt, not a gate):** before committing to a lateral fan-out, ask whether
+  hitting the cap is itself a signal the *parent cohort* was mis-scoped (→ a parent restructure) rather than a
+  clean lateral split. A prompt only — a legitimately-scoped member can simply outgrow itself; the cap is not
+  raised to rescue it (that would erode the anti-sprawl bound's firmness).
 
 ## The cohort doc — every grouping's identity record (ADR-022 family)
 
@@ -265,28 +268,69 @@ shared material (thesis, closeout criteria, a convention all members honor); **p
 surface, framed as **exposes / consumes**. The per-member partition is a deliberate **forcing function**: if a
 member's section fills with design that drives its own tasks, that visible smell *is* the signal the content
 belongs in its spec. Exact field / section set is a prototype-iterate artifact (the cohort docs minted at this
-cohort's graduation are the first prototype `template-cohort.md` generalizes).
+cohort's decomposition are the first prototype `template-cohort.md` generalizes).
 
-## Decomposition (decide) vs. graduation (execute) — a method and a lifecycle workflow
+**No coordinator / DRI.** A cohort needs none: membership is derived, coordination is partitioned per-member
+(each edits only its own section), and cohort-level material is by definition ownerless — *the partition is the
+coordination mechanism, in place of an owner.* `Owner` stays WU-level; any future team-scale arbitration need
+routes to the team-coordination strategy / Concurrent Work Conventions (runtime concurrency), not a role minted
+here.
 
-Semantically distinct, split across the method/workflow line ARC already uses:
+## Decomposition (decide) vs. `decompose-work-unit` (execute) — a method and a lifecycle workflow
 
-- **Decomposition is a planning-time *method*** — the discriminator + rails + timing that *decide* the cut
-  (pieces + dependency edges + the cut map). It runs inside planning; it produces a decision, not a structural
-  change.
-- **Graduation is a lifecycle *workflow*** — it *executes* a confirmed cut by transforming a live WU into a
-  cohort. A genuine lifecycle transition (a WU changing *what it is*), earning its own workflow + PR story.
-  "Graduate" is ARC's established word for a lifecycle promotion (`init-work-unit` graduates a backlog stub →
-  active); a WU graduating to a cohort extends that sense.
+Semantically distinct, split across the method / workflow line ARC already uses.
 
-The relationship is **not 1:1**, gated on whether a monolith ever existed. **Predicted decomposition** (you see
-the cohort coming *during* planning) authors directly into the cohort structure; no monolith is created, so
-graduation does not apply. **Emergent decomposition** (a holistic draft matures and *then* reveals itself as a
-cohort) has a monolith to *split* — this is the arm graduation + the distribution discipline serve.
+**Decomposition is a planning-time *method*** — the discriminator + rails + maturity-timing that *decide* the
+cut. It is `assess-decomposition`, a **paired sibling of `classify-work-unit`, co-located with it**: the
+upper-bound WU-vs-cohort test is the mirror of `classify-work-unit`'s lower-bound Errand-vs-WU test (its
+boundary test #1), so it belongs to the same classification family and fires at the same touchpoints. It
+produces a **cut-map** (members + dependency edges + deliverable boundaries + slugs) or "stays one WU" — a
+decision, not a structural change. (The exact method-file name mirrors `classify-work-unit`'s convention and
+finalizes at create-spec.)
 
-## Graduation delivery lifecycle — a park-shaped exit
+- **Fire-points: the two derivation stages — `draft-design` and `create-spec`.** Decomposition is a
+  design-orthogonality judgment gated on design maturity, so it fires where design is the live artifact:
+  draft-design (the *predicted* arm) and create-spec (the *emergent* arm).
+- **Not depth-gated.** Like `classify-work-unit`, it is a cheap confirm at every design-stage read — trivially
+  cleared when the design is a single determinate / bounded concern, expensive only when it fires affirmative.
+  And decompose-candidacy keys on orthogonality / breadth, a *different axis* than the derivation-depth the
+  stages resolve: a low-derivation design can still be a wide orthogonal cohort, so gating behind `high` depth
+  would miss exactly those.
+- **`generate-tasks` coverage is free.** A "this should be multiple WUs" discovery during task generation is a
+  *derivation-class* signal, which `resolve-planning-depth`'s re-entry valve already routes **upstream** to the
+  design stages (a masked design decision belongs in the design, not a deeper task pass). So a late orthogonality
+  discovery bounces up to where `assess-decomposition` lives — the costly escape-hatch the timing rule warns
+  against, not a new fire-point.
 
-Graduation reuses the **park** path's mechanics (`active/ → backlog/`, PR to `main`, branch + worktree
+**`decompose-work-unit` is a lifecycle *workflow*** — it *executes* a confirmed cut-map by transforming a live
+WU into a cohort. A genuine lifecycle transition (a WU changing *what it is*), earning its own workflow + PR
+story. (Renamed off "graduation": that term is reserved for the readiness ladder — `provisional → planned →
+active` — owned by `class-model-foundation`'s `graduate-work-unit`; reusing it for the WU→cohort split would
+collide with shipped vocabulary.)
+
+**The cut-map is the DRY interface:** the method *produces* it, the workflow *consumes* it. No decision logic in
+the workflow (it never re-derives the cut), no structural change in the method.
+
+The relationship is **not 1:1**, gated on whether a monolith ever existed:
+
+- **Predicted decomposition** — `assess-decomposition` fires affirmative *during* draft-design, while the design
+  is still forming. You author directly into the cohort structure; no monolith is created, so
+  `decompose-work-unit` does not run.
+- **Emergent decomposition** — a holistic draft matures and *then* reveals itself as a cohort (the affirmative
+  fires at create-spec). A monolith exists to *split* — this is the arm `decompose-work-unit` + the distribution
+  discipline serve.
+
+**Forward-compat with `composable-workflows`** (a sibling cohort — a constraint, not a dependency): declare
+`assess-decomposition` via the existing `arc.methods` frontmatter bundle (alongside `resolve-planning-depth` /
+`classify-work-unit`); author `decompose-work-unit`'s shared steps as named, extractable blocks (the "lane" unit
+composition trades in) so resolve-then-load can later hoist them without a rewrite; reference cross-workflow
+steps by stable **heading slug** — never ordinals (the brittleness `composable-workflows` fixes) or the
+extension-reserved `#name` marker. The durable cross-file step-reference / anchor convention is
+`composable-workflows`' to provide.
+
+## `decompose-work-unit` delivery lifecycle — a park-shaped exit
+
+`decompose-work-unit` reuses the **park** path's mechanics (`active/ → backlog/`, PR to `main`, branch + worktree
 teardown) with cohort-specific choreography. It is **not** an `integrate-work-unit` (no code deliverable, no
 `completed/` archive):
 
@@ -296,15 +340,23 @@ teardown) with cohort-specific choreography. It is **not** an `integrate-work-un
   `backlog/planned/<cohort>[/<subcohort>]/` (`meta-* + draft-*` each, fields set — see field inheritance below)
   → distribute the origin draft's design into each member draft per the **distribution discipline** (below) →
   re-point *incoming* `Depends On` (**sweep every meta whose `Depends On` names the origin**, not only the
-  dependents the cut map happened to name — this cohort's own graduation found three incoming edges where the
+  dependents the cut map happened to name — this cohort's own decomposition found three incoming edges where the
   cut map listed one) → **verify** (checklist below) → **retire the origin `meta-* + draft-*`** (deleted; fully
   redistributed) → regen `ROADMAP` → park-shaped PR to `main` → branch / worktree teardown (branches on
-  worktree kind).
+  worktree kind). *(At-cap arm: no cohort is minted — instead, scaffold the members under the existing parent
+  and write the fan-out provenance note into the parent cohort doc; every other step is unchanged.)*
 - **Field inheritance on minted stubs.** Each member inherits the originating WU's `**Origin:**` (members of a
   decomposed concern share its provenance — `[internal]`, or an external tracker if the origin had one; you
   know it at decomposition time) and carries its own `**Design:** draft-<member>.md`. `**Cohort:**` is path-set
   to the (sub)cohort — in the meta *and* mirrored into the member's draft header per the header convention (see
-  `class-model-foundation`); `**Depends On:**` encodes the cut's order; `**Class:**` is the member's own.
+  `class-model-foundation`); `**Class:**` is the member's own. `**Depends On:**` **distributes by *actual need*,
+  never blanket-inherited:**
+    - *outgoing* ancestor edges (`origin → X`): a member inherits `Depends On: X` **only if that member genuinely
+      depends on X** — blanket-inheriting the origin's deps onto every member manufactures artificial
+      serialization (a member that never touches X gets falsely gated behind it);
+    - *internal* edges (`m_i → m_j`): authored fresh from the cut's delivery order;
+    - *incoming* edges (`Y → origin`): re-pointed to the specific member(s) that deliver what `Y` needs (the
+      sweep above).
 - **No new State value:** the origin meta is deleted — the WU *ceases to be a WU* because it became a cohort.
   **No `completed/` entry** for the origin (its outputs are *future* work in `backlog/`); the **cohort** carries
   the eventual `completed/` archive when its last member ships.
@@ -312,13 +364,14 @@ teardown) with cohort-specific choreography. It is **not** an `integrate-work-un
   (`init-work-unit` Path A), in dependency order. The cut is **firm**; each member carries only the normal
   spec-time openness any backlog stub has.
 - **Distribution discipline (emergent arm — splitting a monolith):** the origin draft's design is *split*, not
-  copied, under a four-step gate. **(1) Allocation map** — every section / design-point → its destination
-  (member-X draft, cohort-doc cohort-level, cohort-doc per-member, or *dropped — superseded, with reason*).
-  **(2) Classify** by the design-vs-coordination boundary: design-drives-task-list → a member draft;
-  coordination → shared / per-member; an owned contract → owner's draft + a reference in the doc. **(3)
-  Conservation gate** — assert every origin section lands in exactly one destination or is explicitly
-  dropped-with-reason (**no silent loss**); this gates retirement. **(4) Retire** the origin only after the gate
-  passes. The allocation map is **not throwaway** — it becomes the **graduation PR description** (the
+  copied, under a four-step gate. **(1) Allocation map** — every section / design-point **and every dependency
+  edge** → its destination (member-X draft, cohort-doc cohort-level, cohort-doc per-member, or *dropped —
+  superseded, with reason*). **(2) Classify** by the design-vs-coordination boundary: design-drives-task-list →
+  a member draft; coordination → shared / per-member; an owned contract → owner's draft + a reference in the
+  doc. **(3) Conservation gate** — assert every origin section **and outgoing dependency edge** lands in exactly
+  one destination (a member that needs it) or is explicitly *dropped-with-reason* (superseded, or satisfied
+  internally by the cut) — **no silent loss**; this gates retirement. **(4) Retire** the origin only after the
+  gate passes. The allocation map is **not throwaway** — it becomes the **decomposition PR description** (the
   reader-facing "decompose X → cohort + members; here's where everything went" story + audit trail).
 - **Verification (manual at the bootstrapping run; automated once this WU ships):** before the PR, assert the
   three cohort-consistency conditions on the minted structure — every `Cohort` field path-matches its dir; every
@@ -326,15 +379,20 @@ teardown) with cohort-specific choreography. It is **not** an `integrate-work-un
 - **Teardown branches on `worktree.identity.kind`:** **primary** → switch the worktree back to `branch.base` +
   delete the local / remote `plan/<name>` branch; *no* worktree removal. **linked** → delete the branch +
   `git worktree remove <path>`.
-- **Relationship to `integrate-work-unit`:** graduation is a *separate* workflow (keeps integrate
-  code-shipping-focused) that **shares the PR-merge-branch-cleanup primitive** (DRY), plus a lightweight
-  graduation-PR description variant. The first worked example is this cohort's own graduation PR (#55) — it
+- **Relationship to `integrate-work-unit` and the predicted arm — two factored primitives (DRY).**
+  `decompose-work-unit` is a *separate* workflow (keeps integrate code-shipping-focused) that shares two
+  factored primitives: the **PR-merge-branch-cleanup primitive** with `integrate`, and the **cohort-scaffold
+  primitive** (mint cohort + scaffold member stubs + wire deps + verify consistency) with the *predicted*
+  decomposition arm — which draws on that primitive without the monolith-splitting distribution step. Layered:
+  `decompose-work-unit` = [distribution-discipline + retire-origin] ∘ cohort-scaffold ∘ PR-cleanup; the
+  predicted arm = cohort-scaffold (authored incrementally as the design forms). Plus a lightweight
+  decomposition-PR description variant. The first worked example is this cohort's own decomposition PR (#55) — it
   leads with the operation ("split X into N deliverable units"), names each unit + where the content went, and
-  follows the commit/PR surface-language register (see `doc-cascade-sweep`): plain prose legible without
+  follows the commit / PR surface-language register (see `doc-cascade-sweep`): plain prose legible without
   ARC-specific knowledge, artifact references kept.
-- **Bootstrapping:** the graduation workflow is itself this WU's deliverable, so this cohort's own graduation
-  ran the **manual** park-shaped path above; this WU codifies it after, using that run as the worked example
-  (`doc-cascade-sweep` carries the codification-against-the-actual-run reconciliation).
+- **Bootstrapping:** the `decompose-work-unit` workflow is itself this WU's deliverable, so this cohort's own
+  decomposition ran the **manual** park-shaped path above; this WU codifies it after, using that run as the
+  worked example (`doc-cascade-sweep` carries the codification-against-the-actual-run reconciliation).
 
 ## Concurrency — the cohort doc is the one shared-mutable planning artifact (CWC seam)
 
@@ -390,37 +448,42 @@ This WU owns the *invariant* (cohort semantics is its charter) **and** its *enfo
 structural guard (`active/` is flat and `completed/` ordinal, so neither applies); the validator + its
 pre-commit wiring (the forbidden-pattern / layout-drift hook family). Co-locating definition and enforcement
 ensures the invariant is never defined-but-unenforced. The check also serves as the cohort doc's schema
-validator (Purpose present; per-member section slugs ⊆ derived members). The graduation procedure carries a
-**manual** version of these three checks for the bootstrapping run that precedes this WU.
+validator (Purpose present; per-member section slugs ⊆ derived members). The `decompose-work-unit` procedure
+carries a **manual** version of these three checks for the bootstrapping run that precedes this WU.
 
 ## Open / deferred
 
-- **Decomposition pipeline fire-point** — a new decomposition workflow vs. a phase inside `create-spec`. Couples
-  with the graduation workflow (decide-the-cut vs. execute-the-cut).
-- **Coordinator / DRI for a cohort doc** — lean no (over-structure; `Owner` stays WU-level).
-- **`template-cohort.md` body** — the exact coordination field set + per-member section shape are
-  prototype-iterate (like the spec templates); generalize from the prototype docs minted at this cohort's
-  graduation.
-- **Reconciliation debt.** `strategy-work-organization` § Task Lists and Branches (stacked-PRs / phased /
-  team-sub-branch — pre-ADR-019 leftovers that contradict one-branch-per-WU) needs rewriting to the B-only
-  model. (Compounds with the broader tier reconciliation — coordinate with `doc-cascade-sweep`.)
+- **`template-cohort.md` body — deferred by method, not unsettled.** The exact coordination field set + per-member
+  section shape are *generalized from the prototype* cohort docs minted at this cohort's own decomposition
+  (`cohort-agile-wu-lifecycle.md` is the live first prototype), not designed top-down — the rare legitimate
+  deferral (cf. the spec templates). Authored at execution from the prototype, with the field set explicitly
+  marked prototype-iterate; not design debt.
+- **Reconciliation debt — routed to `doc-cascade-sweep`.** `strategy-work-organization` § Task Lists and Branches
+  (stacked-PRs / phased / team-sub-branch — pre-ADR-019 leftovers contradicting one-branch-per-WU) needs
+  rewriting to the B-only model; this is `doc-cascade-sweep`'s terminal retirement sweep across strategies (it
+  consumes all three siblings). **Spec-time flag:** if *this* WU's own `strategy-work-organization` edits (the
+  sizing-norm co-home) would leave that file self-contradicting, neutralize § Task Lists and Branches locally in
+  this WU's PR; the broader cross-surface tier reconciliation stays `doc-cascade-sweep`'s.
 
 ## Scope
 
 **In scope:**
 
-1. The decomposition **method** (planning-time *decide*) — the orthogonality discriminator, two guard rails,
-   design-maturity timing, plan-vs-delivery-grouping, Model-B-only, the member-slug naming heuristic; sizing
-   heuristics consuming the `strategy-work-organization` sizing standard. Acceptance test: re-derive CWC's
-   D1–D4.
+1. The decomposition **method** (planning-time *decide*) — `assess-decomposition` (paired sibling of
+   `classify-work-unit`): the orthogonality discriminator, two guard rails, design-maturity timing,
+   plan-vs-delivery-grouping, Model-B-only, the member-slug naming heuristic, and the cut-map + fire-point model
+   (draft-design / create-spec; not depth-gated); sizing heuristics consuming the `strategy-work-organization`
+   sizing standard. Acceptance test: re-derive CWC's D1–D4.
 2. The grouping **taxonomy** — the bounded nested-cohort model (one kind, ≤2 deep, coordination by degree); the
-   path-valued `Cohort` field *semantics*; the dir-path mirroring rule.
+   path-valued `Cohort` field *semantics*; the dir-path mirroring rule; the three decomposition arms
+   (standalone → top-level, in-cohort → sub-cohort, at-cap → lateral fan-out with provenance).
 3. The `cohort-{name}.md` managed record (ADR-022 family; Purpose floor / optional coordination /
-   per-member-by-slug; membership-derived) + `template-cohort.md`.
-4. The **graduation workflow** (lifecycle *execute*) — park-shaped exit; transforms a live WU → cohort; field
-   inheritance on minted stubs; the four-step distribution discipline; shares `integrate`'s
-   PR-merge-cleanup primitive + a graduation-PR variant. Plus the codification of this cohort's own manual
-   graduation run (reconciliation with `doc-cascade-sweep`).
+   per-member-by-slug; membership-derived; no DRI) + `template-cohort.md`.
+4. The **`decompose-work-unit` workflow** (lifecycle *execute*) — park-shaped exit; transforms a live WU →
+   cohort; field inheritance on minted stubs; dependency-edge-by-need distribution; the four-step distribution
+   discipline; shares the cohort-scaffold primitive with the predicted arm and `integrate`'s PR-merge-cleanup
+   primitive + a decomposition-PR variant. Plus the codification of this cohort's own manual decomposition run
+   (reconciliation with `doc-cascade-sweep`).
 5. The **cohort-consistency invariant + its enforcement** (validator + pre-commit wiring, co-located with the
    invariant).
 
@@ -442,8 +505,20 @@ validator (Purpose present; per-member section slugs ⊆ derived members). The g
 ## Scope estimate
 
 **Large.** A planning method + a lifecycle workflow + the grouping taxonomy + a new managed-record type and
-template + an invariant with its own enforcement hook. Grew with the cohort-graduation fold-in; a possible
+template + an invariant with its own enforcement hook. Grew with the cohort-decomposition fold-in; a possible
 decompose-at-spec itself, but it is one coherent design — lean one WU with phases. *Depends on:
 `class-model-foundation`.* Runs in parallel with `scalable-authoring-pipeline`.
+
+## Planning status
+
+- **Readiness:** maturing → near formalization-ready. The core model is settled — Model-B-only; the bounded
+  grouping taxonomy; the three decomposition arms (incl. at-cap lateral fan-out + provenance); the cohort record
+  and its design-vs-coordination forcing function (no DRI); the decompose method / `decompose-work-unit` workflow
+  split with fire-points, the cut-map interface, and the primitive factoring; dependency-edge-by-need
+  distribution; the cohort-consistency invariant + enforcement.
+- **Remaining before create-spec:** drain the three buffered concerns (cohort-* relocatability; cohort-field↔dir
+  guard; layout-drift hook), then close the two opens above (template-cohort body is deferred-by-method;
+  reconciliation routed to `doc-cascade-sweep`).
+- **Next:** integrate the inbound-buffer trio, then run `create-spec` (`detailed` / heavy).
 
 ---
