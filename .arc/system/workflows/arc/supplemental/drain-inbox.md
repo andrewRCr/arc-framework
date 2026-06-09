@@ -45,7 +45,9 @@ arc housekeep check --json
 The check resolves the current worktree path, the current branch, and the configured base branch
 (`branch.base`) — the same context `arc errand check` resolves — and classifies the invocation:
 
-- **Base-branch write context** → proceed to the drain steps.
+- **Base-branch write context** → proceed to the drain steps. Under full protection, § 5 relocates onto a
+  short-lived grooming branch cut from here before any shared-path write — the base context is the fork
+  point, not the write target.
 - **Work-unit branch** → **refuse and offer to relocate**: hop to a base-branch write context, run the sweep
   there, and return. The relocation mechanics follow protection mode — see
   [strategy-work-organization § Cheap-branch path][cheap-branch] and [§ Branch Protection Modes][branch-modes].
@@ -145,10 +147,15 @@ removal rides the same write.
 **Write mechanics (protection-mode block).** This is the only mode-dependent step; it defers to
 [§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
 
-- **Fully protected** — the planning-routing writes (existing-stub edits, new provisional stubs, the
-  homeless-atomic flush) are **one coherent concern** and batch into a **single auto-merge PR** per lane off a
-  short-lived grooming branch (chunked per § 4 if large). A write touching a **foreign owner's** artifact is
-  reviewed-lane and ships on its own.
+- **Fully protected** — **relocate first, then write.** Before any routing write, cut the short-lived
+  grooming branch `chore/<slug>` off the configured base branch, using the same write-context primitive
+  run-errand's Launch relocation uses — `arc housekeep check --json` resolves `baseBranch` +
+  `primaryWorktreePath` (see [run-errand][run-errand] § Launch step 3). The base context the precondition
+  established is the fork point, not the write target: full protection forbids committing the shared paths to
+  the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
+  homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
+  off that branch (chunked per § 4 if large). A write touching a **foreign owner's** artifact is reviewed-lane
+  and ships on its own.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
   keep coherent commit boundaries (the § 4 chunk shape). No lanes, no review-chunking.
 
