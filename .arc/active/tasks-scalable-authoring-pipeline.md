@@ -854,7 +854,7 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   planning shapes (`high` = a simple loop), artifact-shape feed-forward, and the first `classify-work-unit`
   touchpoint. SAP ships single files, not the dir-per-workflow package structure.
 - `[x]` The shared `resolve-planning-depth` method ships (SAP-owned) and, with `classify-work-unit`, is declared
-    - invoked at all three planning-stage touchpoints; each is a light confirm-or-ratchet on a single shared read.
+  and invoked at all three planning-stage touchpoints; each is a light confirm-or-ratchet on a single shared read.
 - `[x]` The integrate / archive workflows are artifact-presence-tolerant — they consume a `brief` spec, a
   one-phase task list, or an absent separate completion doc without requiring full-shape artifacts; the
   completion record is meta-appended and self-sizing; the invariant spec-presence/alignment gate survives and
