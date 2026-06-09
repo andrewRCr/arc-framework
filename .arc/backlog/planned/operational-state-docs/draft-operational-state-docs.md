@@ -22,24 +22,45 @@
   loudly. Either outcome should reframe lingering "pre-migration" / "interim window" prose toward the chosen
   recovery model.
 
-### `[ ]` **Archive-time semantics for dependency metadata**
+### `[ ]` **Dependency-edge lifecycle semantics (gate vs. lineage)**
 
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured after
-  `class-model-foundation` archival.
-- _Concern:_ `Depends On` is live readiness metadata while a WU is active or planned; after archival the edge is
-  historical lineage. Decide whether completed metas keep the canonical `Depends On` field with documented
-  archive semantics, or render an archive alias such as `Depended On` while parsers normalize both labels.
-- _Boundary (routed from `decomposition-machinery` planning, 2026-06-09):_ the live→lineage flip may be earlier
-  than archival — a dependency is functionally fulfilled once the dependent WU _activates_ (start precedes
-  completion), so the field's scheduling job is done at activation, not just at ship. Decide whether the
-  transition keys on **activation** or **archival**.
-- _Lean (same routing):_ `Depends On` is atemporal structural truth (the build graph) — `A depends on B` stays
-  true as structure regardless of completion. So **don't mutate / rename / null the stored edge**; treat
-  staleness as a _render-relevance_ concern (the renderer stops showing — or de-emphasizes — `Depends On` for
-  active / completed rows) and keep the canonical field for impact-analysis / archaeology. Favors "keep
-  canonical, handle at render" over the `Depended On` alias; nulling destroys data to manage presentation.
-- _Scope:_ if aliasing wins, update `template-meta.md`, `archive-work-unit.md`, `renderMetaFile` /
-  `parseMetaRecord`, validation expectations, and completed-corpus migration guidance together.
+  `class-model-foundation` archival. Sharpened from `decomposition-machinery` planning (2026-06-09).
+- _Concern:_ `Depends On` is **state-blind** — it names a dependency without signaling whether that dependency has
+  shipped. This bites in two places: **(a) at read time** — an agent reading a meta / draft during planning can
+  read a satisfied edge as live (observed live 2026-06-09: `class-model-foundation`, shipped and archived at
+  `completed/2026-q2/15_class-model-foundation/`, was reasoned about as an in-flight collaborator while planning
+  `decomposition-machinery`); **(b) across the lifecycle** — the edge is a live readiness gate while a WU is
+  planned / active, but historical lineage once discharged. Decide the field's lifecycle treatment.
+- _Boundary — the gate discharges at activation, not archival:_ a dependency's _scheduling_ job ("don't start
+  until B lands") is done once the dependent WU **activates** (start precedes completion), not at ship — so a
+  live→discharged transition keys on **activation**. Nuance: activation does **not** imply all deps landed —
+  concurrent / stacked delivery activates a WU while a dep is in-flight (rebased onto the dep's branch), so
+  activation _examines each edge and discharges only the landed ones_; unlanded deps stay live (they are the real
+  remaining blockers).
+- _Lean (sharpened 2026-06-09) — resolve at lifecycle triggers, not handle-at-render:_ `Depends On` is two
+  concerns under one label — a **live scheduling gate** (currently-blocking deps; wants resolution when satisfied
+  so it never misleads) and **build lineage** (atemporal "built on B"; wants preservation). Treat the field as the
+  live gate and **resolve discharged edges off it at lifecycle triggers**: `init-work-unit` authors /
+  `activate-work-unit` discharges satisfied / the planning workflows _ground-read_ without mutating (pre-activation
+  edges are legitimately forward-looking) / session-init _optionally surfaces_. The burden sits at write-once
+  events, not every-session read. Lineage, if wanted, rides **write-once prose provenance** (the dual of
+  decomposition's at-cap "provenance, not live grouping" move), **not** a maintained structured `Depended On`
+  alias — a parallel field needs a guard and mints a second source of truth, the same reasons decomposition rejects
+  a maintained cohort roster. Lineage already lives in git history, the `completed/` archive, and spec prose, so a
+  structured lineage field is YAGNI absent a concrete consumer.
+- _Reweighs the prior lean:_ the earlier routing favored "keep canonical, handle at render" (atemporal structural
+  truth; nulling destroys data). That argument is real but solves only the _render_ consumer — it is invisible to
+  the agent reading the raw meta / draft, the consumer that actually got misled (ROADMAP already de-emphasizes
+  shipped deps; the raw meta does not). And "resolve" is not "destroy": a discharged edge moves from the live-gate
+  field to provenance, it is not lost. Net: handle-at-render is insufficient alone; lifecycle-trigger resolution is
+  the spine, render-relevance may complement.
+- _Touchpoints:_ `init-work-unit` / `activate-work-unit` (resolution triggers); the planning workflows
+  (ground-read); session-init (optional surface); plus `template-meta.md` / `archive-work-unit.md` /
+  `renderMetaFile` / `parseMetaRecord` / validation expectations / completed-corpus migration if any field-shape
+  change lands. Shares one substrate with the read-time half: **resolve a referenced WU's lifecycle state** (is X
+  shipped? — a `completed/` check). Coordinates with `decomposition-machinery` (authors live-gate edges) and
+  `roadmap-tooling` (render de-emphasis).
 
 ### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
 
