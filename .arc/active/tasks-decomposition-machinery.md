@@ -229,31 +229,31 @@ _Anchors:_ C1–C6, G; SC4, SC9.
   disciplines its own content" cohesive, and matching the section's flat-`###` convention. ADR-free per
   adopter-facing strategy rules (the ADR-022-family grounding stays in `adr-024`).
 
-### `[ ]` **3.2 Author `template-cohort.md` from the live prototype (field set prototype-iterate)**
+### `[x]` **3.2 Author `template-cohort.md` from the live prototype (field set prototype-iterate)**
 
 - _Goal:_ `template-cohort.md` exists at `reference/templates/arc/work-unit/`, generalized from the live prototype
   (`cohort-agile-wu-lifecycle.md`) — H1 + uniform preamble, the Purpose floor, the optional coordination scaffold
   (shared contracts, closeout criteria, per-member sections) — with its coordination field set explicitly marked
   prototype-iterate, so `decompose-work-unit` scaffolds a convention-correct cohort doc.
-- _Rationale:_ The exact field set is the rare legitimate by-method deferral (cf. the spec templates) —
-  generalized from the prototype at execution, not designed top-down; marked prototype-iterate, not design debt
-  (Open Question 1).
-- _Note:_ Generalize from the prototype's _actual_ sections (Shared contracts / Soft coordination / Cross-cohort /
-  ADR anchors), treating spec-named-but-absent slots (e.g. closeout criteria, C1) as optional scaffold rather than
-  copying or omitting wholesale — the prototype-iterate latitude covers exactly this reconciliation.
-- _Note:_ While the prototype is open, correct this WU's own member section in `cohort-agile-wu-lifecycle.md`
-  (`### decomposition-machinery` § Exposes): the stale `assess-decomposition` → `assess-cohort-fit` (single live
-  reference; in-scope as a per-member-partition edit, not a downstream sweep).
 - **Strategies:** strategy-package-project-sync.md, strategy-file-classification.md
 
-    - `[ ]` **3.2.a Author the template from the prototype**
-        - H1 + uniform preamble, Purpose floor, the coordination scaffold (shared contracts, closeout criteria,
-          per-member-by-slug sections); two-copy.
+    - `[x]` **3.2.a Author the template from the prototype**
+        - H1 + preamble blockquote, required Purpose floor, and the optional coordination scaffold (Coordination
+          with Sequencing, Shared contracts, Soft coordination, Cross-cohort, Closeout criteria; Members with
+          per-slug exposes/consumes; ADR anchors) — generalized from the prototype's actual sections, with the
+          spec-named-but-absent Closeout-criteria slot folded in as optional scaffold. Spec-template `{prose-slot}`
+          convention; ADR-free / neutral voice per adopter-facing template rules. Two-copy.
 
-    - `[ ]` **3.2.b Mark the field set prototype-iterate and register the template**
-        - The prototype-iterate marker on the coordination field set; register in `reference/templates/arc/README.md`
-          § Contents (extend the `work-unit/` bullet alongside `template-meta` / `template-draft` / `template-tasks`),
-          both copies — there is no work-unit-level README.
+    - `[x]` **3.2.b Mark the field set prototype-iterate and register the template**
+        - Prototype-iterate marker carried in the scaffold's lead HTML comment (optional-scaffold + "expected to
+          iterate, not design debt" + the coordination-only forcing-function discipline); registered in the
+          `work-unit/` bullet of `reference/templates/arc/README.md` (both copies — no work-unit-level README).
+
+- _Outcome:_ `template-cohort.md` authored (both copies) as a spec-family planning-artifact template: required
+  H1 + Purpose floor above the `---`, optional coordination scaffold below it with the prototype-iterate +
+  forcing-function discipline in the lead HTML comment. Also corrected this WU's own member section in
+  `cohort-agile-wu-lifecycle.md` (`### decomposition-machinery` § Exposes: `assess-decomposition` →
+  `assess-cohort-fit`, the single live stale reference). Template-cohort body (Open Question 1) is now settled.
 
 ### `[ ]` **3.3 Apply relocatability + reference hygiene to `cohort-*`; route the concurrency seam to CWC**
 

@@ -101,7 +101,7 @@ as a depth suggestion rather than an enforcement hook.
 
 ### `decomposition-machinery`
 
-_Exposes:_ the decomposition method (`assess-decomposition` — orthogonality discriminator + two rails +
+_Exposes:_ the decomposition method (`assess-cohort-fit` — orthogonality discriminator + two rails +
 maturity-gated timing + Model-B-only; the cut-map + fire-point model, paired sibling of `classify-work-unit`),
 the grouping taxonomy (incl. the at-cap lateral fan-out arm), the `cohort-{name}.md` record + `template-cohort.md`,
 the **`decompose-work-unit` workflow** (the WU → cohort execute half — named off "graduation", which is reserved
