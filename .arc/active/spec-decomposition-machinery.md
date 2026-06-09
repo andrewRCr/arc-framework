@@ -372,9 +372,9 @@ primitive** (mint cohort + scaffold member stubs + wire deps + verify consistenc
 *predicted* decomposition arm — which draws on it *without* the monolith-splitting distribution step; and the
 **`active/ → backlog/` + park-PR + worktree-kind-teardown block**, authored single-source for `integrate` /
 `park-work-unit.md` to adopt *when `composable-workflows` lands* — not a present-tense `integrate` refactor.
-(`integrate` stops before merge and owns no branch/worktree teardown today — that is session-init's stale-sweep;
-making teardown an eager workflow step is a behavior change rippling to `archive` + the sweep, carried to
-Concurrent Work Conventions as its own question.) Layered:
+(`integrate` already owns its own merge and post-merge worktree teardown — the park-exit block shares that
+teardown choreography but differs in relocation target, `active/ → backlog/` versus `active/ → completed/`, and
+in carrying no code deliverable, so the shared steps are factored to one source rather than duplicated.) Layered:
 `decompose-work-unit = [distribution-discipline + retire-origin] ∘ cohort-scaffold ∘ PR-cleanup`; the predicted
 arm = `cohort-scaffold` (authored incrementally as the design forms). Plus a lightweight decomposition-PR
 description variant.
@@ -546,9 +546,9 @@ schema, relocatability invariant statement — consumed, not restated). Coordina
 - **`quality-gate-hooks`** — owns relocatability/source-side ref-enforcement and the `active/`-layout drift hook
   (both routed out, see Non-Goals); the cohort-consistency guard coordinates within the same hook-file family.
 - **Concurrent Work Conventions** — owns the merge/rebase delivery discipline for a decomposed stack and the
-  runtime concurrency net for the shared cohort doc (G); also carries the routed question of whether lifecycle
-  workflows should own *eager* post-merge branch/worktree teardown (vs. the session-init sweep) once decompose's
-  teardown block exists (D8).
+  runtime concurrency net for the shared cohort doc (G); also carries the forward-compat consolidation of
+  `decompose`'s park-exit teardown with `integrate`'s now-parallel archive teardown into one shared block, once a
+  composition mechanism can hoist them (D8).
 - **`composable-workflows`** — the forward-compat constraint (H); provides the durable cross-file
   step-reference / anchor convention.
 - **`arc-plan-conductor`** — owns `park-work-unit.md` / `resume-work-unit.md` (§20); will reuse this WU's
