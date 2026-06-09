@@ -8,15 +8,15 @@
 - **Depends On:** `class-model-foundation`
 
 - **Origin:** [internal]
-- **Design:** `draft-decomposition-machinery.md`
+- **Design:** `spec-decomposition-machinery.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec` (`detailed` / `heavy`) on `draft-decomposition-machinery.md` — now
-  formalization-ready (buffer drained; relocatability + cohort terminology in; `active/`-layout + dep-edge
-  concerns routed out). Acceptance: re-derive CWC's D1–D4. Atop **shipped** `class-model-foundation`.
+- **Next Action:** Run `2_generate-tasks.md` on `spec-decomposition-machinery.md` — `detailed`·RFC spec
+  finalized (Class `Novel`; ADR-companion folded into scope; draft retired). Acceptance test: re-derive CWC's
+  D1–D4. Atop **shipped** `class-model-foundation`.
 
 ---
