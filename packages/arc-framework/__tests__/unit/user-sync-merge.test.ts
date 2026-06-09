@@ -397,6 +397,16 @@ describe("mergeCrossWuFile — tombstones", () => {
     expect(result.content).not.toContain("## Removed:");
   });
 
+  it("drops a tombstone past the short TTL that an older, longer window would have kept", () => {
+    const recent = note("", [wmTomb("Aged", daysAgo(10))]);
+    const older = note(wmEntry("Aged"));
+
+    const result = mergeCrossWuFile("WORKING-MEMORY.md", [{ content: recent }, { content: older }], NOW);
+
+    expect(result.content).toContain("Aged body.");
+    expect(result.content).not.toContain("## Removed:");
+  });
+
   it("surfaces a malformed Removed marker instead of dropping it", () => {
     const broken = `# Working Memory\n\n## Memories\n\n${wmEntry("Kept")}\n\n---\n\n## Removed: **Broken:**\n\nno fields here\n`;
 
