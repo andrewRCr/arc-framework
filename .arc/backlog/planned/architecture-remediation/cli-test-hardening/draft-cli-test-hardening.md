@@ -8,6 +8,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **De-flake the shallow-clone git-notes integration test (under-budgeted 5000ms timeout)**
+
+- _Routed from:_ `USER-INBOX`, 2026-06-09.
+- _Concern:_ `__tests__/integration/user.test.ts > user save and load > load finds note-ref history in a shallow
+  clone when annotated commit is beyond boundary` timed out at the default 5000ms on CI (observed ~5478ms),
+  failing the Full Test Suite on PR #70; passed clean on re-run. The git-notes shallow-clone setup legitimately
+  runs close to 5s under CI load, so the per-test timeout is under-budgeted — it will keep flaking intermittently
+  across PRs.
+- _Approach:_ bump this test's per-test timeout with headroom (e.g. 15–20s), or trim the git setup cost (shallower
+  fixture / fewer commits) so it runs well under budget. Prefer a targeted per-test timeout over widening the
+  suite default.
+- _Scope:_ `packages/arc-framework/__tests__/integration/user.test.ts` (one test); test-reliability hardening,
+  fits this WU's cluster (cf. its `writeGitNote` / `readGitNote` entry-point cases).
+
+---
+
 ## Problem / Motivation
 
 Lower-priority test gaps were identified during a CLI work unit's integration review. None are blocking; all are
