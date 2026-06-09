@@ -321,6 +321,15 @@ The partition is the forcing function: when a member's section starts filling wi
 tasks, that visible smell *is* the signal the content belongs in its spec, with only a pointer left behind. The
 boundary holds because crossing it looks wrong in the doc, not because a reviewer must police it.
 
+**Relocatability and reference hygiene.** `cohort-{name}.md` is a movable `.arc/` artifact, exactly like a WU's
+`meta-* / draft-* / spec-* / tasks-*`: it relocates with its directory — `backlog/planned/<cohort>[/<subcohort>]/`
+→ `completed/` when the cohort's last member ships — as a pure `git mv` with no content edit. It therefore adopts
+the movable-artifact relocatability and reference-hygiene invariant wholesale: inbound references to it are
+backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
+*by construction* — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
+derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
+special handling.
+
 ### The nesting cap — one level
 
 Nesting is capped at one level: at most `<cohort>/<subcohort>/<wu>`, never three grouping segments. The cap is a

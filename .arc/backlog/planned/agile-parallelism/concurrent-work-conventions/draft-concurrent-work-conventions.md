@@ -73,6 +73,22 @@ size**; solo is the degenerate case.
   parallelism doctrine, its session-init / in-flight mechanism member, or as a coordination note for
   `arc-plan-conductor`.
 
+### `[ ]` **Concurrency safety for the shared-mutable `cohort-{name}.md`**
+
+- *Routed from:* `decomposition-machinery` Phase 3 (Task 3.3.b), spec § G — 2026-06-09.
+- *Concern:* `cohort-{name}.md` is the one shared-mutable planning artifact — the deliberate exception to
+  per-worktree isolation. It rides plain git line-merge (not the notes-ref convergence machinery), so the
+  per-member partition is what keeps concurrent edits safe. Two seams fall in CWC's runtime-concurrency domain:
+  (1) **the advisory cross-cutting gate has a blind spot here** — the Errand matrix's "advisory gate when the
+  owning WU is in flight" keys on a single owning WU, but the cohort doc is owned by the *cohort*, so the gate is
+  ill-defined; the most-shared artifact is the least-covered. The behind-base detector is the net that does apply
+  (advisory, at resume). (2) **escape hatch if the partition proves insufficient:** route `cohort-{name}.md` edits
+  as errands through the primary worktree (serialized via `main`) rather than riding WU-branch PRs.
+- *Scope:* record the **partition-first lean** (cheap; serialize-via-`main` only as the fallback) and confirm the
+  behind-base detector covers the cohort doc; decide whether any cohort-doc-specific guard is warranted beyond it,
+  or whether partition + detector suffice. `decomposition-machinery` only routes the seam — runtime concurrency
+  safety is CWC's.
+
 ## Delivery plan & parked status (2026-06-03)
 
 > **Parked at terminal planning.** The draft below is design-settled; what remains is *delivery*, which is

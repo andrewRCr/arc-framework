@@ -255,24 +255,26 @@ _Anchors:_ C1–C6, G; SC4, SC9.
   `cohort-agile-wu-lifecycle.md` (`### decomposition-machinery` § Exposes: `assess-decomposition` →
   `assess-cohort-fit`, the single live stale reference). Template-cohort body (Open Question 1) is now settled.
 
-### `[ ]` **3.3 Apply relocatability + reference hygiene to `cohort-*`; route the concurrency seam to CWC**
+### `[x]` **3.3 Apply relocatability + reference hygiene to `cohort-*`; route the concurrency seam to CWC**
 
 - _Goal:_ `cohort-{name}.md` adopts the WU-artifact relocatability + reference-hygiene invariant wholesale —
   inbound references backticked-filename-only, outbound no relative-path links, relocating
   `backlog/planned/<cohort>[/<subcohort>]/ → completed/` when the cohort's last member ships as a pure `git mv` —
   and the cohort doc's concurrency seam is routed to Concurrent Work Conventions with the partition-first /
   serialize-via-main fallback recorded.
-- _Context:_ The movable-artifact _enumeration_ addition lands in 1.2; this applies the per-doc hygiene
-  (satisfiable by construction — sibling drafts/specs named by backticked filename, the parent-cohort pointer
-  derivable from the `Cohort` path). Routing only — runtime concurrency safety is CWC's.
 
-    - `[ ]` **3.3.a Apply the relocatability + reference-hygiene invariant to `cohort-*`**
-        - Confirm inbound-filename-only / outbound-no-relative-path hygiene on the record shape + template; the
-          `backlog/ → completed/` pure-`git mv` relocation. (C5, SC9)
+    - `[x]` **3.3.a Apply the relocatability + reference-hygiene invariant to `cohort-*`**
+        - Added a **Relocatability and reference hygiene** block to the § Cohorts record subsection (both copies):
+          movable artifact, `backlog/planned/<cohort>[/<subcohort>]/ → completed/` pure-`git mv` relocation,
+          inbound-filename-only / outbound-no-relative-path hygiene, satisfiable by construction. References the
+          movable-artifact invariant (DEV-RULES, added in 1.2) without restating it. Audited the template +
+          prototype: both carry zero outbound relative-path links — instances are position-independent by
+          construction. (C5, SC9)
 
-    - `[ ]` **3.3.b Route the concurrency seam to Concurrent Work Conventions**
-        - The two notes (the advisory cross-cutting gate's blind spot on the cohort-owned doc; the escape hatch if
-          the partition proves insufficient) routed to CWC's inbound buffer; partition-first lean recorded. (G)
+    - `[x]` **3.3.b Route the concurrency seam to Concurrent Work Conventions**
+        - Routed both seams as one entry into `draft-concurrent-work-conventions.md` § Inbound Buffer: the advisory
+          cross-cutting gate's blind spot on the cohort-owned doc (behind-base detector is the net that applies),
+          and the serialize-via-`main` escape hatch; partition-first lean recorded. (G)
 
 ## **Phase 4:** The `decompose-work-unit` lifecycle workflow
 
