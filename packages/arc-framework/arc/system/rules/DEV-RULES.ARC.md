@@ -168,8 +168,15 @@ Each checkbox in the task list is one *review increment* — a bounded chunk of 
 between human review points. The [Review-Increment Invariant](#review-increment-invariant) applies at
 this default boundary: the increment closes with a structured approval gate before the agent advances or
 commits, and that gate is the task-interlock — stop after reporting completion, surface verification
-status, and await explicit user approval. Deferred review is a bounded user-scoped convenience, not an
-autonomy mode.
+status, and await explicit user approval. Deferred review is a bounded convenience gated by user
+approval, not an autonomy mode.
+
+One leaf is the *default* increment boundary, not the only legal one: when a parent's subtasks are
+tightly coupled — landing as one atomic commit, or individually incoherent mid-sequence — the agent may
+**propose** reviewing the parent as one increment (agent proposes, user approves; one gate, never
+self-invoked). That is correct *scoping* of the invariant, not an exception — the default stays per-leaf
+and is never silently widened. Signals and procedure: [process-task-loop][process-task-loop] § Deferred
+review.
 
 In team mode, this applies per developer-agent pair — concurrent pairs may work on different tasks simultaneously.
 See [Team Coordination Strategy][team-coordination] for task ownership, branching patterns, and handoff conventions.
