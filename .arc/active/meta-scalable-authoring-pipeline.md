@@ -11,13 +11,16 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Task 5.R.5 — Reflow to the wrap target across the three authoring workflows and
-  `arc-task-audit`; committed `60676e72`.
-- **Next Task:** Task 6.1 — Integrate / archive artifact-presence-tolerance + self-sizing completion record
-  (Phase 6, line ~703)
+- **Last Completed:** Task 6.3 — Route the workflow rename/renumber cascade to `doc-cascade-sweep`'s stub;
+  committed `57ec72eb`.
+- **Next Task:** Task 6.4 — Strategy-doc updates: form taxonomy, depth model, validation contract
+  (Phase 6, line ~770)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — make integrate/archive presence-tolerant and self-size completion records;
-  consult `strategy-workflow-authoring.md` + `strategy-package-project-sync.md`.
+- **Next Action:** Begin Task 6.4 (subtasks a–e) — form taxonomy + depth model → `strategy-work-planning`;
+  validation contract + layered pattern → `strategy-work-organization` / `strategy-work-planning`; spec-form
+  naming → `strategy-file-classification`; relocate Discovery-Checklist / Spec-Readiness procedure out of
+  `strategy-work-planning` and retire `template-prd.md`; reconcile branch-from-inception vs. partial-mode
+  spec-then-branch. Consult `strategy-package-project-sync.md`.
 
 ---
