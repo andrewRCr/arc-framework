@@ -11,16 +11,12 @@
 - **Design:** `spec-scalable-authoring-pipeline.md`
 - **Task List:** `tasks-scalable-authoring-pipeline.md`
 
-- **Last Completed:** Task 6.3 — Route the workflow rename/renumber cascade to `doc-cascade-sweep`'s stub;
-  committed `57ec72eb`.
-- **Next Task:** Task 6.4 — Strategy-doc updates: form taxonomy, depth model, validation contract
-  (Phase 6, line ~770)
+- **Last Completed:** Task 6.4 — Strategy-doc codification of the scaled authoring pipeline + `template-prd.md`
+  retirement; committed `0ad82df8`. Phase 6 complete.
+- **Next Task:** Task 7.1 — Complete verification (Phase 7, line ~817)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.4 (subtasks a–e) — form taxonomy + depth model → `strategy-work-planning`;
-  validation contract + layered pattern → `strategy-work-organization` / `strategy-work-planning`; spec-form
-  naming → `strategy-file-classification`; relocate Discovery-Checklist / Spec-Readiness procedure out of
-  `strategy-work-planning` and retire `template-prd.md`; reconcile branch-from-inception vs. partial-mode
-  spec-then-branch. Consult `strategy-package-project-sync.md`.
+- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` (the verification phase; the task
+  entry is a pointer to that workflow).
 
 ---
