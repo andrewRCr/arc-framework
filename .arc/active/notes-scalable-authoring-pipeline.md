@@ -1,154 +1,140 @@
 # Notes: Scalable Authoring Pipeline
 
-> Internal working notes for this WU. Phase 5.R working artifact — the family structural convention the three
-> authoring-stage workflows (`draft-design.md`, `1_create-spec.md`, `2_generate-tasks.md`) are refactored toward.
-> 5.R.1 settles + applies the spine; 5.R.2 / 5.R.4 / 5.R.5 execute against it.
+> Archive note for the family structural convention applied to the three authoring-stage workflows:
+> `draft-design.md`, `1_create-spec.md`, and `2_generate-tasks.md`. The convention surfaces and unifies existing
+> structure without changing behavior or renaming the existing numbered workflow files.
 
-## Phase 5.R — Family structural convention
+## Contents
 
-Bounded by spec § SC15: **no file rename/renumber, no new design.** This convention *surfaces and unifies
-structure that already exists*; it never changes behavior. Re-entry-valve semantics are frozen (settled in
-Phase 5) — they get a structural home here, not a redesign.
+- [Structural Convention](#structural-convention)
+    - [Terminology](#terminology)
+    - [Heading Taxonomy](#heading-taxonomy)
+    - [Body Envelope](#body-envelope)
+    - [Workflow Applications](#workflow-applications)
+    - [Scope Boundary](#scope-boundary)
+    - [5.R.2 Resolution: `generate-tasks` Depth Spine](#5r2-resolution-generate-tasks-depth-spine)
+    - [Cross-Reference Updates](#cross-reference-updates)
 
-### Terminology — `path` is the settled term
+## Structural Convention
 
-The depth-selected alternative block is a **`path`** — corpus-wide, across all three workflows and this note.
-`draft-design` and the SAP spec already settled on `path` ("each level maps to a path — the drafting procedure at
-that depth"); the competing terms are strays to retire:
+Bounded by spec § SC15: **no file rename/renumber, no new design**. The convention gives settled behavior a shared
+structural home across the three authoring workflows. Re-entry-valve semantics remain the Phase 5 semantics; this
+pass only places them inside the loop structure.
 
-- **`lane`** — stray in `draft-design` (~L100, "the `low` and `medium` lanes") and `2_generate-tasks` ("no phantom
-  lane"). Retire from workflow prose. *Reserved* as candidate jargon for the `composable-workflows`
-  structural-extraction view (`path` = the route you run; `lane` = the parallel extractable block) — a distinction
-  to draw in that WU if it earns its keep, never sprinkled here. A coherence phase does not bless
-  interchangeable-by-context.
-- **`(depth) variant`** — `2_generate-tasks`' inline `**Depth variant:**` marker. This is the *inline sprinkle*
-  5.R.2 replaces with whole blocks; the term retires with it. Don't promote `variant` to the whole-block name.
+### Terminology
 
-`pass` is **not** a synonym for `path` — it is a distinct taxonomy term (a repeated sweep; see below).
+The depth-selected alternative block is a **`path`** across the authoring workflow family.
+`draft-design` and the SAP spec already used `path` for this meaning ("each level maps to a path — the drafting
+procedure at that depth"). Competing terms were retired:
 
-### Heading taxonomy
+- **`lane`** — removed from workflow prose. Reserved as possible jargon for `composable-workflows`, where a future
+  distinction may be useful: `path` as the route an agent runs, `lane` as an extractable parallel block.
+- **`(depth) variant`** — retired with `generate-tasks`' inline `**Depth variant:**` marker. The replacement is a
+  whole-block path, not an inline sprinkle.
 
-The categories every part of these workflows falls into (replaces ad-hoc Step / Pass / Entry / variant mixing):
+`pass` is **not** a synonym for `path`; it is a distinct taxonomy term for a repeated sweep.
 
-- **Resolve depth & Class** — the entry resolution. One evidence read → planning-depth level + `Class`. Heading is
-  **`## Resolve depth & Class`, identical across all three** (a stable key-like anchor for the shared fragment);
-  the axis lives in the body's first line, not the heading. *Not* `Step 1` (it parameterizes the body, it isn't the
-  body's first action) and *not* "entry gate" (`gate` is interlock vocabulary — avoid the collision). The shared
-  "one read drives both methods" block goes **minimal-inline + the method body (`resolve-planning-depth` /
-  `classify-work-unit`) as source of truth** — keep only the stage-specific bits (which axis, what the read
-  inspects, what the level drives here). This is the 5.R.1 DRY target.
-- **Step** — a linear sequential action. The default. Flat top-level steps (a bare sequence counter) are
-  **de-numbered to named sections**; hierarchical **pass-scoped** sub-steps keep their `N.M` numbering
-  (`generate-tasks` Pass `N` → Steps `N.1`, `N.2`) — the ordinal encodes the Pass grouping and within-pass
-  sequence, and is referenced intra-file only.
-- **Pass** — a repeated sweep over the same artifact. Used only where the workflow genuinely re-traverses
-  (`generate-tasks`). Not a synonym for Step.
+### Heading Taxonomy
+
+The workflow family now uses these categories consistently:
+
+- **Resolve depth & Class** — the entry resolution. One evidence read produces the transient planning-depth level
+  and confirms or ratchets `Class`. The heading is identical across all three workflows; the keyed axis lives in
+  the body.
+- **Step** — a linear sequential action. Flat top-level steps are de-numbered to named sections. Pass-scoped
+  sub-steps keep `N.M` numbering where the ordinal encodes local pass grouping.
+- **Pass** — a repeated sweep over the same artifact. Used only where the workflow genuinely re-traverses the
+  artifact (`generate-tasks`).
 - **Path** — a depth-selected whole-block alternative (`low` / `medium` / `high`; `brief` / `outline` /
-  `detailed`). Parallel across workflows; each path encodes its loop-shape choice (see envelope). 5.R.2 converted
-  `generate-tasks`' inline sprinkle to these whole blocks (depth-spine — see § 5.R.2 resolution).
-- **Finalize** — the terminal persist + commit ceremony. *Named*, never `Step 4` / `Step 6`. Parallel across all
-  three (`draft-design` Capture, `create-spec` Finalize, `generate-tasks` pre-save + commit).
-- **Next Step** — transition to the next stage (all three already have it).
-- **Interlock markers** stay embedded gates (per `strategy-workflow-authoring`) — never numbered steps.
+  `detailed`). Each path encodes its loop-shape choice.
+- **Finalize** — the terminal persist-and-commit ceremony. Named rather than numbered.
+- **Next Step** — the transition to the next stage.
+- **Interlock markers** — embedded gates, never numbered steps.
 
-**Identical spine, varied body.** Only the spine headers are identical key-like anchors across all three:
-**`Resolve depth & Class`** and **`Next Step`**. The terminal ceremony keeps a *descriptive* per-workflow name (it
-names a real, different deliverable — `Capture the draft` / `Finalize` / pre-save + commit), and the body sections
-(`Draft …`, discovery, Passes) are descriptive and vary by workflow. Don't force body or terminal headings to match.
+Only the spine headers are identical key-like anchors across all three workflows: **`Resolve depth & Class`** and
+**`Next Step`**. Body sections and terminal ceremonies remain descriptive because they name different
+deliverables.
 
-**Fold thin transition sections.** A standalone section that only restates what the method or `Next Step` already
-owns doesn't earn an H2 — fold its one load-bearing clause into `Next Step` (or the adjacent step). (`draft-design`'s
-`Feed the spec form forward` folded into `Next Step`: the draft's *shape*, not a depth value, carries forward.)
+Thin transition sections were folded into their neighboring section or `Next Step` when the standalone heading
+only restated behavior owned elsewhere.
 
-Structural fixes this implies:
+Structural consequences:
 
-- **Drop the `## Process` wrapper** in `generate-tasks` — it is the only one with a container, and it forces every
-  child a level deeper (`#### Step N.M`). Removing it lets Passes be `##` and their steps `###`, matching the other
-  two. This is the single biggest reason the three don't read as one family.
-- **`Step 4`-among-Passes → `Finalize`** in `generate-tasks` — today it is a Step-labeled sibling of the Passes;
-  pull it out as the terminal ceremony, outside the Pass numbering.
+- `generate-tasks` dropped the `## Process` wrapper so Passes can sit at `##` and pass-scoped steps at `###`,
+  matching the family structure.
+- `generate-tasks`' former Step 4 became `## Finalize the task list`, outside the Pass numbering.
 
-### Body envelope — the loop, made explicit
+### Body Envelope
 
-Non-light paths share one shape: **Resolve → Setup → Iterate → Finalize → Next Step.**
+Non-light paths share the same envelope: **Resolve → Setup → Iterate → Finalize → Next Step**.
 
-- **Setup (pre-loop)** — frame the artifact, seed the first iteration (read prior draft / spec, gather initial
-  context). May include pre-loop *gates* (e.g. `create-spec`'s alignment checks, which run before the write).
-- **Iterate (the loop)** — the explicit iterative core, with a stated **exit condition** and a **re-entry
-  back-edge**. Two flavors — kept distinct, not forced into one vocabulary:
-    - **Convergence loop** — collaborative, open-ended, iterate-until-a-readiness-bar. `draft-design` `high`
-      (Start → Gather → Facilitate → Re-synthesize → Amend, loop until *formalization-ready*); `create-spec`
-      `detailed` (discover → write → iterate until spec-grade). `draft-design` `high` already carries this as an
-      explicit numbered loop — the model.
-    - **Sweep loop** — fixed / bounded passes, each producing a review deliverable; exit when passes complete.
-      `generate-tasks` (Pass 1 → 2 → 3; Pass 3 nests a per-phase audit / revise loop).
-    - **Re-entry valve = the loop's floor-raising back-edge.** When iteration surfaces that the resolved level was
-      too low, exit-and-re-enter at Resolve (per `resolve-planning-depth` § Mid-stage re-entry). Give it a
-      structural home *inside* the loop — not a trailing footnote (today: a `draft-design` Step-4 aside, a
-      `create-spec` Step-2 aside). Surfacing the settled Phase-5 semantics structurally — **not** redesigning them.
-- **Light paths have no loop** — `low` / `brief`: Resolve → confirm → Finalize. The path *is* the loop-shape
-  choice; this is why paths are whole blocks (5.R.2). Taxonomy and envelope are one structure viewed two ways.
+- **Setup** frames the artifact and seeds the first iteration.
+- **Iterate** contains the explicit loop, with an exit condition and a re-entry back-edge.
+- **Finalize** persists the artifact and commits the stage output.
+- **Next Step** transitions to the following stage.
 
-### Per-workflow application
+Two loop flavors are preserved:
 
-- **`draft-design`** — **done** (proves the convention). Entry heading → `Resolve depth & Class` + entry-block
-  DRY'd to method-delegated minimal-inline; body de-numbered to named sections; `Capture the draft` kept
-  (descriptive terminal); re-entry valve framed as the loop's back-edge; `Feed the spec form forward` folded into
-  `Next Step`; `low` → `(no draft artifact)`; stray `lane` → `path`. The `high` path's explicit numbered loop is
-  the convergence-loop model the others mirror.
-- **`generate-tasks`** — **done** (templated source: `2_generate-tasks.template.md` → rendered `.arc/` copy with
-  the `team.mode` blocks stripped). Dropped `## Process` (preamble → intro); `Entry step` → `## Resolve depth &
-  Class` (DRY'd); `### Pass N` → `##` and `#### Step N.M` → `###`; `### Step 4` → `## Finalize the task list`
-  (descriptive terminal) with internal `Step 4` refs reflowed; re-entry valve framed as the back-edge; stray
-  `lane` → `path`. Citations updated (below).
-- **`create-spec`** — **done**; envelope relabeling, not resequencing (its real sequence already matched:
-  discover → alignment *gates* → write + iterate → finalize). `Step 1` → `## Resolve depth & Class` (DRY'd, with
-  the form-mapping kept inline); body de-numbered to named sections (`Conduct discovery` / `PROJECT-PRD alignment
-  check` / `TECHNICAL-OVERVIEW alignment check` / `Write and save the spec` / `Finalize …`); all 8 internal `Step N`
-  cross-refs reflowed to named anchors. Alignment-check behavior left as-is (pre-write gates).
+- **Convergence loop** — collaborative, open-ended iteration until a readiness bar is met. Used by
+  `draft-design` `high` and `create-spec` `detailed`.
+- **Sweep loop** — fixed or bounded passes, each producing a review increment. Used by `generate-tasks`.
 
-### Scope split
+The re-entry valve is the loop's floor-raising back-edge. When iteration surfaces that the resolved level was too
+low, the agent exits and re-enters at Resolve per `resolve-planning-depth` § Mid-stage re-entry. The valve is part
+of the loop, not a trailing footnote.
 
-- **5.R.1** — settle this convention (this note) + apply: Resolve-unification, entry-block DRY, and the
-  unambiguous structural fixes (drop `## Process`, `Step 4` → `Finalize`, terminology → `path`, citation updates).
-- **5.R.2** — **done.** Paths → whole extractable blocks. `draft-design` / `create-spec` already complied; the
-  conversion target was `generate-tasks`, resolved **depth-spine (shape D)** — see § 5.R.2 resolution below.
-- **5.R.4 / 5.R.5** — legacy-prose polish / reflow to the ~110-char deep-indent target.
+Light paths have no loop: Resolve → confirm → Finalize. The path itself is the loop-shape choice.
 
-### 5.R.2 resolution — `generate-tasks` depth-spine (executed)
+### Workflow Applications
 
-`generate-tasks` was the lone non-compliant surface (the other two already use whole-block paths). Resolved
-**depth-spine (shape D)**: the depth `### low` / `### medium` / `### high` blocks under `## Generate in the
-resolved level` are the spine and the **execution driver**; the three Passes demote to a shared, depth-agnostic,
-stopless **procedure library** (`## Structural decomposition` / `## Content fill` / `## Grounding audit &
-coherent revision`) the paths invoke by name. Mirrors the siblings' depth-as-spine shape.
+- **`draft-design`** — entry heading unified to `Resolve depth & Class`; entry block reduced to method-delegated
+  inline stage details; body sections de-numbered; `Capture the draft` kept as the descriptive terminal ceremony;
+  re-entry valve framed as the loop's back-edge; `Feed the spec form forward` folded into `Next Step`; `low`
+  records `(no draft artifact)`; stray `lane` terms became `path`.
+- **`generate-tasks`** — rendered from `2_generate-tasks.template.md` into the `.arc/` copy with `team.mode`
+  blocks stripped. Dropped `## Process`; unified entry heading; promoted Passes to `##` and pass-scoped steps to
+  `###`; converted the former Step 4 to `## Finalize the task list`; framed the re-entry valve as the back-edge;
+  replaced `lane` with `path`; updated citations.
+- **`create-spec`** — relabeled the existing sequence without resequencing it: discovery, alignment gates, write
+  and iterate, finalize. Unified entry heading, de-numbered body sections, and replaced internal Step references
+  with named anchors. Alignment checks remain pre-write gates.
 
-Key cut — **de-conflate `Pass`**: "Pass" stops naming a procedure and becomes purely the **review increment** the
-paths own (which procedures group into which pass, and where the inter-pass stops fall). Procedure-identity is
-invariant and stopless; increment-cadence is depth-selected. So the inter-pass stops (skeleton / draft) live in
-the paths; the grounding audit's per-phase confirm gate stays in its procedure (depth-invariant — fires per
-substantive phase at every level). Intra-procedure parameters (phase count, audit depth) stay inline.
+### Scope Boundary
 
-Hardening (from an execution-time fresh-eyes read): the paths preamble states the procedures are reference detail
-the path invokes, not a standalone linear sequence; each non-terminal procedure ends with a depth-agnostic
-**pass-boundary reminder** ("if your path places a stop after this procedure, stop and surface now") so an agent
-can't sail past a `high` / `medium` review stop that lives up in the path.
+The coherence work handled the shared spine, terminology, depth-path structure, legacy-prose polish, and line
+reflow for the authoring workflow family. It did not rename or renumber the existing `1_create-spec.md`,
+`2_generate-tasks.md`, or `3_process-task-loop.md` files; that cascade is owned by `doc-cascade-sweep`.
 
-Routed the structural finding to `composable-workflows` (`USER-INBOX § Backlog`): procedure-fragments + thin
-orchestration-fragments as a second composition shape for that WU's core/fragment boundary.
+### 5.R.2 Resolution: `generate-tasks` Depth Spine
 
-### Cross-reference blast radius (live corpus)
+`generate-tasks` was the only authoring workflow still expressing depth as inline variation. It now uses the
+depth spine: `low` / `medium` / `high` blocks under `## Generate in the resolved level` are the execution driver,
+and the three former Passes are a shared, depth-agnostic, stopless procedure library:
 
-Heading renames touch a small, concentrated set — recorded so the edits don't miss them. (SC15's "don't rewrite
-cross-references" is the *file-prefix* cascade — `doc-cascade-sweep`'s; these internal-heading citations are
-in-scope consequences of in-scope restructure, and naming an anchor is *more* stable than the ordinal it replaces.)
+- `## Structural decomposition`
+- `## Content fill`
+- `## Grounding audit & coherent revision`
 
-- `generate-tasks` `§ Step 4` → `§ Finalize the task list` — **done**: `STRATEGY-INDEX.md`,
-  `strategy-task-list-formatting.md`, `template-tasks.md` (two-copy each), and `analysis-cross-cutting-dependencies.md`
-  (single). (`strategy-task-list-formatting.md`'s other `generate-tasks` ref is a filename link — heading-agnostic,
-  untouched.)
-- `generate-tasks` `Pass 3` → grounding-audit procedure (5.R.2 de-conflated `Pass`): `arc-task-audit/SKILL.md`'s
-  "invoked by … Pass 3" reworded to "… grounding-audit procedure" (two-copy) — now correct at every depth, not
-  just `high`.
-- `create-spec` `Step 1` → `§ Resolve depth & Class` — **done**: `drain-inbox.md:131` (two-copy).
-- Filename links elsewhere (methods, strategies, templates, `session-init`) are heading-agnostic — untouched.
+This de-conflates `Pass`: procedure identity is invariant and stopless; a Pass is the review increment that a
+path owns by grouping procedures and deciding where inter-pass stops fall. Inter-pass stops live in the paths,
+while the grounding audit's per-phase confirm gate stays inside the procedure because it is depth-invariant.
+
+Hardening added during implementation: the paths preamble states that the procedures are reference detail invoked
+by the path, not a standalone linear sequence. Each non-terminal procedure carries a depth-agnostic
+pass-boundary reminder so an agent cannot skip a review stop that lives in the selected path.
+
+The structural finding was routed to `composable-workflows`: procedure fragments plus thin orchestration
+fragments are a second composition shape for the core/fragment boundary.
+
+### Cross-Reference Updates
+
+Heading changes affected a small, concentrated set of references. These were updated as direct consequences of
+the structural changes, while filename links remained untouched.
+
+- `generate-tasks` `§ Step 4` → `§ Finalize the task list`: `STRATEGY-INDEX.md`,
+  `strategy-task-list-formatting.md`, `template-tasks.md` in both copies, plus
+  `analysis-cross-cutting-dependencies.md`.
+- `generate-tasks` `Pass 3` → grounding-audit procedure: `arc-task-audit/SKILL.md` in both copies.
+- `create-spec` `Step 1` → `§ Resolve depth & Class`: `drain-inbox.md` in both copies.
+
+Filename links elsewhere are heading-agnostic and were left unchanged.
