@@ -164,6 +164,25 @@ arc:
      [strategy-session-operations][session-ops] § Deferred-Review × Commit-Interlock Release for the explicit
      opt-in syntax.
 
+     **Agent-proposed batch (atomicity-keyed).** A deferred-review scope may also originate from an agent
+     *proposal*, not only a user request — without breaking "the agent never self-invokes": the agent
+     proposes the scope, the user approves, and that approval is the invocation. At a parent task's entry,
+     weigh whether its subtasks form one increment:
+
+     - **Propose batching** when the subtasks will land as **one atomic commit** — one concern decomposed
+       for *planning*, not *delivery*; the review boundary should track the commit boundary. Secondary
+       signals: shared-artifact rework whose intermediate states are individually incoherent;
+       cross-subtask interdependence.
+     - **Keep per-leaf** when a subtask carries a design decision needing course-correction before the
+       next, or each leaf is independently revertable / shippable.
+
+     When the signals fire, surface a one-line proposal naming the scope ("4.2's subtasks a–d land as one
+     commit — review 4.2 as a single increment?") and await approval; on approval, run them as a
+     deferred-review batch closing at the parent. The proposal is **signal-gated and fires once per
+     parent** — independent subtasks draw none, so there is no per-task approval tax. The default stays
+     per-leaf and is never silently widened; the user may **pre-authorize** a standing "batch when it
+     makes sense" for zero approvals.
+
      Stop when the specified scope is complete, or earlier if a stop condition is met:
 
      - **Must stop:** quality gate failure that can't be auto-fixed, blocking dependency on
