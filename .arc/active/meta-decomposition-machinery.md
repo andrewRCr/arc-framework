@@ -11,15 +11,14 @@
 - **Design:** `spec-decomposition-machinery.md`
 - **Task List:** `tasks-decomposition-machinery.md`
 
-- **Last Completed:** Phase 3 complete — the `cohort-{name}.md` record shape + design-vs-coordination forcing
-  function and relocatability/hygiene block in `strategy-work-organization` § Cohorts (3.1, 3.3), `template-cohort.md`
-  authored from the live prototype with the field set marked prototype-iterate (3.2), and the cohort-doc
-  concurrency seam routed to Concurrent Work Conventions' inbound buffer (3.3)
-- **Next Task:** Task 4.1 — Author `decompose-work-unit` — park-shaped exit, the step sequence, teardown
-  (line ~299)
+- **Last Completed:** Phase 4 complete — `decompose-work-unit` lifecycle workflow authored (park-shaped WU→cohort
+  transform: the D2 step sequence, field inheritance + dependency-edge-by-need, the four-step conservation gate +
+  incoming-`Depends On` sweep, three parent-position arms, named extractable blocks, predicted/emergent arms);
+  spec D8's stale integrate-teardown premise corrected
+- **Next Task:** Task 5.1 — Build the cohort-consistency validator (the three conditions) (line ~406)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — author the `decompose-work-unit` lifecycle workflow (Phase 4) via
-  `3_process-task-loop.md`.
+- **Next Action:** Begin Task 5.1 — build the `validate-cohort-consistency` validator (Phase 5; mode shifts from
+  doc-authoring to code / test-first) via `3_process-task-loop.md`.
 
 ---
