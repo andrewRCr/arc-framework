@@ -2,7 +2,7 @@
 
 | **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
 | ------------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/scalable-authoring-pipeline` | `Heavy`   | `P1`         |
+| `Shipped`     | `andrew`  | `feat/scalable-authoring-pipeline` | `Heavy`   | `P1`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `class-model-foundation`

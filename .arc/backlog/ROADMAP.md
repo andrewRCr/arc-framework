@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `07bccb43`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2730d6dc`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,9 +12,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit                   | Priority | Owner  | Depends on | Cohort             |
-| -------- | --------------------------- | -------- | ------ | ---------- | ------------------ |
-| Active   | scalable-authoring-pipeline | P1       | andrew | —          | agile-wu-lifecycle |
+_None in flight._
 
 ## Ready
 
@@ -61,16 +59,16 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                           | Cohort                     |
-| ----------------------------- | -------- | ------ | ---------------------------------------------------- | -------------------------- |
-| concurrent-work-conventions   | P1       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-parallelism          |
-| arc-plan-conductor            | P2       | andrew | loadset-composition                                  | —                          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                               | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                 | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                 | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                               | architecture-remediation   |
-| doc-cascade-sweep             | P3       | andrew | scalable-authoring-pipeline, decomposition-machinery | agile-wu-lifecycle         |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                    | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on               | Cohort                     |
+| ----------------------------- | -------- | ------ | ------------------------ | -------------------------- |
+| concurrent-work-conventions   | P1       | andrew | decomposition-machinery  | agile-parallelism          |
+| arc-plan-conductor            | P2       | andrew | loadset-composition      | —                          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption   | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization     | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization     | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption   | architecture-remediation   |
+| doc-cascade-sweep             | P3       | andrew | decomposition-machinery  | agile-wu-lifecycle         |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh        | release-readiness          |
 
 ### Depth 2
 
