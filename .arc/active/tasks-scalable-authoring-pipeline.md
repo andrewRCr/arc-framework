@@ -756,18 +756,16 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
   codeblock shape. Touched `1_create-spec.md` (both copies) and `2_generate-tasks` (package `.template.md` +
   rendered `.arc` copy).
 
-### `[ ]` **6.3 Route the workflow rename/renumber cascade to `doc-cascade-sweep`'s stub**
+### `[x]` **6.3 Route the workflow rename/renumber cascade to `doc-cascade-sweep`'s stub**
 
 - _Goal:_ The workflow-file rename/renumber cascade (drop `1_`/`2_`/`3_` prefixes; depth-agnostic verb-object
   naming; the settled triad `draft-design` / `create-spec` / `generate-tasks`) is captured in
   `doc-cascade-sweep`'s stub so the sibling that executes the renames has it. The convention's decision-record
   stays this WU's spec (R18) — no adopter-facing strategy edit, no ADR (none is being drafted).
-- _Context:_ `doc-cascade-sweep`'s draft currently scopes incidental/tier-concept retirement + graduation
-  reconciliation — it does **not** yet carry this cascade. Per DEV-RULES.ARC § Discovered Work Routing, the
-  cross-WU concern must land in the sibling's stub, not rest only in SAP's spec.
-
-    - Add the cascade scope + naming convention to `doc-cascade-sweep`'s draft inbound buffer (coordinated with
-      `naming-conventions`). SAP itself names only `draft-design` (Phase 2); it renames nothing.
+- _Outcome:_ Added a `### [ ]` entry to `doc-cascade-sweep`'s draft inbound buffer (Routed from / Concern / Scope)
+  capturing the cascade scope — rename the three prefixed files and sweep every cross-reference (including the
+  `generate-tasks` template/render pair and the package-sync dependency map), coordinated with
+  `naming-conventions`. Points back to spec R18 as the decision-record; SAP renames nothing itself.
 
 ### `[ ]` **6.4 Strategy-doc updates — form taxonomy, depth model, validation contract**
 

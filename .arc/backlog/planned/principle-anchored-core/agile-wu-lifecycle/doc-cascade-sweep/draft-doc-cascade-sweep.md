@@ -65,6 +65,26 @@
   `minimum` / `standard` / `expanded` language so it cannot contradict the `Errand` floor → `novel` ceiling
   model.
 
+### `[ ]` **Workflow file rename/renumber cascade — drop the `1_`/`2_`/`3_` prefixes**
+
+- *Routed from:* `scalable-authoring-pipeline` Task 6.3 (2026-06-08); the naming convention is settled in SAP's
+  spec R18. SAP introduces only the new `draft-design` workflow and renames nothing existing, so per
+  DEV-RULES.ARC § Discovered Work Routing the cascade lands here.
+- *Concern:* SAP settles the authoring-stage names as the depth-agnostic, verb-object triad `draft-design` /
+  `create-spec` / `generate-tasks` and drops the `1_`/`2_`/`3_` number prefixes (the names self-sequence; a
+  numeric prefix reasserts a rigid linearity against the re-entrant, depth-relative pipeline). After SAP ships,
+  the surface sits in a mixed interim state — `draft-design.md` is prefix-less while `1_create-spec.md` /
+  `2_generate-tasks.md` / `3_process-task-loop.md` still carry prefixes. Half-renaming breaks references, so
+  reconciling the interim state is this terminal sweep's job.
+- *Scope:* rename the three existing files (`1_create-spec.md` → `create-spec.md`, `2_generate-tasks.md` →
+  `generate-tasks.md`, `3_process-task-loop.md` → `process-task-loop.md`) and update every cross-reference across
+  the doc surface — workflows, strategies, methods, templates, skills, session-init, READMEs, and the package-sync
+  dependency map. Mind the `generate-tasks` template/render pair: the rename touches both
+  `2_generate-tasks.template.md` and the rendered `2_generate-tasks.md` (and their `strategy-package-project-sync`
+  dependency-map entry), and both copies — package source + `.arc/` — for each file. Coordinated with
+  `naming-conventions`. The convention's decision-record stays SAP's spec R18 — no adopter-facing strategy edit or
+  ADR for the convention itself; this entry is the mechanical execution.
+
 ---
 
 ## Problem / Motivation
