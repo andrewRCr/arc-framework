@@ -7,6 +7,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-cohort-fit
     - spec-review
   extensions:
     - pre-spec-finalization-review
@@ -42,6 +43,12 @@ Make **one derivation-axis read**, then run [`resolve-planning-depth`][resolve-p
 / `medium` / `high`) — which it maps to the spec **form** (`low` → `brief`, `medium` → `outline`, `high` →
 `detailed`) — and confirming-or-ratcheting **`Class`** against that same read. The methods own how the read maps
 to a level, and the mid-stage re-entry valve.
+
+Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the **upper-bound** confirm paired with
+`classify-work-unit`. By create-spec the design is settled, so this is where a holistic draft that has **matured
+into a cohort** reveals itself (the **emergent-decomposition** arm): if applying the orthogonality discriminator
+and the two guard rails cleanly cuts the concern into independently-deliverable members, route to
+`decompose-work-unit` rather than crystallizing a monolith spec. A single determinate concern clears it trivially.
 
 The richest evidence is the **`draft-*`** when one exists (from draft-design): read it as the primary input, and
 let its produced shape indicate the form — a rich, fully-shaped draft feeds `detailed`; a thin draft or a
@@ -238,6 +245,7 @@ Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this s
 [work-planning]: ../../../reference/strategies/arc/strategy-work-planning.md
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
+[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [spec-review]: ../../methods/spec-review.md
 [pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md

@@ -7,6 +7,7 @@ arc:
   methods:
     - resolve-planning-depth
     - classify-work-unit
+    - assess-cohort-fit
 ---
 
 # Workflow: Draft Design
@@ -32,6 +33,13 @@ Make **one derivation-axis read** — the problem framing / origin plus a quick 
 read drives both, yielding this stage's **level** (`low` / `medium` / `high`) and confirming-or-ratcheting
 **`Class`**, born here at its first touchpoint. The methods own how the read maps to a level, and the mid-stage
 re-entry valve.
+
+Off the same read, run [`assess-cohort-fit`][assess-cohort-fit] — the cheap **upper-bound** confirm paired with
+`classify-work-unit`'s lower-bound one: is this one work unit, or has the design surfaced orthogonal subsystems
+that want decomposing into a cohort? It is **maturity-gated**, so while the design is still forming it clears
+trivially — hold as one unit and iterate. It fires affirmative only once the design is stable enough that the
+cuts are real (the **predicted-decomposition** arm, where you author directly into the cohort structure rather
+than a monolith); re-confirm cheaply as the draft matures across passes.
 
 The resolved level selects this stage's path below — the stage default, re-selectable, never below the
 derivation floor.
@@ -157,5 +165,6 @@ planning-depth level is never recorded.
 
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
+[assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

@@ -150,28 +150,27 @@ _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
   method declares via the existing `arc.methods` bundle. Fire-point declaration + README registration deferred to
   Task 2.2.
 
-### `[ ]` **2.2 Declare the method at its fire-points and register it**
+### `[x]` **2.2 Declare the method at its fire-points and register it**
 
 - _Goal:_ `assess-cohort-fit` fires at the two derivation stages where design is the live artifact —
   `draft-design` and `create-spec` — declared via each stage's `arc.methods` frontmatter bundle (not depth-gated),
   and is registered in the methods README index, so the cheap decompose-candidacy check runs at every design-stage
   read without restating the method.
-- _Context:_ Not depth-gated — decompose-candidacy keys on orthogonality/breadth, a different axis than derivation
-  depth, so gating behind `high` would miss low-derivation-but-wide cohorts. `generate-tasks` coverage is free (a
-  "should be multiple WUs" discovery there is a derivation-class signal `resolve-planning-depth`'s re-entry valve
-  already routes upstream). The CI trigger audit requires a declaring workflow, so the method file's introducing
-  commit bundles with at least one fire-point declaration.
 
-    - `[ ]` **2.2.a Declare the method in `draft-design` and `create-spec` and add the fire-point steps**
-        - Frontmatter `arc.methods` declaration in each (two-copy — the declaration must land in the package-source
-          copy for the `lint:arc:triggers` audit, the `.arc/` mirror satisfying the framework-sync test) + the
-          affirmative-cheap-confirm fire-point step; reference the method by stable heading slug, never the `#name`
-          extension marker.
+    - `[x]` **2.2.a Declare the method in `draft-design` and `create-spec` and add the fire-point steps**
+        - Added `assess-cohort-fit` to the `arc.methods` frontmatter of both workflows (two-copy), each with a
+          fire-point at the "Resolve depth & Class" design-axis read — predicted-decomposition framing in
+          `draft-design`, emergent in `create-spec` — referenced via the `[assess-cohort-fit]` heading-slug link,
+          never the `#name` extension marker.
 
-    - `[ ]` **2.2.b Register the method in the methods README index**
-        - Both copies: the bullet-index entry ordered with the existing entries, plus a coupling-table row
-          (`assess-cohort-fit ↔ classify-work-unit` — paired upper/lower WU-boundary tests), since the sibling sits
-          in that table.
+    - `[x]` **2.2.b Register the method in the methods README index**
+        - Index entry placed next to `classify-work-unit`, plus two bidirectional coupling rows
+          (`assess-cohort-fit ↔ classify-work-unit` — "Upper/lower WU-boundary tests").
+
+- _Outcome:_ `lint:arc:triggers` now passes — the method has its declaring workflows, so the cheap
+  decompose-candidacy confirm runs at every design-stage read without the method restating itself. The two
+  fire-points read the same design-axis input `classify-work-unit` already keys on, making the upper/lower
+  boundary tests a true paired sibling at one read.
 
 ### `[ ]` **2.3 Acceptance test — re-derive CWC's D1–D4 from CWC's settled draft**
 
