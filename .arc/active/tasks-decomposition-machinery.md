@@ -119,35 +119,36 @@ the verdict stays in the primary context (sub-agent-scope rule), as `class-model
 
 _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
 
-### `[ ]` **2.1 Author the `assess-cohort-fit` method**
+### `[x]` **2.1 Author the `assess-cohort-fit` method**
 
 - _Goal:_ A loadable `assess-cohort-fit` method states the upper-bound WU-vs-cohort decision once, co-located with
   `classify-work-unit` as its paired sibling: the orthogonality-not-size discriminator, the two guard rails,
   design-maturity timing, plan-vs-delivery grouping, Model-B-only, the member-slug naming heuristic, the sizing
   heuristics (consuming the strategy standard), and the cut-map output — so the decision logic has one DRY home.
-- _Approach:_ `system/methods/assess-cohort-fit.md`, two-copy, mirroring `classify-work-unit`'s full method-file
-  shape — `override-active: false` frontmatter, a `> Contract:` blockquote (**Workflow** / **When** / **Contract**),
-  a `## assess-cohort-fit.override` section (`[No override configured]`), and `## assess-cohort-fit.default` —
-  authored as a self-contained extractable block (the `composable-workflows` forward-compat constraint). The method
-  produces the cut-map — members + slugs + internal dependency edges + deliverable boundaries — or "stays one WU";
-  the cut-map is the DRY interface `decompose-work-unit` consumes (no decision logic in the workflow, no structural
-  change in the method).
-- **Strategies:** strategy-work-organization.md, strategy-configurability-architecture.md
 
-    - `[ ]` **2.1.a Author the discriminator + two guard rails + maturity-gated timing**
-        - Orthogonality (concern multiplicity) as the trigger, LOC as a heads-up; the lower rail (don't split
-          below WU-warrant) and upper rail (don't split coupled one-design work for size); the design-maturity
-          gate (the cut is firm at maturity; what stays open is each member's ordinary spec-time openness). (A1–A3)
+    - `[x]` **2.1.a Author the discriminator + two guard rails + maturity-gated timing**
+        - `§ The discriminator — orthogonality, not size` (concern multiplicity as trigger, LOC as heads-up),
+          `§ Two guard rails` (lower: don't split below WU-warrant; upper: don't split coupled one-design work for
+          size), and `§ Timing — gated on design maturity` (the cut is firm at the maturity gate; what stays open
+          is each member's ordinary spec-time openness). (A1–A3)
 
-    - `[ ]` **2.1.b Author Model-B-only, plan-vs-delivery grouping, and the cut-map output**
-        - Model B (a cohort of self-contained WUs) only; "stacked PRs" survives solely as B's dependency-ordered
-          delivery mode; plan-as-one-draft / deliver-as-N-WUs; the cut-map as the method's output and DRY
-          interface. (A4, A5, A8)
+    - `[x]` **2.1.b Author Model-B-only, plan-vs-delivery grouping, and the cut-map output**
+        - `§ When it fires affirmative — a cohort of self-contained WUs` (Model B only; "stacked PRs" survives
+          solely as the cohort's dependency-ordered delivery mode; plan-as-one-draft / deliver-as-N-WUs) and
+          `§ Output — the cut-map` (members + slugs + internal edges + deliverable boundaries, the DRY interface
+          `decompose-work-unit` consumes). (A4, A5, A8)
 
-    - `[ ]` **2.1.c Author the sizing heuristics + the member-slug naming heuristic**
-        - The sizing heuristics consuming the `strategy-work-organization` standard (sense oversize; stack vs.
-          cohort); slugs read legibly out of context, never order-encoding ordinals — order lives in
-          `Depends On`. (A6, A7)
+    - `[x]` **2.1.c Author the sizing heuristics + the member-slug naming heuristic**
+        - `§ Sizing heuristics` consuming the `strategy-work-organization` § WU sizing standard (not re-authored —
+          count deliverables/surfaces, LOC/file count as heads-up, stack vs. cohort) and `§ Member-slug naming`
+          (slugs read legibly out of context, never order-encoding ordinals — order lives in `Depends On`). (A6, A7)
+
+- _Outcome:_ Authored `system/methods/assess-cohort-fit.md` (two-copy, byte-identical) as `classify-work-unit`'s
+  paired sibling — `override-active: false` frontmatter, a `> Contract:` blockquote naming the two design-stage
+  fire-points (`draft-design` / `create-spec`, not depth-gated), the `.override` placeholder, and the `.default`
+  decide procedure. Authored as a self-contained extractable block (no `composable-workflows` dependency), so the
+  method declares via the existing `arc.methods` bundle. Fire-point declaration + README registration deferred to
+  Task 2.2.
 
 ### `[ ]` **2.2 Declare the method at its fire-points and register it**
 
