@@ -45,46 +45,43 @@ _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; 
   and the Phase 1 preamble amended to match.
 - **Strategies:** strategy-package-project-sync.md
 
-### `[ ]` **1.3 Author the grouping-taxonomy semantics + WU-sizing standard into `strategy-work-organization`**
+### `[x]` **1.3 Author the grouping-taxonomy semantics + WU-sizing standard into `strategy-work-organization`**
 
 - _Goal:_ `strategy-work-organization` becomes the shippable home for the cohort grouping taxonomy — one grouping
   kind with coordination-by-degree, the WU leaf, the one-level nesting cap, the path-valued `Cohort` semantics +
   dir-path mirroring, and the three decomposition arms — and co-homes the WU-sizing standard the
   `assess-cohort-fit` method consumes, with § Task Lists and Branches reconciled so the strategy describes one
   model.
-- _Approach:_ Author a new top-level `## Cohorts` section sited adjacent to § Class Model / § Task Lists and
-  Branches — where decomposition already surfaces ("runaway breadth trips decomposition into a cohort") — so the
-  taxonomy reads alongside the weight model it complements. The taxonomy semantics layer on
-  `class-model-foundation`'s field _schema_ (path-valued, ≤2 segments, membership derived) — this WU defines what
-  legal values _mean_ and what structure they imply. The WU-sizing standard (count deliverables /
-  independently-reviewable surfaces; LOC + file-count as a heads-up) is authored as a subsection of that section,
-  the consumable standard the method references, not re-authored in the method. § Task Lists and Branches carries
-  pre-ADR-019 stacked-PR / phased / team-sub-branch leftovers; neutralize locally only insofar as this WU's own
-  edits leave it self-contradicting (the broad cross-surface sweep stays `doc-cascade-sweep`'s).
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **1.3.a Author the cohort taxonomy semantics**
+    - `[x]` **1.3.a Author the cohort taxonomy semantics**
         - One grouping kind (the cohort), coordination as a content continuum by degree, the WU leaf, the
           one-level nesting cap, the path-valued `Cohort` semantics + on-disk dir-path mirroring; "theme" survives
           as informal prose only, never a schema kind. (B1–B4)
 
-    - `[ ]` **1.3.b Author the three decomposition arms + the at-cap provenance model**
+    - `[x]` **1.3.b Author the three decomposition arms + the at-cap provenance model**
         - The three arms by parent position (standalone → top-level cohort; in-cohort → sub-cohort; at-cap →
           lateral fan-out), name-preservation across arms 1–2, and the at-cap grouping-as-provenance design (the
           write-once fan-out note, slugs content-legible / never ordinal, order in `Depends On`). (B5, B6)
 
-    - `[ ]` **1.3.c Co-home the WU-sizing standard the method consumes**
+    - `[x]` **1.3.c Co-home the WU-sizing standard the method consumes**
         - The sizing heuristics as a standard: distinct deliverables / reviewable surfaces, the LOC + file-count
-          heads-up, stack-vs-cohort (sequential → stack, independent-ish → cohort), the cohort≈epic / WU≈story
-          model. (A6 home)
-        - _Note:_ This standard is the contract `assess-cohort-fit` consumes (2.1.c) — keep these named outputs
-          stable so the method references them rather than re-authoring the heuristics.
+          heads-up, stack-vs-cohort (sequential → stack, independent-ish → cohort). (A6 home; the cohort≈epic /
+          WU≈story analogy routed to `adr-024` as known-practice grounding rather than the shipped strategy.)
 
-    - `[ ]` **1.3.d Locally neutralize § Task Lists and Branches where this WU's edits leave it self-contradicting**
+    - `[x]` **1.3.d Locally neutralize § Task Lists and Branches where this WU's edits leave it self-contradicting**
         - Reconcile the section's multi-branch-per-one-task-list framing (stacked-PRs / phased / team-sub-branches)
           to the cohort taxonomy's model — decomposition yields a cohort of self-contained one-branch WUs — insofar
           as the new taxonomy + sizing standard render it self-contradicting (Open Question 2: local-neutralize yes,
           bounded). The broad cross-surface tier reconciliation stays `doc-cascade-sweep`'s regardless.
+
+- _Outcome:_ New top-level `## Cohorts` section authored in `strategy-work-organization` (both copies), between
+  § Class Model and § Task Lists and Branches: one grouping kind with coordination-by-degree, the one-level
+  nesting cap + path-valued `Cohort` semantics / dir-path mirroring, the three decomposition arms + at-cap
+  provenance, and the WU-sizing standard (the named contract `assess-cohort-fit` consumes in 2.1.c). § Task Lists
+  and Branches reconciled to the cohort model (default 1:1; oversize → cohort/stack of one-branch WUs; team
+  sub-branches reframed as a collaboration mechanism) — bounded local neutralization; the cross-surface sweep
+  stays `doc-cascade-sweep`'s.
 
 ### `[ ]` **1.4 Author the companion ADR for the invented model**
 
