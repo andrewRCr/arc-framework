@@ -279,6 +279,48 @@ how much the doc says, not what kind of thing the grouping is.
 and never a doc-less exception. A top-level cohort and an informal "theme" are syntactically identical (both a
 single-segment `Cohort` value); treating them as one kind with a Purpose-floor doc removes the ambiguity.
 
+### The `cohort-{name}.md` record
+
+Every cohort's doc (§ One grouping kind) is a constitutive structured record, not free-form notes — its presence
+is what marks a directory as a deliberate grouping rather than an incidental parent. The record's anatomy, from
+the required floor upward:
+
+- **H1 + uniform preamble**, scaffolded from `template-cohort.md`.
+- **Required Purpose floor** — the one-paragraph expansion of the slug (§ One grouping kind): the minimum that
+  makes the file non-vacuous, and the grouping's reality check. It may sharpen into a thesis as the grouping
+  tightens.
+- **Optional coordination content, accreting above the floor** — shared contracts (cross-member design no single
+  WU owns), closeout criteria, a parent-cohort pointer (derivable from the `Cohort` path). There is no
+  `Coordinated` flag: coordination is the continuum of how much the doc says, not a mode it switches into.
+- **Per-member sections keyed by slug** — a *partitioned coordination surface*, not a membership roster. Each
+  member edits only its own section, so parallel writers line-merge cleanly.
+
+**Membership stays derived.** Membership comes from each WU's `Cohort` field — the meta record is the source of
+truth — never a list the doc maintains. A per-member section is therefore a *subset* of the membership: a WU gets
+one only when it has cross-cutting coordination to record, and a missing section means "nothing to coordinate."
+The doc never carries a roster or status table — those render from metas. An orphan section (its WU renamed or
+removed) is caught by the cohort-consistency invariant, not by manual upkeep.
+
+**No coordinator or DRI.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
+(each member edits only its own section), and cohort-level material is by definition ownerless — *the partition
+is the coordination mechanism, in place of an owner.* `Owner` stays WU-level; any team-scale arbitration need
+routes to the team-coordination conventions, not a role minted at the cohort.
+
+**Design vs. coordination — forced, not chosen.** The cohort doc carries **coordination only — never design that
+drives a task list** — and the per-member partition *forces* that boundary rather than merely asking for it. A
+contract's authoritative definition drives its implementing member's task list, so it **must** live in that
+member's spec; the cohort doc holds only a *pointer* to it plus the list of consuming members. Coordination
+itself splits two ways:
+
+- **Cohort-level** — genuinely ownerless shared material: a thesis, closeout criteria, a convention every member
+  honors.
+- **Per-member** — a single member's own surface, framed as **exposes / consumes**: what it offers its siblings
+  and what it depends on from them.
+
+The partition is the forcing function: when a member's section starts filling with design that drives its *own*
+tasks, that visible smell *is* the signal the content belongs in its spec, with only a pointer left behind. The
+boundary holds because crossing it looks wrong in the doc, not because a reviewer must police it.
+
 ### The nesting cap — one level
 
 Nesting is capped at one level: at most `<cohort>/<subcohort>/<wu>`, never three grouping segments. The cap is a

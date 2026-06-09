@@ -203,28 +203,31 @@ seam notes route out (runtime concurrency safety is CWC's).
 
 _Anchors:_ C1–C6, G; SC4, SC9.
 
-### `[ ]` **3.1 Define the `cohort-{name}.md` record shape and the design-vs-coordination forcing function**
+### `[x]` **3.1 Define the `cohort-{name}.md` record shape and the design-vs-coordination forcing function**
 
 - _Goal:_ The `cohort-{name}.md` record is defined as constitutive of every cohort (ADR-022 family): a required
   one-paragraph Purpose floor scaling up to full coordination by degree, per-member sections keyed by slug (a
   partitioned coordination surface, not a roster — membership stays derived), no coordinator/DRI, and the
   design-vs-coordination boundary _forced_ by the per-member partition.
-- _Rationale:_ The forcing function is the design: a contract that drives a member's task list must live in that
-  member's spec, so the doc holds only a pointer + consumer list; a per-member section that fills with
-  task-driving design is the visible smell that the content belongs in the spec. The shape is documented in the
-  cohort taxonomy home (alongside 1.3) and realized in `template-cohort.md` (3.2).
 - _Note:_ Pre-existing cohort docs predate this shape and diverge (esp. `cohort-agile-parallelism.md` — prose H1 +
   a roster-style "Membership and ownership map" against C2); bringing them into conformance is `doc-cascade-sweep`'s
   broad cross-surface sweep (Non-Goals), routed there directly. This WU conforms only its own authored / edited docs.
 
-    - `[ ]` **3.1.a Define the constitutive-record shape**
-        - Purpose floor (the slug expanded; the grouping's reality check), coordination-by-degree body, per-member
-          sections keyed by slug as a partitioned surface, membership derived (no roster / status table), no
-          DRI — the partition _is_ the coordination mechanism in place of an owner. (C1, C2, C4)
+    - `[x]` **3.1.a Define the constitutive-record shape**
+        - New `cohort-{name}.md`-record subsection in `strategy-work-organization` § Cohorts: the record anatomy
+          (H1+preamble, Purpose floor, optional accreting coordination content, per-member slug-keyed partitioned
+          surface), membership-derived (no roster/status), no DRI. (C1, C2, C4)
 
-    - `[ ]` **3.1.b State the design-vs-coordination forcing function**
-        - Cohort-level (ownerless shared material) vs per-member (exposes/consumes) coordination; an owned
-          contract → owner's spec + a pointer in the doc; the partition as a deliberate forcing function. (C3)
+    - `[x]` **3.1.b State the design-vs-coordination forcing function**
+        - The "Design vs. coordination — forced, not chosen" block: coordination-only / never task-driving design;
+          owned contract → member's spec + a pointer + consumer list; cohort-level vs per-member exposes/consumes;
+          the partition as the forcing function (a section filling with task-driving design is the smell). (C3)
+
+- _Outcome:_ Authored as one `cohort-{name}.md`-record subsection (both copies), placed after
+  § One grouping kind so the doc's anatomy follows the coordination-by-degree framing it elaborates. The forcing
+  function lands as a bolded block within it rather than a peer heading — keeping "what the record is" and "how it
+  disciplines its own content" cohesive, and matching the section's flat-`###` convention. ADR-free per
+  adopter-facing strategy rules (the ADR-022-family grounding stays in `adr-024`).
 
 ### `[ ]` **3.2 Author `template-cohort.md` from the live prototype (field set prototype-iterate)**
 
