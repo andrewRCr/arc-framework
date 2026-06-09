@@ -83,24 +83,27 @@ _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; 
   sub-branches reframed as a collaboration mechanism) — bounded local neutralization; the cross-surface sweep
   stays `doc-cascade-sweep`'s.
 
-### `[ ]` **1.4 Author the companion ADR for the invented model**
+### `[x]` **1.4 Author the companion ADR for the invented model**
 
 - _Goal:_ An internal-only companion ADR (`adr-024`) records the invented model's durable, cross-cutting
   rationale — Model B over A; orthogonality over size; one grouping kind with coordination-by-degree; the
   one-level nesting cap with at-cap lateral fan-out + provenance; the method/workflow split with the cut-map as
   the DRY interface; and no coordinator/DRI — joining and extending the ADR-019/021/022 line.
-- _Note:_ Non-moving artifact (stays under `reference/adr/` across the lifecycle), internal-only (single-copy, not
-  mirrored, referenced from no adopter-facing surface). Parallel in scope to `class-model-foundation`'s adr-023;
-  the next index is adr-024. Rationale derives from the spec's already-settled § Alternatives & Rationale.
 - **Strategies:** strategy-adr-methodology.md
 
-    - `[ ]` **1.4.a Draft adr-024 (context / decision / consequences)**
+    - `[x]` **1.4.a Draft adr-024 (context / decision / consequences)**
         - The invented model and its grounds, mirroring adr-023's decided-here / ratifies-downstream pattern;
           cites ADR-019/021/022.
 
-    - `[ ]` **1.4.b Record risks / alternatives and wire ADR cross-references**
+    - `[x]` **1.4.b Record risks / alternatives and wire ADR cross-references**
         - Alternatives (Model A; size-as-discriminator; categorical theme/cohort tier set; maintained roster;
           cohort-owner role; unbounded nesting) as rejected, with the chosen rationale; confirm anchors resolve.
+
+- _Outcome:_ `adr-024-cohort-decomposition-model.md` authored (Proposed; promote to Accepted when this WU
+  integrates), citing ADR-019/020/021/022/023 — all anchors resolve; no README index to register (ADRs are
+  filesystem-browsed). The epic/story analogy lands here as known-practice grounding, explicitly kept out of the
+  normative surfaces. Also corrected a stale § Cross-cutting "User-facing impact" line left by the 1.2 collapse
+  (DEV-RULES gains the `cohort-*` enumeration entry, not the two rules).
 
 ## **Phase 2:** The `assess-cohort-fit` decide method + acceptance test
 

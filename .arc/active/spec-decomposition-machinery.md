@@ -563,8 +563,9 @@ pre-ADR-019 leftovers contradict the B-only model), **neutralize that section lo
 broader cross-surface tier reconciliation stays `doc-cascade-sweep`'s.
 
 **User-facing impact.** A new planning method fires (cheaply) at the two design stages; a new lifecycle workflow
-becomes available for the WU→cohort transition; `AGENT-BRIEF.ARC` § Vocabulary gains a Cohort entry and
-`DEV-RULES.ARC` gains the two constitutive rules. No change to existing commit/push/interlock behavior.
+becomes available for the WU→cohort transition; `AGENT-BRIEF.ARC` § Vocabulary gains a Cohort entry (carrying
+the two constitutive rules) and `DEV-RULES.ARC` gains `cohort-*` in its movable-artifact enumeration. No change
+to existing commit/push/interlock behavior.
 
 **Novel overlay.** This is `Class: Novel` · `detailed`·RFC — an invented model (the grouping taxonomy, the
 cohort record, the at-cap provenance design, the method/workflow split). The Novel overlay's **ADR-companion is
