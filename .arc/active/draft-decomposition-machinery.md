@@ -15,52 +15,6 @@
 
 ---
 
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **Bring `cohort-*` under relocatability and reference hygiene**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
-  `class-model-foundation` Task 1.3.
-- *Concern:* `cohort-{name}.md` is a movable `.arc/` artifact, but DEV-RULES.ARC currently scopes the movable
-  artifact reference rules to WU artifacts. Its lifecycle differs from a single WU's `State` transition, so this
-  WU must decide whether `cohort-*` adopts the WU-artifact relocatability invariant or gets cohort-specific
-  relocation semantics, including whether outbound relative-path links are forbidden from cohort records.
-- *Context:* no live breakage was found in existing cohort docs; this is the semantics / enforcement integration
-  point for the cohort record this WU formalizes.
-
-### `[ ]` **Cohort-field↔dir consistency guard (the cohort half of a bundled hook capture)**
-
-- *Routed from:* `USER-INBOX § Backlog` (originally `WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort
-  housekeep drain (2026-06-04). The capture bundled two structural guards under one hook file; decomposition split
-  ownership, so the cohort↔dir half re-homes here (this WU owns the cohort-consistency invariant **and** its
-  enforcement — the forbidden-pattern / layout-drift hook family). Captured 2026-06-03, pre-decomposition.
-- *Concern:* a WU's `**Cohort:**` field-path must match its `backlog/planned/<cohort>[/<subcohort>]/` parent
-  dir-path; cohort-doc member-lists must match actual members; every grouping dir should carry a
-  `cohort-{name}.md` (raised while reversing this cohort's own field↔dir drift during decomposition).
-- *Proposed:* a backlog-scoped cohort-field↔dir guard (skip `active/` flat + `completed/` ordinal) wired into the
-  layout-drift hook family this WU owns. Co-located with the invariant so it is never defined-but-unenforced.
-- *Coordinates with:* the relocatability source-side ref-enforcement entry in `quality-gate-hooks` (the other
-  half of the same original capture — same hook-file family, different invariant).
-
-### `[ ]` **Layout-drift hook: documented `active/` layout == reader/scaffold behavior**
-
-- *Routed from:* `USER-INBOX § Atomic` follow-on (separable lobe of the `active/`-layout doc-fix; the doc-fix
-  core routed to `doc-cascade-sweep`), agile-wu-lifecycle cohort housekeep drain (2026-06-04). Captured during
-  `concurrent-work-conventions` init (2026-06-03).
-- *Concern:* the documented `active/` layout (flat — `active/meta-<name>.md` with companions flat alongside,
-  because one WU lives per worktree) has no mechanical guard tying it to actual reader/scaffold behavior
-  (`meta-reader.ts` `findMetaFiles` non-recursive readdir; `worktree-scaffold.ts` `spawnWorktree` writing flat).
-  Docs and impl can drift silently — the doc-fix routed to `doc-cascade-sweep` corrects today's drift, this
-  prevents recurrence.
-- *Proposed:* a validation hook (cf. the package-sync drift hooks) asserting documented-layout == reader/scaffold
-  behavior — a natural member of this WU's layout-drift hook family. Decide whether it co-homes with the
-  cohort-field↔dir guard above or is a distinct check.
-
----
-
 ## Problem / Motivation
 
 `class-model-foundation` answers the *lower* bound of a WU (Errand vs. WU — is this big enough to warrant a
@@ -185,6 +139,17 @@ differs from a top-level one *only* by path depth (capped at two segments) and b
 "Sub-cohort" is prose framing, never a `subcohort-*` prefix. The on-disk dir mirrors the path; the
 relocatability invariant (pure `git mv`) is unaffected (just more dir levels); the cohort-consistency invariant
 generalizes from "field matches parent dir" to "field-path matches dir-path."
+
+## Terminology home — introduce "cohort" into the always-loaded surface
+
+The concept is **used-before-defined.** `class-model-foundation` shipped the `Cohort` field, the
+`backlog/planned/<cohort>/` dirs, the render columns, and even names the `cohort-*` record — but no constitutional
+/ brief surface *defines* a cohort. `AGENT-BRIEF.ARC` § Vocabulary (the terminology-introduction surface, alongside
+Work unit / Class / Atomic / Interlock / Review increment) gains a **Cohort** entry: what a cohort is (a deliberate
+grouping with a constitutive doc), the nested-cohort / sub-cohort framing, and the WU-leaf relationship. Any
+*constitutive rule* that reads as behavior rather than vocabulary (every grouping dir carries a `cohort-{name}.md`;
+the one-level nesting cap) promotes to `DEV-RULES.ARC`. This WU owns the entry because it owns cohort semantics —
+the brief is the introduction, the body sections above are the definition.
 
 ## A decomposing WU becomes a cohort — three arms by parent position
 
@@ -446,10 +411,29 @@ A WU's path-valued `**Cohort:**` field must match its `backlog/planned/<cohort>[
 orphan sections). Field-vs-dir drift is a silent failure (a WU assigned to one cohort but filed under another).
 This WU owns the *invariant* (cohort semantics is its charter) **and** its *enforcement* — a backlog-scoped
 structural guard (`active/` is flat and `completed/` ordinal, so neither applies); the validator + its
-pre-commit wiring (the forbidden-pattern / layout-drift hook family). Co-locating definition and enforcement
-ensures the invariant is never defined-but-unenforced. The check also serves as the cohort doc's schema
-validator (Purpose present; per-member section slugs ⊆ derived members). The `decompose-work-unit` procedure
-carries a **manual** version of these three checks for the bootstrapping run that precedes this WU.
+pre-commit wiring (the forbidden-pattern / layout-drift hook family), coordinating with `quality-gate-hooks`'
+source-side movable-artifact ref-enforcement — same hook-file family, a different invariant. Co-locating
+definition and enforcement ensures the invariant is never defined-but-unenforced. The check also serves as the
+cohort doc's schema validator (Purpose present; per-member section slugs ⊆ derived members). The
+`decompose-work-unit` procedure carries a **manual** version of these three checks for the bootstrapping run that
+precedes this WU.
+
+## Cohort record relocatability & reference hygiene
+
+`cohort-{name}.md` is a **movable `.arc/` artifact** and adopts the WU-artifact relocatability + reference-hygiene
+invariant wholesale — not a special case. It relocates `backlog/planned/<cohort>[/<subcohort>]/ → completed/` when
+the cohort's last member ships (a pure `git mv`, no content edit), so it carries position-independent references
+exactly as `meta-* / draft-* / spec-* / tasks-*` do: **inbound** references to it are backticked-filename-only (no
+Markdown links, no paths); **outbound** from it carries no relative-path links at all. The outbound rule is
+satisfiable by construction — a cohort doc names sibling drafts / specs by backticked filename, and the
+parent-cohort pointer is *derivable from the `Cohort` path* (never a hardcoded link).
+
+The relocatability invariant's **statement** is `class-model-foundation`'s (shipped; consumed here) — this WU does
+not restate it. What this WU adds, because it introduces the record type, is naming `cohort-*` in the
+movable-artifact **enumeration** (DEV-RULES.ARC § Artifact relocatability / § `.arc/` artifact references), so the
+existing rule covers it. **Enforcement** of `cohort-*` reference hygiene rides `quality-gate-hooks`' source-side
+ref-enforcement (the same out-of-scope boundary as relocatability enforcement generally); only the
+*cohort-consistency* invariant's enforcement is in scope here.
 
 ## Open / deferred
 
@@ -464,6 +448,24 @@ carries a **manual** version of these three checks for the bootstrapping run tha
   consumes all three siblings). **Spec-time flag:** if *this* WU's own `strategy-work-organization` edits (the
   sizing-norm co-home) would leave that file self-contradicting, neutralize § Task Lists and Branches locally in
   this WU's PR; the broader cross-surface tier reconciliation stays `doc-cascade-sweep`'s.
+- **`active/`-layout drift hook — routed out (not this WU).** A hook asserting the documented flat `active/`
+  layout matches reader / scaffold *code* behavior (`meta-reader.ts` non-recursive readdir; `worktree-scaffold.ts`
+  flat write) is **not** this WU's. By this WU's own co-location-of-enforcement principle, it enforces the
+  cohort-consistency invariant *because it owns cohort semantics* — and it does not own the `active/`-layout
+  invariant; the check also needs code-behavior introspection the structural cohort guard doesn't share, so it
+  does not cheap-ride the same harness. Routed to `quality-gate-hooks` (alongside relocatability enforcement) /
+  the worktree-scaffold owner. **Interim gap accepted:** until that lands, the flat `active/` layout is unguarded
+  against doc↔code drift — low cost (the layout is simple and low-churn, and `doc-cascade-sweep` already corrects
+  today's drift; this only prevents recurrence).
+- **Dependency-edge lifecycle awareness — routed to `operational-state-docs`.** A `Depends On` edge is
+  *state-blind*: it names a dependency without signaling whether that dependency has shipped, so an agent reading
+  a meta / draft during planning can read a satisfied edge as live (observed live this cohort — a shipped,
+  archived dependency was reasoned about as in-flight). The fix is not this WU's — it belongs to
+  `operational-state-docs`, which owns the dependency-metadata field semantics (lifecycle-trigger resolution:
+  `init` authors / `activate` discharges satisfied edges / planning grounds-reads / session-init optionally
+  surfaces). **Coordination seam:** this WU's distribution discipline *authors* `Depends On` edges — it authors
+  *live gates* among members, leaving satisfied-ness to be discharged at each member's activation; keep the
+  edge-distribution wording consistent with the live-gate semantics `operational-state-docs` settles.
 
 ## Scope
 
@@ -478,7 +480,9 @@ carries a **manual** version of these three checks for the bootstrapping run tha
    path-valued `Cohort` field *semantics*; the dir-path mirroring rule; the three decomposition arms
    (standalone → top-level, in-cohort → sub-cohort, at-cap → lateral fan-out with provenance).
 3. The `cohort-{name}.md` managed record (ADR-022 family; Purpose floor / optional coordination /
-   per-member-by-slug; membership-derived; no DRI) + `template-cohort.md`.
+   per-member-by-slug; membership-derived; no DRI) + `template-cohort.md`; its relocatability + reference-hygiene
+   treatment (adopts the WU-artifact invariant; adds `cohort-*` to the movable-artifact enumeration — ref-hygiene
+   *enforcement* rides `quality-gate-hooks`).
 4. The **`decompose-work-unit` workflow** (lifecycle *execute*) — park-shaped exit; transforms a live WU →
    cohort; field inheritance on minted stubs; dependency-edge-by-need distribution; the four-step distribution
    discipline; shares the cohort-scaffold primitive with the predicted arm and `integrate`'s PR-merge-cleanup
@@ -486,6 +490,9 @@ carries a **manual** version of these three checks for the bootstrapping run tha
    (reconciliation with `doc-cascade-sweep`).
 5. The **cohort-consistency invariant + its enforcement** (validator + pre-commit wiring, co-located with the
    invariant).
+6. The **concept introduction** — a `Cohort` entry in `AGENT-BRIEF.ARC` § Vocabulary (the always-loaded
+   terminology surface; the concept is used-before-defined today), promoting any constitutive cohort *rule* (the
+   constitutive-doc requirement; the one-level nesting cap) to `DEV-RULES.ARC`.
 
 **Out of scope:**
 
@@ -511,14 +518,20 @@ decompose-at-spec itself, but it is one coherent design — lean one WU with pha
 
 ## Planning status
 
-- **Readiness:** maturing → near formalization-ready. The core model is settled — Model-B-only; the bounded
-  grouping taxonomy; the three decomposition arms (incl. at-cap lateral fan-out + provenance); the cohort record
-  and its design-vs-coordination forcing function (no DRI); the decompose method / `decompose-work-unit` workflow
-  split with fire-points, the cut-map interface, and the primitive factoring; dependency-edge-by-need
-  distribution; the cohort-consistency invariant + enforcement.
-- **Remaining before create-spec:** drain the three buffered concerns (cohort-* relocatability; cohort-field↔dir
-  guard; layout-drift hook), then close the two opens above (template-cohort body is deferred-by-method;
-  reconciliation routed to `doc-cascade-sweep`).
-- **Next:** integrate the inbound-buffer trio, then run `create-spec` (`detailed` / heavy).
+- **Readiness:** formalization-ready. The inbound-buffer trio is drained — cohort-* relocatability **integrated**
+  (adopts the WU-artifact invariant; § Cohort record relocatability & reference hygiene), the cohort-field↔dir
+  guard **already subsumed** by § Cohort-consistency invariant (one `quality-gate-hooks` cross-ref added), the
+  `active/`-layout hook **routed out** to `quality-gate-hooks`. The concept-introduction deliverable (cohort →
+  `AGENT-BRIEF.ARC` § Vocabulary) is folded into scope. The core model was already settled — Model-B-only; the
+  bounded grouping taxonomy + three arms (incl. at-cap lateral fan-out + provenance); the cohort record and its
+  design-vs-coordination forcing function (no DRI); the decompose method / `decompose-work-unit` workflow split
+  with fire-points, the cut-map interface, and the primitive factoring; dependency-edge-by-need distribution; the
+  cohort-consistency invariant + enforcement.
+- **Open by method, not unsettled:** `template-cohort.md` body (generalized from the live prototype at execution);
+  the `strategy-work-organization` § Task Lists and Branches reconciliation (routed to `doc-cascade-sweep`, with a
+  spec-time local-neutralize flag). Dependency-edge lifecycle awareness is routed to `operational-state-docs` (a
+  coordination seam, not a blocker here).
+- **Next:** run `create-spec` (`detailed` / heavy) — re-read the derivation axis at its own entry, and re-derive
+  the worked example (CWC's D1–D4).
 
 ---
