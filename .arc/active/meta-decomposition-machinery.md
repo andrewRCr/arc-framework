@@ -15,10 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Continue pre-spec drafting on `draft-decomposition-machinery.md` via `arc-plan` — drain the
-  three buffered concerns (cohort-* relocatability; cohort-field↔dir guard; layout-drift hook), then author a
-  `detailed` spec (`heavy`) via `1_create-spec`. Runs in parallel with `scalable-authoring-pipeline` on top of
-  `class-model-foundation`. Owns the **`decompose-work-unit` workflow** that codifies this cohort's own
-  (manually-run) decomposition; verify the spec re-derives the worked example.
+- **Next Action:** Run `create-spec` (`detailed` / `heavy`) on `draft-decomposition-machinery.md` — now
+  formalization-ready (buffer drained; relocatability + cohort terminology in; `active/`-layout + dep-edge
+  concerns routed out). Acceptance: re-derive CWC's D1–D4. Atop **shipped** `class-model-foundation`.
 
 ---
