@@ -172,19 +172,21 @@ _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
   fire-points read the same design-axis input `classify-work-unit` already keys on, making the upper/lower
   boundary tests a true paired sibling at one read.
 
-### `[ ]` **2.3 Acceptance test — re-derive CWC's D1–D4 from CWC's settled draft**
+### `[x]` **2.3 Acceptance test — re-derive CWC's D1–D4 from CWC's settled draft**
 
 - _Goal:_ Applying the `assess-cohort-fit` discriminator + the two guard rails to Concurrent Work Conventions's
   one settled draft cleanly re-derives CWC's actual decomposition (its D1–D4 members) without strain — confirming
   the procedure works (if it strains, the rule is wrong, not the cut).
-- _Approach:_ Read-only dogfood; the verdict stays in the primary context (sub-agent-scope rule), as
-  `class-model-foundation`'s 5.2 / 5.R.2 triage gates ran. Surface the re-derivation against CWC's actual D1–D4
-  for confirmation; a clean match passes, a strained one routes back to the method (2.1).
-- _Note:_ CWC = Concurrent Work Conventions; the input is its settled draft at
-  `draft-concurrent-work-conventions.md` § Delivery plan / Decomposition table (the D1–D4 four-WU cut).
-- _Note:_ The draft already _states_ D1–D4 as a settled cut, so keep the dogfood honest — apply the discriminator +
-  rails to CWC's scope / problem structure and _compare_ to the stated D1–D4, rather than reading the answer off
-  the table.
+- _Outcome:_ **PASS.** Deriving from CWC's scope / design structure — In-scope item 1 (the `strategy-concurrent-work.md`
+  doctrine), the compose-shipped-primitives merge-safety thread, In-scope item 2 + the errand merge-gate drain
+  corrections (async-merge lifecycle), and the single-owner-WU "one DRI" design decision — the orthogonality
+  discriminator cuts four orthogonal deliverable-type seams that match the stated D1–D4 exactly (spine D1 →
+  D2/D3/D4; D2 before D3). Both rails are load-bearing, not rubber-stamped: the lower rail folds the sub-WU pieces
+  (awaiting-review state semantics; the `arc start` create-new / subdir-removal / cohort-discovery plumbing) into
+  D3 rather than minting micro-WUs, and the upper rail keeps D2's detector + extensions + hook as one coupled
+  mechanism instead of three, and holds doctrine (D1) apart from the ownership-model rewrite (D4) rather than
+  lumping them as "all the docs." No strain → the discriminator + rails reproduce the cut (SC1). Read-only
+  dogfood; verdict stayed in primary context.
 
 ## **Phase 3:** The `cohort-{name}.md` record + `template-cohort.md`
 
