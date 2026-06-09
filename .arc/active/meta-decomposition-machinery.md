@@ -9,15 +9,15 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-decomposition-machinery.md`
-- **Task List:** [none]
+- **Task List:** `tasks-decomposition-machinery.md`
 
-- **Last Completed:** Generate-tasks passes 1–2 — `tasks-decomposition-machinery.md` drafted (structural
-  decomposition + content fill)
+- **Last Completed:** Generate-tasks complete — `tasks-decomposition-machinery.md` finalized (Pass 3 grounding
+  audit + suite-coherence pass)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume `2_generate-tasks.md` at Pass 3 (grounding audit) on
-  `tasks-decomposition-machinery.md` — per-phase audit→confirm→revise; then Finalize (set `**Task List:**`,
-  advance to `activate-work-unit.md`). Passes 1–2 committed at `03039d45`.
+- **Next Action:** Run `activate-work-unit.md` — flip `**State:**` to `Active` and rename
+  `plan/decomposition-machinery` → `<type>/decomposition-machinery`; implementation begins at Phase 1. Activation
+  is deferrable if planning ahead.
 
 ---

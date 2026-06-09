@@ -300,10 +300,12 @@ A genuine lifecycle transition (a WU changing *what it is*), earning its own wor
 `class-model-foundation`'s `graduate-work-unit`); reusing it for the WU→cohort split would collide with shipped
 vocabulary.
 
-**D1. A park-shaped exit, not an integrate.** `decompose-work-unit` reuses the **park** path's mechanics
-(`active/ → backlog/`, PR to `main`, branch + worktree teardown) with cohort-specific choreography. It is **not**
-an `integrate-work-unit` (no code deliverable, no `completed/` archive). It **runs on the originating planning
-branch** as that WU's terminal act — no fresh branch, no `Active` step.
+**D1. A park-shaped exit, not an integrate.** `decompose-work-unit` reuses the **park** *pattern*'s mechanics
+(`active/ → backlog/`, PR to `main`, branch + worktree teardown) with cohort-specific choreography — authored
+inline as named extractable blocks, since no `park-work-unit.md` workflow exists yet (park/resume are the planning
+conductor's, §20, which will reuse these blocks rather than re-author them). It is **not** an `integrate-work-unit`
+(no code deliverable, no `completed/` archive). It **runs on the originating planning branch** as that WU's
+terminal act — no fresh branch, no `Active` step.
 
 **D2. Steps.** Mint the cohort (dir + `cohort-{name}.md` from the origin draft's coordination content) →
 **backfill the parent cohort's doc if absent** → scaffold the N member stubs in
@@ -365,10 +367,14 @@ delete the local/remote `plan/<name>` branch; *no* worktree removal. **linked** 
   discipline (D5) serve.
 
 **D8. Primitive factoring (DRY).** `decompose-work-unit` is a *separate* workflow (keeping `integrate`
-code-shipping-focused) that shares two factored primitives: the **PR-merge-branch-cleanup primitive** with
-`integrate`, and the **cohort-scaffold primitive** (mint cohort + scaffold member stubs + wire deps + verify
-consistency) with the *predicted* decomposition arm — which draws on that primitive *without* the
-monolith-splitting distribution step. Layered:
+code-shipping-focused). It authors two named extractable blocks (forward-compat, H): the **cohort-scaffold
+primitive** (mint cohort + scaffold member stubs + wire deps + verify consistency), shared *now* with the
+*predicted* decomposition arm — which draws on it *without* the monolith-splitting distribution step; and the
+**`active/ → backlog/` + park-PR + worktree-kind-teardown block**, authored single-source for `integrate` /
+`park-work-unit.md` to adopt *when `composable-workflows` lands* — not a present-tense `integrate` refactor.
+(`integrate` stops before merge and owns no branch/worktree teardown today — that is session-init's stale-sweep;
+making teardown an eager workflow step is a behavior change rippling to `archive` + the sweep, carried to
+Concurrent Work Conventions as its own question.) Layered:
 `decompose-work-unit = [distribution-discipline + retire-origin] ∘ cohort-scaffold ∘ PR-cleanup`; the predicted
 arm = `cohort-scaffold` (authored incrementally as the design forms). Plus a lightweight decomposition-PR
 description variant.
@@ -535,11 +541,16 @@ schema, relocatability invariant statement — consumed, not restated). Coordina
 - **`quality-gate-hooks`** — owns relocatability/source-side ref-enforcement and the `active/`-layout drift hook
   (both routed out, see Non-Goals); the cohort-consistency guard coordinates within the same hook-file family.
 - **Concurrent Work Conventions** — owns the merge/rebase delivery discipline for a decomposed stack and the
-  runtime concurrency net for the shared cohort doc (G).
+  runtime concurrency net for the shared cohort doc (G); also carries the routed question of whether lifecycle
+  workflows should own *eager* post-merge branch/worktree teardown (vs. the session-init sweep) once decompose's
+  teardown block exists (D8).
 - **`composable-workflows`** — the forward-compat constraint (H); provides the durable cross-file
   step-reference / anchor convention.
-- **`doc-cascade-sweep`** — carries the codification-against-the-actual-run reconciliation (D9) and the broad
-  `strategy-work-organization` § Task Lists and Branches retirement sweep.
+- **`arc-plan-conductor`** — owns `park-work-unit.md` / `resume-work-unit.md` (§20); will reuse this WU's
+  single-source `active/ → backlog/` + worktree-kind-teardown blocks rather than re-author them (D1, D8).
+- **`doc-cascade-sweep`** — carries the codification-against-the-actual-run reconciliation (D9), the broad
+  `strategy-work-organization` § Task Lists and Branches retirement sweep, and the conformance sweep of
+  pre-existing cohort docs against this WU's record shape.
 
 **Local reconciliation flag (in scope).** If *this* WU's own `strategy-work-organization` edits (the sizing-norm
 co-home, A6) would leave § Task Lists and Branches self-contradicting (its stacked-PRs / phased / team-sub-branch
@@ -579,9 +590,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
    live prototype with its field set marked prototype-iterate.
 5. **The `decompose-work-unit` workflow exists** (park-shaped exit; transforms a live WU → cohort): the D2
    steps, field inheritance (D3), dependency-edge-by-need distribution, the four-step distribution discipline
-   (D5), the predicted/emergent arms (D7), the cohort-scaffold + PR-merge-cleanup primitive factoring (D8), the
-   worktree-kind teardown (D6), and the decomposition-PR description variant — codified against this cohort's own
-   manual run (D9).
+   (D5), the predicted/emergent arms (D7), the cohort-scaffold + PR-cleanup primitives authored as named
+   extractable blocks (D8), the worktree-kind teardown (D6), and the decomposition-PR description variant —
+   codified against this cohort's own manual run (D9).
 6. **The cohort-consistency invariant + enforcement ships:** the three conditions (E1) as a backlog-scoped
    structural guard with pre-commit wiring (E2), co-located with the invariant definition and serving as the
    cohort doc's schema validator; the manual bootstrapping version (E3) is documented in `decompose-work-unit`.
@@ -606,7 +617,8 @@ Resolved during the work, not deferred as debt:
   per-member section shape are generalized from the live prototype (`cohort-agile-wu-lifecycle.md`) at execution,
   with the field set explicitly marked prototype-iterate (cf. the spec templates' legitimate deferral). Settle
   at execution against the prototype; not a resolve-before-starting blocker.
-- **Local neutralize of `strategy-work-organization` § Task Lists and Branches** — whether this WU's own
-  sizing-norm edits leave that section self-contradicting enough to require a local neutralize (in scope) vs.
-  leaving the whole reconciliation to `doc-cascade-sweep`. Settle when authoring the `strategy-work-organization`
-  edits; the cross-surface tier reconciliation stays `doc-cascade-sweep`'s regardless.
+- **Local neutralize of `strategy-work-organization` § Task Lists and Branches** — *resolved:* a **bounded local
+  neutralize is in scope**. This WU's own taxonomy + sizing-standard edits render the section's
+  multi-branch-per-one-task-list framing (stacked-PRs / phased / team-sub-branches) self-contradicting against the
+  B-only model, so reconcile it locally to "decomposition yields a cohort of self-contained one-branch WUs"; the
+  broad cross-surface tier reconciliation stays `doc-cascade-sweep`'s regardless.

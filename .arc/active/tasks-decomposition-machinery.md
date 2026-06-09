@@ -47,9 +47,15 @@ _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; 
 
     - `[ ]` **1.2.b Add `cohort-*` to the movable-artifact enumeration**
         - `cohort-*` joins `meta-*` / `draft-*` / `spec-*` / `tasks-*` / companions in § Artifact relocatability +
-          § `.arc/` artifact references, so inbound-filename-only / outbound-no-relative-path rules cover it.
-          (`class-model-foundation` deliberately excluded it — its different, non-single-WU-`State` relocation
-          model; this WU owns it.)
+          § `.arc/` artifact references so the inbound-filename-only / outbound-no-relative-path hygiene covers it.
+          Broaden each enumeration's framing from "WU artifacts" to movable `.arc/` artifacts — `cohort-*` is
+          cohort-scoped, not a WU artifact — and soften § Artifact relocatability's "as their State changes" to a
+          lifecycle-state-neutral phrasing so the pure-`git mv` rule reads true for `cohort-*` without a carve
+          sentence. List it; don't elaborate (the always-loaded surface stays minimum-viable).
+        - _Note:_ `cohort-*`'s relocation trigger (its cohort's last member ships — no single-WU `**State:**`
+          drives it) lives in `strategy-work-organization` (1.3) / the ADR, never in always-loaded DEV-RULES.ARC; a
+          later reference-hygiene reader (3.3.a) must not flatten the cohort-scoped vs. WU-scoped distinction.
+          (`class-model-foundation` excluded `cohort-*` for exactly this distinct relocation model; this WU owns it.)
 
 ### `[ ]` **1.3 Author the grouping-taxonomy semantics + WU-sizing standard into `strategy-work-organization`**
 
@@ -58,12 +64,15 @@ _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; 
   dir-path mirroring, and the three decomposition arms — and co-homes the WU-sizing standard the
   `assess-cohort-fit` method consumes, with § Task Lists and Branches reconciled so the strategy describes one
   model.
-- _Approach:_ The taxonomy semantics layer on `class-model-foundation`'s field _schema_ (path-valued, ≤2
-  segments, membership derived) — this WU defines what legal values _mean_ and what structure they imply. The
-  sizing standard (count deliverables / independently-reviewable surfaces; LOC + file-count as a heads-up) is
-  authored here as the consumable standard the method references, not re-authored in the method. § Task Lists and
-  Branches carries pre-ADR-019 stacked-PR / phased / team-sub-branch leftovers; neutralize locally only insofar
-  as this WU's own edits leave it self-contradicting (the broad cross-surface sweep stays `doc-cascade-sweep`'s).
+- _Approach:_ Author a new top-level `## Cohorts` section sited adjacent to § Class Model / § Task Lists and
+  Branches — where decomposition already surfaces ("runaway breadth trips decomposition into a cohort") — so the
+  taxonomy reads alongside the weight model it complements. The taxonomy semantics layer on
+  `class-model-foundation`'s field _schema_ (path-valued, ≤2 segments, membership derived) — this WU defines what
+  legal values _mean_ and what structure they imply. The WU-sizing standard (count deliverables /
+  independently-reviewable surfaces; LOC + file-count as a heads-up) is authored as a subsection of that section,
+  the consumable standard the method references, not re-authored in the method. § Task Lists and Branches carries
+  pre-ADR-019 stacked-PR / phased / team-sub-branch leftovers; neutralize locally only insofar as this WU's own
+  edits leave it self-contradicting (the broad cross-surface sweep stays `doc-cascade-sweep`'s).
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
     - `[ ]` **1.3.a Author the cohort taxonomy semantics**
@@ -80,10 +89,14 @@ _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; 
         - The sizing heuristics as a standard: distinct deliverables / reviewable surfaces, the LOC + file-count
           heads-up, stack-vs-cohort (sequential → stack, independent-ish → cohort), the cohort≈epic / WU≈story
           model. (A6 home)
+        - _Note:_ This standard is the contract `assess-cohort-fit` consumes (2.1.c) — keep these named outputs
+          stable so the method references them rather than re-authoring the heuristics.
 
     - `[ ]` **1.3.d Locally neutralize § Task Lists and Branches where this WU's edits leave it self-contradicting**
-        - Resolve the in-scope local contradiction only (Open Question 2); the cross-surface tier reconciliation
-          stays `doc-cascade-sweep`'s regardless.
+        - Reconcile the section's multi-branch-per-one-task-list framing (stacked-PRs / phased / team-sub-branches)
+          to the cohort taxonomy's model — decomposition yields a cohort of self-contained one-branch WUs — insofar
+          as the new taxonomy + sizing standard render it self-contradicting (Open Question 2: local-neutralize yes,
+          bounded). The broad cross-surface tier reconciliation stays `doc-cascade-sweep`'s regardless.
 
 ### `[ ]` **1.4 Author the companion ADR for the invented model**
 
@@ -124,11 +137,13 @@ _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
   `classify-work-unit` as its paired sibling: the orthogonality-not-size discriminator, the two guard rails,
   design-maturity timing, plan-vs-delivery grouping, Model-B-only, the member-slug naming heuristic, the sizing
   heuristics (consuming the strategy standard), and the cut-map output — so the decision logic has one DRY home.
-- _Approach:_ `system/methods/assess-cohort-fit.md`, two-copy, contract block + `.default`, mirroring
-  `classify-work-unit`'s boundary-test shape, authored as a self-contained extractable block (the
-  `composable-workflows` forward-compat constraint). The method produces the cut-map — members + slugs + internal
-  dependency edges + deliverable boundaries — or "stays one WU"; the cut-map is the DRY interface
-  `decompose-work-unit` consumes (no decision logic in the workflow, no structural change in the method).
+- _Approach:_ `system/methods/assess-cohort-fit.md`, two-copy, mirroring `classify-work-unit`'s full method-file
+  shape — `override-active: false` frontmatter, a `> Contract:` blockquote (**Workflow** / **When** / **Contract**),
+  a `## assess-cohort-fit.override` section (`[No override configured]`), and `## assess-cohort-fit.default` —
+  authored as a self-contained extractable block (the `composable-workflows` forward-compat constraint). The method
+  produces the cut-map — members + slugs + internal dependency edges + deliverable boundaries — or "stays one WU";
+  the cut-map is the DRY interface `decompose-work-unit` consumes (no decision logic in the workflow, no structural
+  change in the method).
 - **Strategies:** strategy-work-organization.md, strategy-configurability-architecture.md
 
     - `[ ]` **2.1.a Author the discriminator + two guard rails + maturity-gated timing**
@@ -159,11 +174,15 @@ _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
   commit bundles with at least one fire-point declaration.
 
     - `[ ]` **2.2.a Declare the method in `draft-design` and `create-spec` and add the fire-point steps**
-        - Frontmatter `arc.methods` declaration in each (two-copy) + the affirmative-cheap-confirm fire-point
-          step; reference the method by stable heading slug, never the `#name` extension marker.
+        - Frontmatter `arc.methods` declaration in each (two-copy — the declaration must land in the package-source
+          copy for the `lint:arc:triggers` audit, the `.arc/` mirror satisfying the framework-sync test) + the
+          affirmative-cheap-confirm fire-point step; reference the method by stable heading slug, never the `#name`
+          extension marker.
 
     - `[ ]` **2.2.b Register the method in the methods README index**
-        - Both copies; ordered with the existing method index entries.
+        - Both copies: the bullet-index entry ordered with the existing entries, plus a coupling-table row
+          (`assess-cohort-fit ↔ classify-work-unit` — paired upper/lower WU-boundary tests), since the sibling sits
+          in that table.
 
 ### `[ ]` **2.3 Acceptance test — re-derive CWC's D1–D4 from CWC's settled draft**
 
@@ -173,7 +192,11 @@ _Anchors:_ A1–A9, H (method declaration); SC1, SC2.
 - _Approach:_ Read-only dogfood; the verdict stays in the primary context (sub-agent-scope rule), as
   `class-model-foundation`'s 5.2 / 5.R.2 triage gates ran. Surface the re-derivation against CWC's actual D1–D4
   for confirmation; a clean match passes, a strained one routes back to the method (2.1).
-- _Note:_ CWC = Concurrent Work Conventions; its settled draft is the input — confirm its location at audit.
+- _Note:_ CWC = Concurrent Work Conventions; the input is its settled draft at
+  `draft-concurrent-work-conventions.md` § Delivery plan / Decomposition table (the D1–D4 four-WU cut).
+- _Note:_ The draft already _states_ D1–D4 as a settled cut, so keep the dogfood honest — apply the discriminator +
+  rails to CWC's scope / problem structure and _compare_ to the stated D1–D4, rather than reading the answer off
+  the table.
 
 ## **Phase 3:** The `cohort-{name}.md` record + `template-cohort.md`
 
@@ -200,6 +223,9 @@ _Anchors:_ C1–C6, G; SC4, SC9.
   member's spec, so the doc holds only a pointer + consumer list; a per-member section that fills with
   task-driving design is the visible smell that the content belongs in the spec. The shape is documented in the
   cohort taxonomy home (alongside 1.3) and realized in `template-cohort.md` (3.2).
+- _Note:_ Pre-existing cohort docs predate this shape and diverge (esp. `cohort-agile-parallelism.md` — prose H1 +
+  a roster-style "Membership and ownership map" against C2); bringing them into conformance is `doc-cascade-sweep`'s
+  broad cross-surface sweep (Non-Goals), routed there directly. This WU conforms only its own authored / edited docs.
 
     - `[ ]` **3.1.a Define the constitutive-record shape**
         - Purpose floor (the slug expanded; the grouping's reality check), coordination-by-degree body, per-member
@@ -219,6 +245,12 @@ _Anchors:_ C1–C6, G; SC4, SC9.
 - _Rationale:_ The exact field set is the rare legitimate by-method deferral (cf. the spec templates) —
   generalized from the prototype at execution, not designed top-down; marked prototype-iterate, not design debt
   (Open Question 1).
+- _Note:_ Generalize from the prototype's _actual_ sections (Shared contracts / Soft coordination / Cross-cohort /
+  ADR anchors), treating spec-named-but-absent slots (e.g. closeout criteria, C1) as optional scaffold rather than
+  copying or omitting wholesale — the prototype-iterate latitude covers exactly this reconciliation.
+- _Note:_ While the prototype is open, correct this WU's own member section in `cohort-agile-wu-lifecycle.md`
+  (`### decomposition-machinery` § Exposes): the stale `assess-decomposition` → `assess-cohort-fit` (single live
+  reference; in-scope as a per-member-partition edit, not a downstream sweep).
 - **Strategies:** strategy-package-project-sync.md, strategy-file-classification.md
 
     - `[ ]` **3.2.a Author the template from the prototype**
@@ -226,8 +258,9 @@ _Anchors:_ C1–C6, G; SC4, SC9.
           per-member-by-slug sections); two-copy.
 
     - `[ ]` **3.2.b Mark the field set prototype-iterate and register the template**
-        - The prototype-iterate marker on the coordination field set; add to the templates index/README per
-          convention.
+        - The prototype-iterate marker on the coordination field set; register in `reference/templates/arc/README.md`
+          § Contents (extend the `work-unit/` bullet alongside `template-meta` / `template-draft` / `template-tasks`),
+          both copies — there is no work-unit-level README.
 
 ### `[ ]` **3.3 Apply relocatability + reference hygiene to `cohort-*`; route the concurrency seam to CWC**
 
@@ -256,11 +289,15 @@ incoming-`Depends On` sweep, worktree-kind teardown, the predicted/emergent arms
 and the manual bootstrapping checks — written for clean future composition.
 
 _Design decisions:_ A separate workflow from `integrate-work-unit` (keeping `integrate` code-shipping-focused),
-reusing the **park** path's mechanics rather than an integrate ceremony. Shared steps are authored as named,
-extractable blocks with stable-heading-slug cross-references (the `composable-workflows` forward-compat
-constraint, H) — never ordinals, never the extension-reserved `#name` marker. The manual three-check bootstrapping
-version (E3) lives in the workflow until Phase 5 automates it. Codified against this cohort's own manual run (D9);
-the full codification-against-the-run reconciliation is `doc-cascade-sweep`'s.
+reusing the **park** _pattern_'s mechanics rather than an integrate ceremony. There is no `park-work-unit.md`
+workflow yet (park/resume are the planning conductor's, §20) — so decompose authors the shared
+`active/ → backlog/` + park-PR + worktree-kind-teardown choreography here, single-source, as named extractable
+blocks; `park-work-unit.md` / `resume-work-unit.md` reuse them when the conductor ships (a coordination note is
+routed to its §20). Shared steps are named, extractable blocks with stable-heading-slug cross-references (the
+`composable-workflows` forward-compat constraint, H) — never ordinals, never the extension-reserved `#name`
+marker. The manual three-check bootstrapping version (E3) lives in the workflow until Phase 5 automates it.
+Codified against this cohort's own
+manual run (D9); the full codification-against-the-run reconciliation is `doc-cascade-sweep`'s.
 
 _Anchors:_ D1–D9, E3, H; SC5, SC8.
 
@@ -269,15 +306,20 @@ _Anchors:_ D1–D9, E3, H; SC5, SC8.
 - _Goal:_ `system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md` exists as a genuine lifecycle
   transition (a WU changing what it is) — a park-shaped exit running on the originating planning branch as its
   terminal act, the D2 step sequence, and worktree-kind-branched teardown.
-- _Approach:_ Reuse the park path's `active/ → backlog/` + PR-to-`main` + branch/worktree-teardown mechanics, not
-  an integrate (no code deliverable, no `completed/` archive). No new State value; the origin meta is deleted (the
-  WU ceases to be a WU). Two-copy.
+- _Approach:_ Author the `active/ → backlog/` + PR-to-`main` + branch/worktree-teardown choreography inline (the
+  park _pattern_ — no shipped `park-work-unit.md` to delegate to), as named extractable blocks; not an integrate
+  (no code deliverable, no `completed/` archive). No new State value; the origin meta is deleted (the WU ceases to
+  be a WU). Two-copy.
 - **Strategies:** strategy-workflow-authoring.md, strategy-work-organization.md
 
     - `[ ]` **4.1.a Author the park-shaped exit + the D2 step sequence**
         - Mint cohort → backfill parent doc if absent → scaffold N member stubs → distribute design → re-point
           incoming deps → verify (the three consistency conditions) → retire origin `meta-*` + `draft-*` → regen
           ROADMAP → park PR → teardown. (D1, D2, D4)
+        - ROADMAP regen mirrors `archive-work-unit` step 4 ("re-render per strategy § ROADMAP"); decompose is a
+          _new_ regen fire-point (a WU leaving `active/` → becoming a cohort changes the render) — add it to
+          strategy § Regeneration fire-points here, or leave the fire-point-list reconciliation to
+          `doc-cascade-sweep` if it bulks scope.
 
     - `[ ]` **4.1.b Specify worktree-kind-branched teardown**
         - primary → switch back to `branch.base` + delete local/remote `plan/<name>`, no worktree removal; linked
@@ -319,18 +361,22 @@ _Anchors:_ D1–D9, E3, H; SC5, SC8.
 ### `[ ]` **4.4 Factor shared primitives + the predicted/emergent arms + manual bootstrapping checks + PR variant**
 
 - _Goal:_ The workflow's shared steps are factored for reuse and forward composition — the cohort-scaffold
-  primitive shared with the predicted arm and the PR-merge-branch-cleanup primitive shared with
-  `integrate-work-unit` — the predicted-vs-emergent arms are distinguished, the manual three-check bootstrapping
-  version is documented, and the decomposition-PR description variant is specified.
+  primitive shared with the predicted arm (both arms live in this WU), and the `active/ → backlog/` + park-PR +
+  worktree-kind-teardown block authored single-source here for `integrate` / `park-work-unit` to adopt later
+  (forward-compat, H — no present-tense integrate refactor) — the predicted-vs-emergent arms are distinguished, the
+  manual three-check bootstrapping version is documented, and the decomposition-PR description variant is specified.
 - _Approach:_ Shared steps as named, extractable blocks referenced by stable heading slug (forward-compat, H).
   Layering: `decompose-work-unit = [distribution-discipline + retire-origin] ∘ cohort-scaffold ∘ PR-cleanup`; the
-  predicted arm = `cohort-scaffold` alone (no monolith-split). Codified against this cohort's own manual run (D9,
-  PR #55).
+  predicted arm = `cohort-scaffold` alone (no monolith-split). `integrate-work-unit` adopting the PR-cleanup block
+  is deferred — it stops before merge and owns no teardown today (teardown is session-init's sweep); adopting it
+  eagerly is a behavior change rippling to `archive` + the sweep, routed to CWC's inbound buffer as its own
+  question. Codified against this cohort's own manual run (D9, PR #55).
 - **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **4.4.a Factor the cohort-scaffold + PR-merge-cleanup primitives as named extractable blocks**
-        - The two factored primitives, authored as stable-heading-slug-referenced blocks the predicted arm and
-          `integrate-work-unit` reuse. (D8, H)
+    - `[ ]` **4.4.a Factor the cohort-scaffold + PR-cleanup primitives as named extractable blocks**
+        - Both authored single-source as stable-heading-slug-referenced blocks: cohort-scaffold reused by the
+          predicted arm now; the PR-cleanup block authored for `integrate` / `park-work-unit` to adopt when
+          `composable-workflows` lands (no integrate edit here). (D8, H)
 
     - `[ ]` **4.4.b Distinguish the predicted vs emergent arms**
         - Predicted (affirmative during draft-design; author directly into the cohort structure, no monolith, no
@@ -365,6 +411,10 @@ _Anchors:_ E1, E2; SC6.
 - _Approach:_ A new `src/scripts/validate-cohort-consistency.ts` (the `validateFiles` shape) plus a supporting
   `src/lib/active/` module for the cross-file checks, consuming `cohort-path.ts` (`validateCohortPath` /
   `cohortLeaf` / `COHORT_SEGMENT_CAP`) and `meta-reader.ts` (`parseMetaRecord` / `parseIdentifierList`).
+- _Note:_ Complements — does not duplicate — `validate-meta-spec.ts`'s existing `validateCohort` (CHECK 16), which
+  validates the single-meta `Cohort` field _shape_ (≤2-segment path). This validator assumes shape-validity and
+  checks _cross-file_ consistency (field↔dir, doc presence, orphan sections), reusing the same `cohort-path.ts`
+  helpers.
 - **Strategies:** strategy-testing-methodology.md
 
     - `[ ]` **5.1.a `Cohort` field↔dir path-match (nested + drift cases)**
@@ -392,6 +442,9 @@ _Anchors:_ E1, E2; SC6.
   `.arc/system/.internal/githooks/pre-commit` (and the package-source counterpart); filter staged candidates by
   the backlog meta + cohort-doc path pattern; invoke via `npx tsx …/validate-cohort-consistency.ts`. Integration
   test mirrors the existing hook-invocation fixtures.
+- _Note:_ The CHECK is staged-scoped and the integration test fixture-based — it never evaluates the live backlog,
+  so pre-existing divergent cohort docs (the 3.1 note) don't break this WU's gates; their conformance is
+  `doc-cascade-sweep`'s.
 - **Strategies:** strategy-package-project-sync.md, strategy-testing-methodology.md
 
     - `[ ]` **5.2.a Wire the pre-commit CHECK (both hook copies) with backlog-scoped candidate filtering**
@@ -424,8 +477,8 @@ _Anchors:_ E1, E2; SC6.
   with its field set marked prototype-iterate (SC4)
 - `[ ]` **The `decompose-work-unit` workflow exists** (park-shaped exit; WU → cohort) — the step sequence, field
   inheritance, dependency-edge-by-need distribution, the four-step distribution discipline, the predicted/emergent
-  arms, the cohort-scaffold + PR-merge-cleanup primitive factoring, worktree-kind teardown, and the
-  decomposition-PR description variant, codified against this cohort's own manual run (SC5)
+  arms, the cohort-scaffold + PR-cleanup primitive factoring (named extractable blocks), worktree-kind teardown,
+  and the decomposition-PR description variant, codified against this cohort's own manual run (SC5)
 - `[ ]` **The cohort-consistency invariant + enforcement ships** — the three conditions as a backlog-scoped
   structural guard with pre-commit wiring, co-located with the invariant definition and serving as the cohort
   doc's schema validator; the manual bootstrapping version documented in `decompose-work-unit` (SC6)
