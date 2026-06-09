@@ -284,8 +284,8 @@ describe("toOutputPath", () => {
   });
 
   it("leaves files with template in directory name unchanged", () => {
-    expect(toOutputPath("reference/templates/arc/work-unit/spec/template-prd.md")).toBe(
-      "reference/templates/arc/work-unit/spec/template-prd.md",
+    expect(toOutputPath("reference/templates/arc/work-unit/spec/template-spec-outline.md")).toBe(
+      "reference/templates/arc/work-unit/spec/template-spec-outline.md",
     );
   });
 });

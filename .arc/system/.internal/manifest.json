@@ -85,10 +85,25 @@
       "layer": "core",
       "pristine_hash": "7e2bb8167e7cf242e393e6ee1addad3a0e3d2251f2fe12c69791f543cff63d42"
     },
-    "reference/templates/arc/work-unit/spec/template-prd.md": {
+    "reference/templates/arc/work-unit/spec/template-spec-brief.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "372a3de0dcaf4a0ece8f74f8d990f89629341a15b64b4697149051ceaf88ce01"
+      "pristine_hash": "c172b07cb694f3f4032f97350bd7c3ed4b76bae3330c04ac15a7f7be38bfb7e4"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-outline.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "4f7f5329e89c37e9736b3e086f6878479fc4a4c32e69165d5bf2b06fef832a2e"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "ce378682f11348d898287a1dd2f8b232832c6d6c7b100d26348dee11ff46348e"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-detailed-rfc.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "1b69a29aebb4ac1968b98dcb96a9d3a296aded0d6482ae29281e7bbb94e59da4"
     },
     "reference/templates/project/README.md": {
       "classification": "Framework",

@@ -814,60 +814,69 @@ the existing-file rename/renumber cascade routes to `doc-cascade-sweep`.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Goal:_ Validate the full work unit against Tier 3 gates and success criteria before integration.
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck`,
+  `npm run typecheck:test`, `npm test`, and `npm run build` passed. The first full-test run surfaced stale
+  init-recipe / self-hosting-manifest inventory for the retired `template-prd.md`; verification corrected it and
+  reran the suite green.
+- _Success criteria:_ 17 criteria checked: 17 met, 0 superseded, 0 unmet. The verification pass confirmed the
+  four-template install surface, depth-resolution workflows/methods, integration/archive tolerance, layered
+  `Design` plumbing, workflow conformance, quality gates, and integration readiness.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Four spec templates ship — `template-spec-brief.md` / `-outline.md` / `-detailed-prd.md` /
+- `[x]` Four spec templates ship — `template-spec-brief.md` / `-outline.md` / `-detailed-prd.md` /
   `-detailed-rfc.md` — separate (not one flexing); each carries the `Spec ({form}): {name}` H1; the `detailed`
   pair carries the "Complementary use" note. No fifth/sixth template.
-- `[ ]` create-spec resolves spec form by a derivation entry-read, selects the template accordingly, and the
+- `[x]` create-spec resolves spec form by a derivation entry-read, selects the template accordingly, and the
   `detailed`-only subtype gate picks PRD vs RFC by dominant derivation-kind; the stale "feature vs technical"
   step is reworked, not merely removed; `brief` / `outline` stay single category-agnostic forms.
-- `[ ]` The PRD template is de-straddled (User Stories technical-scenario clause removed; Technical
+- `[x]` The PRD template is de-straddled (User Stories technical-scenario clause removed; Technical
   Considerations reframed to constraints/dependencies) and the RFC section set is realized.
-- `[ ]` generate-tasks runs one grammar parameterized by depth — pass structure, phase count (1..N + an
+- `[x]` generate-tasks runs one grammar parameterized by depth — pass structure, phase count (1..N + an
   always-present verification phase), and grounding-audit depth scale together from a scale entry-read
   cross-checked against `Class`; no second "flat" grammar; the per-phase audit interlock collapses to a single
   gate at `low` without forking.
-- `[ ]` Each authoring stage resolves depth flag-free (no recorded/threaded depth value) via the shared
+- `[x]` Each authoring stage resolves depth flag-free (no recorded/threaded depth value) via the shared
   `resolve-planning-depth` method: draft-design and create-spec from derivation, generate-tasks from a direct
   scale read; each entry-read doubles as its `classify-work-unit` confirm-or-ratchet (the two methods paired on
   one read, not merged), the `Class` write deferred to the stage's ceremony commit; depth differentiation is
   written as whole-block variants.
-- `[ ]` The re-entry valve is a first-class branch at each stage's existing interlock (capture → ratchet →
+- `[x]` The re-entry valve is a first-class branch at each stage's existing interlock (capture → ratchet →
   re-enter), axis-keyed: scale → same stage higher; derivation → route to the spec; draft-design →
   re-enter-higher only. Down-switching honors the demand floor; no heavier artifact is torn down.
-- `[ ]` `arc-plan` is a thin dispatcher and the drafting stage is extracted into the `draft-design` workflow,
+- `[x]` `arc-plan` is a thin dispatcher and the drafting stage is extracted into the `draft-design` workflow,
   with a depth-relative readiness bar (incl. the `high`-only coherence-consolidation criterion), the three
   planning shapes (`high` = a simple loop), artifact-shape feed-forward, and the first `classify-work-unit`
   touchpoint. SAP ships single files, not the dir-per-workflow package structure.
-- `[ ]` The shared `resolve-planning-depth` method ships (SAP-owned) and, with `classify-work-unit`, is declared
+- `[x]` The shared `resolve-planning-depth` method ships (SAP-owned) and, with `classify-work-unit`, is declared
     - invoked at all three planning-stage touchpoints; each is a light confirm-or-ratchet on a single shared read.
-- `[ ]` The integrate / archive workflows are artifact-presence-tolerant — they consume a `brief` spec, a
+- `[x]` The integrate / archive workflows are artifact-presence-tolerant — they consume a `brief` spec, a
   one-phase task list, or an absent separate completion doc without requiring full-shape artifacts; the
   completion record is meta-appended and self-sizing; the invariant spec-presence/alignment gate survives and
   cost-scales. No `Class`-keyed tier fork in integration.
-- `[ ]` The `spec-review` method ships (always loaded by create-spec; lightweight default self-review scaled to
+- `[x]` The `spec-review` method ships (always loaded by create-spec; lightweight default self-review scaled to
   the crystallized form; grounding slice distinct from task-gen's audit) and the `pre-spec-finalization-review`
   extension ships inactive/empty by default with strategy-doc precedent + mapping. The review gate fires at every
   form, collapsing at `brief` to a single minimal check.
-- `[ ]` Novel is realized as an advisory overlay on the `high`-draft + `detailed` lanes only: draft-design
+- `[x]` Novel is realized as an advisory overlay on the `high`-draft + `detailed` lanes only: draft-design
   recommends an orient-then-research sub-phase; create-spec surfaces a subtype-keyed ADR-companion recommendation
   (strong RFC, weak/omitted PRD); spec-review shifts to extra-care + ADR-nudge; task-gen adds nothing. Every item
   is accept-or-decline; the companion ADR is a non-moving artifact with no Novel branch in integration.
-- `[ ]` The committed `Design` multi-value plumbing tolerates one _or_ two spec references end-to-end (field,
+- `[x]` The committed `Design` multi-value plumbing tolerates one _or_ two spec references end-to-end (field,
   parse, consuming sites, create-spec write), following the `Depends On` convention; the layered model is
   documented as a sanctioned pattern with the `spec-{name}-prd.md` / `spec-{name}-rfc.md` naming, with no config
   knob or workflow fork added.
-- `[ ]` The new and restructured authoring workflows pass `strategy-workflow-authoring` conformance.
-- `[ ]` DEV-RULES.ARC's meta-timing rule is principle-based (the meta is written only where a ceremony workflow
+- `[x]` The new and restructured authoring workflows pass `strategy-workflow-authoring` conformance.
+- `[x]` DEV-RULES.ARC's meta-timing rule is principle-based (the meta is written only where a ceremony workflow
   explicitly instructs it), so the decision-live/persistence-deferred writes do not read as meta-timing violations.
-- `[ ]` SAP names only the new `draft-design` workflow; it does not rewrite the existing `create-spec` /
+- `[x]` SAP names only the new `draft-design` workflow; it does not rewrite the existing `create-spec` /
   `generate-tasks` / `process-task-loop` files or their cross-references.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
