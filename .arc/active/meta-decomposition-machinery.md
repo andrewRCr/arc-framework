@@ -11,12 +11,13 @@
 - **Design:** `spec-decomposition-machinery.md`
 - **Task List:** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** Generate-tasks passes 1–2 — `tasks-decomposition-machinery.md` drafted (structural
+  decomposition + content fill)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` on `spec-decomposition-machinery.md` — `detailed`·RFC spec
-  finalized (Class `Novel`; ADR-companion folded into scope; draft retired). Acceptance test: re-derive CWC's
-  D1–D4. Atop **shipped** `class-model-foundation`.
+- **Next Action:** Resume `2_generate-tasks.md` at Pass 3 (grounding audit) on
+  `tasks-decomposition-machinery.md` — per-phase audit→confirm→revise; then Finalize (set `**Task List:**`,
+  advance to `activate-work-unit.md`). Passes 1–2 committed at `03039d45`.
 
 ---
