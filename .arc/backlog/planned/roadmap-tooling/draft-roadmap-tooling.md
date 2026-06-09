@@ -172,6 +172,21 @@
   bundled into that item — the file stays knowingly-stale until the writer lands. Recorded so it is not re-raised
   as separate work.
 
+### `[ ]` **Honor the per-element backtick convention for `Depends On` / `Design` meta fields**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: roadmap-tooling`), housekeep drain (2026-06-08); captured
+  at `scalable-authoring-pipeline` Task 1.4.
+- *Concern:* SAP (Task 1.4) switched the meta render convention for the list-valued fields `Depends On` /
+  `Design` to per-element backticks — `` `A`, `B` `` (two discrete tokens) rather than the compound whole-value
+  `` `A, B` `` — via a new `identifier-list` valueClass in `meta-reader.ts`'s `formatValue`. This WU owns the
+  real ROADMAP renderer + dependency-edge handling, so the convention lands as a requirement on it.
+- *Proposed:* (1) parse `Depends On` only through the shared reader path (`parseMetaRecord` →
+  `parseIdentifierList`, relying on the **global** `stripInlineCode`) — never reintroduce a bespoke
+  outer-pair-strip parser, which mis-parses the per-element form. (2) Reconcile the ROADMAP "Depends on" cell
+  with the per-element convention: `lib/status/render.ts` joins deps plain (no backticks) today — decide whether
+  table cells should match the meta bullets.
+- *Scope:* pairs with this WU's existing buffer items on uniform-columns + `render.ts`.
+
 ---
 
 ## Problem / Motivation

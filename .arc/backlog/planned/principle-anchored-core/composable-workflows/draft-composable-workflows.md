@@ -48,6 +48,40 @@
   `strategy-configurability-architecture` (customization framing) — landing here as the adjacent
   workflow-reference owner; decide at integration.
 
+### `[ ]` **Reserve `lane` as extraction jargon (`path` vs `lane`)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` Phase 5.R (Task 5.R.1).
+- *Concern:* SAP Phase 5.R settled `path` as the single term for the depth-selected alternative block across the
+  three authoring workflows, retiring stray `lane` / `variant` usages. `lane` is reserved, not killed — a latent
+  principled distinction worth keeping available: `path` = the route the agent runs (execution view); `lane` =
+  the parallel extractable whole-block (authoring / structure view), which is exactly what an extraction model
+  trades in.
+- *Proposed:* at this WU's planning iteration, decide whether the execution-vs-structure distinction earns two
+  terms — adopt `lane` for the structural / whole-block fragment concept, or reject it and keep `path`
+  throughout. Don't reintroduce `lane` into workflow bodies before that call. Pairs with this WU's whole-block
+  extraction-rule design.
+
+### `[ ]` **Use SAP `generate-tasks` (5.R.2, D-shaped) as a worked example for the core/fragment boundary**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` Phase 5.R (Task 5.R.2).
+- *Concern:* SAP Task 5.R.2 resolved `generate-tasks`' depth differentiation structurally, exposing an unnamed
+  composition pattern. The depth axis (`low`/`medium`/`high`) there is **not** three procedures — it is one
+  shared pipeline (decompose → fill → audit) sliced into a different number of review increments, with stops
+  placed differently. The clean cut: separate **procedure-identity** (invariant, depth-agnostic, stopless) from
+  **increment-cadence** (a "Pass" = a depth-selected grouping of procedures + its stop).
+- *Proposed:* fold into the core/fragment boundary design. Two takeaways: (1) a second extractable shape beyond
+  mode-gated whole steps — **procedure fragments + thin orchestration/path fragments that sequence procedures
+  into review increments** (hub/spoke: library = procedures, spokes = depth paths). (2) it challenges the draft's
+  extraction rule ("extract whole conditional blocks; keep intra-step branches inline"): a thin orchestration
+  fragment that *references* procedure fragments is *more* DRY-aligned than a fat self-contained block, because
+  self-contained only "lifts unchanged" by duplicating the shared detail composition exists to eliminate.
+  `generate-tasks` shipped D-shaped (depth paths as spine, procedures as a referenced library) — concrete input
+  for where the cut falls.
+- *Scope:* pairs with the `lane`-reservation note above (same WU) — the structural / whole-block extraction view
+  is exactly where a `path` vs `lane` distinction would land.
+
 ---
 
 ## Problem / Motivation

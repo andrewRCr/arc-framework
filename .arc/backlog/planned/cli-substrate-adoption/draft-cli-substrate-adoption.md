@@ -45,6 +45,21 @@ post-trio architecture-remediation plans consume.
   (auto-skip-to-safe-default under non-TTY, or an explicit flag) so agent / automation invocation never hangs.
   `arc init --yes` is the established precedent for the flag pattern.
 
+### `[ ]` **Evaluate a real CLI command for workflow-markdown files + clearer "load and follow" skill wording**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD` → routed here at drain), housekeep drain (2026-06-08);
+  captured at `scalable-authoring-pipeline` session init.
+- *Concern:* `arc-session`'s skill body says to "Run" `…/session-init.md`, which reads like a CLI invocation
+  target rather than "load and follow this agent workflow." This repo's `npx arc …` bootstrap rule sharpens the
+  ambiguity: `npx arc …/session-init.md` is a plausible but invalid interpretation.
+- *Proposed:* Evaluate two related questions, either landable alone: (a) rephrase the skill body to "load and
+  follow" the markdown workflow, and note that workflow-internal CLI calls use `npx arc …` here; (b) decide
+  whether a real ARC CLI command for workflow-markdown files is useful as a validator, inspector, context
+  loader, checklist emitter, or eventual workflow runner — the CLI-surface half this WU's substrate is
+  positioned to host.
+- *Scope:* touches self-hosting skill wording, adopter-facing skill generation, and possible CLI surface area;
+  the wording fix is small, the CLI-command question is the substantive / trackable half.
+
 ---
 
 ## Problem / Motivation
