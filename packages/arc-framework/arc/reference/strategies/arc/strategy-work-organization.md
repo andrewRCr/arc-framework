@@ -873,6 +873,8 @@ step, so these need no separate discipline:
   Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
   Blocked to Ready, with no edits to their meta files.
 - **Deactivation** (`active/<wu>/` abandoned) — drops the WU from the render set.
+- **Decomposition** (`active/<wu>/` → a cohort of `backlog/planned/<cohort>/<member>/` stubs, the origin meta
+  retired) — drops the origin from In Flight and lands its members in the backlog render set.
 
 Because each re-renders from current state, these ceremonies also **self-heal** any manual trigger
 missed since the previous one.

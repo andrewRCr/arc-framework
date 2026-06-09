@@ -296,91 +296,97 @@ manual run (D9); the full codification-against-the-run reconciliation is `doc-ca
 
 _Anchors:_ D1–D9, E3, H; SC5, SC8.
 
-### `[ ]` **4.1 Author `decompose-work-unit` — park-shaped exit, the step sequence, teardown**
+### `[x]` **4.1 Author `decompose-work-unit` — park-shaped exit, the step sequence, teardown**
 
 - _Goal:_ `system/workflows/arc/work-unit-lifecycle/decompose-work-unit.md` exists as a genuine lifecycle
   transition (a WU changing what it is) — a park-shaped exit running on the originating planning branch as its
   terminal act, the D2 step sequence, and worktree-kind-branched teardown.
-- _Approach:_ Author the `active/ → backlog/` + PR-to-`main` + branch/worktree-teardown choreography inline (the
-  park _pattern_ — no shipped `park-work-unit.md` to delegate to), as named extractable blocks; not an integrate
-  (no code deliverable, no `completed/` archive). No new State value; the origin meta is deleted (the WU ceases to
-  be a WU). Two-copy.
-- **Strategies:** strategy-workflow-authoring.md, strategy-work-organization.md
 
-    - `[ ]` **4.1.a Author the park-shaped exit + the D2 step sequence**
-        - Mint cohort → backfill parent doc if absent → scaffold N member stubs → distribute design → re-point
-          incoming deps → verify (the three consistency conditions) → retire origin `meta-*` + `draft-*` → regen
-          ROADMAP → park PR → teardown. (D1, D2, D4)
-        - ROADMAP regen mirrors `archive-work-unit` step 4 ("re-render per strategy § ROADMAP"); decompose is a
-          _new_ regen fire-point (a WU leaving `active/` → becoming a cohort changes the render) — add it to
-          strategy § Regeneration fire-points here, or leave the fire-point-list reconciliation to
-          `doc-cascade-sweep` if it bulks scope.
+    - `[x]` **4.1.a Author the park-shaped exit + the D2 step sequence**
+        - Authored the spine: frontmatter (`pre-push-review`) + intro + when-to-use (emergent arm at create-spec,
+          `plan/<name>` terminal act) + the 11-step sequence — pre-conditions/arm-selection, mint cohort, backfill
+          parent doc, scaffold member stubs, distribute design, re-point incoming deps, verify consistency, retire
+          origin (`workflow-interlock`-gated on the conservation check), ROADMAP regen, park PR
+          (`integration-interlock` before merge), teardown. Steps 4–7 carry D2-level detail for 4.2–4.4 to deepen
+          in place. Also added a **Decomposition** bullet to strategy § Regeneration fire-points (the fold-in, not
+          deferred to `doc-cascade-sweep` — single bullet, keeps strategy ↔ workflow consistent).
 
-    - `[ ]` **4.1.b Specify worktree-kind-branched teardown**
-        - primary → switch back to `branch.base` + delete local/remote `plan/<name>`, no worktree removal; linked
-          → delete branch + `git worktree remove <path>`. (D6)
+    - `[x]` **4.1.b Specify worktree-kind-branched teardown**
+        - Teardown dispatches on worktree kind: primary → `git switch main` + delete local/remote `plan/<name>`,
+          no worktree removal; linked → `git worktree remove` + branch delete run from the primary worktree, and
+          the session terminates (prior cwd gone). Destructive branch-delete flags kept literal/raw. (D6)
 
-    - `[ ]` **4.1.c State the at-cap arm variant**
-        - No cohort minted; scaffold the members under the existing parent and write the fan-out provenance note
-          into the parent cohort doc — every other step unchanged. (D2 at-cap parenthetical)
+    - `[x]` **4.1.c State the at-cap arm variant**
+        - Authored as a dedicated `## At-cap arm` section: Step 2 skipped (no cohort minted), members scaffolded as
+          siblings under the existing parent, Step 3 replaced by a write-once greppable fan-out provenance note in
+          the parent cohort doc, plus the mis-scope reality-check (judgment, not a gate). (D2 at-cap parenthetical)
 
-### `[ ]` **4.2 Specify field inheritance + dependency-edge-by-need distribution on minted stubs**
+- _Outcome:_ `decompose-work-unit.md` exists in both copies (Framework file, byte-identical) as the park-shaped
+  spine — a transform-and-park exit distinct from `integrate`'s code-shipping exit. The cut-map is consumed, never
+  re-derived; the origin is `git rm`'d with no `completed/` entry. Field inheritance, the four-step distribution
+  gate, and the manual bootstrapping checks are named at D2 granularity and deepen in 4.2–4.4.
+
+### `[x]` **4.2 Specify field inheritance + dependency-edge-by-need distribution on minted stubs**
 
 - _Goal:_ The workflow specifies how minted member stubs inherit fields — shared `Origin`, own
   `Design: draft-<member>.md`, path-set `Cohort` (meta + dual-placed in the draft header), own `Class` — and
   distributes `Depends On` by _actual need_: outgoing ancestor edges inherited only where the member genuinely
   depends; internal edges authored fresh from delivery order; incoming edges re-pointed to the delivering
   member(s).
-- _Rationale:_ Blanket-inheriting outgoing edges manufactures artificial serialization. Edge distribution authors
-  `Depends On` as live gates among members — consistent with the live-gate semantics `operational-state-docs`
-  settles (a coordination seam, not a blocker). (D3)
+- _Outcome:_ Step 4 now carries a **Field inheritance** block (per-field: inherited `Origin`, own `Design`,
+  dual-placed `Cohort`, own `Class`, `State: Planning`) and a three-kind `Depends On` distribution
+  (outgoing-by-need / internal-from-delivery-order / incoming-swept), each edge framed as a live gate discharged
+  at the depended-on member's activation — not a hard blocker. (D3)
 
-### `[ ]` **4.3 Specify the four-step distribution discipline — conservation gate + incoming-`Depends On` sweep**
+### `[x]` **4.3 Specify the four-step distribution discipline — conservation gate + incoming-`Depends On` sweep**
 
 - _Goal:_ The workflow carries the emergent-arm distribution discipline as a four-step gate and the
   incoming-`Depends On` sweep, so no origin content or edge is silently lost when a monolith is split.
-- _Note:_ The allocation map is not throwaway — it becomes the decomposition PR description (the "here's where
-  everything went" audit trail). The sweep is broader than the cut-map — this cohort's own decomposition found
-  three incoming edges where the cut-map listed one.
 
-    - `[ ]` **4.3.a Specify the four-step distribution gate**
-        - Allocation map (every section / design-point + every dependency edge → destination, or
-          dropped-with-reason) → classify by the design-vs-coordination boundary → conservation gate (each lands
-          in exactly one destination or is explicitly dropped-with-reason; gates retirement) → retire the origin
-          only after the gate passes. (D5)
+    - `[x]` **4.3.a Specify the four-step distribution gate**
+        - Step 5 rewritten as the four-step gate: allocation map (every section / design-point + every dependency
+          edge → one destination, or dropped-with-reason) → classify by the design-vs-coordination boundary →
+          conservation gate (no silent loss; precondition for retirement) → retire only after the gate passes
+          (Step 8). The allocation map carries forward as the Step 10 PR description. (D5)
 
-    - `[ ]` **4.3.b Specify the incoming-`Depends On` sweep**
-        - Sweep every meta whose `Depends On` names the origin and re-point to the delivering member(s), not only
-          the cut-map's named dependents. (D2 sweep, SC8)
+    - `[x]` **4.3.b Specify the incoming-`Depends On` sweep**
+        - Step 6 deepened: a concrete `grep` sweep over `active/**` + `backlog/planned/**` metas naming the
+          origin, re-pointed to the delivering member(s) — explicitly broader than the cut-map's named dependents
+          (this cohort's run found three incoming edges where the cut-map listed one). (D2 sweep, SC8)
 
-### `[ ]` **4.4 Factor shared primitives + the predicted/emergent arms + manual bootstrapping checks + PR variant**
+- _Outcome:_ The conservation discipline now spans Steps 5–6 and gates Step 8's retirement — every origin section
+  and every dependency edge (outgoing in the draft, incoming swept from foreign metas) lands in exactly one
+  destination or is dropped-with-reason before the origin is deleted.
+
+### `[x]` **4.4 Factor shared primitives + the predicted/emergent arms + manual bootstrapping checks + PR variant**
 
 - _Goal:_ The workflow's shared steps are factored for reuse and forward composition — the cohort-scaffold
   primitive shared with the predicted arm (both arms live in this WU), and the `active/ → backlog/` + park-PR +
   worktree-kind-teardown block authored single-source here for `integrate` / `park-work-unit` to adopt later
   (forward-compat, H — no present-tense integrate refactor) — the predicted-vs-emergent arms are distinguished, the
   manual three-check bootstrapping version is documented, and the decomposition-PR description variant is specified.
-- _Approach:_ Shared steps as named, extractable blocks referenced by stable heading slug (forward-compat, H).
-  Layering: `decompose-work-unit = [distribution-discipline + retire-origin] ∘ cohort-scaffold ∘ PR-cleanup`; the
-  predicted arm = `cohort-scaffold` alone (no monolith-split). `integrate-work-unit` adopting the PR-cleanup block
-  is deferred — it stops before merge and owns no teardown today (teardown is session-init's sweep); adopting it
-  eagerly is a behavior change rippling to `archive` + the sweep, routed to CWC's inbound buffer as its own
-  question. Codified against this cohort's own manual run (D9, PR #55).
-- **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **4.4.a Factor the cohort-scaffold + PR-cleanup primitives as named extractable blocks**
-        - Both authored single-source as stable-heading-slug-referenced blocks: cohort-scaffold reused by the
-          predicted arm now; the PR-cleanup block authored for `integrate` / `park-work-unit` to adopt when
-          `composable-workflows` lands (no integrate edit here). (D8, H)
+    - `[x]` **4.4.a Factor the cohort-scaffold + PR-cleanup primitives as named extractable blocks**
+        - Added `## Composition and reuse` with the layering formula and two stable-heading-slug blocks —
+          `### The cohort-scaffold block` (Steps 2–4, 7; reused by the predicted arm) and `### The park-exit block`
+          (the `active/ → backlog/` + park-PR + teardown, Steps 10–11). Both named single-source for a future
+          composition mechanism to hoist; no present-tense `integrate` edit. (D8, H)
 
-    - `[ ]` **4.4.b Distinguish the predicted vs emergent arms**
-        - Predicted (affirmative during draft-design; author directly into the cohort structure, no monolith, no
-          `decompose-work-unit` run) vs emergent (a matured monolith split at create-spec — the arm the
-          distribution discipline serves). (D7)
+    - `[x]` **4.4.b Distinguish the predicted vs emergent arms**
+        - `### Predicted vs. emergent arms` subsection: emergent (a matured monolith split at create-spec — the arm
+          this workflow + the distribution discipline serve) vs predicted (affirmative during draft-design; author
+          straight into the cohort structure via the cohort-scaffold block alone — no monolith, this workflow does
+          not run). (D7)
 
-    - `[ ]` **4.4.c Document the manual bootstrapping checks + the decomposition-PR description variant**
-        - The manual three-condition checks for the pre-automation run (E3), superseded once Phase 5 ships; the
-          lightweight decomposition-PR description variant (the allocation-map-as-PR-story). (E3, D9)
+    - `[x]` **4.4.c Document the manual bootstrapping checks + the decomposition-PR description variant**
+        - Step 7 frames the three conditions as the by-hand pre-commit verification (surfaced at the Step 8
+          interlock) with the cohort-consistency structural guard as the commit-time backstop; Step 10 carries the
+          **Decomposition PR description** variant (allocation-map-as-PR-story, plain-prose register). (E3, D9)
+
+- _Outcome:_ `decompose-work-unit.md` is complete and adopter-clean — forward-compat material expressed without
+  naming internal backlog WUs (the `composable-workflows` / `park-work-unit` / CWC routing stays in the spec).
+  Named extractable blocks make the spine composable later without a rewrite. The pre-push-review-on-doc-only-PRs
+  question was routed to `review-method-family` via `USER-INBOX` rather than settled here.
 
 ## **Phase 5:** The cohort-consistency invariant + enforcement
 
