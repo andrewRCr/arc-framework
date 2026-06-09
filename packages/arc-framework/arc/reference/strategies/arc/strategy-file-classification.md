@@ -93,14 +93,19 @@ you what kind."
 | `strategy-` | Strategy document        | Framework / user | `strategy-work-organization.md`   |
 | `research-` | Research document        | User/agent       | `research-context-loading.md`     |
 | `adr-`      | Architecture Decision    | User/agent       | `adr-001-define-core-identity.md` |
-| `template-` | Copy-ready template      | Framework / user | `template-prd.md`                 |
+| `template-` | Copy-ready template      | Framework / user | `template-spec-detailed-prd.md`   |
 
 Work unit artifacts (`meta-`, `draft-`, `spec-`, `tasks-`, `notes-`) share a slug
 across files — the slug is the work unit's identity. `meta-authentication.md`,
 `spec-authentication.md`, and `tasks-authentication.md` all belong to the same work unit.
 
-The `spec-*` filename is uniform; the spec's *form* (PRD-shape by default, lighter variants per
-template) varies by template choice and is signalled by the H1.
+The `spec-*` filename is uniform across forms; the spec's **form** is signalled by the H1, not the
+filename — `Spec ({form}): {name}` with the form backticked. The form family is `brief` / `outline` /
+`detailed`, the last splitting into a `PRD` and an `RFC` subtype (carried in the H1 as
+Spec (`detailed` · `RFC`): {name}). Each form ships a copy-ready template — `template-spec-brief.md`,
+`template-spec-outline.md`, `template-spec-detailed-prd.md`, and `template-spec-detailed-rfc.md`. There
+is no single default form; it is resolved from the work's derivation depth (see
+[Work Planning][work-planning] § Spec Conventions).
 
 ### Template suffix: `.template.md`
 
@@ -117,7 +122,7 @@ because no rendering transformation occurs — they're copied as-is during init 
 by teams.
 
 The `template-` *prefix* (in `reference/templates/arc/`) is different — those are copy-ready document
-templates used during work (e.g., `template-prd.md` is copied when creating a new spec). They keep
+templates used during work (e.g., a `template-spec-*.md` form is copied when creating a new spec). They keep
 the prefix in use, not just at init time.
 
 ### One-shot template uniqueness
@@ -132,7 +137,7 @@ BACKLOG-TECHNICAL, AGENT-BRIEF.PROJECT, QUICK-REFERENCE. The CLI's init / join r
 pipeline is the canonical inventory.
 
 **Distinction from agent-facing templates.** `template-*.md` files in `reference/templates/arc/`
-(e.g., `template-prd.md`, `template-tasks.md`, `template-adr.md`) are copy-ready templates
+(e.g., `template-spec-outline.md`, `template-tasks.md`, `template-adr.md`) are copy-ready templates
 for content created repeatedly during work by agents and workflows. They use the
 placeholder convention (see § Template placeholders). The two surfaces address different
 needs and do not duplicate — the one-shot principle does not extend to them.
@@ -256,3 +261,4 @@ See § Directory naming for how a directory is *named* once its placement is set
 [config-arch]: strategy-configurability-architecture.md
 [config-arch-which]: strategy-configurability-architecture.md#which-mechanism-do-i-use
 [branch-format-method]: ../../../system/methods/branch-format.md
+[work-planning]: strategy-work-planning.md

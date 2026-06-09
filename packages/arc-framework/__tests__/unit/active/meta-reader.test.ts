@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 import {
+  parseIdentifierList,
   parseMetaFile,
   parseMetaRecord,
   readActiveMetaCandidates,
@@ -48,6 +49,63 @@ function metaFileBody(fields: {
   if (fields.extra !== undefined) lines.push(fields.extra);
   return lines.join("\n");
 }
+
+describe("parseIdentifierList — shared comma-list parse", () => {
+  it("resolves null, [none], and empty to no references", () => {
+    expect(parseIdentifierList(null)).toEqual([]);
+    expect(parseIdentifierList("[none]")).toEqual([]);
+    expect(parseIdentifierList("")).toEqual([]);
+  });
+
+  it("parses a single reference to a one-element list", () => {
+    expect(parseIdentifierList("alpha")).toEqual(["alpha"]);
+    expect(parseIdentifierList("spec-foo.md")).toEqual(["spec-foo.md"]);
+  });
+
+  it("parses two comma-separated references to a list, trimming each", () => {
+    expect(parseIdentifierList("alpha, beta")).toEqual(["alpha", "beta"]);
+    expect(parseIdentifierList("spec-a.md,spec-b.md")).toEqual(["spec-a.md", "spec-b.md"]);
+    expect(parseIdentifierList("  alpha ,  beta  ")).toEqual(["alpha", "beta"]);
+  });
+
+  it("filters empty elements from a malformed comma run", () => {
+    expect(parseIdentifierList("alpha, , beta")).toEqual(["alpha", "beta"]);
+    expect(parseIdentifierList("alpha,")).toEqual(["alpha"]);
+  });
+});
+
+describe("identifier-list fields — per-element backtick render", () => {
+  it("renders a two-value Depends On as two discrete backticked tokens", () => {
+    const md = renderMetaFile("foo", { "Depends On": "alpha, beta" });
+    expect(md).toContain("- **Depends On:** `alpha`, `beta`");
+    expect(md).not.toContain("`alpha, beta`"); // never the compound whole-value span
+  });
+
+  it("renders a two-value Design as two discrete backticked tokens", () => {
+    const md = renderMetaFile("foo", { Design: "spec-a.md, spec-b.md" });
+    expect(md).toContain("- **Design:** `spec-a.md`, `spec-b.md`");
+  });
+
+  it("renders a single-value list field identically to a scalar identifier", () => {
+    expect(renderMetaFile("foo", { "Depends On": "alpha" })).toContain("- **Depends On:** `alpha`");
+    expect(renderMetaFile("foo", { Design: "spec-a.md" })).toContain("- **Design:** `spec-a.md`");
+  });
+
+  it("keeps the [none] sentinel bare (no backticks)", () => {
+    expect(renderMetaFile("foo", SPAWN_OVERRIDES)).toContain("- **Depends On:** [none]");
+  });
+
+  it("round-trips a two-value list through render and parse to the comma-joined value", () => {
+    const record = parseMetaRecord(
+      renderMetaFile("foo", { "Depends On": "alpha, beta", Design: "spec-a.md, spec-b.md" }),
+    );
+    expect(record["Depends On"]).toBe("alpha, beta");
+    expect(record.Design).toBe("spec-a.md, spec-b.md");
+    // and the shared split recovers the discrete elements for consumers
+    expect(parseIdentifierList(record["Depends On"])).toEqual(["alpha", "beta"]);
+    expect(parseIdentifierList(record.Design)).toEqual(["spec-a.md", "spec-b.md"]);
+  });
+});
 
 describe("parseMetaFile — happy path", () => {
   it("extracts all four session-init-relevant fields from a typical status file", () => {

@@ -128,9 +128,11 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   or out of `backlog/planned/` — re-renders `backlog/ROADMAP.md` in the same commit (lifecycle
   ceremonies regen via their own step). See [strategy-work-organization § ROADMAP][work-org-roadmap].
 
-- **Meta-file timing:** Meta file updates fire only at handoff commits and workflow-ceremony
-  commits (activate / integrate / sweep / deactivate / spec generation / planning-lifecycle ops).
-  Task-completion code commits never touch the meta file.
+- **Meta-file timing:** The meta file is written **only where a workflow ceremony explicitly
+  instructs the write** — at handoff and at the lifecycle and planning-stage ceremonies that emit a
+  meta update. A commit's authority to touch the meta comes from the ceremony workflow it runs, not
+  from an enumerated list; task-completion code commits never touch the meta file, and nothing writes
+  it mid-stage.
 
 - **Meta-file commit shape:** Meta-file edits ride with concurrent ceremony content (file
   moves, spec save, archival) — bundle into the ceremony commit. When the
@@ -305,8 +307,7 @@ Session state uses two files with different update triggers:
 
 - **`meta-{name}.md`** (tracked, `active/`) — the active WU's project pointer.
   Updated only at handoff commits and workflow-ceremony commits; task-completion code commits never
-  touch it. Mid-session updates are churn. See § Commit Discipline for the timing rule and the
-  ceremony list.
+  touch it. Mid-session updates are churn. See § Commit Discipline for the timing rule.
 
 - **SESSION-NOTES.md** (gitignored, `user/{identity}/`) — written only at session handoff.
   Personal working context for the next session. Per-developer directory (`user/{identity}/`);

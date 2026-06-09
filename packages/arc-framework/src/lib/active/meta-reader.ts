@@ -205,13 +205,14 @@ export type MetaRenderMode = "core-table" | "bullet";
 /**
  * The value-formatting class for a field's *real* (non-sentinel) values. This
  * is the proto-schema axis a later code-owned schema maps directly: `enum` →
- * a closed Capitalized token set, `identifier` → a slug / filename / branch,
- * `narrative` → free prose. Bracket sentinels (`[none]` / `[internal]` /
- * `[TBD]`) are a cross-cutting form detected at render/parse time and are
- * orthogonal to this class — a field permits a sentinel when its `default` is
- * one.
+ * a closed Capitalized token set, `identifier` → a single slug / filename /
+ * branch, `identifier-list` → one or more comma-separated identifiers rendered
+ * with each element individually backticked (`` `a`, `b` ``), `narrative` →
+ * free prose. Bracket sentinels (`[none]` / `[internal]` / `[TBD]`) are a
+ * cross-cutting form detected at render/parse time and are orthogonal to this
+ * class — a field permits a sentinel when its `default` is one.
  */
-export type MetaValueClass = "enum" | "identifier" | "narrative";
+export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "narrative";
 
 /**
  * A managed-meta field descriptor: the bold-marker label, the value rendered
@@ -248,9 +249,9 @@ export const META_FIELDS = [
   { name: "Class", default: "[TBD]", group: "core", render: "core-table", valueClass: "enum" },
   { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
   { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
-  { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
+  { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
   { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
-  { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -261,6 +262,24 @@ export const META_FIELDS = [
 const CORE_FIELD_NAMES = META_FIELDS
   .filter((field) => field.render === "core-table")
   .map((field) => field.name);
+
+/**
+ * Parse a comma-separated identifier-list field value into its elements: split
+ * on commas, trim each, and drop empties, with `[none]` / absent (`null`) /
+ * empty resolving to no elements. The shared split for the `identifier-list`
+ * fields (`Depends On` and the layered `Design` pattern) — driving both the
+ * per-element render in {@link formatValue} and every consumer's parse, so the
+ * two never disagree on element boundaries. Operates on the bare value: callers
+ * reading rendered markdown strip backticks first (the record-side strip is
+ * global, so `` `a`, `b` `` recovers as `a, b` before this split).
+ */
+export function parseIdentifierList(raw: string | null): string[] {
+  if (raw === null || raw === "[none]") return [];
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
+}
 
 /** Union of the legal meta field labels, derived from {@link META_FIELDS}. */
 export type MetaFieldName = (typeof META_FIELDS)[number]["name"];
@@ -295,7 +314,9 @@ function capitalizeFirst(value: string): string {
  * Format a field value for the markdown projection per its value class. Bracket
  * sentinels and the em-dash placeholder render bare (the bracket is itself the
  * machine signal); enum tokens render Capitalized + backticked, identifiers
- * backticked as-is, narrative fields as plain prose.
+ * backticked as-is, identifier-list values render each comma-separated element
+ * individually backticked (`` `a`, `b` `` — two discrete tokens, not one
+ * compound span), narrative fields as plain prose.
  */
 function formatValue(value: string, valueClass: MetaValueClass): string {
   if (value === PLACEHOLDER || isSentinel(value)) return value;
@@ -304,6 +325,10 @@ function formatValue(value: string, valueClass: MetaValueClass): string {
       return `\`${capitalizeFirst(value)}\``;
     case "identifier":
       return `\`${value}\``;
+    case "identifier-list":
+      return parseIdentifierList(value)
+        .map((item) => `\`${item}\``)
+        .join(", ");
     case "narrative":
       return value;
   }

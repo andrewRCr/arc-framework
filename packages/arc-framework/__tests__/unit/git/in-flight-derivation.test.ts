@@ -301,6 +301,25 @@ describe("deriveInFlight", () => {
     expect(entries[0]).not.toHaveProperty("design");
   });
 
+  it("tolerates a two-value Design (per-element render form) as the comma-joined scope string", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/feat/x:.arc/active/meta-x.md": metaContent({ design: "`spec-a.md`, `spec-b.md`" }),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["feat/x"],
+      identity: null,
+      teamMode: false,
+    });
+
+    // The single-string reader carries two refs unchanged — parse strips the
+    // per-element backticks globally, leaving the comma-joined value for display.
+    expect(entries[0]).toMatchObject({ design: "spec-a.md, spec-b.md" });
+  });
+
   it("omits Priority and yields an empty Depends On for an all-default meta", async () => {
     const exec = makeExec({
       metas: { "origin/feat/x:.arc/active/meta-x.md": metaContent() },

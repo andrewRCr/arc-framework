@@ -15,7 +15,7 @@
 
 import { fileURLToPath } from "node:url";
 
-import { parseMetaRecord } from "../lib/active/meta-reader.js";
+import { parseIdentifierList, parseMetaRecord, stripInlineCode } from "../lib/active/meta-reader.js";
 import { validateCohortPath } from "../lib/active/cohort-path.js";
 import { runPathListScript } from "./cli-runner.js";
 
@@ -61,18 +61,29 @@ function normalizeFieldValue(value: string): string {
   return normalized;
 }
 
+/**
+ * Collect every `**Field:**` line value for `field`, **raw** (regex-trimmed but
+ * backticks intact). Single-value callers normalize per their needs
+ * ({@link normalizeFieldValue} strips one wrapping pair); list-valued `Design`
+ * strips code spans globally before splitting, so the per-element form survives.
+ */
 function collectFieldValues(content: string, field: string): string[] {
   const captures: string[] = [];
   for (const line of content.split(/\r?\n/)) {
     const match = META_FIELD_LINE.exec(line);
-    if (match?.[1] === field) captures.push(normalizeFieldValue(match[2] ?? ""));
+    if (match?.[1] === field) captures.push((match[2] ?? "").trim());
   }
   return captures;
 }
 
 /**
- * Locate `**Design:**` lines in a meta file and validate the value's shape.
- * Returns one diagnostic per problem; an empty array means the file passes.
+ * Locate the `**Design:**` line in a meta file and validate its value. A single
+ * bullet may carry one OR two comma-separated references (the layered Design
+ * pattern); code spans are stripped globally so the per-element (`` `a`, `b` ``)
+ * and legacy compound (`` `a, b` ``) forms both split the same way, then each
+ * element is shape-checked (empty / `[none]` / bare-basename `.md` filename /
+ * `https?://` URL). Multiple `**Design:**` *lines* remain a failure, as does a
+ * third reference. Returns one diagnostic per problem; an empty array passes.
  */
 export function validateSpec(content: string, path: string): string[] {
   const captures = collectFieldValues(content, "Design");
@@ -86,16 +97,21 @@ export function validateSpec(content: string, path: string): string[] {
     ];
   }
 
-  const value = captures[0] ?? "";
+  const stripped = stripInlineCode(captures[0] ?? "").trim();
+  if (stripped === "" || stripped === "[none]") return [];
 
-  if (value === "") return [];
-  if (value === "[none]") return [];
-  if (MD_FILENAME.test(value)) return [];
-  if (URL_SHAPE.test(value)) return [];
-
-  return [
-    `${path}: invalid \`**Design:**\` value "${value}"; ${EXPECTED_SHAPE}`,
-  ];
+  const refs = parseIdentifierList(stripped);
+  if (refs.length > 2) {
+    return [
+      `${path}: too many \`**Design:**\` references (found ${refs.length}); ` +
+        `expected one or two (the layered pattern)`,
+    ];
+  }
+  const invalid = refs.find((ref) => !MD_FILENAME.test(ref) && !URL_SHAPE.test(ref));
+  if (invalid !== undefined) {
+    return [`${path}: invalid \`**Design:**\` value "${invalid}"; ${EXPECTED_SHAPE}`];
+  }
+  return [];
 }
 
 /**
@@ -156,7 +172,7 @@ export function validateCohort(content: string, path: string): string[] {
     return [`${path}: multiple \`**Cohort:**\` lines (found ${captures.length})`];
   }
 
-  const error = validateCohortPath(captures[0] ?? "");
+  const error = validateCohortPath(normalizeFieldValue(captures[0] ?? ""));
   return error === null ? [] : [`${path}: invalid \`**Cohort:**\` value; ${error}`];
 }
 

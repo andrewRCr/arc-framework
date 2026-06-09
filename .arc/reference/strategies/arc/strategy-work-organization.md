@@ -239,6 +239,20 @@ These forms are **guidance, not a hook-enforced constraint**: nothing validates 
 form. The mapping orients the author toward the right depth; the boundary tests and the ratchet keep the `Class`
 honest.
 
+### Validation contract
+
+What a spec is validated *against* hangs on two form-invariant anchors — not requirement-numbering, which was
+only ever a PRD-idiom traceability convenience:
+
+- **Implementation → Success Criteria.** Every form carries concrete, falsifiable Success Criteria (even the
+  `brief` floor's single success signal), and the implementation is validated against them at completion. This
+  anchor is invariant across every form.
+- **Task list → the form's enumerable substrate.** The task list is validated for coverage against whatever the
+  form enumerates — numbered **Requirements** (PRD), structured **Proposed Design** elements (RFC), the settled
+  **Decision(s)** (`outline`), or the one falsifiable **signal** (`brief`). The substrate differs by form, but
+  the mechanism — grounding-audit coverage of the design's enumerable unit set — is identical. The design *is*
+  that unit set; it is simply not always called "requirements."
+
 ---
 
 ## Task Lists and Branches
@@ -834,8 +848,11 @@ ARC defines two branch protection modes configured in `.arc/system/arc-config.ym
 ### Partially Protected (Default)
 
 Planned work units require a branch from inception (single-branch-per-WU per
-[§ Branching](#branching)). Routine commits may go directly to the base branch as documented
-exceptions:
+[§ Branching](#branching)) — "from inception" governs the **tracked** work unit, the one carrying a
+`meta-{name}.md`. Pre-formalization design exploration — a `draft-*` or a spec drafted on the base
+branch before a work unit is initialized — is sanctioned under partial protection: it has no planning
+branch or meta yet, and the branch is cut when the work formalizes into a tracked WU. Routine commits
+may go directly to the base branch as documented exceptions:
 
 - Framework maintenance: documentation updates, linting fixes
 - Off-work-unit maintenance commits (no associated task list or work-unit branch)

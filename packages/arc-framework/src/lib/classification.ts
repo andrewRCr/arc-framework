@@ -76,13 +76,16 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "reference/strategies/STRATEGY-INDEX.md",
   "completed/README.md",
   // Per-file methods — adopters toggle `override-active` and populate `.override` bodies
+  "system/methods/classify-work-unit.md",
   "system/methods/commit-footer.md",
   "system/methods/commit-format.md",
   "system/methods/diff-review.md",
   "system/methods/issue-triage.md",
   "system/methods/quality-gate-commands.md",
+  "system/methods/resolve-planning-depth.md",
   "system/methods/review-triage.md",
   "system/methods/session-state.md",
+  "system/methods/spec-review.md",
   "system/methods/test-first.md",
   // Per-file extensions — adopters toggle `active` and populate `.actions` bodies
   "system/extensions/post-context-load.md",
@@ -96,6 +99,7 @@ const CONFIGURABLE_FILES: ReadonlySet<string> = new Set([
   "system/extensions/pre-merge-review.md",
   "system/extensions/pre-pr-review.md",
   "system/extensions/pre-push-review.md",
+  "system/extensions/pre-spec-finalization-review.md",
 ]);
 
 /**

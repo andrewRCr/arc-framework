@@ -682,10 +682,10 @@ shelved removes the file (no WU follows; no pointer needed).
 
 ## Meta-File Timing
 
-Meta-file updates fire only at session-handoff commits and workflow-ceremony commits (activate /
-integrate / sweep / deactivate / PRD generation / planning-lifecycle ops). Task-completion code
-commits never touch the meta file. See [DEV-RULES.ARC][dev-rules-arc] § Commit Discipline for the
-rule statement.
+Meta-file updates fire only where a workflow ceremony explicitly instructs the write — at
+session-handoff and at the lifecycle and planning-stage ceremonies that emit a meta update.
+Task-completion code commits never touch the meta file. See [DEV-RULES.ARC][dev-rules-arc]
+§ Commit Discipline for the rule statement.
 
 **Why bound to ceremony commits.** Meta-file fields (Next Task, Last Completed, Next Action) are
 state pointers consumed at session-init. Per-task updates produce intermediate snapshots that no

@@ -77,14 +77,18 @@
   - **Completed** — date stamp (YYYY-MM-DD).
 
   Appended at Active → Integrating transition (content H2s after the field
-  blocks; absent during Planning / Active life-phase):
+  blocks; absent during Planning / Active life-phase). Size each section to
+  what was produced:
   - `## Release Notes Entry` — one-paragraph user-facing summary plus
     categorized lines per the 7-category Keep a Changelog set: Added,
     Changed, Removed, Fixed, Infrastructure, Deprecated, Security. Optional
     "Breaking Changes" callout flags lines that break stability contracts.
-    Edits after `Shipped` are errata only; git history is the lock; no
-    mechanical enforcement (matches Keep a Changelog norms).
-  - `## Completion Notes` — narrative summary of what shipped.
+    **Omittable** — omit the whole section when nothing user-facing ships
+    (a mechanical or internal-only change); size it to what shipped
+    otherwise. Edits after `Shipped` are errata only; git history is the
+    lock; no mechanical enforcement (matches Keep a Changelog norms).
+  - `## Completion Notes` — narrative summary of what shipped; always
+    present, sized to what there is to say.
 
   Retired from prior `template-status.md` shape (replaced by positive
   enumeration above):
@@ -134,7 +138,9 @@
 
   ## Release Notes Entry
 
-  {One-paragraph, user-facing summary of what shipped.}
+  {One-paragraph, user-facing summary of what shipped. Omit this whole section —
+  heading included — when nothing user-facing ships (a mechanical or
+  internal-only change).}
 
   **Breaking Changes:** {bullets flagging stability-contract breaks; omit the callout
   entirely when there are none.}
@@ -161,7 +167,7 @@
   ## Completion Notes
 
   {Narrative synthesis — design intent, what actually shipped, key deviations /
-  supersessions from plan, verification outcome. Complements, does NOT repeat, the
-  task list's verbatim record and git history. Internal-dev audience; work-unit names
-  and cross-references are fine here.}
+  supersessions from plan, verification outcome. Sized to what there is to say.
+  Complements, does NOT repeat, the task list's verbatim record and git history.
+  Internal-dev audience; work-unit names and cross-references are fine here.}
 -->

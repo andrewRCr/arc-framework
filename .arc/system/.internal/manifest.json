@@ -85,10 +85,25 @@
       "layer": "core",
       "pristine_hash": "7e2bb8167e7cf242e393e6ee1addad3a0e3d2251f2fe12c69791f543cff63d42"
     },
-    "reference/templates/arc/work-unit/spec/template-prd.md": {
+    "reference/templates/arc/work-unit/spec/template-spec-brief.md": {
       "classification": "Framework",
       "layer": "core",
-      "pristine_hash": "372a3de0dcaf4a0ece8f74f8d990f89629341a15b64b4697149051ceaf88ce01"
+      "pristine_hash": "c172b07cb694f3f4032f97350bd7c3ed4b76bae3330c04ac15a7f7be38bfb7e4"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-outline.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "4f7f5329e89c37e9736b3e086f6878479fc4a4c32e69165d5bf2b06fef832a2e"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "ce378682f11348d898287a1dd2f8b232832c6d6c7b100d26348dee11ff46348e"
+    },
+    "reference/templates/arc/work-unit/spec/template-spec-detailed-rfc.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "1b69a29aebb4ac1968b98dcb96a9d3a296aded0d6482ae29281e7bbb94e59da4"
     },
     "reference/templates/project/README.md": {
       "classification": "Framework",
@@ -215,6 +230,11 @@
       "layer": "core",
       "pristine_hash": "cce3c23a435a8d9c7913ad3b59556bff83b5a570bb0995a54c73a3f759539c65"
     },
+    "system/extensions/pre-spec-finalization-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "f2281892c671424c1715040b8fe338fea9dd471ee55298d43d981677e5068fe7"
+    },
     "system/extensions/README.md": {
       "classification": "Framework",
       "layer": "core",
@@ -234,6 +254,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "fc4e2058b9de8de86f33db9d5c617c509943c5d1c27de0f04ec706ba3e87ef62"
+    },
+    "system/methods/classify-work-unit.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "19562ba88845482e995d24c94a140fdf35a0d3c55057661038172099b86a5fe3"
     },
     "system/methods/commit-footer.md": {
       "classification": "Configurable",
@@ -260,6 +285,11 @@
       "layer": "core",
       "pristine_hash": "10de22a37ef21e258da39cfe62b03b19fdc901b355a21577daa6daf255d9be8e"
     },
+    "system/methods/resolve-planning-depth.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "30f2c20851dbc7e5f04756fc683532466e0b952a9684f7e70f4b8f808152967b"
+    },
     "system/methods/review-triage.md": {
       "classification": "Configurable",
       "layer": "core",
@@ -269,6 +299,11 @@
       "classification": "Configurable",
       "layer": "core",
       "pristine_hash": "d4089896815f25c092337e2d6b86153aa6f2b2b955653fd02d18d530404fdac5"
+    },
+    "system/methods/spec-review.md": {
+      "classification": "Configurable",
+      "layer": "core",
+      "pristine_hash": "17a261b3767286a90110e235fa29e902f6745f0afc9499df697c92d7bbbffc69"
     },
     "system/methods/test-first.md": {
       "classification": "Configurable",
@@ -359,6 +394,11 @@
       "classification": "Framework",
       "layer": "core",
       "pristine_hash": "938fc3c207bedacad27ddf0d18915d495be43f7aed04e5b57e2badbb0a373f81"
+    },
+    "system/workflows/arc/draft-design.md": {
+      "classification": "Framework",
+      "layer": "core",
+      "pristine_hash": "8c45c2ed4630bd36f9cf096c44f35e6f2202043333f0d63344dea8390ba94a56"
     },
     "system/workflows/arc/initial-setup/01_verify-and-configure.md": {
       "classification": "Framework",

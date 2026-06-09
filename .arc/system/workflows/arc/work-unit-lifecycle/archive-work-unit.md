@@ -41,15 +41,18 @@ Edit `active/meta-{name}.md`: `**State:** Integrating` → `**State:** Shipped`.
 ```bash
 mkdir -p .arc/completed/{dated}/{NN}_{name}
 git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{NN}_{name}/
-git mv .arc/active/prd-{name}.md    .arc/completed/{dated}/{NN}_{name}/   # when WU has a PRD
-git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when WU has a task list
+git mv .arc/active/spec-{name}.md   .arc/completed/{dated}/{NN}_{name}/   # single-form spec
+git mv .arc/active/spec-{name}-prd.md .arc/completed/{dated}/{NN}_{name}/ # layered spec, when present
+git mv .arc/active/spec-{name}-rfc.md .arc/completed/{dated}/{NN}_{name}/ # layered spec, when present
+git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
 git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
 ```
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`). `{NN}` is a 2-digit completion-order prefix assigned at
 archival — the next index after the highest already present in the `{dated}` subdir (e.g., `10_` when
 `01_`–`09_` exist), reset per quarter — giving a browse-time "by completion order" view. Adjust the file
-list to what exists for the WU — per-worktree isolation means `active/` carries only this WU's artifacts
+list to what exists for the WU, moving both `spec-{name}-prd.md` and `spec-{name}-rfc.md` when the layered
+pair exists — per-worktree isolation means `active/` carries only this WU's artifacts
 (see [Work Organization Strategy][work-org] § Per-Worktree Isolation).
 
 ### 4) Regenerate ROADMAP · `arc-in-git` only

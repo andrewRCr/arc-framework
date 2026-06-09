@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `agile-parallelism`
-- **Depends On:** `scalable-authoring-pipeline, decomposition-machinery`
+- **Depends On:** `scalable-authoring-pipeline`, `decomposition-machinery`
 
 - **Origin:** [internal]
 - **Design:** `draft-concurrent-work-conventions.md`

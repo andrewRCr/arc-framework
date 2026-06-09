@@ -141,7 +141,7 @@ change artifact locations, workflow steps, and which files are installed.
 | --- | --- |
 | `session-init.md` § Step 5 | Discovery path: ROADMAP + backlog (arc-in-git) vs `active/` check (none/external) |
 | `1_create-prd.md` § Steps 1, 4 | Plan lookup and PRD save location |
-| `2_generate-tasks.md` § Step 4 | Task list save location |
+| `2_generate-tasks.md` § Finalize the task list | Task list save location |
 | `activate-work-unit.md` § Steps 1, 3, 7 | File move from backlog (arc-in-git) vs skip (none/external) |
 | `02_define-project.md` § Steps 4-5 | ROADMAP and PROJECT-STATUS creation (arc-in-git only) |
 | `archive-work-unit.md` § Step 5 | Next Action guidance text |

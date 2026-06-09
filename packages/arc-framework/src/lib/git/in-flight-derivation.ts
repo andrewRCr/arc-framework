@@ -21,7 +21,7 @@
  */
 
 import type { WorkUnitState } from "../../commands/active/types.js";
-import { parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
 import { errandSlugOf } from "../session-init/errand-branch.js";
 
 import type { GitExec } from "./exec.js";
@@ -236,20 +236,8 @@ function buildWorkUnit(
     // absences above. Drop only a genuinely field-absent (`null`) Class.
     ...(workClass !== null ? { class: workClass } : {}),
     ...(priority !== null && priority !== "[none]" ? { priority } : {}),
-    dependsOn: parseDependsOn(fields["Depends On"]),
+    dependsOn: parseIdentifierList(fields["Depends On"]),
   };
-}
-
-/**
- * Parse a `**Depends On:**` field value into WU-names: comma-separated names,
- * trimmed, with `[none]` / absent / empty resolving to no dependencies.
- */
-function parseDependsOn(raw: string | null): readonly string[] {
-  if (raw === null || raw === "[none]") return [];
-  return raw
-    .split(",")
-    .map((name) => name.trim())
-    .filter((name) => name !== "");
 }
 
 /**
