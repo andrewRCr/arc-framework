@@ -12,50 +12,38 @@ strategy home, add `cohort-*` to the movable-artifact enumeration, and record th
 rationale in a companion ADR. This phase leads because it sets the contract every later surface references.
 
 _Design decisions:_ Document-tier discipline drives the split (mirroring how `class-model-foundation` seated the
-`Class` model). AGENT-BRIEF.ARC § Vocabulary _introduces_ the term; always-loaded DEV-RULES.ARC carries only the
-two constitutive rules + the `cohort-*` movable-artifact addition; `strategy-work-organization` carries the
+`Class` model). AGENT-BRIEF.ARC § Vocabulary _introduces_ the term and its two constitutive rules; always-loaded
+DEV-RULES.ARC carries only the `cohort-*` movable-artifact addition (the rules are enforced by the
+cohort-consistency invariant, not restated as DEV-RULES prose); `strategy-work-organization` carries the
 taxonomy elaboration and the consumed WU-sizing standard; the companion ADR carries the durable invented-model
 rationale (internal-only, single-copy, referenced by no shipped surface — adopters have their own ADRs). Shipped
 surfaces (brief, rules, strategy) are two-copy — edit the package source, then sync the `.arc/` mirror.
 
 _Anchors:_ B1–B6, C5 (movable-enum addition), F1, F2, A6 (sizing co-home), I; SC3, SC7, SC9 (partial), SC10.
 
-### `[ ]` **1.1 Introduce the `Cohort` concept in AGENT-BRIEF.ARC § Vocabulary**
+### `[x]` **1.1 Introduce the `Cohort` concept in AGENT-BRIEF.ARC § Vocabulary**
 
 - _Goal:_ AGENT-BRIEF.ARC § Vocabulary carries a `Cohort` entry so an agent knows the concept exists and what it
   means without loading the method, strategy, or workflow — a deliberate grouping of sibling WUs with a
   constitutive `cohort-{name}.md`, the nested-cohort / sub-cohort framing (path-valued, ≤2 segments), and the
   WU-leaf relationship.
-- _Context:_ The concept is used-before-defined today — the `Cohort` field, `backlog/planned/<cohort>/` dirs, and
-  render columns shipped with `class-model-foundation`, but no surface defines what a cohort _is_. Place the entry
-  between `Class` and `Atomic` to preserve the core→execution reading order; match the existing entries' density.
-  Two-copy (package source + `.arc/` mirror).
+- _Outcome:_ Entry added between `Class` and `Atomic` (both copies). It is now the **sole always-loaded surface**
+  carrying the two constitutive rules — the standalone DEV-RULES § Cohorts promotion was dropped as duplicative
+  (see 1.2; spec F2/SC7 amended).
 
-### `[ ]` **1.2 Promote the two constitutive rules and enumerate `cohort-*` as movable in DEV-RULES.ARC**
+### `[x]` **1.2 Enumerate `cohort-*` as a movable artifact in DEV-RULES.ARC**
 
-- _Goal:_ DEV-RULES.ARC carries the two constitutive cohort rules as always-loaded behavior — every grouping dir
-  carries a `cohort-{name}.md`; the one-level nesting cap (≤2 grouping segments) — and `cohort-*` is added to the
-  movable-artifact enumeration so the existing relocatability + reference-hygiene rules cover the new record type.
-- _Approach:_ Promote only what reads as _behavior_, not vocabulary (the brief's) or rationale (the strategy's /
-  ADR's). Keep the always-loaded surface lean — no axis defs, no model elaboration, no ADR pointer (DEV-RULES.ARC
-  ships; adopters have their own ADRs).
+- _Goal:_ `cohort-*` is added to the movable-artifact enumeration in DEV-RULES.ARC § Artifact relocatability +
+  § `.arc/` artifact references, so the existing relocatability + reference-hygiene rules cover the new record
+  type. The two constitutive rules are _not_ promoted as standalone DEV-RULES behavior — the brief glossary (1.1)
+  introduces them on the always-loaded surface and the cohort-consistency invariant (Phase 5) enforces them, so
+  restating them in DEV-RULES would add no coverage (the brief loads every session too).
+- _Outcome:_ `cohort-*` added to both enumerations (both copies); framing broadened to "movable `.arc/`
+  artifacts — a WU's …, plus `cohort-*`" (the structure keeps the cohort-scoped vs. WU-scoped distinction that
+  3.3.a must not flatten), and § Artifact relocatability softened to lifecycle-state-neutral phrasing. Scope
+  narrowed mid-task: the original standalone rule-promotion (1.2.a) was cut as duplicative of 1.1; spec F2/SC7
+  and the Phase 1 preamble amended to match.
 - **Strategies:** strategy-package-project-sync.md
-
-    - `[ ]` **1.2.a Promote the two constitutive rules to a DEV-RULES.ARC behavior statement**
-        - The constitutive-doc rule (no doc-less grouping) and the one-level nesting cap, stated as operational
-          non-negotiables; rationale deferred to the strategy / ADR.
-
-    - `[ ]` **1.2.b Add `cohort-*` to the movable-artifact enumeration**
-        - `cohort-*` joins `meta-*` / `draft-*` / `spec-*` / `tasks-*` / companions in § Artifact relocatability +
-          § `.arc/` artifact references so the inbound-filename-only / outbound-no-relative-path hygiene covers it.
-          Broaden each enumeration's framing from "WU artifacts" to movable `.arc/` artifacts — `cohort-*` is
-          cohort-scoped, not a WU artifact — and soften § Artifact relocatability's "as their State changes" to a
-          lifecycle-state-neutral phrasing so the pure-`git mv` rule reads true for `cohort-*` without a carve
-          sentence. List it; don't elaborate (the always-loaded surface stays minimum-viable).
-        - _Note:_ `cohort-*`'s relocation trigger (its cohort's last member ships — no single-WU `**State:**`
-          drives it) lives in `strategy-work-organization` (1.3) / the ADR, never in always-loaded DEV-RULES.ARC; a
-          later reference-hygiene reader (3.3.a) must not flatten the cohort-scoped vs. WU-scoped distinction.
-          (`class-model-foundation` excluded `cohort-*` for exactly this distinct relocation model; this WU owns it.)
 
 ### `[ ]` **1.3 Author the grouping-taxonomy semantics + WU-sizing standard into `strategy-work-organization`**
 

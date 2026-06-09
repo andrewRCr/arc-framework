@@ -421,14 +421,15 @@ test names describing behavior, comments on non-obvious invariants — stay.
 
 ### Artifact relocatability
 
-WU artifacts — `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions — relocate between lifecycle states
-(`active/` ↔ `backlog/` ↔ `completed/`) as their State changes, and every such move is a pure `git mv` with no
-content edit. That holds only if artifacts carry position-independent references — the rule below.
+Movable `.arc/` artifacts — a WU's `meta-*`, `draft-*`, `spec-*`, `tasks-*`, and companions, plus `cohort-*` —
+relocate between lifecycle states (`active/` ↔ `backlog/` ↔ `completed/`), and every such move is a pure `git mv`
+with no content edit. That holds only if artifacts carry position-independent references — the rule below.
 
 ### `.arc/` artifact references
 
-Movable WU artifacts — `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions — are project-internal: shipped
-or published content cannot reference them at all. Two rules keep internal references stable across relocation:
+Movable `.arc/` artifacts — a WU's `draft-*`, `spec-*`, `tasks-*`, `meta-*`, and companions, plus `cohort-*` —
+are project-internal: shipped or published content cannot reference them at all. Two rules keep internal
+references stable across relocation:
 
 - **To a movable artifact:** backticked filename only — no Markdown links, no paths — from anywhere. For tasks,
   include the task ID + task-list filename: "Task X.Y - `tasks-name.md`".

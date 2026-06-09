@@ -414,9 +414,14 @@ Interlock / Review increment) gains a **Cohort** entry: what a cohort is (a deli
 constitutive doc), the nested-cohort / sub-cohort framing, and the WU-leaf relationship. This WU owns the entry
 because it owns cohort semantics — the brief is the introduction, the design surfaces above are the definition.
 
-**F2. Promote constitutive rules to `DEV-RULES.ARC`.** Any *constitutive rule* that reads as behavior rather
-than vocabulary — **every grouping dir carries a `cohort-{name}.md`**; the **one-level nesting cap** — promotes
-to `DEV-RULES.ARC`.
+**F2. No standalone rule promotion to `DEV-RULES.ARC`.** The two constitutive rules — every grouping dir carries
+a `cohort-{name}.md`; the one-level nesting cap — are *not* promoted as a standalone `DEV-RULES.ARC` behavior
+section: that would only restate what the F1 glossary entry already carries on the same always-loaded surface,
+while their *enforcement* lives in the cohort-consistency invariant (E), not in prose. `DEV-RULES.ARC`'s sole
+cohort addition is naming `cohort-*` in the movable-artifact enumeration (C5) — genuinely additive, extending the
+existing reference-hygiene / relocatability rule to a new artifact type. (The brief glossary introduces; § E
+enforces; `strategy-work-organization` elaborates — DEV-RULES restating them would add no coverage, since the
+brief loads every session too.)
 
 ### G. Concurrency — the cohort doc is the one shared-mutable planning artifact (CWC seam)
 
@@ -596,8 +601,9 @@ Validated explicitly at work-unit completion — concrete checks, not aspiration
 6. **The cohort-consistency invariant + enforcement ships:** the three conditions (E1) as a backlog-scoped
    structural guard with pre-commit wiring (E2), co-located with the invariant definition and serving as the
    cohort doc's schema validator; the manual bootstrapping version (E3) is documented in `decompose-work-unit`.
-7. **The concept is introduced:** `AGENT-BRIEF.ARC` § Vocabulary carries a Cohort entry; the two constitutive
-   rules (every grouping dir carries a doc; the one-level nesting cap) are promoted to `DEV-RULES.ARC`.
+7. **The concept is introduced:** `AGENT-BRIEF.ARC` § Vocabulary carries a Cohort entry covering the term and its
+   two constitutive rules (every grouping dir carries a doc; the one-level nesting cap); the rules are enforced by
+   the cohort-consistency invariant (SC6), not restated as standalone `DEV-RULES.ARC` prose.
 8. **No silent loss on any decomposition:** the conservation gate (D5.3) asserts every origin section + outgoing
    dependency edge lands in exactly one destination or is dropped-with-reason before the origin is retired; the
    incoming-`Depends On` sweep (D2) re-points every meta naming the origin, not only the cut-map's named
