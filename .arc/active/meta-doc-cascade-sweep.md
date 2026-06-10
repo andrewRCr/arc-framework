@@ -11,13 +11,12 @@
 - **Design:** `spec-doc-cascade-sweep.md`
 - **Task List:** `tasks-doc-cascade-sweep.md`
 
-- **Last Completed:** Task 1.3 — Align always-loaded agent surfaces (Phase 1 complete)
-- **Next Task:** Task 2.1 — Reconcile `strategy-work-organization.md` against the shipped model and the flat
-  `active/` layout (line ~98)
+- **Last Completed:** Task 2.5 — `Class`-awareness in quality-gate-commands (Phase 2 complete)
+- **Next Task:** Task 3.1 — Retire stale vocabulary in `draft-arc-plan-conductor.md` (line ~178)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — verify-coherence + sweep of work-organization's `Class` / cohort / sizing /
-  branches sections, author the canonical `active/`-is-flat statement, and correct the nested-`active/` paths.
-  Heaviest surface; per-section map in `notes-doc-cascade-sweep.md` § Documentation cascade.
+- **Next Action:** Begin Task 3.1 — strip the retired `atomic` / `quick` / `standard` tier vocabulary and the
+  quick-tier `## Scope`-header claim from the conductor draft (stale-vocab retirement only; the deeper model
+  realignment stays the conductor WU's own, per its inbound buffer). Single file, one copy.
 
 ---
