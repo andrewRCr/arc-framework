@@ -80,10 +80,10 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
   or by the host WU itself. Confirm against the current tree before proposing a route; a resolved capture is
   _dismissed_ (removed at routing), not routed.
 - **Character** — _atomic_ (single-step) or _multi-step_ (design-bearing or trackable; belongs in a stub).
-- **Tier re-triage.** Capture-time character is intentionally coarse. A `§ Atomic` capture whose real scope is
-  **quick-tier** — load-bearing infra, multi-file, multi-commit, or carrying a design fork — **reclassifies to a
-  stub** here (existing or new), not to standalone execution. This is the at-drain reclassification
-  [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
+- **Scope re-triage.** Capture-time character is intentionally coarse. A `§ Atomic` capture whose real scope is
+  **larger than atomic** — load-bearing infra, multi-file, multi-commit, or carrying a design fork —
+  **reclassifies to a stub** here (existing or new), not to standalone execution. This is the at-drain
+  reclassification [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
 - **Home** — an **existing** stub (`active/` or `backlog/`), a **new** stub identifiable now, or **none**
   (homeless).
 - **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate

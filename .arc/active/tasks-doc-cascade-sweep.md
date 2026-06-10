@@ -42,12 +42,20 @@ these tasks sweep the lingering _prose_ only, using grep coverage plus per-hit j
   drift-test coupling now flagged into Phase 4 (4.3). `strategy-work-organization` § Incidental Work Model is
   deferred to Phase 2.
 
-### `[ ]` **1.2 Retire the `atomic` tier concept prose**
+### `[x]` **1.2 Retire the `atomic` tier concept prose**
 
 - _Goal:_ No residual `atomic tier` / `atomic-tier` framing remains; `Atomic` reads strictly as work character.
 
-    - Grep the ~9-file footprint across `system/` + `reference/` (both copies); retire the tier framing and
-      preserve `Atomic` as below-the-wrapper work character.
+    - Swept the retired atomic/quick/standard tier taxonomy from the live surfaces (both copies): `branch-format`
+      (hotfix `atomic-tier` → "atomic in character"); `arc-inbox` SKILL + `drain-inbox` (the infra smell-flag /
+      at-drain re-triage — `atomic-tier`/`quick-tier` → the `Atomic` smell-flag / "larger than atomic");
+      `completed/README` (companion-presence reframed from the tier taxonomy to `Class` / planning depth). The four
+      ADRs are frozen records that document the retirement in historical context — left as-is.
+
+- _Outcome:_ `Atomic` now reads strictly as work character across live surfaces; the atomic/quick/standard
+  planning-tier taxonomy survives only in frozen ADR history. Footprint was wider than the ~9 estimate's live
+  slice: the smell-flag concept spans `arc-inbox` (capture) + `drain-inbox` (drain), and `completed/README` carried
+  the full tier taxonomy (included per scope decision, reframed to the `Class` model).
 
 ### `[ ]` **1.3 Align the always-loaded agent surfaces**
 
