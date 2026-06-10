@@ -73,11 +73,17 @@ nothing depends on it.
    divergent docs into conformance — retiring roster / status surfaces in favour of the derived-membership
    partition (`cohort-agile-parallelism.md` is the known diverger; the other two are unaudited).
 
-6. **Retire stale vocabulary in the `arc-plan-conductor` draft.** Remove the references that contradict the
-   shipped model — the retired `atomic` / `quick` / `standard` tier vocabulary and the quick-tier `## Scope`
-   task-list-header claim. The deeper model realignment (mapping the depth modes onto `planning depth`, realigning
-   tier-awareness to `Class`, dropping the tier → spec-form coupling, invoking the `brief`-form spec template) is
-   the conductor WU's own — already tracked in that draft's inbound buffer — and is out of scope here.
+6. **Realign the `arc-plan-conductor` draft body to the shipped model.** Bring the draft's body into the current
+   vocabulary rather than only stripping the flatly-contradictory terms: the retired `atomic` / `quick` /
+   `standard` tiers → `Class` (`light` / `heavy` / `novel`, with `atomic` surviving only as Work Character); the
+   depth modes (`minimum` / `standard` / `expanded`) → `planning depth` (`low` / `medium` / `high`); the tier →
+   spec-form coupling → the settled rule (derivation depth selects the form, `Class` constrains); the quick-tier
+   `## Scope` task-list-header claim removed (the lightest spec is the separate `brief` form). The `Class` ↔
+   spec-form relationship and the `brief` template are settled / shipped (`class-model-foundation`,
+   `scalable-authoring-pipeline`), so nothing they settled is left open. **Left to the conductor WU:** the WOR
+   file-class rename (`plan-*` / `PRD` / `status-*` / `**Spec:**`) the draft's own WOR alignment note defers to
+   conductor activation, and the conductor's own open design (the depth-aware-navigation idea, trimmed to a
+   residual inbound-buffer item).
 
 7. **Codify the manual graduation as a worked example.** Reconcile `decomposition-machinery`'s graduation-workflow
    doc against this cohort's actual manual run, capturing any step the run revealed as missing or mis-ordered, and
@@ -143,8 +149,9 @@ nothing depends on it.
   previously-misstating strategies are corrected and defer to it.
 - Every `backlog/planned/**` cohort doc satisfies `decomposition-machinery`'s three-condition invariant (verified
   by staging each against the validator with no flag).
-- `draft-arc-plan-conductor.md` carries no `## Scope`-header or `minimum`/`standard`/`expanded` references and
-  speaks in `Class` + `planning depth`.
+- `draft-arc-plan-conductor.md`'s body speaks in `Class` + `planning depth` and carries no `## Scope`-header
+  claim; the only residual `minimum`/`standard`/`expanded` / tier mentions are historical quotations and the
+  inbound-buffer status line that records the realignment itself.
 - `decomposition-machinery`'s graduation-workflow doc reflects the steps the manual run surfaced, and the
   worked-example writeup exists.
 - The commit / PR surface-language register is recorded in `DEV-RULES.ARC` § Documentation Boundaries.

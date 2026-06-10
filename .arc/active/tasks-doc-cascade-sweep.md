@@ -175,18 +175,25 @@ state the _what_ and defer. Full per-file edit map in `notes-doc-cascade-sweep.m
 _Purpose:_ Reconcile the remaining point surfaces — the stale conductor draft, the pre-shape cohort docs, the
 manual graduation, and the commit/PR language register. Satisfies Decisions 5, 6, 7, and 8.
 
-### `[ ]` **3.1 Retire stale vocabulary in `draft-arc-plan-conductor.md`**
+### `[x]` **3.1 Realign `draft-arc-plan-conductor.md` to the shipped `Class` / `planning depth` model**
 
 - _Goal:_ the conductor draft carries no references that contradict the shipped model — the retired `atomic` /
   `quick` / `standard` tier vocabulary and the quick-tier `## Scope` task-list-header claim are gone.
 
-    - Retire the `atomic` / `quick` / `standard` tier vocabulary and the quick-tier `## Scope`-header generation
-      claim (the tier is retired; the spec is always a separate doc).
-
-    - _Note:_ scope is stale-vocab retirement only. The deeper model realignment (mapping the depth modes onto
-      `planning depth`, realigning tier-awareness to `Class`, dropping the tier → spec-form coupling, invoking the
-      `brief`-form spec template) is the conductor WU's own — it already tracks it in the draft's inbound buffer,
-      so leave that buffer item in place. Single file at `backlog/planned/arc-plan-conductor/` (one copy).
+    - _Outcome:_ scope broadened from stale-vocab-only to full body realignment on the maintainer's call (the
+      `Class` ↔ spec-form relationship and the `brief` template are settled / shipped by `class-model-foundation`
+      / `scalable-authoring-pipeline`, so leaving the depth-mode vocab half-aligned would have left settled things
+      contradicted). Realigned the body throughout (Design Goal, Working Thesis, Design Lean §§ 1–20, Proposed
+      Changes, Dependencies, Alternatives, Open Questions): tiers → `Class` (`atomic` survives only as Work
+      Character / Errand); depth modes → `planning depth` (`low` / `medium` / `high`); `## Scope` claim dropped
+      (lightest spec is the separate `brief` form, `template-spec-brief.md`); spec form anchored to "derivation
+      selects form, `Class` constrains". Inbound-buffer item #5 trimmed to its residual conductor-design idea
+      (depth-aware navigation as a `Class`-lane-miscall correction). The WOR alignment note's two tier→spec-form
+      items were retired as well (settled by the shipped model). **Left to the conductor WU** (out of scope per
+      Decision 6): the WOR file-class rename (`plan-*` / `PRD` / `status-*` / `**Spec:**`) the note's remaining
+      items (template-family scaling, `refine-plan-loop` rename, `create-spec` body reframe) still defer to
+      activation. Spec Decision 6 + the matching Success Criterion were reconciled to the broadened scope. Single
+      file, one copy.
 
 ### `[ ]` **3.2 Bring cohort docs into conformance with the `cohort-{name}.md` record shape**
 
