@@ -11,11 +11,13 @@
 - **Design:** `spec-doc-cascade-sweep.md`
 - **Task List:** `tasks-doc-cascade-sweep.md`
 
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1.a — Enumerate & vet the concept sites (line ~22)
+- **Last Completed:** Task 1.3 — Align always-loaded agent surfaces (Phase 1 complete)
+- **Next Task:** Task 2.1 — Reconcile `strategy-work-organization.md` against the shipped model and the flat
+  `active/` layout (line ~98)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1.a — enumerate and vet `incidental` concept sites in both copies; record the
-  mapping in `notes-doc-cascade-sweep.md`.
+- **Next Action:** Begin Task 2.1 — verify-coherence + sweep of work-organization's `Class` / cohort / sizing /
+  branches sections, author the canonical `active/`-is-flat statement, and correct the nested-`active/` paths.
+  Heaviest surface; per-section map in `notes-doc-cascade-sweep.md` § Documentation cascade.
 
 ---
