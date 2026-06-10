@@ -124,34 +124,51 @@ state the _what_ and defer. Full per-file edit map in `notes-doc-cascade-sweep.m
   entry, the line-413 incidental-task-list clause, and the docs-site topic reference (line 4) swept. Both copies
   synced.
 
-### `[ ]` **2.2 Correct `strategy-file-classification.md` to flat `active/`**
+### `[x]` **2.2 Correct `strategy-file-classification.md` to flat `active/`**
 
 - _Goal:_ file-classification states `active/` is flat (the `active/api-modernization/` per-WU-subdir example
   corrected) and defers to work-organization for the why.
 
-### `[ ]` **2.3 Update `strategy-task-list-formatting.md` phase grammar**
+- _Outcome:_ § Directory naming corrected — the `active/api-modernization/` example now states `active/` is flat
+  (artifacts sit directly in `active/`), keeps the slug-named-subdir convention for `backlog/`/`completed/`, and
+  defers the _why_ to work-organization § Directory Structure.
+
+### `[x]` **2.3 Update `strategy-task-list-formatting.md` phase grammar**
 
 - _Goal:_ task-list-formatting states the phase-count one-grammar (1..N substantive phases + an always-present
   verification phase) with no tier-era qualifiers.
 
-### `[ ]` **2.4 Sweep the templates**
+- _Outcome:_ No tier-era qualifiers existed to sweep; added the uniform phase-count grammar to § Phase Headers
+  (one-or-more substantive phases + the always-present verification phase, uniform across `Class`). The
+  verification-phase-always-present rule was already stated in § Verification Phase.
+
+### `[x]` **2.4 Sweep the templates**
 
 - _Goal:_ `template-meta`, `template-tasks`, and `template-cohort` read cleanly against the shipped model.
 
-    - `[ ]` **2.4.a `template-meta.md`** — confirm the `Class` / `Design` / path-valued `Cohort` fields read
-      cleanly (the reserved-`Tier:` comment is already absent — verify, don't re-retire).
+    - `[x]` **2.4.a `template-meta.md`** — `Class` / `Design` / path-valued `Cohort` fields read cleanly; the
+      reserved-`Tier:` comment is absent. No edit.
 
-    - `[ ]` **2.4.b `template-tasks.md`** — reflect the depth variants.
+    - `[~]` **2.4.b `template-tasks.md`** — depth-scaling note dropped: a template is self-evidently a skeleton,
+      and depth scaling now lives in `strategy-task-list-formatting.md` § Phase Headers, so a note here was
+      documenting-for-completeness. No edit.
 
-    - `[ ]` **2.4.c `template-cohort.md`** — sweep references only (it generalizes from the prototype cohort docs;
-      `decomposition-machinery` owns the template itself).
+    - `[x]` **2.4.c `template-cohort.md`** — reads cleanly against the derived-membership cohort model; no edit
+      (sweep-only; `decomposition-machinery` owns the template).
 
-    - _Note:_ each template edits in both copies.
+- _Outcome:_ All three templates already read cleanly against the shipped model — no edit needed. The planned
+  `template-tasks` depth note was dropped as redundant with the strategy (relevance trim).
 
-### `[ ]` **2.5 `Class`-awareness in quality-gate-commands + `QUICK-REFERENCE` pointer**
+### `[x]` **2.5 `Class`-awareness in quality-gate-commands + `QUICK-REFERENCE` pointer**
 
 - _Goal:_ the quality-gate-commands surface carries `Class` awareness where relevant, and `QUICK-REFERENCE`
   carries a one-line pointer to the canonical `active/`-layout statement.
+
+- _Outcome:_ quality-gate-commands gained a `Class`-invariant note (the same gates run from `light` to `novel`;
+  `Class` scales design ceremony, not the engineering bar). The `QUICK-REFERENCE` pointer was dropped: it is not a
+  misstating surface and its reader needs the path (already in the Critical Path table), not the layout rationale —
+  the binding success criterion (one canonical statement + the two misstating strategies corrected) is met by
+  Tasks 2.1 and 2.2 without it.
 
 ## **Phase 3:** Targeted doc reconciliations
 
