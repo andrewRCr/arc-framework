@@ -3,11 +3,12 @@
  * `completed/` archive.
  *
  * A shipped WU lives at `.arc/completed/<quarter>/NN_<slug>/` (the archival
- * layout from the work-organization model). {@link readShippedWorkUnits} scans
- * every quarter once into a set of WU-name slugs; {@link branchToWorkUnitSlug}
- * normalizes a branch (`feat/foo` / `plan/foo` → `foo`) to that key; and
- * {@link isShippedWorkUnit} joins the two. The check is local filesystem only —
- * no git, no network.
+ * layout from the work-organization model). Cohort closeout entries use
+ * `NNa_cohort-<slug>/` and are deliberately excluded from this WU index.
+ * {@link readShippedWorkUnits} scans every quarter once into a set of WU-name
+ * slugs; {@link branchToWorkUnitSlug} normalizes a branch (`feat/foo` /
+ * `plan/foo` → `foo`) to that key; and {@link isShippedWorkUnit} joins the two.
+ * The check is local filesystem only — no git, no network.
  *
  * Shared by every shipped-WU consumer (the main-worktree stale-worktree sweep,
  * the retired-subdir reconciliation) so the normalization and the archive shape
@@ -31,11 +32,13 @@ export interface ReadShippedWorkUnitsOptions {
 
 /** `NN_<slug>` archive-directory shape; capture group 1 is the WU-name slug. */
 const ARCHIVE_DIR_RE = /^\d+_(.+)$/u;
+const COHORT_ARCHIVE_PREFIX = "cohort-";
 
 /**
  * Scan `{cwd}/.arc/completed/<quarter>/NN_<slug>` directories into the set of
- * shipped WU-name slugs. Every quarter is scanned (a lingering worktree's WU
- * may have shipped in any quarter); the per-quarter readdir is cheap local I/O.
+ * shipped WU-name slugs, skipping `NNa_cohort-<slug>` closeout entries. Every
+ * quarter is scanned (a lingering worktree's WU may have shipped in any
+ * quarter); the per-quarter readdir is cheap local I/O.
  *
  * Resilient by design: an absent `completed/` directory yields an empty set,
  * and a quarter entry that is not a readable directory (a loose file at the
@@ -67,7 +70,10 @@ export async function readShippedWorkUnits(
     }
     for (const entry of entries) {
       const match = ARCHIVE_DIR_RE.exec(entry);
-      if (match?.[1] !== undefined) slugs.add(match[1]);
+      const slug = match?.[1];
+      if (slug !== undefined && !slug.startsWith(COHORT_ARCHIVE_PREFIX)) {
+        slugs.add(slug);
+      }
     }
   }
   return slugs;

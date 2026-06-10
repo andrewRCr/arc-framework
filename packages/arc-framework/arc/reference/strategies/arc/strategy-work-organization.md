@@ -323,8 +323,10 @@ boundary holds because crossing it looks wrong in the doc, not because a reviewe
 
 **Relocatability and reference hygiene.** `cohort-{name}.md` is a movable `.arc/` artifact, exactly like a WU's
 `meta-* / draft-* / spec-* / tasks-*`: it relocates with its directory — `backlog/planned/<cohort>[/<subcohort>]/`
-→ `completed/` when the cohort's last member ships — as a pure `git mv` with no content edit. It therefore adopts
-the movable-artifact relocatability and reference-hygiene invariant wholesale: inbound references to it are
+→ `completed/<dated>/<NN>a_cohort-<name>/` when the cohort's last member ships — as a pure `git mv` with no
+content edit. The archived doc's `Parent` field preserves nesting context; the archive directory uses the
+cohort doc's own slug, not the full parent path. It therefore adopts the movable-artifact relocatability and
+reference-hygiene invariant wholesale: inbound references to it are
 backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
 *by construction* — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
 derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
@@ -727,6 +729,8 @@ for the full ceremony workflows.
 .arc/completed/<dated>/
   <NN>_<wu-name>/
     meta-*.md, spec-*.md, tasks-*.md, notes-*.md, ...
+  <NN>a_cohort-<cohort-name>/
+    cohort-<cohort-name>.md
 ```
 
 Each shipped WU gets its own subdir directly under the temporal grouping. The `<dated>` segment
@@ -736,6 +740,13 @@ present). It gives a browse-time "by completion order" view — `ls completed/<q
 order they shipped, which a plain alphabetical sort would scramble. The subdir contains all WU artifacts
 that existed at integration time, symmetric with the backlog's per-WU subdir convention (see
 [Planning Module Strategy](strategy-planning-module.md)).
+
+When the archived WU is the final member of its cohort, archival also closes the cohort doc into a lettered
+sidecar of that WU's completion-order entry: `<NN>a_cohort-<cohort-name>/cohort-<cohort-name>.md`. This entry is
+not a WU and carries no `meta-*` file; it is the historical coordination record for the group. The closeout keeps
+`completed/` chronological without retroactively nesting already-shipped WUs under the cohort, and the cohort
+doc's `Parent` field preserves nested-cohort context. If one final WU closes multiple cohort levels, additional
+cohort closeouts use the same ordinal with subsequent letters (`<NN>b_...`, `<NN>c_...`).
 
 ### `Class` and async-merge accommodations
 

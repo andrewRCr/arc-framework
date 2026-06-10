@@ -139,3 +139,16 @@ one-spectrum framing (`Errand` floor → `novel` ceiling) without flattening ato
   `Class`-conditional validity; the `cohort-{name}.md` record joins this family.
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-06-10
+- **Final member:** `doc-cascade-sweep`
+- **Member archives:** `15_class-model-foundation`, `16_scalable-authoring-pipeline`,
+  `17_decomposition-machinery`, `18_doc-cascade-sweep`
+- **Outcome:** The subcohort completed the class model, scalable authoring pipeline, decomposition machinery, and
+  terminal documentation cascade that apply ADR-020's scale-grammar thesis to ARC's work-unit lifecycle.
+- **Follow-up:** Lifecycle-complete cohort membership resolution and validator repair remain routed to
+  `operational-state-docs`.
+
+---

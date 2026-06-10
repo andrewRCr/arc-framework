@@ -7,9 +7,9 @@ active: false
 # Extension: post-work-unit-archive
 
 > - **Workflow:** [archive-work-unit.md][archive-work-unit]
-> - **Fires:** After core archival completes — state flip `Integrating → Shipped`, sweep
->   (`active/` → `completed/<dated>/<NN>_<wu-name>/`), and ROADMAP regen — and immediately before the
->   archival commit lands.
+> - **Fires:** After core archival completes — state flip `Integrating → Shipped`, WU sweep
+>   (`active/` → `completed/<dated>/<NN>_<wu-name>/`), final-member cohort closeout when applicable, and ROADMAP
+>   regen — and immediately before the archival commit lands.
 >
 > - **Contract:** Perform additional actions after a work unit is archived. The workflow's built-in
 >   ROADMAP regen is the only PM artifact update — this extension is for additional project-specific
