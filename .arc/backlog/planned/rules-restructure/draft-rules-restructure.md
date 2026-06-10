@@ -50,6 +50,21 @@
   § Routing class tags, the `post-task-quality` extension); reviewed-lane, two-copy. (Landing here as the
   rules/doctrine home; could be a focused doctrine-cleanup pass instead — decide at integration.)
 
+### `[ ]` **Add `(graduation)` as a commit-footer context category + fix the stale template**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during
+  `doc-cascade-sweep` generate-tasks Phase 4 grounding audit.
+- _Concern:_ `graduate-work-unit.md`'s commit template prescribes `Context: meta-{name}.md (graduation)`, but
+  `(graduation)` is not in the `commit-msg` validator's accepted meta-context set (handoff / activation /
+  integration / archival / deactivation / maintenance / incidental). The actual manual-graduation commits
+  sidestepped it, so the template is a latent bug.
+- _Approach:_ Graduation is a named lifecycle ceremony with its own workflow — a peer of activation /
+  integration / archival — so it warrants its own `(graduation)` category rather than folding into
+  `(maintenance)` (which would inconsistently demote a named ceremony and lose the greppable signal). Add
+  `graduation` to `commit-footer.md` (both copies) plus the `commit-msg` validator's allowed-contexts list, then
+  fix `graduate-work-unit.md`'s template (both copies). Routed here because `rules-restructure` owns the
+  allowed-contexts list and `commit-footer.md`.
+
 ---
 
 ## Problem / Motivation
