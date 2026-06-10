@@ -1,270 +1,359 @@
 # Draft: ARC Backend (north-star)
 
-**Purpose:** Capture the long-term architectural target — ARC's own self-hosted backend for canonical
-WU-artifact storage outside the project repo — as the north star against which interim work composes.
-This plan establishes the shape, audience fit, and forward-compat discipline; detailed design defers
-to a future PRD with substantial pre-work research.
+**Purpose:** Capture the long-term architectural target — ARC's canonical WU-artifact storage living **git-native
+but outside the project's code repo, materialized locally** — as the north star against which interim work composes.
+The backend is the *hosted, shared form* of a git backing store; it is not a novel storage system. This plan
+establishes the shape, audience fit, and forward-compat discipline; detailed design defers to a future PRD.
 
 - **State:** Captured (north-star reference; not active planning)
 - **Created:** 2026-05-02
-- **Origin:** Surfaced during cross-machine planning discussion 2026-05-02. Concern: current ARC
-  architecture is heavily shaped around solo-dev arc-in-git; existing scaling stories
-  (`pm.mode: external`, coord-probe, planned Local mode) cover narrow cases as workarounds rather
-  than a coherent solution for the "out-of-repo canonical storage with concurrency primitives" gap.
-  Conversation surfaced that the gap matters not just for industry-scale teams but for several
-  adopter shapes a solo-focused architecture doesn't serve.
+- **Updated:** 2026-06-10 — sharpened from "out-of-repo backend with concurrency primitives" to the
+  **git-backing-store-materialized-locally** model: the backend is the hosted form of a separate git repo whose
+  content is materialized into a gitignored `.arc/`. Folds in the git-history-pollution driver, the one-knob config,
+  the concurrency-with-history answer (event-log), the materialization-freshness analysis, and the operational
+  gotchas surfaced in an exploratory design pass. Resolved several prior open questions; see § Open Questions.
+- **Origin:** Surfaced during cross-machine planning discussion 2026-05-02. Concern: current ARC architecture is
+  heavily shaped around solo-dev arc-in-git; existing scaling stories (`pm.mode: external`, coord-probe, planned
+  Local mode) cover narrow cases as workarounds rather than a coherent solution for the "canonical storage outside
+  the code repo" gap. The 2026-06-10 pass added the realization that the gap is better framed as one git-backing-store
+  substrate scaled from single-user (Local) to shared-hosted (Backend), not as a bespoke service.
 
 ---
 
 ## Problem / Motivation
 
-ARC's canonical-store assumption today is "everything in `.arc/` lives in the project repo's tracked
-tree." This assumption serves solo dev with no constraints well, and acceptably serves small teams
-where merge mechanics on text files stay human-scale. It fails or strains in several adopter shapes:
+ARC's canonical-store assumption today is "everything in `.arc/` lives in the project repo's tracked tree." This
+serves solo dev with no constraints well, and acceptably serves small teams where merge mechanics on text files stay
+human-scale. It fails or strains along **four distinct concerns** — and the fourth was absent from this plan's
+original framing:
 
-- **Solo dev with public / OSS repo** wanting private PM artifacts. `.arc/` in the tracked tree
-  means PRDs, plans, and status files become public. Local mode (gitignored `.arc/`) addresses this
-  partially but couples to per-developer backing-store mechanics that don't fit when the artifacts
-  are intended to outlive a single machine.
-- **Solo dev with multi-machine workflow** wanting centralized canonical state. Local mode's remote
-  backing store works but requires per-developer setup of a private git remote; a shared backend
-  with the same materialization semantics is operationally simpler.
-- **Small team** that could just barely manage in-repo concurrency but would prefer real
-  primitives. Today the choice is "tolerate text-file merge mechanics" or "give up ARC."
-- **Larger team** where text-file concurrency is a non-starter and `.arc/` in the tracked tree is a
-  cultural / governance non-starter.
-- **Teams with strict tooling policies** prohibiting tool-specific directories in tracked
-  repositories. Local mode addresses this for solo developers; teams need a shared equivalent.
+- **(a) Agent/human ergonomics** — the in-repo model's strength: agents grep/index/edit any artifact instantly, and
+  humans keep planning artifacts beside the code in their editor of choice. Any target must *preserve* this, not
+  trade it away. (This is why a SaaS/own-frontend pivot is a non-goal — see Non-Goals.)
+- **(b) Solo dev, multi-machine** wanting centralized canonical state. Local mode's backing store works but requires
+  per-developer setup; the same materialization semantics, hosted, is operationally simpler.
+- **(c) Privacy — planning artifacts public when the repo is.** `.arc/` in the tracked tree means PRDs, plans, specs,
+  status become public on a public/OSS repo. **This is invariant under in-repo storage, not configurable.** Critically:
+  pulling artifacts out of *branch history* (git notes, an orphan state-branch) solves (d) below but **not** (c) —
+  notes and state-branches live in the *same* repo, so they are public if the repo is. **(c) forces the canonical
+  store into a *separate* repo** (private), which is exactly Local mode's backing store / the backend.
+- **(d) Git-history & PR-view pollution** *(the driver that was missing)*. Planning churn — standalone `meta-*`
+  handoff commits, `tasks-*` updates riding every commit, inbox-drain / housekeep `chore/` PRs, project-artifact
+  edits — interleaves with code commits. The signal-to-noise problem is tolerable solo but **explodes with team
+  size**: each developer draining an inbox per WU makes housekeep/maintenance PRs the *dominant* class in history,
+  drowning actual feature work. There is no stable identifier to filter ARC-maintenance commits reliably today
+  (`chore` also catches dep bumps). This was never named in the original plan; it is now a first-class motivation,
+  and it has cheaper dedicated mitigations short of the full backend (see § Decoupling (d)).
 
-**Calibration note (2026-05):** External research into agentic-coding practice (2024-2026) confirms
-that the modal answer for inter-WU planning concurrency is out-of-band human coordination (Slack,
-standup, discussion), not codified sync mechanisms. Text-file concurrency at the planning-artifact
-level is mitigated by team discipline at most scales; no codified inter-WU planning-freshness
-pattern has emerged in the field (Spec-Kit, BMAD, Cursor, Claude Code adopter conventions). The
-backend tier's *pure sync* benefit is therefore less load-bearing for team adoption than this plan's
-initial framing implied. Primary value-prop remains **canonical storage outside the project repo** —
-serving adopters with governance / tooling-policy needs, private PM on public repos, or
-multi-machine workflow simplification. Concurrency primitives are a benefit and a differentiator
-for high-parallelism deployments, but not the load-bearing reason for the architecture at typical
-team scales.
+Existing partial workarounds (`pm.mode: external`, coord-probe, Local mode backing store, planned `team.enabled`)
+each address a slice. **The architectural gap is canonical storage outside the *code* repo — git-native, materialized
+locally — with concurrency-safe sharing as a composable benefit.**
 
-Each shape has been accumulating partial workarounds (`pm.mode: external`, coord-probe, Local mode
-backing store, planned `team.enabled` mode). None of them solve the actual concern coherently.
-**The architectural gap is canonical storage outside the project repo, with concurrency-safe
-sharing semantics as a composable benefit.** ARC needs to fill it deliberately rather than continue
-accumulating workaround surface.
+**Calibration note (2026-05):** External research into agentic-coding practice (2024-2026) confirms the modal answer
+for inter-WU planning concurrency is out-of-band human coordination (Slack, standup), not codified sync. The backend's
+*pure sync* benefit is therefore less load-bearing for team adoption than the original framing implied. Primary
+value-props are **(c) privacy** and **(d) clean history**, with concurrency primitives a benefit for high-parallelism
+deployments — not the load-bearing reason at typical team scales.
 
 ---
 
-## Working Thesis: B Canonical, A Integration
+## Working Thesis: Git All the Way Down
 
-The canonical store is ARC's own backend. External-tool integration (Linear / Jira / Notion) layers
-on top as bidirectional sync adapters, not as substitutes for the canonical store. This pattern
-mirrors how Linear / Jira themselves handle their own integrations — own canonical store, plus
-integration surface for everything else.
+**The canonical store is a git repo — just not the project's code repo.** Per-user/solo it is a private backing
+repo (Local mode); shared/team it is that same repo, hosted, with a coordination layer (the Backend). Either way,
+ARC *materializes* its content into a gitignored `.arc/` so agents and humans see ordinary local files. This is the
+chezmoi/dotfile-manager shape (a source repo elsewhere, rendered into the working location) and it is maximally
+**idiomatic** — a second git repo plus a sync command is the most ordinary thing in git. That idiomaticity is the
+core win: it keeps every benefit ARC already has (agent-native files, editor-of-choice, real version control, the
+whole inbox / housekeep / errand / worktree-isolation system) while solving (c) and (d), without becoming
+Linear/Notion.
 
-The canonical-store responsibility staying with ARC means:
-
-- WU-artifact shape (status files, task lists, plan docs, PRDs) is ARC's, not the external tool's.
-  No impedance-mismatch translation as load-bearing.
-- External-tool adapters are sync layers, not authoritative writers. They can be added per-tool,
-  on demand, without disturbing the core architecture.
-- Adopters who want pure ARC (no external tool integration) get a complete experience without
-  bolted-on integration overhead.
-
-The order matters. **Extending `pm.mode: external` to take ownership of WU artifacts before this
-backend lands would lock in external-tool-as-canonical and force migration later.** Current planned
-external work (coord-probe as read-only advisory, `pm.mode: external` stripping PM pipeline) does
-not cross this line and remains compatible.
+**B canonical, A integration.** External-tool integration (Linear / Jira / Notion) layers on top as bidirectional
+sync adapters, never as substitutes for the canonical store. WU-artifact shape stays ARC's. The order matters:
+**extending `pm.mode: external` to take ownership of WU artifacts before this lands would lock in
+external-tool-as-canonical and force migration later.** Current planned external work (coord-probe read-only;
+`pm.mode: external` stripping the PM pipeline) does not cross this line.
 
 ---
 
-## Three Storage Tiers
+## The Storage Model
 
-ARC supports three storage tiers, each serving a distinct adopter shape. These compose with — not
-replace — each other.
+### The line: what's tracked vs. materialized
 
-| Tier        | Storage location                                | Audience fit                                       |
-|-------------|-------------------------------------------------|----------------------------------------------------|
-| **In-repo** | `.arc/` tracked in project repo                 | Solo / small team with no constraints              |
-| **Local**   | `.arc/` gitignored + `~/.arc-state/{id}/` store | Solo dev who can't put `.arc/` in repo             |
-| **Backend** | ARC backend service + materialized local view   | Out-of-repo canonical storage; multi-user optional |
+The boundary is **PM state-and-design vs. PM machinery**, drawn at the directory level so a single artifact group
+never splits arbitrarily:
 
-The backend tier is not strictly "the team tier." Its defining characteristic is **canonical
-storage outside the project repo with optional multi-user awareness.** Single-user adopters benefit
-from it (private PM on public repos, simpler multi-machine workflows). Multi-user adopters benefit
-from it via concurrency primitives. Audience fit is broader than "teams only."
+| Class | Members | Tier | Configurable? |
+| --- | --- | --- | --- |
+| **Machinery** | `system/**` (workflows, rules, methods, templates) | **tracked** | No — versions with checkout so behavior pins to the code (`git checkout <sha>` reproduces agent behavior) |
+| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | **materialized** | No — pure churn, no review value |
+| **Authored design** | `draft-*`, `spec-*` | **materialized (default)** | **Yes — one knob** |
+
+### The one knob
+
+The only real variation is whether authored design docs get the full git-host treatment. Expose exactly **one
+enum**, never per-artifact booleans (that is the matrix ADR-020 spent itself killing):
+
+```
+storage.track_design_docs: none | specs | all     # default: none
+```
+
+- `none` — privacy-max / clean-history. Nothing PM in the code repo.
+- `specs` — track the ratified design (the thing worth reviewing); keep messy `draft-*` private. *Costliest arm:* a
+  single WU's artifacts span two repos (see Gotcha 2) — may not earn its keep; consider `none | all` only.
+- `all` — track all design docs (private-repo team, or transparency-by-design OSS that *wants* its roadmap public).
+
+This one knob governs **three things at once — privacy (c), in-git PR review, and history-browsability** — because
+they are one axis: "do design docs get the full git-host treatment." Default `none`, surfaced only in the
+guided-init walkthrough (the ADR-020 informed-consent pattern); most adopters never think about it. Watertightness
+rests on disciplines ARC *already* has: filename-only cross-artifact references (tier-agnostic resolution) and
+reference-don't-embed (a tracked artifact must never embed materialized content — the privacy guarantee).
+
+### Decoupling (d)
+
+(d) is separable from the full backend and has cheaper mitigations, useful interim and for adopters who never need
+(c):
+
+- **Out-of-line git, still in git** — route churny state to git notes / an orphan state-ref so it leaves *branch
+  history* while staying versioned. Solves (d), **not** (c). ARC already does this for user state
+  (`refs/notes/arc/user/{id}`).
+- **Stable maintenance trailer** — a reserved trailer (e.g. `Arc-Maintenance: true`) gives 100%-reliable filtering
+  of planning churn from history/PR views. Cheap, do-anytime, orthogonal to everything else.
 
 ---
 
-## Local Mode Composition
+## Storage Tiers (one substrate at three scales)
 
-ARC's planned Local mode (`plan-arc-modes.md` § Mode 2) shares substantial structural concerns
-with the backend tier — materialization to gitignored `.arc/`, sync state machine, project-ID
-resolution, re-clone recovery, failure-class handling. The backend tier is conceptually "the
-multi-user case of the same problem space."
+The tiers are **not three designs** — they are the same git-backing-store substrate at increasing multiplicity:
 
-**Caveat: Local mode was designed before the backend tier was a recognized target.** Its design
-decisions (per-developer git repo as backing store, `arcd backing` command shape, sync firing
-points, failure-class taxonomy) reflect single-user assumptions and may or may not generalize
-cleanly. Treating the backend tier as "Local mode multi-user" risks calcifying Local-specific
-choices into a shared abstraction that fits neither cleanly.
+| Tier | Canonical store | Materialized to | Scale | State |
+| --- | --- | --- | --- | --- |
+| **In-repo** | the code repo (tracked `.arc/`) | n/a | solo / small team, no constraints | Current |
+| **Local** | a separate **private git repo** (`~/.arc-state/{id}/`) | gitignored `.arc/` | single-user, multi-machine; privacy | Planned |
+| **Backend** | that repo, **hosted + shared + coordinated** | gitignored `.arc/` | multi-user / team | North star |
 
-**Composition discipline:** When Local mode promotes to PRD, scope a storage-abstraction sketch
-as part of that work — the minimum shared interface that Local implements and the backend tier
-extends. Holistic design at the abstraction boundary; Local-specific impl details remain Local's
-PRD scope. Avoids two failure modes: (a) shipping Local with abstractions that don't generalize,
-forcing the backend tier to retrofit; (b) delaying Local pending backend-tier PRD, which
-contradicts the sequencing intent.
+**Local *is* tier-2 of the materialized substrate; the Backend is its hosted form; team is the multi-writer
+config.** Local mode landing first is structurally important — the backend is mostly "Local, hosted." This unifies
+what were previously framed as separate Local-mode and backend-tier designs (consolidating the scattered subsumption
+notes in ADR-020 and below).
 
-Touchpoints warranting joint attention are captured in
-[`strategy-storage-evolution.md`][strategy-storage-evolution] § Holistic Design Touchpoints —
-the forward-compat reference for both plans.
+### Materialization: how a repo's content lands in `.arc/`
+
+Two real mechanisms — a genuine fork:
+
+- **Architecture B — render/projection (lean toward this).** Canonical repo lives out-of-tree at `~/.arc-state/`;
+  ARC renders its files into a gitignored, plain-files `.arc/` (no nested `.git`). You are unambiguously *in the code
+  repo*; `.arc/` is just files; the state repo's `.git` is entirely outside your checkout. Matches ADR-022's
+  record-canonical / markdown-is-a-projection decision and the battle-tested dotfile-manager shape. History browsing
+  costs an `arc history <artifact>` wrapper (a `git log` over the backing repo).
+- **Architecture A — nested repo / worktree.** `.arc/` *is itself* a checkout (or `git worktree`) of the state repo,
+  gitignored by the code repo. Full git in place (free `git log -p`/blame on materialized files), but git's command
+  context follows cwd (a `git commit` in `.arc/` targets the state repo — surprising), editors show two SCM roots,
+  and nested repos confuse some tooling. Treats git files *as* the records, which fights ADR-022's projection model.
+
+Lean **B** (idiomatic, clean editor story, ADR-022-aligned), accepting the `arc history` wrapper as the cost of
+history-browsability.
+
+### Freshness (read-staleness is contained, not eliminated)
+
+Open-buffer staleness is real (research: every local-first tool bleeds here, and the only full fix is "own the
+editor" — which ARC won't do without betraying ergonomics (a)). The resolution is **don't try to prevent stale
+reads; make stale reads harmless:**
+
+- **Version-checked writes (optimistic concurrency).** A stale read only causes harm via a *later write* (the
+  lost-update bug). Every write carries the version token it read; if canonical moved, the write is rejected and
+  reconciled, never silently clobbering. Git gives this natively (non-fast-forward rejection *is* conflict
+  detection). With this, stale reads collapse to mere inconvenience.
+- **Agent-side refresh is free.** ARC already syncs at session-init; a refresh step at ceremony fire-points is
+  trivial. Deliberate-refresh on shared surfaces at access time is acceptable.
+- **Per-editor freshness for materialized files** is a one-setting fix, not a blocker: editors prune *gitignored*
+  paths from their watcher, so a materialized file goes stale in an open buffer until re-watched. Confirmed:
+  Zed's `file_scan_inclusions` restores live buffer reload (not just search). Neovim/Emacs reload regardless;
+  JetBrains via sync-on-activation; VS Code via watcher config; **Helix has no auto-reload (degraded)**. `.git/info/exclude`
+  does **not** help — no editor honors it for watch/reload. ARC should **scaffold the per-editor setting at init**
+  (`.zed/settings.json`, `.vscode/settings.json`), turning the tax into an owned setup step.
+
+---
+
+## Concurrency & Version History (the answer, not an open question)
+
+Audit/history is **orthogonal** to concurrency — solving one does not give the other. The pragmatic shape for a
+small self-hosted store (research-grounded), per state subtype:
+
+- **Append-heavy shared records** (the shared inboxes / queues — ADR-020's "mutable shared state, unsolvable in-git")
+  → **event-sourcing (append-only log).** Natural full audit trail; concurrency via optimistic append. This is the
+  one genuinely-hard core that earns the backend.
+- **Small structured records** (`meta-*` fields, priority/ordering) → **server-authoritative LWW + a history table.**
+  Simple, sufficient; metadata conflicts are rare and often semantically resolvable.
+- **Prose** (`draft-*`, `spec-*`) → **git merge/rebase** — the best text-merge tool there is, and ARC already drives
+  it. (CRDTs/Automerge are overkill: good offline, weak audit, aimed at rich-text collab.)
+
+This **closes the prior "concurrency mechanism" open question and the version-control hole** the original plan never
+asked. "Untracked" never meant "unversioned": tier-2 keeps history in the backing repo (`arc history`); tier-3 keeps
+it in the event log / version table.
+
+### The genuinely hard problem
+
+It is **not** the concurrency algorithm (solved above) — it is **multi-writer local-materialization freshness**: at
+the shared tier your local view can be stale because *someone else* changed canonical, and no local-first tool fully
+solves this without owning the editor. ARC's stance: version-checked writes prevent corruption; shared surfaces are
+deliberate-refresh; your *own* edits are always fresh. Decide whether "fresh-on-your-writes, refresh-on-shared-reads"
+is acceptable *before* committing to tier 3 — it is the load-bearing UX bet.
 
 ---
 
 ## Team Mode Subsumed
 
-Today's `team.enabled` config gates conventions for in-repo team coordination (identity-marker
-ownership, team-aware workflows). In a backend-tier world, **multi-user teamwork moves to the
-backend.** In-repo team mode on text files doesn't earn its keep against backend concurrency
-primitives — it carries all the merge-mechanics problems the backend solves.
-
-**Forward-compat decision:** in-repo team mode stays supported during the bridge period but is not
-the recommended path in a backend-tier world. Small teams who could tolerate in-repo concurrency
-graduate to backend tier when it lands. The `team.enabled` axis collapses; `team` becomes implicit
-in backend-tier installs.
-
-This avoids the "matrix explosion" risk where every storage tier × team-mode × PM-mode combination
-becomes a supported configuration. Team coordination is properly a property of the backend tier.
+`team.enabled` today gates in-repo team coordination (identity-marker ownership, team-aware workflows). In a
+backend-tier world, **multi-user teamwork is the multi-writer config of the materialized substrate** — in-repo team
+mode on text files carries all the merge-mechanics problems the backend solves. In-repo team mode stays supported as
+a bridge but is not the recommended path; the `team.enabled` axis collapses into "the backend is shared." This avoids
+the matrix-explosion risk where every storage-tier × team-mode × pm-mode combo is a supported configuration.
 
 ---
 
 ## Self-Hosted Distributed (Deployment Shape)
 
-Self-hosted does not mean local-network-only. The contemporary shape — single-binary or
-single-container service deployed on a VPS / home server / private cloud, behind TLS, reachable
-from anywhere — is well-established (Gitea, Plausible, Sentry, Mattermost). Distributed teams
-access via internet; orgs preferring zero-trust pair with a private VPN (Tailscale, WireGuard).
+Self-hosted does not mean local-network-only. The contemporary shape — single-binary or single-container service on
+a VPS / home server / private cloud, behind TLS, reachable from anywhere — is well-established (Gitea, Plausible,
+Sentry, Mattermost). Distributed teams access via internet; zero-trust orgs pair with a private VPN (Tailscale,
+WireGuard). For a 5–10 person team: single Docker container, SQLite (or Postgres past ~50 users), static API token
+auth (OIDC past ~20), reverse proxy for TLS, periodic DB+store snapshots. Hosted SaaS is **out of scope** — adopters
+run their own backend.
 
-Hosted SaaS is **out of scope** as the deployment model. Adopters run their own backend.
+---
+
+## Operational Gotchas (designable, not blockers)
+
+Surfaced in the 2026-06-10 pass; recorded so interim work and the eventual PRD confront them early.
+
+1. **Cross-repo atomicity → eventual-consistency + heal, not 2-phase-commit.** A ceremony touching both code
+   (tracked) and state (separate repo) is two commits in two repos. But we *want* code↔state decoupled, and partial
+   failure is *drift, not corruption* (recoverable, version-checked writes block clobbers). The design is: each repo
+   consistent on its own + a heal/reconcile step (ARC has the freshness/reconcile bones) + ordering only for the few
+   order-sensitive ceremonies (don't archive state before code merges).
+2. **The `specs` knob arm spans two repos per WU.** With specs tracked but meta/tasks materialized, a single WU's
+   artifacts straddle repos, fragmenting the clean `git mv` relocatability. Argues for `none | all` only unless the
+   middle clearly earns its cost.
+3. **Worktree-foundation interaction.** Per-WU *code* worktrees + a state repo: under B, each worktree gets a synced
+   `.arc/` cache from the one backing repo (manageable); under A, each needs its own state checkout (more complex).
+   Live interaction (worktree foundation has shipped) — design explicitly.
+4. **Contributor / provisioning.** New-machine setup = clone code + provision state — reuse Local mode's
+   `init --local` / re-clone flow, not new. An external OSS contributor without state access gets no PM artifacts —
+   **consistent with ARC's existing contributor model** (contributors already work within different boundaries) and
+   **governed by the same storage config** (transparency-wanting projects track; privacy-wanting teams accept it).
+   Rule: contributor flows must degrade gracefully when state is absent/private.
+5. **`.gitignore` airtightness.** If `.arc/` is ever accidentally un-ignored, B leaks PM into the code repo and A
+   creates a gitlink mess. A pre-commit guard asserting `.arc/` stays ignored becomes load-bearing for (c).
+
+---
+
+## Notes: zero-config entry point, not a permanent home
+
+Git notes are the right call for **zero-config per-user state** (`SESSION-NOTES`, `WORKING-MEMORY`, `USER-INBOX`
+today) — they version state that travels with the repo, no second repo to provision. But notes have intrinsic warts
+for broader use (rebase-orphaning, weak durability/overwrite, clunky history browsing, contributor-surprise) and
+**structurally cannot deliver (c)** (they live in the same repo). So notes are the **zero-config entry on the scaling
+axis**, not pinned to `user/` forever: the separate-git-repo substrate can absorb per-user state too, trading
+one-unified-mechanism against no-setup-required. Open sub-decision; don't pre-resolve.
 
 ---
 
 ## Forward-Compat Discipline
 
-Discipline that keeps interim work composing toward this target lives in
-[`strategy-storage-evolution.md`][strategy-storage-evolution]. Plans and PRDs touching storage /
-multi-user / external integration self-check against that doc.
+Discipline that keeps interim work composing toward this target lives in `strategy-storage-evolution.md` — the
+interim **check-doc** (this plan is the north-star *target*; that doc is the discipline that points at it). Plans and
+PRDs touching storage / multi-user / external integration / config axes self-check against it.
 
 ---
 
 ## Open Questions for Pre-PRD Detail Design
 
-These are decisions deferred to PRD-time research and detail design.
+**Resolved by the 2026-06-10 pass** (moved out of open): concurrency mechanism (event-log / LWW+history / git-merge
+by subtype); materialization model (render/projection, Architecture B); the version-control story ("untracked ≠
+unversioned"); the read-staleness story (version-checked writes + per-editor freshness).
 
-- **Concurrency mechanism.** CRDT-based merge (Yjs / Automerge), server-authoritative
-  last-write-wins with collision detection, vector clocks, full per-record locking. Tradeoffs span
-  user-perceived latency, conflict surface area, agent UX, implementation complexity.
-- **Materialization model.** Continuous sync daemon vs pull-on-demand vs hybrid. Daemon offers
-  freshness; pull-on-demand offers simplicity. Hybrid (pull-on-session-init, push-on-handoff,
-  selective polling for long sessions) may be the right shape but needs design.
-- **Auth model.** Shared secret, OIDC, GitHub OAuth, self-issued JWTs. Bounded for self-hosted
-  single-org context; needs to feel idiomatic for dev-tooling deployment.
-- **Distributed access transport.** HTTPS over public internet vs private-VPN-only vs configurable.
-  Recommended deployment shape and operational guidance.
-- **Version pinning.** Today the `system/` (workflows, methods, briefs) lives in the repo and
-  versions with the code — checkout pins agent behavior. In a backend world, `system/` could stay
-  in-repo (preserving the property) or move to the backend (consistent storage). Tradeoff between
-  reproducibility-via-checkout and coherent-canonical-storage. Worth deliberate consideration.
-- **Storage abstraction shape.** API contract between ARC and the backend. REST? RPC? File-system
-  semantics? Materialization-layer responsibility split. Affects what custom backends could exist
-  beyond the bundled implementation.
-- **Identity-and-project resolution at the backend.** How a backend installation maps to project
-  identity across machines, and how that interacts with Local mode's project-ID resolution.
-- **Interaction with Lite mode.** Lite-mode adopters who want backend storage — does the tier
-  combination earn its keep, or does Lite stay in-repo / Local only?
+Still open:
+
+- **Auth model.** Shared secret, OIDC, GitHub OAuth, self-issued JWTs. Bounded for self-hosted single-org; must feel
+  idiomatic for dev-tooling deployment.
+- **Distributed access transport.** HTTPS public vs private-VPN-only vs configurable; recommended deployment guidance.
+- **Version pinning of `system/`.** Stays tracked (behavior pins to checkout) per § The line — but confirm no
+  machinery genuinely wants backend storage.
+- **Storage abstraction shape.** The contract between ARC and the backing store (file-system semantics over a git
+  store is the likely shape given Architecture B). Affects what custom backends could exist.
+- **Identity-and-project resolution.** How a backend install maps to project identity across machines; interaction
+  with Local mode's project-ID resolution.
+- **Interaction with Lite/minimal scaling.** Does the smallest configuration want backend storage, or stay
+  in-repo / Local only?
+- **Multi-writer materialization-freshness UX** (the hard one) — the precise refresh/heal contract for shared
+  surfaces.
 
 ---
 
 ## Required Pre-PRD Research Pass
 
-Substantive external research before PRD promotion. The research is itself meaningful scope —
-not a perfunctory step. Goal is idiomatic alignment with established industry norms; deliberate
-reinvention only where ARC has a genuine novel contribution to make.
+**Storage / freshness / concurrency buckets completed 2026-06-10** and folded into this plan: out-of-line-git state
+(git notes is non-idiomatic and bespoke; a separate git repo is the idiomatic substrate); editor freshness of
+materialized files (per-editor, fixable, Helix-gapped); concurrency-with-history (event-log / LWW / git-merge by
+subtype; audit ⊥ concurrency); design-doc review out-of-tree (out-of-band is the accepted standard; building
+PR-review is 6–10 weeks); local materialization pitfalls (conflict spam, open-buffer staleness — use app-aware sync,
+never file-sync like Syncthing/Dropbox).
 
-**Areas to cover:**
-
-- **Sync-with-conflict patterns:** CRDTs (Yjs, Automerge), git-style merge, server-authoritative
-  LWW, operational transformation. Read on real-world deployment characteristics, not just
-  algorithmic surveys. Materialized-file sync specifically (Obsidian Sync, Logseq Sync, Resilio,
-  Syncthing, Nextcloud) as adjacent design references.
-- **Self-hosted dev-tool deployment shapes:** Gitea, Plausible, Sentry, Mattermost, Linear's
-  enterprise offering. Single-binary vs container vs compose-stack. Auth idioms. Operational
-  burden patterns. What teams actually run vs what marketing suggests.
-- **Markdown-as-canonical-with-sync:** Obsidian, Logseq, Dendron, Foam. How they handle
-  multi-device, multi-user, conflict surfaces. Where they break down at scale.
-- **Self-hosted licensing / multi-tenant:** Linear-style enterprise, Sentry, Plausible. How
-  self-hosted-but-team-aware tools handle org / team / user boundaries.
-- **Embedded / lightweight storage backends:** SQLite, DuckDB, embedded git, custom file-based
-  formats. What's idiomatic for "small backend service for a small team."
-- **Library landscape:** Existing Node / Rust / Go libraries for sync engines, conflict
-  resolution, file watchers, materialization. Reduce hand-rolled surface where mature primitives
-  exist.
-- **Adjacent precedent for "tool state outside the repo":** Cursor rules, SpecStory, Aider,
-  Continue, JetBrains AI Assistant. Already surveyed in `plan-arc-modes.md` for editor
-  discoverability; revisit for storage architecture patterns.
-
-**Anti-target:** anything that would make a team familiar with modern dev infrastructure shake
-their head as "out of step." The bar is idiomatic alignment unless the deviation is a genuine
-ARC value-prop element.
+**Remaining for PRD-time:** self-hosted deployment/auth idioms in depth (Gitea/Plausible/Sentry class), library
+landscape for the sync/materialization engine, and the multi-tenant/org-boundary model. **Anti-target:** anything a
+team familiar with modern dev infrastructure would call "out of step." The bar is idiomatic alignment unless the
+deviation is a genuine ARC value-prop.
 
 ---
 
 ## Upstream Dependencies
 
-- **`prd-user-sync-ux.md`** — hardens the user-notes sync state machine and notes-discovery
-  semantics that the backend tier's sync layer extends and parallels. Not a hard dependency for
-  PRD promotion of this work, but the backend's sync semantics will compose more cleanly if user
-  sync UX has landed first.
-- **Local mode (`plan-arc-modes.md` § Mode 2)** — the backend tier extends Local's backing-store
-  architecture multi-user. Local mode landing first is structurally important; the backend tier
-  is mostly "Local with a different backing store flavor."
-- **Shift lifecycle (`plan-worktree-foundation.md` § Shift Lifecycle, scheduled extraction)** —
-  shift's metadata-in-place pattern composes with backend materialization. Shift landing first
-  removes a design unknown.
+- **`prd-user-sync-ux.md`** — hardens the user-notes sync state machine the backend's sync layer extends. Not a hard
+  dependency for PRD promotion, but the backend's sync composes more cleanly if it lands first.
+- **Local mode (`plan-arc-modes.md` § Mode 2)** — the backend *is* Local hosted; Local landing first is structurally
+  important. Co-design the storage abstraction at Local's PRD time.
+- **`operational-state-docs` (ADR-022)** — the record/projection engine the materialization layer renders through;
+  storage-agnostic records lift into the backing store without reshaping.
+- **Shift lifecycle (`plan-worktree-foundation.md` § Shift Lifecycle)** — metadata-in-place composes with backend
+  materialization; landing first removes a design unknown.
 
 ---
 
 ## Non-Goals
 
 - **Hosted SaaS offering.** Self-hosted only.
-- **Web UI as deliverable.** A future capability, not in scope for the backend tier itself. The
-  initial deliverable is markdown-on-disk-via-materialization plus CLI; web UI would be a Path C
-  follow-on (`plan-arc-modes.md` open territory; not committed).
-- **Forced migration of existing in-repo installs.** In-repo and Local stay supported. Adopters
-  choose the tier that fits.
-- **Per-tracker authoritative ownership of WU artifacts via `pm.mode: external`.** External tools
-  remain integration surfaces, not canonical stores.
+- **Web UI / own document frontend as deliverable.** A future Path-C capability at most. The deliverable is
+  markdown-on-disk-via-materialization plus CLI. Owning a frontend would betray ergonomics (a) (agent-native,
+  editor-of-choice) — the whole reason to stay git-native rather than become Linear/Notion.
+- **Forced migration of existing in-repo installs.** In-repo and Local stay supported; adopters choose the tier.
+- **Per-tracker authoritative ownership of WU artifacts via `pm.mode: external`.** External tools stay integration
+  surfaces, not canonical stores.
 
 ---
 
 ## Sequencing Intent
 
-Long-running. Not next. The backend tier depends on substantial upstream work (user sync UX,
-Local mode, shift lifecycle) and on the research pass above. Expected to land well after the
-1.0 release window; specific sequencing decided when upstream dependencies reach completion.
+Long-running. Not next. Depends on substantial upstream work (user sync UX, Local mode, operational-state-docs,
+shift lifecycle) and lands well after the 1.0 window. This plan exists primarily as the **forward-compat
+reference** — interim work composes toward it without depending on it shipping soon.
 
-This plan exists primarily as the **forward-compat reference** — interim work composes toward
-this target without depending on it shipping soon.
+### Blast-radius / migration audit (schedule sooner than later — not now)
+
+Moving canonical storage out of the tracked tree is a **large foundational change** touching CLI internals (every
+reader/writer that assumes tracked-`.arc/` paths), hooks, and most lifecycle workflows — substantial mechanical
+migration work. It is doable, but the **blast-radius audit should be scheduled relatively soon** (well before
+implementation) so interim WUs stop accreting tracked-`.arc/` assumptions that the migration must later undo. The
+audit itself is its own scoped effort (a future WU): enumerate every `.arc/`-path / `git log .arc/...` /
+tracked-state assumption across `lib/`, hooks, and `system/workflows/**`, and size the migration. **Not now** — but
+the forward-compat discipline (below) is the interim guard until it runs.
 
 ---
 
 ## Backlog Compat Audit
 
-Status of every current backlog plan / PRD against the backend-tier target. Captured 2026-05-02
-during this plan's authoring. Items flagged for B-compat review get explicit attention at their
-own PRD-promotion time.
+Status of current backlog plans / PRDs against the target. Captured 2026-05-02; flag-at-PRD items get attention at
+their own promotion time. (Not re-audited in the 2026-06-10 pass — the model sharpened, the per-item verdicts stand.)
 
 | Item                                      | Status      | Notes                                                                                                                                            |
 |-------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -284,23 +373,19 @@ own PRD-promotion time.
 | `plan-docs-site-refresh.md`               | Compatible  | Docs site infrastructure; orthogonal.                                                                                                            |
 | `plan-arcd-rebrand.md`                    | Compatible  | Branding; orthogonal.                                                                                                                            |
 
-**Flag-at-PRD items** are not blocked by this plan. Their authors should consult
-`strategy-storage-evolution.md` at PRD time and confirm the design composes with backend-tier
-semantics. None require rework today.
+**Flag-at-PRD items** are not blocked by this plan. Their authors should consult `strategy-storage-evolution.md` at
+PRD time and confirm the design composes with the materialized-git-backing-store semantics. None require rework today.
 
-**Scalable-core (`plan-scalable-core.md`, ADR-020).** ADR-020 sharpens this plan's scope rather than
-flagging it: the backend is the canonical store for *mutable shared state* (inbox drains,
-priority/ordering), which is unsolvable in-git by git's nature. Derived shared state (ROADMAP) is solvable
-in-git via serialization-point regeneration and is not backend-dependent. This reinforces the concurrency
-calibration note above — the backend's load-bearing value is canonical mutable storage, not sync generally.
+**Scalable-core (`plan-scalable-core.md`, ADR-020).** ADR-020 sharpens scope rather than flagging it: the backend is
+the canonical store for *mutable shared state* (inbox drains, priority/ordering), unsolvable in-git by git's nature
+(→ event-log, above). Derived shared state (ROADMAP) is solvable in-git via serialization-point regeneration and is
+not backend-dependent. Reinforces the calibration note — the backend's load-bearing value is canonical mutable
+storage + privacy + clean history, not sync generally.
 
 ## Coordination — ADR-022
 
-ADR-022's record layer is forward-compatible with the backend tier — structured records lift without
-reshaping. The mutated managed docs (inboxes, `WORKING-MEMORY`, `USER-INBOX`) are backend-canonical
-eventually; ADR-022's interim notes-sync assignment is a bridge, not a terminal home. See
-`adr-022-managed-operational-state-documents.md` § Coordination.
-
----
-
-[strategy-storage-evolution]: ../../../reference/strategies/project/strategy-storage-evolution.md
+ADR-022's record layer is forward-compatible with the backend — structured records lift without reshaping, and its
+record-canonical / markdown-is-a-projection decision is precisely Architecture B's materialization model. The mutated
+managed docs (inboxes, `WORKING-MEMORY`, `USER-INBOX`) are backend-canonical eventually; ADR-022's interim notes-sync
+assignment is the tier-2 bridge, not a terminal home. See `adr-022-managed-operational-state-documents.md`
+§ Coordination.

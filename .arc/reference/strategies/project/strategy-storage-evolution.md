@@ -1,180 +1,205 @@
 # Strategy: Storage Evolution (project-internal)
 
-> **Status:** In-development reference. Captures current architectural direction for ARC's storage
-> tiering, not a stable description of what ARC is today. Plans and PRDs touching storage / multi-user
-> / external-tool integration self-check against this document during authoring and PRD promotion.
-> Direction may evolve as the `draft-arc-backend.md` target develops.
+> **This is the storage forward-compatibility CHECK-DOC.** Before building anything that touches where WU artifacts
+> live, how they sync, multi-user/multi-machine concerns, WU/branch coupling, or new config axes, **run the
+> [Self-Check](#self-check-run-this-before-building) below** and confirm the design composes with the
+> materialized-git-backing-store target. The target itself is `draft-arc-backend.md` (north star); this doc is the
+> interim discipline that points at it.
+>
+> **Status:** In-development reference — architectural *direction*, not a description of what ARC is today. Direction
+> sharpened 2026-06-10 to the **git-backing-store-materialized-locally** model (see `draft-arc-backend.md`
+> § The Storage Model). *Rename pending:* this file should be renamed to advertise its purpose (e.g.
+> `strategy-storage-forward-compat.md`); deferred as its own reference-cascade follow-up.
 
-**Purpose:** Forward-compat discipline for ARC's storage architecture. Defines the storage tiers ARC
-supports today and is evolving toward, and the architectural principles that keep interim work
-composable with the future backend tier.
+**Purpose:** Forward-compat discipline for ARC's storage architecture. Defines the storage tiers ARC supports today
+and is evolving toward, and the principles that keep interim work composable with the future backend tier — so
+near-term WUs don't accrete tracked-`.arc/` assumptions a later migration must undo.
 
-**Scope:** Storage tiering, forward-compat principles, integration boundaries with external tools,
-self-check triggers for plan / PRD authoring.
+**Scope:** Storage tiering, the tracked-vs-materialized line, forward-compat principles, integration boundaries with
+external tools, self-check triggers for plan / PRD authoring.
 
-**Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS.
-This document describes architectural direction for ARC's own evolution — meaningful for plan / PRD
-authors working in this repo, not for adopters configuring ARC.
+**Why project-internal:** Adopter-facing strategies in `strategies/arc/` describe what ARC IS. This describes
+direction for ARC's own evolution — for plan / PRD authors in this repo, not for adopters configuring ARC.
 
 ---
 
-## The Three Storage Tiers
+## Self-Check: run this before building
 
-ARC supports three storage tiers, each serving a distinct adopter shape. They compose with — not
-replace — each other.
+Consult this doc when authoring or iterating any plan / PRD / WU that touches:
 
-| Tier        | Storage location                                | Adopter fit                                    | State      |
-|-------------|-------------------------------------------------|------------------------------------------------|------------|
-| **In-repo** | `.arc/` tracked in project repo                 | Solo / small team with no constraints          | Current    |
-| **Local**   | `.arc/` gitignored + `~/.arc-state/{id}/` store | Solo dev who can't put `.arc/` in repo         | Planned    |
-| **Backend** | ARC backend service + materialized local view   | Out-of-repo canonical storage; multi-user opt. | North star |
+- **Storage of WU artifacts** — where `meta-*`, `tasks-*`, `draft-*`, `spec-*`, status, inboxes live and how they
+  sync. Especially anything changing the in-repo `.arc/` boundary.
+- **Multi-user / multi-machine** — concurrency, identity, ownership, cross-developer coordination.
+- **External-tool integration** — adapters, sync layers, anything bridging ARC to Linear / Jira / Notion / GitHub
+  Projects. Watch authoritative-ownership boundaries especially.
+- **WU identity or branch coupling** — how ARC associates WU records with git artifacts (branches, worktrees, commits).
+- **New configuration axes** — new `pm.mode` values, structural settings, mode flags. Check against Principle 6
+  (axis explosion).
 
-**The backend tier is not strictly "the team tier."** Its defining characteristic is canonical
-storage outside the project repo with optional multi-user awareness. Audiences include solo dev
-with public / OSS repo wanting private PM, multi-machine workflows, small teams preferring real
-concurrency primitives over text-file merge mechanics, and larger teams where in-repo is a
-non-starter.
+**The question for each:** *does this design compose with the materialized-git-backing-store target as a future
+canonical storage option, or does it lock in choices that would force migration?* If the latter, surface the tension
+explicitly during authoring rather than deferring it.
 
-See `draft-arc-backend.md` for the full target shape, audience-fit details, and the
-Local-mode-is-the-bridge framing.
+---
+
+## The Storage Model
+
+### Three tiers — one substrate at three scales
+
+The tiers are **not three designs**. They are the same **git-backing-store** substrate at increasing multiplicity:
+the canonical store is a git repo (just not the project's *code* repo), materialized into a gitignored `.arc/` so
+agents and humans see ordinary local files (the chezmoi/dotfile-manager shape).
+
+| Tier | Canonical store | Scale / fit | State |
+| --- | --- | --- | --- |
+| **In-repo** | the code repo (tracked `.arc/`) | solo / small team, no constraints | Current |
+| **Local** | a separate **private git repo** (`~/.arc-state/`) | single-user multi-machine; privacy | Planned |
+| **Backend** | that repo, **hosted + shared + coordinated** | multi-user / team | North star |
+
+**Local *is* tier-2 of the materialized substrate; the Backend is its hosted form; team is the multi-writer config.**
+This unifies what were previously framed as separate Local-mode and backend designs — co-design them as one
+abstraction (see § Holistic Design). The backend is not "the team tier" alone: solo adopters benefit (privacy on
+public repos, multi-machine), multi-user adopters additionally get concurrency primitives.
+
+### The line: tracked vs. materialized
+
+| Class | Members | Tier | Configurable? |
+| --- | --- | --- | --- |
+| **Machinery** | `system/**` (workflows, rules, methods, templates) | tracked | No — versions with checkout (behavior pins to code) |
+| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | materialized | No — pure churn, no review value |
+| **Authored design** | `draft-*`, `spec-*` | materialized (default) | **Yes — one knob** |
+
+The boundary is **PM state-and-design (materialized) vs. PM machinery (tracked)**, drawn at the directory level so a
+single artifact group doesn't split arbitrarily. The two non-storage payoffs of materializing state: **(c)** privacy
+(planning artifacts not public on a public repo — *requires* a separate repo; out-of-branch-history tricks like git
+notes do **not** deliver privacy) and **(d)** clean git history / PR view (planning churn leaves the code repo).
+
+### The one knob
+
+Authored-design storage is the only real variation. Expose exactly **one enum**, never per-artifact booleans:
+
+```
+storage.track_design_docs: none | specs | all     # default: none
+```
+
+It governs **privacy, in-git PR review, and history-browsability together** (one axis). `specs` is the costliest arm
+(a WU's artifacts then span two repos — see `draft-arc-backend.md` § Operational Gotchas); consider `none | all`
+only unless the middle earns its cost. Default `none`; surface only in guided init.
 
 ---
 
 ## Forward-Compat Principles
 
-Discipline that keeps interim work composing toward the backend tier without locking in choices
-that conflict with it.
+Discipline that keeps interim work composing toward the target without locking in conflicting choices.
 
 ### 1. Treat `.arc/` storage as an abstraction
 
-Workflows ask for paths; the storage layer (in-repo, Local, or future backend) provides them.
-Don't bake "in-repo" or "git-tracked" assumptions into workflow logic. Most of ARC is already
-fine here — process-task-loop, session-init, handoff operate on filesystem paths regardless of
-how files got there.
+Workflows ask for paths; the storage layer (in-repo, Local, or backend) provides them. Don't bake "in-repo" or
+"git-tracked" assumptions into workflow logic. Most of ARC is already fine — process-task-loop, session-init, handoff
+operate on filesystem paths regardless of how files got there.
 
-**Anti-pattern:** A workflow step that runs `git log .arc/active/status-{name}.md` to infer state.
-This couples workflow logic to in-repo storage. The same information should be available through
-storage-agnostic queries (status file metadata fields, structured CLI commands).
+**Anti-pattern:** a workflow step running `git log .arc/active/meta-{name}.md` to infer state — couples logic to
+in-repo storage. The same information should come from storage-agnostic queries (meta fields, structured CLI commands).
 
-### 2. External-tool integration stays read-side or pipeline-only
+### 2. Records are storage-agnostic; markdown is a projection (ADR-022)
 
-Coord-probe (advisory), `pm.mode: external` (strips PM pipeline), future bidirectional sync
-adapters — fine. **Extending external integration to take ownership of WU artifacts** (status,
-task lists, plan docs) is the move that locks in external-tool-as-canonical and conflicts with
-ARC backend as canonical.
+Managed operational-state documents are code-owned records; the `.md` is rendered from them. Keep records free of
+baked-in "git-tracked" assumptions so they lift into the backing store without reshaping — this is exactly the
+materialization model (Architecture B: render/projection). Don't design a record that can only exist as a
+tracked-tree file.
 
-The boundary: external tools are integration surfaces. ARC's canonical store remains ARC's,
-whether that's in-repo today or the backend tier later. Mapping ARC artifact shape onto Linear /
-Jira / Notion shapes is bidirectional sync, not authoritative ownership.
+### 3. Mutating state uses version-checked writes
 
-### 3. WU identity stays decoupled from any single repo's branch identity
+Any write to shared/materialized state carries the version it read; if canonical moved, the write is rejected and
+reconciled, never silently clobbering (git's non-fast-forward rejection is the native form). This is what makes
+read-staleness harmless — a stale read only causes harm via a later unchecked write. Don't design a mutation path
+that blind-overwrites.
 
-ARC tracks work units separately from branches. Multi-WU-per-branch and WU-without-branch
-(planning) cases already exist in the architecture. The backend tier needs WUs to live
-independent of any single repo's branch state — current direction supports this; don't regress.
+### 4. External-tool integration stays read-side or pipeline-only
 
-**Anti-pattern:** New design that infers WU state from branch existence (e.g., "a branch matching
-`feat/{name}` implies WU named `{name}` is active"). Implicit coupling like this works in-repo
-but breaks in backend-tier multi-developer scenarios.
+Coord-probe (advisory), `pm.mode: external` (strips PM pipeline), future bidirectional sync adapters — fine.
+**Extending external integration to take ownership of WU artifacts** is the move that locks in
+external-tool-as-canonical and conflicts with ARC-as-canonical. External tools are integration surfaces; ARC's
+canonical store stays ARC's.
 
-### 4. Workflow logic stays mode-agnostic
+### 5. WU identity stays decoupled from any single repo's branch identity
 
-Process-task-loop, session-init, handoff don't know whether storage is in-repo, Local, or
-backend. They operate on the storage abstraction. Mode-specific logic lives in storage-layer
-implementations and a small number of well-named lifecycle ceremonies (handoff persists; backend
-sync is one ceremony among several).
+ARC tracks work units separately from branches; multi-WU-per-branch and WU-without-branch already exist. The backend
+needs WUs to live independent of any one repo's branch state — don't regress.
 
-**Anti-pattern:** Workflow steps that branch on `pm.mode` or `arc-config.yml` storage settings
-inline. Mode-aware behavior either lives in the storage layer or is rendered out at install time
-(per `draft-arc-modes.md` Mechanism A/B for mode-conditional content).
+**Anti-pattern:** inferring WU state from branch existence (e.g. "a `feat/{name}` branch implies WU `{name}` active").
+Works in-repo, breaks in multi-developer backend scenarios.
 
-### 5. Team-mode collapses into backend-tier
+### 6. Workflow logic stays mode-agnostic
 
-In-repo team mode (`team.enabled` for shared `.arc/` content with identity-marker conventions)
-is a current bridge. In a backend-tier world, multi-user teamwork moves to the backend; in-repo
-team mode is not the recommended path going forward. Plans that introduce new team-mode-specific
-mechanics in the in-repo tier earn extra scrutiny — would the same need be served better by
-deferring to the backend tier?
+Process-task-loop, session-init, handoff don't know whether storage is in-repo, Local, or backend — they operate on
+the abstraction. Mode-specific logic lives in the storage layer or a few well-named lifecycle ceremonies, or is
+rendered at install time. **Anti-pattern:** workflow steps branching on `pm.mode` / storage settings inline.
 
-This isn't a prohibition. It's a forward-looking design pressure: if a feature only makes sense
-under in-repo team mode, consider whether it composes with backend tier or is bridge-only scope.
+### 7. Team-mode is the multi-writer config of the substrate, not a separate axis
 
-### 6. Avoid axis explosion
+In-repo team mode (`team.enabled`, identity-marker conventions) is a current bridge. In the target, multi-user
+teamwork is simply the shared/hosted (multi-writer) configuration of the same backing store — in-repo team mode on
+text files carries the merge-mechanics the backend solves. Plans introducing new in-repo-team-mode mechanics earn
+extra scrutiny: would the need be better served by the backend? Not a prohibition — a forward-looking design pressure.
 
-The current configuration axes (Lite/Full × tracked/local × pm.mode × team.enabled) already strain
-the matrix. New axes earn their keep against the question: "could this be a property of an
-existing axis, or subsumed by a future one?" The backend tier is expected to subsume team-mode
-(see #5); other planned work should similarly resist adding axes that the backend tier would
-eventually fold in.
+### 8. One storage knob, not per-artifact tracking flags
+
+Tracked-vs-materialized is fixed by class (machinery tracked, state materialized) with exactly one configurable enum
+(`storage.track_design_docs`). Don't introduce per-artifact-type tracking booleans — that is the matrix ADR-020
+collapsed.
+
+### 9. Avoid axis explosion
+
+Current axes (scaling × tracked/local × pm.mode × team.enabled) already strain the matrix. New axes earn their keep
+against: "could this be a property of an existing axis, or subsumed by a future one?" The backend subsumes team-mode
+(7); resist axes the backend would eventually fold in.
 
 ---
 
-## Holistic Design Touchpoints (Local ↔ Backend)
+## Holistic Design (Local ↔ Backend are one substrate)
 
-Local mode and the backend tier share substantial structural concerns. The two plans capture them
-as cousins (one solo, one multi-user), but Local mode was designed before the backend tier was a
-recognized target — its decisions reflect single-user assumptions that may or may not generalize.
-
-When Local mode promotes to PRD, scope a storage-abstraction sketch as part of that work — the
-minimum shared interface that Local implements and the backend tier extends. Backend tier PRD
-work later validates against the same sketch and refines it as needed. Holistic design at the
-abstraction boundary; mode-specific impl details remain each PRD's scope.
+Local mode and the backend are **the same git-backing-store substrate at different multiplicities** (single-user vs.
+hosted/shared), not cousins to reconcile. Local mode was first drafted before this was recognized, so its decisions
+may carry single-user assumptions — validate they generalize. When Local promotes to PRD, scope the **shared storage
+abstraction** as part of that work; the backend PRD later validates and refines the same abstraction. Holistic design
+at the abstraction boundary; mode-specific impl details stay each PRD's scope.
 
 Touchpoints warranting joint attention:
 
-- **Storage backend interface contract** — what makes something an ARC storage backend.
-  Project-ID lookup, artifact read/write, sync state, failure handling, recovery hooks.
-- **Materialization layer** — local-files-as-canonical-view rendering. Both modes render
-  identical-looking `.arc/` content from different canonical sources.
-- **Sync state machine** — clean / remote-ahead / conflict semantics across both implementations.
-  The shape Local uses for personal notes (the `arc user` command family) extends to artifact
-  storage.
-- **Project ID resolution** — pinned-ID-file precedence, fallback chain, migration prompts.
-  Mostly already designed in Local; validate it generalizes.
-- **Failure-class taxonomy** — Local has three classes (transient / push-failed / divergent).
-  Backend tier has overlapping but distinct classes (e.g., auth-expired, server-unavailable,
-  conflict-at-backend); harmonize taxonomies.
-- **CLI command surface** — `arcd backing` family is Local's shape. Backend tier needs a
-  corresponding family; shared scaffolding where reasonable.
-- **Setup / re-clone / recovery flows** — `arc init --local` is idempotent and detects re-clone.
-  Backend tier setup likely follows similar shape; common scaffolding earned.
+- **Materialization layer** — render/projection of canonical → gitignored `.arc/` (Architecture B). Both tiers render
+  identical-looking content from the same kind of source (a git repo).
+- **Storage backend interface contract** — what makes something an ARC backing store: project-ID lookup, artifact
+  read/write, sync state, failure handling, recovery hooks. Likely file-system semantics over a git store.
+- **Sync state machine** — clean / remote-ahead / conflict across both implementations; the `arc user` family's shape
+  extends to artifact storage.
+- **Version-checked writes & reconcile/heal** — optimistic concurrency + a drift-heal step (cross-repo operations are
+  eventual-consistency, not 2-phase-commit; see `draft-arc-backend.md` § Operational Gotchas).
+- **Project-ID resolution** — pinned-ID precedence, fallback chain, migration prompts. Mostly designed in Local;
+  confirm it generalizes.
+- **Failure-class taxonomy** — Local's transient / push-failed / divergent vs. backend's auth-expired /
+  server-unavailable / conflict-at-backend; harmonize.
+- **Setup / re-clone / provisioning** — `arc init --local` idempotency + re-clone detection is reused for backend
+  provisioning and the new-machine contributor flow.
+- **Per-editor freshness scaffolding** — materialized files need an editor watch-setting to live-reload (Zed
+  `file_scan_inclusions` confirmed; Helix gapped); ARC should scaffold `.zed`/`.vscode` settings at init.
 
-This list is not exhaustive — other touchpoints surface during the co-design pass. Captured here
-as the discipline reference for plan / PRD authors working in either tier.
-
----
-
-## Self-Check Triggers
-
-Consult this strategy when authoring or iterating any plan / PRD that touches:
-
-- **Storage of WU artifacts** — where status files, task lists, plan docs, PRDs live and how they
-  sync. Especially anything proposing changes to the in-repo `.arc/` boundary.
-- **Multi-user or multi-machine concerns** — concurrency, identity, ownership, cross-developer
-  coordination.
-- **External-tool integration** — adapters, sync layers, anything bridging ARC to Linear / Jira /
-  Notion / GitHub Projects / etc. Pay special attention to authoritative-ownership boundaries.
-- **WU identity or branch coupling** — how ARC associates WU records with git artifacts (branches,
-  worktrees, commits).
-- **New configuration axes** — adding `pm.mode` values, new structural settings, new mode flags.
-  Self-check against #6 (axis explosion).
-
-For each, the question is: **does this design compose with the backend tier as a future canonical
-storage option, or does it lock in choices that would force migration?** If the latter, surface
-the tension explicitly during PRD authoring rather than deferring.
+This list is not exhaustive — other touchpoints surface during co-design.
 
 ---
 
 ## Relationship to Other Documents
 
-- **`draft-arc-backend.md`** — North-star plan for the backend tier. Detailed
-  motivation, audience fit, open questions, research areas, sequencing intent, and the full
-  backlog compat audit.
-- **`draft-arc-modes.md`** — Lite + Local modes. Local mode is the architectural
-  bridge to the backend tier; its backing-store mechanics generalize to the multi-user case.
-- **[`strategy-configurability-architecture.md`][config-arch]** — Customization mechanisms (config,
-  extensions, methods). Storage tiering interacts with the configurability axes; #6 above
-  references the same axis-explosion concern.
+- **`draft-arc-backend.md`** — the north-star target: full model (the line, the one knob, materialization A/B,
+  concurrency-with-history, gotchas), audience fit, sequencing, blast-radius/migration audit, backlog compat audit.
+- **`draft-arc-modes.md`** — Lite + Local modes. Local is tier-2 of the materialized substrate; its backing-store
+  mechanics generalize to the hosted (backend) case.
+- **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split; mutable shared state
+  (inbox drains, ordering) is the backend's canonical responsibility (→ event-log).
+- **`adr-022-managed-operational-state-documents.md`** — records-canonical / markdown-projection; the interim
+  notes-sync assignment is the tier-2 bridge; records lift to the backend without reshaping (Principle 2).
+- **[`strategy-configurability-architecture.md`][config-arch]** — customization mechanisms; storage tiering interacts
+  with the configurability axes (Principles 8–9 share the axis-explosion concern).
 
 ---
 
