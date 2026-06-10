@@ -2,7 +2,7 @@
 
 | **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
 | ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decomposition-machinery` | `Novel`   | `P1`         |
+| `Shipped`     | `andrew`  | `feat/decomposition-machinery` | `Novel`   | `P1`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `class-model-foundation`
