@@ -11,12 +11,12 @@
 - **Design:** `spec-doc-cascade-sweep.md`
 - **Task List:** `tasks-doc-cascade-sweep.md`
 
-- **Last Completed:** Task 3.1 — Realign `arc-plan-conductor` draft to shipped `Class` / `planning depth` model
-- **Next Task:** Task 3.2 — Bring cohort docs into conformance with the `cohort-{name}.md` record shape (line ~198)
+- **Last Completed:** Task 3.4 — Record the commit / PR surface-language register (Phase 3 complete)
+- **Next Task:** Task 4.1 — Rename the three workflow files (both copies, template/render pairs) (line ~261)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.2 — bring the three `backlog/planned/**` cohort docs into conformance with
-  `decomposition-machinery`'s three-condition invariant (`cohort-agile-parallelism.md` is the known diverger;
-  audit the other two). Verify by staging each against the validator (no flag = conformant).
+- **Next Action:** Begin Phase 4, Task 4.1 — rename `1_create-spec` / `2_generate-tasks` / `3_process-task-loop`
+  across both copies, minding template/render pairs vs plain both-copies (per `notes-doc-cascade-sweep.md`
+  § Copy mechanics), then sweep all references + the package-sync dependency map + `init-recipe.json`.
 
 ---
