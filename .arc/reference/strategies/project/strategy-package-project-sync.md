@@ -67,10 +67,10 @@ tree by then. Use targeted edits from the start.
 
 | Template file                        | Conditions                    |
 |--------------------------------------|-------------------------------|
-| `3_process-task-loop.template.md`    | team.mode, pm.mode (3 blocks) |
+| `process-task-loop.template.md`      | team.mode, pm.mode (3 blocks) |
 | `session-init.template.md`           | team.mode, pm.mode (5 blocks) |
 | `session-handoff.template.md`        | team.mode (1 block)           |
-| `2_generate-tasks.template.md`       | team.mode (2 blocks)          |
+| `generate-tasks.template.md`         | team.mode (2 blocks)          |
 | `02_define-project.template.md`      | pm.mode (3 blocks)            |
 | `AGENT-BRIEF.PROJECT.template.md`    | Token substitution only       |
 
@@ -197,7 +197,7 @@ arc-in-git files are annotated explicitly.
 - `system/.internal/skills/arc-task-audit/SKILL.md`
 - `system/.internal/skills/arc-task-review/SKILL.md`
 - `system/.internal/skills/arc-verify/SKILL.md`
-- `system/workflows/arc/1_create-spec.md`
+- `system/workflows/arc/create-spec.md`
 - `system/workflows/arc/initial-setup/01_verify-and-configure.md`
 - `system/workflows/arc/session-lifecycle/session-loop.md`
 - `system/workflows/arc/supplemental/add-agent.md`
@@ -255,8 +255,8 @@ arc-in-git files are annotated explicitly.
 - `reference/QUICK-REFERENCE.template.md` → `reference/QUICK-REFERENCE.md` (Configurable)
 - `reference/TECHNICAL-OVERVIEW.template.md` → `reference/TECHNICAL-OVERVIEW.md` (Scaffolded)
 - `reference/briefs/AGENT-BRIEF.PROJECT.template.md` → `reference/briefs/AGENT-BRIEF.PROJECT.md` (Configurable)
-- `system/workflows/arc/2_generate-tasks.template.md` → `system/workflows/arc/2_generate-tasks.md` (Framework)
-- `system/workflows/arc/3_process-task-loop.template.md` → `system/workflows/arc/3_process-task-loop.md` (Framework)
+- `system/workflows/arc/generate-tasks.template.md` → `system/workflows/arc/generate-tasks.md` (Framework)
+- `system/workflows/arc/process-task-loop.template.md` → `system/workflows/arc/process-task-loop.md` (Framework)
 - `system/workflows/arc/initial-setup/02_define-project.template.md` →
   `system/workflows/arc/initial-setup/02_define-project.md` (Framework)
 - `system/workflows/arc/session-lifecycle/session-handoff.template.md` →

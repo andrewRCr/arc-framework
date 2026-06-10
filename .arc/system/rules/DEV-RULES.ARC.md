@@ -507,7 +507,7 @@ Load these documents when you reach the relevant work — not during session ini
 [work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
-[process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
+[process-task-loop]: ../../system/workflows/arc/process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md

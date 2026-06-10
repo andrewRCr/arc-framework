@@ -130,7 +130,7 @@ removal rides the same write.
       home, in transit (never at rest) — distinct from the WU's own `Open Questions`; it stays
       invariant-compliant because the obligation below drains it. An `## Inbound Buffer — Pending Integration`
       section is **mandatorily** integrated into the body at the WU's next planning iteration (minimal hook:
-      `1_create-spec.md` § Resolve depth & Class); the richer iteration-time ceremony is `arc-plan-conductor`'s.
+      `create-spec.md` § Resolve depth & Class); the richer iteration-time ceremony is `arc-plan-conductor`'s.
 - **New stub** — a multi-step entry (or a grouped set) with no existing home, or a tier-reclassified atomic.
   Scaffold the stub at the confirmed commitment level (`meta-*`, plus `draft-*` when scope warrants) and write the note
   in. A `provisional` stub carries no design authority.

@@ -1210,7 +1210,7 @@ means each worktree's `active/` carries one WU's artifacts at a time, so per-WU 
 subdirs would be redundant — concurrency comes from more worktrees, not more metas in one `active/`.
 Artifact applicability scales with mode and `Class`; see
 [§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
-the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-spec.md` (with optional
+the pre-PRD synthesis artifact, deleted at PRD creation per `create-spec.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
 Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
 the meta file at integration — there is no separate `completion-<name>.md` artifact.

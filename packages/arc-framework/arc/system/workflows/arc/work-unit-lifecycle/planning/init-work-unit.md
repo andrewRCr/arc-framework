@@ -24,9 +24,9 @@ default path.
 ```text
 draft-* exploration (optional, when scope warrants synthesis)
     ↓
-1_create-spec                — requirements
+create-spec                — requirements
     ↓
-2_generate-tasks            — task list
+generate-tasks            — task list
     ↓
 activate-work-unit          — Planning → Active; branch plan/<name> → <type>/<name>
     ↓
@@ -175,7 +175,7 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
 3. **Branch** → current planning branch (e.g., `plan/{name}`)
 4. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
-5. **Next Action** → freeform planning-session prompt (e.g., "Run `1_create-spec.md`" or "Continue
+5. **Next Action** → freeform planning-session prompt (e.g., "Run `create-spec.md`" or "Continue
    `draft-*` exploration")
 6. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
    best estimate against the boundary tests. Freely revisable; the ratchet protects only realized work, so
@@ -219,7 +219,7 @@ Set upstream for the planning branch.
 
 - If the work needs synthesis exploration first: create `draft-*.md` documents (see [Work Planning
   Strategy][work-planning] for conventions)
-- If ready for requirements: proceed to [1_create-spec][create-spec]
+- If ready for requirements: proceed to [create-spec][create-spec]
 
 ## Promote Errand to Work Unit Path
 
@@ -312,12 +312,12 @@ spec or notes.
 
    Backfill `spec-{name}.md` / `tasks-{name}.md` on the promoted branch as needed. When the task list is accepted,
    include meta `Design`, `Task List`, and `Next Action` updates in the task-list acceptance commit, then proceed
-   to [3_process-task-loop][process-task-loop].
+   to [process-task-loop][process-task-loop].
 
 ---
 
-[create-spec]: ../../1_create-spec.md
-[process-task-loop]: ../../3_process-task-loop.md
+[create-spec]: ../../create-spec.md
+[process-task-loop]: ../../process-task-loop.md
 [run-errand]: ../../supplemental/run-errand.md
 [in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md

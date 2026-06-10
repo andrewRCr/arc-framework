@@ -328,7 +328,7 @@ describe("classifyFile", () => {
     expect(classifyFile("README.md")).toBe("Framework");
     expect(classifyFile("system/rules/DEV-RULES.ARC.md")).toBe("Framework");
     expect(classifyFile("reference/briefs/AGENT-BRIEF.ARC.md")).toBe("Framework");
-    expect(classifyFile("system/workflows/arc/3_process-task-loop.template.md")).toBe("Framework");
+    expect(classifyFile("system/workflows/arc/process-task-loop.template.md")).toBe("Framework");
     // Per-file methods/extensions directory READMEs fall through to Framework —
     // only the 8 methods + 8 extensions themselves are adopter-customizable.
     expect(classifyFile("system/methods/README.md")).toBe("Framework");
@@ -341,7 +341,7 @@ describe("classifyFile", () => {
 describe("needsRendering", () => {
   it("returns true for .template files", () => {
     expect(needsRendering("reference/PROJECT-PRD.template.md")).toBe(true);
-    expect(needsRendering("system/workflows/arc/3_process-task-loop.template.md")).toBe(true);
+    expect(needsRendering("system/workflows/arc/process-task-loop.template.md")).toBe(true);
   });
 
   it("returns false for non-template files", () => {

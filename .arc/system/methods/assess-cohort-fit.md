@@ -6,7 +6,7 @@ override-active: false
 
 # Method: assess-cohort-fit
 
-> - **Workflow:** [draft-design.md][draft-design], [1_create-spec.md][create-spec]
+> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec]
 > - **When:** A work unit's design is the live artifact at a derivation stage — `draft-design` (the *predicted*
 >   arm, design still forming) and `create-spec` (the *emergent* arm, a matured draft). A cheap confirm at every
 >   design-stage read, **not** depth-gated: decompose-candidacy keys on orthogonality/breadth, a different axis
@@ -115,5 +115,5 @@ consumes the cut-map and runs the transform.
 
 [classify-work-unit]: classify-work-unit.md
 [draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/1_create-spec.md
+[create-spec]: ../workflows/arc/create-spec.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md

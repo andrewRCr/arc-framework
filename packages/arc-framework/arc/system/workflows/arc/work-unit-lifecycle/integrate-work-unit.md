@@ -135,7 +135,7 @@ a structural no-op.
 First confirm the WU's `**Design:**` field resolves to a spec present in `active/` — a `spec-{name}.md` or the
 layered `spec-{name}-prd.md` / `spec-{name}-rfc.md` pair; if absent, stop and surface.
 
-The alignment checks below are soft; rarely block if [`1_create-spec.md`][create-spec]'s alignment checks passed.
+The alignment checks below are soft; rarely block if [`create-spec.md`][create-spec]'s alignment checks passed.
 Surface any conflicts discovered against final reviewed scope.
 
 #### PROJECT-PRD
@@ -292,6 +292,6 @@ on the resolved state:
 [template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
-[create-spec]: ../1_create-spec.md
+[create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

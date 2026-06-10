@@ -136,7 +136,7 @@ list explicitly unless emphasizing a specific check.
 **Coherent unit completion (implicit):**
 Tier 2 checks run when you complete a coherent unit of work — all subtasks of a parent done,
 or a standalone task that touches integration-tested code. This is documented in
-[3_process-task-loop][process-task-loop].
+[process-task-loop][process-task-loop].
 
 **Phase level (explicit when relevant):**
 Include explicit E2E/integration checkpoint tasks when a phase modifies E2E-tested code:
@@ -188,9 +188,9 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 
 - **[DEV-RULES.PROJECT][dev-rules-project]:** Defines the "zero tolerance" policy and lists
   required quality gates. References this strategy for tier guidance.
-- **[3_process-task-loop][process-task-loop]:** Defines when quality gates run in the task
+- **[process-task-loop][process-task-loop]:** Defines when quality gates run in the task
   execution workflow. References this strategy for what to run at each stage.
-- **[2_generate-tasks][generate-tasks]:** Guidance on including quality checkpoint tasks in
+- **[generate-tasks][generate-tasks]:** Guidance on including quality checkpoint tasks in
   task lists. References this strategy for checkpoint placement.
 - **QUICK-REFERENCE:** Project-specific commands for each tier. The authoritative source for
   "how to run" each check.
@@ -201,5 +201,5 @@ Task lists typically include a final "Testing & Quality" phase for Tier 3:
 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-project]: ../../../system/rules/DEV-RULES.PROJECT.md
-[process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
-[generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
+[process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
+[generate-tasks]: ../../../system/workflows/arc/generate-tasks.md

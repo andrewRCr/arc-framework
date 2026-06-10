@@ -258,7 +258,7 @@ sweep narrows to `draft-design` only — `graduate-work-unit.md`'s non-accepted 
 `rules-restructure` (it owns the `commit-msg` allowed-contexts list). Sequenced ahead of `naming-conventions`,
 which rebases its `TYPE.QUALIFIER` cascade onto the prefix-dropped tree.
 
-### `[ ]` **4.1 Rename the three workflow files (both copies, template/render pairs)**
+### `[x]` **4.1 Rename the three workflow files (both copies, template/render pairs)**
 
 - _Goal:_ `create-spec` / `generate-tasks` / `process-task-loop` carry prefix-less names in both copies, with the
   `.template.md` → rendered pairs renamed for `generate-tasks` and `process-task-loop`.
@@ -273,38 +273,44 @@ which rebases its `TYPE.QUALIFIER` cascade onto the prefix-dropped tree.
     - `git mv` `3_process-task-loop.template.md` → `process-task-loop.template.md` (package) and
       `3_process-task-loop.md` → `process-task-loop.md` (`.arc/` rendered).
 
-### `[ ]` **4.2 Update all doc references + the package-sync dependency map**
+### `[x]` **4.2 Update all doc references + the package-sync dependency map**
 
 - _Goal:_ zero references to the numbered names (`1_create-spec`, `2_generate-tasks`, `3_process-task-loop`)
   remain in any markdown across either copy; the dependency-map entries are updated.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - Grep-sweep the ~140 referencing markdown files (workflows, strategies, methods, templates, skills,
-      session-init, READMEs) and update each reference.
+    - Token-swept the references across the 72 live-surface framework files in both copies (workflows,
+      strategies, methods, templates, skills, session-init, extensions, rules, STRATEGY-INDEX).
 
-    - Update `strategy-package-project-sync.md`'s dependency-map entries for the renamed template/render pairs
-      (the render-pair table ~lines 70/73 and the dependency list ~lines 200/259/260).
+    - Updated `strategy-package-project-sync.md`'s dependency map: render-pair conditionals table and the
+      Framework / template-counterpart listings (`create-spec.md` stands alone as plain both-copy; the
+      `generate-tasks` / `process-task-loop` pairs render from `.template.md`).
 
-### `[ ]` **4.3 Update the config + test references**
+- _Outcome:_ Scope held to the two-copy live framework surface (72 files), not the full ~140 token-bearing
+  set — historical records (`completed/`, analysis, ADR), this WU's own artifacts, and single-copy `backlog/`
+  drafts were excluded per the notes edit map (they reconcile via `naming-conventions` / on activation). The
+  shortened names misaligned three Markdown tables (MD060); realigned in both copies, copies verified identical.
+
+### `[x]` **4.3 Update the config + test references**
 
 - _Goal:_ `init-recipe.json` and the test fixtures carry the renamed workflow filenames; the full quality-gate
   suite passes against the rename.
 
-    - Update `init-recipe.json`'s `include_files` entries (`packages/arc-framework/` — hand-maintained source).
+    - Updated `init-recipe.json`'s `include_files` (`create-spec.md` plain; `generate-tasks` /
+      `process-task-loop` as `.template.md`).
 
-    - Update the 4 test files referencing the numbered names (`init.test.ts`, `active/meta-reader.test.ts`,
-      `scripts/validate-extension-points.test.ts`, `integration/active.test.ts`).
+    - Updated the 4 test files referencing the numbered names (`init.test.ts`, `active/meta-reader.test.ts`,
+      `scripts/validate-extension-points.test.ts`, `integration/active.test.ts`) — fixtures and their paired
+      assertions move together, so verbatim round-trips stay green.
 
-    - Update the `manifest.json` path keys for the three renamed files — a **file-scoped** rename of the affected
-      entries, not a regeneration. Required because `framework-sync.test.ts` (the self-hosting drift check)
-      iterates every `Framework` manifest entry against its package source and fails on a stale path. Same
-      forced-consequence pattern proven in 1.1.b (deleting `manage-incidental-work.md` required removing its
-      manifest entry for green gates).
+    - Renamed the three `manifest.json` path keys **in place** — a file-scoped rename, not a regeneration; the
+      `pristine_hash` values are untouched since the files only moved. Broader regeneration / freshness stays
+      `self-hosting-manifest-freshness`'s concern.
 
-    - _Note:_ manifest **regeneration / freshness** more broadly (hash refresh after `arc update`) stays
-      `self-hosting-manifest-freshness`'s concern — only the path-key rename for the affected files lands here.
-      Exclude the gitignored `user/{identity}/.internal/.pre-load-backup-*.json`.
+- _Outcome:_ Full quality-gate suite passes against the rename — 2405 unit/integration + 61 e2e, typecheck,
+  build, markdown/TS/shell lint all clean. `framework-sync.test.ts` (the self-hosting drift check) confirms no
+  stale manifest path, the forced-consequence pattern proven in 1.1.b.
 
 ### `[ ]` **4.4 Fix the `draft-design` commit-template `Context:` line**
 

@@ -6,7 +6,7 @@ active: false
 
 # Extension: pre-spec-finalization-review
 
-> - **Workflow:** [1_create-spec.md][create-spec]
+> - **Workflow:** [create-spec.md][create-spec]
 > - **Fires:** At the spec-finalization review gate — after the [spec-review method][spec-review] self-review,
 >   before the spec is approved and committed
 >
@@ -23,5 +23,5 @@ active: false
 
 ---
 
-[create-spec]: ../workflows/arc/1_create-spec.md
+[create-spec]: ../workflows/arc/create-spec.md
 [spec-review]: ../methods/spec-review.md

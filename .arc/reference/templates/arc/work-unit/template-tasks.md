@@ -1,9 +1,9 @@
 # Template: Task Lists
 
-Templates and guidance for task lists created during the [2_generate-tasks.md][generate-tasks] workflow.
+Templates and guidance for task lists created during the [generate-tasks.md][generate-tasks] workflow.
 
 See [strategy-task-list-formatting.md][task-list-formatting] for the authoritative format rules, element
-reference, test-first patterns, and annotated examples. The Quick Format Checklist in [2_generate-tasks.md
+reference, test-first patterns, and annotated examples. The Quick Format Checklist in [generate-tasks.md
 § Finalize the task list][generate-tasks] covers the final-save checks.
 
 ---
@@ -62,5 +62,5 @@ needs them.
 
 ---
 
-[generate-tasks]: ../../system/workflows/arc/2_generate-tasks.md
+[generate-tasks]: ../../system/workflows/arc/generate-tasks.md
 [task-list-formatting]: ../strategies/arc/strategy-task-list-formatting.md

@@ -6,11 +6,11 @@
 
 Authoritative formatting rules for task lists. Agent reference for task list generation and
 maintenance. For skeletons, see [`template-tasks.md`][template-tasks]. For the pre-save format
-checklist, see [2_generate-tasks.md § Finalize the task list][generate-tasks].
+checklist, see [generate-tasks.md § Finalize the task list][generate-tasks].
 
 **Referenced by:**
 
-- [2_generate-tasks.md][generate-tasks] — planned work
+- [generate-tasks.md][generate-tasks] — planned work
 
 ## Contents
 
@@ -344,7 +344,7 @@ the marker. No separate "implement" task — test and implementation form one ve
 behavior list and marker. **Multi-layer projects** (backend + frontend, API + CLI): separate
 phases per layer with the same grouped pattern in each, plus a cross-layer validation phase.
 
-See [3_process-task-loop.md][process-task-loop] for the red-green-refactor execution loop.
+See [process-task-loop.md][process-task-loop] for the red-green-refactor execution loop.
 
 ---
 
@@ -393,14 +393,14 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 ## Related Documentation
 
 - [DEV-RULES.ARC](../../../system/rules/DEV-RULES.ARC.md) — test-first assessment
-- [2_generate-tasks.md][generate-tasks] — planned work + pre-save format checklist
-- [3_process-task-loop.md][process-task-loop] — task execution workflow
+- [generate-tasks.md][generate-tasks] — planned work + pre-save format checklist
+- [process-task-loop.md][process-task-loop] — task execution workflow
 
 ---
 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
-[process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[generate-tasks]: ../../../system/workflows/arc/generate-tasks.md
+[process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md

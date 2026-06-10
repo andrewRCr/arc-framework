@@ -437,7 +437,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 [work-org]: strategy-work-organization.md
 [dev-methodology]: ../../../system/rules/DEV-RULES.ARC.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
-[process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [arc-extensions-dir]: ../../../system/extensions/

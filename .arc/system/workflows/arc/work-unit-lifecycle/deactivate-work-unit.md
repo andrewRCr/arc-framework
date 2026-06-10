@@ -219,7 +219,7 @@ locally since it lives on base. No dedicated workflow ships for this; reverse it
 ## Next Step
 
 Deactivation has no session-level next action. The developer decides what follows — resume another WU, return to
-`1_create-spec.md` on the now-planning branch (Case A), or start something new.
+`create-spec.md` on the now-planning branch (Case A), or start something new.
 
 ---
 

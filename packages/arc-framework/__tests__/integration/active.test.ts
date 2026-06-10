@@ -702,7 +702,7 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
         state: "Planning",
         branch: "technical/plan-foo",
         taskList: "[none]",
-        nextAction: "Run `1_create-spec.md`",
+        nextAction: "Run `create-spec.md`",
       }),
     );
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });

@@ -173,7 +173,7 @@ keep their brackets — they are link syntax, not slots. The `[Title Case Phrase
 
 Core pipeline workflows are numbered to indicate execution sequence:
 
-- `1_create-spec.md` → `2_generate-tasks.md` → `3_process-task-loop.md`
+- `create-spec.md` → `generate-tasks.md` → `process-task-loop.md`
 
 Setup workflows use zero-padded numbers: `01_verify-and-configure.md`, `02_define-project.md`,
 `03_configure-external-integration.md`.
