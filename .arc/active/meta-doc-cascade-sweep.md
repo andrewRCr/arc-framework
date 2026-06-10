@@ -9,13 +9,13 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-doc-cascade-sweep.md`
-- **Task List:** [none]
+- **Task List:** `tasks-doc-cascade-sweep.md`
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `2_generate-tasks.md` to decompose the `outline` spec into a task list; broad but
-  determinate doc surface (~139-file rename cascade), so scale the grounding pass to breadth.
+- **Next Action:** Run `activate-work-unit.md` when implementation is about to begin — flips `**State:**` to
+  `Active` and renames `plan/doc-cascade-sweep` to its `<type>/` branch.
 
 ---
