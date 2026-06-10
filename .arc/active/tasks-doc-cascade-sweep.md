@@ -326,35 +326,49 @@ which rebases its `TYPE.QUALIFIER` cascade onto the prefix-dropped tree.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint, TS lint, shell lint, typecheck (source + test), build, and the full vitest suite
+  (unit 2033, integration 311, e2e 61 — 2405 total) all passed; the activate / integrate / archive integration
+  flows and the `framework-sync` drift check are included.
+- _Success criteria:_ 12 criteria, all met — 2 with deviation notes (numbered-name sweep scoped to the live
+  framework surface; one cohort doc's orphan flags are a known captured validator lifecycle-gap, not a defect).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Grep finds zero conceptual references to the retired framing (`incidental` as a WU shape, the `atomic`
+- `[x]` Grep finds zero conceptual references to the retired framing (`incidental` as a WU shape, the `atomic`
   tier, `minimum`/`standard`/`expanded` modes, the `## Scope` task-list header) across workflows, strategies, and
   templates.
-- `[ ]` Grep finds zero references to the numbered workflow filenames in markdown, config, or tests across either
+- `[x]` Grep finds zero references to the numbered workflow filenames in markdown, config, or tests across either
   copy; all three files renamed (including both template/render pairs); the package-sync dependency map and
   `init-recipe.json` updated.
-- `[ ]` The full quality-gate suite (vitest, typecheck, build) passes against the rename — including the updated
+    - **Deviation:** The markdown clause is met for the live two-copy framework surface (the swept set);
+      historical records (`completed/`, analysis, ADR), this WU's own planning artifacts, and single-copy
+      `backlog/` drafts intentionally retain the old names (out of scope per `notes-*` § Copy-mechanics edit
+      map — they reconcile via `naming-conventions` / on activation). Config and tests are zero across the board.
+- `[x]` The full quality-gate suite (vitest, typecheck, build) passes against the rename — including the updated
   `init-recipe.json` / test fixtures and the activate / integrate / archive integration flows.
-- `[ ]` Exactly one canonical `active/`-is-flat statement exists (in `strategy-work-organization.md`); the two
+- `[x]` Exactly one canonical `active/`-is-flat statement exists (in `strategy-work-organization.md`); the two
   previously-misstating strategies are corrected and defer to it.
-- `[ ]` All three `backlog/planned/**` cohort docs satisfy the three-condition invariant (no validator flag when
+- `[x]` All three `backlog/planned/**` cohort docs satisfy the three-condition invariant (no validator flag when
   staged).
-- `[ ]` `draft-arc-plan-conductor.md` carries no `## Scope`-header or `minimum`/`standard`/`expanded` references
+    - **Deviation:** Two cohort docs are validator-clean; `cohort-agile-wu-lifecycle.md` is conceptually
+      conformant but its member sections mis-flag as orphans under the backlog-scoped validator because all four
+      members have graduated to `active/` / `completed/`. That is a known validator lifecycle-gap (graduated vs.
+      removed), captured at `USER-INBOX` § Backlog → `operational-state-docs` and a No-go to fix in this WU.
+- `[x]` `draft-arc-plan-conductor.md` carries no `## Scope`-header or `minimum`/`standard`/`expanded` references
   and speaks in `Class` + `planning depth`.
-- `[ ]` `decomposition-machinery`'s graduation-workflow doc reflects the manual-run steps; the worked-example
+- `[x]` `decomposition-machinery`'s graduation-workflow doc reflects the manual-run steps; the worked-example
   writeup exists.
-- `[ ]` The commit / PR surface-language register is recorded in `DEV-RULES.ARC` § Documentation Boundaries.
-- `[ ]` `draft-design.md`'s commit-template `Context:` line validates against the `commit-msg` hook
+- `[x]` The commit / PR surface-language register is recorded in `DEV-RULES.ARC` § Documentation Boundaries.
+- `[x]` `draft-design.md`'s commit-template `Context:` line validates against the `commit-msg` hook
   (`graduate-work-unit.md`'s `(graduation)` is routed to `rules-restructure`).
-- `[ ]` Markdown lint passes with zero violations across the changed surface; both copies (package source +
+- `[x]` Markdown lint passes with zero violations across the changed surface; both copies (package source +
   `.arc/`) are consistent.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
 
 ---
 
