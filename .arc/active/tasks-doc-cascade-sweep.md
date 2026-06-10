@@ -195,20 +195,28 @@ manual graduation, and the commit/PR language register. Satisfies Decisions 5, 6
       activation. Spec Decision 6 + the matching Success Criterion were reconciled to the broadened scope. Single
       file, one copy.
 
-### `[ ]` **3.2 Bring cohort docs into conformance with the `cohort-{name}.md` record shape**
+### `[x]` **3.2 Bring cohort docs into conformance with the `cohort-{name}.md` record shape**
 
 - _Goal:_ all three `backlog/planned/**` cohort docs satisfy `decomposition-machinery`'s three-condition invariant
   (field ↔ dir path-match; constitutive-doc + `Purpose` floor; per-member slugs ⊆ derived members).
 
-    - `[ ]` **3.2.a `cohort-agile-parallelism.md`** — replace the prose H1 with the backticked slug; retire the
-      roster-style "Membership and ownership map" in favour of the derived-membership partition.
+    - `[x]` **3.2.a `cohort-agile-parallelism.md`** — backticked the H1, added the `**Purpose:**` floor, and retired
+      the roster-style "Membership and ownership map"; membership now rests on the derived `Cohort` field (per-member
+      ownership already lives in the cross-cutting design-spine §, so nothing of record was lost). Validator-clean
+      standalone. No `## Members` slug sections added — they would trip condition (c) at commit unless the member
+      metas are co-staged, and the template makes per-member sections optional.
 
-    - `[ ]` **3.2.b Audit `cohort-principle-anchored-core.md` + `cohort-agile-wu-lifecycle.md`** — both already
-      use backticked-slug H1s (likely conformant); verify the `Purpose`-floor and derived-membership conditions
-      and conform any residual divergence.
+    - `[x]` **3.2.b Audit `cohort-principle-anchored-core.md` + `cohort-agile-wu-lifecycle.md`** —
+      `cohort-principle-anchored-core.md` is validator-clean as-is (no change). `cohort-agile-wu-lifecycle.md` left
+      unchanged: conceptually conformant (canonical H1, `Purpose` floor, `## Members` partition), but all four of its
+      members have graduated out of `backlog/planned/`, so the backlog-scoped validator mis-flags them as orphans —
+      unfixable in this WU's scope (the validator is `decomposition-machinery`'s, a No-go to re-open here).
 
-    - _Note:_ `decomposition-machinery` already conformed its own member section; the validator is staged-scoped,
-      so verify each by staging against it (no flag = conformant).
+- _Outcome:_ The audit surfaced a designed-but-unreconciled lifecycle gap in dm's cohort validator: it derives
+  membership from co-located `backlog/planned/` metas, but members relocate out as they activate/ship, so it
+  conflates a _graduated_ member with a _removed_ WU. Captured to `operational-state-docs` (lifecycle-complete
+  membership resolver → validator fix + cohort-doc archival-trigger) rather than worked around. Net: only the
+  prose-era diverger needed conforming; the other two were resolved by audit.
 
 ### `[ ]` **3.3 Codify the manual graduation as a worked example**
 
