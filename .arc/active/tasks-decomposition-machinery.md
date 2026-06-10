@@ -403,36 +403,31 @@ ordinal — neither applies). Hook script is two-copy (package source + `.arc/` 
 
 _Anchors:_ E1, E2; SC6.
 
-### `[ ]` **5.1 Build the cohort-consistency validator (the three conditions)**
+### `[x]` **5.1 Build the cohort-consistency validator (the three conditions)**
 
 - _Goal:_ A `validate-cohort-consistency` validator implements the three-condition invariant over
   `backlog/planned/**` — (a) a WU's `Cohort` path-matches its parent dir-path; (b) every grouping dir carries a
   `cohort-{name}.md` with at least a Purpose floor; (c) a cohort doc's per-member section slugs are a subset of
   derived members — returning structured diagnostics and doubling as the cohort doc's schema validator.
-- _Approach:_ A new `src/scripts/validate-cohort-consistency.ts` (the `validateFiles` shape) plus a supporting
-  `src/lib/active/` module for the cross-file checks, consuming `cohort-path.ts` (`validateCohortPath` /
-  `cohortLeaf` / `COHORT_SEGMENT_CAP`) and `meta-reader.ts` (`parseMetaRecord` / `parseIdentifierList`).
-- _Note:_ Complements — does not duplicate — `validate-meta-spec.ts`'s existing `validateCohort` (CHECK 16), which
-  validates the single-meta `Cohort` field _shape_ (≤2-segment path). This validator assumes shape-validity and
-  checks _cross-file_ consistency (field↔dir, doc presence, orphan sections), reusing the same `cohort-path.ts`
-  helpers.
-- **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **5.1.a `Cohort` field↔dir path-match (nested + drift cases)**
+    - `[x]` **5.1.a `Cohort` field↔dir path-match (nested + drift cases)**
+        - Path-match derives the cohort dir from the meta's own location (the segments between `planned/` and the
+          WU's own subdir) and compares it to the normalized `Cohort` field. Covered: single-segment match, nested
+          two-segment match, drift (filed under one cohort, field names another), and a `[none]` standalone WU.
 
-        - Build `test-first` (one behavior at a time):
-            - passes when a WU's `Cohort` equals its `backlog/planned/<cohort>[/<subcohort>]/` parent dir-path
-            - nested `<cohort>/<subcohort>` path-matches the two-segment dir
-            - drift fails — a WU assigned to one cohort but filed under another
-            - a `[none]` / standalone WU (no cohort dir) passes
+    - `[x]` **5.1.b Cohort-doc schema checks — constitutive-doc presence, Purpose floor, orphan sections**
+        - Grouping dirs (every cohort dir plus every ancestor prefix) must each carry a `cohort-<leaf>.md`; each
+          doc needs a non-empty `**Purpose:**` floor; `## Members` section slugs must be ⊆ field-derived members.
+          Covered: missing-doc (incl. a nested prefix), Purpose floor, orphan section, member-without-section
+          passes, plus a filename↔dir naming check.
 
-    - `[ ]` **5.1.b Cohort-doc schema checks — constitutive-doc presence, Purpose floor, orphan sections**
-
-        - Build `test-first` (one behavior at a time):
-            - every grouping dir carries a `cohort-{name}.md`; a missing doc fails
-            - a cohort doc without a Purpose paragraph fails (the schema-validator role)
-            - an orphan per-member section (slug ∉ derived members) fails
-            - a derived member with no section passes (sections are a subset, not a roster)
+- _Outcome:_ New `src/scripts/validate-cohort-consistency.ts` (`validateFiles` / `classifyPath`) over a new
+  `src/lib/active/cohort-consistency.ts` (the cross-file model + the three checks); 11 unit tests. The validator
+  treats its **input file set as the universe** — membership and doc presence derive only from the files passed
+  in, so it reasons over a staged delta and never audits the live backlog (the contract 5.2's candidate filter
+  must feed). Membership keys on the `Cohort` field value, so orphan-section detection survives concurrent
+  path-match drift. Consumes `meta-reader.ts`'s `parseMetaRecord`; the planned `cohort-path.ts` shape helpers
+  stayed unused — single-field shape validity is `validate-meta-spec.ts` CHECK 16's job, assumed here.
 
 ### `[ ]` **5.2 Wire the validator into pre-commit + integration coverage**
 
