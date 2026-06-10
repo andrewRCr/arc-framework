@@ -253,20 +253,10 @@ and merge
 
 ## Incidental Work Management
 
-### Quick Decision Guide
-
-When work surfaces that should be fixed, decide atomic vs. task list:
-
-- **Atomic task** (or fix inline): single coherent concern; sequential steps toward one goal; bounded scope.
-- **Incidental task list**: multiple distinct phases with different goals; discovery-heavy scope; 2+ hours.
-
-For the full decision tree, see [manage-incidental-work.md][manage-incidental].
-
-### Where to Capture Atomic Tasks
-
-Routing depends on lifecycle intent — during this WU, fold into the commit or spin an Errand;
-for later, capture in `USER-INBOX § Atomic` (PM-mode-dependent). See [DEV-RULES.ARC][dev-rules-arc]
-§ Discovered Work Routing for the full routing table.
+When work surfaces mid-task that should be fixed, route it by urgency × isolation — fix inline
+(same concern), run an Errand (out-of-WU), or capture to `USER-INBOX` for later. See
+[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing for the full decision table: the
+atomic-vs-multi-step call, capture routing, and where captures drain.
 
 ### Atomic Task Completion
 
@@ -289,11 +279,6 @@ summary, or diff sample), then end with the structured prompt — `Commit and pr
 <next-target>?` (releasing) or `Proceed?` (manual). The affirmative covers both work AND commit.
 Informal mid-discussion approval ("ok", "looks good") does not release commit.
 
-### Complete Workflow
-
-**For full incidental work lifecycle** (creation, execution, archival), see:
-**→ [manage-incidental-work.md](supplemental/manage-incidental-work.md)** ← Complete workflow documentation
-
 ## Task List Maintenance
 
 ### Session-Scoped Tracking vs Task List Files
@@ -311,7 +296,6 @@ updates**. Always update the task list file before reporting completion.
 [quality-gates]: ../../../reference/strategies/arc/strategy-quality-gates.md
 [config-arch]: ../../../reference/strategies/arc/strategy-configurability-architecture.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
-[manage-incidental]: supplemental/manage-incidental-work.md
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
 [arc-ext-unit-quality]: ../../extensions/post-unit-quality.md

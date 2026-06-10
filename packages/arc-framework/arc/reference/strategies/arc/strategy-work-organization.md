@@ -954,12 +954,9 @@ read for a fast offline view; the ready slice is unaffected.
 
 ## Incidental Work Model
 
-Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and
-mid-execution interrupts requiring their own WU shape — follows the routing rules in
-[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing. For mid-execution interrupts that warrant
-a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt protocol;
-capture interrupt work on the current branch with clear commit boundaries separating
-interrupt commits from primary task commits.
+Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and larger
+out-of-WU concerns — follows the routing rules in [DEV-RULES.ARC][dev-rules-arc] § Discovered Work
+Routing.
 
 **Anti-rider, briefly.** Whether a discovered fix may ride the current change is a
 *concern-identity* test, not a file-identity one: a same-concern micro-cleanup in a file you're
@@ -1257,7 +1254,6 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
-[manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md
 [commit-footer-method]: ../../../system/methods/commit-footer.md

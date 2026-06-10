@@ -11,7 +11,6 @@ checklist, see [2_generate-tasks.md § Finalize the task list][generate-tasks].
 **Referenced by:**
 
 - [2_generate-tasks.md][generate-tasks] — planned work
-- [manage-incidental-work.md][manage-incidental] — reactive incidental work
 
 ## Contents
 
@@ -26,9 +25,9 @@ checklist, see [2_generate-tasks.md § Finalize the task list][generate-tasks].
 
 ## Task List Headers
 
-Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
+See [`template-tasks.md`][template-tasks] for skeletons.
 
-**Planned** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
+**Task List** (`# Task List: {Name}`) — work with an upstream spec artifact (PRD by default):
 
 - Title uses `Task List:` prefix
 - `**Design:**` names the upstream spec artifact (filename only) — single header field per the
@@ -36,19 +35,8 @@ Two variants. See [`template-tasks.md`][template-tasks] for skeletons.
   Headers][work-org-wu-headers] for the full chain rationale and Spec field generalizability
 - Horizontal rule (`---`) separates header from tasks
 
-**Incidental** (`# Incidental: {Title}`) — reactive work discovered during implementation:
-
-- Title uses `Incidental:` prefix
-- `Base Branch` is the parent branch this branched from (enables grep-based discovery of
-  related work)
-- `## Context` — `**Discovered:**` / `**Problem:**` / `**Why Now:**` — captures discovery
-  framing in lieu of an upstream spec (incidental is its own spec)
-- `## Scope` (`### Will Do` / `### Won't Do`) is retained — no PRD to canonicalize from
-- Lifecycle state (`**State:**`, the 4-state lifecycle) lives in the WU's `meta-{name}.md`, not the task
-  list header — see [strategy-work-organization.md § Work Unit State][work-org-state]
-
-Both variants: Success Criteria section at the bottom; optional sections (Architecture Patterns,
-Current State, Testing Strategy) only when the work needs them.
+Success Criteria section at the bottom; optional sections (Architecture Patterns, Current State,
+Testing Strategy) only when the work needs them.
 
 ---
 
@@ -402,18 +390,15 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 
 - [DEV-RULES.ARC](../../../system/rules/DEV-RULES.ARC.md) — test-first assessment
 - [2_generate-tasks.md][generate-tasks] — planned work + pre-save format checklist
-- [manage-incidental-work.md][manage-incidental] — incidental work lifecycle
 - [3_process-task-loop.md][process-task-loop] — task execution workflow
 
 ---
 
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [generate-tasks]: ../../../system/workflows/arc/2_generate-tasks.md
-[manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [process-task-loop]: ../../../system/workflows/arc/3_process-task-loop.md
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
 [team-coordination]: strategy-team-coordination.md
-[work-org-state]: strategy-work-organization.md#work-unit-state
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers

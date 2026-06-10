@@ -16,10 +16,6 @@ Reverses an activation when no task work has executed and nothing has merged. Tw
 **When to use:** A WU was activated, but circumstances changed before any task execution — priorities shifted, the
 design needs rework, the feature was cancelled. The activation itself is the only thing to undo.
 
-> **Interrupted parent WU:** If the WU being deactivated is interrupting another WU (per
-> [`manage-incidental-work.md`][incidental]), deactivation must also resume the paused parent — see
-> [`manage-incidental-work.md`][incidental] for the paired protocol.
-
 ---
 
 ## Case Matrix
@@ -230,5 +226,4 @@ Deactivation has no session-level next action. The developer decides what follow
 [activate]: activate-work-unit.md
 [integrate]: integrate-work-unit.md
 [branch-format]: ../../../methods/branch-format.md
-[incidental]: ../supplemental/manage-incidental-work.md
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

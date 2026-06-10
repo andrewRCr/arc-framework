@@ -204,7 +204,6 @@ arc-in-git files are annotated explicitly.
 - `system/workflows/arc/supplemental/clean-work-unit.md`
 - `system/workflows/arc/supplemental/integrate-external-content.md`
 - `system/workflows/arc/supplemental/maintain-project-docs.md`
-- `system/workflows/arc/supplemental/manage-incidental-work.md`
 - `system/workflows/arc/supplemental/prepare-commits.md`
 - `system/workflows/arc/supplemental/verify-arc-integrity.md`
 - `system/workflows/arc/work-unit-lifecycle/activate-work-unit.md`

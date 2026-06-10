@@ -440,11 +440,6 @@
       "layer": "core",
       "pristine_hash": "f56b5c163b34d5c742a97df7cc52ba355db7aecb8b218be81498a6ae4c972b41"
     },
-    "system/workflows/arc/supplemental/manage-incidental-work.md": {
-      "classification": "Framework",
-      "layer": "core",
-      "pristine_hash": "aacdf3551d08203354d13a021504d2b625a679006b6c0126d0d0a5a2e8f0d89c"
-    },
     "system/workflows/arc/supplemental/prepare-commits.md": {
       "classification": "Framework",
       "layer": "core",

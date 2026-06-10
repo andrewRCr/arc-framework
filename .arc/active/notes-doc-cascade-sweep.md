@@ -2,12 +2,76 @@
 
 ## Contents
 
+- Incidental concept-site map (Task 1.1) — vetted retire/keep mapping
 - Documentation cascade — granular per-file / per-section edit map
 - `arc-plan-conductor` write-back — specifics
 - Manual-graduation codification — what the run surfaced
 - Copy mechanics — template/render pairs vs. plain both-copies
 
 ---
+
+## Incidental concept-site map (Task 1.1)
+
+Vetted enumeration of the `incidental` footprint across the **in-scope live surfaces** (workflows, methods,
+strategies, briefs, `QUICK-REFERENCE`, templates — Success Criterion 1's scope). `completed/**`, `backlog/**`
+drafts, `reference/adr/**`, `reference/supplemental/**`, and this WU's own artifacts are out of scope (frozen
+history / internal records) and excluded — they account for ~500 of the ~560 raw two-copy hits.
+
+Per-hit test: does the site frame `incidental/` as a **distinct work-unit shape** (retire), or is it the
+ordinary-English sense — a fix/commit/concern that surfaced incidentally (keep)? Disposition codes: **KEEP**
+(ordinary-English, untouched); **RETIRE** (WU-shape / pause-pointer residue, edited in Task 1.1.b); **PHASE 2**
+(`strategy-work-organization` heaviest residue — flagged here, edited in Phase 2 per Task 1.1.b); **DECISION**
+(needs sign-off — see below). Edits land in **both copies** unless marked `.arc`-only.
+
+| File (both copies unless noted) | Line(s) | Snippet | Sense | Disposition |
+| --- | --- | --- | --- | --- |
+| `AGENT-BRIEF.ARC` | 51 | "off-task / incidental, workflow stages" | ordinary | KEEP |
+| `strategy-interlock-release-wrappers` | 116 | "zero-friction posture on incidentals" | ordinary | KEEP |
+| `strategy-quality-gates` | 124 | "incidental fixes, atomic tasks" | ordinary (incidental fix) | KEEP |
+| `commit-footer` | 37, 38, 48, 78 | `Context: … (incidental during X)` | ordinary (live commit-context category) | KEEP |
+| `commit-format` | 62 | `(incidental during ...)` parenthetical | ordinary (live context category) | KEEP |
+| `DEV-RULES.ARC` | 72 | "Off-workflow / incidental commits" | ordinary | KEEP |
+| `strategy-task-list-formatting` | 104 | "incidentally-bracketed prose in titles" | ordinary (adverb) | KEEP |
+| `session-handoff` | 407, 413 | "note incidental work separately" / "Incidental: Fixed…" | ordinary | KEEP |
+| `3_process-task-loop` | 284, 286 | "### Incidental Commit Discipline" / "off-workflow / incidental commits" | ordinary (live) | KEEP |
+| `3_process-task-loop` | 2 | frontmatter purpose "…incidental work routing" | ordinary, but verify after redirect | KEEP/verify |
+| `strategy-task-list-formatting` | 14, 39–45, 405, 412 | the `Incidental` (`# Incidental: {Title}`) task-list **form** — "incidental is its own spec" + `manage-incidental` links | concept (task-list form as own-spec WU shape) | RETIRE |
+| `2_generate-tasks` | 344 | "Incidental retains `## Context` + `## Scope` (it is its own spec)" | concept | RETIRE |
+| `template-meta` | 101–102 | `Interrupts:`/`Paused At:`/`Paused To:` substrate + "retired with the broader incidental-model reform" note | pause residue + what-was note | RETIRE |
+| `deactivate-work-unit` | 20–21, 233 | "resume the paused parent — see `manage-incidental-work.md`" | pause-pointer residue | RETIRE/redirect |
+| `prepare-commits` | 136 | "Branch model — naming, incidental routing, merge" | pointer to retired branch-model incidental routing | RETIRE-light (update pointer) |
+| `strategy-package-project-sync` (`.arc`-only) | 207 | dependency-map row for `manage-incidental-work.md` | consequence of file disposition | DECISION-coupled |
+| `strategy-work-organization` | 4, 30, 413, 955, 960, 1130, 1135, 1172, 1260 | "Incidental Work Model" §, TOC entry, "incidental task lists may live alongside…", the cross-cutting matrix prose, `manage-incidental` link | concept (strategy home of the model) | PHASE 2 |
+| `strategy-work-organization` | 285 | "rather than an incidental parent" | ordinary | KEEP (in Phase-2 file) |
+| `manage-incidental-work.md` (+ pkg mirror) | whole file (14 hits) | entire workflow built on `.arc/active/incidental/` dirs, `incidental/<name>` branches, incidental-task-list-as-own-spec, interrupt/pause-parent | concept (the WU-shape model itself) | **DECISION** |
+| `3_process-task-loop` | 254, 261, 263, 294, 295, 314 | "## Incidental Work Management" decision guide ("incidental task list") + "manage-incidental-work.md" pointers + link-def | concept (points at the retired workflow) | **DECISION**-coupled |
+
+### Decision (resolved): retire `manage-incidental-work.md`, no replacement
+
+**Resolved — Option A (retire & redirect), no successor workflow.** The file is an entire live workflow embodying
+the **retired** `incidental/`-as-WU-shape model (`.arc/active/incidental/` dirs, `incidental/<name>` branches,
+"incidental task lists as their own spec," interrupt/pause-parent coordination). It surfaced as new scope — the
+planned cascade map below never listed it. Every function it served is already homed under the current model, so
+no replacement is built:
+
+- **Routing decision** → DEV-RULES.ARC § Discovered Work Routing — behavioral/constitutional, correctly
+  always-loaded; not extracted to an on-demand doc.
+- **Each route's execution** → `arc-inbox` (capture), `run-errand` / `arc-errand` (errand), housekeep +
+  `init-work-unit` (multi-step graduation).
+- **"Branch without a work unit"** (its full-protection atomic-on-own-branch case) → the Errand (`chore/<slug>`).
+- **Parent pause/resume** → retired under worktree isolation (the parent never pauses). Park/resume is a real
+  future need but is owned downstream by the arc-plan conductor (§ 20) — deliberately NOT homed here, to avoid a
+  premature duplicate home.
+
+The only on-contact substance a successor could hold was the incidental-task-list mechanics — exactly what is
+being deleted — so a thin router doc earns nothing beyond what DEV-RULES + the route executors already provide.
+
+**1.1.b actions:** delete `manage-incidental-work.md` (both copies); slim `3_process-task-loop` § Incidental Work
+Management to a pointer to DEV-RULES § Discovered Work Routing (keep § Incidental Commit Discipline + the
+atomic-task-completion reorder protocol — both process-loop-specific); retire the `Incidental` task-list form
+(`strategy-task-list-formatting`, `2_generate-tasks:344`); strip the pause-parent pointer (`deactivate-work-unit`)
+and `Interrupts:`/`Paused At:` residue (`template-meta`); drop the `manage-incidental` link-defs + the
+`strategy-package-project-sync` dependency-map row. `strategy-work-organization` deferred to Phase 2.
 
 ## Documentation cascade — granular per-file / per-section edit map
 
