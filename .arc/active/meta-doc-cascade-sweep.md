@@ -11,12 +11,12 @@
 - **Design:** `spec-doc-cascade-sweep.md`
 - **Task List:** `tasks-doc-cascade-sweep.md`
 
-- **Last Completed:** Task 2.5 — `Class`-awareness in quality-gate-commands (Phase 2 complete)
-- **Next Task:** Task 3.1 — Retire stale vocabulary in `draft-arc-plan-conductor.md` (line ~178)
+- **Last Completed:** Task 3.1 — Realign `arc-plan-conductor` draft to shipped `Class` / `planning depth` model
+- **Next Task:** Task 3.2 — Bring cohort docs into conformance with the `cohort-{name}.md` record shape (line ~198)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — strip the retired `atomic` / `quick` / `standard` tier vocabulary and the
-  quick-tier `## Scope`-header claim from the conductor draft (stale-vocab retirement only; the deeper model
-  realignment stays the conductor WU's own, per its inbound buffer). Single file, one copy.
+- **Next Action:** Begin Task 3.2 — bring the three `backlog/planned/**` cohort docs into conformance with
+  `decomposition-machinery`'s three-condition invariant (`cohort-agile-parallelism.md` is the known diverger;
+  audit the other two). Verify by staging each against the validator (no flag = conformant).
 
 ---
