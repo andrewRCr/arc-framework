@@ -11,14 +11,13 @@
 - **Design:** `spec-decomposition-machinery.md`
 - **Task List:** `tasks-decomposition-machinery.md`
 
-- **Last Completed:** Phase 4 complete — `decompose-work-unit` lifecycle workflow authored (park-shaped WU→cohort
-  transform: the D2 step sequence, field inheritance + dependency-edge-by-need, the four-step conservation gate +
-  incoming-`Depends On` sweep, three parent-position arms, named extractable blocks, predicted/emergent arms);
-  spec D8's stale integrate-teardown premise corrected
-- **Next Task:** Task 5.1 — Build the cohort-consistency validator (the three conditions) (line ~406)
+- **Last Completed:** Phase 5 complete — cohort-consistency validator (`validate-cohort-consistency`: the three
+  conditions — field↔dir path-match, cohort-doc Purpose floor, orphan-section subset) wired as pre-commit CHECK 18
+  across both hook copies, with unit + integration coverage
+- **Next Task:** Task 6.1 — Complete verification (line ~455)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — build the `validate-cohort-consistency` validator (Phase 5; mode shifts from
-  doc-authoring to code / test-first) via `3_process-task-loop.md`.
+- **Next Action:** Begin Phase 6 — load and follow `verify-work-unit.md` (Task 6.1); all implementation phases
+  (1–5) are complete, so verification then integration remain.
 
 ---
