@@ -95,34 +95,34 @@ _Design decisions:_ The canonical `active/`-is-flat statement (what + why) lives
 because the "why" (one WU per worktree) is a work-organization truth; `file-classification` and `QUICK-REFERENCE`
 state the _what_ and defer. Full per-file edit map in `notes-doc-cascade-sweep.md` § Documentation cascade.
 
-### `[ ]` **2.1 Reconcile `strategy-work-organization.md` against the shipped model and the flat `active/` layout**
+### `[x]` **2.1 Reconcile `strategy-work-organization.md` against the shipped model and the flat `active/` layout**
 
 - _Goal:_ work-organization's `Class` / cohort / sizing / branches sections read coherently against the shipped
   model, residual tier-era phrasing is swept, and the single canonical `active/`-is-flat statement is present.
 
-- _Note:_ `## Class Model`, `## Cohorts` + the `cohort-{name}.md` record, `## WU sizing standard`,
-  `## Task Lists and Branches`, `## Spec-Flow Invariants`, and `### Escape-hatch` already exist (landed by
-  `class-model-foundation` + `decomposition-machinery`) — this is verify-coherence + sweep, not build-from-scratch.
+    - `[x]` **2.1.a Verify § Class Model / § Spec-Flow Invariants / § Escape-hatch read coherently** — already
+      coherent against the `light`/`heavy`/`novel` model; no tier-era residue (`tier` hits are ROADMAP tiers,
+      `standard` hits are "render/sizing standard"). No edits.
 
-- _Notes:_ See `notes-doc-cascade-sweep.md` § Documentation cascade for the section-by-section map.
+    - `[x]` **2.1.b Verify § WU sizing standard + § Cohorts grouping convention** — sizing co-home and the
+      derived-membership cohort-doc convention read coherently; nothing to sweep.
 
-    - `[ ]` **2.1.a Verify § Class Model / § Spec-Flow Invariants / § Escape-hatch read coherently** — sweep
-      residual intent-level / tier phrasing; confirm the cohort's model is named as the `Class`-classification home.
+    - `[x]` **2.1.c § Task Lists and Branches — already Model-B-only** — the stacked-PR (262) and team-sub-branch
+      (410/421) mentions are correct current-model framing, not pre-ADR-019 leftovers; removed only the retired
+      "Incidental task lists may live alongside…" branch-scope clause.
 
-    - `[ ]` **2.1.b Verify § WU sizing standard + § Cohorts grouping convention** — confirm the sizing co-home and
-      the cohort-doc grouping convention (shared with Concurrent Work Conventions + file-classification) read
-      coherently; sweep residual phrasing.
+    - `[x]` **2.1.d Canonical `active/`-is-flat statement + nested-`active/` path corrections** — the canonical
+      statement already lived in § Directory Structure; strengthened it with the "concurrency = more worktrees, not
+      more metas" _why_. Corrected the 5 nested-`active/` sites (§ Source of truth line 764 + the 4 regeneration
+      fire-points); left `backlog/`/`completed/` nesting and the recursive render-walk intact.
 
-    - `[ ]` **2.1.c § Task Lists and Branches — sweep to Model-B-only** — clear any residual stacked-PRs / phased /
-      team-sub-branch pre-ADR-019 leftovers; coordinate with `decomposition-machinery`'s flagged reconciliation
-      debt.
-
-    - `[ ]` **2.1.d Author the canonical `active/`-is-flat statement, and correct the nested-`active/` paths** —
-      state _what_ (flat) and _why_ (one WU per worktree; concurrency = more worktrees, not more metas in one
-      `active/`). Correct the `active/` path templates (`active/**/<wu-name>/meta-<name>.md` → `active/meta-<name>.md`,
-      line ~764) and the lifecycle-transition paths (`active/<wu>/` → `active/`, lines ~867–876). **Leave
-      `backlog/planned/**` nested** (cohort-wrapped) and **keep the recursive render-walk** — the nesting is real
-      there; only `active/` is flat.
+- _Outcome:_ The Class / cohort / sizing / spec-flow / branches sections were already coherent against the shipped
+  model — zero tier-era residue — so the substantive edits were narrower than "reconcile" implies: the 5
+  nested-`active/` path corrections, a strengthened single canonical flat-`active/` statement (§ Directory
+  Structure), and the incidental-concept retirement. Per spec Decision 1, § Incidental Work Model was reframed to a
+  short pointer **§ Discovered Work During a WU** (redirect to DEV-RULES § Discovered Work Routing), with the TOC
+  entry, the line-413 incidental-task-list clause, and the docs-site topic reference (line 4) swept. Both copies
+  synced.
 
 ### `[ ]` **2.2 Correct `strategy-file-classification.md` to flat `active/`**
 
