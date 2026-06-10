@@ -167,6 +167,64 @@
   can rise again — TTL becomes purely a merge-correctness knob (sized to the merge-window staleness horizon), not
   a legibility constraint.
 
+### `[ ]` **CLI primitive: resolve a WU's lifecycle state by slug**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during
+  `doc-cascade-sweep` draft-design.
+- _Concern:_ planning and other workflows repeatedly need to know a referenced WU's lifecycle state
+  (shipped / active / parked / planning / provisional) cheaply and deterministically; today the answer is ad-hoc
+  `find`/`ls` across `active/`, `backlog/**`, and `completed/**`. This hit live three times in one
+  `doc-cascade-sweep` planning session while resolving whether `scalable-authoring-pipeline`,
+  `decomposition-machinery`, `work-routing-discipline`, and `naming-conventions` had shipped. It directly serves
+  this WU's "planning grounds-reads / session-init surfaces" arms and the `Depends On`-edge state-blindness pain.
+- _Approach:_ expose a slug → state resolver as a CLI primitive, composing the existing
+  `lib/work-unit/completed-index.ts` + `lib/active/meta-reader.ts` plus `roster` /
+  `materializable-work-units`. Return a **state enum**, not a boolean — `provisional` / `planning` / `active` /
+  `parked-in-backlog` / `shipped` — so ROADMAP dep de-emphasis, in-flight-scope-check, and materialize all reuse
+  it; `shipped?` is a trivial projection. Resolve by **location** first (presence under `completed/` = shipped;
+  `active/` = active; etc.) as the authoritative ground-truth signal, and the meta `**State:**` field second,
+  since the field can lag the directory (same Axis-1 git-is-truth logic session-init uses).
+- _Scope:_ routed here rather than folded into `doc-cascade-sweep` because it is CLI code + tests, a distinct
+  concern from the Light doc-sweep.
+
+### `[ ]` **Lifecycle-complete cohort membership — graduated-vs-removed validator fix + cohort-doc archival loop**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during `doc-cascade-sweep`
+  Task 3.2 cohort-doc conformance audit.
+- _Concern:_ the cohort-consistency validator (`decomposition-machinery`, shipped) derives membership from
+  co-located `backlog/planned/` metas in the staged delta, but members **relocate out** of the cohort dir as they
+  activate (→ flat `active/`) and ship (→ `completed/`). The membership universe shrinks as the cohort matures, so
+  a cohort doc edited late flags every graduated member section as an orphan. Root conflation: **"graduated
+  member" is indistinguishable from "removed WU"** to a backlog-scoped check (the dm spec line 260 literally says
+  orphans catch "a renamed/removed WU" — graduation looks identical). Hit live 2026-06-10 auditing
+  `cohort-agile-wu-lifecycle.md` for `doc-cascade-sweep`: all four members (`class-model-foundation` /
+  `scalable-authoring-pipeline` / `decomposition-machinery` shipped, `doc-cascade-sweep` active) flagged as
+  orphans — unfixable in that WU's scope. The authoritative membership is the position-independent `Cohort` field
+  resolved across **all** lifecycle states, not dir co-location in a staged backlog snapshot; the two agree at
+  planning time and silently diverge the moment a member activates.
+- _Related:_ sibling of this WU's captured "CLI primitive: resolve a WU's lifecycle state by slug" and
+  "Dependency-edge lifecycle semantics" items — same state-blindness family, same index machinery
+  (`completed-index` + active `meta-reader` + backlog scan). Build the resolver once; don't double-build.
+- _Approach:_ one primitive resolves all three:
+    1. **Lifecycle-complete cohort-membership resolver** — the set of WUs whose `Cohort` field resolves to a
+       cohort path, across `backlog/planned/` + `active/` + `completed/`. Shared infra under
+       `operational-state-docs`.
+    2. **Validator fix (condition c):** a member-section slug is an orphan only if it resolves to **no** lifecycle
+       state (genuinely renamed/removed); a slug resolving to an active/completed WU with a matching `Cohort` field
+       is a graduated member → not flagged. Distinguishes graduated from removed. Cost guard: keep the hermetic
+       staged-delta path for the common case; resolve only the _graduated_ slugs (absent from the staged set) via
+       the index — cohort membership is small.
+    3. **Archival-trigger wiring:** "cohort doc archives to `completed/` when the last member ships"
+       (dm spec C5, lines 277-279/336) needs the same resolver — when shipping a member, check whether any
+       _other_ member (by `Cohort` field, any state) is not yet in `completed/`; if none, `git mv` the cohort doc
+       to `completed/` in that archival. Closes the loop so the doc never strands. Wire into
+       `integrate-work-unit.md` / archival.
+- _Scope:_ codify the conceptual rule the gap exposed: **a cohort dir is its doc's home until cohort completion,
+  independent of where its members are**; "no co-located backlog members" is the _fully-activated cohort_ (a valid
+  mature state), not breakage. Do **not** relocate the doc on last-member-_activation_ — `active/` is flat by design
+  (no cohort home), and relocating there would fight the flat-`active/` invariant. Relocation happens once, at
+  last-member-_ship_ (already dm's design).
+
 ---
 
 ## Purpose

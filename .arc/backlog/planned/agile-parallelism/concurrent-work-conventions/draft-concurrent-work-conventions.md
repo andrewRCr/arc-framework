@@ -106,6 +106,42 @@ size**; solo is the degenerate case.
 - *Also:* explicitly surface CI / merge failures for both manual-merge and auto-merge cases so blocked integration
   is actively flagged at completion, not only rediscovered next session.
 
+### `[ ]` **Cross-machine rebase-shadow divergence — append-only-until-integration convention + detection**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during laptop `arc-session`
+  diagnosis and recovery of this exact divergence.
+- *Concern:* a shared WU branch rebased + force-pushed on one machine orphans every other machine that holds the
+  pre-rebase tip — a cross-machine hazard distinct from the cross-worktree case the WORKING-MEMORY note
+  "Multi-WU integration discipline — vanilla-git fallback" already covers. Hit live 2026-06-10:
+  `doc-cascade-sweep` was scaffolded + pushed from the laptop (2026-06-09); the primary then rebased the branch
+  onto an advanced `main` (PR #76 had merged) and force-pushed; the laptop fetch showed diverged (5 ahead / 18
+  behind). Forensics confirmed a rebase, not a re-scaffold: `git range-diff` reported `=` on all 5 scaffold
+  commits (byte-identical patches, re-parented), and the remote-tracking reflog showed `update by push` then
+  `fetch: forced-update`. Resolved losslessly via `git reset --hard origin/<branch>` + `arc user load`.
+- *Root cause:* divergence needs three ingredients, all present — (1) branch was pushed (another clone holds it),
+  (2) history was rewritten (rebase, not append), (3) the rewrite was force-pushed. A per-WU worktree removes none
+  of them (worktrees are machine-local); the rebase was optional, not forced by the errand that advanced `main`.
+- *Approach:* CWC should codify three things, prevention-first:
+    1. **Principle — a pushed WU branch is append-only until integration.** Mid-flight (activation → integration)
+       only add commits and fast-forward-push; never rebase/amend already-pushed commits — the branch is the
+       cross-machine sync substrate. Default: don't bring `main` into the WU branch mid-flight at all; defer
+       reconciliation to one terminal step. If a `main`-side change is genuinely needed mid-flight, **merge** `main`
+       in (ancestry-preserving, ff-able everywhere) — never rebase onto it. Integration is the single sanctioned
+       rewrite point (rebase-onto-`main` / squash is fine there: WU done, branch about to merge/retire, no other
+       machine resumes it). The rule is not "never rebase" but "never rewrite a branch still serving as a live
+       multi-machine sync target." Cross-machine resume is always `pull --ff-only` (or `arc sync`). This threads
+       the repo's linear-history preference (rebase-onto-`main` endorsed at integration in WORKING-MEMORY) with
+       multi-machine safety.
+    2. **Worktrees are the enabling hygiene, not the guarantee.** A per-WU worktree tracking its own upstream
+       removes the *occasion* for the mid-flight rebase (you're never sitting on `main` "freshening" the WU) but
+       cannot *prevent* a rebase + force-push. Convention + worktrees together = robust.
+    3. **Backstop (secondary to prevention) — rebase-shadow detection in session-init's `diverged` handler.** When
+       local-ahead commits are patch-equal to a remote prefix (patch-id / range-diff check), downgrade the generic
+       "manual rebase or merge needed" to "local commits are superseded by rebased equivalents on the remote —
+       reset is lossless" and offer the reset. Optional guard: warn before force-pushing an in-flight WU branch.
+- *Scope:* convention/doc work lands in CWC's draft/spec; the session-init rebase-shadow detection is a separable
+  follow-on (CWC may own or hand off) — note the seam at drain.
+
 ## Delivery plan & parked status (2026-06-03)
 
 > **Parked at terminal planning.** The draft below is design-settled; what remains is *delivery*, which is
