@@ -461,6 +461,14 @@ not in the artifact body.
 - "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
   workflow state, not reader-relevant for reviewing the change
 
+### Commit and PR surface language
+
+Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge:
+backticked artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a
+load-bearing term (a `Class` value, a named internal procedure) is not. Traceability — task IDs,
+phases, lifecycle action — routes to the `Context:` footer; the prose carries the change.
+Illustrative, not exhaustive.
+
 ---
 
 ## When to Load Additional Guidance

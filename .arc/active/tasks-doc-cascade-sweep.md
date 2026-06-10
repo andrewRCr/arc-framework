@@ -218,26 +218,28 @@ manual graduation, and the commit/PR language register. Satisfies Decisions 5, 6
   membership resolver → validator fix + cohort-doc archival-trigger) rather than worked around. Net: only the
   prose-era diverger needed conforming; the other two were resolved by audit.
 
-### `[ ]` **3.3 Codify the manual graduation as a worked example**
+### `[x]` **3.3 Codify the manual graduation as a worked example**
 
 - _Goal:_ `decomposition-machinery`'s graduation-workflow doc reflects the steps the manual run surfaced, and the
   worked-example writeup exists.
 
-- _Notes:_ See `notes-doc-cascade-sweep.md` § Manual-graduation codification (field-inheritance step,
-  member-slug naming heuristic).
+- _Outcome:_ Verify-and-confirm — `decomposition-machinery` already codified against this cohort's own manual run
+  at ship (its spec D9 hands the post-hoc reconciliation here and names PR #55 as the worked example).
+  Reconciliation confirms both surfaced steps are present and correctly placed by ownership: field-inheritance in
+  `decompose-work-unit.md` Step 4, member-slug naming in `assess-cohort-fit.md` § Member-slug naming — nothing
+  missing or mis-ordered. The worked example exists as PR #55; no in-repo narrative authored (would be redundant,
+  and any actual-run writeup naming internal WUs is barred from the adopter-facing workflow by audience boundary).
 
-    - Reconcile the shipped graduation-workflow doc (`graduate-work-unit.md`; check `decompose-work-unit.md` too —
-      both copies in `work-unit-lifecycle/`) against this cohort's actual manual run (capture any step revealed as
-      missing or mis-ordered); add the worked-example writeup. The workflow itself is `decomposition-machinery`'s
-      deliverable — this WU contributes the post-hoc reconciliation only.
-
-### `[ ]` **3.4 Record the commit / PR surface-language register**
+### `[x]` **3.4 Record the commit / PR surface-language register**
 
 - _Goal:_ `DEV-RULES.ARC` § Documentation Boundaries carries the surface-language-register refinement.
 
-    - Add the refinement: commit / PR text reads as the operation performed, legible without ARC-specific
-      knowledge (concrete artifact references fine; insider vocabulary as load-bearing terms not); framed as a
-      starting point ARC refines over time, with PR #55 as the first worked example. Both copies.
+- _Outcome:_ Added a `### Commit and PR surface language` subsection to § Documentation Boundaries (both copies),
+  grouped with `Write for the reader`: prose reads as the operation performed, legible without ARC-specific
+  knowledge (backticked artifact refs fine; insider vocabulary as a load-bearing term not), with traceability
+  routed to the `Context:` footer. Held to ~5 lines — DEV-RULES.ARC loads every session. Two spec literals were
+  reframed for the adopter-facing audience boundary: PR #55 (internal-dev) is not cited, and "starting point ARC
+  refines over time" became "illustrative, not exhaustive" — same intent without the ARC-self-evolution voice.
 
 ## **Phase 4:** Workflow-file rename cascade
 
