@@ -26,7 +26,7 @@ executing them is `arc-session`'s.
      (existing stub, new stub, standalone errand, shared flush) resolves later at the drain.
    - **Infra smell (advisory, never a gate):** if an `## Atomic` capture obviously touches load-bearing infra
      (`.arc/system/**`, strategies, `arc-config.yml`), several files, or carries a design fork, it will likely
-     reclassify to a stub at the drain (the Atomic infra smell-flag). Still file it under `## Atomic` and
+     reclassify to a stub at the drain (the atomic infra smell-flag). Still file it under `## Atomic` and
      let the drain re-triage — optionally note the smell in an `_Observation:_`. Capture stays coarse by design;
      the drain is the authoritative re-triage.
 

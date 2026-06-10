@@ -42,6 +42,9 @@ how much review and integration ceremony it warrants. What never scales is execu
 [review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
 quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
 
+`Class` records work-unit-scoped weight (`Light` / `Heavy` / `Novel`), distinct from **Work Character** —
+whether a concern is atomic or Errand-shaped below the WU wrapper, not a fourth `Class` value.
+
 Resolve a work unit's `Class` with the `classify-work-unit` method; the model and worked examples live in the
 [Work Organization Strategy][work-org].
 

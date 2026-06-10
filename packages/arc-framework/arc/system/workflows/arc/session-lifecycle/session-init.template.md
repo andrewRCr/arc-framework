@@ -404,8 +404,11 @@ warning in orientation.
     - `errandState.value.resume.resumable === true` → `.arc/system/workflows/arc/supplemental/run-errand.md`
     - `execution` → `.arc/system/workflows/arc/3_process-task-loop.md`
     - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-    - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
-       Path WU lands)
+    - `planning` → the planning-stage workflow the meta **Next Action** names, tracking where the WU sits in the
+      design → spec → tasks progression: `draft-design.md`, `1_create-spec.md`, or `2_generate-tasks.md`. Planning
+      runs these in sequence, often across sessions; the Next Action (refreshed at handoff) names the current
+      stage and whether to continue it or begin the next (fall back to which planning artifacts exist if it
+      doesn't).
     - `null` — two paths:
         - **Multiple-candidate defer:** skip lifecycle workflow load until disambiguation completes;
           recompute `sessionType` from the chosen candidate and load the matching workflow then.

@@ -57,25 +57,33 @@ these tasks sweep the lingering _prose_ only, using grep coverage plus per-hit j
   slice: the smell-flag concept spans `arc-inbox` (capture) + `drain-inbox` (drain), and `completed/README` carried
   the full tier taxonomy (included per scope decision, reframed to the `Class` model).
 
-### `[ ]` **1.3 Align the always-loaded agent surfaces**
+### `[x]` **1.3 Align the always-loaded agent surfaces**
 
 - _Goal:_ `AGENT-BRIEF.ARC`, `DEV-RULES.ARC`, and `session-init.md` read coherently against the
   `Class` / planning-depth / Work Character model an agent loads every session.
 
-    - `[ ]` **1.3.a `AGENT-BRIEF.ARC`** — verify the `Class` treatment reads coherently; the worklist-balancing /
-      parallelism purpose is already present in the Vocabulary § `Class` entry, so this confirms coherence rather
-      than adds it.
+    - `[x]` **1.3.a `AGENT-BRIEF.ARC`** — verified coherent; the Vocabulary `Class` entry already carries the
+      worklist-balancing / parallelism purpose and is distinct from quality-gate `Tier 1/2/3`, and `Atomic` is
+      already defined as work character. No edit needed.
 
-    - `[ ]` **1.3.b `DEV-RULES.ARC`** — confirm the landed `Class` boundary tests read coherently in context;
-      state the Work-Character-below-wrapper vs. `Class`-WU-weight relationship across the full `Errand`-floor →
-      `novel`-ceiling spectrum; preserve `Atomic` as character (never a fourth `Class` value).
+    - `[x]` **1.3.b `DEV-RULES.ARC`** — added a Work-Character-vs-`Class` distinction to § Scaled Process,
+      Invariant Discipline (both copies): `Class` is work-unit-scoped weight (`Light`/`Heavy`/`Novel`); Work
+      Character is the below-wrapper atomic / Errand-shaped property; `Atomic` is a character, never a fourth
+      `Class` value.
 
-    - `[ ]` **1.3.c `session-init.md`** — drop the `planning → refine-plan-loop.md` "Expanded Planning Path"
-      forward-pointer (item 10 lifecycle branch): a live, adopter-facing workflow shouldn't name a
-      may-or-may-not-land downstream WU.
+    - `[x]` **1.3.c `session-init.md`** — reworked the item-10 `planning` lifecycle branch (both copies): dropped
+      the `refine-plan-loop.md` "Expanded Planning Path" forward-pointer and, instead of leaving it `none`, made it
+      defer to the meta **Next Action** for the active planning-stage workflow (`draft-design` / `1_create-spec` /
+      `2_generate-tasks`). Planning is a multi-session design → spec → tasks progression, not one workflow; the
+      Next Action (probe gives `sessionType`, judgment picks the stage) names it — no new `sessionType` values.
 
     - _Note:_ copy mechanics differ — `AGENT-BRIEF.ARC` / `DEV-RULES.ARC` are plain both-copies; `session-init`
       is a `.template.md` → rendered pair. See `notes-doc-cascade-sweep.md` § Copy mechanics.
+
+- _Outcome:_ The always-loaded surfaces read coherently against the `Class` / planning-depth / Work Character
+  model: `DEV-RULES.ARC` now names the Character-vs-`Class` distinction, `session-init`'s `planning` branch defers
+  to the meta Next Action for the stage workflow (dropping the unlanded-WU forward-pointer), and `AGENT-BRIEF.ARC`
+  was confirmed coherent without edit. Completes Phase 1.
 
 ## **Phase 2:** Strategy & template cascade
 
