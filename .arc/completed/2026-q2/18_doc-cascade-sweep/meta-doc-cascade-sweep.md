@@ -2,7 +2,7 @@
 
 | **State**     | **Owner** | **Branch**                | **Class** | **Priority** |
 | ------------- | --------- | ------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `chore/doc-cascade-sweep` | `Heavy`   | `P3`         |
+| `Shipped`     | `andrew`  | `chore/doc-cascade-sweep` | `Heavy`   | `P3`         |
 
 - **Cohort:** `principle-anchored-core/agile-wu-lifecycle`
 - **Depends On:** `scalable-authoring-pipeline`, `decomposition-machinery`
