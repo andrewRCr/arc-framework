@@ -452,43 +452,52 @@ _Anchors:_ E1, E2; SC6.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ Tier 3 clean: `npm run -s lint:md` (365 files), `npm run lint:ts`,
+  `npm run lint:sh`, `npm run typecheck`, `npm run typecheck:test`, `npm test` (157 unit/integration files /
+  2344 tests, 12 e2e files / 61 tests), and `npm run build`.
+- _Success criteria:_ 12 criteria checked — 11 met as written, 1 met with a Deviation note (SC7), 0 unmet; ready
+  for integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` **Acceptance test passes** — applying the `assess-cohort-fit` discriminator + two guard rails to
+- `[x]` **Acceptance test passes** — applying the `assess-cohort-fit` discriminator + two guard rails to
   Concurrent Work Conventions's one settled draft cleanly re-derives CWC's actual decomposition (its D1–D4
   members) without strain (SC1)
-- `[ ]` **`assess-cohort-fit` method exists** as a paired sibling of `classify-work-unit`, co-located and declared
+- `[x]` **`assess-cohort-fit` method exists** as a paired sibling of `classify-work-unit`, co-located and declared
   via the `arc.methods` bundle: the orthogonality discriminator, two rails, maturity timing,
   plan-vs-delivery grouping, Model-B-only, member-slug naming, the sizing heuristics (consuming the
   `strategy-work-organization` sizing standard), and the cut-map + fire-point model (SC2)
-- `[ ]` **The grouping taxonomy is defined** — one kind (cohort), coordination by degree, WU leaf, the one-level
+- `[x]` **The grouping taxonomy is defined** — one kind (cohort), coordination by degree, WU leaf, the one-level
   nesting cap (≤2 segments), the path-valued `Cohort` semantics + dir-path mirroring, and the three decomposition
   arms (standalone → top-level, in-cohort → sub-cohort, at-cap → lateral fan-out with provenance) (SC3)
-- `[ ]` **The `cohort-{name}.md` record exists** (ADR-022 family) — Purpose floor / optional coordination /
+- `[x]` **The `cohort-{name}.md` record exists** (ADR-022 family) — Purpose floor / optional coordination /
   per-member-by-slug shape, membership derived, no DRI, the design-vs-coordination forcing function; `cohort-*`
   added to the DEV-RULES.ARC movable-artifact enumeration; `template-cohort.md` authored from the live prototype
   with its field set marked prototype-iterate (SC4)
-- `[ ]` **The `decompose-work-unit` workflow exists** (park-shaped exit; WU → cohort) — the step sequence, field
+- `[x]` **The `decompose-work-unit` workflow exists** (park-shaped exit; WU → cohort) — the step sequence, field
   inheritance, dependency-edge-by-need distribution, the four-step distribution discipline, the predicted/emergent
   arms, the cohort-scaffold + PR-cleanup primitive factoring (named extractable blocks), worktree-kind teardown,
   and the decomposition-PR description variant, codified against this cohort's own manual run (SC5)
-- `[ ]` **The cohort-consistency invariant + enforcement ships** — the three conditions as a backlog-scoped
+- `[x]` **The cohort-consistency invariant + enforcement ships** — the three conditions as a backlog-scoped
   structural guard with pre-commit wiring, co-located with the invariant definition and serving as the cohort
   doc's schema validator; the manual bootstrapping version documented in `decompose-work-unit` (SC6)
-- `[ ]` **The concept is introduced** — AGENT-BRIEF.ARC § Vocabulary carries a Cohort entry; the two constitutive
+- `[x]` **The concept is introduced** — AGENT-BRIEF.ARC § Vocabulary carries a Cohort entry; the two constitutive
   rules (every grouping dir carries a doc; the one-level nesting cap) are promoted to DEV-RULES.ARC (SC7)
-- `[ ]` **No silent loss on any decomposition** — the conservation gate asserts every origin section + outgoing
+    - **Deviation:** The final spec keeps the two constitutive rules in `AGENT-BRIEF.ARC` and enforces them via
+      the cohort-consistency invariant (SC6); `DEV-RULES.ARC` carries only the `cohort-*` movable-artifact
+      enumeration to avoid duplicating always-loaded rule prose.
+- `[x]` **No silent loss on any decomposition** — the conservation gate asserts every origin section + outgoing
   dependency edge lands in exactly one destination or is dropped-with-reason before the origin is retired; the
   incoming-`Depends On` sweep re-points every meta naming the origin, not only the cut-map's named dependents (SC8)
-- `[ ]` **Reference hygiene holds** — `cohort-{name}.md` carries position-independent references (inbound
+- `[x]` **Reference hygiene holds** — `cohort-{name}.md` carries position-independent references (inbound
   filename-only; outbound no relative paths) and relocates `backlog/ → completed/` as a pure `git mv` (SC9)
-- `[ ]` **A companion ADR exists** under `reference/adr/` (parallel to `class-model-foundation`'s), recording the
+- `[x]` **A companion ADR exists** under `reference/adr/` (parallel to `class-model-foundation`'s), recording the
   invented model's durable cross-cutting rationale; it is a non-moving, internal-only artifact (SC10)
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
