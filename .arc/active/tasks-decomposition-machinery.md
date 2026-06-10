@@ -429,25 +429,26 @@ _Anchors:_ E1, E2; SC6.
   path-match drift. Consumes `meta-reader.ts`'s `parseMetaRecord`; the planned `cohort-path.ts` shape helpers
   stayed unused — single-field shape validity is `validate-meta-spec.ts` CHECK 16's job, assumed here.
 
-### `[ ]` **5.2 Wire the validator into pre-commit + integration coverage**
+### `[x]` **5.2 Wire the validator into pre-commit + integration coverage**
 
 - _Goal:_ The validator runs as a new backlog-scoped pre-commit CHECK (staged `backlog/**` meta + cohort-doc paths
   → validator), wired in both hook copies, with integration coverage in the hook-family harness — so cohort drift
   is caught at commit time.
-- _Approach:_ Append the CHECK block after the current last CHECK in
-  `.arc/system/.internal/githooks/pre-commit` (and the package-source counterpart); filter staged candidates by
-  the backlog meta + cohort-doc path pattern; invoke via `npx tsx …/validate-cohort-consistency.ts`. Integration
-  test mirrors the existing hook-invocation fixtures.
-- _Note:_ The CHECK is staged-scoped and the integration test fixture-based — it never evaluates the live backlog,
-  so pre-existing divergent cohort docs (the 3.1 note) don't break this WU's gates; their conformance is
-  `doc-cascade-sweep`'s.
-- **Strategies:** strategy-package-project-sync.md, strategy-testing-methodology.md
 
-    - `[ ]` **5.2.a Wire the pre-commit CHECK (both hook copies) with backlog-scoped candidate filtering**
-        - The new CHECK block + path-pattern candidate filter; package source + `.arc/` mirror byte-identical.
+    - `[x]` **5.2.a Wire the pre-commit CHECK (both hook copies) with backlog-scoped candidate filtering**
+        - Added CHECK 18 to both hook copies (byte-identical): a `git diff --cached` filter for staged
+          `backlog/planned/**` metas + cohort docs (`(meta|cohort)-[^/]+\.md`) piped to the validator via
+          `npx tsx`, accumulating into the run's error total. shellcheck-clean.
 
-    - `[ ]` **5.2.b Add integration coverage in the hook-family harness**
-        - A hook-invocation integration test exercising a passing and a drift fixture under real paths.
+    - `[x]` **5.2.b Add integration coverage in the hook-family harness**
+        - `validate-cohort-consistency.test.ts` (integration) invokes the script via `npx tsx` over on-disk
+          fixtures under real `.arc/backlog/planned/` paths — a consistent cohort passes; field↔dir drift, a
+          missing cohort doc, and an orphan member section each fail with a path-naming diagnostic.
+
+- _Outcome:_ CHECK 18 gates cohort consistency at commit time, staged-scoped — the candidate filter feeds the
+  validator only the staged delta, so pre-existing live-backlog divergence never trips the gate (its conformance
+  is a later sweep's). Both hook copies stay byte-identical for package-project sync; the integration test proves
+  the `npx tsx` wire end-to-end against real paths.
 
 ## **Phase 6:** Verification
 
