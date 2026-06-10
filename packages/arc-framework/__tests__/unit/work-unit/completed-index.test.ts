@@ -62,6 +62,20 @@ describe("readShippedWorkUnits", () => {
     expect(shipped.size).toBe(1);
   });
 
+  it("ignores cohort closeout entries", async () => {
+    const fs = buildReaddirFs({
+      [completed]: ["2026-q2"],
+      [`${completed}/2026-q2`]: [
+        "18_doc-cascade-sweep",
+        "18a_cohort-agile-wu-lifecycle",
+      ],
+    });
+
+    const shipped = await readShippedWorkUnits({ cwd: "/repo", fs });
+
+    expect([...shipped]).toEqual(["doc-cascade-sweep"]);
+  });
+
   it("returns an empty set when completed/ is absent", async () => {
     const shipped = await readShippedWorkUnits({ cwd: "/repo", fs: buildReaddirFs({}) });
     expect(shipped.size).toBe(0);
