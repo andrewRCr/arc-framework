@@ -1,5 +1,26 @@
 # Draft: Workflow Template Loads (`arc.templates` Frontmatter)
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Distinguish eager method loading from active-gated extension checking**
+
+- _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-10); captured during `init-work-unit` for
+  `decomposition-machinery`.
+- _Concern:_ Two load-bearing statements use the blanket verb "load" for declared methods and extensions:
+  `DEV-RULES.ARC` § Method and extension loading, and `strategy-workflow-authoring.md` § Author-side Declaration
+  Rule. The intended model is split: declared methods load eagerly, while declared extensions are checked at their
+  fire points and load / execute only when they appear in the active-extensions list. The frontmatter verbs
+  (`methods` = loads, `extensions` = checks), fire-point directives, and session-init active list already encode
+  that split.
+- _Scope:_ Reword the statements so method dependencies load eagerly while extension dependencies remain
+  active-gated. This neighbors `arc.templates` because it sharpens the declaration/load family before introducing
+  another declared content class.
+
+---
+
 ## Context
 
 Workflows declare method and extension dependencies in frontmatter (`arc.methods`,
@@ -87,5 +108,5 @@ When triggers fire, this plan moves to `1_create-prd.md` for formalization.
 
 Managed operational-state document templates no longer need `arc.templates` declarations under ADR-022 (the
 schema enforces structure, and these become rendered projections / internal seeds). The `arc.templates`
-mechanism stays relevant for *authored-artifact* templates (PRD, task list, spec). See
+mechanism stays relevant for _authored-artifact_ templates (PRD, task list, spec). See
 `adr-022-managed-operational-state-documents.md` § Coordination.

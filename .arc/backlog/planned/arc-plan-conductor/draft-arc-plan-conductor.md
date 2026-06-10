@@ -83,6 +83,20 @@ freeform exploration.
   Absorption" precedent). See spec `§ Drain integration-mode` (R38–R39), `drain-inbox § 5`, and
   `notes § Drain integration-mode` in work-routing-discipline.
 
+### `[ ]` **Split create-spec review/proceed interlocks + recommend on overlay prompts**
+
+- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-10); captured during the first latest-form
+  `create-spec` run for `spec-decomposition-machinery.md`.
+- *Concern:* `1_create-spec.md` Finalize collapses spec-review / iteration approval and proceed-to-finalize
+  approval (draft retirement + meta update + commit) into one workflow-interlock. In practice, answering a
+  Novel-overlay ADR scope question read as authorization to finish Finalize, leaving no clean gate for a full
+  spec read, feedback, or iteration.
+- *Also:* accept-or-decline overlay prompts, including the Novel ADR companion prompt, should carry the agent's
+  recommendation plus brief rationale instead of presenting a fork without judgment.
+- *Scope:* decide whether this belongs in the conductor's planning-interlock / iteration model, the `create-spec`
+  workflow, or overlay-bearing methods (`spec-review`, `resolve-planning-depth`). The likely outcome is two
+  gates: review / iterate, then proceed-to-finalize.
+
 ### `[ ]` **Realign the conductor to AWL's settled `Class` / intensity model**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: arc-plan-conductor`), agile-wu-lifecycle cohort housekeep

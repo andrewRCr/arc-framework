@@ -81,6 +81,12 @@
 - *Concern:* once `markdown-formatting` lands the fix-commands + lint rules, nothing auto-enforces them.
   Table alignment in particular is *not* gated by `lint:md` today (verified: `MD060` enforces per-file style
   consistency, not width-alignment in general), so it needs an explicit gate.
+- *Update (2026-06-10):* `decomposition-machinery` planning exposed a stricter enforcement-fidelity gap: the
+  pre-commit markdown check reported pass while standalone `npx markdownlint-cli2` flagged an MD049
+  emphasis-style violation in `draft-operational-state-docs.md`. This entry now includes verifying that the
+  commit gate runs the same canonical `lint:md` coverage / config as CI, not a reduced or stale subset. That
+  directly challenges the assumption below that emphasis rules already ride `lint:md` automatically at the
+  commit gate.
 - *Proposed (maps onto this WU's existing scope):* (b) **CI gate** — add `npm run -s format:tables:check`
   as a `ci.yml` step beside `lint:md`; (c) **pre-commit auto-fix dispatch** — run `format:tables` (auto-fix)
   on staged markdown in the commit-gate Tier-1 dispatch with **auto-restage** (exactly this WU's

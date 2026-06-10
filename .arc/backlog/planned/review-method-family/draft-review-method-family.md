@@ -30,6 +30,18 @@
   missing _trigger_ decision around that cycle. Touches the extension family + `integrate-work-unit.md` fire
   point (point-scanner CHECK 16) + the project `address-pr-review.md` override.
 
+### `[ ]` **Content/lane-gate review extensions for doc-only lifecycle ceremonies**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: review-method-family`), housekeep drain (2026-06-10);
+  captured during `decomposition-machinery` Task 4.1 while authoring the `decompose-work-unit` park PR step.
+- _Concern:_ the code-review extension family (`pre-pr-review` / `pre-merge-review`, and the broader ceremony)
+  fires on push / PR fire-points regardless of whether the change carries a code diff. Some ARC lifecycle
+  ceremonies produce doc- or planning-artifact-only PRs; the new `decompose-work-unit.md` park PR is the live
+  instance because it carries the `#pre-push-review` marker, mirroring `integrate` / `init`.
+- _Scope:_ decide whether review extensions should key on change kind at their fire-point, and if so whether the
+  gating belongs in the extension contract, the fire-site, or a review-method abstraction. Coordinate with
+  `rules-restructure`'s extension-definition breadth and the auto-merge-lane "no human review" classification.
+
 ## Problem / Motivation
 
 Two issues are entwined in the current review-related surface, both surfaced during interlock-foundation

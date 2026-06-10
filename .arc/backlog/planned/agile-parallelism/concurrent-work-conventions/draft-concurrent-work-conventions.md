@@ -89,6 +89,23 @@ size**; solo is the degenerate case.
   or whether partition + detector suffice. `decomposition-machinery` only routes the seam — runtime concurrency
   safety is CWC's.
 
+### `[ ]` **D3 close-the-loop: same-session finalize + integration-failure surfacing**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: concurrent-work-conventions`), housekeep drain
+  (2026-06-10); captured during post-drain discussion of errand PR #72 and drain PR #73 lifecycle closure.
+- *Concern:* the drain / errand lifecycle deliberately does not block on merges, using the session-init
+  in-flight-errand sweep as the next-session orphan backstop. That leaves a same-session timing gap: when a PR
+  opened earlier in the session has already merged by the time control returns to base context, neither
+  in-session completion nor next-session sweep finalizes it. PRs #72 / #73 hit this shape and required manual
+  cleanup.
+- *Proposed:* refine D3's "merge-gate / unattended-merge completion trigger" with an opportunistic, bounded pass
+  when control returns to base context. Poll this session's PRs once / briefly: merged-clean → tear down local
+  branch, prune stale remote-tracking ref, remove any ephemeral worktree, and drop the slug-matched inbox line;
+  failed / blocked → surface loudly; still-pending → hand to the sweep. Preserve the non-blocking principle: no
+  unbounded wait on CI.
+- *Also:* explicitly surface CI / merge failures for both manual-merge and auto-merge cases so blocked integration
+  is actively flagged at completion, not only rediscovered next session.
+
 ## Delivery plan & parked status (2026-06-03)
 
 > **Parked at terminal planning.** The draft below is design-settled; what remains is *delivery*, which is
