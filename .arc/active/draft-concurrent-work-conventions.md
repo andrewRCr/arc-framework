@@ -10,17 +10,15 @@ awareness). Builds on `draft-worktree-foundation.md` (mechanism), Errand Enablem
 Awareness — all shipped — to deliver "agile, principled, multi-WU work." The design target is **any team
 size**; solo is the degenerate case.
 
-- **State:** Parked (terminal planning) — design-settled; delivery deferred pending Agile WU Lifecycle's
-  scaling / decomposition support (see § Delivery plan & parked status). Structural calls resolved at the
-  2026-06-03 sweeps (split-vs-fold → **fold**; decompose into a four-WU stack; rename dissolved by decomposition).
-  Earlier: renamed from former Work-Unit Mobility WU as part
-  of the agile/mobility split (mechanism → Worktree Foundation; tier model → Agile WU Lifecycle;
-  conventions → this WU). Iteration expected before PRD promotion. Updated 2026-05-08:
-  redesigned around external-research-informed lighter shape — focus-role field model rejected;
-  conventions land as judgment-based protocols + strategy-doc guidance, not as new meta-file
-  fields. See `research-focus-wip-attention-discipline.md`,
-  `research-active-work-coordination-vocabulary.md`, `research-concurrent-work-mechanism-layer.md`,
-  and `research-integration-conflict-handling.md` for the research underpinning the redesign.
+- **State:** Active planning (`draft-design`) — design-settled; decomposing into a sub-cohort of four
+  single-owner member WUs (see § Decomposition plan). Both build-order dependencies
+  (`scalable-authoring-pipeline`, `decomposition-machinery`) have shipped, so the scalable authoring
+  pipeline and the decomposition machinery this WU composes are available. Structural calls resolved at the
+  2026-06-03 sweeps (split-vs-fold → **fold**; decompose into four members; rename dissolved by
+  decomposition). Originally Work-Unit Mobility, split 2026-04-28 (mechanism → Worktree Foundation; tier
+  model → Agile WU Lifecycle; conventions → this WU) and redesigned 2026-05-08 around a lighter,
+  research-informed shape (focus-role field rejected — see § Design Decisions § Focus-role model rejected;
+  research cited in § External Research Citations).
 
 - **Created:** 2026-04-17 (originally as Work-Unit Mobility); split and renamed 2026-04-28; redesign
   2026-05-08.
@@ -142,51 +140,42 @@ size**; solo is the degenerate case.
 - *Scope:* convention/doc work lands in CWC's draft/spec; the session-init rebase-shadow detection is a separable
   follow-on (CWC may own or hand off) — note the seam at drain.
 
-## Delivery plan & parked status (2026-06-03)
+## Decomposition plan
 
-> **Parked at terminal planning.** The draft below is design-settled; what remains is *delivery*, which is
-> deliberately deferred pending Agile WU Lifecycle (see "Why parked"). Re-enter here.
+CWC's holistic design is settled, but the concern is too large for one WU/PR — it closes the agile-parallelism
+cohort by shipping both the conventions layer and the merge-safety + lifecycle mechanism that makes those
+conventions real. So it **decomposes**: the monolith design splits across four single-owner member WUs along
+natural deliverable boundaries, each one branch + one PR, honoring the single-owner-WU decision. This is the
+emergent arm — a matured monolith exists to split — so `decompose-work-unit` runs as the **terminal act of the
+`plan/concurrent-work-conventions` branch**: the WU stops being a WU and becomes the sub-cohort. Each member
+then specs and ships separately, in dependency order.
 
-**Decomposition — a cohort of four single-owner WUs (shape B).** CWC closes the agile-parallelism cohort but
-is too large for one WU/PR. It decomposes into four sibling WUs along natural deliverable boundaries (not
-arbitrary `-pt1/-pt2` splits), delivered as a dependency-ordered stack — each one branch + one PR, honoring
-the single-owner-WU decision. Each WU carries its own thin spec; cross-WU coordination lives in
-`cohort-agile-parallelism.md`, not a shared spec (specs feed a task list and validate completion — they are
-not coordination docs).
+**Structure — a sub-cohort, not a flat fan-out.** The members nest as
+`agile-parallelism/concurrent-work-conventions/`, with their cross-member coordination in a dedicated
+`cohort-concurrent-work-conventions.md`. They are deliberately *not* flattened into `cohort-agile-parallelism.md`:
+that umbrella doc carries the cohort-wide errand/worktree/entry lineage and its independent sibling
+`out-of-wu-entry`, whereas the four members share one design and dense internal coordination (a reused
+behind-base detector, the doctrine spine the others reference, the append-only-until-integration principle). Two
+coordination surfaces at two scopes is the nesting signal, and the one-level cap permits exactly this
+(`agile-parallelism/concurrent-work-conventions/<member>`). Each member carries its own thin spec — specs feed a
+task list and validate completion; they are not coordination docs.
 
-| WU | Deliverable | Character |
+| Member (slug) | Deliverable | Character |
 | --- | --- | --- |
-| **D1 — Concurrent-work doctrine** | `strategy-concurrent-work.md`: overlap-judgment rubric (both trigger surfaces), parallelize-vs-serialize, worktree ops, async-merge guidance, anti-patterns, main-worktree convention. Consolidates the 4 research files. | New strategy doc; the spine the others reference |
-| **D2 — Merge-safety mechanism** | behind-base detector (ref-param `origin/<base>` primitive + probe slot) + write-context extensions + pre-commit backstop + merge-commit exemption | TS + hooks |
-| **D3 — Async-merge lifecycle** | resume-integration seam + in-flight completion sweep + merge-gate / unattended-merge completion trigger; folds the loose plumbing (`arc start` create-new wiring, subdir-removal primitive, cohort discovery) | Workflows + session-init probe |
-| **D4 — Single-owner WU model** | rewrite `strategy-team-coordination` + DEV-RULES.ARC § Task interlock + meta `Owner` semantics; remove `(@name)` + the within-WU multi-dev apparatus | Cross-cutting doc rewrite |
+| `concurrent-work-doctrine` | `strategy-concurrent-work.md`: overlap-judgment rubric (both trigger surfaces), parallelize-vs-serialize, worktree ops, async-merge guidance, anti-patterns, main-worktree convention. Consolidates the 4 research files. | New strategy doc; the spine the others reference |
+| `merge-safety-mechanism` | behind-base detector (ref-param `origin/<base>` primitive + probe slot) + write-context extensions + pre-commit backstop + merge-commit exemption | TS + hooks |
+| `async-merge-lifecycle` | resume-integration seam + in-flight completion sweep + merge-gate / unattended-merge completion trigger; folds the loose plumbing (`arc start` create-new wiring, subdir-removal primitive, cohort discovery) | Workflows + session-init probe |
+| `single-owner-wu-model` | rewrite `strategy-team-coordination` + DEV-RULES.ARC § Task interlock + meta `Owner` semantics; remove `(@name)` + the within-WU multi-dev apparatus | Cross-cutting doc rewrite |
 
-Sequence: **D1 (spine) → D2 / D3 / D4** — largely independent; D2's behind-base primitive is reused by D3's
-completion sweep and referenced by D1's doctrine, so D2 ideally precedes D3 (soft, not hard). D3 watch: may
-itself split if it proves too large for one PR.
-
-**Why parked — the AWL prerequisite (delivery-ergonomics, not runtime).** CWC *can be built* without Agile WU
-Lifecycle — the earlier CWC→AWL edge-drop was correct on *runtime* grounds (the parallelism mechanism needs
-none of the tier model). But delivering CWC *as four small WUs* needs a small-WU pipeline, and ARC's
-`1_create-spec` / `2_generate-tasks` are built for large, multi-phase WUs (`generate-tasks` is an
-unconditional 3-pass + per-phase-audit procedure assuming 3–7 phases; there is no flat / small path). Scaling
-that pipeline — a spec template family + a fewer-phases task grammar + an **actionable decomposition
-procedure** — is AWL's chartered deliverable (post-tier-ditch, AWL's center of gravity *is* WU
-scaling-and-division). So CWC parks at terminal planning and **re-enters as the four-WU stack once AWL lands
-its scaling / decomposition support.** Forcing the decomposition through today's heavy pipeline would eat
-disproportionate ceremony 4× and worsen, by example, the very "ARC WUs are too large" problem AWL exists to
-fix.
-
-**CWC is a design input to AWL.** This settled-but-parked draft + its concrete four-WU decomposition is a
-worked requirements example for AWL's decomposition-procedure design — routed as a coordination note to
-`draft-agile-wu-lifecycle.md`. AWL owns the **actionable decomposition procedure** (sizing triggers,
-boundary-finding, stack-vs-cohort); `arc-plan-conductor` — far downstream — only *routes to / invokes* it as
-one shape it conducts, and does not own it (correcting an earlier mis-allocation: the decomposition procedure
-cannot sit behind conductor, or CWC's re-entry would be blocked on it).
+Sequence: **`concurrent-work-doctrine` (spine) → `merge-safety-mechanism` / `async-merge-lifecycle` /
+`single-owner-wu-model`** — largely independent; the doctrine spine is referenced by all three, and
+`merge-safety-mechanism`'s behind-base primitive is reused by `async-merge-lifecycle`'s completion sweep, so
+merge-safety ideally precedes async-lifecycle (soft, not hard). Watch: `async-merge-lifecycle` may itself recurse
+into a sub-cohort if it proves too large for one PR.
 
 **Rename — dissolved by decomposition.** "Conventions undersells conventions+mechanism" was a one-WU artifact.
-Decomposed, D1 legitimately keeps a "concurrent-work" name, the mechanism WUs get their own honest names, and
-the `agile-parallelism` cohort already carries the closing-the-whole-thing identity. No umbrella rename needed.
+Decomposed, `concurrent-work-doctrine` legitimately keeps the "concurrent-work" name, the mechanism members get
+their own honest names, and the cohort carries the closing-the-whole-thing identity. No umbrella rename needed.
 
 ---
 
@@ -454,12 +443,11 @@ is the `run-errand` / `drain-inbox` facet of the broader "make the lifecycle wor
   `cross-machine-sync-coherence` (the explicit next WU). CWC ships the ref-parameterized base-distance primitive +
   probe slot it extends; the cross-machine layer itself is not CWC's.
 - **WU/PR right-sizing + decomposition protocol** (plan-grouping vs. delivery-grouping; small-PR review
-  norms; stack-vs-cohort; sizing triggers) — the **actionable procedure is Agile WU Lifecycle's** (WU
-  scaling-and-division is its charter, esp. post-tier-ditch); `arc-plan-conductor` only *routes to / invokes*
-  it as one shape it conducts. CWC is the motivating live example, not the home. (Supersedes the earlier
-  routing to conductor — re-route the `USER-INBOX § Backlog` capture to AWL accordingly.)
+  norms; stack-vs-cohort; sizing triggers) — **shipped** as `decomposition-machinery`'s `assess-cohort-fit`
+  method + `decompose-work-unit` workflow; `arc-plan-conductor` only *routes to / invokes* it as one shape it
+  conducts. CWC consumes the procedure — it is the motivating live example — but is not its home.
 - **Decomposition** (team-ownership motivation + lifecycle-timing axis) — the actionable splitting procedure
-  is **AWL's** (per above); conductor routes to it. Planning-lifecycle, not concurrency conventions.
+  shipped with `decomposition-machinery` (per above). Planning-lifecycle machinery, not concurrency conventions.
 - **Collaborative team planning** (single-author-draft + review model) — routed to
   `strategy-team-coordination` + a conductor seam (partly subsumes conductor OQ23). Carries a
   "planning-machinery cohort" organizing flag.
@@ -479,7 +467,7 @@ status & closeout). The mechanism buildables fold in — write-context extension
 merge-commit exemption, in-flight completion sweep, merge-gate awareness, `arc start` create-new wiring,
 subdir-removal primitive. Cross-machine concerns stay **out** (the explicit next WU,
 `cross-machine-sync-coherence`). "Conventions" undersells the conventions+mechanism scope at the one-WU level
-— but the rename is **dissolved by decomposition** (see § Delivery plan & parked status and Open Questions
+— but the rename is **dissolved by decomposition** (see § Decomposition plan and Open Questions
 § Exact rename): decomposed, the doctrine WU keeps the "concurrent-work" name and the cohort carries the
 closeout identity, so no umbrella rename is needed.
 
@@ -750,8 +738,8 @@ when none is — completing the cohort's recorded cold-errand-entry gap (`cohort
 in-session-fork matrix and the all-owner advisory gate at `errand-launch` — **assumes** mid-WU
 errand/housekeep entry already works, so this is a **soft prerequisite** to that doctrine being coherent.
 It is **independently shippable and not gated on CWC or AWL** (it manifests with a single WU today and
-needs none of the parallelism mechanism), so it ships *ahead* of the parked four-WU stack rather than
-within it.
+needs none of the parallelism mechanism), so it ships *ahead* of the `concurrent-work-conventions`
+sub-cohort rather than within it.
 
 ### Recommended sequencing
 
@@ -761,8 +749,8 @@ upstream members — WF, errand-enablement, in-flight-awareness — have shipped
 
 `class-model-foundation` adds one new input to the CWC rubric: `Novel` is the "roughly one genuinely-novel stream"
 signal for plate balancing. CWC consumes that as sequencing guidance in the parallelize-vs-serialize doctrine,
-not as a renderer field or activation gate; the concrete convention belongs in D1's `strategy-concurrent-work`
-spine when the four-WU stack re-enters.
+not as a renderer field or activation gate; the concrete convention belongs in the `concurrent-work-doctrine`
+member's `strategy-concurrent-work` spine.
 
 ---
 
@@ -833,17 +821,17 @@ slice — the existing CWC↔roadmap-tooling seam.
 
 ### Exact rename — resolved
 
-**Dissolved by decomposition (2026-06-03).** The misnomer was a one-WU artifact. Decomposed (§ Delivery plan &
-parked status), D1 keeps the "concurrent-work" name, the mechanism WUs get their own names, and the
-`agile-parallelism` cohort carries the closeout identity. No umbrella rename needed.
+**Dissolved by decomposition (2026-06-03).** The misnomer was a one-WU artifact. Decomposed
+(§ Decomposition plan), `concurrent-work-doctrine` keeps the "concurrent-work" name, the mechanism members get
+their own names, and the `agile-parallelism` cohort carries the closeout identity. No umbrella rename needed.
 
 ### Internal stack boundaries / phasing — resolved
 
-**Four single-owner WUs (shape B), not an internally-phased PR (2026-06-03).** Boundaries D1–D4 along
-deliverable type, delivered as a dependency-ordered stack (§ Delivery plan & parked status). "Internally-phased
-PR" rejected — no convention for it, and it cuts against single-owner-WU + small-PR norms. The *actionable*
-decomposition procedure is AWL's deliverable (CWC re-enters once it lands); the general sizing protocol is
-routed out (§ Out of scope).
+**Four single-owner WUs (shape B), not an internally-phased PR (2026-06-03).** Boundaries along deliverable
+type, delivered as a dependency-ordered stack (§ Decomposition plan). "Internally-phased PR" rejected — no
+convention for it, and it cuts against single-owner-WU + small-PR norms. The *actionable* decomposition
+procedure shipped with `decomposition-machinery`, so the cut executes via `decompose-work-unit`; the general
+sizing protocol is routed out (§ Out of scope).
 
 ### Fuller handoff / archival async audit — resolved
 
@@ -898,26 +886,27 @@ rather than build from scratch: behind-base detector (ref-parameterized primitiv
 completion sweep, merge-commit exemption, suspend/resume seam, merge-gate-awareness, `arc start` create-new wiring,
 subdir primitive, write-context path-surface / chore extensions + pre-commit backstop.
 
-**Delivery: plan-as-one, deliver-as-a-stack.** One planning concern / one spec; at PRD time decompose into a stack
-of PR-sized WUs along the deliverable boundaries below, per small-PR review norms (the general sizing protocol is
-routed out — § Out of scope). The phases are the natural stack cut.
+**Delivery: plan-as-one, deliver-as-a-stack.** One planning concern, decomposed now via `decompose-work-unit`
+into four PR-sized member WUs along the deliverable boundaries below, per small-PR review norms (the general
+sizing protocol is routed out — § Out of scope); each member specs and ships separately.
 
-Phases / stack increments (provisional, dependency order):
+Members (dependency order):
 
-1. **Doctrine + strategy doc** — `strategy-concurrent-work.md`: the unified advisory overlap-judgment doctrine
+1. **`concurrent-work-doctrine`** — `strategy-concurrent-work.md`: the unified advisory overlap-judgment doctrine
    (pillar 1, both trigger surfaces), parallelize-vs-serialize rubric, worktree operational guidance, async-merge and
    reconcile discipline, anti-patterns, main-worktree convention. Consolidates the four research files; carries
    most of the weight.
-2. **Merge-safety mechanism** — behind-base detector (ref-parameterized primitive + probe slot, built for
+2. **`merge-safety-mechanism`** — behind-base detector (ref-parameterized primitive + probe slot, built for
    `cross-machine-sync-coherence` to extend) + write-context extensions + pre-commit backstop + merge-commit
    exemption.
-3. **Lifecycle / ergonomics** — suspend/resume seam + in-flight completion sweep (forcing function, full tail
+3. **`async-merge-lifecycle`** — suspend/resume seam + in-flight completion sweep (forcing function, full tail
    through archival) + merge-gate-awareness (option B, additive on `integrate-work-unit`) + `arc start` create-new
    wiring + subdir-removal primitive + cohort-`{name}.md` discovery.
-4. **Single-owner-WU rewrite** — `strategy-team-coordination` + DEV-RULES.ARC § Task interlock + meta `**Owner:**`
+4. **`single-owner-wu-model`** — `strategy-team-coordination` + DEV-RULES.ARC § Task interlock + meta `**Owner:**`
    semantics; remove the within-WU multi-dev apparatus + `(@name)`. Separable execution; real weight.
 
-Phase 1 is the spine; 2–4 are largely independent and sequence/parallelize as a stack once the doctrine lands.
+`concurrent-work-doctrine` is the spine; the other three are largely independent and sequence/parallelize once
+it lands.
 
 ---
 
