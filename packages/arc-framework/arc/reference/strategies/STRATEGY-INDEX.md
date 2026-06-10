@@ -25,7 +25,7 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: adding new guidance content, deciding loading tier, configuring session state, working on session workflows
 - `arc/strategy-task-list-formatting.md` - Task list formatting rules — structure, ownership, verification, success criteria
     - Consult when: creating or restructuring task lists, formatting task entries, checking structural requirements
-    - Companion: `template-tasks.md` for skeletons; `2_generate-tasks.md` § Finalize the task list for the pre-save checklist
+    - Companion: `template-tasks.md` for skeletons; `generate-tasks.md` § Finalize the task list for the pre-save checklist
 - `arc/strategy-workflow-authoring.md` - Workflow frontmatter schema, author-side declaration rule, body conventions
     - Consult when: authoring a framework or project workflow file
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers

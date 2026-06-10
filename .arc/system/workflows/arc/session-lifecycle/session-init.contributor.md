@@ -32,7 +32,7 @@ task section). Companion paths come from `active.value.companions`.
 
 **Item 10 — Task execution workflow.** Apply when item 9 applies. (Session-type inference — maintainer
 Step 3 "Resolve session type" — does not apply on the contributor path; contributors always load
-`3_process-task-loop.md` here.)
+`process-task-loop.md` here.)
 
 ## Step 5 — Contributor freshness check
 
@@ -41,7 +41,7 @@ Maintainer's `session-init.md` § 5 covers freshness (universal) and next-work-u
 
 - **Freshness:** Skip if SESSION-NOTES `Commit at Handoff` hash matches current HEAD. Otherwise
   surface the gap in orientation. If the gap suggests an interrupted session, run
-  [process-task-loop § Crash Recovery](../3_process-task-loop.md#crash-recovery).
+  [process-task-loop § Crash Recovery](../process-task-loop.md#crash-recovery).
 - **Active meta file freshness:** The contributor active file lives under
   `.arc/user/{identity}/active/` and is gitignored — git-history-based freshness doesn't apply.
   The handoff-hash check above is the freshness signal.

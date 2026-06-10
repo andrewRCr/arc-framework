@@ -19,7 +19,7 @@ workflow *consumes* the cut-map and *executes* the transform; it never re-derive
 
 **When to use:** `assess-cohort-fit` has returned an affirmative cut-map for a live WU whose holistic design has
 matured and revealed itself as a cohort (the **emergent** arm — typically surfaced during
-[`1_create-spec`][create-spec]). The WU is on its `plan/<name>` planning branch in `**State:** Planning`;
+[`create-spec`][create-spec]). The WU is on its `plan/<name>` planning branch in `**State:** Planning`;
 decomposition is the branch's **terminal act**. There is no fresh branch and no `Active` step — a decomposing WU
 never activates, because it stops being a WU.
 
@@ -305,7 +305,7 @@ to them use the **stable heading slug**, never a step number.
 Whether *this workflow* runs at all depends on whether a monolith ever formed — the relationship is not 1:1:
 
 - **Emergent.** A holistic draft matures and *then* reveals itself as a cohort (the affirmative fires at
-  [`1_create-spec`][create-spec]). A monolith exists to *split* — this is the arm `decompose-work-unit` and its
+  [`create-spec`][create-spec]). A monolith exists to *split* — this is the arm `decompose-work-unit` and its
   distribution discipline (Steps 5–6) serve.
 - **Predicted.** [`assess-cohort-fit`][assess-cohort-fit] fires affirmative *during* draft-design, while the
   design is still forming. You author directly into the cohort structure; no monolith is ever created, so
@@ -344,7 +344,7 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 ---
 
 [assess-cohort-fit]: ../../../methods/assess-cohort-fit.md
-[create-spec]: ../1_create-spec.md
+[create-spec]: ../create-spec.md
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
 [template-cohort]: ../../../../reference/templates/arc/work-unit/template-cohort.md

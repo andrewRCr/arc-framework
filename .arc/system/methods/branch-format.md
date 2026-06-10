@@ -40,7 +40,7 @@ override-active: false
 - `refactor/<name>` — internal restructuring with no behavior change (kept separate from
   `chore/`: planned refactors are typically multi-commit WUs with their own design space,
   distinct from one-off maintenance)
-- `hotfix/<name>` — urgent production-bypass fix; typically atomic-tier, light-ceremony
+- `hotfix/<name>` — urgent production-bypass fix; typically atomic in character, light-ceremony
 
 **Planning life-phase prefix:** `plan/<branch-name>` — used during the planning life-phase of a
 WU (discovery, draft-doc iteration, spec authoring, task generation). Rotates to one of the type

@@ -1,4 +1,4 @@
-# Cohort: Agile Parallelism
+# Cohort: `agile-parallelism`
 
 > Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (shipped),
 > Errand Enablement (shipped), In-Flight Awareness (shipped), Concurrent Work Conventions
@@ -9,6 +9,16 @@
 > in each member's draft; this record holds what the cohort owns *as a whole* — the shared thesis, the
 > boundary map, cross-member contracts, the cross-cutting design spine, and candidates not yet owned by
 > any member.
+
+**Parent:** [none]
+
+**Purpose:** Make concurrent, isolated, cheap-to-shift work real — the parallelism layer built on the
+single-branch-per-WU substrate ([ADR-019][adr-019]). Its members share one concern: the mechanics and
+conventions that let multiple work units and errands run in flight at once without contending — worktree
+isolation, the Errand work class, in-flight awareness, and the conventions governing when and how to
+parallelize.
+
+---
 
 ## Why this doc exists (the cohort-doc convention)
 
@@ -25,34 +35,6 @@ first instance.)
 
 Make concurrent, isolated, cheap-to-shift work real. [ADR-019][adr-019] (Work Unit Lifecycle Reform)
 laid the single-branch-per-WU substrate; this cohort builds the parallelism on top of it.
-
-## Membership and ownership map
-
-- **Worktree Foundation** (shipped — worktree mechanics): the WU entry primitives (spawn / cold-start) and
-  the `arc-session` skill, the `arc start --here` cold-start invocation command (introduces the `arc start`
-  verb; AWL adds the tier modes — the create-new wiring was extracted to CWC 2026-06-03, see its Inbound
-  Buffer), worktree-aware session-init + branch-gone handling,
-  cross-WU sync, and the Errand-class cheap-branch mechanism. (`/arc-shift` was originally in WF scope;
-  deferred during execution — see § Deferred — `/arc-shift`.)
-- **Errand Enablement** (shipped — the Errand floor): the `errand-launch` entry primitive, the Errand decision matrix,
-  and the advisory foreign-artifact gate — the minimum to make the Errand class usable. Sequences Worktree
-  Foundation → Errand Enablement → In-Flight Awareness. Carved from AWL / CWC 2026-05-25.
-- **In-Flight Awareness** (shipped — awareness layer): the in-flight-detection oracle, the user-scoped `STATUS.USER`
-  view + file / standard (below), the per-WU `Priority` field, materialize (the 4th entry-point quadrant),
-  and the oracle-backed activation-time concurrency check. Split from Worktree Foundation 2026-05-24;
-  depends on it.
-- **Agile WU Lifecycle** (~~verbs / lifecycle~~ — **departed to principle-anchored-core 2026-06-02**): the
-  tier model, the `arc start` tier layer (`--tier` + tier-conditional activation — create-new wiring
-  extracted to CWC 2026-06-03), the `**State:**`-machine rollout, and tier-model reconciliation to the
-  Errand/WU split were its scope. Reassigned because what remained after the Errand
-  class absorbed the "agile" spin-up motivation is spec/task scaling (the scalable-core thesis), not
-  parallelism. The **tier-model reconciliation + atomic-tier-survival question travels with it** to its new
-  cohort (see that draft's § Cohort reassignment & design-refresh flag). It does not block CWC.
-- **Concurrent Work Conventions** (conventions — the remaining member): when to parallelize, awaiting-review
-  handling, parked = soft guidance, and the Errand-class doctrine + gates (below).
-
-Cross-cohort touchpoint: **roadmap-tooling** (outside the cohort) owns the renderer that both ROADMAP
-and the in-flight view (below) derive from.
 
 ## Cohort status & closeout (2026-06-02)
 

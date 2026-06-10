@@ -15,7 +15,7 @@ arc:
 
 # Workflow: Create Spec
 
-The second authoring stage — peer to [draft-design](draft-design.md) and [generate-tasks](2_generate-tasks.md).
+The second authoring stage — peer to [draft-design](draft-design.md) and [generate-tasks](generate-tasks.md).
 It crystallizes the design into a **spec** at the form the work demands: a one-paragraph `brief`, a
 decision-recording `outline`, or a full `detailed` spec (subtyped PRD or RFC). It reads the **derivation** axis
 — how much design must be authored before a competent engineer can start — resolves the form, selects the
@@ -216,7 +216,7 @@ Documents).
    `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
    Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read) and
-   advance its `**Next Action:**` to the post-spec step (e.g., "Run `2_generate-tasks.md`"). Skip otherwise (no
+   advance its `**Next Action:**` to the post-spec step (e.g., "Run `generate-tasks.md`"). Skip otherwise (no
    meta file exists pre-init under non-planning-branch flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
@@ -238,7 +238,7 @@ Body itemizes the bundled changes (spec save, draft retirement, `notes-*` migrat
 
 ## Next Step
 
-Run [2_generate-tasks.md](2_generate-tasks.md) when ready — it consumes this spec as input.
+Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec as input.
 
 ---
 

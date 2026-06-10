@@ -789,25 +789,25 @@ describe("parseMetaRecord — narrative fidelity", () => {
       "",
       "- **Branch:** `feat/x`",
       "- **Design:** `spec-foo.md`",
-      "- **Next Action:** Run `1_create-spec.md`, then `2_generate-tasks.md`",
+      "- **Next Action:** Run `create-spec.md`, then `generate-tasks.md`",
       "",
     ].join("\n");
     const record = parseMetaRecord(content);
     expect(record.Branch).toBe("feat/x"); // identifier → bare
     expect(record.Design).toBe("spec-foo.md"); // identifier → bare
-    expect(record["Next Action"]).toBe("Run `1_create-spec.md`, then `2_generate-tasks.md`"); // narrative → verbatim
+    expect(record["Next Action"]).toBe("Run `create-spec.md`, then `generate-tasks.md`"); // narrative → verbatim
   });
 
   it("recovers a multi-line narrative value in full, leading indent stripped", () => {
     const content = [
       "# Metadata: foo",
       "",
-      "- **Next Action:** Author the spec via `1_create-spec` — a detailed PRD,",
+      "- **Next Action:** Author the spec via `create-spec` — a detailed PRD,",
       "  then re-derive the worked example and confirm the boundary tests.",
       "",
     ].join("\n");
     expect(parseMetaRecord(content)["Next Action"]).toBe(
-      "Author the spec via `1_create-spec` — a detailed PRD,\n" +
+      "Author the spec via `create-spec` — a detailed PRD,\n" +
         "then re-derive the worked example and confirm the boundary tests.",
     );
   });
@@ -863,15 +863,15 @@ describe("parseMetaRecord — narrative fidelity", () => {
 describe("renderMetaFile — multi-line narrative", () => {
   it("indents continuation lines two spaces under the bullet", () => {
     const md = renderMetaFile("foo", {
-      "Next Action": "Author the spec via `1_create-spec`,\nthen re-derive the example.",
+      "Next Action": "Author the spec via `create-spec`,\nthen re-derive the example.",
     });
     expect(md).toContain(
-      "- **Next Action:** Author the spec via `1_create-spec`,\n  then re-derive the example.",
+      "- **Next Action:** Author the spec via `create-spec`,\n  then re-derive the example.",
     );
   });
 
   it("round-trips backticks and line breaks through render → parse", () => {
-    const value = "Run `1_create-spec.md` — a detailed PRD,\nthen `2_generate-tasks.md` and verify.";
+    const value = "Run `create-spec.md` — a detailed PRD,\nthen `generate-tasks.md` and verify.";
     expect(parseMetaRecord(renderMetaFile("foo", { "Next Action": value }))["Next Action"]).toBe(
       value,
     );

@@ -17,7 +17,7 @@ Transition an existing WU from `**State:** Planning` to `**State:** Active` via 
 rename `plan/<name>` → `<type>/<name>`. No new branch, no directory move — the WU stays on its existing branch with
 its artifacts in `active/`.
 
-**When to use:** After `2_generate-tasks.md` produces the task list, when ready to begin implementation.
+**When to use:** After `generate-tasks.md` produces the task list, when ready to begin implementation.
 
 > [!NOTE]
 > **No WU on this branch?** If no `plan/<name>` branch is checked out, or `active/meta-{name}.md` does not exist,
@@ -76,7 +76,7 @@ Remove any residual draft-doc:
 git rm .arc/active/draft-{name}.md
 ```
 
-Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `1_create-spec.md`); this covers
+Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `create-spec.md`); this covers
 paths that skipped the create-PRD boundary.
 
 Stage all edits.
@@ -180,7 +180,7 @@ commit (`workflowCommit`) per the extension's contract.
 
 With activation complete, proceed to task execution:
 
-**→ [3_process-task-loop.md](../3_process-task-loop.md)** — Execute tasks with quality gates.
+**→ [process-task-loop.md](../process-task-loop.md)** — Execute tasks with quality gates.
 
 ## Related Workflows
 

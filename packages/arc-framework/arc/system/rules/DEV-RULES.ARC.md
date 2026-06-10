@@ -42,6 +42,9 @@ how much review and integration ceremony it warrants. What never scales is execu
 [review-increment invariant](#review-increment-invariant), the interlocks that gate review and merge, and the
 quality gates hold identically across the whole range, from a single-concern Errand to a novel work unit.
 
+`Class` records work-unit-scoped weight (`Light` / `Heavy` / `Novel`), distinct from **Work Character** —
+whether a concern is atomic or Errand-shaped below the WU wrapper, not a fourth `Class` value.
+
 Resolve a work unit's `Class` with the `classify-work-unit` method; the model and worked examples live in the
 [Work Organization Strategy][work-org].
 
@@ -458,6 +461,14 @@ not in the artifact body.
 - "Next action after merge: invoke activate-work-unit.md" in a PR description — author-side
   workflow state, not reader-relevant for reviewing the change
 
+### Commit and PR surface language
+
+Commit and PR prose reads as **the operation performed**, legible without ARC-specific knowledge:
+backticked artifact references (`meta-*`, `draft-*`, `ROADMAP`) are fine, insider vocabulary as a
+load-bearing term (a `Class` value, a named internal procedure) is not. Traceability — task IDs,
+phases, lifecycle action — routes to the `Context:` footer; the prose carries the change.
+Illustrative, not exhaustive.
+
 ---
 
 ## When to Load Additional Guidance
@@ -496,7 +507,7 @@ Load these documents when you reach the relevant work — not during session ini
 [work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
 [session-ops]: ../../reference/strategies/arc/strategy-session-operations.md
-[process-task-loop]: ../../system/workflows/arc/3_process-task-loop.md
+[process-task-loop]: ../../system/workflows/arc/process-task-loop.md
 [prepare-commits]: ../../system/workflows/arc/supplemental/prepare-commits.md
 [strategy-index]: ../../reference/strategies/STRATEGY-INDEX.md
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md

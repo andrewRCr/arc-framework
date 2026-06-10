@@ -312,10 +312,10 @@ course-correction is still cheap.
 [work-org]: strategy-work-organization.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [draft-design]: ../../../system/workflows/arc/draft-design.md
-[create-spec]: ../../../system/workflows/arc/1_create-spec.md
+[create-spec]: ../../../system/workflows/arc/create-spec.md
 [resolve-planning-depth]: ../../../system/methods/resolve-planning-depth.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [template-draft]: ../../templates/arc/work-unit/template-draft.md
 [adr-methodology]: strategy-adr-methodology.md
-[process-loop]: ../../../system/workflows/arc/3_process-task-loop.md
+[process-loop]: ../../../system/workflows/arc/process-task-loop.md
 [arc-config]: ../../../system/arc-config.yml

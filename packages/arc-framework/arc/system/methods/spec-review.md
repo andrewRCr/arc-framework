@@ -6,7 +6,7 @@ override-active: false
 
 # Method: spec-review
 
-> - **Workflow:** [1_create-spec.md][create-spec]
+> - **Workflow:** [create-spec.md][create-spec]
 > - **When:** A spec has just been written, at create-spec's finalization review gate — before the spec is
 >   approved and committed.
 >
@@ -65,4 +65,4 @@ the finalization stop, never a gate.
 
 ---
 
-[create-spec]: ../workflows/arc/1_create-spec.md
+[create-spec]: ../workflows/arc/create-spec.md

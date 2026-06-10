@@ -2,7 +2,7 @@
 
 <!--
   `draft-*` is the pre-PRD synthesis artifact for substantive shaping work — ephemeral by design. The file is
-  deleted at PRD creation per `1_create-spec.md`; substantive content meant to persist (research findings,
+  deleted at PRD creation per `create-spec.md`; substantive content meant to persist (research findings,
   alternatives analysis not absorbed into the PRD) optionally graduates to a `notes-*.md` companion alongside the
   PRD at the same time. Whether a `draft-*` is created at all scales with mode and tier; the
   deletion-at-PRD-creation behavior is invariant.

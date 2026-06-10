@@ -10,7 +10,7 @@ arc:
 
 # Workflow: Generate Task List
 
-The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](1_create-spec.md). It
+The third authoring stage — peer to [draft-design](draft-design.md) and [create-spec](create-spec.md). It
 transforms a reviewed spec into an executable task list, scaled by planning depth — the plan that implementation
 is built and reviewed against. Run it once the spec has been created and reviewed.
 
@@ -341,7 +341,6 @@ pre-save checklist and bundles the commit.
 
 - [ ] Header is the single `**Design:**` chain-of-authority pointer (bare spec filename) — no
       `Purpose` / `Branch` / `Base Branch` on `tasks-*` (Purpose lives on the spec, branch on `meta-*`).
-      Incidental retains `## Context` + `## Scope` (it is its own spec)
 - [ ] Phase headers use `## **Phase X:** Description` format (H2; no `## Tasks` wrapper)
 - [ ] Phase preambles open with `_Purpose:_` line (italic); optional `_Design decisions:_` block
       links to `notes-{name}.md` for full rationale; soft cap ~12 lines per preamble
@@ -407,7 +406,7 @@ chore(arc): generate tasks-{name}
 Context: tasks-{name}.md (planning)
 ```
 
-See [Task Processing Loop](3_process-task-loop.md) for how task lists are executed.
+See [Task Processing Loop](process-task-loop.md) for how task lists are executed.
 
 ---
 

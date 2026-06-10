@@ -1,10 +1,10 @@
 # Draft: arc-plan as Planning Conductor
 
 **Purpose:** Reframe `arc-plan` as ARC's canonical planning conductor — the entry point for any
-planning ceremony, with selectable depth (minimum / standard / expanded). Make planning ceremony
-consistent regardless of branch protection mode, tier, or worktree configuration; close the
-status-file creation gap that opens when planning happens without a planning-branch ceremony; and
-add an expanded depth for high-novelty, high-coupling work that needs more structure than
+planning ceremony, with selectable `planning depth` (`low` / `medium` / `high`). Make planning
+ceremony consistent regardless of branch protection mode, `Class`, or worktree configuration; close
+the status-file creation gap that opens when planning happens without a planning-branch ceremony; and
+add a `high`-depth path for high-derivation, high-coupling work that needs more structure than
 freeform exploration.
 
 - **State:** Draft — pre-PRD exploration captured 2026-04-10; reframed 2026-04-29 from "optional
@@ -14,23 +14,23 @@ freeform exploration.
 
 - **Created:** 2026-04-10 (revised 2026-04-29, terminology refresh 2026-05-19)
 
-## Scope-boundary flag — spec-form work is AWL's, not the conductor's (2026-06-02)
+## Scope-boundary note — spec-form work is AWL's, not the conductor's (2026-06-02)
 
-> Flag only; resolve at this WU's planning pass. Today this draft and `agile-wu-lifecycle` defer
-> spec-form work to each other (circular deference): AWL says "tier ↔ spec-form coupling is a
-> conductor decision," while this draft claims the lighter spec-form templates and the
-> form-agnostic `create-spec` reframe as its own scope. Proposed split to de-conflict:
+> The split below has since shipped (the scalable-authoring-pipeline / class-model-foundation
+> cohort); it stands as the settled boundary the conductor builds on:
 >
-> - **AWL owns the grammar that scales** — the spec template family (PRD → brief → minimal) and the
->   scalable `create-spec` / `generate-tasks` workflows. That is artifact-shape scaling, i.e. the
->   scalable-core / tier concern AWL owns.
-> - **This conductor owns facilitation** — the canonical pre-spec elicitation verb, depth selection
->   (minimum / standard / expanded), and *invoking* the shape AWL defines. It reads tier/depth and
->   selects among AWL's templates; it does not ship them.
+> - **AWL owns the grammar that scales** — the spec template family (`brief` / `outline` /
+>   `detailed` PRD/RFC) and the scalable `create-spec` / `generate-tasks` workflows. That is
+>   artifact-shape scaling, the scalable-core concern AWL owns. Spec form follows the work's
+>   derivation depth, with `Class` constraining the available forms — no `Class` → spec-form
+>   coupling for the conductor to redefine.
+> - **This conductor owns facilitation** — the canonical pre-spec elicitation verb, planning-depth
+>   selection (`low` / `medium` / `high`), and *invoking* the shape AWL defines. It reads `Class` /
+>   planning depth and selects among AWL's templates; it does not ship them.
 >
 > This pulls the headline "scalable work units" value into AWL and keeps the conductor focused on
-> the planning-conductor element. Body content below predates this split and ADR-020/021 — read it
-> as the 2026-04-29 conception. AWL carries the mirror note.
+> the planning-conductor element. Body content below still predates ADR-020/021 in other respects —
+> read it as the 2026-04-29 conception except where it speaks of `Class` / planning depth.
 
 ---
 
@@ -97,23 +97,19 @@ freeform exploration.
   workflow, or overlay-bearing methods (`spec-review`, `resolve-planning-depth`). The likely outcome is two
   gates: review / iterate, then proceed-to-finalize.
 
-### `[ ]` **Realign the conductor to AWL's settled `Class` / intensity model**
+### `[ ]` **Depth-aware navigation as the correction mechanism for `Class` lane mis-calls**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: arc-plan-conductor`), agile-wu-lifecycle cohort housekeep
   drain (2026-06-04). Captured during `agile-wu-lifecycle` planning (2026-06-04), before graduation.
-- *Concern:* AWL settled into a new shape (2026-06-04 two-axis refinement): `Class` (`light` / `heavy`, `heavy`
-  iff either intrinsic stage-decorrelating axis — derivation or scale — is high), a per-stage `process intensity`
-  (`low` / `medium` / `high`), three spec forms (`brief` / `outline` / `detailed`), and `Class` decoupled from
-  spec form (the `outline` straddle). This obsoletes stale references in this draft: it still speaks of `atomic`
-  / `quick` / `standard` tiers (§ "Reads tier intent", § Design Lean § 4), still couples tier → spec form, and
-  still says quick-tier generates a `## Scope` task-list header.
-- *Proposed:* realign tier-awareness to `Class` (`light` / `heavy`); map the three planning-depth modes
-  (`minimum` / `standard` / `expanded`) onto the planning-stage instance of `process intensity`
-  (`low` / `medium` / `high`); drop the tier → spec-form coupling (spec form follows derivation; `Class` is
-  separate); rewrite the `## Scope`-header note to "invoke AWL's `brief`-form spec template"; position the
-  conductor's depth-aware navigation as the correction mechanism for two-axis lane mis-calls (boundary-test
-  thresholds are `class-model-foundation`'s to make crisp). Most of this is this draft's own § 4 / § "Reads tier
-  intent" write-back debt, now with a concrete target model.
+- *Concern:* the conductor's depth-aware navigation can serve as the correction mechanism when a WU's `Class` is
+  mis-called against the two decorrelating axes (derivation / scale) — a too-light or too-heavy lane surfaces
+  during facilitation, and the conductor ratchets planning depth (and routes the `Class` re-read) accordingly.
+  The boundary-test thresholds themselves are `class-model-foundation`'s (shipped); this item is only the
+  conductor-side navigation that consumes them.
+- *Status:* the vocabulary realignment this item originally tracked — retire `atomic` / `quick` / `standard`
+  tiers → `Class`; depth modes → `planning depth` (`low` / `medium` / `high`); drop the tier → spec-form
+  coupling (spec form follows derivation, `Class` constrains); retire the `## Scope`-header claim — is now
+  integrated into the body. Only the depth-aware-navigation design above remains for this WU's planning.
 
 ### `[ ]` **Decomposition facilitation: team-ownership motivation + lifecycle-timing axis**
 
@@ -169,41 +165,31 @@ contextually used — a PRD is now one template variant under the unified `spec-
 
 Conductor-WU implications of the rename (substantive content captured here, not deferred):
 
-1. **Depth + spec-form decoupling.** § Design Lean § 4's tier-aware orchestration (which currently
-   couples tier → spec form: quick-tier uses inline scope, atomic skips spec) is **a current lean,
-   not a settled decision.** The alternative — letting users choose spec form independent of tier
-   (quick-tier could opt into a full PRD; standard-tier could opt into a brief) — is on the table
-   at this WU's PRD time. Needs deeper analysis with concrete adopter usage patterns. Current
-   lean (tier-driven default) stays as documented; explicit decoupling-vs-coupling decision lands
-   at PRD.
-2. **Atomic-tier spec stance.** Binary at PRD time: either atomic gets a required-and-tiny spec
-   (one-paragraph form, supports reviewer validation) or atomic gets no spec at all. Not
-   optional. Resolved here, not deferred.
-3. **Template-variant scaling under unified `spec-*`.** WOR locks the unified prefix and establishes
+1. **Template-variant scaling under unified `spec-*`.** WOR locks the unified prefix and establishes
    the spec-form template home at `reference/templates/arc/work-unit/spec/` (WOR Phase 7), with
    `template-prd.md` preserved there as the heaviest variant; this WU ships the lighter variants
    alongside it. Recommended: recycle `template-plan.md` as a *middle-weight spec variant*
    (templating `spec-*` content — see filename-history note below). A lightest-weight variant is
    needed too; name TBD, but **not `brief`** (collides with `reference/briefs/`). Other forms as
    patterns surface during PRD work.
-4. **`template-plan.md` filename-history note.** Under WOR, `template-plan.md` retires (renamed
+2. **`template-plan.md` filename-history note.** Under WOR, `template-plan.md` retires (renamed
    `template-draft.md` since `plan-*` → `draft-*`). If this WU re-introduces `template-plan.md` as
    a middle-weight spec template variant (templating `spec-*` content rather than `draft-*`
    content), it would be a same-name re-introduction with different role. No git conflict (file is
    gone post-WOR-rename), but worth flagging so the future author understands the history.
-5. **`refine-plan-loop.md` workflow collateral rename.** The proposed planning-side loop workflow
+3. **`refine-plan-loop.md` workflow collateral rename.** The proposed planning-side loop workflow
    (§ Design Lean § 10, § 17) is named for the pre-WOR `plan-*` artifact. Under WOR's rename, the
    workflow likely warrants rename to `refine-draft-loop.md` for naming consistency. Decision at
    this WU's PRD time — note that the workflow's scope (operating on `draft-*` docs through
    refinement passes) matches `refine-draft-loop` more cleanly than `refine-plan-loop` does
    post-rename.
-6. **`1_create-spec.md` body still PRD-framed.** WOR renamed the workflow file (`1_create-prd.md` →
+4. **`1_create-spec.md` body still PRD-framed.** WOR renamed the workflow file (`1_create-prd.md` →
    `1_create-spec.md`) and the spec file class (`prd-*` → `spec-*`), but deliberately left the
    workflow *body* PRD-centric — H1 "Workflow: Create PRD", PRD-shaped prose throughout (WOR Task
    7.1.c). The form-agnostic reframe — generalizing the workflow beyond PRD, paired with the lighter
-   spec-form templates (§ 3) — is this WU's scope. Until then the filename leads the content: a
+   spec-form templates (§ 1) — is this WU's scope. Until then the filename leads the content: a
    reader opening `1_create-spec.md` finds a create-PRD workflow. Sequence the body reframe with the
-   template-variant work (§ 3) so the workflow generalizes as the forms it targets land.
+   template-variant work (§ 1) so the workflow generalizes as the forms it targets land.
 
 **Scalable-core alignment (ADR-020).** ADR-020 steers this WU to extend depth-selection / single-entry
 beyond the planning entry point to the *lifecycle* workflows (init / activate / integrate / archive) —
@@ -220,7 +206,7 @@ ADR-020 §9 carries the requirement.
   `arc-plan` is the natural canonical invocation that closes the gap, while also providing the
   orchestration layer that delegates to upstream WF's spawn primitive (per 2026-05-20 resequence,
   WF ships before this WU) and that downstream `plan-agile-wu-lifecycle.md` populates with
-  tier-aware depth defaults.
+  `Class`-aware depth defaults.
 
 > **Cross-plan note:** Pointer references in this document use the per-WU `status-{name}.md` model
 > (Work-Status Restructure WU, shipped). Under `plan-completion-status-consolidation.md` the
@@ -285,9 +271,9 @@ repeatedly, context becomes hard to contain, gap resolution becomes churn-heavy,
 
 `arc-plan` becomes ARC's canonical planning conductor:
 
-- **Single discoverable verb** for entering planning, regardless of mode, tier, or branch state
-- **Depth selection** — minimum (structural setup only), standard (today's facilitation), expanded
-  (refine-plan-loop deep shaping) — chosen at invocation time and adjustable mid-flight
+- **Single discoverable verb** for entering planning, regardless of mode, `Class`, or branch state
+- **Planning-depth selection** — `low` (structural setup only), `medium` (today's facilitation),
+  `high` (refine-plan-loop deep shaping) — chosen at invocation time and adjustable mid-flight
 - **Downstream orchestration** — invokes the right downstream operations for the configuration
   (planning-branch activation under full protection, worktree spawn when warranted, status-file
   creation when absent)
@@ -295,16 +281,16 @@ repeatedly, context becomes hard to contain, gap resolution becomes churn-heavy,
   with planning knowing the structural prereqs are in place (status file exists, plan-doc skeleton
   exists, branch state is appropriate)
 
-The expanded depth preserves everything from the original 2026-04-10 design: bounded refinement
+The `high`-depth path preserves everything from the original 2026-04-10 design: bounded refinement
 loop, plan-splitting detection, exit conditions, structured promotion of `plan-*`. What changes is
-that "expanded" is one selectable depth under a unified conductor, not an alternative path beside
-"standard."
+that `high` planning depth is one selectable resolution under a unified conductor, not an alternative
+path beside `medium`.
 
 ---
 
 ## Non-Goals
 
-- Do **not** make all `plan-*` work more ceremonial — minimum depth must remain near-zero overhead
+- Do **not** make all `plan-*` work more ceremonial — `low` planning depth must remain near-zero overhead
 - Do **not** turn the plan stage into a gated approval workflow
 - Do **not** replace `create-prd` as the formalization boundary
 - Do **not** require a companion artifact for ordinary work
@@ -325,9 +311,9 @@ ARC's current planning strategy is still directionally right:
 - planning should stay bounded at the level of a manageable refinement unit
 
 What's missing is **a canonical entry surface that guarantees structural integrity and offers
-depth selection**. The arc-plan skill already exists as a facilitation surface; promoting it to
-conductor extends its identity rather than introducing a new mechanism. The expanded depth is the
-escalation path the original 2026-04-10 design proposed; minimum and standard depths cover the
+planning-depth selection**. The arc-plan skill already exists as a facilitation surface; promoting
+it to conductor extends its identity rather than introducing a new mechanism. The `high`-depth path
+is the escalation the original 2026-04-10 design proposed; `low` and `medium` depths cover the
 cases that didn't need a new file then and still don't.
 
 ---
@@ -338,32 +324,36 @@ cases that didn't need a new file then and still don't.
 
 `arc-plan` becomes the verb for entering planning. When invoked, it:
 
-1. **Assesses context** — current branch, branch protection mode, tier intent, presence of existing
-   artifacts (status file, plan-doc, PRD), worktree state
+1. **Assesses context** — current branch, branch protection mode, `Class` intent, presence of
+   existing artifacts (status file, plan-doc, PRD), worktree state
 2. **Determines required setup** — what structural prereqs are absent that must be created for
    planning to proceed cleanly
-3. **Selects depth** — from explicit user signal (e.g., `/arc-plan --depth expanded`), inferred
-   signals (high-novelty cues from the user's framing, existing expanded-structure plan-doc), or
-   default (minimum for most invocations, standard when elicitation is the user's stated need)
+3. **Selects planning depth** — from explicit user signal (e.g., `/arc-plan --depth high`), inferred
+   signals (high-derivation cues from the user's framing, existing high-depth-structure plan-doc), or
+   default (`low` for most invocations, `medium` when elicitation is the user's stated need)
 4. **Invokes downstream operations** — planning-branch activation, worktree spawn, status-file
    creation — in the right order for the configuration
-5. **Hands off or stays engaged** depending on depth — minimum returns control immediately after
-   setup; standard remains for facilitation; expanded enters the refine-plan-loop
+5. **Hands off or stays engaged** depending on depth — `low` returns control immediately after
+   setup; `medium` remains for facilitation; `high` enters the refine-plan-loop
 
 The conductor is the orchestration layer. The downstream workflows (`activate-planning-branch.md`,
 `refine-plan-loop.md`, etc.) remain canonical specifications; the conductor invokes them.
 
-### 2. Three depth modes under one conductor
+### 2. Three planning-depth levels under one conductor
 
-| Depth        | Behavior                                                                                                                                        | Default for                                                          |
-|--------------|-------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
-| **minimum**  | Structural setup (status file, plan-doc skeleton, branch/worktree as needed), then steps out of the way                                         | Routine planning, well-understood scope, user wants to drive         |
-| **standard** | Minimum + collaborative elicitation and synthesis facilitation (today's `arc-plan` behavior)                                                    | User explicitly wants facilitation, or scope is medium-novelty       |
-| **expanded** | Standard + `refine-plan-loop` workflow (bounded batched refinement, plan-splitting detection, formalization-readiness tracking)                 | High-novelty, high-coupling, cross-cutting, or large-surface work    |
+The conductor selects the planning stage's `planning depth` — the shipped `low` / `medium` / `high`
+resolution — and engages proportionally:
 
-Depth is selectable at invocation (`--depth minimum|standard|expanded`) and adjustable mid-flight
-(escalation from minimum → standard → expanded as scope reveals itself). Demotion is also valid
-(expanded → standard once the deep shaping resolves, before reaching create-prd).
+| Depth        | Behavior                                                                                                                        | Default for                                                          |
+|--------------|---------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------|
+| **`low`**    | Structural setup (status file, plan-doc skeleton, branch/worktree as needed), then steps out of the way                         | Routine planning, well-understood scope, user wants to drive         |
+| **`medium`** | `low` + collaborative elicitation and synthesis facilitation (today's `arc-plan` behavior)                                      | User explicitly wants facilitation, or scope is moderate-derivation  |
+| **`high`**   | `medium` + `refine-plan-loop` workflow (bounded batched refinement, plan-splitting detection, formalization-readiness tracking) | High-derivation, high-coupling, cross-cutting, or large-surface work |
+
+Depth is selectable at invocation (`--depth low|medium|high`) and adjustable mid-flight
+(escalation from `low` → `medium` → `high` as scope reveals itself). Demotion is also valid
+(`high` → `medium` once the deep shaping resolves, before reaching create-prd), bounded by the
+work's `Class` floor — the conductor floats depth within the band, never below it.
 
 ### 3. Status-file creation contract
 
@@ -385,30 +375,31 @@ overwrite.
 This depends on interlock-foundation's template and lifecycle plumbing landing first; the conductor
 consumes that foundation rather than redefining it.
 
-### 4. Tier-aware orchestration
+### 4. `Class`-aware orchestration
 
-The conductor reads tier intent (when `plan-agile-wu-lifecycle.md` lands) and adapts:
+The conductor reads the WU's `Class` and adapts:
 
-- **Atomic tier** — planning ceremony is largely skipped; arc-plan invocation may not even be
-  appropriate. If invoked, the conductor advises the atomic-tier path (no plan-doc, no PRD) and
-  exits without creating planning artifacts. Atomic work is fully captured by the commit + PR
-  description.
-- **Quick tier** — minimum depth by default. Conductor may generate a `## Scope` section in the
-  task-list header (per agile-wu-lifecycle's quick-tier shape) rather than a separate plan-doc.
-  No PRD; spec lives in the task list or external tracker.
-- **Standard tier** — minimum, standard, or expanded depth as appropriate. Plan-doc generated;
-  PRD path follows.
+- **Atomic work character** — an `atomic` concern below the WU wrapper is an Errand, not a planning
+  WU: planning ceremony is skipped and arc-plan invocation may not even be appropriate. If invoked,
+  the conductor advises the errand path (no plan-doc, no spec) and exits without creating planning
+  artifacts. Atomic work is fully captured by the commit + PR description.
+- **`light`** — `low` planning depth by default. The lightest spec is the `brief` form
+  (`template-spec-brief.md`) — always a separate doc, never inlined into the task-list header.
+- **`heavy` / `novel`** — `low`, `medium`, or `high` planning depth as appropriate. Plan-doc
+  generated; the `outline` or `detailed` spec form follows.
 
-The `**Tier:**` field on the status file (introduced by agile-wu-lifecycle) is the signal source.
-Until that lands, the conductor defaults to standard-tier behavior.
+The `**Class:**` field on the meta file is the signal source. The spec form follows the work's
+derivation depth (`low` → `brief`, `medium` → `outline`, `high` → `detailed` PRD/RFC), with `Class`
+constraining the valid forms (`brief` ⇒ `light`; `detailed` ⇒ `heavy` / `novel`; `outline`
+straddles) — no `Class` → spec-form coupling for the conductor to redefine.
 
 ### 5. Worktree orchestration
 
 When `plan-worktree-foundation.md` lands the spawn-vs-continue model, the conductor invokes spawn
 (creating a worktree + branch + status file scaffold) when planning a new WU that warrants its own
 worktree. The conductor doesn't redefine spawn semantics — it calls into the canonical spawn
-operation. Tier-aware spawn applicability per worktree-foundation: atomic skips, quick optional
-under partial protection, standard always under full.
+operation. `Class`-aware spawn applicability per worktree-foundation: atomic (errand) skips, `light`
+optional under partial protection, `heavy` / `novel` always under full.
 
 The conductor's role is the "ok, we have an idea or know something we have to do and no artifacts
 of any kind exist for it yet, or it's in one of the backlog bucket files but there's no plan doc
@@ -433,7 +424,7 @@ synthesis narrative; the conductor coordinates their creation but doesn't own th
 
 ### 7. Inline promotion before companion artifacts
 
-When a plan needs more structure (under expanded depth), the first escalation step is **promoting
+When a plan needs more structure (under `high` planning depth), the first escalation step is **promoting
 the `plan-*` document to a more structured internal shape**, rather than immediately creating a
 second file.
 
@@ -456,20 +447,20 @@ capture implementation-phase rationale where needed.
 
 ### 8. Depth selection signals
 
-The conductor selects depth from the strongest available signal:
+The conductor selects planning depth from the strongest available signal:
 
-1. **Explicit user signal** — `/arc-plan --depth <minimum|standard|expanded>` or natural-language
+1. **Explicit user signal** — `/arc-plan --depth <low|medium|high>` or natural-language
    equivalent ("I want to think out loud about this," "this is a quick one," "this needs deep
    shaping")
-2. **Existing artifact shape** — if a `plan-*` already exists with expanded structure (resolved-
-   decisions table, findings register, etc.), default to expanded depth on resume
-3. **Inferred novelty cues** — user's framing mentions greenfield/novel/architecture-shaping;
+2. **Existing artifact shape** — if a `plan-*` already exists with high-depth structure (resolved-
+   decisions table, findings register, etc.), default to `high` on resume
+3. **Inferred derivation cues** — user's framing mentions greenfield/novel/architecture-shaping;
    plan-to-many-PRD decomposition; new design decisions surfacing while resolving old ones; same
    gaps rediscovered across sessions; spans many domains; user reports plan has become messy or
    churn-heavy
-4. **Tier context** — atomic skips planning, quick defaults to minimum, standard defaults to
-   minimum or standard
-5. **Default** — minimum depth
+4. **`Class` context** — atomic (errand) skips planning, `light` defaults to `low`, `heavy` /
+   `novel` default to `low` or `medium`
+5. **Default** — `low` planning depth
 
 When inferred signals point at a heavier depth than the user's stated intent, the conductor
 **surfaces the suggestion** rather than escalating silently:
@@ -480,12 +471,12 @@ When inferred signals point at a heavier depth than the user's stated intent, th
 
 That keeps the conductor materially useful without making it a gatekeeper.
 
-### 9. Visible exit conditions for expanded depth
+### 9. Visible exit conditions for `high` planning depth
 
-Expanded depth should not become an endless design phase. ARC needs clear guidance for when a plan
-is ready to return to the normal PRD pipeline.
+`high` planning depth should not become an endless design phase. ARC needs clear guidance for when a
+plan is ready to return to the normal PRD pipeline.
 
-A plan is ready to exit expanded depth when:
+A plan is ready to exit `high` planning depth when:
 
 - the core problem framing is stable
 - the main scope boundaries are explicit
@@ -496,10 +487,10 @@ A plan is ready to exit expanded depth when:
 
 This is guidance, not a formal gate. `create-prd` remains the authoritative workflow boundary.
 
-### 10. Loop-driven expanded depth
+### 10. Loop-driven `high` planning depth
 
-Expanded depth is not a one-pass document-writing exercise. It is an iterative process more like
-task execution than like template filling:
+`high` planning depth is not a one-pass document-writing exercise. It is an iterative process more
+like task execution than like template filling:
 
 - identify the highest-leverage unknowns
 - investigate a bounded batch
@@ -511,7 +502,7 @@ ARC supports this with the **`refine-plan-loop`** workflow — the planning-side
 
 - **not** a hard gate
 - **not** a second authority beside `create-prd`
-- **yes** a repeatable loop that supports multi-session refinement for expanded plans
+- **yes** a repeatable loop that supports multi-session refinement for `high`-depth plans
 - **yes** explicitly collaborative, following ARC's co-development posture rather than implying
   autonomous agent planning
 
@@ -560,12 +551,12 @@ When these signals appear, the loop recommends one of:
 2. split into multiple `plan-*` documents
 3. move to `create-prd`
 
-This keeps expanded depth bounded and prevents the template structure from becoming an excuse for
-unlimited plan growth.
+This keeps `high` planning depth bounded and prevents the template structure from becoming an excuse
+for unlimited plan growth.
 
 ### 12. Bounded refinement unit (template structure)
 
-The expanded structure helps organize substantial planning work but is not designed as an
+The high-depth structure helps organize substantial planning work but is not designed as an
 infinitely extensible mega-template. It is optimized for one manageable shaping unit.
 
 First-pass structure:
@@ -625,45 +616,45 @@ Priority for selecting the next batch:
 
 ### 15. Session-init detection of active planning
 
-When `refine-plan-loop` is a real workflow, session-init treats expanded planning the same way it
+When `refine-plan-loop` is a real workflow, session-init treats `high`-depth planning the same way it
 currently treats task execution.
 
 Detection model:
 
-- when session-init can tell that expanded planning is the focus of the session, it conditionally
+- when session-init can tell that `high`-depth planning is the focus of the session, it conditionally
   loads `refine-plan-loop` (the empty `planning` slot in session-init item 10's lifecycle-workflow
   branch is the natural fit)
-- if the session later pivots into expanded planning, the workflow loads then
-- ordinary freeform planning (minimum / standard depth) does **not** trigger workflow loading by
+- if the session later pivots into `high`-depth planning, the workflow loads then
+- ordinary freeform planning (`low` / `medium` depth) does **not** trigger workflow loading by
   default
 
 This mirrors the existing ARC architecture cleanly:
 
 - **task execution active** → load `process-task-loop`
-- **expanded planning active** → load `refine-plan-loop`
+- **`high`-depth planning active** → load `refine-plan-loop`
 
-Distinction matters: this is about **expanded depth**, not all planning. Standard freeform planning
-remains light-touch and is not over-proceduralized.
+Distinction matters: this is about **`high` planning depth**, not all planning. Ordinary freeform
+planning remains light-touch and is not over-proceduralized.
 
-### 16. Detection signal order for expanded planning
+### 16. Detection signal order for `high`-depth planning
 
 Detection follows ARC's normal preference: existing signals before new metadata.
 
 Signal order:
 
 1. **User intent**
-    - explicit `arc-plan --depth expanded` invocation
-    - explicit request to continue or refine an expanded plan
+    - explicit `arc-plan --depth high` invocation
+    - explicit request to continue or refine a `high`-depth plan
 2. **Existing session pointers**
     - active WU's status file (`State: Planning`, `**Spec:**` pointer)
     - SESSION-NOTES handoff guidance
     - prior next-pass pointer left by the previous refinement pass
 3. **Artifact inspection**
     - a `plan-*` exists
-    - it visibly uses expanded structure
+    - it visibly uses high-depth structure
     - it carries unresolved findings, assumptions, split pressure, or readiness tracking
 4. **Only then consider explicit metadata**
-    - e.g. a future `Planning Depth: Expanded` marker, if the first three signal layers prove
+    - e.g. a future `Planning Depth: high` marker, if the first three signal layers prove
       insufficient in practice
 
 Explicit plan metadata is treated as a **last resort**, not the default mechanism.
@@ -671,11 +662,11 @@ Explicit plan metadata is treated as a **last resort**, not the default mechanis
 ### 17. First-pass workflow draft for `refine-plan-loop`
 
 Aligned with ARC's existing loop-style workflows while keeping planning collaborative rather than
-autonomous. This is the workflow invoked when arc-plan enters expanded depth.
+autonomous. This is the workflow invoked when arc-plan enters `high` planning depth.
 
 #### Purpose
 
-Guide one bounded collaborative refinement increment on an expanded `plan-*` document, then stop
+Guide one bounded collaborative refinement increment on a `high`-depth `plan-*` document, then stop
 for direction.
 
 #### Collaboration model
@@ -883,8 +874,8 @@ The conductor selects modality from the strongest available signal, parallel to 
    "how should this be organized")
 3. **Artifact inspection** — if a `plan-*` already has substantive findings from prior spikes,
    default to prototype/hybrid on resume
-4. **Tier context** — atomic skips planning; quick may use single-spike-no-loop; standard supports
-   full modality range
+4. **`Class` context** — atomic (errand) skips planning; `light` may use single-spike-no-loop;
+   `heavy` / `novel` support full modality range
 5. **Default** — document modality (preserves existing default behavior)
 
 When inferred signals point at a different modality than the user's stated intent, the conductor
@@ -986,9 +977,9 @@ This is guidance, not a formal gate. `create-prd` remains the authoritative work
 Iterating spikes endlessly is a real failure mode ("prototype-as-procrastination"). Soft caps,
 surfaced as loop guidance rather than hard gates:
 
-- **Quick tier**: 1-2 spikes typical; often single-spike-no-loop
-- **Standard tier**: 3-5 spikes typical per planning effort
-- **Expanded depth**: cap can rise but the loop flags at ~5+ spikes — pause to assess whether
+- **`light` `Class`**: 1-2 spikes typical; often single-spike-no-loop
+- **`heavy` / `novel` `Class`**: 3-5 spikes typical per planning effort
+- **`high` planning depth**: cap can rise but the loop flags at ~5+ spikes — pause to assess whether
   learning is still arriving or whether create-prd is the right next move
 
 Caps are guidance in the loop's reporting layer. Users may exceed; the loop prompts reflection
@@ -1032,14 +1023,14 @@ The following failure modes are *actively prevented* by the design above:
 
 - **Depth (§ 2)**: orthogonal to modality. Each (depth, modality) combination is valid; conductor
   selects both at entry, both adjustable mid-flight
-- **Tier-aware orchestration (§ 4)**: tier interacts with both axes. Atomic skips planning
-  entirely (no modality applies); quick may use single-spike-no-loop or document-only depending on
-  signal; standard supports full range
+- **`Class`-aware orchestration (§ 4)**: `Class` interacts with both axes. Atomic (errand) skips
+  planning entirely (no modality applies); `light` may use single-spike-no-loop or document-only
+  depending on signal; `heavy` / `novel` support full range
 - **Worktree orchestration (§ 5)**: no change. Spike commits live on the WU's existing branch (in
-  the WU's worktree under standard tier + full protection); no second worktree needed for spikes
+  the WU's worktree under `heavy` / `novel` `Class` + full protection); no second worktree needed for spikes
 - **`plan-*` primacy (§ 6)**: under prototype modality, `plan-*` still serves as the synthesis
   narrative when it exists. Spike learnings flow INTO `plan-*` rather than competing with it
-- **Detection signals (§ 16)**: detection signals for expanded planning extend naturally to detect
+- **Detection signals (§ 16)**: detection signals for `high`-depth planning extend naturally to detect
   prototype activity (spike commits, populated findings register)
 
 ### 19. Spec-graduation cleanup ceremony
@@ -1127,12 +1118,12 @@ be invoked manually if a user wants to clean up mid-planning before the natural 
 Under release-wrapper routing, the state-flip commit fires through `workflowCommit` class tag
 (already exists in ARC's routing model) — the cleanup ceremony slots into existing infrastructure.
 
-#### Tier interaction
+#### `Class` interaction
 
-- **Atomic**: no planning phase → no ceremony fires
-- **Quick**: minimal planning → ceremony likely no-op in most cases (still safe to run; just
+- **Atomic (errand)**: no planning phase → no ceremony fires
+- **`light`**: minimal planning → ceremony likely no-op in most cases (still safe to run; just
   little to clean)
-- **Standard**: ceremony fires; primary benefit case
+- **`heavy` / `novel`**: ceremony fires; primary benefit case
 
 #### Edges
 
@@ -1183,13 +1174,13 @@ branches are the wrong default — they hide parked work and accumulate dead ref
 § 19's graduation-cleanup composes with park naturally: cleanup fires on park too, dropping
 planning-iteration noise from history before merging to main, same shape as Planning → Active.
 
-#### Tier-aware applicability
+#### `Class`-aware applicability
 
-- **Standard** — primary case. Substantial planning that may pause for weeks or months between
-  first-pass synthesis and PRD-ready maturity. Park/resume is the dominant flow.
-- **Atomic** — skips entirely (no planning phase to park).
-- **Quick** — rarely parks (planning is light enough that direct flow to impl is the norm).
-  Available but uncommon; park supports the case where quick-tier planning surfaces standard-tier
+- **`heavy` / `novel`** — primary case. Substantial planning that may pause for weeks or months
+  between first-pass synthesis and PRD-ready maturity. Park/resume is the dominant flow.
+- **Atomic (errand)** — skips entirely (no planning phase to park).
+- **`light`** — rarely parks (planning is light enough that direct flow to impl is the norm).
+  Available but uncommon; park supports the case where `light` planning surfaces `heavy`
   complexity and the user wants to step back before promotion.
 
 #### Cross-worktree coordination
@@ -1233,10 +1224,10 @@ upstream intent) over a second workflow that duplicates the moves.
 
 **Towards — life-phase-agnostic init (surfaced 2026-05-20 during WOR Task 6.7.c):** WOR ships
 `init-work-unit.md` as planning-only — Step 2 hardcodes `git checkout -b plan/{name}` and Step 4
-sets `**State:** Planning`. Under WOR-as-shipped, an atomic-tier or direct-impl WU that skips
+sets `**State:** Planning`. Under WOR-as-shipped, an atomic (errand) or direct-impl WU that skips
 Planning has no codified init workflow; the meta file gets hand-created with `**State:** Active`
 on a `<type>/<name>` branch. When this conductor WU iterates, decide whether init should accept
-a life-phase parameter (Planning vs Active → branch-prefix follows) or whether atomic-tier WU
+a life-phase parameter (Planning vs Active → branch-prefix follows) or whether atomic-WU
 init is a distinct entry path (e.g., `arc start` per `plan-agile-wu-lifecycle.md`). Surfaced
 during WOR's cross-reference sweep when reframing `2_generate-tasks.md`'s pre-WOR
 "directly-on-base-branch" bifurcation — that workflow was narrowed under WOR to the canonical
@@ -1250,14 +1241,14 @@ planning-life-phase flow only.
 
 - Promote `arc-plan` from facilitation skill to canonical planning conductor; update skill
   description and discovery surface accordingly
-- Add `--depth <minimum|standard|expanded>` selection (or natural-language equivalents)
+- Add `--depth <low|medium|high>` selection (or natural-language equivalents)
 - Add `--modality <document|prototype|hybrid>` selection (or natural-language equivalents);
   default `document` (preserves existing behavior). See § 18.
-- Implement context assessment (branch, mode, tier, existing artifacts, worktree state) and
+- Implement context assessment (branch, mode, `Class`, existing artifacts, worktree state) and
   downstream-operation orchestration
-- Add depth-selection signal detection (explicit, artifact-shape-driven, novelty cues, tier-driven)
+- Add depth-selection signal detection (explicit, artifact-shape-driven, derivation cues, `Class`-driven)
 - Add modality-selection signal detection (explicit, unknown-character, artifact inspection,
-  tier-driven). See § 18 § Modality selection signals.
+  `Class`-driven). See § 18 § Modality selection signals.
 - Document the conductor's invocation contract and prereq guarantees
 
 ### Workflow integration
@@ -1266,7 +1257,7 @@ planning-life-phase flow only.
   same workflow, different entry surface
 - Add conductor-driven status-file creation path for planning sessions outside the
   planning-branch ceremony
-- Add `refine-plan-loop.md` workflow file for expanded depth, document modality (the first-pass
+- Add `refine-plan-loop.md` workflow file for `high` planning depth, document modality (the first-pass
   draft in § Design Lean § 17)
 - Add `refine-prototype-loop.md` workflow file for prototype modality — bounded spike + learning
   capture + disposition decision per pass (see § Design Lean § 18)
@@ -1286,15 +1277,15 @@ planning-life-phase flow only.
 - Update `strategy-work-planning.md` to define the modality model (document / prototype / hybrid),
   modality-selection guidance, and the spike contract shape (hypothesis + acceptance criteria +
   scope cap + disposition commitment)
-- Add escalation guidance: when minimum suffices, when to escalate to standard, when to escalate
-  to expanded
+- Add escalation guidance: when `low` suffices, when to escalate to `medium`, when to escalate
+  to `high`
 - Add modality-selection guidance: when document modality suffices, when empirical unknowns
   warrant prototype, when hybrid is the right fit
-- Add soft spike-cap recommendations per tier (quick: 1-2; standard: 3-5; expanded: 5+ as
-  reflection trigger)
+- Add soft spike-cap recommendations per `Class` / depth (`light`: 1-2; `heavy` / `novel`: 3-5;
+  `high` depth: 5+ as reflection trigger)
 - Add one-plan-to-many-PRD guidance as a first-class expected outcome for large shaping efforts
 - Add plan-splitting guidance as distinct from PRD decomposition
-- Clarify that expanded depth does not create a new default artifact class
+- Clarify that `high` planning depth does not create a new default artifact class
 - Reclaim `spike` vocabulary in ARC glossary with explicit qualification: bounded,
   hypothesis-framed, learning-oriented, default-throwaway (contrasted with the drifted
   contemporary meaning)
@@ -1304,16 +1295,17 @@ planning-life-phase flow only.
 - Cross-reference the conductor's role from `DEV-RULES.ARC` § Verification and Discovery (or a new
   § Planning Entry section if appropriate at PRD time)
 - Update `strategy-work-organization.md` § Spec-Flow Invariants > Deferred contract to name
-  `arc-plan` (and the conductor model defined in this WU) as the surface owning per-mode ×
-  per-tier spec-form selection. Currently phrased as "surfaces that orchestrate per-mode and
-  per-tier policy" — adopter-safe abstraction pending this WU per audience-boundary discipline
-  (no forward-pointers to unplanned future scope from adopter-facing strategies)
+  `arc-plan` (and the conductor model defined in this WU) among the authoring-pipeline surfaces that
+  realize the per-stage `planning depth` → spec-form selection the contract leaves downstream. That
+  contract already abstracts the hand-off ("the per-stage realization ... and the per-mode artifact
+  orchestration ... lives with the authoring-pipeline surfaces") — adopter-safe per audience-boundary
+  discipline (no forward-pointers to unplanned future scope from adopter-facing strategies)
 
 ### Templates and examples
 
 - Revisit `template-plan.md`:
-    - keep freeform planning as the default ARC stance for minimum / standard depth
-    - evolve the template into the optional expanded-depth structure
+    - keep freeform planning as the default ARC stance for `low` / `medium` depth
+    - evolve the template into the optional `high`-depth structure
     - allow existing freeform plans to graduate into that structure over time
 - Decide whether ARC needs an example of promoted in-file structure beyond the template itself
 - Ensure the template is optimized for a bounded refinement unit, not unbounded accumulation
@@ -1322,10 +1314,10 @@ planning-life-phase flow only.
 
 - Update docs and strategy references so ARC users understand:
     - `arc-plan` is the canonical entry verb for planning
-    - depth selection is a first-class concept; minimum is the common case
+    - planning-depth selection is a first-class concept; `low` is the common case
     - modality selection is a first-class concept alongside depth; document is the default case
-    - not all plans need expanded depth or prototype modality
-    - one promoted `plan-*` document is the default expanded-depth shape; spike findings flow
+    - not all plans need `high` planning depth or prototype modality
+    - one promoted `plan-*` document is the default `high`-depth shape; spike findings flow
       into the same document under prototype modality when `plan-*` exists
     - `analysis-*` / `research-*` remain available when genuinely needed
     - the graduation-cleanup ceremony is a universal improvement — planning history is dropped
@@ -1363,9 +1355,9 @@ planning-life-phase flow only.
 
 ### Downstream
 
-- **`plan-agile-wu-lifecycle.md`:** conductor reads `**Tier:**` field for tier-aware orchestration
-  (atomic skips, quick defaults to minimum, standard supports all depths). Until agile-wu-lifecycle
-  lands the field, conductor defaults to standard-tier behavior.
+- **`plan-agile-wu-lifecycle.md`:** conductor reads the `**Class:**` field for `Class`-aware
+  orchestration (atomic/errand skips, `light` defaults to `low`, `heavy` / `novel` support all
+  depths). The `Class` model has since shipped (class-model-foundation), so the field is available.
 
 ### Upstream-by-sequence (added 2026-05-20)
 
@@ -1396,12 +1388,12 @@ recently-created backlog plans:
   archive aligns with the conductor's treatment of the status file as the unified pointer.
 - **`plan-worktree-foundation.md`** — spawn-vs-continue model the conductor invokes when planning
   warrants worktree isolation.
-- **`plan-agile-wu-lifecycle.md`** — `**Tier:**` field the conductor reads for tier-aware
-  orchestration; `arc start` command and tier-aware activation paths the conductor coordinates
+- **`plan-agile-wu-lifecycle.md`** — the `**Class:**` field the conductor reads for `Class`-aware
+  orchestration; `arc start` command and `Class`-aware activation paths the conductor coordinates
   with.
 - **`plan-arc-modes.md`** — original pressure source. The conductor model honors the modes
-  plan's lean toward configurable adoption (Lite vs Full) — minimum depth suits Lite cleanly;
-  expanded depth is Full-mode territory.
+  plan's lean toward configurable adoption (Lite vs Full) — `low` planning depth suits Lite cleanly;
+  `high` planning depth is Full-mode territory.
 
 ---
 
@@ -1428,9 +1420,9 @@ the primary path (not fallback), and leave artifact structure entirely to user j
 
 **Current lean:** insufficient. The conductor reframe is what unifies the entry experience.
 
-### Option B — Conductor with two depths (standard / expanded), no minimum
+### Option B — Conductor with two depths (`medium` / `high`), no `low`
 
-Make arc-plan the canonical entry, but only support standard and expanded depths. Skip "minimum"
+Make arc-plan the canonical entry, but only support `medium` and `high` depths. Skip `low`
 as a depth.
 
 **Pros:**
@@ -1444,19 +1436,19 @@ as a depth.
 - no clean fit for the "I just want the structural setup, then I'll drive" case
 - adopters may bypass arc-plan to avoid forced facilitation, defeating the canonical-entry goal
 
-**Current lean:** rejected. Minimum depth is what makes the conductor universally usable.
+**Current lean:** rejected. `low` planning depth is what makes the conductor universally usable.
 
 ### Option C — Conductor with three depths (current lean)
 
-Three-depth selection (minimum / standard / expanded) under one conductor.
+Three-depth selection (`low` / `medium` / `high`) under one conductor.
 
 **Pros:**
 
 - canonical entry verb
 - depth scales with need
 - closes the status-file creation gap cleanly
-- preserves freeform planning as the dominant case (minimum depth)
-- expanded path available when work warrants it
+- preserves freeform planning as the dominant case (`low` planning depth)
+- `high`-depth path available when work warrants it
 
 **Cons:**
 
@@ -1466,7 +1458,7 @@ Three-depth selection (minimum / standard / expanded) under one conductor.
 
 **Current lean:** preferred.
 
-### Option D — Introduce a formal expanded-planning companion artifact
+### Option D — Introduce a formal `high`-depth-planning companion artifact
 
 Codify a second file for deeper shaping work (the original 2026-04-10 alternative).
 
@@ -1495,9 +1487,9 @@ Codify a second file for deeper shaping work (the original 2026-04-10 alternativ
 1. **Naming:** Is `arc-plan` the right name now that the skill is conducting orchestration, not
    just facilitating? Alternatives: `arc-start-planning`, `arc plan`, `arc-orient`. Renaming has
    discoverability cost; current lean is keep `arc-plan` and document the elevated identity.
-2. **Depth flag syntax:** `--depth minimum|standard|expanded` is verbose; alternatives include
-   `-m / -s / -e` shorthand or natural-language inference. PRD decision.
-3. **Invocation prereq guarantees:** After `arc-plan` returns control under minimum depth, what
+2. **Depth flag syntax:** `--depth low|medium|high` is verbose; alternatives include
+   `-l / -m / -h` shorthand or natural-language inference. PRD decision.
+3. **Invocation prereq guarantees:** After `arc-plan` returns control under `low` planning depth, what
    exactly is the agent allowed to assume? (Status file exists, plan-doc skeleton exists, branch
    appropriate, working tree clean — or some subset?)
 
@@ -1511,23 +1503,23 @@ Codify a second file for deeper shaping work (the original 2026-04-10 alternativ
 ### Depth selection
 
 5. **Thresholding:** Should `arc-plan` only suggest escalation, or should ARC also document hard
-   triggers that strongly recommend expanded depth?
-6. **Depth demotion ergonomics:** Once expanded depth completes deep shaping, how does the
-   conductor signal "ready to drop to standard"? Implicit (plan reaches formalization-ready
+   triggers that strongly recommend `high` planning depth?
+6. **Depth demotion ergonomics:** Once `high` planning depth completes deep shaping, how does the
+   conductor signal "ready to drop to `medium`"? Implicit (plan reaches formalization-ready
    state)? Explicit user signal? Both?
 
-### Expanded-depth mechanics
+### `high`-depth mechanics
 
-7. **Inline promotion shape:** What is the minimum promoted structure inside `plan-*` that helps
+7. **Inline promotion shape:** What is the smallest promoted structure inside `plan-*` that helps
    without turning the plan into a pseudo-PRD?
 8. **Loop workflow:** What is the right minimal workflow shape for `refine-plan-loop` now that the
    lean is a standalone workflow conditionally loaded by session-init?
 9. **Per-pass pointer shape:** What is the lightest useful structure for the "next batch" pointer
    a loop pass should leave behind for the next session?
 10. **Detection reliability:** Are user intent, session pointers, and artifact inspection
-    sufficient to detect expanded depth reliably, or do real cases justify explicit metadata
+    sufficient to detect `high` planning depth reliably, or do real cases justify explicit metadata
     later?
-11. **Readiness boundary:** What specific conditions are sufficient to move from expanded depth
+11. **Readiness boundary:** What specific conditions are sufficient to move from `high` planning depth
     back into `create-prd`?
 12. **Plan splitting:** What are the strongest non-line-count signals that a plan has ceased to be
     a manageable refinement unit?
@@ -1540,25 +1532,25 @@ Codify a second file for deeper shaping work (the original 2026-04-10 alternativ
     appropriate, does it invoke spawn immediately (changing the working context within the
     invocation) or surface the suggestion and wait for user confirmation? Current lean: surface
     and wait — spawn is per worktree-foundation an explicit user act under all autonomy levels.
-15. **Tier inference vs. tier prompting:** When the user invokes arc-plan without specifying tier,
-    does the conductor infer tier from scope cues (and prompt to confirm) or always prompt? PRD
-    decision after agile-wu-lifecycle's tier model lands.
+15. **`Class` inference vs. `Class` prompting:** When the user invokes arc-plan without specifying
+    `Class`, does the conductor infer `Class` from scope cues (and prompt to confirm) or always
+    prompt? PRD decision (the `Class` model has since shipped).
 
 ### Modality
 
 16. **Modality detection reliability.** Are user intent, framing language, and artifact inspection
     sufficient to detect prototype-appropriate work, or do real cases justify explicit metadata
     (e.g., a `**Modality:**` field on the meta file)? Current lean: detection-based, last-resort
-    metadata — same posture as expanded-depth detection (§ 16).
-17. **Single-spike-no-loop variant for quick tier.** Does quick tier under prototype modality skip
-    refine-prototype-loop entirely (single bounded spike followed directly by PRD write), or
+    metadata — same posture as `high`-depth detection (§ 16).
+17. **Single-spike-no-loop variant for `light` `Class`.** Does `light` work under prototype modality
+    skip refine-prototype-loop entirely (single bounded spike followed directly by PRD write), or
     always loop with a cap of 1? PRD decision.
 18. **Modality and `template-plan.md`.** Does prototype modality benefit from a structurally
     different `plan-*` template (findings-register prominent), or does the existing template
     absorb spike findings cleanly? Current lean: existing template absorbs; promoted structure
-    under expanded depth (§ 12) covers the findings-register case for both modalities.
+    under `high` planning depth (§ 12) covers the findings-register case for both modalities.
 19. **Stabilization contract specifics.** When a spike opts into evolutionary disposition, what's
-    the minimum content of the stabilization contract? Refactoring checklist, test coverage
+    the minimal content of the stabilization contract? Refactoring checklist, test coverage
     requirements, documentation expectations — what's required vs. recommended at PRD time.
 20. **Hybrid signaling.** How is "hybrid" expressed at invocation when modality flips mid-flight
     is the canonical way to compose document and prototype passes? Is `--modality hybrid` a real
@@ -1599,7 +1591,7 @@ expand the WU touch points significantly:
   downstream orchestration)
 - planning strategy (conductor model, depth + modality model, spike contract, spike-cap guidance,
   graduation-cleanup model)
-- `template-plan.md` (expanded-depth structure; modality-neutral)
+- `template-plan.md` (`high`-depth structure; modality-neutral)
 - `refine-plan-loop.md` (new workflow file — document modality)
 - `refine-prototype-loop.md` (new workflow file — prototype modality)
 - `graduation-cleanup.md` (new workflow file — cleanup ceremony)
@@ -1651,7 +1643,7 @@ iteration session.*
   `.arc/reference/supplemental/research/`) — synthesizes SmartBear/Cisco, Google (Sadowski et al.),
   Microsoft (Bacchelli & Bird), and GitHub-scale studies, plus SPIDR/INVEST methodological
   frames. Includes draft section text ready to lift.
-- **Effort estimate:** S (atomic-tier — strategy edit + workflow cross-references)
+- **Effort estimate:** S (atomic — strategy edit + workflow cross-references)
 
 ## Coordination — ADR-022
 

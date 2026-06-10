@@ -402,10 +402,13 @@ warning in orientation.
 10. **Lifecycle workflow** — **read in full**, branched on `sessionType`:
 
     - `errandState.value.resume.resumable === true` → `.arc/system/workflows/arc/supplemental/run-errand.md`
-    - `execution` → `.arc/system/workflows/arc/3_process-task-loop.md`
+    - `execution` → `.arc/system/workflows/arc/process-task-loop.md`
     - `integration` → `.arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md`
-    - `planning` → none today (forward-compatible with `refine-plan-loop.md` if the Expanded Planning
-       Path WU lands)
+    - `planning` → the planning-stage workflow the meta **Next Action** names, tracking where the WU sits in the
+      design → spec → tasks progression: `draft-design.md`, `create-spec.md`, or `generate-tasks.md`. Planning
+      runs these in sequence, often across sessions; the Next Action (refreshed at handoff) names the current
+      stage and whether to continue it or begin the next (fall back to which planning artifacts exist if it
+      doesn't).
     - `null` — two paths:
         - **Multiple-candidate defer:** skip lifecycle workflow load until disambiguation completes;
           recompute `sessionType` from the chosen candidate and load the matching workflow then.
@@ -476,12 +479,12 @@ planning session, assess readiness for the next unit:
 1. Check `.arc/active/` for existing planning artifacts (PRDs, `draft-*` docs, task lists)
 2. If artifacts exist, report readiness state (draft PRD → needs refinement; complete PRD → ready for task
    generation; task list present → ready for activation) and propose next steps
-3. If no artifacts exist, the next action is to create a PRD when ready → [1_create-spec.md][create-spec]
+3. If no artifacts exist, the next action is to create a PRD when ready → [create-spec.md][create-spec]
 <!-- arc:endif -->
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
 > next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
-> Under partial protection (the default), proceed directly to [1_create-spec.md][create-spec] — no planning
+> Under partial protection (the default), proceed directly to [create-spec.md][create-spec] — no planning
 > branch needed.
 
 ## 6. Confirm Orientation
@@ -689,10 +692,10 @@ source's view with specific details and wait for explicit direction before any c
 [arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
 [arc-housekeep-skill]: ../../../.internal/skills/arc-housekeep/SKILL.md
 [dev-rules-routing]: ../../../rules/DEV-RULES.ARC.md#discovered-work-routing
-[create-spec]: ../1_create-spec.md
+[create-spec]: ../create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops-load-errors]: ../../../../reference/strategies/arc/strategy-session-operations.md#session-notes-load-error-recovery
 [session-init-contributor]: session-init.contributor.md
-[process-task-loop]: ../3_process-task-loop.md
+[process-task-loop]: ../process-task-loop.md

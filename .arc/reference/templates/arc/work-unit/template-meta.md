@@ -98,8 +98,6 @@
     config concern, not per-work-unit state.
   - `Sibling Work Unit(s):` — cohort is source of truth; siblings derived.
   - `Integration:` — folds into State as the `Integrating` value.
-  - `Interrupts:` / `Paused At:` / `Paused To:` — incidental-work-unit
-    substrate retired with the broader incidental-model reform.
 
   Deliberately not added:
   - `Worktree:` — per-machine; resolved via roster cascade + worktree

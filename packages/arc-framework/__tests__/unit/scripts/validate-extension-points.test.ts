@@ -33,7 +33,7 @@ const inlineRef = "- **Extensions** · `#post-task-quality`: load and execute.";
 describe("classifyWorkflowPath", () => {
   it("classifies .arc/ workflow paths as arc-workflow", () => {
     expect(
-      classifyWorkflowPath(".arc/system/workflows/arc/3_process-task-loop.md"),
+      classifyWorkflowPath(".arc/system/workflows/arc/process-task-loop.md"),
     ).toBe("arc-workflow");
     expect(
       classifyWorkflowPath(
@@ -45,7 +45,7 @@ describe("classifyWorkflowPath", () => {
   it("classifies package-source workflow paths as package-workflow", () => {
     expect(
       classifyWorkflowPath(
-        "packages/arc-framework/arc/system/workflows/arc/3_process-task-loop.md",
+        "packages/arc-framework/arc/system/workflows/arc/process-task-loop.md",
       ),
     ).toBe("package-workflow");
   });

@@ -1,7 +1,7 @@
 # Strategy: Work Organization
 
 > **Decision guide and rationale:** [Work Organization](https://andrewrcr.github.io/arc-framework/reference/work-organization/)
-> on the docs site covers categorization guidance, edge cases, incidental work rationale, branch
+> on the docs site covers categorization guidance, edge cases, discovered-work routing, branch
 > protection trade-offs, and common pitfalls.
 
 Operational specification for organizing development work in ARC-based projects. Defines work
@@ -27,7 +27,7 @@ documentation.
 - [WU Artifact Headers](#wu-artifact-headers)
 - [Archival](#archival)
 - [ROADMAP](#roadmap)
-- [Incidental Work Model](#incidental-work-model)
+- [Discovered Work During a WU](#discovered-work-during-a-wu)
 - [Branch Protection Modes](#branch-protection-modes)
 - [Auto-Merge Lane](#auto-merge-lane)
 - [Errand Work Class](#errand-work-class)
@@ -410,8 +410,7 @@ delivery shapes follow from the cut:
 Within-WU **team sub-branches** (multiple developers against one WU's work) are a team-collaboration mechanism,
 not a decomposition pattern — see [Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
 
-**Branch scope:** One work unit per branch. Switching work units implies switching branches. Incidental task
-lists may live alongside the primary work when they stay on the same branch by design.
+**Branch scope:** One work unit per branch. Switching work units implies switching branches.
 
 **Per-WU meta file behavior on branches.** Each active WU carries its own
 `meta-{name}.md` at `active/`. The file is created by
@@ -761,7 +760,7 @@ those fields, with each WU rendered by its canonical WU-name.
 
 ### Source of truth
 
-`active/**/<wu-name>/meta-<name>.md` and `backlog/planned/**/<wu-name>/meta-<name>.md` carry the
+`active/meta-<name>.md` and `backlog/planned/**/<wu-name>/meta-<name>.md` carry the
 canonical fields ROADMAP renders from:
 
 - `**State:**` — lifecycle phase (`Planning | Active | Integrating | Shipped`); surfaced in the **In Flight**
@@ -864,16 +863,16 @@ regeneration re-reads current state, so a regen reflects whatever changed since 
 **Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
 step, so these need no separate discipline:
 
-- **Initialization** (`backlog/planned/<wu>/` → `active/<wu>/` graduation, or a fresh meta scaffolded
-  directly into `active/<wu>/`) — the WU lands in `active/**` and enters In Flight.
+- **Initialization** (`backlog/planned/<wu>/` → `active/` graduation, or a fresh meta scaffolded
+  directly into `active/`) — the WU lands in `active/` and enters In Flight.
 - **Activation** (in-place `State: Planning → Active` + branch rename; no directory move) — the WU is
   already In Flight from initialization, so tier membership doesn't change; the regen self-heals any render
   drift since the last one.
-- **Integration / archive** (`active/<wu>/` → `completed/<dated>/<wu>/`, `State: Integrating →
+- **Integration / archive** (`active/` → `completed/<dated>/<wu>/`, `State: Integrating →
   Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
   Blocked to Ready, with no edits to their meta files.
-- **Deactivation** (`active/<wu>/` abandoned) — drops the WU from the render set.
-- **Decomposition** (`active/<wu>/` → a cohort of `backlog/planned/<cohort>/<member>/` stubs, the origin meta
+- **Deactivation** (`active/` abandoned) — drops the WU from the render set.
+- **Decomposition** (`active/` → a cohort of `backlog/planned/<cohort>/<member>/` stubs, the origin meta
   retired) — drops the origin from In Flight and lands its members in the backlog render set.
 
 Because each re-renders from current state, these ceremonies also **self-heal** any manual trigger
@@ -952,26 +951,13 @@ read for a fast offline view; the ready slice is unaffected.
 
 ---
 
-## Incidental Work Model
+## Discovered Work During a WU
 
-Handling unplanned work that surfaces during a WU — quick inline fixes, atomic tasks, and
-mid-execution interrupts requiring their own WU shape — follows the routing rules in
-[DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing. For mid-execution interrupts that warrant
-a separate WU, see [manage-incidental-work][manage-incidental] for the interrupt protocol;
-capture interrupt work on the current branch with clear commit boundaries separating
-interrupt commits from primary task commits.
-
-**Anti-rider, briefly.** Whether a discovered fix may ride the current change is a
-*concern-identity* test, not a file-identity one: a same-concern micro-cleanup in a file you're
-already editing folds in; a distinct concern that merely shares the file errands (or is captured)
-rather than riding the PR. § Discovered Work Routing states the rule and its PR-packaging consequence;
-§ Auto-Merge Lane (below) governs how a housekeep drain packages the resulting PRs.
-
-**Why capture is cheap.** Deferring an out-of-WU concern to `USER-INBOX` is not a productivity
-tax: `USER-INBOX` is a personal notes-synced file, so capturing to it is free from any branch — it
-pollutes no PR. Only *execution* (running an errand, scaffolding a stub) pays an isolation cost.
-Capture freely mid-task and let the between-WUs housekeep drain route the backlog; reach for an
-express lane (a direct stub, or running an errand) only when the commitment is already firm.
+Unplanned work that surfaces during a WU — inline fixes, atomic tasks, larger out-of-WU concerns —
+routes per [DEV-RULES.ARC][dev-rules-arc] § Discovered Work Routing (inline / errand / capture). The
+concern-identity (not file-identity) anti-rider test and the cheapness of deferring a capture to
+`USER-INBOX` both live there; see [§ Auto-Merge Lane](#auto-merge-lane) below for how a housekeep
+drain packages the resulting PRs.
 
 ---
 
@@ -1221,9 +1207,10 @@ through its commit footer, and tears down.
 
 `active/` is flat — per-worktree isolation (see [§ Per-Worktree Isolation](#per-worktree-isolation))
 means each worktree's `active/` carries one WU's artifacts at a time, so per-WU and per-category
-subdirs would be redundant. Artifact applicability scales with mode and `Class`; see
+subdirs would be redundant — concurrency comes from more worktrees, not more metas in one `active/`.
+Artifact applicability scales with mode and `Class`; see
 [§ Spec-Flow Invariants](#spec-flow-invariants) for the invariants and scaling axes. `draft-*.md` is
-the pre-PRD synthesis artifact, deleted at PRD creation per `1_create-spec.md` (with optional
+the pre-PRD synthesis artifact, deleted at PRD creation per `create-spec.md` (with optional
 graduation of substantive persisting content into `notes-*.md`); it never appears in `active/`.
 Archive-phase content (Release Notes Entry, Completion Notes, PR URL, Completed date) composes into
 the meta file at integration — there is no separate `completion-<name>.md` artifact.
@@ -1257,7 +1244,6 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
 [archive-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/archive-work-unit.md
-[manage-incidental]: ../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
 [branch-format-method]: ../../../system/methods/branch-format.md
 [commit-footer-method]: ../../../system/methods/commit-footer.md

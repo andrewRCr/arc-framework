@@ -7,8 +7,8 @@ override-active: false
 # Method: classify-work-unit
 
 > - **Workflow:** [init-work-unit.md][init-work-unit], [activate-work-unit.md][activate-work-unit],
->   [draft-design.md][draft-design], [1_create-spec.md][create-spec],
->   [2_generate-tasks.md][generate-tasks]
+>   [draft-design.md][draft-design], [create-spec.md][create-spec],
+>   [generate-tasks.md][generate-tasks]
 > - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — graduation into
 >   `backlog/planned/` (the forcing point), `init` as the WU enters active planning, `activate` at the
 >   pre-implementation settle, and the planning stages.
@@ -105,6 +105,6 @@ holds, ratchet *up* to a newly realized floor, or correct an unsubstantiated est
 [init-work-unit]: ../workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-work-unit]: ../workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/1_create-spec.md
-[generate-tasks]: ../workflows/arc/2_generate-tasks.md
+[create-spec]: ../workflows/arc/create-spec.md
+[generate-tasks]: ../workflows/arc/generate-tasks.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md

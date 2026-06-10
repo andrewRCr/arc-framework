@@ -12,7 +12,7 @@ arc:
 
 # Workflow: Draft Design
 
-The first authoring stage — peer to [create-spec](1_create-spec.md) and [generate-tasks](2_generate-tasks.md).
+The first authoring stage — peer to [create-spec](create-spec.md) and [generate-tasks](generate-tasks.md).
 It shapes the design before a spec crystallizes it: surface the problem, work the alternatives, and settle the
 direction, producing a `draft-*` of the right richness — or, when the design is already determinate, no draft at
 all. The `arc-plan` skill dispatches into this workflow.
@@ -150,14 +150,14 @@ write; a `low` path that produced no draft writes only the meta, landing as a de
 ```text
 chore(arc): capture draft for {name}
 
-Context: meta-{name}.md (draft-design)
+Context: draft-{name}.md (planning)
 ```
 
 ---
 
 ## Next Step
 
-Run [create-spec](1_create-spec.md) — it re-reads the derivation axis at its own entry, with the draft (or the
+Run [create-spec](create-spec.md) — it re-reads the derivation axis at its own entry, with the draft (or the
 determinacy confirmation) as its richest evidence. The draft's _shape_ carries forward, not a depth value: the
 planning-depth level is never recorded.
 

@@ -387,7 +387,7 @@ Six extension fire-points span the work-unit lifecycle:
 
 | Extension                      | Fire-point                                                | Wired into                                   | Default                         |
 |--------------------------------|-----------------------------------------------------------|----------------------------------------------|---------------------------------|
-| `pre-spec-finalization-review` | `1_create-spec.md` finalization gate, post-`spec-review`  | `1_create-spec.md`                           | inactive; no default `.actions` |
+| `pre-spec-finalization-review` | `create-spec.md` finalization gate, post-`spec-review`    | `create-spec.md`                             | inactive; no default `.actions` |
 | `pre-activation`               | `activate-work-unit.md` pre-condition gate                | `activate-work-unit.md`                      | inactive                        |
 | `pre-commit-review`            | After staging, before commit creation                     | `arc-commit` skill + `prepare-commits.md`    | inactive                        |
 | `pre-pr-review`                | `integrate-work-unit.md` pre-PR-creation push             | `integrate-work-unit.md`                     | inactive                        |
@@ -403,7 +403,7 @@ supplying their own actions activate them like any other extension.
 Some extension names ship as files but without a default `.actions` body — namespace reserved for project use
 or for future defaults. Three entries from the family above carry this status today:
 
-- `pre-spec-finalization-review` — fires at `1_create-spec.md`'s spec-finalization gate, after the `spec-review`
+- `pre-spec-finalization-review` — fires at `create-spec.md`'s spec-finalization gate, after the `spec-review`
   self-review. The opt-in seam for a team's own spec-review cadence — an async-PR review of the spec, a fixed
   comment window, a committee sign-off. Those cadences are informative precedents only; ARC enforces none.
 - `pre-push-review` — fires for any push via the push wrapper.

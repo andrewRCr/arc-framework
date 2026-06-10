@@ -6,8 +6,8 @@ override-active: false
 
 # Method: resolve-planning-depth
 
-> - **Workflow:** [draft-design.md][draft-design], [1_create-spec.md][create-spec],
->   [2_generate-tasks.md][generate-tasks]
+> - **Workflow:** [draft-design.md][draft-design], [create-spec.md][create-spec],
+>   [generate-tasks.md][generate-tasks]
 > - **When:** A planning stage performs its entry-assessment — the one evidence read that opens the stage — or
 >   re-fires that read mid-stage at an interlock when a floor-raising signal surfaces (the re-entry valve).
 >
@@ -107,6 +107,6 @@ in-place sibling is `generate-tasks`'s grounding-audit spec-propagation). The cu
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md
-[create-spec]: ../workflows/arc/1_create-spec.md
-[generate-tasks]: ../workflows/arc/2_generate-tasks.md
+[create-spec]: ../workflows/arc/create-spec.md
+[generate-tasks]: ../workflows/arc/generate-tasks.md
 [classify-work-unit]: classify-work-unit.md

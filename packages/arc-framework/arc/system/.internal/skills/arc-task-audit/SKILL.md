@@ -9,7 +9,7 @@ disable-model-invocation: false
 Pre-implementation analysis pass. Read-only — no edits, no implementation. The user decides when the cost of an
 audit is justified; never invoke this proactively before starting tasks.
 
-**Also invoked by [2_generate-tasks.md][generate-tasks]'s grounding-audit procedure** as the grounding-audit
+**Also invoked by [generate-tasks.md][generate-tasks]'s grounding-audit procedure** as the grounding-audit
 gate at generation time, phase-by-phase, at the depth its resolved level selects. In that context the workflow
 is the trigger; the same audit logic below applies.
 
@@ -90,4 +90,4 @@ Absent an explicit depth, audit at `full`.
    - For ordering risks: suggest concrete resequencing with rationale.
    - Do not implement fixes — present findings and wait for the user to decide how to proceed.
 
-[generate-tasks]: ../../../workflows/arc/2_generate-tasks.md
+[generate-tasks]: ../../../workflows/arc/generate-tasks.md

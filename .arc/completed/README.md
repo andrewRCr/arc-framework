@@ -9,10 +9,9 @@ completed/
 └── <YYYY-q*>/                       # quarterly grouping; NN resets per quarter
     └── {NN}_{wu-name}/              # per-WU subdir with completion-order prefix
         ├── meta-{wu-name}.md        # always present — durable record
-        ├── prd-{wu-name}.md         # standard-tier WUs
-        ├── tasks-{wu-name}.md       # WUs with task lists
-        ├── notes-{wu-name}.md       # optional development notes
-        └── atomic-{wu-name}.md      # atomic-companion capture (when present)
+        ├── spec-{wu-name}.md        # authored design (older archives: prd-* / draft-*)
+        ├── tasks-{wu-name}.md       # work units with a task list
+        └── notes-{wu-name}.md       # optional development notes
 ```
 
 **Quarterly subdir** (`<YYYY-q*>`, e.g. `2026-q2`) — temporal grouping. NN counter resets per quarter.
@@ -29,11 +28,13 @@ carry the outward-facing summary composed at integration; the rest of the body r
 metadata captured during execution.
 
 Companion artifacts stay alongside the meta file for historical reference. Which companions are present
-depends on WU tier:
+scales with the work unit's `Class` and planning depth:
 
-- **Atomic-tier** — `meta-*` only (no PRD or task list)
-- **Quick-tier** — `meta-*` plus `tasks-*` (no PRD)
-- **Standard-tier** — `meta-*` plus `prd-*` plus `tasks-*` plus optional `notes-*`
+- `meta-*` — always present; the durable record.
+- `spec-*` — the authored design, present when the work unit carried upfront design (heavier `Class` /
+  deeper planning depth). Older archives may carry `prd-*` or `draft-*` in this role.
+- `tasks-*` — present when the work unit was decomposed into a task list.
+- `notes-*` — optional development notes.
 
 ## Adding new archives
 
