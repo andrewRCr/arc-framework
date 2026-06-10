@@ -8,14 +8,14 @@
 - **Depends On:** `scalable-authoring-pipeline`, `decomposition-machinery`
 
 - **Origin:** [internal]
-- **Design:** `draft-doc-cascade-sweep.md`
+- **Design:** `spec-doc-cascade-sweep.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Author the outline spec via `1_create-spec`; this is a light terminal sweep with a broad but
-  determinate documentation surface.
+- **Next Action:** Run `2_generate-tasks.md` to decompose the `outline` spec into a task list; broad but
+  determinate doc surface (~139-file rename cascade), so scale the grounding pass to breadth.
 
 ---
