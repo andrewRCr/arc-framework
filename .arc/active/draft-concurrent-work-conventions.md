@@ -42,104 +42,6 @@ size**; solo is the degenerate case.
 
 ---
 
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **Should lifecycle workflows own eager post-merge branch/worktree teardown?**
-
-- *Routed from:* `decomposition-machinery` task-generation grounding audit (2026-06-09), Phase 4 (F6).
-- *Concern:* `decompose-work-unit` authors an `active/ → backlog/` + park-PR + worktree-kind-teardown block
-  single-source. `integrate-work-unit` stops before merge and owns no branch/worktree teardown today — teardown is
-  session-init's stale-worktree sweep. Making teardown an *eager* workflow step (so `integrate` / `archive` reuse
-  decompose's teardown block at merge time) is a real behavior change: it ripples to `archive` and reduces the
-  session-init sweep's role, and worktree teardown timing under concurrent worktrees is this WU's domain.
-- *Scope:* decide whether lifecycle workflows should own eager post-merge branch+worktree teardown (reusing the
-  decompose block, once `composable-workflows` lands) vs. keeping the lazy session-init sweep model. If eager: wire
-  `integrate` / `archive` to the shared block and trim the sweep accordingly. `decomposition-machinery`
-  deliberately did *not* refactor `integrate` (out of its charter); it left the block single-source and ready.
-
-### `[ ]` **Class-aware next-work suggestions in session-init discovery**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
-  `class-model-foundation` spec authoring.
-- *Concern:* feed meta `Class` through the session-init discovery arm so next-work suggestions account for
-  in-flight work composition: when a heavy or novel stream is already open, prefer a lighter ready WU or at least
-  surface the parallelism caveat before opening another high-weight stream.
-- *Scope:* this consumes the `Class` contract; it does not redefine it. Resolve whether it lands in this WU's
-  parallelism doctrine, its session-init / in-flight mechanism member, or as a coordination note for
-  `arc-plan-conductor`.
-
-### `[ ]` **Concurrency safety for the shared-mutable `cohort-{name}.md`**
-
-- *Routed from:* `decomposition-machinery` Phase 3 (Task 3.3.b), spec § G — 2026-06-09.
-- *Concern:* `cohort-{name}.md` is the one shared-mutable planning artifact — the deliberate exception to
-  per-worktree isolation. It rides plain git line-merge (not the notes-ref convergence machinery), so the
-  per-member partition is what keeps concurrent edits safe. Two seams fall in CWC's runtime-concurrency domain:
-  (1) **the advisory cross-cutting gate has a blind spot here** — the Errand matrix's "advisory gate when the
-  owning WU is in flight" keys on a single owning WU, but the cohort doc is owned by the *cohort*, so the gate is
-  ill-defined; the most-shared artifact is the least-covered. The behind-base detector is the net that does apply
-  (advisory, at resume). (2) **escape hatch if the partition proves insufficient:** route `cohort-{name}.md` edits
-  as errands through the primary worktree (serialized via `main`) rather than riding WU-branch PRs.
-- *Scope:* record the **partition-first lean** (cheap; serialize-via-`main` only as the fallback) and confirm the
-  behind-base detector covers the cohort doc; decide whether any cohort-doc-specific guard is warranted beyond it,
-  or whether partition + detector suffice. `decomposition-machinery` only routes the seam — runtime concurrency
-  safety is CWC's.
-
-### `[ ]` **D3 close-the-loop: same-session finalize + integration-failure surfacing**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: concurrent-work-conventions`), housekeep drain
-  (2026-06-10); captured during post-drain discussion of errand PR #72 and drain PR #73 lifecycle closure.
-- *Concern:* the drain / errand lifecycle deliberately does not block on merges, using the session-init
-  in-flight-errand sweep as the next-session orphan backstop. That leaves a same-session timing gap: when a PR
-  opened earlier in the session has already merged by the time control returns to base context, neither
-  in-session completion nor next-session sweep finalizes it. PRs #72 / #73 hit this shape and required manual
-  cleanup.
-- *Proposed:* refine D3's "merge-gate / unattended-merge completion trigger" with an opportunistic, bounded pass
-  when control returns to base context. Poll this session's PRs once / briefly: merged-clean → tear down local
-  branch, prune stale remote-tracking ref, remove any ephemeral worktree, and drop the slug-matched inbox line;
-  failed / blocked → surface loudly; still-pending → hand to the sweep. Preserve the non-blocking principle: no
-  unbounded wait on CI.
-- *Also:* explicitly surface CI / merge failures for both manual-merge and auto-merge cases so blocked integration
-  is actively flagged at completion, not only rediscovered next session.
-
-### `[ ]` **Cross-machine rebase-shadow divergence — append-only-until-integration convention + detection**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during laptop `arc-session`
-  diagnosis and recovery of this exact divergence.
-- *Concern:* a shared WU branch rebased + force-pushed on one machine orphans every other machine that holds the
-  pre-rebase tip — a cross-machine hazard distinct from the cross-worktree case the WORKING-MEMORY note
-  "Multi-WU integration discipline — vanilla-git fallback" already covers. Hit live 2026-06-10:
-  `doc-cascade-sweep` was scaffolded + pushed from the laptop (2026-06-09); the primary then rebased the branch
-  onto an advanced `main` (PR #76 had merged) and force-pushed; the laptop fetch showed diverged (5 ahead / 18
-  behind). Forensics confirmed a rebase, not a re-scaffold: `git range-diff` reported `=` on all 5 scaffold
-  commits (byte-identical patches, re-parented), and the remote-tracking reflog showed `update by push` then
-  `fetch: forced-update`. Resolved losslessly via `git reset --hard origin/<branch>` + `arc user load`.
-- *Root cause:* divergence needs three ingredients, all present — (1) branch was pushed (another clone holds it),
-  (2) history was rewritten (rebase, not append), (3) the rewrite was force-pushed. A per-WU worktree removes none
-  of them (worktrees are machine-local); the rebase was optional, not forced by the errand that advanced `main`.
-- *Approach:* CWC should codify three things, prevention-first:
-    1. **Principle — a pushed WU branch is append-only until integration.** Mid-flight (activation → integration)
-       only add commits and fast-forward-push; never rebase/amend already-pushed commits — the branch is the
-       cross-machine sync substrate. Default: don't bring `main` into the WU branch mid-flight at all; defer
-       reconciliation to one terminal step. If a `main`-side change is genuinely needed mid-flight, **merge** `main`
-       in (ancestry-preserving, ff-able everywhere) — never rebase onto it. Integration is the single sanctioned
-       rewrite point (rebase-onto-`main` / squash is fine there: WU done, branch about to merge/retire, no other
-       machine resumes it). The rule is not "never rebase" but "never rewrite a branch still serving as a live
-       multi-machine sync target." Cross-machine resume is always `pull --ff-only` (or `arc sync`). This threads
-       the repo's linear-history preference (rebase-onto-`main` endorsed at integration in WORKING-MEMORY) with
-       multi-machine safety.
-    2. **Worktrees are the enabling hygiene, not the guarantee.** A per-WU worktree tracking its own upstream
-       removes the *occasion* for the mid-flight rebase (you're never sitting on `main` "freshening" the WU) but
-       cannot *prevent* a rebase + force-push. Convention + worktrees together = robust.
-    3. **Backstop (secondary to prevention) — rebase-shadow detection in session-init's `diverged` handler.** When
-       local-ahead commits are patch-equal to a remote prefix (patch-id / range-diff check), downgrade the generic
-       "manual rebase or merge needed" to "local commits are superseded by rebased equivalents on the remote —
-       reset is lossless" and offer the reset. Optional guard: warn before force-pushing an in-flight WU branch.
-- *Scope:* convention/doc work lands in CWC's draft/spec; the session-init rebase-shadow detection is a separable
-  follow-on (CWC may own or hand off) — note the seam at drain.
-
 ## Decomposition plan
 
 CWC's holistic design is settled, but the concern is too large for one WU/PR — it closes the agile-parallelism
@@ -512,6 +414,13 @@ check, two trigger surfaces) plus thin pointers at those already-built fire-site
   self-overlap reorder freely, foreign-overlap coordinate. Extends Errand Enablement's advisory
   foreign-artifact gate to cover entry-level writes, not just file-level.
 - An explicit **"this is a heads-up; the behind-base detector is the real net"** weight statement.
+- **Class-aware plate-balance awareness** (`concurrent-work-doctrine` doctrine + a thin `async-merge-lifecycle`
+  surface). Feed meta `Class` into session-init's next-work discovery so suggestions account for in-flight
+  composition — when a `Heavy` / `Novel` stream is already open, surface the parallelism caveat (the `Class`
+  model's "roughly one genuinely-novel stream" balance rule). **Awareness-only, never paternalistic** — like the
+  activation and in-flight scope checks, it *surfaces once* and never suppresses, reorders, gates, or re-nags;
+  the developer decides. The doctrine is `concurrent-work-doctrine`'s; the single advisory annotation line is
+  `async-merge-lifecycle`'s session-init surface. Consumes the `Class` contract; does not redefine it.
 
 Start-side rigor is **inversely coupled** to integration-end robustness: because the behind-base detector
 surfaces drift continuously at every resume, the start-side check stays a light nudge, never a
@@ -537,6 +446,34 @@ overlap signals stay advisory (false positives; industry detects at merge time, 
 - Plus the **merge-commit hook/footer exemption** as a correctness fix (see Merge-safety below).
 - `research-integration-conflict-handling.md` is **sufficient** here — no new external pass.
 
+### Append-only-until-integration — cross-machine branch safety
+
+A pushed WU branch is the cross-machine sync substrate, so it is **append-only until integration**
+(`concurrent-work-doctrine` codifies the convention; `merge-safety-mechanism` backstops it). Divergence needs
+three ingredients together — a pushed branch (another clone holds it), a rewritten history (rebase/amend, not
+append), and a force-push; a per-WU worktree removes none of them (worktrees are machine-local). Grounded in a
+live 2026-06-10 incident: a branch scaffolded on the laptop, then rebased onto an advanced `main` and
+force-pushed from the primary, orphaned the laptop's pre-rebase tip (recovered losslessly via `reset --hard
+origin/<branch>`).
+
+- **Principle (doctrine).** Mid-flight (activation → integration) only add commits and fast-forward-push; never
+  rebase/amend already-pushed commits. Default: don't bring `main` into the WU branch mid-flight at all — defer
+  reconciliation to one terminal step; if a `main`-side change is genuinely needed mid-flight, **merge** `main`
+  in (ancestry-preserving, ff-able everywhere) rather than rebase onto it. Integration is the single sanctioned
+  rewrite point (rebase-onto-`main` / squash is fine there — the WU is done, no other machine resumes it). The
+  rule is not "never rebase" but "never rewrite a branch still serving as a live multi-machine sync target";
+  cross-machine resume is always `pull --ff-only` (or `arc sync`). Threads the repo's linear-history preference
+  (rebase-at-integration) with multi-machine safety.
+- **Worktrees are enabling hygiene, not the guarantee.** A per-WU worktree tracking its own upstream removes the
+  *occasion* for a mid-flight rebase (you are never sitting on `main` "freshening" the WU) but cannot *prevent* a
+  rebase + force-push. Convention + worktrees together are what make it robust.
+- **Detection backstop (`merge-safety-mechanism`, secondary to prevention).** In session-init's `diverged`
+  handler, when local-ahead commits are patch-equal to a remote prefix (patch-id / range-diff), downgrade the
+  generic "manual rebase or merge needed" to "local commits are superseded by rebased equivalents on the remote —
+  reset is lossless" and offer the reset; optionally warn before force-pushing an in-flight WU branch. Composes
+  with the behind-base detector above. Open seam: `merge-safety-mechanism` may own this detection or hand it to
+  `cross-machine-sync-coherence` — decide at the member's spec.
+
 ### Ergonomics & lifecycle: async accommodation + completion-sweep forcing function (Pillar 2)
 
 `**State:** Integrating` already *is* the awaiting-review state (no new state or field). The async-merge
@@ -557,6 +494,22 @@ stale-worktree + session-init in-flight sweeps backstop walk-away cleanup) — s
   configurable `*_after_days` threshold (reusing the inbox-reminder machinery + once-per-day marker)
   gates the *stale* tier; the *mergeable* and *merged-needs-archival* triggers are event-driven (bypass
   the threshold).
+- **Same-session finalize + integration-failure surfacing** (`async-merge-lifecycle`). The sweep's
+  next-session backstop leaves a same-session gap: a PR that merges *during* the session — after control returns
+  to base context — is finalized by neither in-session completion nor the next-session sweep (PRs #72 / #73 hit
+  this and needed manual cleanup). Add an opportunistic, bounded pass when control returns to base context: poll
+  this session's PRs once / briefly — merged-clean → tear down the local branch, prune the stale remote-tracking
+  ref, remove any ephemeral worktree, drop the slug-matched inbox line; failed / blocked → surface loudly;
+  still-pending → hand to the sweep. Preserve the non-blocking principle (no unbounded CI wait), and surface
+  CI / merge failures for both manual- and auto-merge so blocked integration is flagged at completion, not
+  rediscovered next session.
+- **Open — eager vs. lazy post-merge teardown** (`async-merge-lifecycle`; soft dep on `composable-workflows`).
+  `decompose-work-unit` already authors an `active/ → backlog/` + park-PR + worktree-teardown block
+  single-source, whereas `integrate` / `archive` own no branch/worktree teardown today (the session-init stale
+  sweep does it lazily). Open: should lifecycle workflows own *eager* post-merge teardown — `integrate` /
+  `archive` reusing decompose's block at merge time, once `composable-workflows` lands the shared-step hoist — or
+  keep the lazy sweep? Eager ripples to `archive` and shrinks the sweep's role; `decomposition-machinery`
+  deliberately left the block single-source and ready. Decide at this member's spec.
 
 **Completion is a worktree-agnostic boundary action** — the tail (`gh pr merge` + `arc user close` +
 worktree-remove-from-elsewhere) runs cleanest from the **primary worktree**, never a mid-increment
@@ -683,6 +636,15 @@ ADR-020 splits the in-git concurrency problem precisely, and this WU owns codify
 - **Partial mitigation worth a convention:** `merge=union` via `.gitattributes` makes concurrent inbox
   *appends* auto-merge, but loses *intentional deletions* (a drained entry can resurrect) — an
   append-safety aid, not a drain-safe solution. Document the caveat if adopted.
+- **Shared-mutable planning state (`cohort-{name}.md`) rides per-member partition + the behind-base net.** The
+  cohort doc is the one shared-mutable planning artifact — the deliberate exception to per-worktree isolation —
+  and rides plain git line-merge, so its **per-member partition** is what keeps concurrent edits safe
+  (`concurrent-work-doctrine` records the partition-first lean). Two seams: the Errand matrix's advisory
+  "owning-WU-in-flight" gate keys on a *single* owning WU, so it is ill-defined for a cohort-owned doc (the
+  most-shared artifact is the least-covered) — the behind-base detector is the net that does apply, and
+  `merge-safety-mechanism` confirms it covers the cohort doc; and an escape hatch if partition proves
+  insufficient — route `cohort-{name}.md` edits as errands through the primary worktree (serialized via `main`)
+  rather than riding WU-branch PRs. Partition-first is the lean; serialize-via-`main` is the fallback.
 
 ---
 
