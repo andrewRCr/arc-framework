@@ -150,7 +150,7 @@ write; a `low` path that produced no draft writes only the meta, landing as a de
 ```text
 chore(arc): capture draft for {name}
 
-Context: meta-{name}.md (draft-design)
+Context: draft-{name}.md (planning)
 ```
 
 ---

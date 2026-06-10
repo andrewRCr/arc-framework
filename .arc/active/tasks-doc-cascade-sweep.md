@@ -312,12 +312,13 @@ which rebases its `TYPE.QUALIFIER` cascade onto the prefix-dropped tree.
   build, markdown/TS/shell lint all clean. `framework-sync.test.ts` (the self-hosting drift check) confirms no
   stale manifest path, the forced-consequence pattern proven in 1.1.b.
 
-### `[ ]` **4.4 Fix the `draft-design` commit-template `Context:` line**
+### `[x]` **4.4 Fix the `draft-design` commit-template `Context:` line**
 
 - _Goal:_ `draft-design.md`'s commit template validates against the `commit-msg` hook.
 
-    - `draft-design.md` "Capture the draft": `Context: meta-{name}.md (draft-design)` →
-      `Context: draft-{name}.md (planning)`. Both copies.
+    - `draft-design.md` "Capture the draft": changed `Context: meta-{name}.md (draft-design)` →
+      `Context: draft-{name}.md (planning)` in both copies — names the `draft-*` (the deepest artifact under
+      edit) with a parenthetical the hook's allowed-contexts list accepts.
 
     - _Note:_ `graduate-work-unit.md`'s non-accepted `(graduation)` parenthetical is **out of scope** — routed to
       `rules-restructure` (owns the `commit-msg` allowed-contexts list + `commit-footer.md`), with the
