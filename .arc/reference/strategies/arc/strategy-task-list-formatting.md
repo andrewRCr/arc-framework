@@ -72,6 +72,10 @@ a phase use dotted notation (`Task 1.4`, `Task 1.4.a`). When referencing specifi
 `Task X.Y` — `Phase X.Y` is always a misnomer since dotted IDs identify tasks. `Phase X`
 remains valid when referring to the entire phase as a unit (e.g., "Phase 4 hasn't started").
 
+**Phase count.** One or more substantive phases plus a single, always-present verification phase (the final
+phase — see [§ Verification Phase](#verification-phase)). Count tracks the work's structure, not the WU's
+`Class`; every task list ends in the verification phase.
+
 ### Phase Preamble
 
 Lines between the phase heading and its first parent task heading. Required: `_Purpose:_` line
