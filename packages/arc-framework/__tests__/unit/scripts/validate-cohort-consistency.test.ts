@@ -60,7 +60,7 @@ describe("classifyPath", () => {
   });
 });
 
-describe("validateFiles — Cohort field↔dir path-match (5.1.a)", () => {
+describe("validateFiles — Cohort field↔dir path-match", () => {
   it("passes when a WU's Cohort equals its single-segment parent dir-path", () => {
     const files = {
       ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
@@ -100,7 +100,7 @@ describe("validateFiles — Cohort field↔dir path-match (5.1.a)", () => {
   });
 });
 
-describe("validateFiles — cohort-doc schema checks (5.1.b)", () => {
+describe("validateFiles — cohort-doc schema checks", () => {
   it("fails when a grouping dir carries no cohort doc", () => {
     const files = {
       ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
