@@ -23,6 +23,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [issue-triage](issue-triage.md) — severity triage, fix-vs-defer decisions
 - [test-first](test-first.md) — decision tree by change type
 - [classify-work-unit](classify-work-unit.md) — boundary-test triage + estimate-vs-realized ratchet for `Class`
+- [assess-cohort-fit](assess-cohort-fit.md) — upper-bound WU-vs-cohort boundary test (decompose, or stay one WU)
 - [session-state](session-state.md) — reading and writing session state
 - [diff-review](diff-review.md) — aggregate diff review activity
 - [review-triage](review-triage.md) — classifying and acting on review findings
@@ -38,6 +39,8 @@ when populating any `.override` section. Methods not listed here are independent
 | commit-format         | commit-footer         | Both govern the commit message  |
 | commit-footer         | commit-format         | Both govern the commit message  |
 | diff-review           | review-triage         | Uses review-triage for findings |
+| assess-cohort-fit     | classify-work-unit    | Upper/lower WU-boundary tests   |
+| classify-work-unit    | assess-cohort-fit     | Upper/lower WU-boundary tests   |
 
 ---
 

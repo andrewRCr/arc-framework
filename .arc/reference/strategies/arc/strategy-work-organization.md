@@ -17,6 +17,7 @@ documentation.
 - [Decision Rules](#decision-rules)
 - [Work Character](#work-character)
 - [Class Model](#class-model)
+- [Cohorts](#cohorts)
 - [Task Lists and Branches](#task-lists-and-branches)
 - [Work Unit State](#work-unit-state)
 - [Spec-Flow Invariants](#spec-flow-invariants)
@@ -255,23 +256,162 @@ only ever a PRD-idiom traceability convenience:
 
 ---
 
+## Cohorts
+
+A **cohort** is a deliberate grouping of sibling work units — the structure a concern takes when it outgrows a
+single WU. Rather than one WU sliced into stacked PRs, the concern becomes a cohort of self-contained,
+single-owner WUs, each with its own `meta-* / spec-* / tasks-*`, one branch, and one PR. The work unit remains
+the **leaf deliverable**; the cohort is the grouping above it.
+
+This taxonomy complements the [Class Model](#class-model): `Class` is the *weight* of one WU; a cohort is the
+*shape* a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
+a cohort — and where the cuts fall — is the `assess-cohort-fit` method's; this section defines what a cohort *is*
+once that cut is made.
+
+### One grouping kind; coordination by degree
+
+There is **one grouping kind — the cohort** — and coordination is a property it carries *by degree*, not a
+separate category. Every cohort **carries a `cohort-{name}.md`**, with no exceptions: a grouping that only
+*organizes* carries a Purpose-only doc; one that actively *coordinates* carries a fuller body. The difference is
+how much the doc says, not what kind of thing the grouping is.
+
+"Theme" survives only as informal prose for a top-level, mostly-organizing cohort — never a distinct schema kind
+and never a doc-less exception. A top-level cohort and an informal "theme" are syntactically identical (both a
+single-segment `Cohort` value); treating them as one kind with a Purpose-floor doc removes the ambiguity.
+
+### The `cohort-{name}.md` record
+
+Every cohort's doc (§ One grouping kind) is a constitutive structured record, not free-form notes — its presence
+is what marks a directory as a deliberate grouping rather than an incidental parent. The record's anatomy, from
+the required floor upward:
+
+- **H1 + uniform preamble**, scaffolded from `template-cohort.md`.
+- **Required Purpose floor** — the one-paragraph expansion of the slug (§ One grouping kind): the minimum that
+  makes the file non-vacuous, and the grouping's reality check. It may sharpen into a thesis as the grouping
+  tightens.
+- **Optional coordination content, accreting above the floor** — shared contracts (cross-member design no single
+  WU owns), closeout criteria, a parent-cohort pointer (derivable from the `Cohort` path). There is no
+  `Coordinated` flag: coordination is the continuum of how much the doc says, not a mode it switches into.
+- **Per-member sections keyed by slug** — a *partitioned coordination surface*, not a membership roster. Each
+  member edits only its own section, so parallel writers line-merge cleanly.
+
+**Membership stays derived.** Membership comes from each WU's `Cohort` field — the meta record is the source of
+truth — never a list the doc maintains. A per-member section is therefore a *subset* of the membership: a WU gets
+one only when it has cross-cutting coordination to record, and a missing section means "nothing to coordinate."
+The doc never carries a roster or status table — those render from metas. An orphan section (its WU renamed or
+removed) is caught by the cohort-consistency invariant, not by manual upkeep.
+
+**No coordinator or DRI.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
+(each member edits only its own section), and cohort-level material is by definition ownerless — *the partition
+is the coordination mechanism, in place of an owner.* `Owner` stays WU-level; any team-scale arbitration need
+routes to the team-coordination conventions, not a role minted at the cohort.
+
+**Design vs. coordination — forced, not chosen.** The cohort doc carries **coordination only — never design that
+drives a task list** — and the per-member partition *forces* that boundary rather than merely asking for it. A
+contract's authoritative definition drives its implementing member's task list, so it **must** live in that
+member's spec; the cohort doc holds only a *pointer* to it plus the list of consuming members. Coordination
+itself splits two ways:
+
+- **Cohort-level** — genuinely ownerless shared material: a thesis, closeout criteria, a convention every member
+  honors.
+- **Per-member** — a single member's own surface, framed as **exposes / consumes**: what it offers its siblings
+  and what it depends on from them.
+
+The partition is the forcing function: when a member's section starts filling with design that drives its *own*
+tasks, that visible smell *is* the signal the content belongs in its spec, with only a pointer left behind. The
+boundary holds because crossing it looks wrong in the doc, not because a reviewer must police it.
+
+**Relocatability and reference hygiene.** `cohort-{name}.md` is a movable `.arc/` artifact, exactly like a WU's
+`meta-* / draft-* / spec-* / tasks-*`: it relocates with its directory — `backlog/planned/<cohort>[/<subcohort>]/`
+→ `completed/` when the cohort's last member ships — as a pure `git mv` with no content edit. It therefore adopts
+the movable-artifact relocatability and reference-hygiene invariant wholesale: inbound references to it are
+backticked-filename-only (no paths, no Markdown links), and it carries no outbound relative-path links. Both hold
+*by construction* — a cohort doc names sibling drafts and specs by filename, and the parent-cohort pointer is
+derivable from the `Cohort` path — so the position-independence the pure-`git mv` relocation depends on needs no
+special handling.
+
+### The nesting cap — one level
+
+Nesting is capped at one level: at most `<cohort>/<subcohort>/<wu>`, never three grouping segments. The cap is a
+structural anti-sprawl bound, **not** a limit on coordination — both levels may coordinate, and each level above
+the WU is optional. The required one-paragraph Purpose doubles as a reality check: if you can't expand the slug
+into a sentence distinguishing this cohort from "a pile of loosely-related WUs," it shouldn't exist.
+
+Nesting lives in the **path-valued `Cohort` field** (e.g. `core-platform/auth`), not a distinct artifact type:
+one `cohort-{name}.md` shape at every level, an inner cohort differing from a top-level one only by path depth
+and by how much its doc says. "Sub-cohort" is prose framing, never a `subcohort-*` prefix. **The on-disk
+directory mirrors the path** — `backlog/planned/<cohort>/<subcohort>/<wu>/` — and membership derives from each
+WU's `Cohort` field, never a maintained roster.
+
+### Decomposition — three arms by parent position
+
+When a WU decomposes it **becomes a cohort**, its `cohort-{name}.md` carrying forward the coordination content
+from its origin draft. Which arm runs is selected by the parent's position relative to the nesting cap:
+
+1. **Standalone WU → top-level cohort.** A WU in no cohort becomes a new top-level cohort carrying its name,
+   members nested beneath. *Name preserved.*
+2. **In-cohort WU → sub-cohort.** A WU already in a single-segment cohort becomes a sub-cohort under its existing
+   parent, members nested one level deeper. *Name preserved.*
+3. **At-cap WU → lateral fan-out.** A WU already at the cap (a two-segment parent) has no legal nested target —
+   minting a cohort beneath it would be a forbidden third segment — so it decomposes *laterally* into sibling WUs
+   under its existing parent. *The name is not preserved as a grouping node.*
+
+Arms 1–2 preserve the name, and the browsing and narrative references that ride it, at the right altitude. The
+"name loss breaks references" worry dissolves across all three arms: dependency edges (`Depends On`) are always
+WU→WU, never group-level, so a downstream WU re-points to the specific delivering pieces regardless of name;
+narrative references are what the preserved name saves in arms 1–2; and in arm 3 the same "these came from one
+concern" fact is carried by a provenance record. `ROADMAP` and `STATUS.USER` render from metas, so regeneration
+handles the WU→cohort shift automatically.
+
+**At-cap fan-out — grouping as provenance.** Because no cohort node is minted at the cap, the "these came from
+one concern" fact is preserved as **provenance — an immutable past-event record, not live grouping**:
+
+- The origin concern name is recorded **once, write-once at fan-out**, as a cohort-level provenance note in the
+  parent cohort doc, in greppable phrasing: *"Fanned out from `<origin>`: `<m1>`, `<m2>`, `<m3>`."* It records a
+  past event, so it never drifts and needs no guard.
+- Slugs stay content-legible, never ordinal; inter-member order, when it exists, lives in `Depends On`.
+- Coordination for the new siblings rides the parent cohort doc — they are members of it now.
+- **Reality check (judgment, not a gate):** before a lateral fan-out, ask whether hitting the cap signals the
+  *parent* cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt
+  only; the cap is never raised to rescue a member that legitimately outgrew itself.
+
+### WU sizing standard
+
+Decomposition keys on **orthogonality, not size** — but size is the heads-up that prompts the question. This is
+the sizing standard the `assess-cohort-fit` method consumes:
+
+- **Count distinct deliverables and independently-reviewable surfaces** — the primary signal. Several unrelated
+  review surfaces in one WU is the decompose trigger.
+- **LOC and file count are secondary heads-up signals**, not thresholds: roughly `>~few-hundred LOC`,
+  `>~8–10 files`, or work that fails the "reviewable in one sitting" test says *look closer* — review defect
+  detection craters past a few hundred LOC per increment. Tightly-coupled work designed as a whole stays one WU
+  even when large; the per-task review grain carries quality.
+- **Stack vs. cohort:** sequentially-dependent pieces deliver as a **stack** — dependency-ordered WUs, each its
+  own branch, merged in order; independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
+  dependency-ordered delivery mode, not one WU spread across many branches.
+
+---
+
 ## Task Lists and Branches
 
-Task lists are the unit of work planning; branches are the unit of code delivery. The
-relationship is many-to-one: a single task list may span multiple branches for reviewability
-or team collaboration. The solo 1:1 pattern — one task list, one branch — is the natural
-default but not a rule.
+Task lists are the unit of work planning; branches are the unit of code delivery. The default is **1:1 — one
+task list, one branch, one work unit** (see [§ Single branch per work unit](#single-branch-per-work-unit)): a
+task list is scoped to a single WU and delivers on that WU's one branch.
 
-Common multi-branch patterns:
+When a concern is too large or too multi-surfaced for one WU, the answer is **decomposition into a
+[cohort](#cohorts)** of self-contained one-branch WUs — not one task list spanning multiple branches. Two
+delivery shapes follow from the cut:
 
-- **Stacked PRs:** Breaking a large task list into 2-3 branches for smaller, reviewable PRs
-- **Team sub-branches:** Multiple developers each working a branch against a shared integration
-  branch
-- **Phased delivery:** Sequential branches delivering different phases of the same task list
+- **Cohort (parallel):** independent members, each with its own task list, branch, and PR.
+- **Stack (dependency-ordered):** sequentially-dependent members delivered as ordered PRs, each on its own
+  branch, merged in order. The merge/rebase discipline for executing a stack is the
+  [Team Coordination Strategy][team-coordination]'s.
 
-**Branch scope:** One planned work unit per branch. Switching work units implies switching
-branches. Incidental task lists may live alongside the primary work when they stay on the same
-branch by design.
+Within-WU **team sub-branches** (multiple developers against one WU's work) are a team-collaboration mechanism,
+not a decomposition pattern — see [Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
+
+**Branch scope:** One work unit per branch. Switching work units implies switching branches. Incidental task
+lists may live alongside the primary work when they stay on the same branch by design.
 
 **Per-WU meta file behavior on branches.** Each active WU carries its own
 `meta-{name}.md` at `active/`. The file is created by
@@ -733,6 +873,8 @@ step, so these need no separate discipline:
   Shipped`) — drops the WU from the render set; by the same absence its dependents re-evaluate from
   Blocked to Ready, with no edits to their meta files.
 - **Deactivation** (`active/<wu>/` abandoned) — drops the WU from the render set.
+- **Decomposition** (`active/<wu>/` → a cohort of `backlog/planned/<cohort>/<member>/` stubs, the origin meta
+  retired) — drops the origin from In Flight and lands its members in the backlog render set.
 
 Because each re-renders from current state, these ceremonies also **self-heal** any manual trigger
 missed since the previous one.

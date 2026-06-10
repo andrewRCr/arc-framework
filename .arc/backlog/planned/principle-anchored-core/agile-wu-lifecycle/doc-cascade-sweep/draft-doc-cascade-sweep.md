@@ -85,6 +85,24 @@
   `naming-conventions`. The convention's decision-record stays SAP's spec R18 — no adopter-facing strategy edit or
   ADR for the convention itself; this entry is the mechanical execution.
 
+### `[ ]` **Bring pre-existing cohort docs into conformance with the `cohort-{name}.md` record shape**
+
+- *Routed from:* `decomposition-machinery` task-generation grounding audit (2026-06-09), Phase 3.
+- *Concern:* `decomposition-machinery` defines the constitutive `cohort-{name}.md` record shape (a `Purpose`
+  floor, per-member-by-slug partition, membership derived — no roster) and ships a backlog-scoped
+  cohort-consistency validator. Pre-existing cohort docs predate that shape and diverge:
+  `cohort-agile-parallelism.md` uses a prose H1 (not the backticked slug) and a roster-style "Membership and
+  ownership map" listing members by prose name + shipped/departed status — against the membership-derived rule.
+  `cohort-principle-anchored-core.md` and `cohort-agile-wu-lifecycle.md` are closer but unaudited against the
+  three conditions.
+- *Scope:* once `decomposition-machinery`'s validator ships, audit every `backlog/planned/**` cohort doc against
+  the three-condition invariant (field↔dir path-match; constitutive-doc + `Purpose` floor; per-member slugs ⊆
+  derived members) and bring divergent docs into conformance — retire roster / status surfaces in favour of the
+  derived-membership partition. `decomposition-machinery` conforms only its own authored / edited docs (incl. its
+  own member section in `cohort-agile-wu-lifecycle.md`); the broad cross-surface sweep is this WU's, consistent
+  with its existing § Task Lists and Branches retirement remit. The validator is staged-scoped, so divergent docs
+  flag only when next staged — no forced break in the interim.
+
 ---
 
 ## Problem / Motivation

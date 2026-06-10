@@ -49,6 +49,19 @@ size**; solo is the degenerate case.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Should lifecycle workflows own eager post-merge branch/worktree teardown?**
+
+- *Routed from:* `decomposition-machinery` task-generation grounding audit (2026-06-09), Phase 4 (F6).
+- *Concern:* `decompose-work-unit` authors an `active/ → backlog/` + park-PR + worktree-kind-teardown block
+  single-source. `integrate-work-unit` stops before merge and owns no branch/worktree teardown today — teardown is
+  session-init's stale-worktree sweep. Making teardown an *eager* workflow step (so `integrate` / `archive` reuse
+  decompose's teardown block at merge time) is a real behavior change: it ripples to `archive` and reduces the
+  session-init sweep's role, and worktree teardown timing under concurrent worktrees is this WU's domain.
+- *Scope:* decide whether lifecycle workflows should own eager post-merge branch+worktree teardown (reusing the
+  decompose block, once `composable-workflows` lands) vs. keeping the lazy session-init sweep model. If eager: wire
+  `integrate` / `archive` to the shared block and trim the sweep accordingly. `decomposition-machinery`
+  deliberately did *not* refactor `integrate` (out of its charter); it left the block single-source and ready.
+
 ### `[ ]` **Class-aware next-work suggestions in session-init discovery**
 
 - *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
@@ -59,6 +72,22 @@ size**; solo is the degenerate case.
 - *Scope:* this consumes the `Class` contract; it does not redefine it. Resolve whether it lands in this WU's
   parallelism doctrine, its session-init / in-flight mechanism member, or as a coordination note for
   `arc-plan-conductor`.
+
+### `[ ]` **Concurrency safety for the shared-mutable `cohort-{name}.md`**
+
+- *Routed from:* `decomposition-machinery` Phase 3 (Task 3.3.b), spec § G — 2026-06-09.
+- *Concern:* `cohort-{name}.md` is the one shared-mutable planning artifact — the deliberate exception to
+  per-worktree isolation. It rides plain git line-merge (not the notes-ref convergence machinery), so the
+  per-member partition is what keeps concurrent edits safe. Two seams fall in CWC's runtime-concurrency domain:
+  (1) **the advisory cross-cutting gate has a blind spot here** — the Errand matrix's "advisory gate when the
+  owning WU is in flight" keys on a single owning WU, but the cohort doc is owned by the *cohort*, so the gate is
+  ill-defined; the most-shared artifact is the least-covered. The behind-base detector is the net that does apply
+  (advisory, at resume). (2) **escape hatch if the partition proves insufficient:** route `cohort-{name}.md` edits
+  as errands through the primary worktree (serialized via `main`) rather than riding WU-branch PRs.
+- *Scope:* record the **partition-first lean** (cheap; serialize-via-`main` only as the fallback) and confirm the
+  behind-base detector covers the cohort doc; decide whether any cohort-doc-specific guard is warranted beyond it,
+  or whether partition + detector suffice. `decomposition-machinery` only routes the seam — runtime concurrency
+  safety is CWC's.
 
 ## Delivery plan & parked status (2026-06-03)
 

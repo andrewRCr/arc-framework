@@ -497,6 +497,30 @@ if [ "$pm_mode" = "arc-in-git" ]; then
 fi
 
 # ============================================================================
+# CHECK 18: Cohort-consistency invariant (backlog-scoped)
+# ============================================================================
+# Validates the three-condition cohort-consistency invariant over staged
+# work-unit metas and cohort docs under `.arc/backlog/planned/`: (a) a WU's
+# `**Cohort:**` field path-matches its filed dir; (b) every grouping dir carries
+# a `cohort-<leaf>.md` with a `Purpose` floor; (c) a cohort doc's per-member
+# section slugs are a subset of derived members. Staged-scoped — the validator's
+# universe is the staged delta, so it never audits the live backlog (pre-existing
+# divergence is a separate sweep's concern, not this gate's).
+cohort_consistency_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^\.arc/backlog/planned/([^/]+/)*(meta|cohort)-[^/]+\.md$' || true)
+
+if [ -n "$cohort_consistency_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    if ! cohort_consistency_output=$(npx tsx packages/arc-framework/src/scripts/validate-cohort-consistency.ts $cohort_consistency_candidates 2>&1); then
+        echo -e "${RED}Error: Cohort-consistency validation failed:${NC}"
+        echo "$cohort_consistency_output" | sed 's/^/   /'
+        echo ""
+        echo "   Fix the field↔dir mismatch, missing cohort doc, or orphan section above."
+        errors=$((errors + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""

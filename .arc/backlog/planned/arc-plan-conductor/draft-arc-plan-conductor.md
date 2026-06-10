@@ -39,6 +39,19 @@ freeform exploration.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **`park-work-unit.md` / `resume-work-unit.md` reuse decompose-work-unit's park blocks**
+
+- *Routed from:* `decomposition-machinery` task-generation grounding audit (2026-06-09), Phase 4 (F5).
+- *Concern:* `decompose-work-unit` (shipping ahead of this conductor) authors the `active/ → backlog/` + park-PR +
+  worktree-kind-teardown choreography single-source, as named extractable blocks — because no `park-work-unit.md`
+  exists yet. decompose is park-*shaped* but not park (it deletes the origin / transforms it into a cohort), so it
+  uses only the sub-mechanic, not a park workflow.
+- *Scope:* when §20 authors `park-work-unit.md` / `resume-work-unit.md`, reuse decompose-work-unit's
+  `active/ → backlog/` + teardown blocks (stable-heading-slug reference, or mechanical include once
+  `composable-workflows` lands) rather than re-authoring — consistent with §20's existing "must call the primitive,
+  not re-implement it" discipline. (Resume's backlog→active half already reuses `init-work-unit` Path A; this is
+  the inverse half's shared source.)
+
 ### `[ ]` **Forward-compat / cross-WU coordination as a standard planning consideration**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).

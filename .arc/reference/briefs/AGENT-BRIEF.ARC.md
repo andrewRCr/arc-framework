@@ -37,6 +37,9 @@ Precise meanings — assume the technical sense.
   execution, and review — intrinsic demand, not output volume — and is the signal roadmap and parallelism
   planning read to balance a worklist. Ceremony scales with `Class`; execution discipline does not. Distinct
   from the quality-gate `Tier 1/2/3`.
+- **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
+  group's shared coordination. The work unit is the leaf deliverable. Nesting is path-valued via the `Cohort`
+  field, capped at one level — `<cohort>/<subcohort>/<wu>`.
 - **Atomic:** Work _character_ — a single logical concern that fits one review increment (typically one
   commit, even if multi-file). Executed inline within a same-domain WU, or on its own as an Errand. Inboxes
   route by character, not wrapper presence. Not "atomic" in the concurrency sense.
