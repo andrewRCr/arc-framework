@@ -184,14 +184,15 @@ step."
 
 ### Directory naming
 
-Lowercase, hyphenated, functional names throughout. Work units occupy directories named by
-their slug: branch `feat/api-modernization` corresponds to `active/api-modernization/` and to
-a slug-named directory in `backlog/` (planned or provisional) before activation and in the
-completed-work location after integration. Branch type prefixes from the
+Lowercase, hyphenated, functional names throughout. In `backlog/` (planned or provisional) before
+activation and in the completed-work location after integration, a work unit occupies a slug-named
+directory: branch `feat/api-modernization` corresponds to an `api-modernization/` subdirectory in
+each. `active/` is **flat** by contrast — a WU's artifacts (`meta-<slug>.md` and companions) sit
+directly in `active/`, not under a per-WU subdir. Branch type prefixes from the
 [`branch-format`][branch-format-method] method (default set: `feat/`, `fix/`, `chore/`,
 `refactor/`, `hotfix/`; plus `plan/` for planning-phase branches) namespace branches, not
 directories. See [Work Organization Strategy](strategy-work-organization.md) § Directory
-Structure for the path shape and § Branching for branch type conventions.
+Structure for the flat-`active/` rule and its rationale, and § Branching for branch type conventions.
 
 ### Project guidance
 
