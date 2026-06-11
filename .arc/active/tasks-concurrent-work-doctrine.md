@@ -288,7 +288,7 @@ deliverable; a candidate to split if review boundaries want finer slices.
   is its one hard invariant — everything else is advisory; the branch/rebase section is framed so pushed-ness
   selects merge over rebase, resolving the apparent rebase-vs-append-only tension surfaced at review.
 
-### `[ ]` **3.4 Author team-mode orthogonality, the ROADMAP overlay, and shared-state conventions**
+### `[x]` **3.4 Author team-mode orthogonality, the ROADMAP overlay, and shared-state conventions**
 
 - _Goal:_ The strategy disambiguates concurrent-work from team mode, states the ROADMAP concurrency-safety overlay
   as an on-contact convention, gives the shared-file conventions, and states the all-owner gate over entry-level
@@ -299,29 +299,30 @@ deliverable; a candidate to split if review boundaries want finer slices.
 - _Note:_ Resolves the spec's inline-vs-cross-reference open question — lean reference (ADR-020/024-owned content
   stays in `strategy-work-organization`).
 
-    - `[ ]` **3.4.a Team-mode orthogonality (R11)**
-        - Orthogonal axes: team mode governs cross-identity coordination; concurrent-work governs multi-WU
-          mechanics, applying per-WU whether the other in-flight WUs are yours or a teammate's. Both coexist;
-          neither requires the other.
+    - `[x]` **3.4.a Team-mode orthogonality (R11)**
+        - § Relationship to team mode: orthogonal axes — team mode governs cross-identity coordination,
+          concurrent-work governs multi-WU mechanics, applying per-WU whether the other in-flight WUs are yours or
+          a teammate's; both coexist, neither requires the other. States single-owner-per-WU per spec (the basis
+          for the self/foreign overlap read), deferring the asymmetry rubric to `assess-parallel-fit`.
 
-    - `[ ]` **3.4.b ROADMAP concurrency-safety overlay (R12)**
-        - On-contact convention, not a rendered/computed field — coarse and conservative. Any hand-curated parallel
-          view is a **sibling** artifact, never baked into the derived ROADMAP. Contributes only the "Next"-slice
-          convention; renderer/horizon mode stay `roadmap-tooling`'s.
+    - `[x]` **3.4.b ROADMAP concurrency-safety overlay (R12)**
+        - § The ROADMAP "Next" slice under concurrency: on-contact, by-hand, conservative read — not a
+          rendered/computed field (meta files don't declare file-scope; the behind-base check is the real net). Any
+          curated parallel view is a sibling artifact, never baked into the derived ROADMAP; defers the rubric to
+          `assess-parallel-fit`.
 
-    - `[ ]` **3.4.c Shared-file concurrency conventions (R14)**
-        - Derived shared state (ROADMAP) is in-git-solvable via deterministic regeneration at one serialization
-          point (post-merge on the integration branch, never hand-edited on feature branches); mutated shared
-          state (inbox drains, human-editable ordering) is **not** in-git-solvable (backend territory — reference,
-          don't solve); `cohort-{name}.md` rides per-member partition + the behind-base net (partition-first;
-          errand-through-primary escape hatch). Reference rather than duplicate where this restates
-          `strategy-work-organization`.
+    - `[x]` **3.4.c Shared-file concurrency conventions (R14)**
+        - § Shared files under concurrency: derived shared state (ROADMAP) regenerates deterministically at one
+          serialization point (post-merge on the integration branch, never hand-edited on feature branches);
+          mutated shared state (inbox drains, human-curated ordering) is not in-git-solvable (backend territory —
+          referenced, not solved); `cohort-{name}.md` rides per-member partition + the behind-base net
+          (partition-first; errand-through-primary escape hatch). References `strategy-work-organization` for the
+          regeneration and cohort models rather than duplicating them.
 
-    - `[ ]` **3.4.d All-owner gate at entry-level writes (R22)**
-        - Extend the advisory foreign-artifact gate from file-level to entry-level writes: the entry-level
-          re-homing of foreign-owned atomics folds into the same all-owner gate. Convention only — the detection /
-          surfacing **mechanism** is `merge-safety-mechanism`'s write-context extensions (a Non-Goal here); state
-          the gate and its delegation boundary, not a detector.
+    - `[x]` **3.4.d All-owner gate at entry-level writes (R22)**
+        - § Foreign-owned work and the all-owner gate: extends the file-level foreign-artifact gate to entry-level
+          re-homing of foreign-owned atomics (same gate). States the convention and its delegation boundary — the
+          detection/surfacing mechanism is a backstop owned elsewhere, not built here.
 
 ### `[ ]` **3.5 Audience-discipline light-hand pass, then mirror to package source**
 

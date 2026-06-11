@@ -324,6 +324,82 @@ exactly the trade to make deliberately.
 
 ---
 
+## Relationship to team mode
+
+Running several work units at once does **not** require team mode, and the two are easy to conflate. They are
+**orthogonal axes**:
+
+- **Team mode governs cross-identity coordination** — multiple people sharing the work, with the ownership and
+  handoff conventions in [Team Coordination][team-coordination]. It answers "how do several people collaborate?"
+- **Concurrent-work conventions govern multi-work-unit mechanics** — the rebase, append-only, merge-ordering, and
+  worktree discipline in this strategy. They answer "how do several work units stay integrable at once?"
+
+They compose freely, and neither implies the other: a solo developer runs three concurrent work units with no team
+mode at all, and a two-person team can work strictly one work unit at a time. Enable team mode when _people_ need
+to coordinate — not when you want to run more than one work unit.
+
+**Each work unit has a single owner**, regardless of team size. The unit of ownership is the work unit, so the
+concurrent-work mechanics apply per work unit whether the other in-flight work units are yours or a teammate's.
+That single-owner framing is what makes the overlap read tractable: an overlap is either with your own other work
+unit (reorder it freely) or with someone else's (coordinate with them) — see
+[`assess-parallel-fit`][assess-parallel-fit].
+
+---
+
+## The ROADMAP "Next" slice under concurrency
+
+When you pick the next work to run alongside what's in flight, read the candidates for concurrency-safety — but
+read them **by hand, on contact, and conservatively.** This is a convention, not a computed field.
+
+ROADMAP is a _derived_ artifact: it isn't hand-maintained, and it carries no "safe to parallelize" column. There
+is good reason not to add one — meta files don't declare which files a work unit will touch, and a predicted
+file-scope isn't the actual one, so a computed safety flag would be false precision. The real safety net is the
+behind-base check at integration, not a pre-emptive prediction. So the pick-time read stays deliberately coarse:
+prefer disjoint-domain candidates, don't stack two that touch the same surface, and sequence rather than stack
+when in doubt. [`assess-parallel-fit`][assess-parallel-fit] carries the actual rubric for that read.
+
+If you want a curated view of what's safe to parallelize, keep it as a **separate sibling artifact** — never bake
+it into the derived ROADMAP, which stays hand-maintenance-free.
+
+---
+
+## Shared files under concurrency
+
+Some files are shared across work units and written from more than one branch. They split into two kinds with
+different answers:
+
+- **Derived shared state — solvable in git.** A file _regenerated_ from authoritative inputs (ROADMAP, from
+  work-unit metadata) needs no manual merge: regenerate it deterministically at a **single serialization point** —
+  post-merge on the integration branch, never hand-edited on feature branches. Two work units that both "change"
+  it on their branches don't conflict, because neither hand-edits it; the merge to the base regenerates it once.
+  [Work Organization Strategy][work-org] owns the regeneration model.
+- **Mutated shared state — not solvable in git.** A file _edited in place_ by people — inbox drains, human-curated
+  ordering — has no deterministic regeneration, so concurrent edits genuinely contend. Git alone doesn't solve
+  this; a real answer is backend territory, out of scope here. Keep such edits off feature branches and serialize
+  them through a coordination point, the way the regenerated views are.
+
+**Cohort files ride a partition.** A `cohort-{name}.md` shared by sibling work units stays conflict-free through
+**per-member partition** — each member writes its own section — backed by the behind-base check as the net.
+Partition is the first line; if a write genuinely needs to touch shared cohort state, handle it as a small errand
+from the primary worktree rather than racing it from a feature branch. [Work Organization Strategy][work-org] owns
+the cohort model; this is only how it behaves under concurrent writes.
+
+---
+
+## Foreign-owned work and the all-owner gate
+
+When work surfaces that belongs to a _different_ owner's work unit, you don't silently fold it into yours. ARC
+already gates this at the **file level** — writing into another owner's artifact is surfaced for coordination
+rather than done unilaterally. Under concurrency that gate extends to the **entry level**: re-homing a
+foreign-owned atomic item — moving an inbox entry that belongs to someone else's work unit — passes through the
+same all-owner gate.
+
+The rule is identical at both granularities: **reorder and re-home your own work freely; foreign-owned work you
+coordinate, not appropriate.** This strategy states the gate; the mechanism that _detects_ a foreign-owned write
+and surfaces it is a backstop owned elsewhere — the convention here is the discipline, not the detector.
+
+---
+
 ## Philosophy checkpoints
 
 Concurrent work touches three of ARC's principles directly. The doctrine is designed to stay inside them, and
