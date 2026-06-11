@@ -11,13 +11,13 @@
 - **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** `tasks-merge-safety-mechanism.md`
 
-- **Last Completed:** Phase 2 (Tasks 2.1–2.4) — patch-equal supersession detector, diverged-handler
-  lossless-reset downgrade, advisory pre-push force-push hook, and its hook-manager installer wiring
-- **Next Task:** Task 3.1 — Extend `classifyWriteContext` (path-surface dimension + `chore/`-awareness) (line ~145)
+- **Last Completed:** Phase 3 (Tasks 3.1–3.3) — path-surface + `chore/`-awareness in `classifyWriteContext`,
+  advisory pre-commit foreign-write backstop (CHECK 19), and confirmed behind-base coverage of the cohort doc
+- **Next Task:** Task 4.1 — Merge-commit exemption in `commit-msg` (line ~190)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — extend `classifyWriteContext` with a path-surface dimension and
-  `chore/`-awareness, opening Phase 3 (write-context extensions + foreign-write backstop)
-  (`tasks-merge-safety-mechanism.md`).
+- **Next Action:** Begin Task 4.1 — exempt two-parent merge commits from the `commit-msg` subject + footer
+  rules (detect `MERGE_HEAD` / two-parent right after the `hook_enabled` early-exit), both hook copies, opening
+  Phase 4 (merge-commit exemption + `integration` footer kind) (`tasks-merge-safety-mechanism.md`).
 
 ---
