@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
-- **Depends On:** `concurrent-work-conventions`
+- **Depends On:** `concurrent-work-doctrine`
 
 - **Origin:** [internal]
 - **Design:** `draft-shared-inbox-housekeep.md`
@@ -16,7 +16,8 @@
 - **Blockers:** [none]
 
 - **Next Action:** Iterate the draft — settle the mode model (dual-mode `drain-inbox` vs. two paths over a shared
-  spine) and the shared-scope closing semantics, pending CWC's foreign-owner concurrency doctrine (the hard
-  dependency).
+  spine) and the shared-scope closing semantics, pending the foreign-owner concurrency doctrine in
+  `concurrent-work-doctrine` (the hard dependency — the conventions/doctrine member of the decomposed
+  `concurrent-work-conventions` sub-cohort).
 
 ---

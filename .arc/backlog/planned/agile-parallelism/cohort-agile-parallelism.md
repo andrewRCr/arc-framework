@@ -1,8 +1,9 @@
 # Cohort: `agile-parallelism`
 
 > Cohort-level design record for the agile-parallelism cohort — Worktree Foundation (shipped),
-> Errand Enablement (shipped), In-Flight Awareness (shipped), Concurrent Work Conventions
-> (`draft-concurrent-work-conventions.md` — the remaining member). Agile WU Lifecycle
+> Errand Enablement (shipped), In-Flight Awareness (shipped), and Concurrent Work Conventions — now decomposed
+> into the `concurrent-work-conventions` sub-cohort (four single-owner members; coordination in
+> `cohort-concurrent-work-conventions.md`). Agile WU Lifecycle
 > (`draft-agile-wu-lifecycle.md`) **departed to the principle-anchored-core cohort 2026-06-02** — its
 > center of gravity is spec/task scaling, not parallelism; see § Cohort status & closeout.
 > Internal-dev-facing; not shipped. The detailed designs live
@@ -61,6 +62,17 @@ procedure), which is **Agile WU Lifecycle's** chartered deliverable. So AWL — 
 principle-anchored-core — re-enters the closeout **sequence** ahead of CWC's build: a *delivery-ergonomics*
 edge, distinct from the dropped *runtime* edge (CWC's mechanism needs none of AWL's tier model). The cohort
 archives when the four-WU stack ships.
+
+**Update (2026-06-10): decomposition executed.** With both build-order deps shipped (`scalable-authoring-pipeline`,
+`decomposition-machinery`), CWC decomposed via `decompose-work-unit` into the `concurrent-work-conventions`
+sub-cohort — four single-owner members (`concurrent-work-doctrine`, `merge-safety-mechanism`,
+`async-merge-lifecycle`, `single-owner-wu-model`) under
+`backlog/planned/agile-parallelism/concurrent-work-conventions/`. Cross-member coordination lives in
+`cohort-concurrent-work-conventions.md` (the sub-cohort doc) — deliberately *not* flat in this parent doc, since
+the four share dense internal coordination (a reused behind-base primitive, the doctrine spine, the
+append-only-until-integration principle) warranting their own surface. The origin `meta-` / `draft-` files are
+retired; their design is distributed across the member drafts (allocation recorded in the decomposition PR). The
+cohort archives when all four members ship.
 
 ## Shared contract — WU state machine
 
@@ -239,7 +251,11 @@ below predates the pivot — read `errand-launch` as `run-errand`, and reconcile
 - The in-flight view's user-domain placement + orient / pivot regeneration hooks (render is
   roadmap-tooling's; see candidate below).
 
-**Concurrent Work Conventions owns:**
+**The `concurrent-work-conventions` sub-cohort owns** (post-decomposition; each bullet now maps to a member —
+`concurrent-work-doctrine` for the doctrine, `merge-safety-mechanism` / `async-merge-lifecycle` for the gate
+mechanism, `single-owner-wu-model` for the self/foreign asymmetry. See `cohort-concurrent-work-conventions.md`.
+Retained here as the parent-cohort record of this slice of the Errand-class spine — including the lighter-merge-gate
+detail the member specs carry forward):
 
 - **Isolation doctrine.** Actionable cross-cutting work is done once, in its real place — off the member
   branch, reaching `main` independently. Capture surfaces (USER-INBOX) are for *not-yet-actionable*
