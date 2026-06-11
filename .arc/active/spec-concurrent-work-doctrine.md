@@ -116,7 +116,7 @@ team-coordination where surfaces overlap (branching patterns, meta-file merge be
   "Next" slice; the renderer and horizon mode stay `roadmap-tooling`'s.
 - **R13 (P0) — Philosophy-checkpoint coverage.** The doctrine explicitly addresses **P2** (parallelism is between
   WUs, not within; the per-task review stop is preserved), **P5** (worktree-local SESSION-NOTES is correct
-  WU-scoped context, not degradation), **P7** (one task at a time stays within-WU; soft swap discipline at
+  WU-scoped context, not degradation), **P3** (one task at a time stays within-WU; soft swap discipline at
   review-increment boundaries), and the **honest stance**: ARC won't *block* two simultaneous sessions, but
   documents that heavy concurrency may violate P2 — the adopter's call, not ARC's recommendation.
 - **R14 (P0) — Shared-file concurrency conventions (the convention side of ADR-020's split).** Derived shared state

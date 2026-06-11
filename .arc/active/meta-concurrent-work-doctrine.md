@@ -15,8 +15,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~413)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5 verification — load and follow `verify-work-unit.md`, validating the eight Success
-  Criteria; fold in the spec R13 `P7`→`P3` correction and discharge the `WORKING-MEMORY` vanilla-git-fallback note
-  (Success Criterion 7).
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---

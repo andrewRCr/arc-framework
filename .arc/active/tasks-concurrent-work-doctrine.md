@@ -416,30 +416,36 @@ _Purpose:_ Validate all eight Success Criteria — including the audience-discip
 `WORKING-MEMORY` vanilla-git-fallback note discharge (Success Criterion 7), and markdown lint across both
 copies.
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck:all`,
+  `npm test` (169 files / 2406 tests), and `npm run build` all passed.
+- _Success criteria:_ 10 criteria marked met: PRD criteria 1-8, the standard quality-gates criterion, and the
+  ready-for-integration criterion. Verification also corrected spec R13 `P7`→`P3` and discharged the stale
+  `WORKING-MEMORY` vanilla-git-fallback note.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `strategy-concurrent-work.md` exists as a sibling to `strategy-team-coordination.md`, indexed in
+- `[x]` `strategy-concurrent-work.md` exists as a sibling to `strategy-team-coordination.md`, indexed in
   `STRATEGY-INDEX.md`, covering R1–R14, and passing markdown lint
-- `[ ]` `assess-parallel-fit` exists in `system/methods/` with standard method shape, is declared in the
+- `[x]` `assess-parallel-fit` exists in `system/methods/` with standard method shape, is declared in the
   relevant workflow frontmatter and invoked at the three fire-site surfaces, with no rubric body duplicated into
   the strategy
-- `[ ]` `adr-025` exists in `reference/adr/`, records the four decisions, cites the five research files, and is
+- `[x]` `adr-025` exists in `reference/adr/`, records the four decisions, cites the five research files, and is
   internal-only (no adopter-facing surface references it)
-- `[ ]` Audience discipline holds — the strategy contains no leak patterns (research citations,
+- `[x]` Audience discipline holds — the strategy contains no leak patterns (research citations,
   rejected-alternatives ledger, incident retelling, storage-evolution reference, internal-roadmap
   forward-pointers, `adopter`-POV framing)
-- `[ ]` Forward-compat holds — append-only is framed as git-branch-safety, not branch-as-permanent-state-store;
+- `[x]` Forward-compat holds — append-only is framed as git-branch-safety, not branch-as-permanent-state-store;
   the storage-evolution reasoning lives only in the ADR
-- `[ ]` The team-mode relationship is stated unambiguously — a reader cannot conclude team mode is required to
+- `[x]` The team-mode relationship is stated unambiguously — a reader cannot conclude team mode is required to
   run multiple WUs
-- `[ ]` The standing `WORKING-MEMORY` vanilla-git-fallback note is discharged on ship
-- `[ ]` Cross-references reconciled — `strategy-team-coordination` sibling links land on both sides; any
+- `[x]` The standing `WORKING-MEMORY` vanilla-git-fallback note is discharged on ship
+- `[x]` Cross-references reconciled — `strategy-team-coordination` sibling links land on both sides; any
   DEV-RULES pointer to the doctrine resolves
-- `[ ]` All quality gates pass (markdown lint, and any touched-code gates)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (markdown lint, and any touched-code gates)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
