@@ -9,13 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-merge-safety-mechanism.md`
-- **Task List:** [none]
+- **Task List:** `tasks-merge-safety-mechanism.md`
 
-- **Last Completed:** create-spec — authored `spec-merge-safety-mechanism.md`
+- **Last Completed:** generate-tasks — decomposed the spec into `tasks-merge-safety-mechanism.md` (high depth, 4
+  substantive phases + verification)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks` to decompose `spec-merge-safety-mechanism.md` into the task list. See
-  `notes-merge-safety-mechanism.md` for the grounded extension-point map (file:line seams per design component).
+- **Next Action:** Run `activate-work-unit.md` to flip `**State:**` to `Active` and rename the planning branch
+  when implementation is about to begin.
 
 ---
