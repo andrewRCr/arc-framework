@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Planning` | `andrew` | `plan/concurrent-work-doctrine` | `Heavy` | `P1` |
+| `Active` | `andrew` | `feat/concurrent-work-doctrine` | `Heavy` | `P1` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
@@ -12,10 +12,10 @@
 - **Task List:** tasks-concurrent-work-doctrine.md
 
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Scaffold the method file with standard method shape (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` when implementation begins — flip State → Active, rename `plan/`
-  → `<type>/`. Spine member; activation can defer while the cohort sequences.
+- **Next Action:** Begin Task 1.1 — scaffold the `assess-parallel-fit` method file with standard method shape
+  (Phase 1, the spine's first deliverable).
 
 ---

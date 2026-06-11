@@ -14,7 +14,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State    | Work unit                | Priority | Owner  | Depends on | Cohort                      |
 | -------- | ------------------------ | -------- | ------ | ---------- | --------------------------- |
-| Planning | concurrent-work-doctrine | P1       | andrew | —          | concurrent-work-conventions |
+| Active   | concurrent-work-doctrine | P1       | andrew | —          | concurrent-work-conventions |
 
 ## Ready
 
