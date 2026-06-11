@@ -34,6 +34,13 @@ if [ "$hook_enabled" = "disabled" ]; then
     exit 0
 fi
 
+# Exempt merge commits. A merge in progress carries MERGE_HEAD; git's
+# auto-generated merge message ("Merge branch ...") follows no conventional
+# format and has no Context: footer, so the format and footer rules don't apply.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    exit 0
+fi
+
 # Extract components
 subject=$(echo "$commit_msg" | head -n1)
 subject_length=${#subject}

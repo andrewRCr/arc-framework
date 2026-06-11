@@ -187,19 +187,15 @@ _Purpose:_ Stop merge commits tripping the commit hooks — exempt two-parent / 
 conventional-commit and footer rules, and add a standalone `integration` footer kind for single-parent
 integration ceremony commits. Both bash hook copies change under package-project sync.
 
-### `[ ]` **4.1 Merge-commit exemption in `commit-msg`**
+### `[x]` **4.1 Merge-commit exemption in `commit-msg`**
 
 - _Goal:_ A two-parent / `MERGE_HEAD` commit passes `commit-msg` with no conventional-format or
   `Context:`-footer error.
-- **Strategies:** strategy-package-project-sync.md
-
-    - Detect `MERGE_HEAD` (`git rev-parse -q --verify MERGE_HEAD`) immediately after the `hook_enabled`
-      early-exit, before Rule 1 → exit 0.
-    - Edit both canonical copies (`.arc/system/.internal/githooks/commit-msg` and the package source) under
-      package-project sync.
-
-    - Verify e2e (real temp git repo): an actual two-parent merge commit passes; a normal commit still
-      validates. Bash → `shellcheck`.
+- _Outcome:_ Added a `git rev-parse -q --verify MERGE_HEAD` guard right after the `hook_enabled` early-exit in
+  both hook copies — a merge in progress short-circuits to exit 0 before any format or footer rule runs, exempting
+  git's auto-generated merge subject. Real-temp-repo e2e (`commit-msg.e2e.test.ts`, modeled on the pre-push suite):
+  a live `--no-ff` merge-in-progress passes silently while ordinary commits still validate (well-formed passes,
+  malformed subject rejected).
 
 ### `[ ]` **4.2 Standalone `integration` footer kind**
 
