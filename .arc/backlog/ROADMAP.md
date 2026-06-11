@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `91343905`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0e0569e7`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -9,12 +9,6 @@ Priority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as
 path lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.
 
 ---
-
-## In Flight
-
-| State    | Work unit                | Priority | Owner  | Depends on | Cohort                      |
-| -------- | ------------------------ | -------- | ------ | ---------- | --------------------------- |
-| Active   | concurrent-work-doctrine | P1       | andrew | —          | concurrent-work-conventions |
 
 ## Ready
 
@@ -27,6 +21,8 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement    |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
+| merge-safety-mechanism       | P2       | andrew | —          | concurrent-work-conventions |
+| single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
@@ -54,30 +50,28 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | quality-gate-hooks           | P3       | andrew | —          | —                           |
 | review-method-family         | P3       | andrew | —          | —                           |
 | rules-restructure            | P3       | andrew | —          | —                           |
+| shared-inbox-housekeep       | P3       | andrew | —          | —                           |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                           |
 
 ## Blocked
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on               | Cohort                      |
-| ----------------------------- | -------- | ------ | ------------------------ | --------------------------- |
-| merge-safety-mechanism        | P2       | andrew | concurrent-work-doctrine | concurrent-work-conventions |
-| single-owner-wu-model         | P2       | andrew | concurrent-work-doctrine | concurrent-work-conventions |
-| arc-plan-conductor            | P2       | andrew | loadset-composition      | —                           |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption   | —                           |
-| documentation-surface-routing | P3       | andrew | handoff-optimization     | agent-context-optimization  |
-| instruction-optimization      | P3       | andrew | handoff-optimization     | agent-context-optimization  |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption   | architecture-remediation    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh        | release-readiness           |
-| shared-inbox-housekeep        | P3       | andrew | concurrent-work-doctrine | —                           |
+| Work unit                     | Priority | Owner  | Depends on             | Cohort                      |
+| ----------------------------- | -------- | ------ | ---------------------- | --------------------------- |
+| async-merge-lifecycle         | P2       | andrew | merge-safety-mechanism | concurrent-work-conventions |
+| arc-plan-conductor            | P2       | andrew | loadset-composition    | —                           |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                           |
+| documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization  |
+| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization  |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness           |
 
 ### Depth 2
 
-| Work unit             | Priority | Owner  | Depends on                                       | Cohort                      |
-| --------------------- | -------- | ------ | ------------------------------------------------ | --------------------------- |
-| async-merge-lifecycle | P2       | andrew | concurrent-work-doctrine, merge-safety-mechanism | concurrent-work-conventions |
-| wu5-public-release    | P3       | andrew | docs-content-sweep                               | release-readiness           |
+| Work unit          | Priority | Owner  | Depends on         | Cohort            |
+| ------------------ | -------- | ------ | ------------------ | ----------------- |
+| wu5-public-release | P3       | andrew | docs-content-sweep | release-readiness |
 
 ---
 

@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Integrating` | `andrew` | `feat/concurrent-work-doctrine` | `Heavy` | `P1` |
+| `Shipped` | `andrew` | `feat/concurrent-work-doctrine` | `Heavy` | `P1` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
@@ -15,7 +15,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 10 — commit completion content, archive, push, and merge PR #81
+- **Next Action:** merge PR #81
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/81>
 - **Completed:** 2026-06-11
