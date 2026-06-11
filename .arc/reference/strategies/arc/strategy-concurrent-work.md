@@ -192,6 +192,81 @@ it, and respects any "merge after #X" constraint just as a full work unit does.
 
 ---
 
+## Worktree operations
+
+Concurrency means several worktrees live at once; a few operational habits keep them coherent:
+
+- **Merge from one designated worktree.** Run integrations from the primary worktree (or a dedicated merge
+  worktree), not from whichever work-unit worktree you happen to be in. A single merge locus keeps updating the
+  base predictable and keeps work-unit worktrees focused on their own branch.
+- **Refresh the others after a merge.** When a work unit integrates and the base advances, the other live
+  worktrees are now behind. Reconcile them (merge the base in, per append-only) at a clean point so they don't
+  drift far. A **sync-all-worktrees** pass — fetch once, reconcile each live branch — is a good between-sessions
+  habit.
+- **Remove worktrees with `git worktree remove`, never `rm -rf`.** `git worktree remove` also cleans up git's
+  internal bookkeeping (the administrative link under `.git/worktrees`); `rm -rf` deletes the directory but
+  strands that record, which then needs a `git worktree prune` to clear. If a directory has already been deleted
+  out from under git, `git worktree prune` recovers the stale reference.
+- **Mind cross-worktree state after a history rewrite.** A branch is checked out in only one worktree at a time,
+  but a rebase or other rewrite in one worktree changes what another sees if it tracks the same branch line. After
+  any rewrite (integration cleanup, a private-window rebase), re-fetch in the other worktrees before trusting
+  their view.
+
+### Composing with external worktree tools
+
+When an external worktree-management tool spawns and tracks worktrees, **honor its conventions** — its branch
+naming, its cleanup behavior, and where it places worktree directories. Don't relocate or rename a tool-managed
+worktree out from under it; that strands the tool's bookkeeping the same way `rm -rf` strands git's.
+
+ARC's structural discipline is orthogonal to who created the worktree. The per-work-unit `meta-{name}.md`
+lifecycle, the work-unit state machine, and sweep-as-you-go cleanup apply to every worktree that hosts a work
+unit, however it was spawned. Let the tool own placement and naming; ARC owns the work-unit state inside it.
+
+---
+
+## Async-merge: working through awaiting-review latency
+
+A work unit doesn't always merge the moment it's done. Review can take days, sometimes a week, and through that
+window the work unit sits in an **`Integrating`** state — shipped from your side, not yet merged. Concurrency
+makes this routine: you advance other work while one waits. Soft conventions for that window:
+
+- **`Integrating` is a real state, not limbo.** The work unit has left active development but hasn't merged — it
+  still has a branch, a PR, and a worktree, but it's no longer where your attention goes. Treat it as
+  parked-awaiting-external and put your active focus on other in-flight work.
+- **Handing off across the wait is normal.** A session can end with a work unit in `Integrating`; session-handoff
+  records that state so the next session or machine resumes it correctly. You don't hold a session open waiting
+  for review.
+- **Archival and worktree cleanup wait for the merge.** Don't archive a work unit or remove its worktree while
+  it's still `Integrating` — the branch and PR are live, and a reviewer may ask for changes that need the
+  worktree. Both are post-merge steps; the stale-worktree sweep at session start flags only worktrees whose work
+  units have actually merged.
+- **Answer review feedback on the branch, append-only.** Changes a reviewer asks for land as new commits on the
+  still-shared branch — append-only still holds, since the branch is still pushed — not as a rewrite. The single
+  sanctioned history cleanup still waits for the actual merge.
+
+---
+
+## Your main worktree is not always on main
+
+Under `branch.protection: full`, feature work never happens directly on `main` — every work unit gets its own
+branch and worktree. That frees the **primary worktree to specialize for coordination**, and it is normal for it
+to sit on a branch other than `main`:
+
+- **Admin and coordination work** — planning branches for not-yet-active work units, archive branches,
+  cross-work-unit backlog edits — runs from the primary worktree. These are the cross-cutting tasks that don't
+  belong to any one feature work unit.
+- **Feature work runs in work-unit worktrees.** Each active work unit's branch lives in its own worktree; that's
+  where its commits land.
+- **So "go to the main worktree" rarely means "you're on `main`."** The primary worktree is the coordination hub,
+  frequently checked out to a planning or archive branch. When you need a clean `main` — to cut a new branch, say
+  — check it out deliberately rather than assuming the primary worktree is already there.
+
+Under partial protection the distinction softens: more work can happen directly on the base, and the primary
+worktree spends more time actually on `main`. The specialization is sharpest under full protection, where the base
+is never a working surface.
+
+---
+
 ## When to abandon parallelism
 
 Parallelism is a bet that two lines of work integrate more cheaply run together than sequenced. When the bet stops

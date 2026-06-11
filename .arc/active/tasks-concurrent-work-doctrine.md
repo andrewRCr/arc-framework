@@ -233,7 +233,7 @@ deliverable; a candidate to split if review boundaries want finer slices.
           Authored P2/P3/P5: the "one task at a time" checkpoint is P3 (Focused, sequential execution), not the
           spec's P7 (Granular task tracking) — read as a spec mislabel against canonical `principles.md`.
 
-### `[ ]` **3.3 Author the operational core — branch/rebase, append-only, merge, worktree, async-merge**
+### `[x]` **3.3 Author the operational core — branch/rebase, append-only, merge, worktree, async-merge**
 
 - _Goal:_ The strategy codifies the day-to-day operational discipline that keeps concurrent branches integrable
   and cross-machine-safe, from rebase cadence through worktree hygiene and the awaiting-review regime.
@@ -265,21 +265,28 @@ deliverable; a candidate to split if review boundaries want finer slices.
           ("merge after #X" PR note/label); merge-queue interaction (GitHub merge queue, Mergify). Errand `chore/`
           branches ride the same ordering as mini-PRs.
 
-    - `[ ]` **3.3.d Worktree operational guidance (R6)**
-        - Merges from the primary (or a dedicated merge) worktree; refetch/rebase other worktrees post-merge;
-          `git worktree remove` over `rm -rf`; stale-reference recovery; cross-worktree state after a rebase;
-          sync-all-worktrees. Tool composition: honor an external tool's naming/cleanup/location conventions, don't
-          relocate tool-managed worktrees; ARC's structural discipline applies regardless of who spawned the
-          worktree.
+    - `[x]` **3.3.d Worktree operational guidance (R6)**
+        - § Worktree operations: merge from one designated worktree; refresh others post-merge (sync-all-worktrees);
+          `git worktree remove` over `rm -rf` (+ `git worktree prune` for stale refs); mind cross-worktree state
+          after a history rewrite. Sub-section on composing with external worktree tools — honor their
+          naming/cleanup/location, don't relocate tool-managed worktrees; ARC's per-WU state discipline applies
+          regardless of who spawned the worktree.
 
-    - `[ ]` **3.3.e Async-merge guidance (R7)**
-        - Managing WUs through awaiting-review latency (days to a week); how `Integrating` interacts with
-          session-handoff, archival, and worktree cleanup; soft conventions for the post-PR-pre-merge state.
+    - `[x]` **3.3.e Async-merge guidance (R7)**
+        - § Async-merge: working through awaiting-review latency (days to a week); `Integrating` as a real
+          parked-awaiting-external state; handoff records it; archival/worktree-cleanup wait for the merge; review
+          feedback lands append-only on the still-shared branch. Operator conventions only — the lifecycle
+          mechanism stays a Non-Goal.
 
-    - `[ ]` **3.3.f Main-worktree-under-full-protection convention (R10)**
-        - "Your main worktree is not always on main": under `branch.protection: full` the main worktree specializes
-          for admin/coordination (planning branches, archive branches, cross-WU backlog edits) while WU worktrees
-          handle feature work.
+    - `[x]` **3.3.f Main-worktree-under-full-protection convention (R10)**
+        - § Your main worktree is not always on main: under `branch.protection: full` the primary worktree
+          specializes for admin/coordination (planning branches, archive branches, cross-WU backlog edits) while
+          WU worktrees carry feature work; partial protection softens the split.
+
+- _Outcome:_ The operational core that keeps concurrent branches integrable and cross-machine-safe, landed in two
+  review increments (branch-history cluster: a–c; worktree/lifecycle cluster: d–f). Append-only-until-integration
+  is its one hard invariant — everything else is advisory; the branch/rebase section is framed so pushed-ness
+  selects merge over rebase, resolving the apparent rebase-vs-append-only tension surfaced at review.
 
 ### `[ ]` **3.4 Author team-mode orthogonality, the ROADMAP overlay, and shared-state conventions**
 
