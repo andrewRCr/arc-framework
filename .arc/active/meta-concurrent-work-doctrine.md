@@ -11,12 +11,12 @@
 - **Design:** `spec-concurrent-work-doctrine.md`
 - **Task List:** tasks-concurrent-work-doctrine.md
 
-- **Last Completed:** Task 2.3 — Mirror host-workflow edits to package source
-- **Next Task:** Task 3.1 — Scaffold the strategy, index it, and reconcile sibling cross-references (line ~176)
+- **Last Completed:** Task 4.2 — Cite the research base, anchor governing ADRs, record forward-compat (Phase 4 done)
+- **Next Task:** Task 5.1 — Complete verification (line ~413)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — scaffold `strategy-concurrent-work.md` (sibling to `strategy-team-coordination`),
-  add its `STRATEGY-INDEX.md` row, and reconcile bidirectional sibling cross-references (Phase 3, the largest
-  deliverable).
+- **Next Action:** Begin Phase 5 verification — load and follow `verify-work-unit.md`, validating the eight Success
+  Criteria; fold in the spec R13 `P7`→`P3` correction and discharge the `WORKING-MEMORY` vanilla-git-fallback note
+  (Success Criterion 7).
 
 ---
