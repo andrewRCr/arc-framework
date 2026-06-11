@@ -33,6 +33,7 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
@@ -62,6 +63,18 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
    * probe failed. Orientation surfaces a `worktree:` line only when `linked`.
    */
   identity: WorktreeIdentity;
+}
+
+/**
+ * Base-distance slot in the session-init envelope. Extends the raw probe
+ * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
+ * text pair as the worktree slot, so the workflow renders a behind-base
+ * reconcile offer without re-deriving it from state.
+ */
+export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
+  recommendedAction: RecommendedAction;
+  /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
+  recommendedPromptText: string;
 }
 
 /**
@@ -115,6 +128,12 @@ export interface SessionInitProbeResult {
   identity: StatusIdentity;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
+  /**
+   * Base-distance slot — HEAD vs `origin/<base>`, the behind-base drift
+   * surface. Always present (eager, non-gated), mirroring the worktree slot's
+   * placement; the recommendation fields drive the resume-time reconcile offer.
+   */
+  baseDistance: Probe<SessionInitBaseDistanceValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
@@ -331,6 +350,12 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * slot in the orchestrator rather than surfaced as a top-level slot.
    */
   worktreeIdentity: () => Promise<WorktreeIdentity>;
+  /**
+   * Base-distance probe — HEAD vs `origin/<base>`. Session-init-only (not a
+   * shared slot): a between-WU resume is where behind-base drift matters. The
+   * handler binds the resolved `branch.base` and remote-sync flag.
+   */
+  baseDistance: () => Promise<BaseDistanceStatusResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;

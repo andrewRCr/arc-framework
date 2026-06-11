@@ -27,6 +27,7 @@ import type {
   RunSessionInitStatusOptions,
   RunStatusOptions,
   SessionHandoffResult,
+  SessionInitBaseDistanceValue,
   SessionInitProbeResult,
   SessionInitUserValue,
   SessionInitWorktreeValue,
@@ -220,6 +221,7 @@ export async function runSessionInitStatus(
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
+  const baseDistanceTask = safeProbe(() => probes.baseDistance());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const domainRulesTask = safeProbe(() => probes.domainRules());
@@ -242,7 +244,7 @@ export async function runSessionInitStatus(
 
   const [
     user, worktree, dirty, active, releaseRouting,
-    worktreeIdentitySlot, extensions, config, domainRules,
+    worktreeIdentitySlot, baseDistance, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
     shared.user,
@@ -251,6 +253,7 @@ export async function runSessionInitStatus(
     shared.active,
     shared.releaseRouting,
     worktreeIdentityTask,
+    baseDistanceTask,
     extensionsTask,
     configTask,
     domainRulesTask,
@@ -292,6 +295,21 @@ export async function runSessionInitStatus(
       } satisfies SessionInitWorktreeValue,
     }
     : worktree;
+
+  // Base-distance enrichment mirrors the worktree slot's shape. The
+  // recommendation fields land neutral here; the base-distance inference
+  // (distance + path-overlap → reconcile offer) composes them in a later step.
+  // Only these two fields are placeholder — the slot's shape is final.
+  const enrichedBaseDistance: SessionInitProbeResult["baseDistance"] = baseDistance.ok
+    ? {
+      ok: true,
+      value: {
+        ...baseDistance.value,
+        recommendedAction: "skip",
+        recommendedPromptText: "",
+      } satisfies SessionInitBaseDistanceValue,
+    }
+    : baseDistance;
 
   const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
     ? {
@@ -368,6 +386,7 @@ export async function runSessionInitStatus(
     identity: buildIdentity(identity, role),
     user: enrichedUser,
     worktree: enrichedWorktree,
+    baseDistance: enrichedBaseDistance,
     dirty,
     extensions,
     config,

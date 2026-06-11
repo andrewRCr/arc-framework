@@ -24,31 +24,31 @@ worktree channel end to end. See `notes-merge-safety-mechanism.md` for the groun
   its sole `HEAD...origin/<branch>` caller, no duplicated distance logic. Regression parity held by the existing
   worktree-sync suite. This is the sub-cohort's shared contract — see `notes-merge-safety-mechanism.md`.
 
-### `[ ]` **1.2 Wire the base-distance probe slot into the session-init envelope**
+### `[x]` **1.2 Wire the base-distance probe slot into the session-init envelope**
 
 - _Goal:_ The session-init envelope carries a base-distance probe slot — HEAD vs `origin/<base>` —
   worktree-channel-shaped (`state` / `ahead` / `behind` / `recommendedAction` / `recommendedPromptText`),
   assembled through the established probe pattern.
-- _Approach:_ Follow the existing worktree-channel wiring end to end rather than a parallel shape, so the sibling
-  WUs extend one contract.
-- _Note:_ The slot is session-init-only — add the field to `SessionInitProbeResult` and the entry to
-  `SessionInitProbes` (not the shared `SessionSharedProbes`), and fan out in `runSessionInitStatus` after
-  `buildSessionSharedSlots`; mirror the worktree slot's enrichment shape, not its shared placement.
-- _Note:_ The read needs `origin/<base>` present locally — the worktree probe only fetches `origin/<branch>`;
-  ensure the base ref (bounded fetch) or degrade gracefully when it is absent (fresh clone, base not fetched).
-- **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **1.2.a Add the `Probe<T>` field + value type** — a `SessionInitProbeResult` field plus a value type
-      extending the sync result with the recommendation fields, mirroring `SessionInitWorktreeValue`.
+    - `[x]` **1.2.a Add the `Probe<T>` field + value type** — `SessionInitBaseDistanceValue` extends the new
+      `BaseDistanceStatusResult` with the recommendation pair (mirroring `SessionInitWorktreeValue`); the
+      always-present `baseDistance` field lands on `SessionInitProbeResult` and the probe entry on
+      `SessionInitProbes` (not the shared `SessionSharedProbes`).
 
-    - `[ ]` **1.2.b Register the `SessionInitProbes` entry + fan-out** — add the `SessionInitProbes` entry and
-      the `runSessionInitStatus` fan-out computing HEAD vs `origin/<base>` via the Phase 1 primitive.
+    - `[x]` **1.2.b Register the `SessionInitProbes` entry + fan-out** — `runSessionInitStatus` fans out the
+      eager `baseDistance` slot and enriches it worktree-style; new `lib/git/base-distance.ts`
+      `runBaseDistanceStatus` computes HEAD vs `origin/<base>` via the Phase 1 `countAheadBehindRef`, bounded-
+      fetching the base ref and degrading to `detached-head` / `no-remote` / `remote-unavailable`.
 
-    - `[ ]` **1.2.c Bind the probe in the handler** — wire the I/O binding in the `handlers/status.ts` probes
-      object; resolve `branch.base` from config as the remote ref.
+    - `[x]` **1.2.c Bind the probe in the handler** — `handlers/status.ts` binds `baseDistance`, resolving
+      `branch.base` from settings as the remote ref and honoring the `session.remote_sync` flag.
 
-    - Integration coverage: the slot assembles into the envelope with correct state for base-advanced, parity,
-      and degraded (no-remote / detached) cases.
+- _Outcome:_ The base-distance slot assembles into the real envelope (verified: `local-ahead`/`ahead 8` against
+  `origin/main` on this branch). Recommendation fields land **neutral** (`skip`/empty) — the distance + path-
+  overlap inference is Task 1.3. The `state` reuses `WorktreeSyncState` for worktree-channel symmetry; base-
+  fetch plumbing is kept local to `base-distance.ts` rather than sharing worktree-sync internals (the distance
+  primitive is the deliberately-shared buildable). Integration coverage spans base-advanced, parity, and
+  degraded (no-remote / detached) assembly.
 
 ### `[ ]` **1.3 Base-distance recommendation, path-overlap read, and resume surfacing**
 

@@ -149,6 +149,17 @@ function makeSessionInitResult(
         identity: { kind: "primary" },
       },
     },
+    baseDistance: {
+      ok: true,
+      value: {
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        base: "main",
+        recommendedAction: "skip",
+        recommendedPromptText: "",
+      },
+    },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
     recommendedCombinedPrompt: null,
     extensions: {

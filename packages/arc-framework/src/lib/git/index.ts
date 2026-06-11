@@ -29,6 +29,12 @@ export {
 } from "./worktree-sync.js";
 
 export {
+  runBaseDistanceStatus,
+  type BaseDistanceStatusResult,
+  type RunBaseDistanceStatusOptions,
+} from "./base-distance.js";
+
+export {
   runWorktreeRoster,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
