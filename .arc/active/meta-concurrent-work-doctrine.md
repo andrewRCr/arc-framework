@@ -11,11 +11,12 @@
 - **Design:** `spec-concurrent-work-doctrine.md`
 - **Task List:** tasks-concurrent-work-doctrine.md
 
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Scaffold the method file with standard method shape (line ~17)
+- **Last Completed:** Task 2.3 — Mirror host-workflow edits to package source
+- **Next Task:** Task 3.1 — Scaffold the strategy, index it, and reconcile sibling cross-references (line ~176)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — scaffold the `assess-parallel-fit` method file with standard method shape
-  (Phase 1, the spine's first deliverable).
+- **Next Action:** Begin Task 3.1 — scaffold `strategy-concurrent-work.md` (sibling to `strategy-team-coordination`),
+  add its `STRATEGY-INDEX.md` row, and reconcile bidirectional sibling cross-references (Phase 3, the largest
+  deliverable).
 
 ---
