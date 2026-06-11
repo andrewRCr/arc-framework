@@ -30,6 +30,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
     - Consult when: authoring a framework or project workflow file
 - `arc/strategy-team-coordination.md` - Task ownership, team branching patterns, merge conflicts, external trackers
     - Consult when: working in team mode, setting up multi-developer coordination
+- `arc/strategy-concurrent-work.md` - Concurrency doctrine — parallelize, rebase/merge discipline, worktree ops
+    - Consult when: running multiple work units at once, deciding whether to parallelize, integrating concurrent work
 - `arc/strategy-work-organization.md` - Work categories, branching model (protection modes, planning branches), archival
     - Consult when: creating branches, deciding work unit types, archiving completed work
 

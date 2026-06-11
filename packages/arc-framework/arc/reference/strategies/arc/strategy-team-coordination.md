@@ -335,7 +335,10 @@ properties — address them separately.
 `chore/ci-matrix` with its own `meta-ci-matrix.md`. The work units don't coordinate at
 all at the meta-file layer: different files, different branches, different task lists.
 Independent WUs merge to the base branch without ever touching each other's meta files.
-This is the dominant pattern for parallel solo work on independent concerns.
+This is the dominant pattern for parallel solo work on independent concerns. The mechanics of running
+those parallel work units — rebase cadence, append-only discipline, merge ordering, and worktree
+operations — are covered in [Concurrent Work][concurrent-work]; team mode adds the cross-identity
+coordination layer on top.
 
 **Within-WU team sub-branches.** Alice and Bob both work on the same WU via personal
 sub-branches (`feat/user-auth/alice`, `feat/user-auth/bob`) off a shared integration
@@ -428,6 +431,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 ## Related Documentation
 
 - [Work Organization Strategy][work-org] — Branching model, work categories, protection modes
+- [Concurrent Work][concurrent-work] — Multi-WU concurrency mechanics; the orthogonal sibling to team mode
 - [DEV-RULES.ARC][dev-methodology] — Task management protocol, commit standards
 - [Process Task Loop][process-task-loop] — Task execution workflow
 - `user/README.md` — Per-developer workspace structure and session state
@@ -435,6 +439,7 @@ them if they're useful, skip them if they'd drift from the tracker.
 ---
 
 [work-org]: strategy-work-organization.md
+[concurrent-work]: strategy-concurrent-work.md
 [dev-methodology]: ../../../system/rules/DEV-RULES.ARC.md
 [interlock-release-wrappers]: strategy-interlock-release-wrappers.md
 [process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
