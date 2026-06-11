@@ -41,3 +41,21 @@ describe("pre-commit hook shell-script invocation", () => {
     expect(directShellInvocations).toEqual([]);
   });
 });
+
+describe("foreign-write advisory backstop wiring", () => {
+  it("invokes the foreign-write entry point via npx tsx", () => {
+    expect(preCommitSource).toContain(
+      "npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts",
+    );
+  });
+
+  it("treats the backstop as advisory — increments warnings, never errors", () => {
+    // The CHECK 19 block runs between cohort-consistency (CHECK 18) and the Summary.
+    const block = preCommitSource.slice(
+      preCommitSource.indexOf("CHECK 19"),
+      preCommitSource.indexOf("# Summary"),
+    );
+    expect(block).toContain("warnings=$((warnings + 1))");
+    expect(block).not.toContain("errors=$((errors + 1))");
+  });
+});

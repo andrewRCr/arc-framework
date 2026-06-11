@@ -154,21 +154,23 @@ cohort-owned docs. Pairs with Phase 4 under the two-copy package-project hook-sy
   path. `classifyPathSurface` keys on the `.arc/`-scoped artifact-name conventions so an artifact-named file
   outside `.arc/` is not mistaken for a planning surface; exported via the git barrel.
 
-### `[ ]` **3.2 Pre-commit foreign-write backstop (advisory CHECK + entrypoint)**
+### `[x]` **3.2 Pre-commit foreign-write backstop (advisory CHECK + entrypoint)**
 
 - _Goal:_ A new pre-commit check surfaces a foreign-owned write among staged files before it lands — advisory:
   it warns, it never refuses the commit.
-- _Approach:_ Reuse `detectForeignArtifactOverlap` behind a new hook-side `npx tsx` entrypoint; the detection
-  logic exists, only the hook call path is new.
-- **Strategies:** strategy-package-project-sync.md, strategy-testing-methodology.md
 
-    - `[ ]` **3.2.a Hook-side entrypoint** — a new `npx tsx` validator that stage-filters and calls
-      `detectForeignArtifactOverlap` (or a thinner staged-files analog, per roster-assembly cost at hook time).
+    - `[x]` **3.2.a Hook-side entrypoint** — `check-foreign-writes.ts` narrows staged paths to the work-unit
+      surface, derives the in-flight set locally (`runActiveInFlight` `localOnly`, no commit-time network read),
+      and reuses `detectForeignArtifactOverlap`. Fails open (exit 0, silent) on any degraded state.
 
-    - `[ ]` **3.2.b Pre-commit CHECK** — a new CHECK after CHECK 18 (cohort-consistency), before the Summary
-      block; stage-filter + `npx tsx` pattern. It WARNS, unlike its erroring siblings. Both synced hook copies.
+    - `[x]` **3.2.b Pre-commit CHECK** — CHECK 19 (after cohort-consistency, before the Summary) in both hook
+      copies: stage-filter + `npx tsx`, `warnings++` not `errors++`. First warn-style check in the hook.
 
-    - Verify e2e: a staged foreign-owned path warns; a clean self-write passes silently.
+- _Outcome:_ The single-owner foreign-write gate keys on the work-unit path surface from Task 3.1, so cohort
+  docs and code fall through to the behind-base net (the routing Task 3.3 confirms). Verified via the detection
+  core (foreign overlap warns; self-write silent) and a live entrypoint run; a temp-repo hook e2e is impractical
+  for `npx tsx` CHECKs (repo-relative script path), so coverage follows the established tsx-CHECK pattern —
+  exported-function tests plus a hook-source wiring assertion.
 
 ### `[ ]` **3.3 Confirm behind-base detector covers the cohort doc**
 

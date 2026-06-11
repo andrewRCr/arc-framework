@@ -521,6 +521,32 @@ if [ -n "$cohort_consistency_candidates" ]; then
 fi
 
 # ============================================================================
+# CHECK 19: Foreign-write advisory backstop
+# ============================================================================
+# Surfaces a staged per-WU artifact that another in-flight work unit also
+# touches — a foreign-owned write about to land on the wrong branch. Reuses the
+# `arc errand` overlap primitive over the locally-derived in-flight set (no
+# network read at commit time). Scoped to the work-unit path surface; cohort
+# docs and code fall to the behind-base net, not this single-owner gate.
+# Advisory: it WARNS and never blocks, and the entrypoint fails open (exit 0,
+# no output) on any degraded state.
+foreign_write_candidates=$(git diff --cached --name-only --diff-filter=ACMR | \
+    grep -E '^\.arc/(active|backlog)/([^/]+/)*(meta|spec|draft|tasks|notes)-[^/]+\.md$' || true)
+
+if [ -n "$foreign_write_candidates" ]; then
+    # shellcheck disable=SC2086 # Intentional word splitting — newline-separated paths
+    foreign_write_output=$(npx tsx packages/arc-framework/src/scripts/check-foreign-writes.ts $foreign_write_candidates 2>/dev/null || true)
+    if [ -n "$foreign_write_output" ]; then
+        echo -e "${YELLOW}Warning: Foreign-owned write among staged artifacts:${NC}"
+        echo "$foreign_write_output" | sed 's/^/   /'
+        echo ""
+        echo "   Another in-flight work unit touches these paths. Coordinate or"
+        echo "   sequence after it integrates — advisory only, the commit proceeds."
+        warnings=$((warnings + 1))
+    fi
+fi
+
+# ============================================================================
 # Summary
 # ============================================================================
 echo ""
