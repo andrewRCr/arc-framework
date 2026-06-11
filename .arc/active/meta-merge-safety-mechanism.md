@@ -11,12 +11,12 @@
 - **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** `tasks-merge-safety-mechanism.md`
 
-- **Last Completed:** generate-tasks — decomposed the spec into `tasks-merge-safety-mechanism.md` (high depth, 4
-  substantive phases + verification)
-- **Next Task:** Task 1.1 — Extract and export `countAheadBehindRef` (line ~18)
+- **Last Completed:** Phase 1 (Tasks 1.1–1.3) — ref-parameterized behind-base distance primitive, session-init
+  base-distance probe slot, and the behind-base reconcile advisory (with branch-vs-base path overlap)
+- **Next Task:** Task 2.1 — Patch-equal supersession detector (line ~78)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — extract and export `countAheadBehindRef`; refactor `runWorktreeSyncStatus`
-  to consume it (`tasks-merge-safety-mechanism.md`).
+- **Next Action:** Begin Task 2.1 — implement the patch-equal supersession detector over the local-ahead commit
+  set (`tasks-merge-safety-mechanism.md`).
 
 ---
