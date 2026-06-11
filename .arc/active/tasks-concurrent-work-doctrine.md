@@ -201,30 +201,37 @@ deliverable; a candidate to split if review boundaries want finer slices.
   keeping package source internally consistent at each intermediate commit rather than carrying an index row
   that points at a not-yet-mirrored strategy.
 
-### `[ ]` **3.2 Author parallelize-vs-serialize, posture, anti-patterns, and philosophy-checkpoints**
+### `[x]` **3.2 Author parallelize-vs-serialize, posture, anti-patterns, and philosophy-checkpoints**
 
 - _Goal:_ The strategy frames the parallelize-vs-serialize decision and the modest-concurrency posture, names
   when to abandon parallelism, gives soft anti-pattern guidance, and explicitly covers the affected philosophy
   checkpoints — judgment guidance, not enforced rules.
 
-    - `[ ]` **3.2.a Parallelize-vs-serialize framing and posture (R2)**
-        - Frame the decision and the posture (principled at ≈2–3 concurrent; heavier concurrency the adopter's
-          call, may strain P2 bandwidth). Reference `assess-parallel-fit` for the procedure — no rubric body
-          restated here.
+    - `[x]` **3.2.a Parallelize-vs-serialize framing and posture (R2)**
+        - § When to parallelize, and when to serialize: frames the decision on domain-overlap × attention, states
+          what bounded concurrency is _for_ (harvesting the developer's between-interlock interval), and the
+          modest-scale posture (≈2–3 concurrent; heavier concurrency your call, may thin P2 co-development
+          bandwidth). Defers the candidate-read procedure to the `assess-parallel-fit` method — no rubric body
+          restated (Success Criterion 2).
 
-    - `[ ]` **3.2.b When to abandon parallelism (R8)**
-        - Heuristics (conflict-resolution time exceeding ≈30% of savings; rebase count exceeding ≈3; semantic
-          drift) and recovery (merge one, abandon the other, redo as a unified WU).
+    - `[x]` **3.2.b When to abandon parallelism (R8)**
+        - § When to abandon parallelism: the three cost signals (conflict-resolution time exceeding ≈30% of
+          savings; base-absorb count exceeding ≈3; semantic drift) and the merge-one / abandon-the-other /
+          redo-as-unified-WU recovery.
 
-    - `[ ]` **3.2.c Soft anti-pattern guidance (R9)**
-        - Single-thread attention, avoid same-domain concurrents (attention-residue), review-increment-boundary
-          discipline when switching worktrees; explicit calibration against the agentic worktree-tool idiom
-          (many/fast/less-reviewed — the opposite posture; surface the tension).
+    - `[x]` **3.2.c Soft anti-pattern guidance (R9)**
+        - § Anti-patterns: single-threaded-at-an-instant but time-sliced across interlocks; harvest the working
+          interval only when the work unit doesn't need you (the two exceptions — open derivation, and
+          settled-but-high-stakes work — stay single-threaded); avoid same-domain concurrents (attention-residue);
+          plus the explicit calibration against the agentic worktree-tool idiom (many/fast/less-reviewed as the
+          opposite posture; the tension surfaced for conscious per-session choice).
 
-    - `[ ]` **3.2.d Philosophy-checkpoint coverage (R13)**
-        - P2 (parallelism between WUs not within; per-task stop preserved), P5 (worktree-local SESSION-NOTES is
-          correct WU-scoped context), P7 (one task at a time; soft swap at review-increment boundaries), and the
-          honest stance (ARC won't block two sessions but documents that heavy concurrency may violate P2).
+    - `[x]` **3.2.d Philosophy-checkpoint coverage (R13)**
+        - § Philosophy checkpoints: P2 (parallelism between WUs not within; per-task stop preserved), P3 (focused
+          sequential execution — one primary line of attention; the principle that already permits multi-branch
+          parallelism), P5 (worktree-local SESSION-NOTES as correct WU-scoped context), and the honest stance.
+          Authored P2/P3/P5: the "one task at a time" checkpoint is P3 (Focused, sequential execution), not the
+          spec's P7 (Granular task tracking) — read as a spec mislabel against canonical `principles.md`.
 
 ### `[ ]` **3.3 Author the operational core — branch/rebase, append-only, merge, worktree, async-merge**
 
