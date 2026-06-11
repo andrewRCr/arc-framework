@@ -8,15 +8,14 @@
 - **Depends On:** `concurrent-work-doctrine`
 
 - **Origin:** [internal]
-- **Design:** `draft-merge-safety-mechanism.md`
+- **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec` from `draft-merge-safety-mechanism.md` to author the spec. Scope ships the
-  behind-base / `origin/<base>`-distance primitive + probe slot (built general for `cross-machine-sync-coherence`
-  to extend), write-context extensions + pre-commit backstop, and the merge-commit hook/footer exemption.
+- **Next Action:** Run `generate-tasks` to decompose `spec-merge-safety-mechanism.md` into the task list. See
+  `notes-merge-safety-mechanism.md` for the grounded extension-point map (file:line seams per design component).
 
 ---
