@@ -244,21 +244,26 @@ deliverable; a candidate to split if review boundaries want finer slices.
   `async-merge-lifecycle`'s — reference, don't rebuild. R4's git-branch-safety framing is load-bearing; the
   storage-evolution _reasoning_ behind it stays in the ADR (R26), not here.
 
-    - `[ ]` **3.3.a Branch and rebase discipline (R3)**
-        - Periodic-rebase-onto-main vs. end-of-flight trade-off (≈2-day lifetime threshold); `rerere` for
-          periodic-rebase teams; "Update branch" workflows; merge-vs-rebase choice and its review consequences.
+    - `[x]` **3.3.a Branch and rebase discipline (R3)**
+        - § Branch and rebase discipline: splits _how_ (mechanism, governed by pushed-ness) from _how often_
+          (cadence). Rebase rewrites history so it's the private-window tool; a shared branch catches up by
+          _merging_ the base in ("Update branch") — append-only forbids rebasing pushed commits, so the two
+          sections don't conflict. Default is end-of-flight reconcile; periodic catch-up for >≈2-day branches
+          (guideline, no research citation). `git rerere` for repeated reconciliation; the merge-vs-rebase review
+          consequence reinforces merge on shared branches.
 
-    - `[ ]` **3.3.b Append-only-until-integration (R4)**
-        - A pushed WU branch is append-only mid-flight (activation → integration): add commits + fast-forward-push
-          only; never rebase/amend already-pushed commits. Default: don't bring `main` in; if genuinely needed,
-          **merge** `main` (ancestry-preserving), never rebase onto it. Integration is the single sanctioned
-          rewrite point; cross-machine resume is always `pull --ff-only` / `arc sync`. Framed as git-branch-safety
-          for shared history — never "the branch is your permanent multi-machine state store." Owns the convention;
-          narrates `merge-safety-mechanism` as the detection backstop.
+    - `[x]` **3.3.b Append-only-until-integration (R4)**
+        - § Append-only until integration: the one hard invariant — a pushed branch is append-only (activation →
+          integration), add commits + fast-forward-push only, never rewrite pushed history. Don't bring the base in
+          by default; if needed, _merge_ `main` (ancestry-preserving), never rebase onto it. Integration is the
+          single sanctioned rewrite point; cross-machine resume is always `pull --ff-only` / `arc sync`. Framed as
+          git-branch-safety for shared history, not a permanent state store (storage reasoning routed to the ADR).
+          Narrates the behind-base detector generically as the backstop — no internal mechanism name.
 
-    - `[ ]` **3.3.c Merge ordering between concurrent WUs (R5)**
-        - First-in-wins vs. explicit serialization; "merge after #X" PR-label conventions; merge-queue interaction
-          (GitHub merge queue, Mergify). Errand `chore/` branches are mini-PRs riding the same ordering discipline.
+    - `[x]` **3.3.c Merge ordering between concurrent WUs (R5)**
+        - § Merge ordering between concurrent work units: first-in-wins default vs. explicit serialization
+          ("merge after #X" PR note/label); merge-queue interaction (GitHub merge queue, Mergify). Errand `chore/`
+          branches ride the same ordering as mini-PRs.
 
     - `[ ]` **3.3.d Worktree operational guidance (R6)**
         - Merges from the primary (or a dedicated merge) worktree; refetch/rebase other worktrees post-merge;

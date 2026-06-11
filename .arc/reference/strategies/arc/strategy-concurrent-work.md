@@ -110,6 +110,88 @@ can create.
 
 ---
 
+## Branch and rebase discipline
+
+A concurrent branch drifts from its base the moment a sibling merges. Two decisions follow — _how often_ to
+reconcile that drift, and _how_ — and the second is what reconciles this section with the append-only invariant
+below.
+
+**How: the mechanism depends on whether the branch is shared.** Rebasing onto the base rewrites the branch's
+commits; merging the base in preserves them. Before a branch is pushed — a brief private window — rebase onto the
+base freely; there's no shared history to disturb. Once it's pushed and shared (the norm here, since worktrees and
+cross-machine resume share a branch early), keep it current by **merging the base in**, never by rebasing onto it —
+a platform **"Update branch"** action is exactly that merge. So "periodic rebase" is a private-window tool; on a
+shared branch the same job is a merge. There is no contradiction with append-only: append-only is precisely what
+forbids the rewrite that rebasing a pushed branch would require, and it points you at the merge instead.
+
+**How often: periodic vs. end-of-flight.** The default is to leave the branch alone and reconcile once at
+integration — don't bring the base in unless you need to. A branch that lives **more than about two days** is the
+case where you usually do: the base moves enough that one end-of-flight reconciliation gets painful, so catch up
+periodically (merge the base in, or rebase while still private) to keep each integration a small, cheap delta. The
+two-day mark is a guideline — a fast-moving base shortens it, a quiet one stretches it. Periodic catch-up on a
+shared branch costs extra merge commits in the history, which the sanctioned cleanup at integration can squash
+away.
+
+For repeated reconciliation either way, enable **`git rerere`** (reuse recorded resolution) so a conflict resolved
+once is replayed automatically the next time instead of re-litigated.
+
+**The review consequence reinforces the mechanism rule.** A rebase changes commit identities under a reviewer
+mid-review; a merge preserves them, so in-progress review stays stable. On a shared, under-review branch, that is
+one more reason the mechanism is merge, not rebase.
+
+---
+
+## Append-only until integration
+
+This is the one **hard invariant** in this strategy; everything else here is advisory. The behind-base detector is
+the safety net that catches violations, but the convention itself is yours to hold:
+
+> **A pushed work-unit branch is append-only from activation until integration.** While the branch is live and
+> shared, only **add commits and fast-forward-push**. Never rebase, amend, or otherwise rewrite commits that have
+> already been pushed.
+
+The reason is **git-branch-safety for shared history**, not preference. Once a branch is pushed, another machine —
+or another worktree, or a teammate — may have it checked out. Rewriting already-pushed history forces everyone
+else into a non-fast-forward reconciliation, and can silently orphan commits that lived only on a machine still
+holding the old history. Append-only keeps a pushed branch a safe, shared base. Concretely:
+
+- **Don't bring the base in by default.** A live work-unit branch doesn't need to track `main` mid-flight; let it
+  diverge and reconcile at integration.
+- **If you genuinely need the base's changes mid-flight, _merge_ it in — never rebase onto it.** Merging `main`
+  into the branch is ancestry-preserving and fast-forward-safe for everyone who holds it; rebasing onto `main`
+  rewrites the pushed commits and breaks the invariant.
+- **Integration is the single sanctioned rewrite point.** Any history cleanup — squash, reorder, final rebase —
+  happens at integration, after review, when the branch stops being a shared working base and becomes a merge
+  candidate.
+- **Cross-machine resume is always `pull --ff-only`** (or `arc sync`). A failing fast-forward pull is the detector
+  telling you the branch's history moved; stop and reconcile deliberately, never force.
+
+Frame the branch as a **shared working history**, not as a machine's permanent state store: its job is to carry
+the work unit's commits safely between machines and into review, not to be the durable home of your work. That
+framing is what makes append-only obviously correct rather than an arbitrary restriction.
+
+---
+
+## Merge ordering between concurrent work units
+
+When two work units are ready to integrate around the same time, the order they merge in is itself a small
+coordination decision:
+
+- **First-in-wins (the default).** Whichever work unit is ready first merges first; the second reconciles against
+  the now-updated base before it merges. Simple, and right for genuinely disjoint work where order doesn't matter.
+- **Explicit serialization (when order matters).** When one work unit should land before another — a shared-surface
+  dependency, or a change the other builds on — say so rather than racing. A **"merge after #X"** note or label on
+  the PR records the constraint where reviewers and merge tooling can see it.
+- **Merge queues.** A merge queue (GitHub merge queue, Mergify, and the like) automates first-in-wins safely: it
+  serializes merges and re-tests each against the updated base, so two green PRs can't combine into a broken
+  `main`. Where available, it's the mechanical answer to ordering between concurrent PRs.
+
+**Errand branches ride the same discipline.** A `chore/<slug>` errand branch is a mini-PR — small, but it
+integrates through the same ordering: it waits its turn, reconciles against the base if something landed ahead of
+it, and respects any "merge after #X" constraint just as a full work unit does.
+
+---
+
 ## When to abandon parallelism
 
 Parallelism is a bet that two lines of work integrate more cheaply run together than sequenced. When the bet stops
