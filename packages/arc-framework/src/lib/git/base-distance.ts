@@ -14,7 +14,12 @@
  * @module
  */
 
-import { getCurrentBranch, type GitExec } from "./exec.js";
+import {
+  boundedFetch,
+  checkOriginExists,
+  getCurrentBranch,
+  type GitExec,
+} from "./exec.js";
 import {
   countAheadBehindRef,
   DEFAULT_FETCH_TIMEOUT_MS,
@@ -84,55 +89,20 @@ export async function runBaseDistanceStatus(
     return { state: "no-remote", ahead: 0, behind: 0, base: baseBranch };
   }
 
-  const fetchOutcome = await boundedFetch(exec, baseBranch, fetchTimeoutMs);
-  if (fetchOutcome !== "ok") {
+  // A non-`ok` outcome is uniformly degraded here: unlike the worktree probe,
+  // base-distance has no branch-gone recovery arm, so a deleted base ref simply
+  // reads as remote-unavailable rather than a distinct state.
+  const fetch = await boundedFetch(exec, baseBranch, fetchTimeoutMs);
+  if (fetch.outcome !== "ok") {
     return {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
       base: baseBranch,
-      failureReason: fetchOutcome,
+      failureReason: fetch.outcome,
     };
   }
 
   const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${baseBranch}`);
   return { state, ahead, behind, base: baseBranch };
-}
-
-type FetchOutcome = "ok" | "timeout" | "error";
-
-/**
- * Bounded `git fetch origin <base>`. A missing remote ref (deleted base, exit
- * 128) collapses into `error` — unlike the worktree probe, base-distance has no
- * branch-gone recovery arm, so a non-`ok` outcome is uniformly degraded.
- */
-async function boundedFetch(
-  exec: GitExec,
-  baseBranch: string,
-  timeoutMs: number,
-): Promise<FetchOutcome> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-  try {
-    await exec("git", ["fetch", "origin", baseBranch], { signal: controller.signal });
-    return "ok";
-  } catch (err) {
-    // Classify on AbortError name, not signal.aborted — a non-abort fetch error
-    // coincident with the timer firing would otherwise misclassify as timeout.
-    if (err instanceof Error && err.name === "AbortError") return "timeout";
-    return "error";
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function checkOriginExists(exec: GitExec): Promise<boolean> {
-  try {
-    await exec("git", ["remote", "get-url", "origin"]);
-    return true;
-  } catch {
-    return false;
-  }
 }

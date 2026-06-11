@@ -11,7 +11,12 @@
  * @module
  */
 
-import { getCurrentBranch, type GitExec } from "./exec.js";
+import {
+  boundedFetch,
+  checkOriginExists,
+  getCurrentBranch,
+  type GitExec,
+} from "./exec.js";
 
 /**
  * Worktree sync state.
@@ -110,49 +115,24 @@ export async function runWorktreeSyncStatus(
     };
   }
 
-  const fetchOutcome = await boundedFetch(exec, branch, fetchTimeoutMs);
-  if (fetchOutcome === "branch-gone") {
+  const fetch = await boundedFetch(exec, branch, fetchTimeoutMs);
+  if (fetch.outcome === "error" && isBranchGoneError(fetch.error)) {
     // Recoverable, non-network failure: the remote branch was deleted. Carries
     // no failureReason — that field flags transient remote-unavailable causes.
     return { state: "branch-gone", ahead: 0, behind: 0, branch };
   }
-  if (fetchOutcome !== "ok") {
+  if (fetch.outcome !== "ok") {
     return {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
       branch,
-      failureReason: fetchOutcome,
+      failureReason: fetch.outcome,
     };
   }
 
   const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${branch}`);
   return { state, ahead, behind, branch };
-}
-
-type FetchOutcome = "ok" | "timeout" | "branch-gone" | "error";
-
-async function boundedFetch(
-  exec: GitExec,
-  branch: string,
-  timeoutMs: number,
-): Promise<FetchOutcome> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
-  try {
-    await exec("git", ["fetch", "origin", branch], { signal: controller.signal });
-    return "ok";
-  } catch (err) {
-    // Classify on AbortError name, not signal.aborted — a non-abort fetch
-    // error coincident with the timer firing would otherwise misclassify.
-    if (err instanceof Error && err.name === "AbortError") return "timeout";
-    if (isBranchGoneError(err)) return "branch-gone";
-    return "error";
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 /**
@@ -176,15 +156,6 @@ async function getUpstream(exec: GitExec): Promise<string | null> {
     return upstream || null;
   } catch {
     return null;
-  }
-}
-
-async function checkOriginExists(exec: GitExec): Promise<boolean> {
-  try {
-    await exec("git", ["remote", "get-url", "origin"]);
-    return true;
-  } catch {
-    return false;
   }
 }
 

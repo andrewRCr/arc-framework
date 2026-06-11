@@ -87,6 +87,68 @@ export async function getCurrentBranch(exec: GitExec): Promise<string | null> {
   }
 }
 
+/** Outcome of a {@link boundedFetch} — `ok`, or a degraded reason. */
+export type BoundedFetchOutcome = "ok" | "timeout" | "error";
+
+/** Result of a {@link boundedFetch}: the outcome plus the raw rejection on `error`. */
+export interface BoundedFetchResult {
+  outcome: BoundedFetchOutcome;
+  /**
+   * The caught rejection when `outcome` is `error`, so callers can refine it
+   * (e.g., classify a deleted upstream branch as branch-gone). Omitted otherwise.
+   */
+  error?: unknown;
+}
+
+/**
+ * Bounded `git fetch origin <ref>` — a non-destructive tracking-ref update under
+ * an abort-signal timeout so a hung remote cannot stall a probe.
+ *
+ * Classifies an abort as `timeout` on the `AbortError` name rather than
+ * `signal.aborted`, so a non-abort rejection that lands coincident with the
+ * timer is not misread as a timeout. Every other rejection resolves to `error`
+ * with the raw cause attached for caller-side refinement.
+ *
+ * @param exec - Injectable command executor
+ * @param ref - Remote ref to fetch (a branch name under `origin`)
+ * @param timeoutMs - Abort the fetch after this many milliseconds
+ * @returns The fetch outcome, carrying the raw rejection on `error`
+ */
+export async function boundedFetch(
+  exec: GitExec,
+  ref: string,
+  timeoutMs: number,
+): Promise<BoundedFetchResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+  try {
+    await exec("git", ["fetch", "origin", ref], { signal: controller.signal });
+    return { outcome: "ok" };
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") return { outcome: "timeout" };
+    return { outcome: "error", error: err };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * Whether an `origin` remote is configured (`git remote get-url origin`).
+ *
+ * @param exec - Injectable command executor
+ * @returns true when origin resolves, false on any failure
+ */
+export async function checkOriginExists(exec: GitExec): Promise<boolean> {
+  try {
+    await exec("git", ["remote", "get-url", "origin"]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Retrieves a git config value by key.
  *
