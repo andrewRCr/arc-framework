@@ -13,7 +13,7 @@
 
 - **Last Completed:** generate-tasks — decomposed the spec into `tasks-merge-safety-mechanism.md` (high depth, 4
   substantive phases + verification)
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Extract and export `countAheadBehindRef` (line ~18)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Task 1.1 — extract and export `countAheadBehindRef`; refactor `runWorktreeSyncStatus`
