@@ -104,19 +104,38 @@ offers the lossless reset, never auto-runs and never blocks. See `notes-merge-sa
       unchanged. Integration coverage in `run.test.ts` asserts the downgrade fires on patch-equal and the
       generic reconcile holds on true divergence.
 
-### `[ ]` **2.3 Force-push advisory warning**
+### `[x]` **2.3 Force-push advisory warning**
 
 - _Goal:_ Force-pushing a shared in-flight WU branch whose remote tip is not an ancestor of the local tip
   surfaces an advisory warning first; it never blocks the push.
-- _Note:_ Hook placement vs. release-wrapper-only is the spec's open tradeoff — a pre-push hook gives complete
-  coverage (raw `git push --force`, off-workflow and errand pushes included); settle at build.
 - **Strategies:** strategy-package-project-sync.md
 
-    - Home the warning in a pre-push hook (husky delegate + canonical body, both synced copies).
-    - Detect the non-ancestor remote-tip condition; warn; exit 0 (advisory, never blocks).
+    - _Outcome:_ New `pre-push` hook (canonical body in both synced copies + `.husky/pre-push` delegate) reads
+      the git pre-push stdin protocol and, when a pushed ref's remote tip is not an ancestor of the local tip,
+      warns — naming the branch, the remote tip, and the count of commits present only on the remote — then
+      `exit 0` always (never blocks). Fast-forward and new-branch (all-zero) refs stay silent. Resolved the
+      spec's open tradeoff toward the pre-push hook (raw `git push --force` coverage) over wrapper-only; since a
+      hook can't detect "shared with others," it warns on any non-ancestor overwrite (the append-only concern
+      applies whenever published history is rewritten). New `hooks.pre_push` toggle wired through `arc-config.yml`,
+      `validate-config.sh` (enum + known-keys), `verify-integrity.sh`, and the githooks README. e2e against real
+      temp repos covers warn / fast-forward-silent / new-branch-silent / disabled; `shellcheck` clean.
+    - _Note:_ The advisory is detection-only by design (loud-not-silent backstop). A config-gated TTY-confirm
+      escalation was considered and deferred to `USER-INBOX` (adopter friction: GUI `/dev/tty` hangs,
+      routine-rebase noise) — ADR-025's advisory default stands.
 
-    - Verify e2e (real temp git repos): a non-ancestor shared-branch force-push warns; a fast-forward push is
-      silent. Bash → `shellcheck`.
+### `[ ]` **2.4 Wire the pre-push hook into the hook-manager installers**
+
+- _Goal:_ `arc init` / `arc join` activate the 2.3 pre-push hook in the detected hook manager, so adopters get
+  the force-push advisory — not just this self-hosting repo (where the delegate was added by hand).
+- _Note:_ `lib/hook-integration.ts` hardcodes only `pre-commit` + `commit-msg` across its three strategies
+  (husky file append, lefthook YAML, pre-commit-config YAML). The hook ships in the package but stays dormant
+  for adopters until each strategy also wires `pre-push`. Discovered completing 2.3 — completes the force-push
+  component for adopters.
+- **Strategies:** strategy-testing-methodology.md
+
+    - Add the `pre-push` entry to all three integration strategies (husky / lefthook / pre-commit), idempotent
+      like the existing two; the pre-push manager stage maps to the `pre-push` git hook.
+    - Extend the hook-integration unit tests to assert pre-push wiring per manager (presence + idempotency).
 
 ## **Phase 3:** Write-context extensions + foreign-write backstop
 

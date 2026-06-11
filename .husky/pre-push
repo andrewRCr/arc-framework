@@ -1,0 +1,1 @@
+bash .arc/system/.internal/githooks/pre-push "$@"

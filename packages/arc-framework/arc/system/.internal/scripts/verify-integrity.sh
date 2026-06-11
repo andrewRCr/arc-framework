@@ -127,6 +127,7 @@ echo "--- Hook Status ---"
 hooks_dir="$ARC_DIR/system/.internal/githooks"
 hooks_pre_commit=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "hooks.pre_commit" "enabled")
 hooks_commit_msg=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "hooks.commit_msg" "enabled")
+hooks_pre_push=$(ARC_CONFIG_FILE="$ARC_DIR/system/arc-config.yml" arc_config_get "hooks.pre_push" "enabled")
 
 check_hook() {
     local hook_name="$1"
@@ -153,6 +154,7 @@ check_hook() {
 
 check_hook "pre-commit" "$hooks_pre_commit"
 check_hook "commit-msg" "$hooks_commit_msg"
+check_hook "pre-push" "$hooks_pre_push"
 
 # Check that core.hooksPath points to the right directory
 configured_hooks_path=$(git config core.hooksPath 2>/dev/null || echo "")

@@ -89,6 +89,20 @@ Enforces the commit message standard defined in
 - Task list staged with completions but sibling meta file not co-staged (maintainer only)
 - Task list changes without `(@name)` ownership markers (team mode only)
 
+### pre-push — Force-Push Safety
+
+**Warnings (never blocks — always exits 0):**
+
+- Force-push that rewrites published history: the remote tip being replaced is not an ancestor of the
+  commit being pushed, so commits present only on the remote would be dropped. The warning names the
+  branch, the remote tip, and how many commits would be dropped, and points at the remote reflog for
+  recovery. Configurable via `hooks.pre_push` (`enabled` | `disabled`).
+
+  The hook sees only ref OIDs, not whether a branch is shared, so it warns on every non-ancestor
+  overwrite — the append-only concern applies whenever published history is rewritten. The base branch is
+  not special-cased. Advisory only: it never blocks (the one sanctioned rewrite point, integration history
+  cleanup, proceeds unimpeded).
+
 ## Role-Aware Behavior
 
 Hooks read `arc.role` from git config (set during `arc init` or `arc join`).
@@ -114,6 +128,7 @@ Hook behavior is controlled by settings in `.arc/system/arc-config.yml`. Key set
 | ------- | ------- | ------ |
 | `hooks.pre_commit` | `enabled` | Enable/disable pre-commit hook |
 | `hooks.commit_msg` | `enabled` | Enable/disable commit-msg hook |
+| `hooks.pre_push` | `enabled` | Enable/disable pre-push force-push advisory |
 | `commit.format` | `conventional` | Format validation (`conventional` / `custom` / `any`) |
 | `commit.context_footer` | `required` | Footer validation (`required` / `recommended` / `custom` / `disabled`) |
 | `hooks.subject_max_length` | `72` | Hard limit for subject line length |
