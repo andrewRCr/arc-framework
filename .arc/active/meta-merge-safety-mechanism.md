@@ -11,7 +11,7 @@
 - **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** create-spec — authored `spec-merge-safety-mechanism.md`
 - **Next Task:** [none]
 - **Blockers:** [none]
 
