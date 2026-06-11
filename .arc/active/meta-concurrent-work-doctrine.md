@@ -9,14 +9,13 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-concurrent-work-doctrine.md`
-- **Task List:** [none]
+- **Task List:** tasks-concurrent-work-doctrine.md
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks.md` from `spec-concurrent-work-doctrine.md` — decompose the
-  three-deliverable spec (the `strategy-concurrent-work.md` doctrine, the `assess-parallel-fit` method, and the
-  internal ADR) into the task list. Spine member — leads the stack.
+- **Next Action:** Run `activate-work-unit.md` when implementation begins — flip State → Active, rename `plan/`
+  → `<type>/`. Spine member; activation can defer while the cohort sequences.
 
 ---
