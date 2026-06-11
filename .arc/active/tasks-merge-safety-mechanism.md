@@ -172,16 +172,14 @@ cohort-owned docs. Pairs with Phase 4 under the two-copy package-project hook-sy
   for `npx tsx` CHECKs (repo-relative script path), so coverage follows the established tsx-CHECK pattern —
   exported-function tests plus a hook-source wiring assertion.
 
-### `[ ]` **3.3 Confirm behind-base detector covers the cohort doc**
+### `[x]` **3.3 Confirm behind-base detector covers the cohort doc**
 
 - _Goal:_ The cohort doc — the deliberate exception to per-worktree isolation, with no single owning WU — is
   covered by the Phase 1 behind-base detector as its net, and the path-surface taxonomy recognizes it.
-
-    - Confirm, do not rebuild: the single-owner foreign-write gate is ill-defined for a cohort-owned doc, so the
-      behind-base detector is the applicable net.
-    - Ensure the cohort-doc surface is present in the task 3.1 path-surface enum.
-
-    - Coverage test: a cohort-doc write is surfaced via the behind-base net, not the single-owner gate.
+- _Outcome:_ Confirmed, no production change. `computeBaseOverlap` (`base-distance.ts`) is path-agnostic, so a
+  cohort doc both the branch and the advanced base touch surfaces in `overlappingPaths` like any path — the net
+  applies. `classifyPathSurface` returns `cohort-doc` (not `work-unit`), so the Task 3.2 candidate filter keeps
+  it out of the single-owner gate. A coverage test in `base-distance.test.ts` locks both halves of the routing.
 
 ## **Phase 4:** Merge-commit hook exemption + `integration` footer kind
 

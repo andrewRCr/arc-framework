@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { runBaseDistanceStatus } from "../../../src/lib/git/base-distance.js";
+import { classifyPathSurface } from "../../../src/lib/git/write-context.js";
 import type {
   ExecResult,
   GitExec,
@@ -321,5 +322,39 @@ describe("runBaseDistanceStatus", () => {
 
     expect(result.state).toBe("remote-unavailable");
     expect(result.failureReason).toBe("error");
+  });
+});
+
+describe("cohort-doc coverage — behind-base net, not the single-owner gate", () => {
+  // A cohort doc is the deliberate multi-owner exception: no single owning WU,
+  // so the single-owner foreign-write gate is ill-defined for it. The
+  // behind-base overlap is the net that covers it instead. This locks both
+  // halves of that routing decision.
+  const COHORT_DOC = ".arc/active/cohort-agile-parallelism.md";
+
+  it("surfaces a cohort doc both sides touched as a behind-base overlap", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "2\t5", stderr: "" },
+      [MERGE_BASE]: { stdout: "abc123\n", stderr: "" },
+      [DIFF_BRANCH]: { stdout: `${COHORT_DOC}\nsrc/a.ts\n`, stderr: "" },
+      [DIFF_BASE]: { stdout: `${COHORT_DOC}\nsrc/c.ts\n`, stderr: "" },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.overlappingPaths).toContain(COHORT_DOC);
+  });
+
+  it("classifies a cohort doc off the work-unit surface, so the single-owner gate skips it", () => {
+    // `cohort-doc`, not `work-unit` — the foreign-write backstop's candidate
+    // filter keeps only `work-unit`, so a cohort-doc write never reaches it.
+    expect(classifyPathSurface(COHORT_DOC)).toBe("cohort-doc");
   });
 });
