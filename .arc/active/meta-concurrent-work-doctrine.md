@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Active` | `andrew` | `feat/concurrent-work-doctrine` | `Heavy` | `P1` |
+| `Integrating` | `andrew` | `feat/concurrent-work-doctrine` | `Heavy` | `P1` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
