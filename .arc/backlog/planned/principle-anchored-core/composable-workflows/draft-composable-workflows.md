@@ -82,6 +82,19 @@
 - *Scope:* pairs with the `lane`-reservation note above (same WU) — the structural / whole-block extraction view
   is exactly where a `path` vs `lane` distinction would land.
 
+### `[ ]` **Conditional (arm/`sessionType`-gated) method declaration in workflow frontmatter**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-11);
+  captured during `concurrent-work-doctrine` generate-tasks.
+- *Concern:* `arc.methods` frontmatter loads every declared method unconditionally at workflow start, and the only
+  alternative is a prose on-demand load mid-body that the point-scanner can't validate. Surfaced in
+  `concurrent-work-doctrine`: `assess-parallel-fit` is needed only on session-init's discovery / cold-start arms,
+  so it is wired as a prose on-demand load — correct, but invisible to validation and easy to forget.
+- *Proposed:* a declarative conditional-load mechanism (arm- or `sessionType`-gated `arc.methods` entries) so
+  arm-gated method needs are expressed in frontmatter and checked by the point-scanner, instead of hand-written
+  prose loads. Updates `strategy-workflow-authoring` (frontmatter schema) + the `DEV-RULES.ARC` method-loading
+  rule; not `operational-state-docs` (a different subsystem).
+
 ---
 
 ## Problem / Motivation

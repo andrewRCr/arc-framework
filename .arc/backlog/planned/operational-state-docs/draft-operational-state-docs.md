@@ -225,6 +225,20 @@
   (no cohort home), and relocating there would fight the flat-`active/` invariant. Relocation happens once, at
   last-member-_ship_ (already dm's design).
 
+### `[ ]` **WORKING-MEMORY parser silently drops wrapped or colon-less entry headers**
+
+- _Routed from:_ express-lane capture, housekeep drain (2026-06-11); surfaced fixing a live
+  "missing `_Remove when:_` trigger" warning on `WORKING-MEMORY.md`.
+- _Concern:_ `lib/user-sync/parser.ts` recognizes a WORKING-MEMORY entry header only as a **single line** matching
+  `^\*\*.+:\*\*$`. A header that **wraps** across two physical lines (common past the 120-char wrap target) matches
+  nothing, and the whole entry is **silently swallowed** into its predecessor — no warning, dropped from the
+  cross-WU merge. Found live: 3 of 12 entries dropped this way; a 4th had a missing colon (`_Remove when` without
+  the `:`) and was at least _flagged_. A header that both wrapped and lost its colon would vanish with no signal.
+- _Why here:_ this WU owns the WORKING-MEMORY structured record + the render↔parse round-trip harness. The record
+  model makes the header a record field (not a parsed markdown line), and the harness turns today's silent drop
+  into a **loud** failure. Interim mitigation is an authoring convention (single-line headers ≤120) — whack-a-mole;
+  the durable fix is the record/harness.
+
 ---
 
 ## Purpose

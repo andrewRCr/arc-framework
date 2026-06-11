@@ -13,6 +13,43 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **User-sync tombstone canonicalization — prerequisite for this WU's owned notes-sync step**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), housekeep drain (2026-06-11).
+  **Re-homed off `cross-machine-sync-coherence`** — that WU is partial-push cross-machine *transport*; this is a
+  single-machine notes-**merge** coherence bug, which belongs with this WU's owned post-merge close-out.
+- *Why here (the coupling):* this WU's § Same-session finalize adds the owned post-merge sequence — teardown +
+  branch delete + base pull + **notes sync**. That sync step runs right after the WORKING-MEMORY / inbox
+  maintenance that rides WU completion — i.e. the exact trigger — so it fires the tombstone bug **deterministically**
+  unless the merge is made idempotent first. The merge fix is therefore a **hard prerequisite** of wiring the
+  finalize sync, not a parallel nicety; sequence it ahead of (or with) that step. (Today the finalize sequence
+  lists teardown / branch / ref / inbox-line but **not notes-sync** — add it, gated on this fix.)
+- *The bug (two coupled defects, both confirmed in code):*
+    - **Non-idempotent `appendRemovalTombstones`** (`lib/user-sync/merge.ts`) — prior state is rebuilt via
+      `mergeEntries` (entry-union, **tombstone-blind**), so an entry tombstoned in a recent note but still live in
+      an older note within the window re-synthesizes a **duplicate** `## Removed:` marker. Fix: rebuild prior
+      through the same tombstone-aware resolution `mergeCrossWuFile` uses (resolved-removed identities suppressed),
+      and/or skip synthesis for any `(section, key)` already carrying a live tombstone in-window or in the content.
+    - **Status compares disk to the raw note** (`commands/user/sync-status.ts` `inspectDiskVsLocalSnapshot`) —
+      disk holds the load-materialized projection (tombstones GC'd) while the raw note carries the un-projected /
+      duplicate form, so a clean post-sync disk reads as `local unsaved`. Fix: compare disk to **`projection(note)`**
+      via one canonical materialized-manifest builder shared by `arc user load` and status, not the raw manifest.
+- *Files:* `lib/user-sync/merge.ts`, `commands/user/save-load.ts`, `commands/user/sync-status.ts`, plus regression
+  tests (duplicate-tombstone, post-load cross-WU status, save→status loop) — across **both** the package source
+  and the `.arc/` instance copies.
+- *Interim (until this ships):* benign + self-healing — duplicates GC at the 7-day TTL, no data loss. Sync notes
+  *before* leaving the WU branch; prefer `arc user load` to clear a stuck false `local unsaved`. (See WORKING-MEMORY.)
+- *Supersession:* `operational-state-docs`' record/projection model (ADR-022 §4) eventually takes tombstones out of
+  the rendered file (non-projected record field), at which point both defects dissolve and this near-term merge fix
+  retires. This is the bridge until then — not a competing design.
+
+---
+
 ## Problem / Motivation
 
 With async-merge a legitimate pattern (post-PR + awaiting-review latency), the lifecycle workflows that currently
