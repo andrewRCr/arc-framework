@@ -32,6 +32,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `identity`                  | `{identity, role}` — either may be `null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state                              |
 | `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / branch-gone / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot. Also carries `value.identity` (`kind`: `primary` or `linked`, plus `path` when linked) — the physical worktree the session occupies, surfaced in orientation only when `linked`                                        |
+| `baseDistance`              | Base-distance state vs. `origin/<base>` — HEAD vs the configured `branch.base` (`value.state` reuses the worktree enum; `value.ahead` / `value.behind` / `value.base` populated when healthy). Carries `value.overlappingPaths` (branch-vs-base changed-path intersection, only when diverged) plus `value.recommendedAction` / `value.recommendedPromptText`. Advisory: `surface` (behind-base drift) or `skip`, never `pull`/`prompt`; surfaced in Step 6, never gates                                                                                                                  |
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                   |
@@ -225,6 +226,12 @@ matters, re-probe to confirm.
 
 **Notes operation ordering.** When the notes pull or notes load fires, it must complete before Step 3
 — SESSION-NOTES reads below would be stale otherwise.
+
+**Base-distance channel.** The `baseDistance` slot (HEAD vs `origin/<base>`) is advisory-only: its
+`recommendedAction` resolves to `surface` (behind-base drift — the base moved under the branch) or `skip`
+(parity, branch-only-ahead, or any degraded state), never `pull` / `prompt`. Reconciling is the developer's
+call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
+base-drift section; on `skip`, do nothing.
 
 **Identity absent.** When `identity.identity === null`, the notes slot resolves to
 `recommendedAction: "skip"` with no `loadNeeded` field, so notes-pull and notes-load both skip.
@@ -520,6 +527,14 @@ tracked source documents the work.
 
   ```text
   **Local-ahead:** {ahead} unpushed commit(s) on `{branch}`.
+  ```
+
+- `baseDistance.value.recommendedAction == "surface"`: the base branch advanced under the current branch
+  while work proceeded. Render the precomposed `baseDistance.value.recommendedPromptText` verbatim — it names
+  the behind-base distance and any overlapping paths. Advisory, never gates.
+
+  ```text
+  **Base drift:** {baseDistance.value.recommendedPromptText}
   ```
 
 - `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:

@@ -156,6 +156,7 @@ function makeSessionInitResult(
         ahead: 0,
         behind: 0,
         base: "main",
+        overlappingPaths: [],
         recommendedAction: "skip",
         recommendedPromptText: "",
       },

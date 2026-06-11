@@ -11,6 +11,7 @@
 
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../git/base-distance.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 
 /**
@@ -97,6 +98,66 @@ function inferWorktree(
     case "skipped":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }
+}
+
+/** Max overlapping paths named inline before the remainder collapses to a count. */
+const OVERLAP_SAMPLE_SIZE = 3;
+
+/**
+ * Compose the base-distance channel recommendation — the behind-base reconcile
+ * advisory.
+ *
+ * Only behind-base drift (`remote-ahead` / `diverged`) warrants a surface; the
+ * branch being merely ahead of an unmoved base (`local-ahead`), at parity
+ * (`clean`), or in any degraded state surfaces nothing. The recommendation is
+ * always `surface` (never `prompt`): it is advisory orientation, never an
+ * action gate — the workflow renders it and the developer decides whether to
+ * reconcile.
+ *
+ * Returns skip when `baseDistance` is null (slot failed to resolve).
+ */
+export function inferBaseDistance(
+  baseDistance: BaseDistanceStatusResult | null,
+): ChannelRecommendation {
+  if (baseDistance === null) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  switch (baseDistance.state) {
+    case "remote-ahead":
+    case "diverged":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseDistancePromptText(baseDistance),
+      };
+    case "clean":
+    case "local-ahead":
+    case "skipped":
+    case "no-upstream":
+    case "detached-head":
+    case "no-remote":
+    case "branch-gone":
+    case "remote-unavailable":
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+}
+
+function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
+  const base = baseDistance.base ?? "base";
+  const head = `Base \`${base}\` has advanced ${baseDistance.behind} commit(s) ahead of this branch.`;
+  const overlap =
+    baseDistance.overlappingPaths.length > 0
+      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — rebase may conflict.`
+      : "No overlapping paths.";
+  return `${head}\n${overlap}\nReconcile?`;
+}
+
+function formatOverlap(paths: string[]): string {
+  const sample = paths
+    .slice(0, OVERLAP_SAMPLE_SIZE)
+    .map((path) => `\`${path}\``)
+    .join(", ");
+  const remainder = paths.length - OVERLAP_SAMPLE_SIZE;
+  return remainder > 0 ? `${sample} (+${remainder} more)` : sample;
 }
 
 function composeWorktreePromptText(behind: number, dirty: DirtyStateResult): string {

@@ -177,7 +177,7 @@ function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): Worktr
 function baseDistance(
   overrides: Partial<BaseDistanceStatusResult> = {},
 ): BaseDistanceStatusResult {
-  return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
+  return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
 }
 
 function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
@@ -685,9 +685,9 @@ describe("runSessionInitStatus — base-distance slot", () => {
       expect(result.baseDistance.value.state).toBe("remote-ahead");
       expect(result.baseDistance.value.behind).toBe(5);
       expect(result.baseDistance.value.base).toBe("main");
-      // Recommendation lands neutral until the base-distance inference is wired.
-      expect(result.baseDistance.value.recommendedAction).toBe("skip");
-      expect(result.baseDistance.value.recommendedPromptText).toBe("");
+      // Behind-base drift surfaces an advisory reconcile offer (never gates).
+      expect(result.baseDistance.value.recommendedAction).toBe("surface");
+      expect(result.baseDistance.value.recommendedPromptText).toContain("advanced 5 commit(s)");
     }
   });
 

@@ -52,6 +52,9 @@ const REV_PARSE_HEAD = "rev-parse --abbrev-ref HEAD";
 const GET_ORIGIN = "remote get-url origin";
 const FETCH_BASE = "fetch origin *";
 const REV_LIST_COUNT = "rev-list --left-right --count *";
+const MERGE_BASE = "merge-base HEAD *";
+const DIFF_BRANCH = "diff --name-only * HEAD";
+const DIFF_BASE = "diff --name-only * origin/main";
 
 describe("runBaseDistanceStatus", () => {
   it("short-circuits to skipped without any git call when remote sync is disabled", async () => {
@@ -140,6 +143,9 @@ describe("runBaseDistanceStatus", () => {
       [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
       [FETCH_BASE]: { stdout: "", stderr: "" },
       [REV_LIST_COUNT]: { stdout: "2\t5", stderr: "" },
+      [MERGE_BASE]: { stdout: "abc123\n", stderr: "" },
+      [DIFF_BRANCH]: { stdout: "src/a.ts\n", stderr: "" },
+      [DIFF_BASE]: { stdout: "src/b.ts\n", stderr: "" },
     });
 
     const result = await runBaseDistanceStatus({
@@ -151,6 +157,88 @@ describe("runBaseDistanceStatus", () => {
     expect(result.state).toBe("diverged");
     expect(result.ahead).toBe(2);
     expect(result.behind).toBe(5);
+  });
+
+  it("flags paths changed on both the branch and the base side when diverged", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "2\t5", stderr: "" },
+      [MERGE_BASE]: { stdout: "abc123\n", stderr: "" },
+      [DIFF_BRANCH]: { stdout: "src/a.ts\nsrc/shared.ts\n", stderr: "" },
+      [DIFF_BASE]: { stdout: "src/shared.ts\nsrc/c.ts\n", stderr: "" },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.overlappingPaths).toEqual(["src/shared.ts"]);
+  });
+
+  it("reports no overlap when the diverged changed-path sets are disjoint", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "2\t5", stderr: "" },
+      [MERGE_BASE]: { stdout: "abc123\n", stderr: "" },
+      [DIFF_BRANCH]: { stdout: "src/a.ts\n", stderr: "" },
+      [DIFF_BASE]: { stdout: "src/b.ts\n", stderr: "" },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.overlappingPaths).toEqual([]);
+  });
+
+  it("skips the overlap read when the base moved but the branch is a pure fast-forward behind", async () => {
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "0\t4", stderr: "" },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("remote-ahead");
+    expect(result.overlappingPaths).toEqual([]);
+    // No merge-base / diff calls — overlap is meaningless without branch-side commits.
+    expect(calls.some((c) => c.args[0] === "merge-base")).toBe(false);
+    expect(calls.some((c) => c.args[0] === "diff")).toBe(false);
+  });
+
+  it("degrades overlap to empty when the merge-base read fails, keeping the distance", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "2\t5", stderr: "" },
+      [MERGE_BASE]: () => {
+        throw new Error("fatal: no merge base");
+      },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("diverged");
+    expect(result.overlappingPaths).toEqual([]);
   });
 
   it("degrades to detached-head without fetching when HEAD is detached", async () => {

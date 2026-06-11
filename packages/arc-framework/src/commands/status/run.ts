@@ -41,6 +41,7 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
+  inferBaseDistance,
   inferSessionInitRecommendations,
   type NotesPullPolicy,
   type WorktreePullPolicy,
@@ -296,17 +297,18 @@ export async function runSessionInitStatus(
     }
     : worktree;
 
-  // Base-distance enrichment mirrors the worktree slot's shape. The
-  // recommendation fields land neutral here; the base-distance inference
-  // (distance + path-overlap → reconcile offer) composes them in a later step.
-  // Only these two fields are placeholder — the slot's shape is final.
+  // Base-distance enrichment mirrors the worktree slot's shape. Its
+  // recommendation is an independent advisory (behind-base reconcile offer),
+  // composed straight from the slot — orthogonal to the worktree+notes pull
+  // recommendations and their combined prompt.
+  const baseDistanceRec = inferBaseDistance(baseDistance.ok ? baseDistance.value : null);
   const enrichedBaseDistance: SessionInitProbeResult["baseDistance"] = baseDistance.ok
     ? {
       ok: true,
       value: {
         ...baseDistance.value,
-        recommendedAction: "skip",
-        recommendedPromptText: "",
+        recommendedAction: baseDistanceRec.recommendedAction,
+        recommendedPromptText: baseDistanceRec.recommendedPromptText,
       } satisfies SessionInitBaseDistanceValue,
     }
     : baseDistance;

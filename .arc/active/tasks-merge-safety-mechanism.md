@@ -50,22 +50,19 @@ worktree channel end to end. See `notes-merge-safety-mechanism.md` for the groun
   primitive is the deliberately-shared buildable). Integration coverage spans base-advanced, parity, and
   degraded (no-remote / detached) assembly.
 
-### `[ ]` **1.3 Base-distance recommendation, path-overlap read, and resume surfacing**
+### `[x]` **1.3 Base-distance recommendation, path-overlap read, and resume surfacing**
 
 - _Goal:_ A resume where the base moved under the branch surfaces an advisory reconcile offer naming the
   distance and any overlapping paths; a base at parity surfaces nothing and never gates.
-- _Note:_ The session-init workflow doc consumes the new slot — add the base-distance channel dispatch and the
-  Step 6 resume surfacing alongside the worktree channel.
-
-    - Add a base-distance inference (an `inferWorktree` analog) to the recommendation helper, composing the
-      distance + overlap into the channel recommendation.
-    - Path-overlap read: compare the branch-vs-base changed-path sets across the merge-base; exact plumbing
-      settles at grounding.
-
-    - Build `test-first` (one behavior at a time):
-        - base behind (`behind > 0`) yields an advisory recommendation; parity yields skip
-        - overlapping changed-path sets flag the overlap; disjoint sets do not
-        - composed prompt text reads as the advisory "base moved K, you're N behind, paths overlap → reconcile?"
+- _Outcome:_ `inferBaseDistance` (`recommended-action.ts`) maps `remote-ahead` / `diverged` → `surface` with
+  the composed advisory ("Base `main` has advanced N commit(s) … overlapping paths … Reconcile?"); parity,
+  branch-only-ahead, and degraded → `skip`. The path-overlap read folds into `runBaseDistanceStatus` by
+  intersecting the branch-vs-base `--name-only` diffs across the merge-base, computed only when diverged and
+  degrading to empty on failure — surfaced as `overlappingPaths` on the result. `run.ts` composes the
+  recommendation into the slot (replacing 1.2's neutral default), as an independent advisory orthogonal to the
+  worktree and notes pull channels. `session-init.md` (plus the package template, two-copy) gains the Step 2
+  advisory-channel note, the Step 6 base-drift surfacing, and the envelope-table row. Verified end-to-end (this
+  branch reads `local-ahead` → `skip`).
 
 ## **Phase 2:** Append-only supersession backstop + force-push advisory
 

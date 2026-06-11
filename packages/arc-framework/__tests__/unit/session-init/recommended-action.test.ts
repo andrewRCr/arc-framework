@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  inferBaseDistance,
   inferSessionInitRecommendations,
   type NotesPullPolicy,
   type RecommendationInput,
@@ -15,7 +16,14 @@ import {
 } from "../../../src/lib/session-init/recommended-action.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import type { UserSessionInitStatusResult } from "../../../src/commands/user/types.js";
+
+function baseDistance(
+  overrides: Partial<BaseDistanceStatusResult> = {},
+): BaseDistanceStatusResult {
+  return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
+}
 
 // --- Fixtures ---
 
@@ -328,5 +336,67 @@ describe("inferSessionInitRecommendations — combined prompt", () => {
     expect(result.worktree.recommendedAction).toBe("surface");
     expect(result.user.recommendedAction).toBe("prompt");
     expect(result.recommendedCombinedPrompt).toBeNull();
+  });
+});
+
+describe("inferBaseDistance — behind-base advisory", () => {
+  it("remote-ahead (base moved under the branch) → surface with the reconcile advisory", () => {
+    const result = inferBaseDistance(baseDistance({ state: "remote-ahead", behind: 4 }));
+    expect(result.recommendedAction).toBe("surface");
+    expect(result.recommendedPromptText).toContain("Base `main` has advanced 4 commit(s)");
+    expect(result.recommendedPromptText).toContain("Reconcile?");
+  });
+
+  it("diverged → surface", () => {
+    const result = inferBaseDistance(baseDistance({ state: "diverged", ahead: 2, behind: 3 }));
+    expect(result.recommendedAction).toBe("surface");
+  });
+
+  it("clean (at parity with the base) → skip, no prompt text", () => {
+    const result = inferBaseDistance(baseDistance({ state: "clean" }));
+    expect(result.recommendedAction).toBe("skip");
+    expect(result.recommendedPromptText).toBe("");
+  });
+
+  it("local-ahead (branch ahead of an unmoved base) → skip", () => {
+    const result = inferBaseDistance(baseDistance({ state: "local-ahead", ahead: 5 }));
+    expect(result.recommendedAction).toBe("skip");
+  });
+
+  it("degraded states (no-remote / detached-head / skipped / remote-unavailable) → skip", () => {
+    for (const state of ["no-remote", "detached-head", "skipped", "remote-unavailable"] as const) {
+      expect(inferBaseDistance(baseDistance({ state })).recommendedAction).toBe("skip");
+    }
+  });
+
+  it("null slot (probe failed) → skip", () => {
+    expect(inferBaseDistance(null).recommendedAction).toBe("skip");
+  });
+
+  it("names overlapping paths and warns of rebase conflict when sets intersect", () => {
+    const result = inferBaseDistance(
+      baseDistance({ state: "diverged", behind: 3, overlappingPaths: ["src/a.ts", "src/b.ts"] }),
+    );
+    expect(result.recommendedPromptText).toContain("Overlapping paths:");
+    expect(result.recommendedPromptText).toContain("`src/a.ts`");
+    expect(result.recommendedPromptText).toContain("rebase may conflict");
+  });
+
+  it("collapses the overlap list to a sample plus a remainder count when long", () => {
+    const result = inferBaseDistance(
+      baseDistance({
+        state: "diverged",
+        behind: 1,
+        overlappingPaths: ["a", "b", "c", "d", "e"],
+      }),
+    );
+    expect(result.recommendedPromptText).toContain("(+2 more)");
+  });
+
+  it("states no overlap when the diverged changed-path sets are disjoint", () => {
+    const result = inferBaseDistance(
+      baseDistance({ state: "diverged", behind: 2, overlappingPaths: [] }),
+    );
+    expect(result.recommendedPromptText).toContain("No overlapping paths.");
   });
 });
