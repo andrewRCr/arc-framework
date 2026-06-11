@@ -123,19 +123,18 @@ offers the lossless reset, never auto-runs and never blocks. See `notes-merge-sa
       escalation was considered and deferred to `USER-INBOX` (adopter friction: GUI `/dev/tty` hangs,
       routine-rebase noise) — ADR-025's advisory default stands.
 
-### `[ ]` **2.4 Wire the pre-push hook into the hook-manager installers**
+### `[x]` **2.4 Wire the pre-push hook into the hook-manager installers**
 
 - _Goal:_ `arc init` / `arc join` activate the 2.3 pre-push hook in the detected hook manager, so adopters get
   the force-push advisory — not just this self-hosting repo (where the delegate was added by hand).
-- _Note:_ `lib/hook-integration.ts` hardcodes only `pre-commit` + `commit-msg` across its three strategies
-  (husky file append, lefthook YAML, pre-commit-config YAML). The hook ships in the package but stays dormant
-  for adopters until each strategy also wires `pre-push`. Discovered completing 2.3 — completes the force-push
-  component for adopters.
 - **Strategies:** strategy-testing-methodology.md
 
-    - Add the `pre-push` entry to all three integration strategies (husky / lefthook / pre-commit), idempotent
-      like the existing two; the pre-push manager stage maps to the `pre-push` git hook.
-    - Extend the hook-integration unit tests to assert pre-push wiring per manager (presence + idempotency).
+    - _Outcome:_ `lib/hook-integration.ts` now wires `pre-push` across all three strategies — husky file append
+      (`<hook> "$@"`, forwarding the remote args), a lefthook `pre-push:` command, and a pre-commit-config hook
+      at the `pre-push` stage — each idempotent like the existing two. Added the hook to `init-recipe.json` so it
+      ships and `arc init`'s prefix-based chmod (`system/.internal/githooks/`) makes it executable, which the
+      bare-path installer lines rely on. Per-manager wiring + idempotency assertions extended; the init
+      exec-permission test now covers `pre-push`. Closes the adopter-activation gap surfaced completing 2.3.
 
 ## **Phase 3:** Write-context extensions + foreign-write backstop
 

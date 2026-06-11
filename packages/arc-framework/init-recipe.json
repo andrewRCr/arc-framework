@@ -53,6 +53,7 @@
     "system/extensions/README.md",
     "system/.internal/githooks/commit-msg",
     "system/.internal/githooks/pre-commit",
+    "system/.internal/githooks/pre-push",
     "system/.internal/githooks/README.md",
     "system/methods/classify-work-unit.md",
     "system/methods/commit-footer.md",
