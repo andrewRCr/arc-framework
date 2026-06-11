@@ -142,26 +142,17 @@ _Purpose:_ Extend write-context classification for concurrency (path-surface dim
 add the advisory pre-commit foreign-write backstop; confirm the Phase 1 behind-base detector is the net for
 cohort-owned docs. Pairs with Phase 4 under the two-copy package-project hook-sync discipline.
 
-### `[ ]` **3.1 Extend `classifyWriteContext`: path-surface dimension + `chore/`-awareness**
+### `[x]` **3.1 Extend `classifyWriteContext`: path-surface dimension + `chore/`-awareness**
 
 - _Goal:_ The write-context classifier distinguishes which path surface a write targets and is
   `chore/`-branch-aware, so foreign-write reasoning keys on path surface and errand branches alike.
-- _Note:_ Path-surface taxonomy cardinality is an open detail — settle the minimal useful enum against the real
-  surfaces, including the cohort-doc surface that task 3.3 keys on.
-- _Note:_ Path-surface is both an input (the path written) and a verdict (the classified surface); the existing
-  `classifyWriteContext` caller (`handlers/housekeep.ts`) must supply the new input — decide required-vs-optional
-  so it is not silently broken.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Add a path-surface field to `WriteContextInput` and the verdict; the existing `proceed` / `relocate` /
-      `refuse` axis is preserved alongside the new dimensions.
-    - Call `errandSlugOf(currentBranch)` (pure) inside `classifyWriteContext` — zero new I/O; the branch string
-      is already an input.
-
-    - Build `test-first` (one behavior at a time):
-        - a write to each distinguished surface yields the right path-surface verdict
-        - a `chore/<slug>` current branch resolves its slug inside the classifier
-        - the existing single-axis verdicts remain correct under the new dimensions
+- _Outcome:_ Added a `PathSurface` (`cohort-doc` / `work-unit` / `other`) classification plus an `errandSlug`,
+  both riding on every `WriteContext` verdict orthogonal to the proceed/relocate/refuse axis. Surface cardinality
+  settled minimal — a `shared` value was deliberately folded into `other` until a Phase 3 consumer needs the
+  split. `targetPath` is **optional** on `WriteContextInput` / `resolveWriteContext`, so the path-agnostic
+  `housekeep` caller keeps working (gets `pathSurface: null`) while the foreign-write backstop (3.2) supplies a
+  path. `classifyPathSurface` keys on the `.arc/`-scoped artifact-name conventions so an artifact-named file
+  outside `.arc/` is not mistaken for a planning surface; exported via the git barrel.
 
 ### `[ ]` **3.2 Pre-commit foreign-write backstop (advisory CHECK + entrypoint)**
 

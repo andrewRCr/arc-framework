@@ -1,6 +1,10 @@
 import { describe, it, expect } from "vitest";
 
-import { classifyWriteContext, resolveWriteContext } from "../../../src/lib/git/write-context.js";
+import {
+  classifyPathSurface,
+  classifyWriteContext,
+  resolveWriteContext,
+} from "../../../src/lib/git/write-context.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 
 /** Keyed mock exec — matches a prefix of the invocation's args (`*` wildcards). */
@@ -51,6 +55,78 @@ describe("classifyWriteContext", () => {
       primaryWorktreePath: "/repo",
     });
     expect(result).toMatchObject({ verdict: "refuse", reason: "no-base" });
+  });
+
+  it("threads the target path's surface into the verdict", () => {
+    const result = classifyWriteContext({
+      currentBranch: "main",
+      baseBranch: "main",
+      primaryWorktreePath: "/repo",
+      targetPath: ".arc/active/cohort-agile-parallelism.md",
+    });
+    expect(result.pathSurface).toBe("cohort-doc");
+  });
+
+  it("leaves the path surface null when the check is path-agnostic", () => {
+    const result = classifyWriteContext({
+      currentBranch: "main",
+      baseBranch: "main",
+      primaryWorktreePath: "/repo",
+    });
+    expect(result.pathSurface).toBeNull();
+  });
+
+  it("resolves the errand slug when the current branch is a chore/ errand", () => {
+    const result = classifyWriteContext({
+      currentBranch: "chore/fix-typo",
+      baseBranch: "main",
+      primaryWorktreePath: "/repo",
+    });
+    // Off-base errand branch still relocates on the existing axis, with the slug surfaced alongside.
+    expect(result).toMatchObject({ verdict: "relocate", errandSlug: "fix-typo" });
+  });
+
+  it("leaves the errand slug null on a non-errand branch", () => {
+    const result = classifyWriteContext({
+      currentBranch: "feat/some-wu",
+      baseBranch: "main",
+      primaryWorktreePath: "/repo",
+    });
+    expect(result.errandSlug).toBeNull();
+  });
+
+  it("leaves the errand slug null on a detached HEAD refusal", () => {
+    const result = classifyWriteContext({
+      currentBranch: null,
+      baseBranch: "main",
+      primaryWorktreePath: "/repo",
+    });
+    expect(result).toMatchObject({ verdict: "refuse", errandSlug: null });
+  });
+});
+
+describe("classifyPathSurface", () => {
+  it("classifies a cohort doc as the multi-owner cohort-doc surface", () => {
+    expect(classifyPathSurface(".arc/active/cohort-agile-parallelism.md")).toBe("cohort-doc");
+    expect(classifyPathSurface(".arc/backlog/planned/core/sub/cohort-sub.md")).toBe("cohort-doc");
+  });
+
+  it("classifies per-WU movable artifacts as the work-unit surface", () => {
+    expect(classifyPathSurface(".arc/active/meta-merge-safety-mechanism.md")).toBe("work-unit");
+    expect(classifyPathSurface(".arc/active/spec-merge-safety-mechanism.md")).toBe("work-unit");
+    expect(classifyPathSurface(".arc/active/draft-merge-safety-mechanism.md")).toBe("work-unit");
+    expect(classifyPathSurface(".arc/active/tasks-merge-safety-mechanism.md")).toBe("work-unit");
+    expect(classifyPathSurface(".arc/active/notes-merge-safety-mechanism.md")).toBe("work-unit");
+  });
+
+  it("classifies code and other paths as the other surface", () => {
+    expect(classifyPathSurface("packages/arc-framework/src/lib/git/write-context.ts")).toBe("other");
+    expect(classifyPathSurface(".arc/backlog/ROADMAP.md")).toBe("other");
+    expect(classifyPathSurface("README.md")).toBe("other");
+  });
+
+  it("does not classify an artifact-named path outside .arc/ as a planning surface", () => {
+    expect(classifyPathSurface("src/notes-helper.md")).toBe("other");
   });
 });
 

@@ -158,8 +158,10 @@ export {
 } from "./identity.js";
 
 export {
+  classifyPathSurface,
   classifyWriteContext,
   resolveWriteContext,
+  type PathSurface,
   type WriteContext,
   type WriteContextInput,
   type ResolveWriteContextOptions,
