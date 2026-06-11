@@ -149,10 +149,26 @@ team-coordination where surfaces overlap (branching patterns, meta-file merge be
   `single-owner-wu-model` supplies.
 - **R19 (P0) — Body: proportionality guard.** Advisory, **never gating**; the behind-base detector is the real net.
   The default is the light read; deepen only on a flag worth resolving before committing to parallel. Never a
-  pre-emptive heavyweight conflict-eval of every candidate (the rejected overlap-prediction posture).
-- **R20 (P0) — Body: multi-candidate pick-time selection layer.** For the ROADMAP-read surface, where the judgment
-  is a subset-selection rather than a single go/no-go: a WIP cap (the modest-concurrency posture), prefer
-  disjoint-domain picks, don't stack two same-module Ready WUs.
+  pre-emptive heavyweight conflict-eval of every candidate (the rejected overlap-prediction posture). **Two tiers of
+  softness:** the overlap read is advisory-but-firm (it sets the posture, should be heeded), the design-load read
+  (R20) is informational only — neither hard-blocks.
+- **R20 (P0) — Body: the design-load read (second axis) + multi-candidate selection.** A second read, distinct from
+  overlap and **informational only** — it surfaces the shape of *concurrent unsettled design* already in flight so
+  the operator can weigh attention; it **never moves the posture** and gives zero pushback (Info-grade, where
+  overlap is Warning-grade). The scarce resource is open, not-yet-settled design held at once — execution and scale
+  load are bounded and chunked, derivation load is what saturates. Model, off two cheap inputs (meta `**State:**` +
+  whether a complete spec/tasks exist; no artifact deep-read):
+    - **Magnitude from `Class`:** `Novel` → high (invention is open derivation by definition); `Heavy` → moderate
+      (the honest hedge — the field doesn't record whether derivation or scale fired); else quiet.
+    - **Design-settled gate:** a candidate counts at **full** magnitude (its planning is almost always ahead of it,
+      done in-flight before activation); an already-in-flight WU **discounts to quiet** once its design is settled
+      (execution / `Integrating` / parked-at-spec-readiness). Planning-stage or bare-stub work is open.
+    - **Salience:** surface one neutral, board-state line only when adding the candidate reaches **2+ design-open
+      `Novel`/`Heavy`** WUs (the saturation case), with a soft backstop at active count past the modest-concurrency
+      posture (~3+); silent below. Phrasing describes the board, never advises taking on less.
+    - **Multi-candidate pick-time application:** at the ROADMAP/next-work subset-selection surface, prefer
+      disjoint-domain picks and don't stack two same-module candidates (overlap), and read the same design-load
+      signal as the soft WIP cap (design-load).
 - **R21 (P0) — Fire-site wiring.** `assess-parallel-fit` is the **doctrine layer over already-shipped advisory
   mechanism**, not a new fire-point. Wire it at three concrete surfaces, consuming the existing advisory CLIs
   rather than rebuilding them:
@@ -168,6 +184,21 @@ team-coordination where surfaces overlap (branching patterns, meta-file merge be
   Awareness and Errand Enablement actually shipped** (the advisory checks + oracle, not a bare probe) — add the
   method and declare it where each host workflow's frontmatter requires, do not rebuild fire-sites. (The conceptual
   "errand-launch" shorthand used across the corpus resolves to the concrete errand surface above.)
+
+  **Per-surface axis applicability + resolved loci.** The two reads (R16–R19 overlap; R20 design-load) do not both
+  fire everywhere; whether design-load applies turns on whether the candidate's own design is still open. Grounding
+  resolved the loci against shipped reality (the activation-side read lives in the shared advisory pass, not the
+  lifecycle ceremony):
+    - **New-WU start** — `in-flight-scope-check.md` (the advisory pass spawn + cold-start run before scaffolding,
+      consuming `arc active in-flight --json`) is the home; **both reads** (the new WU's design is still ahead of
+      it), replacing its hand-rolled rubric. Declares the method in frontmatter.
+    - **Pick-time / discovery** — the `session-init` discovery arm; **both reads**, loaded on-demand (not
+      frontmatter, so it never taxes a resume/every-init).
+    - **Planning→Active flip** — `activate-work-unit.md`; **overlap read only** (design settled at the flip, so
+      design-load self-quiets), catching overlap drift since scoping (may warrant a park). Declares in frontmatter.
+    - **Errand launch** — `run-errand.md`; **overlap read only** (atomic, no design stage); consumes
+      `arc errand check --json` and applies the rubric + the R22 all-owner gate to the errand's diff. Declares in
+      frontmatter.
 - **R22 (P0) — All-owner gate at entry-level writes.** The doctrine extends Errand Enablement's advisory
   foreign-artifact gate (file-level) to **entry-level** writes; owned here, surfaced mechanically by
   `merge-safety-mechanism`'s write-context extensions.

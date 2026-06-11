@@ -14,68 +14,76 @@ strategy (DRY across the fire-sites that consume it).
 _Design decisions:_ Method-before-strategy authoring order; standard method shape mirrored from
 `classify-work-unit` / `resolve-planning-depth`. Full rationale in `notes-concurrent-work-doctrine.md`.
 
-### `[ ]` **1.1 Scaffold the method file with standard method shape (R15)**
+### `[x]` **1.1 Scaffold the method file with standard method shape (R15)**
 
 - _Goal:_ `assess-parallel-fit.md` exists in `system/methods/` with the standard method skeleton, ready for the
   body fill — the single invocable home the fire-sites and strategy reference.
 
-    - Mirror the shape of `classify-work-unit.md` / `resolve-planning-depth.md`: frontmatter
-      (`name` / `description` / `override-active: false`), the `> Workflow / When / Contract` blockquote, the
-      `## assess-parallel-fit.override` slot (`[No override configured]`), and the `## assess-parallel-fit.default`
-      body section.
-    - `description`: one line — the advisory parallelize-vs-serialize-or-coordinate judgment over in-flight overlap.
-    - Set the `Workflow:` host list to the three consuming hosts — `activate-work-unit`, `run-errand`,
-      `session-init` (declaration-style differs; wired in 2.2).
+- _Outcome:_ Created `.arc/system/methods/assess-parallel-fit.md` (instance; package-source mirror is Task 1.4)
+  with the `classify-work-unit` / `resolve-planning-depth` shape — frontmatter, the Workflow/When/Contract
+  blockquote naming the three hosts, the `.override` slot, and a `.default` opening-framing line. Unlike
+  `classify-work-unit`, the Contract keeps the rubric _in the method_ rather than deferring to the strategy (per
+  R15 the strategy references the method, not the reverse), so it carries no dangling link to the
+  not-yet-authored `strategy-concurrent-work.md`.
 
-### `[ ]` **1.2 Author the overlap rubric and evidence-tiering body**
+### `[x]` **1.2 Author the overlap rubric and evidence-tiering body**
 
 - _Goal:_ The method body resolves an overlap read into a clear posture and scales the read to the evidence
   actually available, so a thin-input candidate gets a conservative call rather than a false-confident one.
 
-    - `[ ]` **1.2.a Overlap rubric (R16)**
-        - The three-way outcome mapping: disjoint domain → **proceed**; shared module / strategy / load-bearing
-          infra → **flag and consider sequencing**; foreign-owned overlap → **coordinate**.
+    - `[x]` **1.2.a Overlap rubric (R16)**
+        - Authored `### The overlap rubric` — the three-way mapping: disjoint domain → **proceed**; shared module /
+          strategy / load-bearing infra → **flag and consider sequencing**; foreign-owned overlap → **coordinate**.
 
-    - `[ ]` **1.2.b Evidence-tiering ladder (R17)**
-        - Tier 1 (**always**): `Purpose` / meta scope fields — the coarse baseline; for a bare Ready stub this is
-          all there is, so the read leans conservative.
-        - Tier 2 (**escalate**): the candidate's richest authored artifact (`draft-*` → `spec-*`) when it exists
-          _and_ the cheap read is ambiguous or flags possible overlap — lifecycle-relative.
-        - Tier 3 (**cohort siblings**): consult the `cohort-*` file first — its dependency edges + Shared-contracts
-          section are the primary, most-authoritative input for intra-cohort parallelism.
+    - `[x]` **1.2.b Evidence-tiering ladder (R17)**
+        - Authored `### Evidence-tiering ladder` — Tier 1 (always: `Purpose` / meta scope, conservative on thin
+          input), Tier 2 (escalate to richest authored artifact `draft-*` → `spec-*` on ambiguity), Tier 3 (cohort
+          siblings: `cohort-*` dependency edges + Shared-contracts as the primary intra-cohort signal).
 
-### `[ ]` **1.3 Author self/foreign asymmetry, proportionality guard, and multi-candidate pick-time layer**
+### `[x]` **1.3 Author self/foreign asymmetry, proportionality guard, pick-time selection, and the design-load axis**
 
 - _Goal:_ The body distinguishes reorder-freely self-overlap from coordinate-required foreign-overlap, holds the
   read advisory-not-gating, and adds a subset-selection layer for the multi-candidate pick surface.
 
-- _Note:_ The self/foreign asymmetry keys on the single-owner-WU model that `single-owner-wu-model` supplies;
-  consumed **by reference** (the doctrine points at a convention the sibling later enforces), so this is authorable
-  ahead of that sibling shipping — per the spec's sibling-consumption-by-reference framing.
+    - `[x]` **1.3.a Self/foreign asymmetry (R18)**
+        - Authored `### Self/foreign asymmetry` — self-overlap → reorder freely; foreign-overlap → coordinate,
+          framed as the whole "all-owner" judgment on a shared surface under the single-owner-per-WU model.
 
-    - `[ ]` **1.3.a Self/foreign asymmetry (R18)**
-        - Single-owner WUs make this the entire "all-owner" addition: self-overlap → reorder freely;
-          foreign-overlap → coordinate.
+    - `[x]` **1.3.b Proportionality guard (R19)**
+        - Authored `### Proportionality guard` — advisory/never-gating with two-tier softness (overlap firm and
+          posture-setting, design-load informational), behind-base check named as the real net, light-read default,
+          and exhaustive overlap prediction called out as the rejected posture.
 
-    - `[ ]` **1.3.b Proportionality guard (R19)**
-        - Advisory, **never gating** — the behind-base detector is the real net. Default to the light read; deepen
-          only on a flag worth resolving before committing to parallel. Never a pre-emptive heavyweight
-          conflict-eval of every candidate.
+    - `[x]` **1.3.c Multi-candidate pick-time selection layer (R20)**
+        - Authored `### Multi-candidate selection` — both reads at the subset-selection surface: overlap (prefer
+          disjoint picks, don't stack same-module) and design-load (modest-concurrency soft WIP cap, the
+          2+-design-open note surfacing at pick time).
 
-    - `[ ]` **1.3.c Multi-candidate pick-time selection layer (R20)**
-        - For the ROADMAP-read surface, where the judgment is subset-selection not a single go/no-go: a WIP cap
-          (the modest-concurrency posture), prefer disjoint-domain picks, don't stack two same-module Ready WUs.
+    - `[x]` **1.3.d Design-load read — the capacity/attention axis (emergent; recast R19–R21)**
+        - Authored `### Design-load read` + a front-loaded `### Per-surface routing`. Surfaced at task-interlock
+          review: the body covered overlap (collision) but not the attention axis `Class` exists to signal. Added a
+          second, **informational** read — magnitude from `Class` (`Novel` high / `Heavy` moderate / else quiet)
+          gated by a design-settled test (candidate full by default; in-flight discounts once in execution /
+          `Integrating` / parked-at-readiness), salient at 2+ design-open `Novel`/`Heavy` with a soft count
+          backstop, board-state phrasing, never posture-moving. Per-surface routing sits at the top with the body
+          ordered as a cumulative prefix (overlap cluster → design-load → pick-time), so an errand reader stops
+          after the overlap cluster and skips the design-load tail. Recast spec R19–R21 to match.
 
-### `[ ]` **1.4 Mirror the method to package source (two-copy discipline)**
+- _Outcome:_ The method carries two axes — a posture-setting overlap read and an informational design-load read
+  (the second added at review). The self/foreign asymmetry keys on the single-owner-WU model **by reference** (a
+  standing convention, not attributed to a sibling artifact), so it was authorable ahead of that model's
+  enforcement landing — and the body carries no dangling reference to it.
+
+### `[x]` **1.4 Mirror the method to package source (two-copy discipline)**
 
 - _Goal:_ The `assess-parallel-fit` method exists in both the package source and the `.arc/` instance, byte-aligned
   — package source authoritative.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - Place the method at `packages/arc-framework/arc/system/methods/assess-parallel-fit.md` (canonical) and
-      `.arc/system/methods/assess-parallel-fit.md` (instance). Framework file — copies are identical; the
-      pre-commit two-copy hook gates a one-sided stage.
+- _Outcome:_ Placed at `packages/arc-framework/arc/system/methods/assess-parallel-fit.md` (canonical) and
+  `.arc/system/methods/assess-parallel-fit.md` (instance), verified byte-identical. Both stage together for the
+  pre-commit two-copy hook.
 
 ## **Phase 2:** Fire-site wiring
 
@@ -88,7 +96,7 @@ _Design decisions:_ The WU's real codebase-grounding surface (the spec's resolve
 Load discipline splits by host: unconditional hosts declare in frontmatter; `session-init` is arm-conditional, so
 it loads on-demand only on the arms that read overlap — never on every init.
 
-### `[ ]` **2.1 Confirm each fire-site's shipped advisory-fact source (R21)**
+### `[x]` **2.1 Confirm each fire-site's shipped advisory-fact source (R21)**
 
 - _Goal:_ Each surface's exact advisory-fact source and consumption shape is settled, so wiring consumes
   already-emitted facts rather than re-deriving overlap.
@@ -96,52 +104,62 @@ it loads on-demand only on the arms that read overlap — never on every init.
 - _Approach:_ Audit-don't-rebuild — confirm against the shipped surfaces before wiring (a later session may
   execute this, so re-verify the names still hold).
 
-    - `[ ]` **2.1.a Errand surface**
-        - `arc errand check --json` emits `{overlaps: [...]}` (`handlers/errand.ts`) — advisory, never blocks.
-          Consume those facts at `run-errand` Launch.
+    - `[x]` **2.1.a Errand surface**
+        - Confirmed: `arc errand check --target … --json` emits `{overlaps, reachable}` (`handlers/errand.ts:42,73`)
+          — foreign-artifact overlap over the oracle-backed in-flight set, advisory/never blocks. Consumed at
+          `run-errand` Launch Step 2.
 
-    - `[ ]` **2.1.b Activation / cold-start / materialize**
-        - The session-init probe already carries the in-flight slice; `arc active in-flight` is the standalone
-          oracle-backed set. Consume the emitted probe data — don't re-shell to re-derive overlap.
+    - `[x]` **2.1.b Activation / cold-start / materialize**
+        - Confirmed `arc active in-flight` is the oracle-backed set (`commands/active/in-flight.ts`), the
+          activation scope-check's data input. **Key finding (resolved the R21 open question):** the activation-side
+          overlap read lives in `in-flight-scope-check.md` — the shared advisory pass spawn + cold-start run before
+          scaffolding, consuming `arc active in-flight --json` and hand-rolling the very rubric the method codifies.
+          `activate-work-unit.md` does no overlap read today. So the home is `in-flight-scope-check`, not
+          `activate-work-unit`'s frontmatter as 2.2.a literally read.
 
-    - `[ ]` **2.1.c Pick-time / next-work-discovery**
-        - The session-init discovery arm is a clean on-demand invocation point — no thin host needed.
+    - `[x]` **2.1.c Pick-time / next-work-discovery**
+        - Confirmed: the `session-init` discovery arm (Step 5 next-work discovery) is a clean on-demand invocation
+          point — no thin host needed.
 
-### `[ ]` **2.2 Wire the method at the three fire-site surfaces with the right load discipline (R21)**
+### `[x]` **2.2 Wire the method at the fire-site surfaces with the right load discipline (R21)**
 
-- _Goal:_ `assess-parallel-fit` is invoked at all three surfaces, declared in frontmatter where every run of the
+- _Goal:_ `assess-parallel-fit` is invoked at every surface, declared in frontmatter where every run of the
   host needs it and loaded on-demand where only some session-init arms do — applying the rubric to the
   already-emitted advisory facts.
 
 - **Strategies:** strategy-workflow-authoring.md
 
-- _Note:_ The load-style split is deliberate. `activate-work-unit` and `run-errand` need the read on every run, so
-  they declare the method in frontmatter; `session-init` runs every session but needs it on only a few arms, so it
-  loads on-demand there rather than taxing every init — the same arm-conditional pattern session-init already uses
-  for the lifecycle workflow and domain rules.
+- _Note:_ The load-style split is deliberate. The unconditional hosts (`in-flight-scope-check`, `activate-work-unit`,
+  `run-errand`) declare the method in frontmatter; `session-init` runs every session but needs it on only a few
+  arms, so it loads on-demand there rather than taxing every init — the same arm-conditional pattern session-init
+  already uses for the lifecycle workflow and domain rules.
 
-    - `[ ]` **2.2.a Activation host — frontmatter declaration**
-        - Add `assess-parallel-fit` to `activate-work-unit.md`'s `arc.methods`; invoke at the activation overlap
-          read. Every activation needs it, so unconditional load is correct.
+    - `[x]` **2.2.a Activation / new-WU-start hosts — frontmatter declaration**
+        - Per 2.1.b, the activation-side home is `in-flight-scope-check.md` (not `activate-work-unit`). Declared the
+          method in its frontmatter and replaced its hand-rolled Assess/Surface rubric with a **both-reads**
+          invocation (new WU's design still ahead of it). Also declared it in `activate-work-unit.md` and added an
+          **overlap-only** read at the Planning→Active flip (design settled → design-load self-quiets; catches
+          overlap drift since scoping, may warrant a park).
 
-    - `[ ]` **2.2.b Errand host — frontmatter declaration**
-        - Add `assess-parallel-fit` to `run-errand.md`'s `arc.methods`; invoke at Launch over the
-          `arc errand check --json` facts. Every errand needs it.
+    - `[x]` **2.2.b Errand host — frontmatter declaration**
+        - Declared `assess-parallel-fit` in `run-errand.md`'s `arc.methods`; invoke at Launch Step 2 over the
+          `arc errand check --json` facts — **overlap read only** (an errand has no design stage).
 
-    - `[ ]` **2.2.c Session-init arms — arm-gated on-demand load**
-        - Do **not** declare the method in `session-init.md` frontmatter. Instruct an on-demand load at the arms
-          that read overlap — pick-time / next-work-discovery (the R20 selection) and the cold-start
-          in-flight-scope-check / materialize dispatch — so it never loads on resume or every init.
+    - `[x]` **2.2.c Session-init arms — arm-gated on-demand load**
+        - Not declared in `session-init.md` frontmatter. Added an on-demand load at the pick-time / next-work
+          discovery arm (the R20 multi-candidate selection, both reads); the cold-start arm reaches it transitively
+          via the `in-flight-scope-check` it already runs. Never loads on resume or every init.
 
-### `[ ]` **2.3 Mirror the host-workflow edits to package source**
+### `[x]` **2.3 Mirror the host-workflow edits to package source**
 
 - _Goal:_ Every host-workflow frontmatter and invocation edit lands in both the package source and the `.arc/`
   instance, copies matching.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - Sync the three touched host workflows (`activate-work-unit`, `run-errand`, `session-init`) across both copies.
-      The method itself mirrors in 1.4; the strategy (with the all-owner gate) mirrors in 3.5.
+- _Outcome:_ Synced all four touched host workflows (`in-flight-scope-check`, `activate-work-unit`, `run-errand`,
+  `session-init`) across both copies, plus a re-sync of the method itself after its Phase-2 host-list/routing edits;
+  all verified byte-identical. The strategy (with the all-owner gate) mirrors in 3.5.
 
 ## **Phase 3:** `strategy-concurrent-work.md` — adopter-facing doctrine
 

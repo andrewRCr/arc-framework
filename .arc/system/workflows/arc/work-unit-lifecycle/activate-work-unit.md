@@ -3,6 +3,7 @@ purpose: Transition a work unit from Planning to Active — state-flip, branch r
 audience: agent
 arc:
   methods:
+    - assess-parallel-fit
     - branch-format
     - classify-work-unit
   extensions:
@@ -56,6 +57,14 @@ any conflict with the WU's PRD; on conflict, halt and ask.
 Fires only when TECHNICAL-OVERVIEW has been edited since the WU's PRD was approved **and** the PRD touches
 technical surfaces (tech stack, architecture, runtime, dependencies, infrastructure). Soft check; rarely blocks.
 Independent of the PROJECT-PRD check — scope distinction is the trigger.
+
+#### In-flight overlap
+
+Apply [`assess-parallel-fit`][assess-parallel-fit]'s **overlap read only** against the current in-flight set
+(`arc active in-flight --json`). The WU's design is settled at the flip, so the design-load read self-quiets; this
+re-checks overlap, which may have drifted since the WU was scoped at pick/scaffold time. Advisory, never gates —
+surface any overlap (a foreign-owned collision can warrant parking the WU until that unit integrates) and proceed
+unless the operator redirects.
 
 ### 4) State-flip + Branch + Next Action edits + draft-doc removal
 
@@ -191,6 +200,7 @@ With activation complete, proceed to task execution:
 
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [branch-format]: ../../../methods/branch-format.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md
 [arc-ext-post-activate]: ../../../extensions/post-work-unit-activate.md

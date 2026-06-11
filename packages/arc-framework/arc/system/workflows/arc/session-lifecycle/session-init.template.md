@@ -482,6 +482,12 @@ planning session, assess readiness for the next unit:
 3. If no artifacts exist, the next action is to create a PRD when ready → [create-spec.md][create-spec]
 <!-- arc:endif -->
 
+When the surface presents more than one candidate, load [`assess-parallel-fit`][assess-parallel-fit] on-demand —
+it is deliberately **not** declared in this workflow's frontmatter, so it loads only on the arms that read overlap,
+never on every init — and apply its **multi-candidate selection** (both reads) over the in-flight set, surfacing
+the posture and any design-load note as advisory input to the pick. The cold-start arm reaches the same method
+through the [in-flight scope check][in-flight-scope-check] it already runs before scaffolding.
+
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
 > next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
 > Under partial protection (the default), proceed directly to [create-spec.md][create-spec] — no planning
@@ -688,6 +694,7 @@ source's view with specific details and wait for explicit direction before any c
 
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
+[assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [run-errand]: ../supplemental/run-errand.md
 [arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
 [arc-housekeep-skill]: ../../../.internal/skills/arc-housekeep/SKILL.md

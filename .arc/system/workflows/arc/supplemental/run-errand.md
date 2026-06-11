@@ -3,6 +3,7 @@ purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch 
 audience: agent
 arc:
   methods:
+    - assess-parallel-fit
     - commit-footer
   extensions:
     - post-task-quality
@@ -36,16 +37,19 @@ base-derived branch — so the errand never executes from an unrelated work unit
    [`init-work-unit`][init-work-unit] instead. (Scope that *explodes mid-execution* is handled by Execute's
    promote-to-WU primer.) See [strategy-work-organization § Errand Work Class][errand-class] for the boundary.
 
-2. **Check for foreign overlap — advisory.** Run the overlap check against the paths the errand will touch:
+2. **Check for foreign overlap — apply [`assess-parallel-fit`][assess-parallel-fit] (overlap read only).** Run the
+   overlap check against the paths the errand will touch:
 
    ```bash
    arc errand check --target <path>... --json
    ```
 
-   It reports which in-flight work units touch the same paths — across worktrees and machines (via the
-   in-flight oracle), fresher here at execution time than at capture. **Advisory, never a gate:** surface any
-   overlap so you can coordinate or sequence the errand after the other unit integrates, then proceed. If the
-   remote is unreachable the check degrades to local refs and says so.
+   It emits `{overlaps, reachable}` — which in-flight work units touch the same paths, across worktrees and
+   machines (via the in-flight oracle), fresher here at execution time than at capture. Apply the method's overlap
+   read to those facts: the rubric and the all-owner gate (foreign-owned → coordinate). An errand has no design
+   stage, so the design-load read does not apply. **Advisory, never a gate:** surface any overlap so you can
+   coordinate or sequence the errand after the other unit integrates, then proceed. If the remote is unreachable
+   the check degrades to local refs and says so.
 
 3. **Resolve the base and relocate the locus.** The errand executes from a base-derived locus, never the
    branch you launched from — launching from any worktree (a work unit's included) is fine; only *executing*
@@ -176,6 +180,7 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
 
 ---
 
+[assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md

@@ -1,6 +1,9 @@
 ---
 purpose: Activation-time in-flight scope check — an advisory, non-gating pass over in-flight work units before a new one is scaffolded.
 audience: agent
+arc:
+  methods:
+    - assess-parallel-fit
 ---
 
 # Workflow: In-Flight Scope Check
@@ -25,15 +28,18 @@ including remote-only ones with no local worktree.
 2. **Degrade.** An empty `entries` means nothing else is in flight — skip silently and produce no output.
    `reachable: false` (offline, or `--local`) means the set derives from last-known local refs: it may miss
    cross-machine work, but the advisory still runs over what is known. Never gates.
-3. **Assess.** For each in-flight work unit, read its stated scope from `design` — the spec pointer the oracle
-   carries from the meta `**Design:**` field; absent means scope is unstated. Compare against the work unit being
-   activated. An errand carries no meta and no stated scope. **Bias toward surfacing:** unstated scope, shared
-   files or modules, or any uncertainty warrants a flag. `cohort` is a neutral fact only — a shared cohort implies
-   nothing about safe concurrency (it may reflect a shared domain, which raises overlap odds) and never suppresses
-   a flag.
-4. **Surface.** For each flagged entry, raise a concern the operator can act on — name the branch, where it is in
-   flight (its `worktreePath`, or "remotely on `origin/<branch>`" when `remoteOnly`), and the overlap, then offer
-   the choice. For example: `` `feat/x` is in flight in `../repo.x` and touches the same module — parallelize, or
-   sequence after it integrates? `` Proceed with activation unless the operator redirects.
+3. **Assess — apply [`assess-parallel-fit`][assess-parallel-fit].** Run **both reads** over the in-flight set: the
+   new work unit's design is still ahead of it, so the design-load read applies alongside the overlap read. The
+   method owns the judgment — the overlap rubric (disjoint / shared / foreign-owned), evidence-tiering, and the
+   design-load read; this step supplies the data. Per-entry input: a work unit's stated scope is its `design`
+   pointer (the meta `**Design:**` field the oracle carries — absent means unstated, which biases toward a flag),
+   plus `cohort` for the cohort-sibling tier; an errand carries no meta and no stated scope.
+4. **Surface.** Surface the method's posture as a concern the operator can act on — name the branch, where it is in
+   flight (its `worktreePath`, or "remotely on `origin/<branch>`" when `remoteOnly`), the overlap, and any
+   design-load note, then offer the choice. For example: `` `feat/x` is in flight in `../repo.x` and touches the
+   same module — parallelize, or sequence after it integrates? `` Proceed with activation unless the operator
+   redirects.
 
 ---
+
+[assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
