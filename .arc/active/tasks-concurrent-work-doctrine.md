@@ -173,24 +173,33 @@ _Design decisions:_ Reference-don't-duplicate for ROADMAP-regen and cohort-model
 (`strategy-work-organization` owns it); sibling to — not extending — `strategy-team-coordination`. The largest
 deliverable; a candidate to split if review boundaries want finer slices.
 
-### `[ ]` **3.1 Scaffold the strategy, index it, and reconcile sibling cross-references**
+### `[x]` **3.1 Scaffold the strategy, index it, and reconcile sibling cross-references**
 
 - _Goal:_ `strategy-concurrent-work.md` exists as a sibling to `strategy-team-coordination.md`, listed in
   `STRATEGY-INDEX.md`, with bidirectional sibling links, opening on the worktree-by-default rationale.
 
 - **Strategies:** strategy-team-coordination.md, strategy-work-organization.md
 
-    - `[ ]` **3.1.a Scaffold + worktree-by-default rationale (R1)**
-        - Why ARC departs from the solo-developer norm (multi-agent isolation primary, frictionless parallelism
-          secondary); discovery/cleanup discipline; risks (worktree accumulation, "which worktree am I in").
+    - `[x]` **3.1.a Scaffold + worktree-by-default rationale (R1)**
+        - Scaffolded `strategy-concurrent-work.md` opening on § Worktrees by default — isolation-primary /
+          frictionless-parallelism-secondary rationale, sweep-as-you-go + know-your-worktree discipline, and the
+          accumulation / wrong-worktree risks. Intro frames scope, judgment-driven (not enforced) nature, the
+          team-coordination sibling relationship, and the work-organization prerequisite.
 
-    - `[ ]` **3.1.b `STRATEGY-INDEX.md` entry**
-        - Add the index row with a consult-when line.
+    - `[x]` **3.1.b `STRATEGY-INDEX.md` entry**
+        - Added the `strategy-concurrent-work.md` row to `STRATEGY-INDEX.md`, adjacent to its team-coordination
+          sibling, with a consult-when line.
 
-    - `[ ]` **3.1.c Sibling cross-references (Success Criterion 8)**
-        - Link from `strategy-team-coordination` to `strategy-concurrent-work` and back. `STRATEGY-INDEX` is the
-          discoverability home — no DEV-RULES pointer is added (none exists today, so the DEV-RULES clause of
-          Success Criterion 8 is satisfied trivially).
+    - `[x]` **3.1.c Sibling cross-references (Success Criterion 8)**
+        - Bidirectional sibling links: concurrent-work → team-coordination (intro + Related Documentation);
+          team-coordination → concurrent-work (a § Concurrent Sessions contextual pointer + Related
+          Documentation). No DEV-RULES pointer exists today, so Success Criterion 8's DEV-RULES clause is
+          satisfied trivially.
+
+- _Outcome:_ Strategy authored in the `.arc/` instance only; the package-source mirror of all Phase 3
+  Framework-file edits (this strategy, the index row, the team-coordination links) is deferred to Task 3.5.b,
+  keeping package source internally consistent at each intermediate commit rather than carrying an index row
+  that points at a not-yet-mirrored strategy.
 
 ### `[ ]` **3.2 Author parallelize-vs-serialize, posture, anti-patterns, and philosophy-checkpoints**
 
