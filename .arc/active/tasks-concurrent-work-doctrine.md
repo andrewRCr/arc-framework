@@ -324,22 +324,25 @@ deliverable; a candidate to split if review boundaries want finer slices.
           re-homing of foreign-owned atomics (same gate). States the convention and its delegation boundary — the
           detection/surfacing mechanism is a backstop owned elsewhere, not built here.
 
-### `[ ]` **3.5 Audience-discipline light-hand pass, then mirror to package source**
+### `[x]` **3.5 Audience-discipline light-hand pass, then mirror to package source**
 
 - _Goal:_ The strategy reads as clean adopter-facing doctrine — no leak patterns — and the package-source copy
   matches the instance.
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **3.5.a Audience-discipline scan (R27, Success Criterion 4)**
-        - Verify the doc excludes research citations, the rejected-alternatives ledger, the 2026-06-10 incident
-          retelling, `strategy-storage-evolution` references, internal-roadmap forward-pointers (sibling/other-cohort
-          WU names as in-flight scope), and `adopter`-POV framing. Route any internal "why" to the ADR; state the
-          model and conventions, don't justify beyond operational need.
+    - `[x]` **3.5.a Audience-discipline scan (R27, Success Criterion 4)**
+        - Swept clean: no research citations, no rejected-alternatives ledger, no incident retelling, no
+          `strategy-storage-evolution` reference, no internal-roadmap forward-pointers (sibling/cohort WU names),
+          no `adopter`-POV framing. Mechanisms owned by siblings (the behind-base detector, the foreign-write
+          backstop) are narrated generically. Added a `## Contents` TOC as light-hand polish — the house
+          convention for long strategies (the doc is ~450 lines; its team-coordination sibling has one).
 
-    - `[ ]` **3.5.b Mirror the strategy to package source**
-        - Place at `packages/arc-framework/arc/reference/strategies/arc/strategy-concurrent-work.md` and the
-          `.arc/` instance; copies identical.
+    - `[x]` **3.5.b Mirror the strategy to package source**
+        - `strategy-concurrent-work.md` created in package source byte-identical to the instance; the
+          team-coordination sibling-link edits synced (Framework file, identical across copies). `STRATEGY-INDEX.md`
+          is Configurable (package carries a template Project-strategies section), so the ARC-strategies row was
+          added by targeted edit, not a blind copy — ARC row byte-identical, project section preserved per copy.
 
 ## **Phase 4:** `adr-025` — durable rationale (internal-only)
 
