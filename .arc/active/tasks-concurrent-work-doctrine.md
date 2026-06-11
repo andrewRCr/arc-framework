@@ -354,7 +354,7 @@ research files and anchoring the governing ADRs. Internal-only; no package mirro
 _Design decisions:_ Authored last so it records what actually shipped; a single ADR (not split) per the
 open-question lean; `.arc/`-only per the architecture-documentation boundary.
 
-### `[ ]` **4.1 Create `adr-025` and record the four decisions**
+### `[x]` **4.1 Create `adr-025` and record the four decisions**
 
 - _Goal:_ `adr-025-*.md` exists in `reference/adr/`, recording the decision (advisory conventions + one hard
   append-only invariant; no focus-role field; no overlap-prediction tooling) with each of the four decisions'
@@ -364,45 +364,51 @@ open-question lean; `.arc/`-only per the architecture-documentation boundary.
 
 - _Note:_ Internal-only; sourced from `notes-concurrent-work-doctrine.md`, which holds the full rationale.
 
-    - `[ ]` **4.1.a Scaffold `adr-025` (R23, Success Criterion 3)**
-        - Standard ADR structure (per `strategy-adr-methodology` + a recent ADR as template); confirm `025` is the
-          next sequential number at authoring time.
+    - `[x]` **4.1.a Scaffold `adr-025` (R23, Success Criterion 3)**
+        - `adr-025-concurrent-work-by-convention.md` created (next sequential after adr-024), five-section ADR
+          structure per `strategy-adr-methodology` + the template; Status `Proposed` with the cohort-aware
+          promote-on-integration note (doctrine ships here; enforcement ships with the sibling members).
 
-    - `[ ]` **4.1.b Conventions-over-tooling posture (R24)**
-        - Doctrine over mechanism; the no-overlap-prediction-tooling decision (O(n²), false-positive-prone,
-          non-idiomatic).
+    - `[x]` **4.1.b Conventions-over-tooling posture (R24)**
+        - Decision § "Conventions over tooling" + Alternatives § overlap-prediction rejection (O(n²),
+          false-positive-prone, non-idiomatic, not reliably computable; the behind-base check is the real net).
 
-    - `[ ]` **4.1.c Focus-role-field rejection (R24)**
-        - The rejection with its external-research grounding (two independent directions: PM-tool survey,
-          worktree-tool convergence) and the cost ledger.
+    - `[x]` **4.1.c Focus-role-field rejection (R24)**
+        - Context + Alternatives: the `Focus Role` field rejected, each value mapped to an existing signal; the
+          two-direction external grounding (PM-tool survey, worktree-tool convergence) and the saved/paid cost
+          ledger.
 
-    - `[ ]` **4.1.d Append-only-until-integration rationale (R24)**
-        - The invariant's rationale, including the 2026-06-10 incident as grounding (rebase + force-push orphaned a
-          second machine's tip; recovered via `reset --hard origin/<branch>`).
+    - `[x]` **4.1.d Append-only-until-integration rationale (R24)**
+        - Decision § "One hard invariant" + the Context incident grounding (2026-06-10 rebase + force-push orphaned
+          a laptop's tip; recovered via `reset --hard origin/<branch>`); worktrees as enabling hygiene, not a
+          guarantee.
 
-    - `[ ]` **4.1.e Self/foreign asymmetry and team-mode orthogonality decisions (R24)**
-        - The self/foreign asymmetry decision and the sibling-to-team-mode (orthogonal axes) decision.
+    - `[x]` **4.1.e Self/foreign asymmetry and team-mode orthogonality decisions (R24)**
+        - Decision §§ "Self/foreign asymmetry" (single-owner collapses overlap to yours-or-theirs; file→entry
+          extension) and "Sibling to team mode" (orthogonal axes; neither requires the other).
 
-### `[ ]` **4.2 Cite the research base, anchor the governing ADRs, and record forward-compat reasoning**
+### `[x]` **4.2 Cite the research base, anchor the governing ADRs, and record forward-compat reasoning**
 
 - _Goal:_ The ADR cites the five research files in place (the strategy cites none), anchors the governing ADRs,
   and records the storage forward-compat reasoning — kept internal to the ADR, invisible to the doctrine.
 
 - **Strategies:** strategy-adr-methodology.md, strategy-storage-evolution.md
 
-    - `[ ]` **4.2.a Cite the five research files (R25)**
-        - `research-focus-wip-attention-discipline`, `research-active-work-coordination-vocabulary`,
-          `research-concurrent-work-mechanism-layer`, `research-integration-conflict-handling`,
-          `research-worktree-tool-convergence` — cited in place.
+    - `[x]` **4.2.a Cite the five research files (R25)**
+        - All five cited in place: `research-active-work-coordination-vocabulary` (PM survey),
+          `research-worktree-tool-convergence` (11-tool pass), `research-focus-wip-attention-discipline`
+          (attention), `research-concurrent-work-mechanism-layer` (mechanics), `research-integration-conflict-handling`
+          (conflict heuristics).
 
-    - `[ ]` **4.2.b Anchor the governing ADRs (R25)**
-        - adr-019 (single-branch-per-WU substrate), adr-020 (derived-vs-mutated split), adr-021 (errand `chore/`
-          branches), adr-022 (managed-doc merge correctness), adr-024 (cohort model).
+    - `[x]` **4.2.b Anchor the governing ADRs (R25)**
+        - Reference-linked: adr-019 (lifecycle/state machine, single-branch), adr-020 (derived-vs-mutated split),
+          adr-021 (errand `chore/` branches), adr-022 (managed-doc merge correctness), adr-024 (cohort model);
+          adr-023 (`Class`) referenced in Context.
 
-    - `[ ]` **4.2.c Storage forward-compat reasoning (R26, Success Criterion 5)**
-        - Append-only framed as git-branch-safety is tier-1, not permanent (operational WU state syncs via the
-          materialized backing store, not the code branch); checked against `strategy-storage-evolution`
-          Principles 2 & 5. Internal to the ADR.
+    - `[x]` **4.2.c Storage forward-compat reasoning (R26, Success Criterion 5)**
+        - Decision § "Forward-compatibility (storage)": append-only as git-branch-safety is tier-1, not permanent
+          (operational WU state syncs via the materialized backing store; the discipline composes forward);
+          checked against `strategy-storage-evolution` Principles 2 & 5. Internal to the ADR.
 
 ## **Phase 5:** Verification
 
