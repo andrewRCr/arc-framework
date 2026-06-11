@@ -34,6 +34,7 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
+import type { SupersessionResult } from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
@@ -63,6 +64,15 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
    * probe failed. Orientation surfaces a `worktree:` line only when `linked`.
    */
   identity: WorktreeIdentity;
+  /**
+   * Patch-equal supersession verdict, computed only in the `diverged` sub-state
+   * (a finer classification of the same HEAD-vs-`origin/<branch>` ref pair this
+   * slot already owns). `null` on every non-diverged state and when the bounded
+   * detector did not run or failed. When `superseded`, the diverged handler
+   * swaps its generic reconcile for the lossless-reset offer carried in
+   * `recommendedPromptText`.
+   */
+  supersession: SupersessionResult | null;
 }
 
 /**
@@ -356,6 +366,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * handler binds the resolved `branch.base` and remote-sync flag.
    */
   baseDistance: () => Promise<BaseDistanceStatusResult>;
+  /**
+   * Patch-equal supersession detector — `git cherry` over the local-ahead set,
+   * receiving the current branch from the orchestrator. Called ONLY when the
+   * worktree slot resolved to `diverged` (a bounded read on the one state where
+   * supersession is meaningful), so the common resume path pays nothing.
+   */
+  supersession: (branch: string) => Promise<SupersessionResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;

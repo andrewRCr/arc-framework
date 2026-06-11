@@ -52,6 +52,7 @@ import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
+import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
@@ -180,6 +181,12 @@ function baseDistance(
   return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
 }
 
+function supersessionResult(
+  overrides: Partial<SupersessionResult> = {},
+): SupersessionResult {
+  return { superseded: false, supersededCommits: [], novelCommits: [], ...overrides };
+}
+
 function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
   return { entries: [], warnings: [], ...overrides };
 }
@@ -304,6 +311,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     baseDistance: vi.fn(async () => baseDistance()),
+    supersession: vi.fn(async () => supersessionResult()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
@@ -736,6 +744,62 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(false);
     if (!result.baseDistance.ok) {
       expect(result.baseDistance.error.kind).toBe("runtime");
+    }
+  });
+});
+
+describe("runSessionInitStatus — diverged supersession downgrade", () => {
+  it("downgrades the diverged reconcile to a lossless-reset offer on patch-equal supersession", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+      ),
+      supersession: vi.fn(async () =>
+        supersessionResult({ superseded: true, supersededCommits: ["a", "b"] }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    // The detector fires once, scoped to the diverged branch.
+    expect(probes.supersession).toHaveBeenCalledTimes(1);
+    expect(probes.supersession).toHaveBeenCalledWith("feat/x");
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession?.superseded).toBe(true);
+      expect(result.worktree.value.recommendedAction).toBe("surface");
+      expect(result.worktree.value.recommendedPromptText).toContain("superseded");
+      expect(result.worktree.value.recommendedPromptText).toContain(
+        "git reset --hard origin/feat/x",
+      );
+    }
+  });
+
+  it("keeps the generic reconcile on genuine divergence (no patch-equal supersession)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+      ),
+      supersession: vi.fn(async () =>
+        supersessionResult({ superseded: false, novelCommits: ["a", "b"] }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession?.superseded).toBe(false);
+      expect(result.worktree.value.recommendedAction).toBe("surface");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+  });
+
+  it("skips the detector entirely on a non-diverged worktree (null supersession)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.supersession).not.toHaveBeenCalled();
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession).toBeNull();
     }
   });
 });

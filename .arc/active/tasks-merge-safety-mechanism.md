@@ -88,19 +88,21 @@ offers the lossless reset, never auto-runs and never blocks. See `notes-merge-sa
       failed read degrades to not-superseded. `git cherry` chosen over raw `patch-id` / `range-diff` as the
       idiomatic already-upstream check.
 
-### `[ ]` **2.2 Diverged-handler downgrade with lossless-reset offer**
+### `[x]` **2.2 Diverged-handler downgrade with lossless-reset offer**
 
 - _Goal:_ In session-init's `diverged` handler, a patch-equal supersession downgrades the generic "manual rebase
   or merge needed" to "local commits superseded by rebased equivalents — reset is lossless" and offers
   `git reset --hard origin/<branch>` (offer, never auto-run).
-- _Note:_ The 2.1 detector result must thread through the envelope (a new field on the worktree value, or a
-  sibling probe) for this arm to render the downgrade — `inferWorktree` takes only `(worktree, policy, dirty)` today.
 
-    - Wire the detector into the diverged arm; on supersession, swap the recommendation text and attach the
-      reset offer.
-    - Genuine divergence keeps the existing generic reconcile surface unchanged.
-
-    - Integration coverage: the downgrade fires on patch-equal; the generic reconcile holds on true divergence.
+    - _Outcome:_ Threaded the detector result as a **new `supersession` field on the worktree value** (not a
+      sibling probe) — it is a finer classification of the same HEAD-vs-`origin/<branch>` ref pair the worktree
+      slot already owns, meaningful only in the `diverged` sub-state, so it belongs to that channel.
+      `runSessionInitStatus` fires `detectSupersession` once, gated on `diverged` (the common resume path pays
+      nothing). `inferWorktree` gained the supersession param and composes the lossless-reset prompt text when
+      `superseded`; the workflow's Step 6 diverged arm branches on `worktree.value.supersession` (downgrade vs.
+      generic reconcile, both copies of `session-init` synced). Genuine divergence and the empty text are
+      unchanged. Integration coverage in `run.test.ts` asserts the downgrade fires on patch-equal and the
+      generic reconcile holds on true divergence.
 
 ### `[ ]` **2.3 Force-push advisory warning**
 

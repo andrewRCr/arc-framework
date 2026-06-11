@@ -278,11 +278,22 @@ export async function runSessionInitStatus(
       ? { ...user, value: { ...user.value, qualifier: "clean-at-current-head" as const } }
       : user;
 
+  // Patch-equal supersession refinement — only meaningful when the worktree has
+  // diverged from its upstream and the branch is resolvable. A single bounded
+  // `git cherry` over the local-ahead set; skipped on every non-diverged resume,
+  // so the common path pays nothing. `null` when not diverged or the read failed.
+  const supersessionSlot =
+    worktree.ok && worktree.value.state === "diverged" && worktree.value.branch !== null
+      ? await safeProbe(() => probes.supersession(worktree.value.branch as string))
+      : undefined;
+  const supersession = supersessionSlot?.ok ? supersessionSlot.value : null;
+
   const recommendations = composeSessionInitRecommendations({
     worktree,
     user: qualifiedUser,
     dirty,
     config,
+    supersession,
   });
 
   const enrichedWorktree: SessionInitProbeResult["worktree"] = worktree.ok
@@ -293,6 +304,7 @@ export async function runSessionInitStatus(
         recommendedAction: recommendations.worktree.recommendedAction,
         recommendedPromptText: recommendations.worktree.recommendedPromptText,
         identity: worktreeIdentity,
+        supersession,
       } satisfies SessionInitWorktreeValue,
     }
     : worktree;
@@ -418,6 +430,7 @@ function composeSessionInitRecommendations(slots: {
   user: { ok: true; value: import("../user/types.js").UserSessionInitStatusResult } | ProbeErrorSlot;
   dirty: { ok: true; value: DirtyStateResult } | ProbeErrorSlot;
   config: { ok: true; value: import("../config/types.js").ConfigSessionInitResult } | ProbeErrorSlot;
+  supersession: import("../../lib/git/supersession.js").SupersessionResult | null;
 }): ReturnType<typeof inferSessionInitRecommendations> {
   if (!slots.worktree.ok || !slots.dirty.ok || !slots.config.ok) {
     return {
@@ -433,6 +446,7 @@ function composeSessionInitRecommendations(slots: {
     worktreePullPolicy: normalizeWorktreePolicy(settings["session.init_pull.worktree"]),
     notesPullPolicy: normalizeNotesPolicy(settings["session.init_pull.notes"]),
     dirty: slots.dirty.value,
+    supersession: slots.supersession,
   });
 }
 

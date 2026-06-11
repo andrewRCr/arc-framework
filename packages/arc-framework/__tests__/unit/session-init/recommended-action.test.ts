@@ -58,6 +58,7 @@ function input(overrides: Partial<RecommendationInput> = {}): RecommendationInpu
     worktreePullPolicy: "prompt" as WorktreePullPolicy,
     notesPullPolicy: "prompt" as NotesPullPolicy,
     dirty: dirty(),
+    supersession: null,
     ...overrides,
   };
 }
@@ -128,7 +129,7 @@ describe("inferSessionInitRecommendations — worktree channel", () => {
     expect(result.worktree.recommendedAction).toBe("surface");
   });
 
-  it("diverged → action=surface (Reconcile required)", () => {
+  it("diverged → action=surface (Reconcile required); no supersession → prompt text empty", () => {
     const result = inferSessionInitRecommendations(
       input({
         worktree: worktree({ state: "diverged", ahead: 1, behind: 2 }),
@@ -136,6 +137,32 @@ describe("inferSessionInitRecommendations — worktree channel", () => {
       }),
     );
     expect(result.worktree.recommendedAction).toBe("surface");
+    expect(result.worktree.recommendedPromptText).toBe("");
+  });
+
+  it("diverged + patch-equal supersession → action=surface; prompt text offers the lossless reset", () => {
+    const result = inferSessionInitRecommendations(
+      input({
+        worktree: worktree({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+        user: user({ state: "clean" }),
+        supersession: { superseded: true, supersededCommits: ["a", "b"], novelCommits: [] },
+      }),
+    );
+    expect(result.worktree.recommendedAction).toBe("surface");
+    expect(result.worktree.recommendedPromptText).toContain("superseded");
+    expect(result.worktree.recommendedPromptText).toContain("git reset --hard origin/feat/x");
+  });
+
+  it("diverged + genuine divergence (not superseded) → action=surface; prompt text empty (generic reconcile)", () => {
+    const result = inferSessionInitRecommendations(
+      input({
+        worktree: worktree({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+        user: user({ state: "clean" }),
+        supersession: { superseded: false, supersededCommits: [], novelCommits: ["a", "b"] },
+      }),
+    );
+    expect(result.worktree.recommendedAction).toBe("surface");
+    expect(result.worktree.recommendedPromptText).toBe("");
   });
 
   it("remote-unavailable → action=surface", () => {
