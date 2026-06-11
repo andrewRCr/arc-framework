@@ -15,22 +15,14 @@ _Design decisions:_ The distance primitive is built general (ref-parameterized, 
 sweep) each extend one buildable rather than forcing a second implementation. The probe slot mirrors the existing
 worktree channel end to end. See `notes-merge-safety-mechanism.md` for the grounded file:line seams.
 
-### `[ ]` **1.1 Extract and export `countAheadBehindRef`; refactor `runWorktreeSyncStatus` to consume it**
+### `[x]` **1.1 Extract and export `countAheadBehindRef`; refactor `runWorktreeSyncStatus` to consume it**
 
 - _Goal:_ A single exported, ref-parameterized distance primitive computes ahead/behind between any two refs,
   and the worktree-sync path consumes it with no duplicated `rev-list` logic remaining.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Extract the private `countAheadBehind` body into exported
-      `countAheadBehindRef(exec, localRef, remoteRef)`; generalize the hardcoded `HEAD...origin/<branch>` to
-      `localRef...remoteRef`, returning `{ ahead, behind, state }`.
-    - Fold the `classifyState` mapping into the primitive so callers receive `state` without re-deriving it.
-    - Rewire `runWorktreeSyncStatus` as one caller of the extracted body; remove the duplicated distance logic.
-
-    - Build `test-first` (one behavior at a time):
-        - `countAheadBehindRef` returns correct `{ ahead, behind }` for an arbitrary local/remote ref pair
-        - `state` classification (clean / local-ahead / remote-ahead / diverged) matches the prior helper
-        - `runWorktreeSyncStatus` keeps regression parity for the `origin/<branch>` case through the primitive
+- _Outcome:_ `countAheadBehindRef(exec, localRef, remoteRef)` exported from `lib/git/worktree-sync.ts` (and the
+  git barrel) returning `{ ahead, behind, state }` with `classifyState` folded in; `runWorktreeSyncStatus` is now
+  its sole `HEAD...origin/<branch>` caller, no duplicated distance logic. Regression parity held by the existing
+  worktree-sync suite. This is the sub-cohort's shared contract — see `notes-merge-safety-mechanism.md`.
 
 ### `[ ]` **1.2 Wire the base-distance probe slot into the session-init envelope**
 

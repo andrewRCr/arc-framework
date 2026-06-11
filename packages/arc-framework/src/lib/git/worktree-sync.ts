@@ -126,8 +126,8 @@ export async function runWorktreeSyncStatus(
     };
   }
 
-  const counts = await countAheadBehind(exec, branch);
-  return { state: classifyState(counts), ...counts, branch };
+  const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${branch}`);
+  return { state, ahead, behind, branch };
 }
 
 type FetchOutcome = "ok" | "timeout" | "branch-gone" | "error";
@@ -193,21 +193,38 @@ interface AheadBehind {
   behind: number;
 }
 
-async function countAheadBehind(
+/**
+ * Count ahead/behind commits between two arbitrary refs and classify the
+ * relationship. Runs `git rev-list --left-right --count <localRef>...<remoteRef>`,
+ * so `ahead` is commits reachable from `localRef` but not `remoteRef`, and
+ * `behind` the reverse.
+ *
+ * Ref-parameterized so any caller comparing a local ref against a tracking ref
+ * (HEAD vs `origin/<branch>`, a branch vs `origin/<base>`) shares one
+ * implementation. The returned `state` is always one of the healthy distance
+ * classifications (`clean` / `local-ahead` / `remote-ahead` / `diverged`);
+ * degraded states are the orchestrating caller's concern, not the distance's.
+ *
+ * @param exec - Git executor.
+ * @param localRef - Left side of the symmetric difference (the `ahead` side).
+ * @param remoteRef - Right side of the symmetric difference (the `behind` side).
+ * @returns Ahead/behind counts plus the classified distance state.
+ */
+export async function countAheadBehindRef(
   exec: GitExec,
-  branch: string,
-): Promise<AheadBehind> {
+  localRef: string,
+  remoteRef: string,
+): Promise<{ ahead: number; behind: number; state: WorktreeSyncState }> {
   const { stdout } = await exec("git", [
     "rev-list",
     "--left-right",
     "--count",
-    `HEAD...origin/${branch}`,
+    `${localRef}...${remoteRef}`,
   ]);
   const [aheadStr = "0", behindStr = "0"] = stdout.trim().split(/\s+/u);
-  return {
-    ahead: Number.parseInt(aheadStr, 10) || 0,
-    behind: Number.parseInt(behindStr, 10) || 0,
-  };
+  const ahead = Number.parseInt(aheadStr, 10) || 0;
+  const behind = Number.parseInt(behindStr, 10) || 0;
+  return { ahead, behind, state: classifyState({ ahead, behind }) };
 }
 
 function classifyState(counts: AheadBehind): WorktreeSyncState {

@@ -21,6 +21,7 @@ export {
 } from "./exec.js";
 
 export {
+  countAheadBehindRef,
   runWorktreeSyncStatus,
   type WorktreeSyncState,
   type WorktreeSyncStatusResult,
