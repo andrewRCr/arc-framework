@@ -11,12 +11,13 @@
 - **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** `tasks-merge-safety-mechanism.md`
 
-- **Last Completed:** Phase 1 (Tasks 1.1–1.3) — ref-parameterized behind-base distance primitive, session-init
-  base-distance probe slot, and the behind-base reconcile advisory (with branch-vs-base path overlap)
-- **Next Task:** Task 2.1 — Patch-equal supersession detector (line ~78)
+- **Last Completed:** Phase 2 (Tasks 2.1–2.4) — patch-equal supersession detector, diverged-handler
+  lossless-reset downgrade, advisory pre-push force-push hook, and its hook-manager installer wiring
+- **Next Task:** Task 3.1 — Extend `classifyWriteContext` (path-surface dimension + `chore/`-awareness) (line ~145)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — implement the patch-equal supersession detector over the local-ahead commit
-  set (`tasks-merge-safety-mechanism.md`).
+- **Next Action:** Begin Task 3.1 — extend `classifyWriteContext` with a path-surface dimension and
+  `chore/`-awareness, opening Phase 3 (write-context extensions + foreign-write backstop)
+  (`tasks-merge-safety-mechanism.md`).
 
 ---
