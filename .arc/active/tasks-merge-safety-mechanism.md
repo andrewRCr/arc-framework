@@ -75,20 +75,18 @@ diverged-handler mechanism stays coherent in one WU and is grounded in the live 
 extension stays `cross-machine-sync-coherence`'s. Enforcement is an advisory backstop throughout: it warns and
 offers the lossless reset, never auto-runs and never blocks. See `notes-merge-safety-mechanism.md`.
 
-### `[ ]` **2.1 Patch-equal supersession detector**
+### `[x]` **2.1 Patch-equal supersession detector**
 
 - _Goal:_ A detector identifies when local-ahead commits are patch-equal to a remote prefix (rebased
   equivalents), distinguishing true supersession from genuine divergence.
-- _Note:_ Patch-equality mechanism (`git patch-id` vs `git cherry` vs `git range-diff`) is implementation
-  detail — pick the most robust across real rebase shapes during the work; the detection itself is decided.
 - **Strategies:** strategy-testing-methodology.md
 
-    - Implement the patch-equality check over the local-ahead commit set; bound to that set, no full-history scan.
-
-    - Build `test-first` (one behavior at a time):
-        - local commits patch-equal to a rebased remote prefix → detected as superseded
-        - genuinely-divergent local commits (no patch-equal remote) → not superseded
-        - partial overlap (some superseded, some novel local) → not a clean supersession
+    - _Outcome:_ `detectSupersession` (`lib/git/supersession.ts`, exported from the git index) runs
+      `git cherry origin/<branch> HEAD` — bounded to the local-ahead set by construction — and classifies each
+      commit by patch-id (`-` superseded, `+` novel). `superseded` is true only when ≥1 local commit and all are
+      patch-equal; partial overlap and genuine divergence both stay false. Read-only and advisory: a bad-ref or
+      failed read degrades to not-superseded. `git cherry` chosen over raw `patch-id` / `range-diff` as the
+      idiomatic already-upstream check.
 
 ### `[ ]` **2.2 Diverged-handler downgrade with lossless-reset offer**
 

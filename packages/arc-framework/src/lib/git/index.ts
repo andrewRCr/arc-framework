@@ -35,6 +35,12 @@ export {
 } from "./base-distance.js";
 
 export {
+  detectSupersession,
+  type SupersessionResult,
+  type DetectSupersessionOptions,
+} from "./supersession.js";
+
+export {
   runWorktreeRoster,
   filterRosterByIdentity,
   resolvePrimaryWorktreePath,
