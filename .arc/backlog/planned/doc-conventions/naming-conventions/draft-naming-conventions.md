@@ -137,6 +137,27 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   workflow H1s. Pairs with the `ROADMAP → STATUS.PROJECT` rename this WU's family owns. Explicitly **not** the
   SAP 5.R workflow-coherence pass (too narrow for an ARC-wide convention).
 
+### `[ ]` **Reconcile the commit-footer meta-category set across method, hook, and test**
+
+- *Routed from:* `USER-INBOX § Atomic` (reclassified larger-than-atomic at drain), housekeep drain (2026-06-11);
+  captured decomposing `concurrent-work-conventions` (the `decompose-work-unit` ceremony commit).
+- *Concern:* the allowed `(category)` tokens for `Context: meta-*.md (...)` footers are out of sync across their
+  three homes. `decompose-work-unit.md` prescribes `(decomposition)`, but that token is in neither the
+  `commit-footer.md` method's enumerated meta categories nor the commit-msg hook regex — verified live: the hook
+  set is `(handoff|activation|integration|archival|deactivation|maintenance|incidental during …)`, so every
+  decomposition ceremony commit fails validation (worked around with `(maintenance)`). The method also lists
+  `(graduation)` (provisional→planned promotion), which the hook omits too.
+- *Approach:* add `decomposition` and reconcile `graduation` into the allowed set in **all three homes** — the
+  `commit-footer.md` method doc, the commit-msg hook regex + its example/error text, and
+  `commit-msg-footer.test.ts` — across **both** the package source and the `.arc/` instance copies. Design fork: is
+  `decomposition` its own category (lean: yes — `decompose-work-unit` frames it as a genuine lifecycle transition)
+  or does it fold into an existing token?
+- *Overlap:* subsumes the narrower "Add `(graduation)` as a commit-footer context category" capture drained
+  2026-06-11 — reconcile both tokens in one pass; don't double-build.
+- *Home note:* routed here as the commit-msg-hook / convention owner (pairs with this WU's commit-msg scope/type
+  adherence hook); `quality-gate-hooks` is the alternative generic-hook home if the method/test split lands better
+  there.
+
 ---
 
 ## Problem / Motivation
