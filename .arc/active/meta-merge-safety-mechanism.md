@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Planning` | `andrew` | `plan/merge-safety-mechanism` | `Heavy` | `P2` |
+| `Active` | `andrew` | `feat/merge-safety-mechanism` | `Heavy` | `P2` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** `concurrent-work-doctrine`
@@ -16,7 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` to flip `**State:**` to `Active` and rename the planning branch
-  when implementation is about to begin.
+- **Next Action:** Begin Task 1.1 — extract and export `countAheadBehindRef`; refactor `runWorktreeSyncStatus`
+  to consume it (`tasks-merge-safety-mechanism.md`).
 
 ---
