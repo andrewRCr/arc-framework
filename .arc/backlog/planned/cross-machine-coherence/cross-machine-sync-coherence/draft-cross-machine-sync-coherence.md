@@ -86,6 +86,25 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   adjacent § Scope-of-the-Concern entry (session-init `retiredSubdirs` probe too time-gated; `arc user load` only
   warns, doesn't remove; `session-init.md` Step 6 claims an auto-reconcile the tool doesn't perform).
 
+### `[ ]` **Re-ground T3 / `loadNeeded` drift-detection on the shared projection bridge**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), housekeep drain (2026-06-12);
+  captured during `async-merge-lifecycle` planning (buffer-drain + cross-machine forward-compat check).
+- *Concern:* the single-machine notes-merge idempotency + projection-aware status fix landed a canonical
+  projection / materialized-manifest builder shared by `arc user load` and status, replacing
+  `inspectDiskVsLocalSnapshot`'s raw-note comparison basis, plus tombstone-aware `appendRemovalTombstones`. This
+  WU's draft already dissects that same `inspectDiskVsLocalSnapshot` / `computeSessionInitLoadNeeded` / `loadNeeded`
+  path (the "Inbound from in-flight-awareness session" block), and its T3 sync-state drift-detection needs exactly
+  the projection-aware comparison.
+- *Proposed:* extend the projection builder rather than rebuild; shrink T3 to the drift-surfacing layer on top.
+  Re-ground this WU's defect-1/2 analysis once the bridge is confirmed in place — moving the comparison basis raw →
+  projection changes the classifier behavior that analysis was written against. Mirrors the existing CWC
+  behind-base-primitive extension relationship.
+- *Drain note (2026-06-12):* the capture framed the bridge as `async-merge-lifecycle`'s to land (option A); it was
+  since carved out and **shipped** as the sibling `notes-merge-coherence`. Verify whether the projection builder
+  already exists before planning the extension.
+- *Scope:* extension-on-existing; verify-then-extend.
+
 ---
 
 ## Problem / Motivation

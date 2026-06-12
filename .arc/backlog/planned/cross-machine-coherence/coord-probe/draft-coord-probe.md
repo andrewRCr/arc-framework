@@ -46,6 +46,20 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
   standalone split:** the `integrate-work-unit` Step 13 primary-worktree sub-gap (add a `git branch -d` on the
   in-place arm) is a contained workflow fix that could land independently.
 
+### `[ ]` **Coordinate the stale-local-branch reaper with `async-merge-lifecycle`'s post-merge teardown surface**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: coord-probe`), housekeep drain (2026-06-12); captured during
+  `async-merge-lifecycle` planning (cross-machine cohort adjacency check). Sibling to the § "Sweep stale local
+  branches" item above — the coordination angle on the same reaper.
+- _Concern:_ this WU's stale-local-branch reaper overlaps `async-merge-lifecycle`'s post-merge teardown surface
+  (same-session completion finalize + subdir-removal primitive + unattended-merge teardown). The same
+  `integrate-work-unit` Step 13 gap is in scope on both sides — it deletes the WU branch only on the
+  linked-worktree→`removable` arm, not the primary-worktree in-place arm.
+- _Proposed:_ whichever member specs first owns the branch reaper; the other extends, no double-build.
+  `async-merge-lifecycle`'s § Open (eager vs. lazy post-merge teardown) is the coordination point; the
+  `integrate-work-unit` Step 13 primary-worktree branch-delete sub-gap may be `async-merge-lifecycle`'s to close.
+- _Scope:_ coordination / no-double-build; resolve ownership at whichever member specs first.
+
 ## Problem / Motivation
 
 Session-init has no answer to "given my identity, where should I be working" when in-git signals fail or

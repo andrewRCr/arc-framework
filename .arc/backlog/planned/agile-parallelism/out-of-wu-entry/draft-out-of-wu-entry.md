@@ -28,6 +28,30 @@ capture-side and ergonomics gaps that surfaced alongside it.
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Add a `--new` / `--discover` Resume-arm override (3rd explicit-intent sibling)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: out-of-wu-entry`), housekeep drain (2026-06-12); captured
+  during `async-merge-lifecycle` planning (parallelism entry-path review).
+- *Concern:* this WU already owns the pattern — realign `session-init`'s entry dispatch so an explicit out-of-WU
+  signal *outranks* the implicit Resume, preserves the active checkout, and routes onward — but it enumerates only
+  `--errand` and (future) `--housekeep`. Starting a **new parallel WU** from a Resume arm (a session opened on an
+  active WU / non-primary worktree, wanting to start something new without manually hopping to primary) is the
+  uncaptured third sibling of the same realignment.
+- *Proposed:* extend the signal set with a `--new` / `--discover` override that redirects a Resume-arm session to
+  the discovery / new-WU-start surface (which already consults `assess-parallel-fit`). Same precedence rule
+  (outrank resume, preserve checkout) as `--errand` / `--housekeep`.
+- *Caveat (don't over-invest):* acuteness is largely a **pre-parallelism artifact** — under worktree-by-default a
+  new parallel WU spawns its own worktree (cold-enter fresh), so the `--new` need softens. Still a reasonable
+  ergonomic; size accordingly.
+- *Scope:* signal-set extension on this WU's own dispatch realignment.
+
+---
+
 ## Problem / Motivation
 
 A developer should be able to be mid-work-unit — potentially with multiple WUs in flight — realize they
