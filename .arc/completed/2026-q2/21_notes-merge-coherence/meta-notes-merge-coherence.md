@@ -2,7 +2,7 @@
 
 | **State**      | **Owner** | **Branch**                   | **Class** | **Priority** |
 | -------------- | --------- | ---------------------------- | --------- | ------------ |
-| `Integrating`  | `andrew`  | `fix/notes-merge-coherence`  | `Heavy`   | `P2`         |
+| `Shipped`      | `andrew`  | `fix/notes-merge-coherence`  | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
