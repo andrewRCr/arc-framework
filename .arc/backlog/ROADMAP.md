@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `ab65af33`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5d46f4e3`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -20,6 +20,7 @@ _No work units in this tier._
 | ---------------------------- | -------- | ------ | ---------- | --------------------------- |
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
+| decompose-work-unit-arms     | P1       | andrew | —          | —                           |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
@@ -61,14 +62,15 @@ _No work units in this tier._
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on             | Cohort                      |
-| ----------------------------- | -------- | ------ | ---------------------- | --------------------------- |
-| arc-plan-conductor            | P2       | andrew | loadset-composition    | —                           |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                           |
-| documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization  |
-| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization  |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation    |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness           |
+| Work unit                     | Priority | Owner  | Depends on                                                                                               | Cohort                     |
+| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------- | -------------------------- |
+| finalize-parallelism          | P1       | andrew | async-merge-lifecycle, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
+| arc-plan-conductor            | P2       | andrew | loadset-composition                                                                                      | —                          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                   | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                   | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                        | release-readiness          |
 
 ### Depth 2
 
