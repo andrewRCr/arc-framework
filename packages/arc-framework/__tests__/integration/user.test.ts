@@ -1282,6 +1282,30 @@ describe("user status", () => {
     if (cloneDir) await cleanupTempDir(cloneDir);
   });
 
+  it("reads current after a removal-bearing save and stays current across repeats", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\n${header} body.`;
+    const wmFile = (...entries: string[]): string =>
+      `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+    const wmPath = join(userDir, "WORKING-MEMORY.md");
+
+    await writeFile(wmPath, wmFile(wmEntry("Kept"), wmEntry("Dropped")), "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Remove an entry and save again — the note gains a `## Removed:` tombstone the disk never carries.
+    await writeFile(wmPath, wmFile(wmEntry("Kept")), "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    const afterRemoval = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    expect(afterRemoval.diskStatus).toBe("current");
+
+    // A second save with no disk edits, then status, stays current across the loop.
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const afterRepeat = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    expect(afterRepeat.diskStatus).toBe("current");
+  });
+
   it("reports remote-ahead status with an actionable pull hint", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");

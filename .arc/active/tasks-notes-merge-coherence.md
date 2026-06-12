@@ -77,32 +77,24 @@ side is projected and the other raw, which still mismatches.
   tests pin strip / byte-identical round-trip / subdir passthrough / version; merge byte-identical guards still
   green (38 tests across both suites).
 
-### `[ ]` **3.2 Route all coherence bases through the projection**
+### `[x]` **3.2 Route all coherence bases through the projection**
 
 - _Goal:_ Every coherence comparison and every stored hash derives from `projectManifest`, so a clean post-sync
   tree reads `current` with no `arc user load` needed, and the save basis, load basis, and status basis are one
   projection.
-- _Approach:_ Project both sides before comparing; preserve the existing direction logic
-  (`computeUnsavedDirection`, the `note.commit !== sourceCommit` ancestor / mixed branches) and only project the
-  manifests handed to it, keeping all hash comparisons within one basis.
-- _Note:_ `hashSyncManifest` (`commands/user/save-load.ts`) and `SyncManifest` (`lib/git/user-sync.ts`) are
-  unchanged; hashing stays at the call sites so `projectManifest` keeps no command-layer dependency.
 
-    - `inspectDiskVsLocalSnapshot` (`commands/user/sync-status.ts`): the disk-vs-note equality test compares
-      `projectManifest(noteManifest)` against `projectManifest(diskManifest)` (was raw
-      `manifestsEqual(noteManifest, diskManifest)`); the note hash and disk hash in the materialized-basis
-      branches are hashed over their projections.
-    - `materializedManifestHash` (`commands/user/save-load.ts`): the hash passed to `writeLocalSyncState` is
-      `hashSyncManifest(projectManifest(...))` at both `runUserSave` and `runUserLoad`.
-
-    - Build `test-first` (one behavior at a time):
-        - A removal-bearing save followed by `arc user status` reads `current` on an unmodified tree (no false
-          `local unsaved`).
-        - A save → status loop with no edits stays `current` across repeats.
-        - Existing direction classifications are preserved under the projected bases, including the
-          `note.commit !== sourceCommit` ancestor / `mixed` branches (which compare `diskHash` against
-          `materializedHash` — both now projected): projecting changes the equality verdict on tombstone-only
-          differences, not the direction taxonomy (`behind` / `mixed` / `modified` / `missing`).
+- _Outcome:_ `inspectDiskVsLocalSnapshot` (`commands/user/sync-status.ts`) now projects both sides before
+  comparing: `noteHash` / `diskHash` hash over `projectManifest(...)`, the equality test runs
+  `manifestsEqual(projectedNote, projectedDisk)`, and `computeUnsavedDirection` is handed the projected
+  manifests — one basis throughout, including the `note.commit !== sourceCommit` ancestor / mixed branches.
+  `materializedManifestHash` written by `writeLocalSyncState` is `hashSyncManifest(projectManifest(...))` at both
+  `runUserSave` and `runUserLoad`, so the stored basis matches. The readback-integrity hashes
+  (`verifyMaterializedUserDir` / `verifySavedNote`) stay raw — they verify the on-disk/note round-trip
+  byte-for-byte, tombstones included. `hashSyncManifest` and `SyncManifest` unchanged; hashing stays at the call
+  sites, so `projectManifest` keeps no command-layer dependency. Two unit tests (tombstone-only diff reads
+  `current`; a genuine cross-WU edit still reads `local unsaved` under projection) plus one end-to-end
+  integration test (removal-bearing save → status `current`, stable across a repeat save) cover it; all existing
+  direction classifications preserved.
 
 ## **Phase 4:** HEAD-ancestor freshness recognition
 
