@@ -1,8 +1,8 @@
 # Metadata: notes-merge-coherence
 
-| **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------- | --------- | ------------ |
-| `Active`   | `andrew`  | `fix/notes-merge-coherence`  | `Heavy`   | `P2`         |
+| **State**      | **Owner** | **Branch**                   | **Class** | **Priority** |
+| -------------- | --------- | ---------------------------- | --------- | ------------ |
+| `Integrating`  | `andrew`  | `fix/notes-merge-coherence`  | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
