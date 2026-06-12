@@ -107,6 +107,25 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.behind).toBe(3);
   });
 
+  it("degrades to remote-unavailable when the distance read fails after fetch", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: () => {
+        throw new Error("fatal: bad revision");
+      },
+    });
+
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: true });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.failureReason).toBe("error");
+    expect(result.ahead).toBe(0);
+    expect(result.behind).toBe(0);
+    expect(result.branch).toBe("main");
+  });
+
   it("returns local-ahead with the correct ahead count", async () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },

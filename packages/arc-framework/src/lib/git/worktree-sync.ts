@@ -131,8 +131,18 @@ export async function runWorktreeSyncStatus(
     };
   }
 
-  const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${branch}`);
-  return { state, ahead, behind, branch };
+  try {
+    const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${branch}`);
+    return { state, ahead, behind, branch };
+  } catch {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch,
+      failureReason: "error",
+    };
+  }
 }
 
 /**

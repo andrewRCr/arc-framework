@@ -119,6 +119,30 @@ describe("runBaseDistanceStatus", () => {
     expect(result.behind).toBe(0);
   });
 
+  it("degrades to remote-unavailable when the distance read fails after fetch", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },
+      [GET_ORIGIN]: { stdout: "git@github.com:owner/repo.git", stderr: "" },
+      [FETCH_BASE]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: () => {
+        throw new Error("fatal: bad revision");
+      },
+    });
+
+    const result = await runBaseDistanceStatus({
+      exec,
+      baseBranch: "main",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.failureReason).toBe("error");
+    expect(result.ahead).toBe(0);
+    expect(result.behind).toBe(0);
+    expect(result.base).toBe("main");
+    expect(result.overlappingPaths).toEqual([]);
+  });
+
   it("reports local-ahead when the branch carries commits the base does not", async () => {
     const { exec } = buildExec({
       [REV_PARSE_HEAD]: { stdout: "feat/x", stderr: "" },

@@ -83,7 +83,7 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
  */
 export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
   recommendedAction: RecommendedAction;
-  /** Composed prompt text when `recommendedAction === "prompt"`; empty string otherwise. */
+  /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
   recommendedPromptText: string;
 }
 

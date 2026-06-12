@@ -112,7 +112,22 @@ export async function runBaseDistanceStatus(
     };
   }
 
-  const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${baseBranch}`);
+  let ahead: number;
+  let behind: number;
+  let state: WorktreeSyncState;
+  try {
+    ({ ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${baseBranch}`));
+  } catch {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      base: baseBranch,
+      overlappingPaths: [],
+      failureReason: "error",
+    };
+  }
+
   // Overlap only matters when both sides moved (diverged) — a rebase replays the
   // branch's commits over the advanced base, so shared paths are the conflict
   // surface. A pure behind (remote-ahead) has no branch-side changes to clash.
