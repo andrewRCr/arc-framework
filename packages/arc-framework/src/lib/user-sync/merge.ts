@@ -13,6 +13,7 @@
  */
 
 import { parseCrossWuEntries, shapeForFile } from "./parser.js";
+import { stripTombstoneSections } from "./projection.js";
 import type { CrossWuEntry, CrossWuShape } from "./types.js";
 
 /** Section-scoped identity key shared by entries and tombstones. */
@@ -416,26 +417,4 @@ function parseTombstones(content: string): TombstoneParse[] {
   }
   flush();
   return out;
-}
-
-/**
- * Strip every `## Removed:` section from `content` (heading through the line
- * before the next top-level boundary). A no-op when no marker is present, so
- * tombstone-free content round-trips byte-for-byte.
- */
-function stripTombstoneSections(content: string): string {
-  if (!/^## Removed:/mu.test(content)) return content;
-
-  const out: string[] = [];
-  let skipping = false;
-  for (const line of content.split("\n")) {
-    if (TOMBSTONE_HEADING.test(line)) {
-      skipping = true;
-      continue;
-    }
-    const trimmed = line.trimEnd();
-    if (skipping && (trimmed.startsWith("## ") || trimmed === "---")) skipping = false;
-    if (!skipping) out.push(line);
-  }
-  return out.join("\n").replace(/\n{3,}/gu, "\n\n").replace(/\n+$/u, "\n");
 }

@@ -40,6 +40,8 @@ export {
   type MergeResult,
 } from "./merge.js";
 
+export { projectManifest } from "./projection.js";
+
 export {
   collectNotesWuNames,
   planRetiredSubdirReconcile,

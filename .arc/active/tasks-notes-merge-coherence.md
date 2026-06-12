@@ -59,29 +59,23 @@ _Design decisions:_ The projection is authored as the eventual tombstone-free re
 basis move onto the projection together (Task 3.2) — splitting them would leave a mid-sequence state where one
 side is projected and the other raw, which still mismatches.
 
-### `[ ]` **3.1 `projectManifest` primitive and `stripTombstoneSections` lift**
+### `[x]` **3.1 `projectManifest` primitive and `stripTombstoneSections` lift**
 
 - _Goal:_ One exported pure function returns the tombstone-free manifest — cross-WU `## Removed:` sections
   stripped, per-WU subdir files passed through unchanged — and is consumable by `cross-machine-sync-coherence`
   as-is.
-- _Shape:_ `projectManifest(manifest: SyncManifest) → SyncManifest` in a new `lib/user-sync/projection.ts`,
-  surfaced through `lib/user-sync/index.ts`.
 
-    - `[ ]` **3.1.a Create `projection.ts` and lift `stripTombstoneSections`**
-        - Move `stripTombstoneSections` from `merge.ts` into `projection.ts` as a self-contained function with its
-          own local `## Removed:` boundary regex; `mergeCrossWuFile` imports it back (it still strips the base at
-          reconstruction time). `parseTombstones` / `isLiveTombstone` and their `TOMBSTONE_HEADING` constant stay
-          in `merge.ts`, so the dependency runs one-directional `merge → projection` with no cycle.
-        - Implement `projectManifest`: for each cross-WU file return its `stripTombstoneSections` content; leave
-          per-WU subdir files untouched. Pure function of an existing manifest — no new git calls, no hashing.
-        - Build `test-first` (one behavior at a time):
-            - A tombstone-bearing cross-WU file projects to its stripped content.
-            - Tombstone-free content round-trips byte-identical through the projection.
-            - Per-WU subdir files pass through unchanged.
+    - `[x]` **3.1.a Create `projection.ts` and lift `stripTombstoneSections`**
+    - `[x]` **3.1.b Export `projectManifest` from `lib/user-sync`**
 
-    - `[ ]` **3.1.b Export `projectManifest` from `lib/user-sync`**
-        - Add `projectManifest` (and its module) to `lib/user-sync/index.ts` alongside the existing merge
-          exports; confirm no import path reaches back into `commands/` or `handlers/`.
+- _Outcome:_ New `lib/user-sync/projection.ts` holds `projectManifest(manifest) → SyncManifest` (cross-WU files,
+  keyed by `shapeForFile(path) !== null`, return their `stripTombstoneSections` content; per-WU subdir files and
+  any shapeless path pass through; version preserved) plus the lifted `stripTombstoneSections` with its own
+  local `## Removed:` heading regex. `mergeCrossWuFile` imports it back, so the dependency runs one-directional
+  `merge → projection` (no cycle; build clean). `projectManifest` is exported from `index.ts`; the helper is not —
+  merge consumes it by direct module import, keeping the public surface minimal and command-layer-free. Four
+  tests pin strip / byte-identical round-trip / subdir passthrough / version; merge byte-identical guards still
+  green (38 tests across both suites).
 
 ### `[ ]` **3.2 Route all coherence bases through the projection**
 
