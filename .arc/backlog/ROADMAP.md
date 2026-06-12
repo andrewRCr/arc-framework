@@ -29,6 +29,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement    |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
 | single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
+| worktree-default-start       | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
@@ -68,14 +69,14 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                               | Cohort                     |
-| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------- | -------------------------- |
-| finalize-parallelism          | P1       | andrew | async-merge-lifecycle, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                   | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                   | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                        | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                                                                                                                       | Cohort                     |
+| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| finalize-parallelism          | P1       | andrew | async-merge-lifecycle, worktree-default-start, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                                           | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                                             | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                                             | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                                           | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                                                | release-readiness          |
 
 ### Depth 2
 

@@ -6,10 +6,10 @@
   gap, and owns the unattended-merge completion trigger.
 - **Purpose:** Ship the lifecycle accommodation for async merge — the suspend/resume seam at the PR-open boundary,
   the in-flight completion sweep (forcing function across the full tail), same-session finalize +
-  integration-failure surfacing, and merge-gate-awareness (option B, additive on `integrate-work-unit`) — plus the
-  loose lifecycle plumbing the fold absorbed: the `arc start` create-new worktree-spawning wiring, the
-  subdir-removal primitive, and cohort-`{name}.md` discovery at session-init. The async-merge touchpoints are
-  **largely shipped**, so this is mostly *audit-don't-rebuild* (option B, additive).
+  integration-failure surfacing, the post-merge notes-sync leg, the standalone `integration` footer emission, and
+  merge-gate-awareness (option B, additive on `integrate-work-unit`). The async-merge touchpoints are **largely
+  shipped**, so this is mostly *audit-don't-rebuild* (option B, additive). Owns the async-merge *completion* tail;
+  the start-time spawn/steering surfaces are the sibling `worktree-default-start`'s.
 
 ---
 
@@ -131,54 +131,6 @@ is orthogonal (the auto-merge lane); the suspend/resume seam + completion sweep 
 `commit-msg` / integration-footer path) — so re-ground the touchpoint sweep against current shipped code before
 sizing, per the cohort's "ground every buildable against shipped reality" discipline.
 
-### Folded lifecycle plumbing
-
-The fold absorbed three pieces of loose plumbing that belong with the lifecycle mechanism:
-
-- **`arc start` create-new worktree-spawning wiring.** `arc start --here` (cold-start: scaffold into an existing
-  worktree, `createdByArc: false`) shipped with Worktree Foundation; the worktree-*spawning* create-new mode —
-  plain `arc start` — is still unwired and is this member's to build. The `spawnWorktree` primitive exists
-  (`worktree-scaffold.ts`, wrapping `git worktree add -b`) with **no CLI caller** today; only the verb that
-  spawns-then-scaffolds is missing. (Extracted from AWL 2026-06-03. The `--tier` flag grammar this was once paired
-  with is **moot** — `class-model-foundation` retired the `atomic` / `quick` / `standard` tier model for `Class`,
-  which resolves during planning, not via a CLI flag.) Wiring create-new also rewrites `start.ts`'s now-stale
-  module doc, which still says the verb will gain "worktree creation + tier flags" — drop the retired tier-flag
-  reference as part of landing the spawn mode.
-- **Subdir-removal primitive** — the `arc user close` / per-WU subdir teardown the synchronous chain currently
-  couples to merge.
-- **Cohort-`{name}.md` discovery at session-init** — agent awareness of the coordinating cohort doc is load-bearing
-  for parallelism actually coordinating (`AGENT-BRIEF.ARC` note + optional session-init surfacing). Owned here as
-  the session-init surface; all members rely on the doc being read.
-
-### Worktree-by-default steering for new work units
-
-Wiring create-new `arc start` (above) makes worktree-spawning *available*; this makes it the *default*, so
-parallelism is the lived default rather than a manual opt-in. The "worktree or not" decision is **mechanical** —
-branch-protection mode × worktree-spawn availability — and **identical to the errand relocation `run-errand` Launch
-already does**: under full protection spawn an isolated worktree when spawning is available, else cut the branch in
-the primary's base checkout; under partial, no branch (direct base commit). It is **not** `Class`- or depth-keyed
-(worktree isolation is agent-safety, weight-independent; errands get ephemeral worktrees too — so the conductor's
-"atomic skips / light optional / heavy-novel always" framing is stale on every axis).
-
-`init-work-unit` already documents the two modes (in-place / worktree-creating) but leaves them caller-selected with
-no default, and its worktree-creating mode delegates to exactly the spawn entry this WU wires. Make worktree-creating
-the **default under full protection** (spawn available), steered by the `arc-session` / session-init new-WU dispatch
-— the WU analogue of `run-errand` Launch. The conductor plays no role (its §5 worktree-orchestration is OBE). Without
-this flip, ARC ships every parallelism mechanic yet `init` keeps creating WUs in-place unless manually steered — the
-exact failure mode to avoid.
-
-**Scope boundary:** this lands the *default flip* (the mechanical protection × spawn-availability decision). The
-end-to-end *verification* of worktree-default across genuinely-concurrent WUs belongs to the downstream
-parallelism-closeout audit, not this member.
-
-### `Class`-aware plate-balance — the session-init surface
-
-The plate-balance *doctrine* is `concurrent-work-doctrine`'s; this member owns the single advisory annotation line
-fed into session-init's next-work discovery so suggestions account for in-flight composition — when a `Heavy` /
-`Novel` stream is already open, surface the parallelism caveat (the `Class` model's "roughly one genuinely-novel
-stream" balance rule). **Awareness-only, never paternalistic** — it surfaces once and never suppresses, reorders,
-gates, or re-nags. Consumes the `Class` contract; does not redefine it.
-
 ---
 
 ## Design Decisions carried into the spec
@@ -208,15 +160,10 @@ teardown-completeness gap. Whichever member specs first owns the reaper; don't d
 **Medium — workflows + session-init probe, mostly additive.** Audit-don't-rebuild: the async-merge touchpoints are
 largely shipped (`archive.cadence: manual` + the stale/in-flight sweeps). Net-new is the suspend/resume seam, the
 completion sweep (full tail through archival), the same-session finalize pass, merge-gate-awareness, the
-post-merge notes-sync leg (the workflow wiring only — engine correctness is the `notes-merge-coherence`
-dependency), the `integration` footer emission, the worktree-by-default steering flip, plus the folded plumbing
-(`arc start` create-new wiring, subdir primitive, cohort-doc discovery). The `lib/user-sync/` correctness surface
-was extracted to `notes-merge-coherence`, so this member is back to a single primary surface (workflows +
-session-init).
-
-> **Watch:** this member may itself prove too large for one PR and recurse into a split. It is already at the
-> one-level nesting cap, so a further split fans out laterally as siblings under
-> `agile-parallelism/concurrent-work-conventions/`, not nested deeper.
+post-merge notes-sync leg (the workflow wiring only — engine correctness is the shipped `notes-merge-coherence`
+dependency), and the `integration` footer emission. With the start-time spawn/steering surfaces carved off to
+`worktree-default-start` and the `lib/user-sync/` correctness extracted to `notes-merge-coherence`, this member is
+a single coherent concern over one primary surface (workflows + session-init) — the async-merge completion tail.
 
 ### Dependencies
 
@@ -224,12 +171,12 @@ session-init).
   `assess-parallel-fit`) and `merge-safety-mechanism` (PR #83 — the behind-base primitive the completion sweep
   reuses; the `Context: integration (...)` validator-accept this member emits against). Both shipped deps that
   gated this member have landed; the soft "merge-safety precedes" edge is satisfied.
-- **Internal (cohort sibling, unshipped):** `notes-merge-coherence` — the `lib/user-sync/` notes-merge engine
-  correctness (idempotent tombstone resolution + canonical materialized-manifest builder + `ancestor`-freshness)
-  this member's post-merge notes-sync leg consumes. Extracted from this draft at create-spec; **build-first
-  edge** — the finalize sync is deterministically broken without it.
+- **Internal (cohort sibling, shipped):** `notes-merge-coherence` (`completed/2026-q2/21_…`) — the `lib/user-sync/`
+  notes-merge engine correctness (idempotent tombstone resolution + canonical materialized-manifest builder +
+  `ancestor`-freshness) this member's post-merge notes-sync leg consumes. Extracted from this draft at an earlier
+  create-spec pass; **build-first edge** — the finalize sync is deterministically broken without it. Now landed,
+  so the leg can ground against the settled engine.
 - **Substrate (shipped):** `archive.cadence: manual`, the stale-worktree + session-init in-flight sweeps, the
-  errand sweep's PR-state classification, the inbox-reminder machinery + once-per-day marker, WF's `spawnWorktree`,
-  the `Class` contract.
+  errand sweep's PR-state classification, the inbox-reminder machinery + once-per-day marker, the `Class` contract.
 - **Soft dep:** `composable-workflows` (for the eager-teardown shared-step hoist of `decompose-work-unit`'s
   park-exit block).

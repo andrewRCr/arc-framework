@@ -1,6 +1,6 @@
 # Cohort: `concurrent-work-conventions`
 
-> _Coordination record for the concurrent-work-conventions sub-cohort — the four single-owner members that
+> _Coordination record for the concurrent-work-conventions sub-cohort — the single-owner members that
 > together close the agile-parallelism cohort by shipping **both halves** of principled multi-WU work: the
 > conventions layer and the merge-safety + lifecycle mechanism that makes those conventions real. Internal-dev-
 > facing; not shipped. Each member's detailed design lives in its own `draft-*`; this record holds only what the
@@ -13,8 +13,9 @@
 Conventions — split along natural deliverable boundaries into four single-owner member WUs: the conventions
 doctrine (`concurrent-work-doctrine`), the merge-safety mechanism (`merge-safety-mechanism`), the async-merge
 lifecycle accommodation (`async-merge-lifecycle`), and the single-owner-WU model rewrite (`single-owner-wu-model`) —
-plus a fifth member extracted later as a prerequisite: `notes-merge-coherence`, the single-machine notes-merge
-engine correctness `async-merge-lifecycle`'s post-merge notes-sync leg depends on (see § Coordination provenance).
+plus two members later extracted laterally from `async-merge-lifecycle` (see § Coordination provenance):
+`notes-merge-coherence`, the single-machine notes-merge engine correctness its post-merge notes-sync leg depends
+on, and `worktree-default-start`, the start-time spawn/steering surfaces (the origin keeps the completion tail).
 The members share one design and dense internal coordination — a reused behind-base primitive, a shared
 projection builder, the doctrine spine the other three reference, the append-only-until-integration principle, and
 the cohort-doc concurrency exception — which is what makes this a coordinating sub-cohort rather than a flat
@@ -36,7 +37,9 @@ concurrent-work-doctrine            (spine — no internal deps; carries most of
         │            └── async-merge-lifecycle   (deps: doctrine, merge-safety-mechanism, notes-merge-coherence —
         │                                          reuses the behind-base primitive in its completion sweep; its
         │                                          notes-sync leg consumes notes-merge-coherence's engine)
-        └── single-owner-wu-model           (deps: doctrine)
+        ├── single-owner-wu-model           (deps: doctrine)
+        └── worktree-default-start          (deps: doctrine — start-time spawn/steering; extracted laterally
+                                             from async-merge-lifecycle, parallel to it)
 
 notes-merge-coherence               (no internal deps — orthogonal lib/user-sync correctness; build-first
                                      prerequisite of async-merge-lifecycle's notes-sync leg)
@@ -49,15 +52,21 @@ sits outside the doctrine spine (orthogonal engine correctness) but is a **build
 `async-merge-lifecycle` — land it before that member executes. Members land uniformly in `backlog/planned/`; each
 activates separately, in dependency order, via `init-work-unit` Path A.
 
-> **Watch (partially realized):** `async-merge-lifecycle` proved large enough that its orthogonal `lib/user-sync/`
-> correctness surface was extracted laterally as `notes-merge-coherence` (the lateral fan-out the cap predicted —
-> a sibling here, not a deeper nest). The remaining async-merge core may still recurse; any further split fans out
-> laterally as siblings, never nested deeper than this two-segment cap.
+> **Watch (realized twice):** `async-merge-lifecycle` proved large enough that two orthogonal surfaces were
+> extracted laterally as siblings (the lateral fan-out the cap predicted — siblings here, not a deeper nest):
+> first its `lib/user-sync/` correctness as `notes-merge-coherence`, then its start-time spawn/steering surfaces
+> as `worktree-default-start`. The origin now reads as a single coherent concern (the async-merge completion
+> tail); any further split would again fan out laterally, never nested deeper than this two-segment cap.
 
 ### Coordination provenance
 
 Fanned out from `async-merge-lifecycle`: `notes-merge-coherence` (at-cap lateral extraction — the origin survives
 as a still-active member; only its orthogonal `lib/user-sync/` engine-correctness surface was carved off).
+
+Fanned out from `async-merge-lifecycle`: `worktree-default-start` (at-cap lateral extraction at create-spec — the
+origin survives as a still-active member; its start-time spawn/steering surfaces — `arc start` create-new wiring,
+worktree-by-default flip, `Class`-aware plate-balance, cohort-doc discovery — were carved off, leaving the origin
+the async-merge completion tail).
 
 ### Shared contracts
 
@@ -90,11 +99,11 @@ Cross-member design no single member owns — each names the owning member's spe
 
 - **`Class`-aware plate-balance awareness.** The doctrine ("roughly one genuinely-novel stream" balance rule) is
   `concurrent-work-doctrine`'s; the single advisory annotation line fed into session-init's next-work discovery is
-  `async-merge-lifecycle`'s surface. Both consume the `Class` contract (shipped with `class-model-foundation`);
+  `worktree-default-start`'s surface. Both consume the `Class` contract (shipped with `class-model-foundation`);
   neither redefines it. Awareness-only — surfaces once, never gates / reorders / re-nags.
 
 - **Cohort-`{name}.md` discovery at session-init.** Agent awareness of the coordinating cohort doc is load-bearing
-  for parallelism actually coordinating. _Owner:_ `async-merge-lifecycle` (the session-init discovery + optional
+  for parallelism actually coordinating. _Owner:_ `worktree-default-start` (the session-init discovery + optional
   surfacing; `AGENT-BRIEF.ARC` note). _Consumers:_ all members rely on the doc being read for their cross-member
   coordination to land.
 
@@ -159,11 +168,12 @@ Seams whose home is another cohort, recorded here so they have a visible owner.
 
 ### Closeout criteria
 
-The sub-cohort — and with it the parent `agile-parallelism` cohort — archives when **all five members have
+The sub-cohort — and with it the parent `agile-parallelism` cohort — archives when **all six members have
 shipped**: the conventions doctrine, the merge-safety mechanism, the async-merge lifecycle accommodation, the
-single-owner-WU model rewrite, and the notes-merge engine correctness (`notes-merge-coherence`). The parent
-cohort's closeout was explicitly gated on the merge-safety cluster landing somewhere (not merely the conventions
-doc shipping); that cluster is distributed across `merge-safety-mechanism` and `async-merge-lifecycle` here.
+single-owner-WU model rewrite, the notes-merge engine correctness (`notes-merge-coherence`), and the
+worktree-default start steering (`worktree-default-start`). The parent cohort's closeout was explicitly gated on
+the merge-safety cluster landing somewhere (not merely the conventions doc shipping); that cluster is distributed
+across `merge-safety-mechanism` and `async-merge-lifecycle` here.
 
 ## Members
 
@@ -195,9 +205,8 @@ detector covers the cohort doc as the most-shared planning artifact.
 
 _Exposes:_ the suspend/resume seam at the PR-open boundary; the in-flight completion sweep (forcing function,
 full tail `awaiting-review → mergeable → merged-needs-archival → archived`); same-session finalize +
-integration-failure surfacing; merge-gate-awareness / unattended-merge completion trigger (option B, additive on
-`integrate-work-unit`); the `arc start` create-new worktree-spawning wiring; the subdir-removal primitive;
-cohort-`{name}.md` discovery at session-init.
+integration-failure surfacing; the post-merge notes-sync leg; the standalone `integration` footer emission;
+merge-gate-awareness / unattended-merge completion trigger (option B, additive on `integrate-work-unit`).
 
 _Consumes:_ `concurrent-work-doctrine` (the async-merge conventions); `merge-safety-mechanism`'s behind-base
 primitive (reused in the completion sweep); `notes-merge-coherence`'s notes-merge engine (its post-merge
@@ -225,6 +234,20 @@ apparatus (Personal-Sub-Branches, Stacked-PRs-per-Developer, shared-meta concurr
 
 _Consumes:_ `concurrent-work-doctrine` (the conventions framing the model sits inside). Separable execution; real
 weight as the final increment of the stack.
+
+### `worktree-default-start`
+
+_Exposes:_ the `arc start` create-new worktree-spawning wiring (the unwired CLI caller for the shipped
+`spawnWorktree` primitive); the worktree-by-default steering flip (worktree-creating as the default under full
+protection, mirroring `run-errand` Launch's relocation logic); the `Class`-aware plate-balance session-init
+advisory surface; cohort-`{name}.md` discovery at session-init. Owns the plate-balance and cohort-doc-discovery
+shared contracts above.
+
+_Consumes:_ `concurrent-work-doctrine` (the plate-balance balance rule its advisory surface implements; the
+coordination doctrine the cohort-doc discovery serves). Substrate (shipped): WF's `spawnWorktree` + location
+templating, the full-protection scaffold guard, `arc user close`, the `classComposition()` utility, the `Class`
+contract. Extracted laterally from `async-merge-lifecycle` at create-spec; parallel to it (start-side vs.
+completion-side).
 
 ## ADR anchors
 
