@@ -7,6 +7,57 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **The errand⇄WU wrapper gate is mis-specified as size; it should be character**
+
+- *Routed from:* `arc-plan-conductor` decomposition session (2026-06-12) — design discussion surfaced while
+  hand-running this WU's own motivating instance.
+- *Observation:* ARC's implicit mapping is `atomic capture → errand`, `multi-step capture → WU` (a clean 1:1). The
+  gap is **multi-step work that is still errand-class** — one logical concern, several gated increments, pure
+  maintenance. A decomposition like the conductor's is the canonical example: errand-shaped in character, not in
+  size.
+- *Discriminator (the real axis):* **does the work author/settle design, or relocate already-settled design?** —
+  paired with **does it write durable surfaces (code, rules, strategies, methods, workflows) or only movable
+  planning artifacts (drafts, metas, stubs, buffers, ROADMAP, inbox)?** A spec earns its keep only when there is
+  design to *settle*; a task list only when there is settled design to *decompose into ordered steps*. Pure
+  relocation/maintenance has neither — the spec would be empty and the task list would just restate the inbox — so
+  it is errand-class **even when multi-increment**. Size / increment-count is not the gate.
+- *Why the errand envelope already fits:* chore-branch isolation, no `meta`/`spec`/`tasks`, state derived from
+  branch + PR. The only thing that breaks is the word *atomic* in the errand's current definition ("one logical
+  concern that fits one review increment"). Decouple "one concern" from "one increment" and the existing primitive
+  absorbs this with no new machinery.
+- *Invariant that keeps it honest:* a decomposition **relocates** designs to homes and never authors *at* the home
+  — a home that needs real authoring is routed *as* a future increment (a new stub, an inbound-buffer note, or a
+  spawned atomic errand), so the decomposition stays errand-class even when a destination is a durable surface.
+  (Live confirmation: the 2026-06-12 conductor decomposition routed PR-sized boundary estimation *out* as its own
+  atomic errand rather than editing `strategy-work-planning.md` inline.)
+- *Implication for this WU:* the backlog-stub-source (arm 2) and heterogeneous-home (arm 3) arms **are**
+  errand-class decomposition. Consider (a) making `decompose-work-unit` runnable as a multi-increment errand — no
+  `meta`/`spec`/`tasks` — and (b) codifying the author-vs-relocate boundary in `strategy-work-organization`
+  § Errand Work Class so the wrapper choice is gated on character, not increment-count. This reframes the WU from
+  "more decomposition arms" toward "decomposition is an errand-class operation with arms," which may widen scope —
+  settle at spec time.
+
+### `[ ]` **Decomposition facilitation: team-ownership motivation + lifecycle-timing axis**
+
+- *Routed from:* `arc-plan-conductor` draft Inbound Buffer (origin: `USER-INBOX § Backlog`, captured during
+  `concurrent-work-conventions` planning 2026-06-03), re-homed here at the conductor decomposition (2026-06-12).
+- *Concern:* existing decomposition guidance (the conductor's § 11) owns plan-splitting (one draft → several) and
+  spec-decomposition (one plan → many WUs) but frames both around *manageability* / *implementation count* only —
+  never *ownership distribution* — and its splitting is entirely pre-spec.
+- *Proposed:* (1) add splitting motivated by **distributing pieces across distinct single-owner devs** — the direct
+  corollary of `concurrent-work-conventions`' "WU = single-owner; cross-person parallelism = decompose into N
+  single-owner WUs, not multi-dev-per-WU"; (2) add a **lifecycle-timing axis** — smooth/supported at draft +
+  pre-activation stages, with mid-implementation split treated as an explicit costly escape hatch (the inverse of
+  the integration-conflict research's "abandon parallelism, redo as unified"). This is the corollary work to the
+  errand-gate item above: both are about *what shape* decomposition takes and *when*.
+
+---
+
 ## Problem / Motivation
 
 `decompose-work-unit.md` models decomposition as a **single, strictly symmetric** transform:

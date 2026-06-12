@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5d46f4e3`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6aebef5e`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -31,6 +31,7 @@ _No work units in this tier._
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
+| planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization  |
 | cli-test-hardening           | P3       | andrew | —          | architecture-remediation    |
