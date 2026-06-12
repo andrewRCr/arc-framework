@@ -116,6 +116,11 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
   unpushed commit (typo, lint, missing file from the same logical change); otherwise create a
   new commit. Never amend pushed commits without explicit user request.
 
+- **Rebase scope:** Never rebase or otherwise rewrite a *pushed* branch to absorb base changes —
+  rewriting published commits orphans the SHA-keyed git notes and forces a force-push. Merge the base
+  in instead (append-only — see the [concurrent-work strategy][concurrent-work] § Append-only until
+  integration). Rewriting *unpushed* commits is fine.
+
 - **Check before reverting files:** Before `git checkout -- <file>`, review `git diff <file>` —
   other tasks may have uncommitted work in the same file.
 
@@ -503,6 +508,7 @@ Load these documents when you reach the relevant work — not during session ini
 [arc-methods-tf]: ../../system/methods/test-first.md
 [arc-methods-dir]: ../../system/methods/README.md
 [config-arch]: ../../reference/strategies/arc/strategy-configurability-architecture.md
+[concurrent-work]: ../../reference/strategies/arc/strategy-concurrent-work.md
 [work-org]: ../../reference/strategies/arc/strategy-work-organization.md
 [work-org-roadmap]: ../../reference/strategies/arc/strategy-work-organization.md#roadmap
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md
