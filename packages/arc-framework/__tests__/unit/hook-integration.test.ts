@@ -110,7 +110,7 @@ describe("integrateHooks — lefthook", () => {
     expect(output).toContain("arc-commit-msg");
     expect(output).toContain(".arc/system/.internal/githooks/commit-msg {1}");
     expect(output).toContain("arc-pre-push");
-    expect(output).toContain(".arc/system/.internal/githooks/pre-push");
+    expect(output).toContain(".arc/system/.internal/githooks/pre-push {1} {2}");
     // Preserves existing commands
     expect(output).toContain("npm run lint");
   });
@@ -142,7 +142,7 @@ describe("integrateHooks — lefthook", () => {
       "pre-push:",
       "  commands:",
       "    arc-pre-push:",
-      "      run: .arc/system/.internal/githooks/pre-push",
+      "      run: .arc/system/.internal/githooks/pre-push {1} {2}",
       "",
     ].join("\n");
     const io = makeIO({ "/repo/lefthook.yml": existing });

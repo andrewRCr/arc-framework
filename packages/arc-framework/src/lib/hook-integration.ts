@@ -175,7 +175,7 @@ async function integrateLefthook(
     config["pre-push"].commands = {};
   }
   if (!config["pre-push"].commands["arc-pre-push"]) {
-    config["pre-push"].commands["arc-pre-push"] = { run: ARC_PRE_PUSH };
+    config["pre-push"].commands["arc-pre-push"] = { run: `${ARC_PRE_PUSH} {1} {2}` };
     changed = true;
   }
 
