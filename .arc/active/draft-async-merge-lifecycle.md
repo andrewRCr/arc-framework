@@ -13,71 +13,6 @@
 
 ---
 
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **User-sync tombstone canonicalization — prerequisite for this WU's owned notes-sync step**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), housekeep drain (2026-06-11).
-  **Re-homed off `cross-machine-sync-coherence`** — that WU is partial-push cross-machine *transport*; this is a
-  single-machine notes-**merge** coherence bug, which belongs with this WU's owned post-merge close-out.
-- *Why here (the coupling):* this WU's § Same-session finalize adds the owned post-merge sequence — teardown +
-  branch delete + base pull + **notes sync**. That sync step runs right after the WORKING-MEMORY / inbox
-  maintenance that rides WU completion — i.e. the exact trigger — so it fires the tombstone bug **deterministically**
-  unless the merge is made idempotent first. The merge fix is therefore a **hard prerequisite** of wiring the
-  finalize sync, not a parallel nicety; sequence it ahead of (or with) that step. (Today the finalize sequence
-  lists teardown / branch / ref / inbox-line but **not notes-sync** — add it, gated on this fix.)
-- *The bug (two coupled defects, both confirmed in code):*
-    - **Non-idempotent `appendRemovalTombstones`** (`lib/user-sync/merge.ts`) — prior state is rebuilt via
-      `mergeEntries` (entry-union, **tombstone-blind**), so an entry tombstoned in a recent note but still live in
-      an older note within the window re-synthesizes a **duplicate** `## Removed:` marker. Fix: rebuild prior
-      through the same tombstone-aware resolution `mergeCrossWuFile` uses (resolved-removed identities suppressed),
-      and/or skip synthesis for any `(section, key)` already carrying a live tombstone in-window or in the content.
-    - **Status compares disk to the raw note** (`commands/user/sync-status.ts` `inspectDiskVsLocalSnapshot`) —
-      disk holds the load-materialized projection (tombstones GC'd) while the raw note carries the un-projected /
-      duplicate form, so a clean post-sync disk reads as `local unsaved`. Fix: compare disk to **`projection(note)`**
-      via one canonical materialized-manifest builder shared by `arc user load` and status, not the raw manifest.
-- *Files:* `lib/user-sync/merge.ts`, `commands/user/save-load.ts`, `commands/user/sync-status.ts`, plus regression
-  tests (duplicate-tombstone, post-load cross-WU status, save→status loop) — across **both** the package source
-  and the `.arc/` instance copies.
-- *Interim (until this ships):* benign + self-healing — duplicates GC at the 7-day TTL, no data loss. Sync notes
-  *before* leaving the WU branch; prefer `arc user load` to clear a stuck false `local unsaved`. (See WORKING-MEMORY.)
-- *Supersession:* `operational-state-docs`' record/projection model (ADR-022 §4) eventually takes tombstones out of
-  the rendered file (non-projected record field), at which point both defects dissolve and this near-term merge fix
-  retires. This is the bridge until then — not a competing design.
-
-### `[ ]` **Document and emit the standalone `integration` footer kind**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: async-merge-lifecycle`), housekeep drain (2026-06-12);
-  captured during `merge-safety-mechanism` Task 4.2 after the validator branch shipped.
-- *Concern:* `merge-safety-mechanism` taught the `commit-msg` validator to accept
-  `Context: integration (...)` as a standalone footer kind for single-parent integration ceremony commits, but
-  nothing emits it and `commit-footer.md` does not enumerate it. Documenting it before a producer exists would make
-  adopter-facing docs describe a latent forward allowance.
-- *Proposed:* fold the `commit-footer.md` enumeration into this WU's emitter wiring so the source-of-truth line
-  lands with the workflow path that actually produces the footer. Natural emitters are the in-flight completion
-  sweep, unattended-merge completion trigger, and any archival/finalize ceremony commit this WU wires.
-- *Files:* `commit-footer.md` in both copies plus the async-merge finalize / completion workflow surface.
-
-### `[ ]` **Post-merge notes sync must attach user notes to the merge commit**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: async-merge-lifecycle`), housekeep drain (2026-06-12);
-  captured after merging PR #83 and returning the primary worktree to `main`.
-- *Concern:* after `main` fast-forwarded to the merge commit, session-init still reported the latest local user
-  note on the archived branch tip, one commit behind HEAD. `npx arc user sync` reported "already up to date" and
-  did not attach a note to the merge commit; explicit `npx arc user save` followed by `npx arc user push` was
-  required. The post-merge finalize path needs freshness to mean "same content, attached to current HEAD."
-- *Proposed:* in the same-session finalize / post-merge close-out design, require the notes leg to ensure current
-  `HEAD` has a saved user note after the base pull or fast-forward. Either run save+push explicitly, or teach
-  `arc user sync` to treat `localNoteFreshness.state === ancestor` as actionable even when file content and remote
-  notes otherwise compare clean. Add a regression so status reports "current with HEAD" after finalize.
-- *Files:* `commands/user/save-load.ts`, `commands/user/sync-status.ts`, sync/freshness orchestration, and the
-  async-merge finalize workflow surface.
-
----
-
 ## Problem / Motivation
 
 With async-merge a legitimate pattern (post-PR + awaiting-review latency), the lifecycle workflows that currently
@@ -134,6 +69,32 @@ this session's PRs once / briefly —
 Preserve the non-blocking principle (no unbounded CI wait), and surface CI / merge failures for **both** manual-
 and auto-merge so blocked integration is flagged at completion, not rediscovered next session.
 
+### Post-merge notes-sync leg — consumes `notes-merge-coherence`
+
+The same-session finalize sequence and the unattended-merge completion trigger both close by syncing user notes,
+yet the finalize sequence today lists teardown / branch delete / ref prune / inbox-line and **not** a notes-sync
+step. Add the notes leg — the **workflow wiring** that runs the sync at completion and leaves current HEAD
+carrying a saved note after the base pull / fast-forward (the `localNoteFreshness.state === "ancestor"` case the
+PR #83 close-out hit). This member owns only that obligation: call the sync, leave HEAD fresh.
+
+The **engine correctness** the leg hard-depends on — idempotent removal-tombstone resolution, projection-aware
+status, and `ancestor`-freshness recognition — was extracted to the sibling member **`notes-merge-coherence`**
+(originally absorbed here under option A; carved out at create-spec because it fixes live `lib/user-sync/` defects
+independently, is consumed by `cross-machine-sync-coherence`, and is a clean prerequisite). The finalize sync
+fires right after the WORKING-MEMORY / inbox maintenance that rides WU completion — the exact trigger for those
+defects — so wiring it without the fixes ships a deterministically-broken sync. Hence the build-first edge:
+**`Depends On: notes-merge-coherence`** — land the engine, then wire the leg.
+
+### Standalone `integration` footer emission
+
+`merge-safety-mechanism` shipped the *validator-accept* side — `commit-msg` now accepts `Context: integration
+(...)` as a standalone footer kind for single-parent integration ceremony commits — but nothing **emits** it and
+`commit-footer.md` does not enumerate it, so the allowance is latent. This member wires the emitter and lands the
+`commit-footer.md` enumeration **with** it, so the source-of-truth line arrives alongside the workflow that
+produces the footer rather than documenting a producer-less allowance ahead of emission. Natural emitters: the
+in-flight completion sweep, the unattended-merge completion trigger, and any archival / finalize ceremony commit
+this WU wires. Files: `commit-footer.md` (both copies) + the finalize / completion workflow surface.
+
 ### Merge-gate-awareness / unattended-merge completion trigger
 
 `run-errand` and the `drain-inbox` execution transition both defer post-merge cleanup — errand branch/worktree
@@ -143,6 +104,17 @@ for now. This member owns the unattended-merge **completion trigger** (who runs 
 one attends the merge) — reconcile `run-errand`'s Complete phase and the drain's close. This is the `run-errand` /
 `drain-inbox` facet of the broader "make the lifecycle workflows merge-gate-aware" concern (`integrate-work-unit`
 is the sibling case, handled by the option-B audit below).
+
+**Errand close-out is symmetric but shorter-tailed.** Unlike a WU, an errand has no meta / archival stage — its
+tail is `awaiting-review → mergeable → merged → cleanup` (locus teardown + slug-matched `USER-INBOX`-line
+removal), so the completion sweep's WU "full tail" must not drive an archival step for an errand. And the
+slug-matched line removal now has **three** removers — `run-errand` § Complete (in-session, full), same-session
+finalize (control-returns-to-base), and the session-init errand sweep (next-session backstop). Name one
+authoritative point (`run-errand` § Complete, which already declares itself "the single point where that removal
+is ensured") and make the other two **idempotent, slug-matched backstops** that no-op when the line is already
+gone — otherwise the unattended lane risks a double-fire against a present-then-absent line. The errand *resume*
+seam needs nothing new: `run-errand`'s Integrate phase is already re-enterable; the WU side is the gap (see the
+suspend/resume seam above).
 
 ### Async-merge audit — option B (additive)
 
@@ -154,18 +126,50 @@ Rejected alternatives: **A** (full rewrite of state transitions — cleanest end
 existing workflow shape. The 2026-06-03 audit (over `integrate-work-unit` / `archive-work-unit` / `session-handoff`
 / `deactivate-work-unit` / `setup-merge-gate`) confirmed "largely shipped" with no scope blow-up: `setup-merge-gate`
 is orthogonal (the auto-merge lane); the suspend/resume seam + completion sweep are net-new exactly as sized.
+**Re-confirm at spec:** that audit predates `concurrent-work-doctrine` (PR #81) and `merge-safety-mechanism`
+(PR #83) shipping on 2026-06-11 — both touched this member's surfaces (the session-init base-distance probe; the
+`commit-msg` / integration-footer path) — so re-ground the touchpoint sweep against current shipped code before
+sizing, per the cohort's "ground every buildable against shipped reality" discipline.
 
 ### Folded lifecycle plumbing
 
 The fold absorbed three pieces of loose plumbing that belong with the lifecycle mechanism:
 
-- **`arc start` create-new worktree-spawning wiring.** WF's `spawnWorktree` primitive already exists; only the CLI
-  mode is unwired. (Extracted from AWL 2026-06-03; the `--tier` grammar layer stays AWL.)
+- **`arc start` create-new worktree-spawning wiring.** `arc start --here` (cold-start: scaffold into an existing
+  worktree, `createdByArc: false`) shipped with Worktree Foundation; the worktree-*spawning* create-new mode —
+  plain `arc start` — is still unwired and is this member's to build. The `spawnWorktree` primitive exists
+  (`worktree-scaffold.ts`, wrapping `git worktree add -b`) with **no CLI caller** today; only the verb that
+  spawns-then-scaffolds is missing. (Extracted from AWL 2026-06-03. The `--tier` flag grammar this was once paired
+  with is **moot** — `class-model-foundation` retired the `atomic` / `quick` / `standard` tier model for `Class`,
+  which resolves during planning, not via a CLI flag.) Wiring create-new also rewrites `start.ts`'s now-stale
+  module doc, which still says the verb will gain "worktree creation + tier flags" — drop the retired tier-flag
+  reference as part of landing the spawn mode.
 - **Subdir-removal primitive** — the `arc user close` / per-WU subdir teardown the synchronous chain currently
   couples to merge.
 - **Cohort-`{name}.md` discovery at session-init** — agent awareness of the coordinating cohort doc is load-bearing
   for parallelism actually coordinating (`AGENT-BRIEF.ARC` note + optional session-init surfacing). Owned here as
   the session-init surface; all members rely on the doc being read.
+
+### Worktree-by-default steering for new work units
+
+Wiring create-new `arc start` (above) makes worktree-spawning *available*; this makes it the *default*, so
+parallelism is the lived default rather than a manual opt-in. The "worktree or not" decision is **mechanical** —
+branch-protection mode × worktree-spawn availability — and **identical to the errand relocation `run-errand` Launch
+already does**: under full protection spawn an isolated worktree when spawning is available, else cut the branch in
+the primary's base checkout; under partial, no branch (direct base commit). It is **not** `Class`- or depth-keyed
+(worktree isolation is agent-safety, weight-independent; errands get ephemeral worktrees too — so the conductor's
+"atomic skips / light optional / heavy-novel always" framing is stale on every axis).
+
+`init-work-unit` already documents the two modes (in-place / worktree-creating) but leaves them caller-selected with
+no default, and its worktree-creating mode delegates to exactly the spawn entry this WU wires. Make worktree-creating
+the **default under full protection** (spawn available), steered by the `arc-session` / session-init new-WU dispatch
+— the WU analogue of `run-errand` Launch. The conductor plays no role (its §5 worktree-orchestration is OBE). Without
+this flip, ARC ships every parallelism mechanic yet `init` keeps creating WUs in-place unless manually steered — the
+exact failure mode to avoid.
+
+**Scope boundary:** this lands the *default flip* (the mechanical protection × spawn-availability decision). The
+end-to-end *verification* of worktree-default across genuinely-concurrent WUs belongs to the downstream
+parallelism-closeout audit, not this member.
 
 ### `Class`-aware plate-balance — the session-init surface
 
@@ -192,7 +196,10 @@ whereas `integrate` / `archive` own no branch/worktree teardown today (the sessi
 lazily). **Open:** should lifecycle workflows own *eager* post-merge teardown — `integrate` / `archive` reusing
 decompose's block at merge time, once `composable-workflows` lands the shared-step hoist — or keep the lazy sweep?
 Eager ripples to `archive` and shrinks the sweep's role; `decomposition-machinery` deliberately left the block
-single-source and ready. Decide at this member's spec.
+single-source and ready. Decide at this member's spec. Coordinate the teardown surface with `coord-probe`: it
+carries a stale-local-branch-gone sweep buffer item and flags that `integrate-work-unit` Step 13 deletes the WU
+branch only on the linked-worktree→`removable` arm, not the primary-worktree in-place arm — the same
+teardown-completeness gap. Whichever member specs first owns the reaper; don't double-build it.
 
 ---
 
@@ -200,8 +207,12 @@ single-source and ready. Decide at this member's spec.
 
 **Medium — workflows + session-init probe, mostly additive.** Audit-don't-rebuild: the async-merge touchpoints are
 largely shipped (`archive.cadence: manual` + the stale/in-flight sweeps). Net-new is the suspend/resume seam, the
-completion sweep (full tail through archival), the same-session finalize pass, merge-gate-awareness, plus the
-folded plumbing (`arc start` create-new wiring, subdir primitive, cohort-doc discovery).
+completion sweep (full tail through archival), the same-session finalize pass, merge-gate-awareness, the
+post-merge notes-sync leg (the workflow wiring only — engine correctness is the `notes-merge-coherence`
+dependency), the `integration` footer emission, the worktree-by-default steering flip, plus the folded plumbing
+(`arc start` create-new wiring, subdir primitive, cohort-doc discovery). The `lib/user-sync/` correctness surface
+was extracted to `notes-merge-coherence`, so this member is back to a single primary surface (workflows +
+session-init).
 
 > **Watch:** this member may itself prove too large for one PR and recurse into a split. It is already at the
 > one-level nesting cap, so a further split fans out laterally as siblings under
@@ -209,8 +220,14 @@ folded plumbing (`arc start` create-new wiring, subdir primitive, cohort-doc dis
 
 ### Dependencies
 
-- **Internal:** `concurrent-work-doctrine` (the async-merge conventions) and `merge-safety-mechanism` (reuses its
-  behind-base primitive in the completion sweep). Merge-safety ideally precedes this member — soft.
+- **Internal (both shipped 2026-06-11):** `concurrent-work-doctrine` (PR #81 — the async-merge conventions +
+  `assess-parallel-fit`) and `merge-safety-mechanism` (PR #83 — the behind-base primitive the completion sweep
+  reuses; the `Context: integration (...)` validator-accept this member emits against). Both shipped deps that
+  gated this member have landed; the soft "merge-safety precedes" edge is satisfied.
+- **Internal (cohort sibling, unshipped):** `notes-merge-coherence` — the `lib/user-sync/` notes-merge engine
+  correctness (idempotent tombstone resolution + canonical materialized-manifest builder + `ancestor`-freshness)
+  this member's post-merge notes-sync leg consumes. Extracted from this draft at create-spec; **build-first
+  edge** — the finalize sync is deterministically broken without it.
 - **Substrate (shipped):** `archive.cadence: manual`, the stale-worktree + session-init in-flight sweeps, the
   errand sweep's PR-state classification, the inbox-reminder machinery + once-per-day marker, WF's `spawnWorktree`,
   the `Class` contract.

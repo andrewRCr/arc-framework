@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `096be05c`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `4b3d5d69`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -9,6 +9,12 @@ Priority (P1 → P2 → P3), then cohort, then canonical name. Cohort renders as
 path lives in each meta's Cohort field. Cohort membership is a logical grouping, not a scheduling constraint.
 
 ---
+
+## In Flight
+
+| State    | Work unit             | Priority | Owner  | Depends on            | Cohort                      |
+| -------- | --------------------- | -------- | ------ | --------------------- | --------------------------- |
+| Planning | async-merge-lifecycle | P2       | andrew | notes-merge-coherence | concurrent-work-conventions |
 
 ## Ready
 
@@ -21,7 +27,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement    |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
-| async-merge-lifecycle        | P2       | andrew | —          | concurrent-work-conventions |
+| notes-merge-coherence        | P2       | andrew | —          | concurrent-work-conventions |
 | single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
