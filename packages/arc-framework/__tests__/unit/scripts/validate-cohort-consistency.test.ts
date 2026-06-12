@@ -6,6 +6,11 @@
  * standalone), and (b) the cohort-doc schema checks — constitutive-doc presence
  * per grouping dir, the `Purpose` floor, and orphan member sections (slug ∉
  * derived members). Uses an in-memory file reader — no filesystem dependency.
+ *
+ * Also covers the lifecycle-complete augmentation: a {@link LiveCohortContext}
+ * lets conditions (b)/(c) recognize an unstaged ancestor doc and a graduated
+ * member (one that relocated to `active/` or `completed/`) instead of flagging
+ * either as an orphan.
  */
 
 import { describe, it, expect } from "vitest";
@@ -13,6 +18,9 @@ import { describe, it, expect } from "vitest";
 import {
   classifyPath,
   validateFiles,
+  buildLiveCohortContext,
+  deriveScanRoot,
+  type LiveCohortContext,
 } from "../../../src/scripts/validate-cohort-consistency.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 
@@ -162,5 +170,109 @@ describe("validateFiles — cohort-doc schema checks", () => {
     const result = run(files);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => /filename/i.test(d))).toBe(true);
+  });
+});
+
+describe("deriveScanRoot", () => {
+  it("returns process.cwd() for a relative staged path (the hook's normal form)", () => {
+    expect(deriveScanRoot([".arc/backlog/planned/core/cohort-core.md"])).toBe(process.cwd());
+  });
+
+  it("returns the prefix before `.arc/` for an absolute staged path", () => {
+    expect(deriveScanRoot(["/tmp/case-x/.arc/backlog/planned/core/widget/meta-widget.md"])).toBe(
+      "/tmp/case-x",
+    );
+  });
+
+  it("falls back to process.cwd() when no path carries an `.arc/` segment", () => {
+    expect(deriveScanRoot(["README.md", "src/index.ts"])).toBe(process.cwd());
+  });
+});
+
+describe("buildLiveCohortContext", () => {
+  it("maps members to their Cohort-field value across lifecycle roots", () => {
+    const metas = [
+      { path: ".arc/active/meta-active-one.md", content: metaFor("active-one", "core") },
+      {
+        path: ".arc/completed/2026-q2/01_shipped/meta-shipped-one.md",
+        content: metaFor("shipped-one", "core"),
+      },
+      {
+        path: ".arc/backlog/planned/core/planned-one/meta-planned-one.md",
+        content: metaFor("planned-one", "core"),
+      },
+      { path: ".arc/active/meta-standalone.md", content: metaFor("standalone", "[none]") },
+    ];
+    const ctx = buildLiveCohortContext(metas, [
+      ".arc/backlog/planned/core/cohort-core.md",
+      ".arc/backlog/planned/core/sub/cohort-sub.md",
+    ]);
+    expect(ctx.liveMembersByDir.get("core")).toEqual(
+      new Set(["active-one", "shipped-one", "planned-one"]),
+    );
+    // A standalone WU ([none]) contributes no membership.
+    expect(ctx.liveMembersByDir.has("")).toBe(false);
+    expect([...ctx.existingCohortDocDirs].sort()).toEqual(["core", "core/sub"]);
+  });
+});
+
+describe("validateFiles — lifecycle-complete context", () => {
+  it("does not flag a graduated member (active/completed) as an orphan section", () => {
+    const files = {
+      ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
+      ".arc/backlog/planned/core/cohort-core.md": cohortDoc("core", {
+        members: ["widget", "shipped"],
+      }),
+    };
+    const live: LiveCohortContext = {
+      liveMembersByDir: new Map([["core", new Set(["widget", "shipped"])]]),
+      existingCohortDocDirs: new Set(["core"]),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files), live);
+    expect(result.pass).toBe(true);
+  });
+
+  it("still flags a slug that resolves to no member anywhere", () => {
+    const files = {
+      ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
+      ".arc/backlog/planned/core/cohort-core.md": cohortDoc("core", {
+        members: ["widget", "ghost"],
+      }),
+    };
+    const live: LiveCohortContext = {
+      liveMembersByDir: new Map([["core", new Set(["widget"])]]),
+      existingCohortDocDirs: new Set(["core"]),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files), live);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => /orphan.*ghost/i.test(d))).toBe(true);
+  });
+
+  it("accepts an unstaged ancestor cohort doc present on disk (condition b)", () => {
+    // Adding a member under core/sub; only the sub cohort doc is staged — the
+    // ancestor `core` doc lives on disk (unstaged), recorded in the live context.
+    const files = {
+      ".arc/backlog/planned/core/sub/widget/meta-widget.md": metaFor("widget", "core/sub"),
+      ".arc/backlog/planned/core/sub/cohort-sub.md": cohortDoc("sub"),
+    };
+    const live: LiveCohortContext = {
+      liveMembersByDir: new Map([["core/sub", new Set(["widget"])]]),
+      existingCohortDocDirs: new Set(["core", "core/sub"]),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files), live);
+    expect(result.pass).toBe(true);
+  });
+
+  it("still flags a grouping dir whose doc is absent from both staged set and disk", () => {
+    const files = {
+      ".arc/backlog/planned/core/widget/meta-widget.md": metaFor("widget", "core"),
+    };
+    const live: LiveCohortContext = {
+      liveMembersByDir: new Map([["core", new Set(["widget"])]]),
+      existingCohortDocDirs: new Set(),
+    };
+    const result = validateFiles(Object.keys(files), fakeReader(files), live);
+    expect(result.pass).toBe(false);
+    expect(result.diagnostics.some((d) => /cohort-core\.md/.test(d))).toBe(true);
   });
 });
