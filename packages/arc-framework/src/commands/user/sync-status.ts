@@ -9,6 +9,7 @@ import {
 import {
   clearPartialPushMarker,
   inferUserSyncCause,
+  projectManifest,
   readLocalSyncState,
   type UserSyncCause,
   type UserSyncCauseConfidence,
@@ -52,9 +53,10 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
-  const [refInspection, diskInspection] = await Promise.all([
+  const [refInspection, diskInspection, localNoteFreshness] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
     inspectDiskVsLocalSnapshot(cwd, io, identity),
+    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
   ]);
   const coherenceState = await resolveUserSyncCoherenceState({
     cwd,
@@ -76,6 +78,7 @@ export async function inspectUserSyncState(
     remoteStatus: spine.remoteStatus,
     diskStatus: diskInspection.diskStatus,
     unsavedDirection: diskInspection.direction,
+    localNoteFreshness,
   };
 }
 
@@ -1395,9 +1398,13 @@ async function inspectDiskVsLocalSnapshot(
     };
   }
 
+  // Every coherence comparison reads through the tombstone-free projection, so a
+  // tree that differs from the note only in its in-band `## Removed:` set compares
+  // equal and reads `current`. The materialized hash compared against below is
+  // likewise written over the projection (save/load), keeping one basis throughout.
   const noteManifest = parsed as SyncManifest;
-  const noteHash = hashSyncManifest(noteManifest);
-  const diskHash = diskManifest ? hashSyncManifest(diskManifest) : null;
+  const projectedNote = projectManifest(noteManifest);
+  const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
 
   if (!diskManifest) {
@@ -1410,11 +1417,14 @@ async function inspectDiskVsLocalSnapshot(
     };
   }
 
-  if (manifestsEqual(noteManifest, diskManifest)) {
+  const projectedDisk = projectManifest(diskManifest);
+  const diskHash = hashSyncManifest(projectedDisk);
+
+  if (manifestsEqual(projectedNote, projectedDisk)) {
     return { state: "same", diskStatus: "current", direction: null };
   }
 
-  const direction = computeUnsavedDirection(diskManifest, noteManifest);
+  const direction = computeUnsavedDirection(projectedDisk, projectedNote);
 
   if (!localSyncState) {
     return {

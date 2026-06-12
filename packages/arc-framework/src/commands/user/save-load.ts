@@ -12,6 +12,7 @@ import {
   getUserInternalDir,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
+  projectManifest,
   subdirsFromPaths,
   writeLocalSyncState,
   wuNameOfPath,
@@ -77,7 +78,9 @@ export async function runUserSave(
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
   await verifySavedNote(io, identity, commit, result.manifest);
-  await writeLocalSyncState(cwd, io, identity, hashSyncManifest(result.manifest), commit, "save", commit);
+  await writeLocalSyncState(
+    cwd, io, identity, hashSyncManifest(projectManifest(result.manifest)), commit, "save", commit,
+  );
 
   return {
     identity,
@@ -180,7 +183,9 @@ export async function runUserLoad(
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
   await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
-  await writeLocalSyncState(cwd, io, identity, hashSyncManifest(loadManifest), sourceCommit, "load", sourceCommit);
+  await writeLocalSyncState(
+    cwd, io, identity, hashSyncManifest(projectManifest(loadManifest)), sourceCommit, "load", sourceCommit,
+  );
 
   return {
     kind: "loaded",

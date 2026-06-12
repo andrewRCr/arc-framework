@@ -22,6 +22,7 @@ import {
 import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
+import { projectManifest } from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -1131,6 +1132,50 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     expect(actionFor(state, noteCommit)).toBe(
       "inspect local working files, then run `arc user load` or `arc user save`",
     );
+  });
+
+  const wmEntry = (header: string, body: string): string =>
+    `**${header}:**\n_Remove when: x._\n\n${body}`;
+  const wmFile = (...entries: string[]): string =>
+    `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
+  const wmTombstone = "## Removed: **Gone:**\n\n- _Section:_ Memories\n- _Removed:_ 2026-05-25T12:00:00.000Z";
+
+  it("reads current when the note carries a tombstone the disk lacks (no false local unsaved)", async () => {
+    const clean = wmFile(wmEntry("Kept", "Kept body."));
+    const noteFiles = { "WORKING-MEMORY.md": `${clean}\n${wmTombstone}\n` };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      noteCommit: sharedCommit,
+      diskFiles: { "WORKING-MEMORY.md": clean },
+      noteFiles,
+      materializedManifestHash: hashSyncManifest(projectManifest({ version: 2, files: noteFiles })),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskStatus).toBe("current");
+    expect(state.unsavedDirection).toBeNull();
+  });
+
+  it("still flags a genuine cross-WU entry edit as local unsaved under projection", async () => {
+    const noteFiles = { "WORKING-MEMORY.md": `${wmFile(wmEntry("Kept", "Kept body."))}\n${wmTombstone}\n` };
+    const diskFiles = { "WORKING-MEMORY.md": wmFile(wmEntry("Kept", "Kept body."), wmEntry("Added", "Added body.")) };
+    const sharedCommit = "a".repeat(40);
+    const io = buildIO({
+      sourceCommit: sharedCommit,
+      noteCommit: sharedCommit,
+      diskFiles,
+      noteFiles,
+      materializedManifestHash: hashSyncManifest(projectManifest({ version: 2, files: noteFiles })),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskStatus).toBe("local unsaved");
+    expect(state.unsavedDirection).toBe("modified");
   });
 
 });

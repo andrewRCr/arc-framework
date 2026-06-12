@@ -419,6 +419,13 @@ export interface UserSyncState {
   remoteStatus: UserRemoteStatus;
   diskStatus: UserDiskStatus;
   unsavedDirection: UserUnsavedDirection | null;
+  /**
+   * Freshness of the latest local note relative to HEAD. Lets `decideSyncAction`
+   * recognize a note sitting on a HEAD ancestor as actionable (a save attaches a
+   * note to current HEAD) rather than "already up to date." Populated by
+   * `inspectUserSyncState`; optional so partial constructors stay valid.
+   */
+  localNoteFreshness?: UserSessionLocalNoteFreshness;
 }
 
 export interface InspectUserSyncOptions {
