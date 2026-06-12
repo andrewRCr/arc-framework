@@ -15,7 +15,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec.md` from `draft-async-merge-lifecycle.md`; first integrate or consciously
-  reject the draft's inbound-buffer entries so the spec starts from the complete current capture set.
+- **Next Action:** Run `create-spec.md` from `draft-async-merge-lifecycle.md`. Inbound buffer drained (all three
+  entries integrated), draft re-grounded against shipped cohort reality, and the worktree-by-default steering flip
+  added to scope. At create-spec, re-ground the `integrate-work-unit` / session-init touchpoints against current
+  shipped code (the 2026-06-03 audit predates both deps landing).
 
 ---
