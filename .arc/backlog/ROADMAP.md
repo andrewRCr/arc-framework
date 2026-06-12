@@ -69,7 +69,6 @@ _No work units in this tier._
 | Work unit                     | Priority | Owner  | Depends on                                                                                               | Cohort                     |
 | ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------- | -------------------------- |
 | finalize-parallelism          | P1       | andrew | async-merge-lifecycle, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| arc-plan-conductor            | P2       | andrew | loadset-composition                                                                                      | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                   | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |

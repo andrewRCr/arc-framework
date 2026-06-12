@@ -147,7 +147,7 @@ Seams whose home is another cohort, recorded here so they have a visible owner.
   shifts the classifier behavior CMSC's defect-1/2 analysis was written against — CMSC re-grounds its T3 scope once
   `notes-merge-coherence` lands.
 
-- **`arc-plan-conductor` — spec-graduation cleanup vs. the lighter merge gate.** Reconcile the conductor's
+- **`graduation-cleanup` — spec-graduation cleanup vs. the lighter merge gate.** Reconcile that stub's
   spec-graduation cleanup ceremony (dropping a WU's own planning-noise commits before the Planning → Active flip)
   with the planning-layer / lighter-gate merge treatment doctrine carries. Related but distinct — intra-WU history
   hygiene vs. cross-WU merge routing.
