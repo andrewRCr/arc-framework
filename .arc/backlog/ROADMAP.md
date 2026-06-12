@@ -31,6 +31,8 @@ _No work units in this tier._
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
+| graduation-cleanup           | P2       | andrew | —          | —                           |
+| park-resume-lifecycle        | P2       | andrew | —          | —                           |
 | planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization  |
