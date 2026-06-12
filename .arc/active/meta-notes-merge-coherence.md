@@ -8,20 +8,20 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-notes-merge-coherence.md`
+- **Design:** `spec-notes-merge-coherence.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec.md` from `draft-notes-merge-coherence.md` (assess draft readiness at entry —
-  the draft carries the engine-correctness design extracted from `async-merge-lifecycle`, RFC-shaped). Scope:
-  single-machine notes-merge engine correctness — idempotent removal-tombstone resolution + a canonical
-  materialized-manifest builder (built **general** for `cross-machine-sync-coherence` to extend) +
-  `ancestor`-freshness recognition. Upstream of `async-merge-lifecycle`'s finalize notes-sync leg and unblocks
-  CMSC; fixes two live defects WORKING-MEMORY currently carries a workaround for. Bridge — retires when
-  `operational-state-docs` lands the record/projection model. Code is single-copy under
-  `packages/arc-framework/src` (no two-copy mirror).
+- **Next Action:** Run `generate-tasks.md` from `spec-notes-merge-coherence.md`. The spec is a `detailed` · RFC
+  with four independently-reviewable design units — shared tombstone-aware resolution (extraction), idempotent
+  removal-tombstone synthesis, one exported tombstone-free `projectManifest` as the single save/load/status
+  comparison basis, and HEAD-ancestor-freshness recognition in `decideSyncAction`. Single subsystem
+  (`lib/user-sync/` + the two user commands), single-copy code under `packages/arc-framework/src` (no two-copy
+  mirror). Upstream of `async-merge-lifecycle`'s finalize notes-sync leg and unblocks `cross-machine-sync-coherence`
+  (which extends `projectManifest`); fixes two live defects WORKING-MEMORY carries a workaround for. Bridge —
+  retires when `operational-state-docs` lands the record/projection model.
 
 ---
