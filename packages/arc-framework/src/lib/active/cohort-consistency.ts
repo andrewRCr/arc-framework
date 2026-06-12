@@ -20,6 +20,15 @@
  * Membership is derived from the `Cohort` field, never from a roster. The checks
  * treat the supplied file set as their universe: callers feed the artifacts in
  * scope (e.g. a staged delta) and get diagnostics for inconsistencies within it.
+ *
+ * Because cohort members **relocate out** of `backlog/planned/` as they activate
+ * (→ flat `active/`) and ship (→ `completed/`), a staged-delta universe alone
+ * cannot tell a graduated member from a removed one — both are absent from the
+ * delta. The optional `liveMembersByDir` and `existingCohortDocDirs` inputs carry
+ * lifecycle-complete context resolved from the live tree, so conditions (b) and
+ * (c) recognize a graduated member or an unstaged ancestor doc instead of
+ * flagging it. Absent, the checks fall back to staged-delta-only reasoning.
+ *
  * This module owns the cross-file reasoning; single-field shape validation (the
  * two-segment cap) stays with `validateCohortPath` in `cohort-path.ts`.
  *
@@ -46,6 +55,21 @@ export interface CohortConsistencyInput {
   metas: BacklogFile[];
   /** Backlog `cohort-*.md` files in scope. */
   cohortDocs: BacklogFile[];
+  /**
+   * Cohort membership resolved across the live tree (`active/` + `backlog/planned/`
+   * + `completed/`), keyed by `**Cohort:**`-field value → member slugs. Augments
+   * the staged delta so a member that has graduated out of `backlog/planned/`
+   * (activated or shipped) is still recognized by condition (c), not flagged as an
+   * orphan section. Absent → condition (c) uses staged-derived membership only.
+   */
+  liveMembersByDir?: ReadonlyMap<string, ReadonlySet<string>>;
+  /**
+   * Grouping dirs that carry a `cohort-<leaf>.md` on disk, even when that doc is
+   * not in the staged set. Lets condition (b) accept an existing ancestor cohort
+   * doc instead of demanding it be re-staged on every member edit. Absent →
+   * condition (b) counts staged docs only.
+   */
+  existingCohortDocDirs?: ReadonlySet<string>;
 }
 
 /** The grouping-dir context recovered from a cohort doc's path. */
@@ -127,6 +151,16 @@ function normalizeCohortField(content: string): string {
   if (raw === null) return "";
   const trimmed = raw.trim();
   return trimmed === NONE_SENTINEL ? "" : trimmed;
+}
+
+/**
+ * The normalized `**Cohort:**` field value of a meta's content — `[none]` /
+ * absent / empty all resolve to `""`. The cohort-membership key for the
+ * live-tree resolver: a meta belongs to the cohort its field names, regardless
+ * of where the file is filed (`active/` / `backlog/planned/` / `completed/`).
+ */
+export function metaCohortField(content: string): string {
+  return normalizeCohortField(content);
 }
 
 /** Whether a cohort doc carries a non-empty `**Purpose:**` floor. */
@@ -218,6 +252,10 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
   for (const dir of [...groupingDirs].sort()) {
     const doc = docsByDir.get(dir);
     if (doc === undefined) {
+      // An ancestor cohort doc already on disk (unstaged) satisfies the
+      // constitutive-doc invariant — it was validated when committed; a member
+      // edit need not re-stage it.
+      if (input.existingCohortDocDirs?.has(dir)) continue;
       const leaf = dir.split("/").pop() ?? dir;
       diagnostics.push(
         `.arc/backlog/planned/${dir}: grouping dir has no \`cohort-${leaf}.md\` ` +
@@ -241,13 +279,17 @@ export function checkCohortConsistency(input: CohortConsistencyInput): string[] 
     const location = cohortDocLocation(doc.path);
     if (location === null) continue;
     const derived = membersByDir.get(location.cohortDir) ?? new Set<string>();
+    const live = input.liveMembersByDir?.get(location.cohortDir);
     for (const slug of memberSlugs(doc.content)) {
-      if (!derived.has(slug)) {
-        diagnostics.push(
-          `${doc.path}: orphan member section \`${slug}\` ` +
-            `(not a derived member of "${location.cohortDir}")`,
-        );
-      }
+      // A slug is an orphan only if it resolves to no member anywhere — not in
+      // the staged delta, and not in the live tree. A slug that resolves to a
+      // graduated member (active/completed, by `Cohort` field) is a member, not
+      // a renamed/removed WU.
+      if (derived.has(slug) || live?.has(slug)) continue;
+      diagnostics.push(
+        `${doc.path}: orphan member section \`${slug}\` ` +
+          `(not a derived member of "${location.cohortDir}")`,
+      );
     }
   }
 

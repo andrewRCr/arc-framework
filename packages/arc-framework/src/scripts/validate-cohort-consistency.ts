@@ -16,10 +16,14 @@
  * @module
  */
 
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { basename, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import {
   checkCohortConsistency,
+  cohortDocLocation,
+  metaCohortField,
   type BacklogFile,
 } from "../lib/active/cohort-consistency.js";
 import { runPathListScript } from "./cli-runner.js";
@@ -32,6 +36,20 @@ export interface ValidationResult {
   pass: boolean;
   diagnostics: string[];
 }
+
+/**
+ * Lifecycle-complete cohort context resolved from the live tree — membership and
+ * cohort-doc presence across every lifecycle state, not just the staged delta.
+ * Feeds {@link checkCohortConsistency}'s conditions (b)/(c) so graduated members
+ * and unstaged ancestor docs are not mistaken for orphans.
+ */
+export interface LiveCohortContext {
+  liveMembersByDir: Map<string, Set<string>>;
+  existingCohortDocDirs: Set<string>;
+}
+
+const META_FILENAME_RE = /^meta-(.+)\.md$/;
+const COHORT_DOC_FILENAME_RE = /^cohort-.+\.md$/;
 
 const META_PATH = /(?:^|\/)\.arc\/backlog\/planned\/(?:[^/]+\/)*meta-[^/]+\.md$/;
 const COHORT_DOC_PATH = /(?:^|\/)\.arc\/backlog\/planned\/(?:[^/]+\/)*cohort-[^/]+\.md$/;
@@ -48,13 +66,105 @@ export function classifyPath(path: string): PathClassification {
 }
 
 /**
+ * Build the live-tree cohort context from a flat artifact set spanning every
+ * lifecycle state. `metas` carries every WU `meta-*.md` (across `active/`,
+ * `backlog/planned/`, `completed/`) as path+content; `cohortDocPaths` lists every
+ * backlog cohort doc. Pure over its inputs — the filesystem walk that gathers
+ * them lives in {@link buildLiveCohortContextFromDisk} — so the membership
+ * mapping is unit-testable without a real tree.
+ *
+ * Membership keys on each meta's `**Cohort:**` field value (the position-
+ * independent source of truth), so an activated member in flat `active/` or a
+ * shipped member under `completed/` still resolves to its cohort.
+ */
+export function buildLiveCohortContext(
+  metas: BacklogFile[],
+  cohortDocPaths: string[],
+): LiveCohortContext {
+  const liveMembersByDir = new Map<string, Set<string>>();
+  for (const meta of metas) {
+    const filename = basename(meta.path.replace(/\\/g, "/"));
+    const slug = META_FILENAME_RE.exec(filename)?.[1];
+    if (slug === undefined) continue;
+    const cohort = metaCohortField(meta.content);
+    if (cohort === "") continue;
+    const set = liveMembersByDir.get(cohort) ?? new Set<string>();
+    set.add(slug);
+    liveMembersByDir.set(cohort, set);
+  }
+  const existingCohortDocDirs = new Set<string>();
+  for (const path of cohortDocPaths) {
+    const location = cohortDocLocation(path);
+    if (location !== null) existingCohortDocDirs.add(location.cohortDir);
+  }
+  return { liveMembersByDir, existingCohortDocDirs };
+}
+
+/** Recursively yield every file path under `dir`; a missing dir yields nothing. */
+function* walkFiles(dir: string): Generator<string> {
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    const full = join(dir, name);
+    let isDirectory: boolean;
+    try {
+      isDirectory = statSync(full).isDirectory();
+    } catch {
+      continue;
+    }
+    if (isDirectory) yield* walkFiles(full);
+    else yield full;
+  }
+}
+
+/**
+ * Walk the live `.arc/` tree under `cwd` — `active/`, `backlog/planned/`, and
+ * `completed/` — collecting every WU meta and backlog cohort doc, then build the
+ * {@link LiveCohortContext}. Read errors on individual files are skipped: the
+ * context is a best-effort augmentation, never a hard gate.
+ */
+export function buildLiveCohortContextFromDisk(cwd: string): LiveCohortContext {
+  const roots = [
+    join(cwd, ".arc", "active"),
+    join(cwd, ".arc", "backlog", "planned"),
+    join(cwd, ".arc", "completed"),
+  ];
+  const metas: BacklogFile[] = [];
+  const cohortDocPaths: string[] = [];
+  for (const root of roots) {
+    for (const file of walkFiles(root)) {
+      const base = basename(file);
+      const rel = relative(cwd, file).split(sep).join("/");
+      if (META_FILENAME_RE.test(base)) {
+        try {
+          metas.push({ path: rel, content: readFileSync(file, "utf8") });
+        } catch {
+          // Skip unreadable meta — best-effort augmentation.
+        }
+      } else if (COHORT_DOC_FILENAME_RE.test(base)) {
+        cohortDocPaths.push(rel);
+      }
+    }
+  }
+  return buildLiveCohortContext(metas, cohortDocPaths);
+}
+
+/**
  * Validate a set of staged paths. Backlog metas and cohort docs are read and
  * handed to {@link checkCohortConsistency}; `other` paths are skipped silently —
- * the hook may invoke this with a broader set than the cohort scope.
+ * the hook may invoke this with a broader set than the cohort scope. When a
+ * {@link LiveCohortContext} is supplied, lifecycle-complete membership and
+ * cohort-doc presence augment the staged delta so graduated members and unstaged
+ * ancestor docs are not flagged as orphans; absent, the check is staged-delta-only.
  */
 export function validateFiles(
   paths: string[],
   readFile: (path: string) => string,
+  liveContext?: LiveCohortContext,
 ): ValidationResult {
   const metas: BacklogFile[] = [];
   const cohortDocs: BacklogFile[] = [];
@@ -65,12 +175,35 @@ export function validateFiles(
     if (classification === "meta") metas.push({ path, content });
     else cohortDocs.push({ path, content });
   }
-  const diagnostics = checkCohortConsistency({ metas, cohortDocs });
+  const diagnostics = checkCohortConsistency({
+    metas,
+    cohortDocs,
+    liveMembersByDir: liveContext?.liveMembersByDir,
+    existingCohortDocDirs: liveContext?.existingCohortDocDirs,
+  });
   return { pass: diagnostics.length === 0, diagnostics };
+}
+
+/**
+ * The repo root to walk for live context — the prefix of a staged path before
+ * its `.arc/` segment, so the scan roots at the tree the staged files belong to
+ * regardless of `process.cwd()`. Relative staged paths (the hook's normal form)
+ * carry no prefix and fall back to `process.cwd()`.
+ */
+export function deriveScanRoot(paths: string[]): string {
+  for (const raw of paths) {
+    const posix = raw.replace(/\\/g, "/");
+    if (posix.startsWith(".arc/")) return process.cwd();
+    const marker = posix.indexOf("/.arc/");
+    if (marker !== -1) return posix.slice(0, marker);
+  }
+  return process.cwd();
 }
 
 // --- CLI entry ---
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  runPathListScript(validateFiles);
+  const argvPaths = process.argv.slice(2);
+  const liveContext = buildLiveCohortContextFromDisk(deriveScanRoot(argvPaths));
+  runPathListScript((paths, readFile) => validateFiles(paths, readFile, liveContext));
 }
