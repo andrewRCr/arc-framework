@@ -306,6 +306,12 @@ case "$context_footer_mode" in
             elif echo "$context_line" | grep -qE '^Context: standalone \((maintenance|planning|documentation|refactor)\)$'; then
                 :
 
+            # Matches: Context: integration (freeform) — single-parent integration ceremony commits
+            # (a squash-merge result, an archival move) not caught by the two-parent MERGE_HEAD exemption.
+            # Distinct from the meta-*.md (integration) lifecycle marker above.
+            elif echo "$context_line" | grep -qE '^Context: integration \(.+\)$'; then
+                :
+
             # Matches: Context: contribution (freeform description)
             # Used by contributors (arc.role=contributor) but accepted from any role.
             elif echo "$context_line" | grep -qE '^Context: contribution \(.+\)$'; then

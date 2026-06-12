@@ -197,17 +197,14 @@ integration ceremony commits. Both bash hook copies change under package-project
   a live `--no-ff` merge-in-progress passes silently while ordinary commits still validate (well-formed passes,
   malformed subject rejected).
 
-### `[ ]` **4.2 Standalone `integration` footer kind**
+### `[x]` **4.2 Standalone `integration` footer kind**
 
 - _Goal:_ `Context: integration (...)` validates as a recognized standalone footer kind, covering single-parent
   integration ceremony commits (a squash-merge result, an archival move) that the two-parent exemption misses.
-- **Strategies:** strategy-package-project-sync.md
-
-    - Add a new branch in the footer rule for the standalone `integration` kind — distinct from the existing
-      `integration` token inside the meta-lifecycle marker set.
-    - Edit both canonical copies under package-project sync.
-
-    - Verify e2e: `Context: integration (...)` passes; an unrecognized footer kind still errors.
+- _Outcome:_ Added a `^Context: integration \(.+\)$` branch to the footer rule in both hook copies, beside the
+  `standalone` branch and freeform like `contribution` — distinct from the `meta-*.md (integration)` lifecycle
+  marker. e2e (`commit-msg.e2e.test.ts`) covers acceptance plus continued rejection of an unrecognized footer
+  kind. The `commit-footer.md` method doc does not yet enumerate this standalone kind — surfaced for follow-up.
 
 ## **Phase 5:** Verification
 

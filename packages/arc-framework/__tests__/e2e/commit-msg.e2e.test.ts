@@ -132,3 +132,33 @@ describe("commit-msg merge-commit exemption", () => {
     expect(result.stdout).toContain("Conventional Commits format");
   });
 });
+
+describe("commit-msg standalone integration footer kind", () => {
+  it("accepts Context: integration (...) on a single-parent commit", async () => {
+    const dir = await makeRepo();
+    repos.push(dir);
+    await commit(dir, "base.txt", "base");
+
+    const result = await runHook(
+      dir,
+      "chore(arc): integrate feature-x\n\nContext: integration (squash-merge of feature-x)",
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("PASSED");
+  });
+
+  it("still rejects an unrecognized footer kind", async () => {
+    const dir = await makeRepo();
+    repos.push(dir);
+    await commit(dir, "base.txt", "base");
+
+    const result = await runHook(
+      dir,
+      "chore(arc): do a thing\n\nContext: bogus (whatever)",
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain("Invalid Context: format");
+  });
+});
