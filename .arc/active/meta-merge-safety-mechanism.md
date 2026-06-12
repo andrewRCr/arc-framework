@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Active` | `andrew` | `feat/merge-safety-mechanism` | `Heavy` | `P2` |
+| `Integrating` | `andrew` | `feat/merge-safety-mechanism` | `Heavy` | `P2` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** `concurrent-work-doctrine`
