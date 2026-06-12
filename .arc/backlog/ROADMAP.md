@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `4b3d5d69`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `141e7007`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,9 +12,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit             | Priority | Owner  | Depends on            | Cohort                      |
-| -------- | --------------------- | -------- | ------ | --------------------- | --------------------------- |
-| Planning | async-merge-lifecycle | P2       | andrew | notes-merge-coherence | concurrent-work-conventions |
+| State    | Work unit             | Priority | Owner  | Depends on | Cohort                      |
+| -------- | --------------------- | -------- | ------ | ---------- | --------------------------- |
+| Planning | notes-merge-coherence | P2       | andrew | —          | concurrent-work-conventions |
 
 ## Ready
 
@@ -27,7 +27,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement    |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
-| notes-merge-coherence        | P2       | andrew | —          | concurrent-work-conventions |
 | single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
@@ -63,14 +62,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on             | Cohort                     |
-| ----------------------------- | -------- | ------ | ---------------------- | -------------------------- |
-| arc-plan-conductor            | P2       | andrew | loadset-composition    | —                          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on             | Cohort                      |
+| ----------------------------- | -------- | ------ | ---------------------- | --------------------------- |
+| async-merge-lifecycle         | P2       | andrew | notes-merge-coherence  | concurrent-work-conventions |
+| arc-plan-conductor            | P2       | andrew | loadset-composition    | —                           |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                           |
+| documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization  |
+| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization  |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation    |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness           |
 
 ### Depth 2
 
