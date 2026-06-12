@@ -60,6 +60,7 @@ _No work units in this tier._
 | rules-restructure            | P3       | andrew | —          | —                           |
 | shared-inbox-housekeep       | P3       | andrew | —          | —                           |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                           |
+| synthesis-modality           | P3       | andrew | —          | —                           |
 
 ## Blocked
 
