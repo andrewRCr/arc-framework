@@ -124,26 +124,35 @@ The engine recognizes the condition here; the unattended finalize wiring stays w
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Goal:_ Validate the notes-merge-coherence implementation against Tier 3 gates and success criteria before
+  integration.
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck:all`,
+  `npm test` (161 standard test files / 2,435 tests; 14 e2e files / 70 tests), and `npm run build` all passed.
+
+- _Success criteria:_ 8 criteria checked — 7 from `spec-notes-merge-coherence.md` plus the ready-for-integration
+  standard item — against source/test proof points and the full gates; all 8 met.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Two consecutive removal-bearing saves over a window already recording the removal add zero new
+- `[x]` Two consecutive removal-bearing saves over a window already recording the removal add zero new
   tombstones; the raw note carries exactly one `## Removed:` marker per removed identity.
-- `[ ]` `arc user status` and `arc sync` report `current` on an unmodified tree immediately after a
+- `[x]` `arc user status` and `arc sync` report `current` on an unmodified tree immediately after a
   removal-bearing save — no `arc user load` required to clear it.
-- `[ ]` The save-path `materializedManifestHash`, the load-path `materializedManifestHash`, and the status
+- `[x]` The save-path `materializedManifestHash`, the load-path `materializedManifestHash`, and the status
   comparison all derive from `projectManifest`; a grep finds exactly one definition of the tombstone-free
   projection and no remaining raw-manifest coherence comparison in `inspectDiskVsLocalSnapshot`.
-- `[ ]` `projectManifest` is exported from `lib/user-sync` and has no dependency on command-layer code.
-- `[ ]` With the latest note on a HEAD ancestor and the tree otherwise clean, `arc user sync` selects the save
+- `[x]` `projectManifest` is exported from `lib/user-sync` and has no dependency on command-layer code.
+- `[x]` With the latest note on a HEAD ancestor and the tree otherwise clean, `arc user sync` selects the save
   direction and a subsequent status reads `current with HEAD`.
-- `[ ]` The Phase 1 extraction leaves `mergeCrossWuFile`'s materialized output unchanged on the existing merge
+- `[x]` The Phase 1 extraction leaves `mergeCrossWuFile`'s materialized output unchanged on the existing merge
   fixtures.
-- `[ ]` All quality gates pass (tests, linting, type checking, build).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking, build).
+- `[x]` Ready for integration.
 
 ---
 
