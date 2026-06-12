@@ -11,13 +11,13 @@
 - **Design:** `spec-merge-safety-mechanism.md`
 - **Task List:** `tasks-merge-safety-mechanism.md`
 
-- **Last Completed:** Phase 3 (Tasks 3.1–3.3) — path-surface + `chore/`-awareness in `classifyWriteContext`,
-  advisory pre-commit foreign-write backstop (CHECK 19), and confirmed behind-base coverage of the cohort doc
-- **Next Task:** Task 4.1 — Merge-commit exemption in `commit-msg` (line ~190)
+- **Last Completed:** Phase 4 (Tasks 4.1–4.2) — `MERGE_HEAD` exemption in `commit-msg` (merge commits skip the
+  format + footer rules) and a standalone `Context: integration (...)` footer kind, both hook copies + e2e
+- **Next Task:** Task 5.1 — Complete verification (line ~211)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — exempt two-parent merge commits from the `commit-msg` subject + footer
-  rules (detect `MERGE_HEAD` / two-parent right after the `hook_enabled` early-exit), both hook copies, opening
-  Phase 4 (merge-commit exemption + `integration` footer kind) (`tasks-merge-safety-mechanism.md`).
+- **Next Action:** Begin Phase 5 verification — Task 5.1 loads and follows `verify-work-unit.md` against the
+  WU's success criteria (every added surface advisory, package-project sync clean for the hook edits)
+  (`tasks-merge-safety-mechanism.md`).
 
 ---
