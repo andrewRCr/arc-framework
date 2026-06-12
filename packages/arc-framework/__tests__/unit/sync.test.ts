@@ -212,6 +212,31 @@ describe("decideSyncAction", () => {
       unsavedDirection: null,
     })).toBe("conflict");
   });
+
+  it("treats a HEAD-ancestor note as actionable (save) when remote is in sync and disk is current", () => {
+    const base = {
+      spineState: "clean",
+      refState: "same",
+      diskState: "same",
+      remoteStatus: "in sync",
+      diskStatus: "current",
+      unsavedDirection: null,
+    } as const;
+
+    expect(decideSyncAction({
+      ...base,
+      localNoteFreshness: { state: "ancestor", commit: "a".repeat(40), commitShort: "aaaaaaa", ancestorDistance: 1 },
+    })).toBe("push");
+
+    // Every other freshness state — and the absence of the field — leaves the prior `noop` unchanged.
+    for (const freshness of ["current-head", "missing", "outside-head-ancestry"] as const) {
+      expect(decideSyncAction({
+        ...base,
+        localNoteFreshness: { state: freshness, commit: null, commitShort: null, ancestorDistance: 0 },
+      })).toBe("noop");
+    }
+    expect(decideSyncAction(base)).toBe("noop");
+  });
 });
 
 describe("handleUserSync direction handling", () => {

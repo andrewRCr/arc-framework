@@ -169,7 +169,11 @@ export function decideSyncAction(state: UserSyncState): SyncAction {
       if (state.diskStatus === "local unsaved") return "push";
       return "conflict";
     case "in sync":
-      if (state.diskStatus === "current") return "noop";
+      if (state.diskStatus === "current") {
+        // A note on a HEAD ancestor is actionable: a save attaches one to current
+        // HEAD. Every other freshness state at `current` disk is genuinely up to date.
+        return state.localNoteFreshness?.state === "ancestor" ? "push" : "noop";
+      }
       if (state.diskStatus === "stale") return "load";
       if (state.diskStatus === "local unsaved") return "push";
       return "conflict";

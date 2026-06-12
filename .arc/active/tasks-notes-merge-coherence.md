@@ -103,30 +103,24 @@ its session-init-only caller) and add one arm to `decideSyncAction`, so a note s
 recognized as actionable — `arc user sync` selects the save direction instead of reporting "already up to date."
 The engine recognizes the condition here; the unattended finalize wiring stays with `async-merge-lifecycle`.
 
-### `[ ]` **4.1 Recognize a HEAD-ancestor note as actionable**
+### `[x]` **4.1 Recognize a HEAD-ancestor note as actionable**
 
 - _Goal:_ With the latest note on a HEAD ancestor and the tree otherwise clean, `decideSyncAction` returns the
   save (`push`) direction so a follow-up save attaches a note to current HEAD, and a subsequent status reads
   `current with HEAD`.
-- _Note:_ The new behavior is sync-action-only. `arc user status`'s full headline (`runUserStatus`, which does
-  not consume `UserSyncState`) already surfaces ancestry via `savedFromAncestor` / `ancestorDistance` and stays
-  unchanged.
 
-    - `[ ]` **4.1.a Thread freshness into `UserSyncState`**
-        - Generalize `inspectSessionLocalNoteFreshness` off the session-init-only path (currently called only by
-          `runUserSessionInitStatus`) so `inspectUserSyncState` can reuse it.
-        - Add `localNoteFreshness` to the `UserSyncState` interface (`commands/user/types.ts`) and populate it in
-          `inspectUserSyncState` (`commands/user/sync-status.ts`).
+    - `[x]` **4.1.a Thread freshness into `UserSyncState`**
+    - `[x]` **4.1.b Add the `ancestor` arm to `decideSyncAction`**
 
-    - `[ ]` **4.1.b Add the `ancestor` arm to `decideSyncAction`**
-        - In `decideSyncAction` (`handlers/user-sync.ts`), when `remoteStatus` is `in sync` and `diskStatus` is
-          `current` but freshness is `ancestor`, return `push` rather than `noop`. Every other freshness state
-          (`current-head`, `missing`, `outside-head-ancestry`) leaves the existing decision unchanged.
-        - Build `test-first` (one behavior at a time):
-            - `ancestor` freshness + `in sync` + `current` disk → `push`.
-            - `current-head`, `missing`, and `outside-head-ancestry` leave the prior decision unchanged.
-            - Post-merge with the note on a HEAD ancestor, `arc user sync` selects the save direction and a
-              follow-up status reads `current with HEAD`.
+- _Outcome:_ `inspectUserSyncState` (`commands/user/sync-status.ts`) now also runs the existing
+  `inspectSessionLocalNoteFreshness` (no longer session-init-only) and threads its result onto the new optional
+  `UserSyncState.localNoteFreshness` field (`commands/user/types.ts`; optional so existing partial constructors
+  stay valid). `decideSyncAction` (`handlers/user-sync.ts`) gains one arm: under `remoteStatus: in sync` +
+  `diskStatus: current`, an `ancestor` freshness returns `push` instead of `noop`; every other freshness state
+  (and the absent field) is unchanged. `runUserStatus` is untouched — it already surfaces ancestry via
+  `savedFromAncestor` / `ancestorDistance`. Three unit cases (ancestor→push; current-head/missing/outside
+  unchanged) plus an end-to-end integration test (push a note, advance HEAD, assert `in sync` + `ancestor` →
+  `push`, then a follow-up save clears freshness to `current-head`) cover it.
 
 ## **Phase 5:** Verification
 

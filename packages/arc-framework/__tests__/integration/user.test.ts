@@ -36,6 +36,7 @@ import {
   runUserPull,
   runUserSessionInitStatus,
   runUserStatus,
+  inspectUserSyncState,
   UserSaveError,
   BACKUP_FILENAME,
   hasLocalNotes,
@@ -45,6 +46,7 @@ import {
   type UserLoadResult,
 } from "../../src/commands/user.js";
 import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
+import { decideSyncAction } from "../../src/handlers/user-sync.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
@@ -1304,6 +1306,28 @@ describe("user status", () => {
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const afterRepeat = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
     expect(afterRepeat.diskStatus).toBe("current");
+  });
+
+  it("recognizes a HEAD-ancestor note as a save and clears to current-head after a follow-up save", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Note", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await runUserPush({ io, identity: "test-user" });
+
+    // Advance HEAD so the pushed note now sits on an ancestor commit; remote stays in sync.
+    await makeCommit(tempDir, "second commit");
+
+    const ancestorState = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+    expect(ancestorState.remoteStatus).toBe("in sync");
+    expect(ancestorState.localNoteFreshness?.state).toBe("ancestor");
+    expect(decideSyncAction(ancestorState)).toBe("push");
+
+    // A save attaches a note to current HEAD; freshness returns to current-head.
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    const afterSave = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+    expect(afterSave.localNoteFreshness?.state).toBe("current-head");
   });
 
   it("reports remote-ahead status with an actionable pull hint", async () => {

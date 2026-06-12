@@ -53,9 +53,10 @@ export async function inspectUserSyncState(
   options: InspectUserSyncOptions,
 ): Promise<UserSyncState> {
   const { cwd, io, identity } = options;
-  const [refInspection, diskInspection] = await Promise.all([
+  const [refInspection, diskInspection, localNoteFreshness] = await Promise.all([
     inspectUserSyncRefsDetailed(io, identity),
     inspectDiskVsLocalSnapshot(cwd, io, identity),
+    inspectSessionLocalNoteFreshness({ cwd, io, identity }),
   ]);
   const coherenceState = await resolveUserSyncCoherenceState({
     cwd,
@@ -77,6 +78,7 @@ export async function inspectUserSyncState(
     remoteStatus: spine.remoteStatus,
     diskStatus: diskInspection.diskStatus,
     unsavedDirection: diskInspection.direction,
+    localNoteFreshness,
   };
 }
 
