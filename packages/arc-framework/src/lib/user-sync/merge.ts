@@ -275,20 +275,19 @@ interface Tombstone {
   removedAt: string;
 }
 
-/** Well-formed entries from a file's content, dropping (here, ignoring) malformed blocks. */
-function okEntries(content: string, shape: CrossWuShape): CrossWuEntry[] {
-  return parseCrossWuEntries(content, shape).flatMap((parse) => (parse.ok ? [parse.entry] : []));
-}
-
-/** Entries present in the prior merged state but absent from the current file. */
+/**
+ * Entries live in the prior state but neither live nor already-tombstoned in the
+ * current state — the genuine new removals. `accountedFor` carries the current
+ * state's present-or-recorded identities (live entries ∪ suppressed), so an entry
+ * the saved file already tombstones is recognized rather than re-marked.
+ */
 function synthesizeTombstones(
   prior: readonly CrossWuEntry[],
-  current: readonly CrossWuEntry[],
+  accountedFor: ReadonlySet<string>,
   now: string,
 ): Tombstone[] {
-  const present = new Set(current.map(identityOf));
   return prior
-    .filter((entry) => !present.has(identityOf(entry)))
+    .filter((entry) => !accountedFor.has(identityOf(entry)))
     .map((entry) => ({ section: entry.section, key: entry.key, removedAt: now }));
 }
 
@@ -301,11 +300,14 @@ function renderTombstone(tombstone: Tombstone): string {
  * Append deletion tombstones to a cross-WU file for entries removed since the
  * prior merged state.
  *
- * The prior state is reconstructed by list-unioning entries across `priorNotes`
- * (the same merge as the load path) — an entry present there but absent from
- * `currentContent` is a removal and earns a timestamped `## Removed: {key}`
- * marker. Unknown-shape files, an empty prior window, and the no-removal case
- * return the content unchanged. The marker is recorded here; honoring it
+ * Prior and current state are both reconstructed through the shared tombstone-aware
+ * resolution: an identity live in the prior window but neither live nor already
+ * tombstoned in `currentContent` is a removal and earns a timestamped
+ * `## Removed: {key}` marker. Because prior is resolved tombstone-aware, an identity
+ * the window already records as removed is not a live prior entry, so re-running
+ * the synthesis over a window that already records the removal is a no-op — no
+ * duplicate marker. Unknown-shape files, an empty prior window, and the no-removal
+ * case return the content unchanged. The marker is recorded here; honoring it
  * (suppression, TTL) happens at the next merge.
  *
  * @param filename - Manifest-relative or bare filename; the basename selects the parser.
@@ -323,8 +325,14 @@ export function appendRemovalTombstones(
   const shape = shapeForFile(filename);
   if (shape === null) return currentContent;
 
-  const prior = mergeEntries(priorNotes.map((note) => okEntries(note.content, shape)));
-  const tombstones = synthesizeTombstones(prior, okEntries(currentContent, shape), now);
+  const priorParsed = parseNotesForResolution(priorNotes, shape);
+  const prior = resolveCrossWuState(priorParsed.perNoteEntries, priorParsed.perNoteTombstones, now);
+
+  const currentParsed = parseNotesForResolution([{ content: currentContent }], shape);
+  const current = resolveCrossWuState(currentParsed.perNoteEntries, currentParsed.perNoteTombstones, now);
+  const accountedFor = new Set([...current.liveEntries.map(identityOf), ...current.suppressed]);
+
+  const tombstones = synthesizeTombstones(prior.liveEntries, accountedFor, now);
   if (tombstones.length === 0) return currentContent;
 
   const block = tombstones.map(renderTombstone).join("\n\n");

@@ -31,24 +31,20 @@ _Purpose:_ Route `appendRemovalTombstones` through Phase 1's shared resolution i
 `okEntries` union, so synthesizing removal tombstones over a window that already records the removal is a no-op.
 Closes the duplicate `## Removed:` defect at its root rather than de-duplicating the symptom.
 
-### `[ ]` **2.1 Route `appendRemovalTombstones` through `resolveCrossWuState`**
+### `[x]` **2.1 Route `appendRemovalTombstones` through `resolveCrossWuState`**
 
 - _Goal:_ An identity already resolved-removed by a live tombstone in the window is no longer counted as a live
   prior entry, so it is not re-synthesized; the first removal earns exactly one marker and subsequent
   removal-bearing saves add none for that identity.
-- _Approach:_ Reconstruct both the prior window and the current content through `resolveCrossWuState` (entries +
-  live tombstones), and synthesize over `prior.liveEntries` vs `current.liveEntries` instead of the
-  tombstone-blind `okEntries` union. Live-vs-live comparison is what makes synthesis idempotent and lets an
-  identity the saved file already tombstones be recognized rather than re-marked.
-- _Note:_ The `appendRemovalTombstones` signature and its call site in `applyRemovalTombstones`
-  (`commands/user/save-load.ts`) are unchanged — only the prior/current reconstruction inside the function moves
-  onto the shared resolution.
 
-    - Build `test-first` (one behavior at a time):
-        - Two consecutive removal-bearing saves over the same window produce exactly one `## Removed:` marker per
-          removed identity (idempotency).
-        - The first removal still earns exactly one marker — the no-op applies only once the window records it.
-        - An identity the saved file already tombstones is recognized rather than re-marked.
+- _Outcome:_ `appendRemovalTombstones` reconstructs both the prior window and the current content through
+  `parseNotesForResolution` + `resolveCrossWuState`, replacing the tombstone-blind `okEntries` union (now
+  deleted). Synthesis runs over `prior.liveEntries` minus the current state's present-or-recorded identities
+  (`current.liveEntries ∪ current.suppressed`) — the suppressed term is what makes "an identity the saved file
+  already tombstones" recognized rather than re-marked, which `liveEntries` alone would miss (a prior-live,
+  current-tombstoned identity is absent from `current.liveEntries`). `synthesizeTombstones` now takes an
+  `accountedFor` identity set. Signature and the `applyRemovalTombstones` call site (`commands/user/save-load.ts`)
+  unchanged. Three new tests pin idempotency, first-removal-one-marker, and no-re-mark; 34 merge tests green.
 
 ## **Phase 3:** Canonical tombstone-free projection
 

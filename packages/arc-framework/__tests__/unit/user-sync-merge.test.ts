@@ -289,11 +289,19 @@ No remove-when trigger here.
 
 describe("appendRemovalTombstones", () => {
   const NOW = "2026-05-25T12:00:00.000Z";
+  const daysAgo = (n: number): string => new Date(Date.parse(NOW) - n * 86_400_000).toISOString();
 
   /** A WORKING-MEMORY file whose `## Memories` section holds the given entry blocks. */
   const wmFile = (...entries: string[]): string =>
     `# Working Memory\n\n## Memories\n\n${entries.join("\n\n")}\n\n---\n`;
   const wmEntry = (header: string): string => `**${header}:**\n_Remove when: x._\n\nBody.`;
+  const wmTomb = (header: string, removedAt: string): string =>
+    `## Removed: **${header}:**\n\n- _Section:_ Memories\n- _Removed:_ ${removedAt}`;
+  /** A WORKING-MEMORY note carrying entries plus trailing in-band `## Removed:` markers. */
+  const wmFileWithTombs = (entries: string[], tombstones: string[]): string =>
+    `${wmFile(...entries)}\n${tombstones.join("\n\n")}\n`;
+  /** Count of `## Removed: {key}` markers in `content`. */
+  const markerCount = (content: string, key: string): number => content.split(`## Removed: ${key}`).length - 1;
 
   it("writes a timestamped Removed marker when a prior entry is absent now", () => {
     const prior = wmFile(wmEntry("Kept"), wmEntry("Dropped"));
@@ -350,6 +358,39 @@ describe("appendRemovalTombstones", () => {
     const result = appendRemovalTombstones("SOME-FUTURE-FILE.md", current, [{ content: "anything" }], NOW);
 
     expect(result).toBe(current);
+  });
+
+  it("synthesizes exactly one marker for a first-time removal", () => {
+    const prior = wmFile(wmEntry("Kept"), wmEntry("Dropped"));
+    const current = wmFile(wmEntry("Kept"));
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", current, [{ content: prior }], NOW);
+
+    expect(markerCount(result, "**Dropped:**")).toBe(1);
+  });
+
+  it("adds no new tombstone when a recent note already records a removal still live in an older note", () => {
+    const recent = wmFileWithTombs([wmEntry("Kept")], [wmTomb("Dropped", daysAgo(1))]);
+    const older = wmFile(wmEntry("Kept"), wmEntry("Dropped"));
+    const current = wmFile(wmEntry("Kept"));
+
+    const result = appendRemovalTombstones(
+      "WORKING-MEMORY.md",
+      current,
+      [{ content: recent }, { content: older }],
+      NOW,
+    );
+
+    expect(result).not.toContain("## Removed:");
+  });
+
+  it("does not re-mark an identity the saved file already tombstones", () => {
+    const prior = wmFile(wmEntry("Kept"), wmEntry("Dropped"));
+    const current = wmFileWithTombs([wmEntry("Kept")], [wmTomb("Dropped", daysAgo(1))]);
+
+    const result = appendRemovalTombstones("WORKING-MEMORY.md", current, [{ content: prior }], NOW);
+
+    expect(markerCount(result, "**Dropped:**")).toBe(1);
   });
 });
 
