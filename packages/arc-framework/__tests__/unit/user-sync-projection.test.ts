@@ -38,6 +38,14 @@ describe("projectManifest", () => {
     expect(projected.files["notes-merge-coherence/SESSION-NOTES.md"]).toBe(content);
   });
 
+  it("passes per-WU subdir files through unchanged even when their basename has a merge shape", () => {
+    const content = `# Working Memory\n\n## Removed: not a cross-WU tombstone\n\nsome body\n`;
+
+    const projected = projectManifest(manifest({ "notes-merge-coherence/WORKING-MEMORY.md": content }));
+
+    expect(projected.files["notes-merge-coherence/WORKING-MEMORY.md"]).toBe(content);
+  });
+
   it("preserves the manifest version", () => {
     const projected = projectManifest({ version: 1, files: {} });
 

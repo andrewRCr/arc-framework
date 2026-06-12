@@ -18,6 +18,7 @@
 
 import type { SyncManifest } from "../git/user-sync.js";
 
+import { classifyUserSyncPath } from "./classifier.js";
 import { shapeForFile } from "./parser.js";
 
 /** A `## Removed:` tombstone-section heading at line start. */
@@ -50,9 +51,10 @@ export function stripTombstoneSections(content: string): string {
 /**
  * Project a manifest to its tombstone-free form.
  *
- * Each cross-WU file (one with a registered merge shape) returns its
- * `stripTombstoneSections` content; per-WU subdir files — and any file without a
- * cross-WU shape — pass through unchanged. The manifest version is preserved.
+ * Each cross-WU flat file with a registered merge shape returns its
+ * `stripTombstoneSections` content; per-WU subdir files — and any flat file
+ * without a cross-WU shape — pass through unchanged. The manifest version is
+ * preserved.
  *
  * @param manifest - The manifest to project.
  * @returns A new manifest with cross-WU files stripped of `## Removed:` sections.
@@ -60,7 +62,9 @@ export function stripTombstoneSections(content: string): string {
 export function projectManifest(manifest: SyncManifest): SyncManifest {
   const files: Record<string, string> = {};
   for (const [path, content] of Object.entries(manifest.files)) {
-    files[path] = shapeForFile(path) === null ? content : stripTombstoneSections(content);
+    files[path] = classifyUserSyncPath(path) === "cross-wu" && shapeForFile(path) !== null
+      ? stripTombstoneSections(content)
+      : content;
   }
   return { version: manifest.version, files };
 }
