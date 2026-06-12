@@ -190,9 +190,9 @@ serialize-via-`main` fallback.
 
 ## Cross-cutting Considerations
 
-- **Security.** None material. Every git operation is read-only introspection (`rev-list`, `patch-id` / `range-diff`,
-  parent counts) or an *offered* command (`reset --hard origin/<branch>`); nothing is auto-executed against the
-  working tree.
+- **Security.** No material security concerns. Every git operation is read-only introspection (`rev-list`,
+  `patch-id` / `range-diff`, parent counts) or an *offered* command (`reset --hard origin/<branch>`); nothing is
+  auto-executed against the working tree.
 - **Performance.** The behind-base read is O(1) per resume (one branch vs. base). The patch-equal check is bounded
   to the local-ahead commit set. The probe slot adds no cost to the clean common path beyond one ref-distance
   count. No added latency to non-diverged resumes.
