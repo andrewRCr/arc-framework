@@ -2,7 +2,7 @@
 
 | **State** | **Owner** | **Branch** | **Class** | **Priority** |
 | --- | --- | --- | --- | --- |
-| `Integrating` | `andrew` | `feat/merge-safety-mechanism` | `Heavy` | `P2` |
+| `Shipped` | `andrew` | `feat/merge-safety-mechanism` | `Heavy` | `P2` |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** `concurrent-work-doctrine`
@@ -16,7 +16,7 @@
 - **Next Task:** [none] — verification complete
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 10 — commit completion content + archive sweep + final push.
+- **Next Action:** merge PR #83
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/83>
 - **Completed:** 2026-06-11
