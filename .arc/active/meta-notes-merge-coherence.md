@@ -11,19 +11,18 @@
 - **Design:** `spec-notes-merge-coherence.md`
 - **Task List:** `tasks-notes-merge-coherence.md`
 
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Extract `resolveCrossWuState` and route `mergeCrossWuFile` through it (line ~14)
+- **Last Completed:** Task 4.1 — Recognize a HEAD-ancestor note as actionable
+- **Next Task:** Task 5.1 — Complete verification (line ~127)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — the behavior-preserving extraction of `resolveCrossWuState` in
-  `lib/user-sync/merge.ts` (`tasks-notes-merge-coherence.md`, line ~14), via `process-task-loop.md`. The task
-  list decomposes the spec's four independently-reviewable units into four test-first phases plus verification:
-  shared tombstone-aware resolution (extraction), idempotent removal-tombstone synthesis, the exported
-  tombstone-free `projectManifest` as the single save/load/status comparison basis, and HEAD-ancestor-freshness
-  recognition in `decideSyncAction`. Single subsystem (`lib/user-sync/` + the two user commands), single-copy
-  code under `packages/arc-framework/src` (no two-copy mirror). Upstream of `async-merge-lifecycle`'s finalize
-  notes-sync leg and unblocks `cross-machine-sync-coherence` (which extends `projectManifest`); fixes two live
-  defects WORKING-MEMORY carries a workaround for. Bridge — retires when `operational-state-docs` lands the
-  record/projection model.
+- **Next Action:** Begin Task 5.1 — verification: load and follow `verify-work-unit.md`
+  (`tasks-notes-merge-coherence.md`, line ~127), via `process-task-loop.md`'s verification phase. Phases 1–4 are
+  implemented and committed: shared `resolveCrossWuState` extraction, idempotent removal-tombstone synthesis, the
+  exported tombstone-free `projectManifest` as the single save/load/status comparison basis, and
+  HEAD-ancestor-freshness recognition in `decideSyncAction`. Both live defects are closed (duplicate tombstones;
+  false `local unsaved`); all quality gates green throughout. After verification, integrate — upstream of
+  `async-merge-lifecycle`'s finalize notes-sync leg, and unblocks `cross-machine-sync-coherence` (which extends
+  `projectManifest`). On merge, the benign-posture entry in WORKING-MEMORY retires (its trigger fires when this
+  WU ships).
 
 ---
