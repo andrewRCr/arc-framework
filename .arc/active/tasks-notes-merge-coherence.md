@@ -11,31 +11,19 @@ shared, module-private function in `merge.ts`, and refactor `mergeCrossWuFile` t
 — this is the foundation Phase 2 routes the synthesis path through, removing the divergent second resolution that
 is the root of the duplicate-tombstone defect.
 
-### `[ ]` **1.1 Extract `resolveCrossWuState` and route `mergeCrossWuFile` through it**
+### `[x]` **1.1 Extract `resolveCrossWuState` and route `mergeCrossWuFile` through it**
 
 - _Goal:_ A single module-private resolution function owns the recency × live-tombstone decision, and
   `mergeCrossWuFile` consumes it with byte-identical materialized output on the existing merge fixtures.
-- _Shape:_ `resolveCrossWuState(perNoteEntries, perNoteTombstones, now) → { liveEntries, suppressed, winningTombstones }`
-  — lift the `decided`-map recency walk (most-recent mention wins; an entry suppresses, a winning tombstone
-  carries forward; TTL-expired tombstones drop) out of `mergeCrossWuFile` into one shared function in `merge.ts`.
-  The signature takes already-parsed per-note entries and live tombstones, so `mergeCrossWuFile` keeps its own
-  `malformed`-reason collection at parse time.
 
-    - Extract the per-note parse-into-(entries, live tombstones) loop as a second shared helper
-      (`parseNotesForResolution(notes, shape, now)`) so both `mergeCrossWuFile` and Phase 2's synthesis path share
-      the parse as well as the resolution — the synthesis path ignores `malformed`. If the malformed-handling
-      asymmetry makes the helper awkward, minimal parse-loop duplication is acceptable; the resolution stays
-      shared regardless.
-
-    - Refactor `mergeCrossWuFile` so the `decided` / `suppressed` / `winningTombstones` block delegates to
-      `resolveCrossWuState`; the `mergeEntries` union and base reconstruction downstream of the resolution stay
-      unchanged.
-
-    - Build `test-first` (one behavior at a time):
-        - `mergeCrossWuFile` materialized output stays byte-identical across the existing merge fixtures in
-          `user-sync-merge.test.ts` — the behavior-preservation guard for the extraction.
-        - Optional focused coverage of `resolveCrossWuState` directly; the function is module-private and is
-          primarily validated through `mergeCrossWuFile`, so prefer the fixture guard over re-pinning internals.
+- _Outcome:_ `merge.ts` gains two module-private helpers — `parseNotesForResolution(notes, shape)` (per-note
+  entries + all well-formed tombstones + malformed reasons) and `resolveCrossWuState(perNoteEntries,
+  perNoteTombstones, now) → { liveEntries, suppressed, winningTombstones }` (the recency walk). TTL liveness moved
+  entirely into `resolveCrossWuState`, so `parseNotesForResolution` is time-independent and drops the `now`
+  param the task sketched — cleaner parse/resolve seam, and the same place Phase 2 routes synthesis through.
+  `mergeEntries` union, `malformed` collection, and base reconstruction are unchanged. A four-case inline-snapshot
+  guard added to `user-sync-merge.test.ts` pins byte-identical output (entry fold, USER-INBOX section fold,
+  tombstone suppression, TTL-expired drop); all 31 merge tests green.
 
 ## **Phase 2:** Idempotent removal-tombstone synthesis
 

@@ -59,6 +59,105 @@ export interface MergeResult {
   malformed: string[];
 }
 
+/** Per-note parse products feeding `resolveCrossWuState`. */
+interface ParsedNotesForResolution {
+  /** Per-note entry lists, recency-ordered (most-recent first). */
+  perNoteEntries: CrossWuEntry[][];
+  /** Per-note well-formed tombstones, aligned with `perNoteEntries`; TTL is applied at resolution. */
+  perNoteTombstones: Tombstone[][];
+  /** Reasons for entries and tombstones that failed to parse — surfaced, never silently dropped. */
+  malformed: string[];
+}
+
+/**
+ * Parse a recency-ordered window of notes into per-note entries and tombstones
+ * for {@link resolveCrossWuState}.
+ *
+ * Entries and `## Removed:` markers are parsed per note; a malformed block of
+ * either kind surfaces as a reason rather than being dropped. Tombstone TTL is
+ * not applied here — `resolveCrossWuState` owns liveness — so every well-formed
+ * tombstone is returned.
+ *
+ * @param notes - Per-note copies of the file, recency-ordered (most-recent first).
+ * @param shape - Parser shape resolved from the filename.
+ */
+function parseNotesForResolution(notes: readonly MergeNote[], shape: CrossWuShape): ParsedNotesForResolution {
+  const malformed: string[] = [];
+  const perNoteEntries: CrossWuEntry[][] = [];
+  const perNoteTombstones: Tombstone[][] = [];
+  for (const note of notes) {
+    const entries: CrossWuEntry[] = [];
+    for (const parse of parseCrossWuEntries(note.content, shape)) {
+      if (parse.ok) entries.push(parse.entry);
+      else malformed.push(parse.reason);
+    }
+    perNoteEntries.push(entries);
+
+    const tombstones: Tombstone[] = [];
+    for (const parse of parseTombstones(note.content)) {
+      if (!parse.ok) malformed.push(parse.reason);
+      else tombstones.push(parse.tombstone);
+    }
+    perNoteTombstones.push(tombstones);
+  }
+  return { perNoteEntries, perNoteTombstones, malformed };
+}
+
+/** Resolved cross-WU state after the recency × live-tombstone walk. */
+interface ResolvedCrossWuState {
+  /** Union of entries surviving suppression, in merge order. */
+  liveEntries: CrossWuEntry[];
+  /** `(section, key)` identities removed by a winning live tombstone. */
+  suppressed: Set<string>;
+  /** Tombstones that won their identity — carried forward into the merged file. */
+  winningTombstones: Tombstone[];
+}
+
+/**
+ * Resolve each `(section, key)` identity across a recency-ordered window of
+ * per-note entries and tombstones.
+ *
+ * The most-recent note that mentions an identity decides its fate: an entry
+ * keeps it live; a live tombstone suppresses it and carries forward. Within one
+ * note an entry takes precedence over a tombstone. Tombstones past their TTL
+ * relative to `now` are skipped, so an aged removal stops suppressing and the
+ * entry propagates again.
+ *
+ * @param perNoteEntries - Per-note entry lists, recency-ordered (most-recent first).
+ * @param perNoteTombstones - Per-note tombstones, aligned with `perNoteEntries`.
+ * @param now - ISO-8601 reference time for tombstone TTL evaluation.
+ */
+function resolveCrossWuState(
+  perNoteEntries: readonly CrossWuEntry[][],
+  perNoteTombstones: readonly Tombstone[][],
+  now: string,
+): ResolvedCrossWuState {
+  const decided = new Map<string, "entry" | Tombstone>();
+  for (let i = 0; i < perNoteEntries.length; i++) {
+    for (const entry of perNoteEntries[i] ?? []) {
+      const id = identityOf(entry);
+      if (!decided.has(id)) decided.set(id, "entry");
+    }
+    for (const tombstone of perNoteTombstones[i] ?? []) {
+      if (!isLiveTombstone(tombstone, now)) continue;
+      const id = idOf(tombstone.section, tombstone.key);
+      if (!decided.has(id)) decided.set(id, tombstone);
+    }
+  }
+
+  const suppressed = new Set<string>();
+  const winningTombstones: Tombstone[] = [];
+  for (const [id, decision] of decided) {
+    if (decision !== "entry") {
+      suppressed.add(id);
+      winningTombstones.push(decision);
+    }
+  }
+
+  const liveEntries = mergeEntries(perNoteEntries).filter((entry) => !suppressed.has(identityOf(entry)));
+  return { liveEntries, suppressed, winningTombstones };
+}
+
 /**
  * Merge one cross-WU file across the N most-recent notes.
  *
@@ -88,53 +187,11 @@ export function mergeCrossWuFile(
   const shape = shapeForFile(filename);
   if (shape === null) return { content: base, malformed: [] };
 
-  const malformed: string[] = [];
-  const perNoteEntries: CrossWuEntry[][] = [];
-  const perNoteTombstones: Tombstone[][] = [];
-  for (const note of notes) {
-    const entries: CrossWuEntry[] = [];
-    for (const parse of parseCrossWuEntries(note.content, shape)) {
-      if (parse.ok) entries.push(parse.entry);
-      else malformed.push(parse.reason);
-    }
-    perNoteEntries.push(entries);
+  const { perNoteEntries, perNoteTombstones, malformed } = parseNotesForResolution(notes, shape);
+  const { liveEntries, winningTombstones } = resolveCrossWuState(perNoteEntries, perNoteTombstones, now);
 
-    const tombstones: Tombstone[] = [];
-    for (const parse of parseTombstones(note.content)) {
-      if (!parse.ok) malformed.push(parse.reason);
-      else if (isLiveTombstone(parse.tombstone, now)) tombstones.push(parse.tombstone);
-    }
-    perNoteTombstones.push(tombstones);
-  }
-
-  // Resolve each identity by recency: the most-recent note that mentions it
-  // (entry or live tombstone) decides. Entries take precedence within one note.
-  const decided = new Map<string, "entry" | Tombstone>();
-  for (let i = 0; i < notes.length; i++) {
-    for (const entry of perNoteEntries[i] ?? []) {
-      const id = identityOf(entry);
-      if (!decided.has(id)) decided.set(id, "entry");
-    }
-    for (const tombstone of perNoteTombstones[i] ?? []) {
-      const id = idOf(tombstone.section, tombstone.key);
-      if (!decided.has(id)) decided.set(id, tombstone);
-    }
-  }
-
-  const suppressed = new Set<string>();
-  const winningTombstones: Tombstone[] = [];
-  for (const [id, decision] of decided) {
-    if (decision !== "entry") {
-      suppressed.add(id);
-      winningTombstones.push(decision);
-    }
-  }
-
-  const merged = mergeEntries(perNoteEntries);
   const baseKeys = new Set((perNoteEntries[0] ?? []).map(identityOf));
-  const olderOnly = merged.filter(
-    (entry) => !baseKeys.has(identityOf(entry)) && !suppressed.has(identityOf(entry)),
-  );
+  const olderOnly = liveEntries.filter((entry) => !baseKeys.has(identityOf(entry)));
 
   let content = appendEntriesToSections(stripTombstoneSections(base), olderOnly);
   if (winningTombstones.length > 0) {
