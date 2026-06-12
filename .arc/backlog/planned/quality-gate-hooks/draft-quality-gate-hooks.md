@@ -97,6 +97,22 @@
 - *Scope:* S — composes this WU's commit-gate dispatch with one more auto-fix command + one CI step.
 - *Coordinates with:* `markdown-formatting` (owns the fix-commands/rules; this owns the gate wiring).
 
+### `[ ]` **Config-gated TTY-confirm escalation for the force-push advisory hook**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), housekeep drain (2026-06-12); captured during
+  `merge-safety-mechanism` Task 2.3 while deciding the force-push hook's detection behavior.
+- *Concern:* `merge-safety-mechanism` shipped the force-push pre-push hook as advisory-only: it warns and exits 0
+  when a pushed ref would overwrite a non-ancestor remote tip. A pre-push hook fires before data reaches the remote,
+  so it could offer a real abort window, but confirm-by-default would be high-friction and risks breaking GUI or
+  non-TTY clients.
+- *Proposed:* add an opt-in config axis such as `push.force_confirm: warn|confirm`, defaulting to `warn`. Under
+  `confirm`, prompt `[y/N]` only on a TTY before the risky push, with a robust non-interactive
+  proceed-with-warning fallback so CI and agent pushes never hang. Because the hook cannot reliably know whether a
+  branch is shared, tighten the trigger if possible or document that routine solo rebase-pushes can still warn.
+- *Coordination:* this is follow-up mechanism/config work after the completed `merge-safety-mechanism` advisory
+  default, not a change to ADR-025's default advisory stance. Touch points include the canonical and package hook
+  copies, config schema/defaults/validation, tests, and docs.
+
 ---
 
 ## Problem / Motivation

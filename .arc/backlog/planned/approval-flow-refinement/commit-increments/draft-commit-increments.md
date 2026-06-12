@@ -1,5 +1,38 @@
 # Draft: Decoupling Review and Commit Increments
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Reconsider the `review increment` term holistically**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
+  during `merge-safety-mechanism` Task 1.2 after a batch-review proposal surfaced the wording problem.
+- *Concern:* `review increment` reads as "an increment of review" and is inaccurate under deferred review, where
+  the unit is reviewable but not yet reviewed. The sharper concept is a bounded chunk of work that constitutes a
+  reviewable unit. The acute wording symptom is phrasing like "review 4.2 as a single increment?", which can read
+  as the agent reviewing rather than implementing one reviewable increment for human review.
+- *Proposed:* decide the term alongside the paired `commit increment` vocabulary this WU owns. Options include
+  `reviewable increment`, a `review boundary` / `commit boundary` pair, or another term; keep the rename cascade
+  whole rather than creating a canonical-but-inconsistent gap. Exclude ADRs as historical record.
+- *Scope:* approximately 72 occurrences across roughly 22 files, with two-copy sync for methodology surfaces.
+  Coordinate with `naming-conventions` only for any general prose-vocabulary convention it codifies.
+
+### `[ ]` **Let agents shape completion gates when recommending a held commit**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: commit-increments`), housekeep drain (2026-06-12); captured
+  during `merge-safety-mechanism` Task 1.2 alongside the term concern.
+- *Concern:* the completion gate currently derives the literal prompt from `commitInterlock` mode, producing
+  contradictions when the agent's own recommendation is to hold the commit, such as "recommend holding this until
+  the next task lands. Commit and proceed?". The literal verb fights the intended structured approval gate.
+- *Proposed:* separate the invariant from the string: preserve one explicit gate that names the work approval,
+  available commit action, and advancement target, while allowing context-fitting wording such as "Approve work;
+  hold the commit until X?". The current rules handle a user overriding with `y; hold the commit`; this fills the
+  agent-proactive recommendation case already motivating this draft's commit-interlock prompt work.
+
+---
+
 ## Problem / Motivation
 
 ARC's task-execution model conflates two distinct boundaries — *where the agent stops to ask*

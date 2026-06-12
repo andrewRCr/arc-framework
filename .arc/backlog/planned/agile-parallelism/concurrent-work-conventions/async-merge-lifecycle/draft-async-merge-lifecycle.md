@@ -48,6 +48,34 @@
   the rendered file (non-projected record field), at which point both defects dissolve and this near-term merge fix
   retires. This is the bridge until then — not a competing design.
 
+### `[ ]` **Document and emit the standalone `integration` footer kind**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: async-merge-lifecycle`), housekeep drain (2026-06-12);
+  captured during `merge-safety-mechanism` Task 4.2 after the validator branch shipped.
+- *Concern:* `merge-safety-mechanism` taught the `commit-msg` validator to accept
+  `Context: integration (...)` as a standalone footer kind for single-parent integration ceremony commits, but
+  nothing emits it and `commit-footer.md` does not enumerate it. Documenting it before a producer exists would make
+  adopter-facing docs describe a latent forward allowance.
+- *Proposed:* fold the `commit-footer.md` enumeration into this WU's emitter wiring so the source-of-truth line
+  lands with the workflow path that actually produces the footer. Natural emitters are the in-flight completion
+  sweep, unattended-merge completion trigger, and any archival/finalize ceremony commit this WU wires.
+- *Files:* `commit-footer.md` in both copies plus the async-merge finalize / completion workflow surface.
+
+### `[ ]` **Post-merge notes sync must attach user notes to the merge commit**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: async-merge-lifecycle`), housekeep drain (2026-06-12);
+  captured after merging PR #83 and returning the primary worktree to `main`.
+- *Concern:* after `main` fast-forwarded to the merge commit, session-init still reported the latest local user
+  note on the archived branch tip, one commit behind HEAD. `npx arc user sync` reported "already up to date" and
+  did not attach a note to the merge commit; explicit `npx arc user save` followed by `npx arc user push` was
+  required. The post-merge finalize path needs freshness to mean "same content, attached to current HEAD."
+- *Proposed:* in the same-session finalize / post-merge close-out design, require the notes leg to ensure current
+  `HEAD` has a saved user note after the base pull or fast-forward. Either run save+push explicitly, or teach
+  `arc user sync` to treat `localNoteFreshness.state === ancestor` as actionable even when file content and remote
+  notes otherwise compare clean. Add a regression so status reports "current with HEAD" after finalize.
+- *Files:* `commands/user/save-load.ts`, `commands/user/sync-status.ts`, sync/freshness orchestration, and the
+  async-merge finalize workflow surface.
+
 ---
 
 ## Problem / Motivation

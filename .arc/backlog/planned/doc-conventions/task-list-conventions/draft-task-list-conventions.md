@@ -55,6 +55,22 @@
 - *Scope:* Quick-tier; doc/example edits in `3_process-task-loop.md` + `strategy-task-list-formatting.md`
   (+ `template-tasks.md`), two-copy.
 
+### `[ ]` **Make task-list `verify-work-unit.md` references filename-only**
+
+- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-12); captured during task generation for
+  `merge-safety-mechanism`, when the pre-commit link-resolution check flagged the copied template path.
+- *Concern:* both copies of `template-tasks.md` ship the `[verify-work-unit]` link with a relative path that is
+  correct for neither active nor planned task-list locations. Recent task lists have silently diverged to local
+  relative paths, and any relative link from a movable task-list artifact violates the relocation rule because the
+  source path changes across lifecycle moves.
+- *Proposed:* render the reference as filename-only, backticked `verify-work-unit.md`, and drop the link definition.
+  Also make the source-side rule explicit: movable artifacts should not carry outbound relative links even to stable
+  docs. This trades link-check validation for relocation safety, matching the existing workflow-reference
+  convention.
+- *Files / coordination:* `strategy-task-list-formatting.md` § Verification Phase and `template-tasks.md`, both
+  two-copy. Coordinate with `quality-gate-hooks`, whose draft already tracks the outbound relative-link enforcement
+  catch.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)
