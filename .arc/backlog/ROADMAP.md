@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5d46f4e3`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6aebef5e`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -31,6 +31,10 @@ _No work units in this tier._
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
+| graduation-cleanup           | P2       | andrew | —          | —                           |
+| maintenance-errand-class     | P2       | andrew | —          | —                           |
+| park-resume-lifecycle        | P2       | andrew | —          | —                           |
+| planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization  |
 | cli-test-hardening           | P3       | andrew | —          | architecture-remediation    |
@@ -57,6 +61,7 @@ _No work units in this tier._
 | rules-restructure            | P3       | andrew | —          | —                           |
 | shared-inbox-housekeep       | P3       | andrew | —          | —                           |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                           |
+| synthesis-modality           | P3       | andrew | —          | —                           |
 
 ## Blocked
 
@@ -65,7 +70,6 @@ _No work units in this tier._
 | Work unit                     | Priority | Owner  | Depends on                                                                                               | Cohort                     |
 | ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------- | -------------------------- |
 | finalize-parallelism          | P1       | andrew | async-merge-lifecycle, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| arc-plan-conductor            | P2       | andrew | loadset-composition                                                                                      | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                   | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |

@@ -283,7 +283,7 @@ tier-model reconciliation to Errand/WU + atomic-as-character (whether the *atomi
 the tier set). This question travelled with the WU; the strong current lean is that atomic-character work
 lives in the Errand class and "atomic" is no longer a WU tier — see that draft's design-refresh flag.
 
-Cross-cohort follow-on — **arc-plan-conductor** (outside the cohort): reconcile its spec-graduation
+Cross-cohort follow-on — **`graduation-cleanup`** (outside the cohort): reconcile its spec-graduation
 cleanup ceremony (drop a WU's *own* planning-noise commits before the Planning → Active flip) with the
 lighter-gate / planning-layer merge treatment here. Related but distinct — the cleanup is intra-WU
 history hygiene; the lighter gate is cross-WU merge routing.

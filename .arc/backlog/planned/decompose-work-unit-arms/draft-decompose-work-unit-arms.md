@@ -7,6 +7,40 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **decompose-work-unit's arms are errand-class — consume the `maintenance-errand-class` redefinition**
+
+- *Routed from:* `arc-plan-conductor` decomposition session (2026-06-12) — surfaced while hand-running this WU's
+  own motivating instance.
+- *Concern:* the backlog-stub-source (arm 2) and heterogeneous-home (arm 3) arms **are** errand-class
+  decomposition — multi-step, pure relocation, no design authored. They depend on the wrapper-gate redefinition
+  owned by `maintenance-errand-class` (the gate is *character* — author-vs-relocate, movable-vs-durable surface —
+  not increment-count; see that draft for the full discriminator and the relocate-don't-author invariant).
+- *Implication:* consider making `decompose-work-unit` runnable as a multi-increment errand (no
+  `meta`/`spec`/`tasks`) once `maintenance-errand-class` lands. This reframes the WU from "more decomposition
+  arms" toward "decomposition is an errand-class operation with arms," which may widen scope — settle at spec
+  time, coordinated with `maintenance-errand-class`.
+
+### `[ ]` **Decomposition facilitation: team-ownership motivation + lifecycle-timing axis**
+
+- *Routed from:* `arc-plan-conductor` draft Inbound Buffer (origin: `USER-INBOX § Backlog`, captured during
+  `concurrent-work-conventions` planning 2026-06-03), re-homed here at the conductor decomposition (2026-06-12).
+- *Concern:* existing decomposition guidance (the conductor's § 11) owns plan-splitting (one draft → several) and
+  spec-decomposition (one plan → many WUs) but frames both around *manageability* / *implementation count* only —
+  never *ownership distribution* — and its splitting is entirely pre-spec.
+- *Proposed:* (1) add splitting motivated by **distributing pieces across distinct single-owner devs** — the direct
+  corollary of `concurrent-work-conventions`' "WU = single-owner; cross-person parallelism = decompose into N
+  single-owner WUs, not multi-dev-per-WU"; (2) add a **lifecycle-timing axis** — smooth/supported at draft +
+  pre-activation stages, with mid-implementation split treated as an explicit costly escape hatch (the inverse of
+  the integration-conflict research's "abandon parallelism, redo as unified"). This is the corollary work to the
+  errand-gate item above: both are about *what shape* decomposition takes and *when*.
+
+---
+
 ## Problem / Motivation
 
 `decompose-work-unit.md` models decomposition as a **single, strictly symmetric** transform:
