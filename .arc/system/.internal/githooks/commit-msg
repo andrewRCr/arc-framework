@@ -34,6 +34,13 @@ if [ "$hook_enabled" = "disabled" ]; then
     exit 0
 fi
 
+# Exempt merge commits. A merge in progress carries MERGE_HEAD; git's
+# auto-generated merge message ("Merge branch ...") follows no conventional
+# format and has no Context: footer, so the format and footer rules don't apply.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+    exit 0
+fi
+
 # Extract components
 subject=$(echo "$commit_msg" | head -n1)
 subject_length=${#subject}
@@ -297,6 +304,12 @@ case "$context_footer_mode" in
 
             # Matches: Context: standalone (maintenance|planning|documentation|refactor) — off-WU work
             elif echo "$context_line" | grep -qE '^Context: standalone \((maintenance|planning|documentation|refactor)\)$'; then
+                :
+
+            # Matches: Context: integration (freeform) — single-parent integration ceremony commits
+            # (a squash-merge result, an archival move) not caught by the two-parent MERGE_HEAD exemption.
+            # Distinct from the meta-*.md (integration) lifecycle marker above.
+            elif echo "$context_line" | grep -qE '^Context: integration \(.+\)$'; then
                 :
 
             # Matches: Context: contribution (freeform description)

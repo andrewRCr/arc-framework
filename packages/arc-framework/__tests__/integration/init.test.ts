@@ -363,6 +363,7 @@ describe("init integration (fresh mode, pm.mode=none, tools=[claude])", () => {
     const executableFiles = [
       "system/.internal/githooks/pre-commit",
       "system/.internal/githooks/commit-msg",
+      "system/.internal/githooks/pre-push",
       "system/.internal/scripts/validate-config.sh",
       "system/.internal/scripts/verify-integrity.sh",
       "system/.internal/scripts/arc-lib.sh",

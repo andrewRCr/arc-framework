@@ -51,6 +51,8 @@ import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
+import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
@@ -171,6 +173,18 @@ function worktreeSync(
 
 function worktreeIdentity(value: WorktreeIdentity = { kind: "primary" }): WorktreeIdentity {
   return value;
+}
+
+function baseDistance(
+  overrides: Partial<BaseDistanceStatusResult> = {},
+): BaseDistanceStatusResult {
+  return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
+}
+
+function supersessionResult(
+  overrides: Partial<SupersessionResult> = {},
+): SupersessionResult {
+  return { superseded: false, supersededCommits: [], novelCommits: [], ...overrides };
 }
 
 function rosterResult(overrides: Partial<WorktreeRosterResult> = {}): WorktreeRosterResult {
@@ -296,6 +310,8 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     user: vi.fn(async () => userSessionInit()),
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    baseDistance: vi.fn(async () => baseDistance()),
+    supersession: vi.fn(async () => supersessionResult()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
     config: vi.fn(async () => configSessionInit()),
@@ -665,6 +681,129 @@ describe("runSessionInitStatus — orchestration", () => {
   });
 });
 
+describe("runSessionInitStatus — base-distance slot", () => {
+  it("assembles the slot with the behind-base distance when the base has advanced", async () => {
+    const probes = sessionInitProbes({
+      baseDistance: vi.fn(async () => baseDistance({ state: "remote-ahead", ahead: 0, behind: 5 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.baseDistance).toHaveBeenCalledTimes(1);
+    expect(result.baseDistance.ok).toBe(true);
+    if (result.baseDistance.ok) {
+      expect(result.baseDistance.value.state).toBe("remote-ahead");
+      expect(result.baseDistance.value.behind).toBe(5);
+      expect(result.baseDistance.value.base).toBe("main");
+      // Behind-base drift surfaces an advisory reconcile offer (never gates).
+      expect(result.baseDistance.value.recommendedAction).toBe("surface");
+      expect(result.baseDistance.value.recommendedPromptText).toContain("advanced 5 commit(s)");
+    }
+  });
+
+  it("assembles a clean slot at parity with the base", async () => {
+    const probes = sessionInitProbes({
+      baseDistance: vi.fn(async () => baseDistance({ state: "clean", ahead: 0, behind: 0 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseDistance.ok).toBe(true);
+    if (result.baseDistance.ok) {
+      expect(result.baseDistance.value.state).toBe("clean");
+      expect(result.baseDistance.value.recommendedAction).toBe("skip");
+    }
+  });
+
+  it("carries a degraded no-remote slot through to the envelope", async () => {
+    const probes = sessionInitProbes({
+      baseDistance: vi.fn(async () => baseDistance({ state: "no-remote" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseDistance.ok).toBe(true);
+    if (result.baseDistance.ok) {
+      expect(result.baseDistance.value.state).toBe("no-remote");
+    }
+  });
+
+  it("carries a degraded detached-head slot (null base) through to the envelope", async () => {
+    const probes = sessionInitProbes({
+      baseDistance: vi.fn(async () => baseDistance({ state: "detached-head", base: null })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseDistance.ok).toBe(true);
+    if (result.baseDistance.ok) {
+      expect(result.baseDistance.value.state).toBe("detached-head");
+      expect(result.baseDistance.value.base).toBeNull();
+    }
+  });
+
+  it("preserves a probe failure as an error slot rather than rejecting the envelope", async () => {
+    const probes = sessionInitProbes({
+      baseDistance: vi.fn(async () => {
+        throw new Error("base probe boom");
+      }),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseDistance.ok).toBe(false);
+    if (!result.baseDistance.ok) {
+      expect(result.baseDistance.error.kind).toBe("runtime");
+    }
+  });
+});
+
+describe("runSessionInitStatus — diverged supersession downgrade", () => {
+  it("downgrades the diverged reconcile to a lossless-reset offer on patch-equal supersession", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+      ),
+      supersession: vi.fn(async () =>
+        supersessionResult({ superseded: true, supersededCommits: ["a", "b"] }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    // The detector fires once, scoped to the diverged branch.
+    expect(probes.supersession).toHaveBeenCalledTimes(1);
+    expect(probes.supersession).toHaveBeenCalledWith("feat/x");
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession?.superseded).toBe(true);
+      expect(result.worktree.value.recommendedAction).toBe("surface");
+      expect(result.worktree.value.recommendedPromptText).toContain("superseded");
+      expect(result.worktree.value.recommendedPromptText).toContain(
+        "git reset --hard origin/feat/x",
+      );
+    }
+  });
+
+  it("keeps the generic reconcile on genuine divergence (no patch-equal supersession)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () =>
+        worktreeSync({ state: "diverged", ahead: 2, behind: 3, branch: "feat/x" }),
+      ),
+      supersession: vi.fn(async () =>
+        supersessionResult({ superseded: false, novelCommits: ["a", "b"] }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession?.superseded).toBe(false);
+      expect(result.worktree.value.recommendedAction).toBe("surface");
+      expect(result.worktree.value.recommendedPromptText).toBe("");
+    }
+  });
+
+  it("skips the detector entirely on a non-diverged worktree (null supersession)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.supersession).not.toHaveBeenCalled();
+    expect(result.worktree.ok).toBe(true);
+    if (result.worktree.ok) {
+      expect(result.worktree.value.supersession).toBeNull();
+    }
+  });
+});
+
 describe("runSessionInitStatus — worktree slot + user qualifier", () => {
   it("includes the worktree slot with state and counts on every invocation", async () => {
     const probes = sessionInitProbes({
@@ -847,6 +986,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
+      "baseDistance",
       "config",
       "dirty",
       "domainRules",

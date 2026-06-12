@@ -91,6 +91,12 @@ hooks.pre_commit: enabled
 #   disabled - Skips commit message validation
 hooks.commit_msg: enabled
 
+# Pre-push hook.
+#   enabled  - Advisory warning before a force-push that rewrites published
+#              history; never blocks the push (default)
+#   disabled - Skips the force-push advisory
+hooks.pre_push: enabled
+
 # Task numbering format check in pre-commit hook.
 # Per strategy-task-list-formatting.md: third level uses letters (1.1.a not 1.1.1).
 #   error   - Block commit on violations (default)

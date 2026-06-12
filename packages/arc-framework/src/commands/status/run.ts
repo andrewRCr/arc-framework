@@ -27,6 +27,7 @@ import type {
   RunSessionInitStatusOptions,
   RunStatusOptions,
   SessionHandoffResult,
+  SessionInitBaseDistanceValue,
   SessionInitProbeResult,
   SessionInitUserValue,
   SessionInitWorktreeValue,
@@ -40,6 +41,7 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
+  inferBaseDistance,
   inferSessionInitRecommendations,
   type NotesPullPolicy,
   type WorktreePullPolicy,
@@ -220,6 +222,7 @@ export async function runSessionInitStatus(
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
+  const baseDistanceTask = safeProbe(() => probes.baseDistance());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const domainRulesTask = safeProbe(() => probes.domainRules());
@@ -242,7 +245,7 @@ export async function runSessionInitStatus(
 
   const [
     user, worktree, dirty, active, releaseRouting,
-    worktreeIdentitySlot, extensions, config, domainRules,
+    worktreeIdentitySlot, baseDistance, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
     shared.user,
@@ -251,6 +254,7 @@ export async function runSessionInitStatus(
     shared.active,
     shared.releaseRouting,
     worktreeIdentityTask,
+    baseDistanceTask,
     extensionsTask,
     configTask,
     domainRulesTask,
@@ -274,11 +278,22 @@ export async function runSessionInitStatus(
       ? { ...user, value: { ...user.value, qualifier: "clean-at-current-head" as const } }
       : user;
 
+  // Patch-equal supersession refinement — only meaningful when the worktree has
+  // diverged from its upstream and the branch is resolvable. A single bounded
+  // `git cherry` over the local-ahead set; skipped on every non-diverged resume,
+  // so the common path pays nothing. `null` when not diverged or the read failed.
+  const supersessionSlot =
+    worktree.ok && worktree.value.state === "diverged" && worktree.value.branch !== null
+      ? await safeProbe(() => probes.supersession(worktree.value.branch as string))
+      : undefined;
+  const supersession = supersessionSlot?.ok ? supersessionSlot.value : null;
+
   const recommendations = composeSessionInitRecommendations({
     worktree,
     user: qualifiedUser,
     dirty,
     config,
+    supersession,
   });
 
   const enrichedWorktree: SessionInitProbeResult["worktree"] = worktree.ok
@@ -289,9 +304,26 @@ export async function runSessionInitStatus(
         recommendedAction: recommendations.worktree.recommendedAction,
         recommendedPromptText: recommendations.worktree.recommendedPromptText,
         identity: worktreeIdentity,
+        supersession,
       } satisfies SessionInitWorktreeValue,
     }
     : worktree;
+
+  // Base-distance enrichment mirrors the worktree slot's shape. Its
+  // recommendation is an independent advisory (behind-base reconcile offer),
+  // composed straight from the slot — orthogonal to the worktree+notes pull
+  // recommendations and their combined prompt.
+  const baseDistanceRec = inferBaseDistance(baseDistance.ok ? baseDistance.value : null);
+  const enrichedBaseDistance: SessionInitProbeResult["baseDistance"] = baseDistance.ok
+    ? {
+      ok: true,
+      value: {
+        ...baseDistance.value,
+        recommendedAction: baseDistanceRec.recommendedAction,
+        recommendedPromptText: baseDistanceRec.recommendedPromptText,
+      } satisfies SessionInitBaseDistanceValue,
+    }
+    : baseDistance;
 
   const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
     ? {
@@ -368,6 +400,7 @@ export async function runSessionInitStatus(
     identity: buildIdentity(identity, role),
     user: enrichedUser,
     worktree: enrichedWorktree,
+    baseDistance: enrichedBaseDistance,
     dirty,
     extensions,
     config,
@@ -397,6 +430,7 @@ function composeSessionInitRecommendations(slots: {
   user: { ok: true; value: import("../user/types.js").UserSessionInitStatusResult } | ProbeErrorSlot;
   dirty: { ok: true; value: DirtyStateResult } | ProbeErrorSlot;
   config: { ok: true; value: import("../config/types.js").ConfigSessionInitResult } | ProbeErrorSlot;
+  supersession: import("../../lib/git/supersession.js").SupersessionResult | null;
 }): ReturnType<typeof inferSessionInitRecommendations> {
   if (!slots.worktree.ok || !slots.dirty.ok || !slots.config.ok) {
     return {
@@ -412,6 +446,7 @@ function composeSessionInitRecommendations(slots: {
     worktreePullPolicy: normalizeWorktreePolicy(settings["session.init_pull.worktree"]),
     notesPullPolicy: normalizeNotesPolicy(settings["session.init_pull.notes"]),
     dirty: slots.dirty.value,
+    supersession: slots.supersession,
   });
 }
 

@@ -37,15 +37,19 @@ describe("integrateHooks — husky", () => {
     const io = makeIO({
       "/repo/.husky/pre-commit": "#!/usr/bin/env sh\nnpm run lint\n",
       "/repo/.husky/commit-msg": "#!/usr/bin/env sh\nnpx commitlint --edit $1\n",
+      "/repo/.husky/pre-push": "#!/usr/bin/env sh\nnpm test\n",
     });
 
     await integrateHooks(detection, io.readFile, io.writeFile);
 
     expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
+    // Pre-push forwards the remote args so the canonical hook can name the remote.
+    expect(io.written["/repo/.husky/pre-push"]).toContain('.arc/system/.internal/githooks/pre-push "$@"');
     // Preserves existing content
     expect(io.written["/repo/.husky/pre-commit"]).toContain("npm run lint");
     expect(io.written["/repo/.husky/commit-msg"]).toContain("npx commitlint --edit $1");
+    expect(io.written["/repo/.husky/pre-push"]).toContain("npm test");
   });
 
   it("creates hook files with shebang when they don't exist", async () => {
@@ -57,14 +61,18 @@ describe("integrateHooks — husky", () => {
     expect(io.written["/repo/.husky/pre-commit"]).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(io.written["/repo/.husky/commit-msg"]).toMatch(/^#!/);
     expect(io.written["/repo/.husky/commit-msg"]).toContain(".arc/system/.internal/githooks/commit-msg $1");
+    expect(io.written["/repo/.husky/pre-push"]).toMatch(/^#!/);
+    expect(io.written["/repo/.husky/pre-push"]).toContain('.arc/system/.internal/githooks/pre-push "$@"');
   });
 
   it("is idempotent — does not duplicate entries on second run", async () => {
     const existing = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/pre-commit\n";
     const existingMsg = "#!/usr/bin/env sh\n.arc/system/.internal/githooks/commit-msg $1\n";
+    const existingPush = '#!/usr/bin/env sh\n.arc/system/.internal/githooks/pre-push "$@"\n';
     const io = makeIO({
       "/repo/.husky/pre-commit": existing,
       "/repo/.husky/commit-msg": existingMsg,
+      "/repo/.husky/pre-push": existingPush,
     });
 
     await integrateHooks(detection, io.readFile, io.writeFile);
@@ -101,6 +109,8 @@ describe("integrateHooks — lefthook", () => {
     expect(output).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(output).toContain("arc-commit-msg");
     expect(output).toContain(".arc/system/.internal/githooks/commit-msg {1}");
+    expect(output).toContain("arc-pre-push");
+    expect(output).toContain(".arc/system/.internal/githooks/pre-push {1} {2}");
     // Preserves existing commands
     expect(output).toContain("npm run lint");
   });
@@ -116,6 +126,7 @@ describe("integrateHooks — lefthook", () => {
     expect(output).toBeDefined();
     expect(output).toContain("arc-pre-commit");
     expect(output).toContain("arc-commit-msg");
+    expect(output).toContain("arc-pre-push");
   });
 
   it("is idempotent — does not duplicate entries on second run", async () => {
@@ -128,6 +139,10 @@ describe("integrateHooks — lefthook", () => {
       "  commands:",
       "    arc-commit-msg:",
       "      run: .arc/system/.internal/githooks/commit-msg {1}",
+      "pre-push:",
+      "  commands:",
+      "    arc-pre-push:",
+      "      run: .arc/system/.internal/githooks/pre-push {1} {2}",
       "",
     ].join("\n");
     const io = makeIO({ "/repo/lefthook.yml": existing });
@@ -166,6 +181,10 @@ describe("integrateHooks — pre-commit", () => {
     expect(output).toContain(".arc/system/.internal/githooks/pre-commit");
     expect(output).toContain("arc-commit-msg");
     expect(output).toContain(".arc/system/.internal/githooks/commit-msg");
+    expect(output).toContain("arc-pre-push");
+    expect(output).toContain(".arc/system/.internal/githooks/pre-push");
+    // Pre-push runs at the pre-push stage, not commit.
+    expect(output).toContain("pre-push");
     expect(output).toContain("unsupported_script");
     // Preserves existing repos
     expect(output).toContain("trailing-whitespace");
@@ -181,6 +200,7 @@ describe("integrateHooks — pre-commit", () => {
     const output = io.written["/repo/.pre-commit-config.yaml"];
     expect(output).toBeDefined();
     expect(output).toContain("arc-pre-commit");
+    expect(output).toContain("arc-pre-push");
     expect(output).toContain("repo: local");
   });
 
@@ -204,6 +224,7 @@ describe("integrateHooks — pre-commit", () => {
     const output = io.written["/repo/.pre-commit-config.yaml"];
     expect(output).toBeDefined();
     expect(output).toContain("arc-pre-commit");
+    expect(output).toContain("arc-pre-push");
     expect(output).toContain("my-custom-hook");
   });
 
@@ -225,6 +246,13 @@ describe("integrateHooks — pre-commit", () => {
       "        language: unsupported_script",
       "        stages:",
       "          - commit-msg",
+      '        files: ^$',
+      "      - id: arc-pre-push",
+      "        name: ARC Pre-Push",
+      "        entry: .arc/system/.internal/githooks/pre-push",
+      "        language: unsupported_script",
+      "        stages:",
+      "          - pre-push",
       '        files: ^$',
       "",
     ].join("\n");

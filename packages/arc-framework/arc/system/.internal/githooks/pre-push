@@ -1,0 +1,63 @@
+#!/bin/bash
+# Git pre-push hook — advisory force-push warning.
+# Location: .arc/system/.internal/githooks/pre-push
+#
+# Surfaces an advisory warning before a force-push that would rewrite published
+# history — when the remote tip being replaced is not an ancestor of the commit
+# being pushed. This is the append-only backstop: it makes a silent clobber of a
+# shared branch loud, so overwritten commits can still be recovered from the
+# reflog. It is advisory ONLY and NEVER blocks the push (always exits 0).
+#
+# Scope note: a pre-push hook sees only the ref OIDs, not whether the branch is
+# shared with others, so it warns on every non-ancestor overwrite (the
+# append-only concern applies whenever published history is rewritten). The base
+# branch is not special-cased — force-pushing it is, if anything, more serious.
+#
+# Setup: git config core.hooksPath .arc/system/.internal/githooks
+# NOTE: Never use --no-verify to bypass hooks. Fix the issue instead.
+
+# Deliberately no `set -e`: a pre-push hook must never abort the push on an
+# internal hiccup — it is advisory. `git merge-base --is-ancestor` also exits
+# non-zero by design (the not-an-ancestor signal), which `set -e` would trap.
+
+# Source shared library (config reader, colors)
+. "$(dirname "$0")/../scripts/arc-lib.sh"
+
+YELLOW="$ARC_YELLOW"
+NC="$ARC_NC"
+
+hook_enabled=$(arc_config_get "hooks.pre_push" "enabled")
+if [ "$hook_enabled" = "disabled" ]; then
+    exit 0
+fi
+
+remote_name="$1"
+zero="0000000000000000000000000000000000000000"
+
+# stdin carries one line per ref being pushed:
+#   <local_ref> <local_oid> <remote_ref> <remote_oid>
+# shellcheck disable=SC2034  # local_ref is part of the protocol line; unused here.
+while read -r local_ref local_oid remote_ref remote_oid; do
+    # A branch deletion (local all-zero) or a brand-new remote branch (remote
+    # all-zero) overwrites no existing remote commit — nothing to warn about.
+    [ "$local_oid" = "$zero" ] && continue
+    [ "$remote_oid" = "$zero" ] && continue
+
+    # Fast-forward: the remote tip is already an ancestor of what we are pushing,
+    # so no remote commit is dropped. Stay silent.
+    if git merge-base --is-ancestor "$remote_oid" "$local_oid" 2>/dev/null; then
+        continue
+    fi
+
+    # Non-ancestor remote tip → this push rewrites published history. Count the
+    # commits reachable only from the remote tip (what the overwrite would drop).
+    dropped=$(git rev-list --count "${local_oid}..${remote_oid}" 2>/dev/null || echo "?")
+    branch=${remote_ref#refs/heads/}
+    short_remote=$(git rev-parse --short "$remote_oid" 2>/dev/null || echo "$remote_oid")
+
+    echo -e "${YELLOW}Warning: force-push rewrites published history on '${remote_name}/${branch}'.${NC}" >&2
+    echo -e "${YELLOW}  Remote tip ${short_remote} is not an ancestor of the pushed commit; ${dropped} commit(s) present only on the remote would be dropped.${NC}" >&2
+    echo -e "${YELLOW}  Advisory — push proceeding. If unintended, recover the overwritten commits from the remote reflog before they expire.${NC}" >&2
+done
+
+exit 0

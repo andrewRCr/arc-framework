@@ -11,6 +11,8 @@
 
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../git/base-distance.js";
+import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 
 /**
@@ -44,6 +46,12 @@ export interface RecommendationInput {
   worktreePullPolicy: WorktreePullPolicy;
   notesPullPolicy: NotesPullPolicy;
   dirty: DirtyStateResult;
+  /**
+   * Patch-equal supersession verdict for the diverged sub-state, or null when
+   * not diverged / not computed. When superseded, the worktree channel
+   * downgrades its generic reconcile to the lossless-reset offer.
+   */
+  supersession: SupersessionResult | null;
 }
 
 /** Output of {@link inferSessionInitRecommendations}. */
@@ -65,16 +73,24 @@ const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accept
  * State table (config × state):
  * - `remote-ahead` + `prompt` → action=prompt, channel-named + count-included prompt text.
  * - `remote-ahead` + `manual` → action=surface, prompt text empty.
+ * - `diverged` + patch-equal supersession → action=surface, downgraded lossless-reset offer text.
  * - `local-ahead` / `diverged` / `branch-gone` / `remote-unavailable` → action=surface, prompt text empty.
  * - `clean` / `no-upstream` / `detached-head` / `no-remote` / `skipped` → action=skip.
  *
  * `branch-gone` surfaces rather than prompts: the recovery (cascade + candidate
  * prompt) is a state-keyed workflow arm, not a new `recommendedAction` member.
+ *
+ * `diverged` stays `surface` in both cases — the workflow renders the generic
+ * reconcile from state. When the local-ahead commits are patch-equal to a
+ * rebased remote prefix (`supersession.superseded`), the channel additionally
+ * carries the downgraded "superseded — reset is lossless" prompt text + reset
+ * offer; the workflow swaps to it. Genuine divergence keeps the empty text.
  */
 function inferWorktree(
   worktree: WorktreeSyncStatusResult,
   policy: WorktreePullPolicy,
   dirty: DirtyStateResult,
+  supersession: SupersessionResult | null,
 ): ChannelRecommendation {
   switch (worktree.state) {
     case "remote-ahead":
@@ -85,8 +101,14 @@ function inferWorktree(
         };
       }
       return { recommendedAction: "surface", recommendedPromptText: "" };
-    case "local-ahead":
     case "diverged":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: supersession?.superseded
+          ? composeSupersessionPromptText(worktree.branch)
+          : "",
+      };
+    case "local-ahead":
     case "branch-gone":
     case "remote-unavailable":
       return { recommendedAction: "surface", recommendedPromptText: "" };
@@ -97,6 +119,79 @@ function inferWorktree(
     case "skipped":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }
+}
+
+/**
+ * Compose the diverged-handler supersession downgrade: local-ahead commits are
+ * patch-equal to a rebased remote prefix, so a hard reset to the remote loses
+ * nothing. Offers the reset; never auto-runs (the workflow presents it).
+ */
+function composeSupersessionPromptText(branch: string | null): string {
+  const remote = `origin/${branch ?? "<branch>"}`;
+  return (
+    `Local commits are superseded by rebased equivalents on \`${remote}\` — reset is lossless.\n` +
+    `Reset? \`git reset --hard ${remote}\``
+  );
+}
+
+/** Max overlapping paths named inline before the remainder collapses to a count. */
+const OVERLAP_SAMPLE_SIZE = 3;
+
+/**
+ * Compose the base-distance channel recommendation — the behind-base reconcile
+ * advisory.
+ *
+ * Only behind-base drift (`remote-ahead` / `diverged`) warrants a surface; the
+ * branch being merely ahead of an unmoved base (`local-ahead`), at parity
+ * (`clean`), or in any degraded state surfaces nothing. The recommendation is
+ * always `surface` (never `prompt`): it is advisory orientation, never an
+ * action gate — the workflow renders it and the developer decides whether to
+ * reconcile.
+ *
+ * Returns skip when `baseDistance` is null (slot failed to resolve).
+ */
+export function inferBaseDistance(
+  baseDistance: BaseDistanceStatusResult | null,
+): ChannelRecommendation {
+  if (baseDistance === null) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  switch (baseDistance.state) {
+    case "remote-ahead":
+    case "diverged":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseDistancePromptText(baseDistance),
+      };
+    case "clean":
+    case "local-ahead":
+    case "skipped":
+    case "no-upstream":
+    case "detached-head":
+    case "no-remote":
+    case "branch-gone":
+    case "remote-unavailable":
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+}
+
+function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
+  const base = baseDistance.base ?? "base";
+  const head = `Base \`${base}\` has advanced ${baseDistance.behind} commit(s) ahead of this branch.`;
+  const overlap =
+    baseDistance.overlappingPaths.length > 0
+      ? `Overlapping paths: ${formatOverlap(baseDistance.overlappingPaths)} — rebase may conflict.`
+      : "No overlapping paths.";
+  return `${head}\n${overlap}\nReconcile?`;
+}
+
+function formatOverlap(paths: string[]): string {
+  const sample = paths
+    .slice(0, OVERLAP_SAMPLE_SIZE)
+    .map((path) => `\`${path}\``)
+    .join(", ");
+  const remainder = paths.length - OVERLAP_SAMPLE_SIZE;
+  return remainder > 0 ? `${sample} (+${remainder} more)` : sample;
 }
 
 function composeWorktreePromptText(behind: number, dirty: DirtyStateResult): string {
@@ -202,7 +297,12 @@ function composeCombinedPrompt(
 export function inferSessionInitRecommendations(
   input: RecommendationInput,
 ): RecommendationOutput {
-  const worktreeRec = inferWorktree(input.worktree, input.worktreePullPolicy, input.dirty);
+  const worktreeRec = inferWorktree(
+    input.worktree,
+    input.worktreePullPolicy,
+    input.dirty,
+    input.supersession,
+  );
   const userRec = inferUser(input.user, input.notesPullPolicy, input.dirty);
 
   const combinedPrompt =

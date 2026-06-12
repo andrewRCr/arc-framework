@@ -33,6 +33,8 @@ import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
+import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
+import type { SupersessionResult } from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
@@ -62,6 +64,27 @@ export interface SessionInitWorktreeValue extends WorktreeSyncStatusResult {
    * probe failed. Orientation surfaces a `worktree:` line only when `linked`.
    */
   identity: WorktreeIdentity;
+  /**
+   * Patch-equal supersession verdict, computed only in the `diverged` sub-state
+   * (a finer classification of the same HEAD-vs-`origin/<branch>` ref pair this
+   * slot already owns). `null` on every non-diverged state and when the bounded
+   * detector did not run or failed. When `superseded`, the diverged handler
+   * swaps its generic reconcile for the lossless-reset offer carried in
+   * `recommendedPromptText`.
+   */
+  supersession: SupersessionResult | null;
+}
+
+/**
+ * Base-distance slot in the session-init envelope. Extends the raw probe
+ * result (HEAD vs `origin/<base>`) with the same precomputed action + prompt
+ * text pair as the worktree slot, so the workflow renders a behind-base
+ * reconcile offer without re-deriving it from state.
+ */
+export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
+  recommendedAction: RecommendedAction;
+  /** Composed orientation text when `recommendedAction === "surface"`; empty string otherwise. */
+  recommendedPromptText: string;
 }
 
 /**
@@ -115,6 +138,12 @@ export interface SessionInitProbeResult {
   identity: StatusIdentity;
   user: Probe<SessionInitUserValue>;
   worktree: Probe<SessionInitWorktreeValue>;
+  /**
+   * Base-distance slot — HEAD vs `origin/<base>`, the behind-base drift
+   * surface. Always present (eager, non-gated), mirroring the worktree slot's
+   * placement; the recommendation fields drive the resume-time reconcile offer.
+   */
+  baseDistance: Probe<SessionInitBaseDistanceValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
@@ -331,6 +360,19 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * slot in the orchestrator rather than surfaced as a top-level slot.
    */
   worktreeIdentity: () => Promise<WorktreeIdentity>;
+  /**
+   * Base-distance probe — HEAD vs `origin/<base>`. Session-init-only (not a
+   * shared slot): a between-WU resume is where behind-base drift matters. The
+   * handler binds the resolved `branch.base` and remote-sync flag.
+   */
+  baseDistance: () => Promise<BaseDistanceStatusResult>;
+  /**
+   * Patch-equal supersession detector — `git cherry` over the local-ahead set,
+   * receiving the current branch from the orchestrator. Called ONLY when the
+   * worktree slot resolved to `diverged` (a bounded read on the one state where
+   * supersession is meaningful), so the common resume path pays nothing.
+   */
+  supersession: (branch: string) => Promise<SupersessionResult>;
   extensions: () => Promise<ExtensionsSessionInitResult>;
   config: () => Promise<ConfigSessionInitResult>;
   domainRules: () => Promise<DomainRulesSessionInitResult>;

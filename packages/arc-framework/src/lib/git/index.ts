@@ -21,11 +21,24 @@ export {
 } from "./exec.js";
 
 export {
+  countAheadBehindRef,
   runWorktreeSyncStatus,
   type WorktreeSyncState,
   type WorktreeSyncStatusResult,
   type RunWorktreeSyncStatusOptions,
 } from "./worktree-sync.js";
+
+export {
+  runBaseDistanceStatus,
+  type BaseDistanceStatusResult,
+  type RunBaseDistanceStatusOptions,
+} from "./base-distance.js";
+
+export {
+  detectSupersession,
+  type SupersessionResult,
+  type DetectSupersessionOptions,
+} from "./supersession.js";
 
 export {
   runWorktreeRoster,
@@ -145,8 +158,10 @@ export {
 } from "./identity.js";
 
 export {
+  classifyPathSurface,
   classifyWriteContext,
   resolveWriteContext,
+  type PathSurface,
   type WriteContext,
   type WriteContextInput,
   type ResolveWriteContextOptions,

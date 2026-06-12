@@ -1,8 +1,8 @@
 /**
  * Hook manager integration for ARC CLI.
  *
- * Adds ARC hook calls (pre-commit and commit-msg) into the configuration
- * of a detected hook manager. Each manager has its own integration strategy:
+ * Adds ARC hook calls (pre-commit, commit-msg, and pre-push) into the
+ * configuration of a detected hook manager. Each manager has its own strategy:
  * - Husky: append shell commands to hook files in .husky/
  * - Lefthook: add command entries to lefthook.yml via YAML manipulation
  * - Pre-commit: add local repo hooks to .pre-commit-config.yaml via YAML
@@ -22,6 +22,9 @@ const ARC_PRE_COMMIT = ".arc/system/.internal/githooks/pre-commit";
 
 /** Relative path from repo root to ARC's commit-msg hook. */
 const ARC_COMMIT_MSG = ".arc/system/.internal/githooks/commit-msg";
+
+/** Relative path from repo root to ARC's pre-push hook. */
+const ARC_PRE_PUSH = ".arc/system/.internal/githooks/pre-push";
 
 /**
  * Integrate ARC hooks into the detected hook manager's configuration.
@@ -81,6 +84,14 @@ async function integrateHusky(
     readFile,
     writeFile,
   );
+  // Pre-push receives the remote name + URL as args and the ref list on stdin;
+  // forward "$@" and let stdin pass through to the canonical hook.
+  await integrateHuskyHook(
+    join(huskyDir, "pre-push"),
+    `${ARC_PRE_PUSH} "$@"`,
+    readFile,
+    writeFile,
+  );
 }
 
 async function integrateHuskyHook(
@@ -118,6 +129,7 @@ interface LefthookHookSection {
 interface LefthookConfig {
   "pre-commit"?: LefthookHookSection;
   "commit-msg"?: LefthookHookSection;
+  "pre-push"?: LefthookHookSection;
   [key: string]: unknown;
 }
 
@@ -152,6 +164,18 @@ async function integrateLefthook(
   }
   if (!config["commit-msg"].commands["arc-commit-msg"]) {
     config["commit-msg"].commands["arc-commit-msg"] = { run: `${ARC_COMMIT_MSG} {1}` };
+    changed = true;
+  }
+
+  // Pre-push
+  if (!config["pre-push"]) {
+    config["pre-push"] = { commands: {} };
+  }
+  if (!config["pre-push"].commands) {
+    config["pre-push"].commands = {};
+  }
+  if (!config["pre-push"].commands["arc-pre-push"]) {
+    config["pre-push"].commands["arc-pre-push"] = { run: `${ARC_PRE_PUSH} {1} {2}` };
     changed = true;
   }
 
@@ -205,6 +229,15 @@ const ARC_COMMIT_MSG_HOOK: PreCommitHook = {
   files: "^$",
 };
 
+const ARC_PRE_PUSH_HOOK: PreCommitHook = {
+  id: "arc-pre-push",
+  name: "ARC Pre-Push",
+  entry: ARC_PRE_PUSH,
+  language: "unsupported_script",
+  stages: ["pre-push"],
+  files: "^$",
+};
+
 async function integratePreCommit(
   configPath: string,
   readFile: ReadFileFn,
@@ -236,6 +269,11 @@ async function integratePreCommit(
 
   if (!localRepo.hooks.some((h) => h.id === "arc-commit-msg")) {
     localRepo.hooks.push(ARC_COMMIT_MSG_HOOK);
+    changed = true;
+  }
+
+  if (!localRepo.hooks.some((h) => h.id === "arc-pre-push")) {
+    localRepo.hooks.push(ARC_PRE_PUSH_HOOK);
     changed = true;
   }
 

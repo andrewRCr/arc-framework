@@ -11,7 +11,12 @@
  * @module
  */
 
-import { getCurrentBranch, type GitExec } from "./exec.js";
+import {
+  boundedFetch,
+  checkOriginExists,
+  getCurrentBranch,
+  type GitExec,
+} from "./exec.js";
 
 /**
  * Worktree sync state.
@@ -110,48 +115,33 @@ export async function runWorktreeSyncStatus(
     };
   }
 
-  const fetchOutcome = await boundedFetch(exec, branch, fetchTimeoutMs);
-  if (fetchOutcome === "branch-gone") {
+  const fetch = await boundedFetch(exec, branch, fetchTimeoutMs);
+  if (fetch.outcome === "error" && isBranchGoneError(fetch.error)) {
     // Recoverable, non-network failure: the remote branch was deleted. Carries
     // no failureReason — that field flags transient remote-unavailable causes.
     return { state: "branch-gone", ahead: 0, behind: 0, branch };
   }
-  if (fetchOutcome !== "ok") {
+  if (fetch.outcome !== "ok") {
     return {
       state: "remote-unavailable",
       ahead: 0,
       behind: 0,
       branch,
-      failureReason: fetchOutcome,
+      failureReason: fetch.outcome,
     };
   }
 
-  const counts = await countAheadBehind(exec, branch);
-  return { state: classifyState(counts), ...counts, branch };
-}
-
-type FetchOutcome = "ok" | "timeout" | "branch-gone" | "error";
-
-async function boundedFetch(
-  exec: GitExec,
-  branch: string,
-  timeoutMs: number,
-): Promise<FetchOutcome> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => {
-    controller.abort();
-  }, timeoutMs);
   try {
-    await exec("git", ["fetch", "origin", branch], { signal: controller.signal });
-    return "ok";
-  } catch (err) {
-    // Classify on AbortError name, not signal.aborted — a non-abort fetch
-    // error coincident with the timer firing would otherwise misclassify.
-    if (err instanceof Error && err.name === "AbortError") return "timeout";
-    if (isBranchGoneError(err)) return "branch-gone";
-    return "error";
-  } finally {
-    clearTimeout(timer);
+    const { ahead, behind, state } = await countAheadBehindRef(exec, "HEAD", `origin/${branch}`);
+    return { state, ahead, behind, branch };
+  } catch {
+    return {
+      state: "remote-unavailable",
+      ahead: 0,
+      behind: 0,
+      branch,
+      failureReason: "error",
+    };
   }
 }
 
@@ -179,35 +169,43 @@ async function getUpstream(exec: GitExec): Promise<string | null> {
   }
 }
 
-async function checkOriginExists(exec: GitExec): Promise<boolean> {
-  try {
-    await exec("git", ["remote", "get-url", "origin"]);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 interface AheadBehind {
   ahead: number;
   behind: number;
 }
 
-async function countAheadBehind(
+/**
+ * Count ahead/behind commits between two arbitrary refs and classify the
+ * relationship. Runs `git rev-list --left-right --count <localRef>...<remoteRef>`,
+ * so `ahead` is commits reachable from `localRef` but not `remoteRef`, and
+ * `behind` the reverse.
+ *
+ * Ref-parameterized so any caller comparing a local ref against a tracking ref
+ * (HEAD vs `origin/<branch>`, a branch vs `origin/<base>`) shares one
+ * implementation. The returned `state` is always one of the healthy distance
+ * classifications (`clean` / `local-ahead` / `remote-ahead` / `diverged`);
+ * degraded states are the orchestrating caller's concern, not the distance's.
+ *
+ * @param exec - Git executor.
+ * @param localRef - Left side of the symmetric difference (the `ahead` side).
+ * @param remoteRef - Right side of the symmetric difference (the `behind` side).
+ * @returns Ahead/behind counts plus the classified distance state.
+ */
+export async function countAheadBehindRef(
   exec: GitExec,
-  branch: string,
-): Promise<AheadBehind> {
+  localRef: string,
+  remoteRef: string,
+): Promise<{ ahead: number; behind: number; state: WorktreeSyncState }> {
   const { stdout } = await exec("git", [
     "rev-list",
     "--left-right",
     "--count",
-    `HEAD...origin/${branch}`,
+    `${localRef}...${remoteRef}`,
   ]);
   const [aheadStr = "0", behindStr = "0"] = stdout.trim().split(/\s+/u);
-  return {
-    ahead: Number.parseInt(aheadStr, 10) || 0,
-    behind: Number.parseInt(behindStr, 10) || 0,
-  };
+  const ahead = Number.parseInt(aheadStr, 10) || 0;
+  const behind = Number.parseInt(behindStr, 10) || 0;
+  return { ahead, behind, state: classifyState({ ahead, behind }) };
 }
 
 function classifyState(counts: AheadBehind): WorktreeSyncState {

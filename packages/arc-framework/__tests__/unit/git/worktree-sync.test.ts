@@ -1,6 +1,9 @@
 import { describe, it, expect } from "vitest";
 
-import { runWorktreeSyncStatus } from "../../../src/lib/git/worktree-sync.js";
+import {
+  countAheadBehindRef,
+  runWorktreeSyncStatus,
+} from "../../../src/lib/git/worktree-sync.js";
 import type {
   ExecResult,
   GitExec,
@@ -102,6 +105,25 @@ describe("runWorktreeSyncStatus", () => {
     expect(result.state).toBe("remote-ahead");
     expect(result.ahead).toBe(0);
     expect(result.behind).toBe(3);
+  });
+
+  it("degrades to remote-unavailable when the distance read fails after fetch", async () => {
+    const { exec } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: () => {
+        throw new Error("fatal: bad revision");
+      },
+    });
+
+    const result = await runWorktreeSyncStatus({ exec, remoteSyncEnabled: true });
+
+    expect(result.state).toBe("remote-unavailable");
+    expect(result.failureReason).toBe("error");
+    expect(result.ahead).toBe(0);
+    expect(result.behind).toBe(0);
+    expect(result.branch).toBe("main");
   });
 
   it("returns local-ahead with the correct ahead count", async () => {
@@ -292,5 +314,61 @@ describe("runWorktreeSyncStatus", () => {
 
     expect(result.state).toBe("remote-unavailable");
     expect(result.failureReason).toBe("error");
+  });
+
+  it("drives the distance check through HEAD...origin/<branch>", async () => {
+    const { exec, calls } = buildExec({
+      [REV_PARSE_HEAD]: { stdout: "main", stderr: "" },
+      [REV_PARSE_UPSTREAM]: { stdout: "origin/main", stderr: "" },
+      [FETCH_BRANCH]: { stdout: "", stderr: "" },
+      [REV_LIST_COUNT]: { stdout: "1\t1", stderr: "" },
+    });
+
+    await runWorktreeSyncStatus({ exec, remoteSyncEnabled: true });
+
+    const revList = calls.find((c) => c.args[0] === "rev-list");
+    expect(revList?.args).toContain("HEAD...origin/main");
+  });
+});
+
+describe("countAheadBehindRef", () => {
+  it("computes ahead/behind for an arbitrary local/remote ref pair", async () => {
+    const { exec, calls } = buildExec({
+      [REV_LIST_COUNT]: { stdout: "4\t1", stderr: "" },
+    });
+
+    const result = await countAheadBehindRef(exec, "feature/x", "origin/develop");
+
+    expect(result.ahead).toBe(4);
+    expect(result.behind).toBe(1);
+    // The ref pair flows straight into the symmetric-difference refspec.
+    const revList = calls.find((c) => c.args[0] === "rev-list");
+    expect(revList?.args).toContain("feature/x...origin/develop");
+  });
+
+  it("classifies parity as clean", async () => {
+    const { exec } = buildExec({ [REV_LIST_COUNT]: { stdout: "0\t0", stderr: "" } });
+    const result = await countAheadBehindRef(exec, "HEAD", "origin/main");
+    expect(result.state).toBe("clean");
+    expect(result.ahead).toBe(0);
+    expect(result.behind).toBe(0);
+  });
+
+  it("classifies remote-only commits as remote-ahead", async () => {
+    const { exec } = buildExec({ [REV_LIST_COUNT]: { stdout: "0\t3", stderr: "" } });
+    const result = await countAheadBehindRef(exec, "HEAD", "origin/main");
+    expect(result.state).toBe("remote-ahead");
+  });
+
+  it("classifies local-only commits as local-ahead", async () => {
+    const { exec } = buildExec({ [REV_LIST_COUNT]: { stdout: "2\t0", stderr: "" } });
+    const result = await countAheadBehindRef(exec, "HEAD", "origin/main");
+    expect(result.state).toBe("local-ahead");
+  });
+
+  it("classifies commits on both sides as diverged", async () => {
+    const { exec } = buildExec({ [REV_LIST_COUNT]: { stdout: "2\t3", stderr: "" } });
+    const result = await countAheadBehindRef(exec, "HEAD", "origin/main");
+    expect(result.state).toBe("diverged");
   });
 });

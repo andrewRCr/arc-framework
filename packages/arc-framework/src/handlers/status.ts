@@ -74,6 +74,8 @@ import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
+import { runBaseDistanceStatus } from "../lib/git/base-distance.js";
+import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
 import { resolveSessionNotesPath } from "../lib/handoff/session-notes-path.js";
@@ -276,6 +278,16 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+      baseDistance: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runBaseDistanceStatus({
+          exec: gitExec,
+          baseBranch: resolved.settings["branch.base"],
+          remoteSyncEnabled,
+        });
+      },
+      supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
