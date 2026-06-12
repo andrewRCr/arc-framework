@@ -16,8 +16,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~211)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5 verification — Task 5.1 loads and follows `verify-work-unit.md` against the
-  WU's success criteria (every added surface advisory, package-project sync clean for the hook edits)
-  (`tasks-merge-safety-mechanism.md`).
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---

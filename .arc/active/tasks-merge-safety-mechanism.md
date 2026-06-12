@@ -208,26 +208,33 @@ integration ceremony commits. Both bash hook copies change under package-project
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ `lint:md`, `lint:ts`, `lint:sh`, `typecheck:all`, full `npm test`, `build`, and
+  `scripts/check-package-sync.sh` all passed.
+- _Success criteria:_ 9 criteria: 9 met, including 1 Deviation annotation for the broader force-push hook scope;
+  ready for integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `countAheadBehindRef` is exported and ref-parameterized; `runWorktreeSyncStatus` consumes it with no
+- `[x]` `countAheadBehindRef` is exported and ref-parameterized; `runWorktreeSyncStatus` consumes it with no
   duplicated distance logic remaining
-- `[ ]` The session-init envelope carries a worktree-channel-shaped base-distance probe slot; a resume with
+- `[x]` The session-init envelope carries a worktree-channel-shaped base-distance probe slot; a resume with
   `main` advanced under the branch surfaces the advisory reconcile prompt, and a base at parity produces no surface
-- `[ ]` A diverged state whose local commits are patch-equal to a remote prefix surfaces the "superseded — reset
+- `[x]` A diverged state whose local commits are patch-equal to a remote prefix surfaces the "superseded — reset
   is lossless" downgrade and offers the reset; a genuinely-diverged state still surfaces the generic reconcile
-- `[ ]` Force-pushing a shared in-flight branch whose remote tip is not an ancestor surfaces the advisory warning
+- `[x]` Force-pushing a shared in-flight branch whose remote tip is not an ancestor surfaces the advisory warning
   and never blocks
-- `[ ]` `classifyWriteContext` classifies the path-surface and `chore/`-awareness dimensions; the pre-commit
+    - **Deviation:** the pre-push hook warns on every non-ancestor overwrite because it sees ref OIDs, not
+      branch-sharing state; the surface remains advisory and never blocks.
+- `[x]` `classifyWriteContext` classifies the path-surface and `chore/`-awareness dimensions; the pre-commit
   backstop flags a staged foreign-owned write (advisory) and passes a clean self-write
-- `[ ]` A two-parent / `MERGE_HEAD` commit passes `commit-msg` with no conventional-format or `Context:`-footer
+- `[x]` A two-parent / `MERGE_HEAD` commit passes `commit-msg` with no conventional-format or `Context:`-footer
   error; `Context: integration (...)` validates as a recognized kind
-- `[ ]` No new hard gate or block is introduced anywhere — every added surface is advisory
-- `[ ]` All quality gates pass (tests, linting, type checking); package-project sync clean for the hook edits
-- `[ ]` Ready for integration
+- `[x]` No new hard gate or block is introduced anywhere — every added surface is advisory
+- `[x]` All quality gates pass (tests, linting, type checking); package-project sync clean for the hook edits
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
