@@ -69,35 +69,21 @@ this session's PRs once / briefly —
 Preserve the non-blocking principle (no unbounded CI wait), and surface CI / merge failures for **both** manual-
 and auto-merge so blocked integration is flagged at completion, not rediscovered next session.
 
-### Owned post-merge notes-sync leg — merge-idempotency prerequisite
+### Post-merge notes-sync leg — consumes `notes-merge-coherence`
 
 The same-session finalize sequence and the unattended-merge completion trigger both close by syncing user notes,
 yet the finalize sequence today lists teardown / branch delete / ref prune / inbox-line and **not** a notes-sync
-step. Add the notes leg — with two coupled correctness fixes it hard-depends on. Per the scope call, this member
-**absorbs** the `lib/user-sync/` work (option A) rather than splitting it out or deferring to `operational-state-docs`.
+step. Add the notes leg — the **workflow wiring** that runs the sync at completion and leaves current HEAD
+carrying a saved note after the base pull / fast-forward (the `localNoteFreshness.state === "ancestor"` case the
+PR #83 close-out hit). This member owns only that obligation: call the sync, leave HEAD fresh.
 
-- **Hard prerequisite — merge idempotency + projection-aware status (single-machine notes-merge coherence).** The
-  finalize notes-sync fires right after the WORKING-MEMORY / inbox maintenance that rides WU completion — the exact
-  trigger for two confirmed defects, so wiring the step without them ships a deterministically-broken sync. (a)
-  Non-idempotent `appendRemovalTombstones` (`lib/user-sync/merge.ts`) rebuilds prior state tombstone-blind via
-  `mergeEntries`, re-synthesizing duplicate `## Removed:` markers — fix: rebuild through the same tombstone-aware
-  resolution `mergeCrossWuFile` uses (resolved-removed identities suppressed). (b) Status compares disk to the raw
-  note (`commands/user/sync-status.ts` `inspectDiskVsLocalSnapshot`) while disk holds the GC'd projection, so a
-  clean post-sync tree reads `local unsaved` — fix: compare disk to `projection(note)` via one canonical
-  materialized-manifest builder shared by `arc user load` and status.
-- **Freshness means attached to current HEAD.** Post-merge, the latest local note sat on the archived branch tip
-  one commit behind HEAD and `arc user sync` reported "already up to date" (the PR #83 close-out hit this). The
-  notes leg must leave current HEAD carrying a saved note after the base pull / fast-forward — run save+push
-  explicitly, or teach sync to treat `localNoteFreshness.state === ancestor` as actionable even when content +
-  remote otherwise compare clean. Regression: status reads "current with HEAD" after finalize.
-- **Scope + retirement.** Option A pulls the WU into `lib/user-sync/` correctness — a second surface beyond
-  workflows + session-init, accepted deliberately (reinforces the split-watch). It is a near-term **bridge**:
-  `operational-state-docs` (ADR-022 §4 record/projection model) eventually takes tombstones out of the rendered
-  file, dissolving both defects, at which point this fix retires. Build the projection / materialized-manifest
-  builder **general** — `cross-machine-sync-coherence` extends it (see § Forward-compat below). Files:
-  `lib/user-sync/merge.ts`, `commands/user/save-load.ts`, `commands/user/sync-status.ts`, the finalize workflow
-  surface, plus regression tests (duplicate-tombstone, post-load cross-WU status, save→status loop) — across
-  **both** the package source and `.arc/` instance copies.
+The **engine correctness** the leg hard-depends on — idempotent removal-tombstone resolution, projection-aware
+status, and `ancestor`-freshness recognition — was extracted to the sibling member **`notes-merge-coherence`**
+(originally absorbed here under option A; carved out at create-spec because it fixes live `lib/user-sync/` defects
+independently, is consumed by `cross-machine-sync-coherence`, and is a clean prerequisite). The finalize sync
+fires right after the WORKING-MEMORY / inbox maintenance that rides WU completion — the exact trigger for those
+defects — so wiring it without the fixes ships a deterministically-broken sync. Hence the build-first edge:
+**`Depends On: notes-merge-coherence`** — land the engine, then wire the leg.
 
 ### Standalone `integration` footer emission
 
@@ -203,19 +189,6 @@ The tail (`gh pr merge` + `arc user close` + worktree-remove-from-elsewhere) run
 worktree**, never a mid-increment switch. This unifies with the merge-safety "decouple merge + cleanup from the
 integration session" concern.
 
-### Forward-compat: `cross-machine-sync-coherence` consumes the projection builder
-
-The owned post-merge notes-sync leg's prerequisite fix lands a canonical projection / materialized-manifest builder
-shared by `arc user load` and status, plus tombstone-aware merge idempotency. `cross-machine-sync-coherence` (CMSC,
-the sibling cohort's next member) consumes this directly: its T3 sync-state-aware drift-detection needs exactly the
-projection-aware comparison to tell "intentional retirement at source" from "real local drift," and its
-in-flight-awareness analysis already dissects the same `inspectDiskVsLocalSnapshot` / `loadNeeded` path this fix
-rewrites. So build the projection builder **general** and name CMSC a consumer — the same pattern
-`merge-safety-mechanism` used for the behind-base primitive (build general; the sibling extends rather than
-rebuilds; CMSC extends that primitive too). Write-back carried to CMSC: moving the status comparison basis raw →
-projection shifts the classifier behavior CMSC's defect-1/2 analysis assumes, so CMSC re-grounds its T3 scope once
-this lands.
-
 ### Open — eager vs. lazy post-merge teardown (soft dep on `composable-workflows`)
 
 `decompose-work-unit` already authors an `active/ → backlog/` + park-PR + worktree-teardown block single-source,
@@ -234,10 +207,12 @@ teardown-completeness gap. Whichever member specs first owns the reaper; don't d
 
 **Medium — workflows + session-init probe, mostly additive.** Audit-don't-rebuild: the async-merge touchpoints are
 largely shipped (`archive.cadence: manual` + the stale/in-flight sweeps). Net-new is the suspend/resume seam, the
-completion sweep (full tail through archival), the same-session finalize pass, merge-gate-awareness, the owned
-post-merge notes-sync leg (with its merge-idempotency bridge), the `integration` footer emission, the
-worktree-by-default steering flip, plus the folded plumbing (`arc start` create-new wiring, subdir primitive,
-cohort-doc discovery).
+completion sweep (full tail through archival), the same-session finalize pass, merge-gate-awareness, the
+post-merge notes-sync leg (the workflow wiring only — engine correctness is the `notes-merge-coherence`
+dependency), the `integration` footer emission, the worktree-by-default steering flip, plus the folded plumbing
+(`arc start` create-new wiring, subdir primitive, cohort-doc discovery). The `lib/user-sync/` correctness surface
+was extracted to `notes-merge-coherence`, so this member is back to a single primary surface (workflows +
+session-init).
 
 > **Watch:** this member may itself prove too large for one PR and recurse into a split. It is already at the
 > one-level nesting cap, so a further split fans out laterally as siblings under
@@ -247,8 +222,12 @@ cohort-doc discovery).
 
 - **Internal (both shipped 2026-06-11):** `concurrent-work-doctrine` (PR #81 — the async-merge conventions +
   `assess-parallel-fit`) and `merge-safety-mechanism` (PR #83 — the behind-base primitive the completion sweep
-  reuses; the `Context: integration (...)` validator-accept this member emits against). Both deps that gated this
-  member have landed; the soft "merge-safety precedes" edge is satisfied.
+  reuses; the `Context: integration (...)` validator-accept this member emits against). Both shipped deps that
+  gated this member have landed; the soft "merge-safety precedes" edge is satisfied.
+- **Internal (cohort sibling, unshipped):** `notes-merge-coherence` — the `lib/user-sync/` notes-merge engine
+  correctness (idempotent tombstone resolution + canonical materialized-manifest builder + `ancestor`-freshness)
+  this member's post-merge notes-sync leg consumes. Extracted from this draft at create-spec; **build-first
+  edge** — the finalize sync is deterministically broken without it.
 - **Substrate (shipped):** `archive.cadence: manual`, the stale-worktree + session-init in-flight sweeps, the
   errand sweep's PR-state classification, the inbox-reminder machinery + once-per-day marker, WF's `spawnWorktree`,
   the `Class` contract.

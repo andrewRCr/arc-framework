@@ -12,11 +12,13 @@
 **Purpose:** Ship principled multi-WU work as a coherent whole. A single matured design — Concurrent Work
 Conventions — split along natural deliverable boundaries into four single-owner member WUs: the conventions
 doctrine (`concurrent-work-doctrine`), the merge-safety mechanism (`merge-safety-mechanism`), the async-merge
-lifecycle accommodation (`async-merge-lifecycle`), and the single-owner-WU model rewrite (`single-owner-wu-model`).
-The members share one design and dense internal coordination — a reused behind-base primitive, the doctrine spine
-the other three reference, the append-only-until-integration principle, and the cohort-doc concurrency exception —
-which is what makes this a coordinating sub-cohort rather than a flat browsing bucket. The design target is **any
-team size**; solo is the degenerate case, never the target.
+lifecycle accommodation (`async-merge-lifecycle`), and the single-owner-WU model rewrite (`single-owner-wu-model`) —
+plus a fifth member extracted later as a prerequisite: `notes-merge-coherence`, the single-machine notes-merge
+engine correctness `async-merge-lifecycle`'s post-merge notes-sync leg depends on (see § Coordination provenance).
+The members share one design and dense internal coordination — a reused behind-base primitive, a shared
+projection builder, the doctrine spine the other three reference, the append-only-until-integration principle, and
+the cohort-doc concurrency exception — which is what makes this a coordinating sub-cohort rather than a flat
+browsing bucket. The design target is **any team size**; solo is the degenerate case, never the target.
 
 ---
 
@@ -31,19 +33,31 @@ concurrent-work-doctrine            (spine — no internal deps; carries most of
         │
         ├── merge-safety-mechanism          (deps: doctrine)
         │            │
-        │            └── async-merge-lifecycle   (deps: doctrine, merge-safety-mechanism — reuses the
-        │                                          behind-base primitive in its completion sweep)
+        │            └── async-merge-lifecycle   (deps: doctrine, merge-safety-mechanism, notes-merge-coherence —
+        │                                          reuses the behind-base primitive in its completion sweep; its
+        │                                          notes-sync leg consumes notes-merge-coherence's engine)
         └── single-owner-wu-model           (deps: doctrine)
+
+notes-merge-coherence               (no internal deps — orthogonal lib/user-sync correctness; build-first
+                                     prerequisite of async-merge-lifecycle's notes-sync leg)
 ```
 
-`concurrent-work-doctrine` is the spine the other three reference; once it lands the others are largely
-independent and parallelize, with the soft edge that `merge-safety-mechanism` ideally precedes
-`async-merge-lifecycle` (the completion sweep reuses merge-safety's behind-base primitive). Members land
-uniformly in `backlog/planned/`; each activates separately, in dependency order, via `init-work-unit` Path A.
+`concurrent-work-doctrine` is the spine the other three convention members reference; once it lands they are
+largely independent and parallelize, with the soft edge that `merge-safety-mechanism` ideally precedes
+`async-merge-lifecycle` (the completion sweep reuses merge-safety's behind-base primitive). `notes-merge-coherence`
+sits outside the doctrine spine (orthogonal engine correctness) but is a **build-first** prerequisite of
+`async-merge-lifecycle` — land it before that member executes. Members land uniformly in `backlog/planned/`; each
+activates separately, in dependency order, via `init-work-unit` Path A.
 
-> **Watch:** `async-merge-lifecycle` may itself prove too large for one PR and recurse into a sub-cohort — but it
-> is already at the one-level nesting cap (`agile-parallelism/concurrent-work-conventions/<member>`), so a further
-> split would fan out laterally as siblings here, not nest deeper.
+> **Watch (partially realized):** `async-merge-lifecycle` proved large enough that its orthogonal `lib/user-sync/`
+> correctness surface was extracted laterally as `notes-merge-coherence` (the lateral fan-out the cap predicted —
+> a sibling here, not a deeper nest). The remaining async-merge core may still recurse; any further split fans out
+> laterally as siblings, never nested deeper than this two-segment cap.
+
+### Coordination provenance
+
+Fanned out from `async-merge-lifecycle`: `notes-merge-coherence` (at-cap lateral extraction — the origin survives
+as a still-active member; only its orthogonal `lib/user-sync/` engine-correctness surface was carved off).
 
 ### Shared contracts
 
@@ -58,6 +72,15 @@ Cross-member design no single member owns — each names the owning member's spe
   `session.init_pull.main`, and the cross-machine layer) rather than double-building. Open seam: whether
   `merge-safety-mechanism` owns the diverged-branch patch-equal supersession detection or hands it to
   `cross-machine-sync-coherence` — decide at the member's spec.
+
+- **The materialized-manifest (projection) builder.** A canonical builder that strips removal tombstones to the
+  rendered-file projection, shared by `arc user load` and sync-status so the save-path hash, the load-path
+  materialization, and the status comparison basis are one projection; paired with idempotent tombstone-aware
+  removal resolution. _Owner:_ `notes-merge-coherence` (authoritative definition). _Consumers:_
+  `async-merge-lifecycle` (its post-merge notes-sync leg requires the engine coherent before wiring the sync);
+  `cross-machine-sync-coherence` (extends the builder for its cross-machine drift detection — subject-parameterized,
+  build-general-once, the same pattern as the behind-base primitive). Bridge — retires into
+  `operational-state-docs`' record/projection model (ADR-022 §4).
 
 - **The unified advisory overlap-judgment doctrine.** One oracle-backed concurrency check, two trigger surfaces
   (WU-activation and `errand-launch`). _Owner:_ `concurrent-work-doctrine` (the doctrine and rubric in
@@ -116,10 +139,13 @@ Seams whose home is another cohort, recorded here so they have a visible owner.
   convention, not a rendered field; if a parallel view is ever hand-curated it is a **sibling** artifact, never
   baked into the hand-maintenance-free derived ROADMAP. Owned by `concurrent-work-doctrine` on this side.
 
-- **`cross-machine-sync-coherence` — extends the behind-base primitive.** This sub-cohort ships the
-  ref-parameterized base-distance primitive + probe slot; the cross-machine layer (local base-ref staleness,
-  partial-push trust, notes-ref coherence) is explicitly the next WU's, not this one's. The primitive is built
-  for it to extend.
+- **`cross-machine-sync-coherence` — extends the behind-base primitive and the projection builder.** This
+  sub-cohort ships the ref-parameterized base-distance primitive + probe slot (`merge-safety-mechanism`) and the
+  materialized-manifest projection builder (`notes-merge-coherence`); the cross-machine layer (local base-ref
+  staleness, partial-push trust, notes-ref coherence) is explicitly the next WU's, not this one's. Both primitives
+  are built for it to extend rather than rebuild. Write-back: moving the status comparison basis raw → projection
+  shifts the classifier behavior CMSC's defect-1/2 analysis was written against — CMSC re-grounds its T3 scope once
+  `notes-merge-coherence` lands.
 
 - **`arc-plan-conductor` — spec-graduation cleanup vs. the lighter merge gate.** Reconcile the conductor's
   spec-graduation cleanup ceremony (dropping a WU's own planning-noise commits before the Planning → Active flip)
@@ -133,11 +159,11 @@ Seams whose home is another cohort, recorded here so they have a visible owner.
 
 ### Closeout criteria
 
-The sub-cohort — and with it the parent `agile-parallelism` cohort — archives when **all four members have
-shipped**: the conventions doctrine, the merge-safety mechanism, the async-merge lifecycle accommodation, and the
-single-owner-WU model rewrite. The parent cohort's closeout was explicitly gated on the merge-safety cluster
-landing somewhere (not merely the conventions doc shipping); that cluster is distributed across
-`merge-safety-mechanism` and `async-merge-lifecycle` here.
+The sub-cohort — and with it the parent `agile-parallelism` cohort — archives when **all five members have
+shipped**: the conventions doctrine, the merge-safety mechanism, the async-merge lifecycle accommodation, the
+single-owner-WU model rewrite, and the notes-merge engine correctness (`notes-merge-coherence`). The parent
+cohort's closeout was explicitly gated on the merge-safety cluster landing somewhere (not merely the conventions
+doc shipping); that cluster is distributed across `merge-safety-mechanism` and `async-merge-lifecycle` here.
 
 ## Members
 
@@ -174,8 +200,21 @@ integration-failure surfacing; merge-gate-awareness / unattended-merge completio
 cohort-`{name}.md` discovery at session-init.
 
 _Consumes:_ `concurrent-work-doctrine` (the async-merge conventions); `merge-safety-mechanism`'s behind-base
-primitive (reused in the completion sweep). Open: eager vs. lazy post-merge teardown (soft dep on
-`composable-workflows` for the shared-step hoist of `decompose-work-unit`'s park-exit block) — decide at spec.
+primitive (reused in the completion sweep); `notes-merge-coherence`'s notes-merge engine (its post-merge
+notes-sync leg — build-first edge). Open: eager vs. lazy post-merge teardown (soft dep on `composable-workflows`
+for the shared-step hoist of `decompose-work-unit`'s park-exit block) — decide at spec.
+
+### `notes-merge-coherence`
+
+_Exposes:_ single-machine notes-merge engine correctness — idempotent removal-tombstone resolution
+(`appendRemovalTombstones` routed through the tombstone-aware path) and a canonical materialized-manifest
+(projection) builder shared by `arc user load` and sync-status, plus `ancestor`-freshness recognition. Owns the
+projection-builder shared contract above; built general for cross-cohort reuse.
+
+_Consumes:_ nothing internal — orthogonal `lib/user-sync/` correctness, no dependency on the doctrine spine.
+Extracted from `async-merge-lifecycle` at create-spec (at-cap lateral extraction). Bridge: retires when
+`operational-state-docs` (ADR-022 §4) lands the record/projection model. Consumers: `async-merge-lifecycle` (its
+notes-sync leg) and `cross-machine-sync-coherence` (extends the projection builder).
 
 ### `single-owner-wu-model`
 
