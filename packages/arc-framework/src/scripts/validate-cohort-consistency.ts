@@ -184,9 +184,26 @@ export function validateFiles(
   return { pass: diagnostics.length === 0, diagnostics };
 }
 
+/**
+ * The repo root to walk for live context — the prefix of a staged path before
+ * its `.arc/` segment, so the scan roots at the tree the staged files belong to
+ * regardless of `process.cwd()`. Relative staged paths (the hook's normal form)
+ * carry no prefix and fall back to `process.cwd()`.
+ */
+export function deriveScanRoot(paths: string[]): string {
+  for (const raw of paths) {
+    const posix = raw.replace(/\\/g, "/");
+    if (posix.startsWith(".arc/")) return process.cwd();
+    const marker = posix.indexOf("/.arc/");
+    if (marker !== -1) return posix.slice(0, marker);
+  }
+  return process.cwd();
+}
+
 // --- CLI entry ---
 
 if (fileURLToPath(import.meta.url) === process.argv[1]) {
-  const liveContext = buildLiveCohortContextFromDisk(process.cwd());
+  const argvPaths = process.argv.slice(2);
+  const liveContext = buildLiveCohortContextFromDisk(deriveScanRoot(argvPaths));
   runPathListScript((paths, readFile) => validateFiles(paths, readFile, liveContext));
 }

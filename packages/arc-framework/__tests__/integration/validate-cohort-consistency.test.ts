@@ -6,10 +6,11 @@
  * paths in a temp directory. Covers a consistent cohort (pass) plus the three
  * failure modes — field↔dir drift, a missing cohort doc, and an orphan member
  * section — and the lifecycle-complete live scan (a graduated member and an
- * unstaged ancestor doc, both resolved from the on-disk tree). Each case runs
- * with `cwd` set to its own fixture dir, so the validator's live-tree walk sees
- * only that case's fixtures. Absolute fixture paths are passed; the validator
- * anchors on the `.arc/backlog/planned/` segment wherever it appears.
+ * unstaged ancestor doc, both resolved from the on-disk tree). Absolute fixture
+ * paths are passed; the validator anchors on the `.arc/backlog/planned/` segment
+ * wherever it appears, and roots its live-tree walk at each fixture's own `.arc/`
+ * tree (derived from the absolute path), so the cases stay isolated from the real
+ * repo while the subprocess keeps `cwd` at the repo root.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -33,14 +34,13 @@ const SCRIPT_PATH = resolve(
 const CASE_TIMEOUT_MS = 30_000;
 
 async function runValidator(
-  cwd: string,
   absPaths: string[],
 ): Promise<{ code: number; stderr: string; stdout: string }> {
   try {
     const { stdout, stderr } = await execFileAsync(
       "npx",
       ["tsx", SCRIPT_PATH, ...absPaths],
-      { cwd },
+      { cwd: REPO_ROOT },
     );
     return { code: 0, stdout, stderr };
   } catch (err) {
@@ -100,7 +100,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         ".arc/backlog/planned/core/cohort-core.md",
         cohortDocFixture("core", { members: ["widget"] }),
       );
-      const result = await runValidator(dir, [meta, doc]);
+      const result = await runValidator([meta, doc]);
       expect(result.code).toBe(0);
       expect(result.stderr).toBe("");
     },
@@ -121,7 +121,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         ".arc/backlog/planned/core/cohort-core.md",
         cohortDocFixture("core"),
       );
-      const result = await runValidator(dir, [meta, doc]);
+      const result = await runValidator([meta, doc]);
       expect(result.code).toBe(1);
       expect(result.stderr).toContain("meta-widget.md");
       expect(result.stderr).toMatch(/does not match/i);
@@ -138,7 +138,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         ".arc/backlog/planned/core/widget/meta-widget.md",
         metaFixture("`core`"),
       );
-      const result = await runValidator(dir, [meta]);
+      const result = await runValidator([meta]);
       expect(result.code).toBe(1);
       expect(result.stderr).toContain("cohort-core.md");
     },
@@ -159,7 +159,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         ".arc/backlog/planned/core/cohort-core.md",
         cohortDocFixture("core", { members: ["ghost"] }),
       );
-      const result = await runValidator(dir, [meta, doc]);
+      const result = await runValidator([meta, doc]);
       expect(result.code).toBe(1);
       expect(result.stderr).toMatch(/orphan.*ghost/i);
     },
@@ -182,7 +182,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
       );
       // `shipped` graduated to active/ — present on disk, absent from the staged set.
       await writeFixture(dir, ".arc/active/meta-shipped.md", metaFixture("`core`"));
-      const result = await runValidator(dir, [meta, doc]);
+      const result = await runValidator([meta, doc]);
       expect(result.code).toBe(0);
       expect(result.stderr).toBe("");
     },
@@ -209,7 +209,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         ".arc/backlog/planned/core/cohort-core.md",
         cohortDocFixture("core"),
       );
-      const result = await runValidator(dir, [meta, subDoc]);
+      const result = await runValidator([meta, subDoc]);
       expect(result.code).toBe(0);
       expect(result.stderr).toBe("");
     },

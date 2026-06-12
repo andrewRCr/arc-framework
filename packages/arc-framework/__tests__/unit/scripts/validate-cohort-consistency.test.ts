@@ -19,6 +19,7 @@ import {
   classifyPath,
   validateFiles,
   buildLiveCohortContext,
+  deriveScanRoot,
   type LiveCohortContext,
 } from "../../../src/scripts/validate-cohort-consistency.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
@@ -169,6 +170,22 @@ describe("validateFiles — cohort-doc schema checks", () => {
     const result = run(files);
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => /filename/i.test(d))).toBe(true);
+  });
+});
+
+describe("deriveScanRoot", () => {
+  it("returns process.cwd() for a relative staged path (the hook's normal form)", () => {
+    expect(deriveScanRoot([".arc/backlog/planned/core/cohort-core.md"])).toBe(process.cwd());
+  });
+
+  it("returns the prefix before `.arc/` for an absolute staged path", () => {
+    expect(deriveScanRoot(["/tmp/case-x/.arc/backlog/planned/core/widget/meta-widget.md"])).toBe(
+      "/tmp/case-x",
+    );
+  });
+
+  it("falls back to process.cwd() when no path carries an `.arc/` segment", () => {
+    expect(deriveScanRoot(["README.md", "src/index.ts"])).toBe(process.cwd());
   });
 });
 
