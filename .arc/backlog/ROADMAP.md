@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `a8353d33`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `ebe8896d`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -53,7 +53,9 @@ _None in flight._
 | arc-modes                    | P3       | andrew | —          | —                           |
 | arc-reinforce                | P3       | andrew | —          | —                           |
 | contributor-path             | P3       | andrew | —          | —                           |
+| idiomatic-alignment          | P3       | andrew | —          | —                           |
 | inbound-routing-method       | P3       | andrew | —          | —                           |
+| knowledge-lint               | P3       | andrew | —          | —                           |
 | markdown-formatting          | P3       | andrew | —          | —                           |
 | quality-gate-hooks           | P3       | andrew | —          | —                           |
 | review-method-family         | P3       | andrew | —          | —                           |

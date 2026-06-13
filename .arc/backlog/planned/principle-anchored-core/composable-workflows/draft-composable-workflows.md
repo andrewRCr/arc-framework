@@ -95,6 +95,23 @@
   prose loads. Updates `strategy-workflow-authoring` (frontmatter schema) + the `DEV-RULES.ARC` method-loading
   rule; not `operational-state-docs` (a different subsystem).
 
+### `[ ]` **`index.md` hub pattern as input to the `system/workflows/` navigability question**
+
+- *Routed from:* OKF / LLM-wiki idiomatic-alignment exploration (2026-06-13); coordinates with
+  `idiomatic-alignment`.
+- *Concern:* this WU's central open design question is *"`system/workflows/` navigability — decomposing into core +
+  fragments risks death-by-a-thousand-includes and harms locality."* Both Google's OKF and Karpathy's LLM-wiki
+  converge on the same answer for a decomposed markdown tree: a reserved **`index.md`** hub per directory level —
+  a content-oriented catalog of the entries beneath it, each a link plus a one-line summary (OKF: "entries SHOULD
+  include the description from the linked concept's frontmatter"). That is a concrete, battle-tested navigability
+  device for a core + fragment library: a hub restores the "see the whole behavior in one place" locality that
+  inline currently provides, without re-bloating the core.
+- *Proposed:* evaluate an `index.md`-style hub (or ARC's README-per-dir equivalent — same role under a different
+  name) for the fragment library if the directory reshape proceeds. Don't rename README → `index.md`; the question
+  is the hub *pattern* (catalog + one-line summaries), not the filename.
+- *Coupling:* pairs with `idiomatic-alignment` (which owns the `index.md`/`log.md` ↔ ARC correspondence) and the
+  navigability open question in § Open Design Questions.
+
 ---
 
 ## Problem / Motivation

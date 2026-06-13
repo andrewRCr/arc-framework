@@ -438,6 +438,44 @@ agent-collaboration evidence (cognitive-load research, code-review-size studies 
 `methodology/rationale.md`), not as universal truth. Same principle as item #5's
 non-over-claim guidance.
 
+#### 11. ARC as a mature instance of the LLM-wiki family (framing note, 2026-06-13)
+
+**Input type:** Framing note — public-facing positioning insight for onboarding / value-prop
+copy. Not staged prose, not drift-fix. Captured from an idiomatic-alignment exploration;
+coordinates with `idiomatic-alignment` (which owns the convention-side alignment).
+
+**The framing:** A markdown-frontmatter "LLM-wiki" knowledge-base family is now an established,
+fast-spreading norm — Karpathy's LLM-wiki gist, Google's Open Knowledge Format (OKF, v0.1
+2026-06-12), and the `AGENTS.md`/`CLAUDE.md` convention OKF cites. ARC, designed before any of
+these, independently converged on the same shape (markdown + frontmatter, directory-as-hierarchy,
+README/ALL-CAPS hubs = their `index.md`, append logs = their `log.md`, an LLM-maintained
+knowledge base, a schema/convention file). Framing ARC against these established norms gives
+newcomers a fast on-ramp ("if you know the LLM-wiki pattern, ARC is that — for the
+software-development process; its ingest / query / lint loop *is* the session lifecycle") and
+lends perceived legitimacy.
+
+**Register — convergence, not adoption (load-bearing):** frame as *convergent with / a mature
+instance of* the family — "we independently arrived at the same shape these now describe; here's
+the mapping" — never *built on / conformant to*. Convergence is the stronger legitimacy claim
+(independent arrival signals sound design, not derivation) and avoids coupling ARC's identity to a
+one-day-old v0.1 spec. In *shipped* surfaces (briefs), cite the durable *pattern* (the LLM-wiki
+family); reserve named-spec hooks (OKF, the Karpathy gist) for docs-site / positioning copy, where
+naming the zeitgeist is the point and a v0.1 reference aging out is acceptable.
+
+**Suggested destinations:**
+
+- Landing-page hero / "Why ARC" copy — the established-norms on-ramp
+- README first-screen framing
+- A short "ARC and the LLM-wiki pattern" explainer (a Rosetta mapping: schema ↔ briefs/`AGENTS.md`;
+  index ↔ README/hubs; log ↔ append logs; ingest/query/lint ↔ session lifecycle/load/doc-health)
+
+**Pairs with item #9** (methodology-identity differentiation) — both make the load-bearing
+identity legible upfront; #9 leads with task-cadence discipline, this adds the family on-ramp.
+
+**Nuance — don't over-claim:** the convergence is real but ARC's domain (development-process state)
+differs from OKF's (data-asset catalogs); don't imply ARC *is* an OKF tool or that the family's
+coarser vocabulary replaces ARC's precise internal terms. Frame as kinship + independent maturity.
+
 ## Adding Items
 
 **Drift items** — when a methodology change lands in `.arc/` or
