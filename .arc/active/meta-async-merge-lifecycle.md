@@ -11,12 +11,14 @@
 - **Design:** `spec-async-merge-lifecycle.md`
 - **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Generated + activated `async-merge-lifecycle` — `tasks-async-merge-lifecycle.md` (`high`
-  depth, 6 phases + verification, 13 parents); planning complete.
-- **Next Task:** Task 1.1 — `classifyInFlightWorkUnits` completion-tail classifier (line ~18)
+- **Last Completed:** Task 2.1 — two-tier WU completion-sweep composer (`runWorkUnitState`) wired onto the
+  session-init envelope as the `workUnitState` slot (Phase 1 + Phase 2 Task 2.1 complete).
+- **Next Task:** Task 2.2 — Staleness threshold + event-driven triggers (line ~90)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — author test-first the pure `in-flight-work-unit-sweep.ts` classifier,
-  mirroring `classifyInFlightErrands`; run via `process-task-loop.md`.
+- **Next Action:** Begin Task 2.2 — add the `integration.stale_after_days` config key (mirror
+  `inbox.remind_after_days`, both copies), gate the `stale` tier behind it + the once-per-day marker, and
+  event-bypass `mergeable` / `merged-needs-archival`; replaces the interim `WORK_UNIT_STALE_THRESHOLD_DAYS`
+  constant in `handlers/status.ts`. Run via `process-task-loop.md`.
 
 ---
