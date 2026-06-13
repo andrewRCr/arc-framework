@@ -11,13 +11,11 @@
 - **Design:** `spec-async-merge-lifecycle.md`
 - **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Task 6.2 — reaper facet-split record + `coord-probe` buffer update; closes Phase 6
-  (async-merge audit + reaper-seam coordination), which also re-grounded the touchpoint set against shipped
-  code (6.1).
-- **Next Task:** Task 7.1 — Complete verification (line ~349)
+- **Last Completed:** Task 7.1 — verification: full Tier 3 quality gates passed, all 8 success criteria
+  validated against the spec; closes Phase 7 (the final phase). The WU is verified and ready for integration.
+- **Next Task:** [none] — task list complete.
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` over the WU (Phase 7, the final
-  phase): walk the success criteria, run full quality gates, and confirm ready for integration.
+- **Next Action:** integrate-work-unit Step 1 — verify completion.
 
 ---

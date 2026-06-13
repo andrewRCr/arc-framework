@@ -346,35 +346,41 @@ throughout; every change is awaiting-review accommodation layered on.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (384 files), code lint (ts + sh), typecheck (source + test), tests
+  (2488 unit passed / 1 skipped + 70 integration/e2e), build — all passed.
+- _Success criteria:_ 8 criteria, all met against `spec-async-merge-lifecycle.md` — resume guard,
+  completion sweep, same-session finalize, notes-sync leg, integration footer (both copies + hook),
+  unattended-lane completion, symmetric teardown, reaper-seam record; plus both standing gates.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Resume works — a session enters `Integrating`, hands off, and a later session / machine re-enters
+- `[x]` Resume works — a session enters `Integrating`, hands off, and a later session / machine re-enters
   `integrate-work-unit.md` and completes the tail without redoing the state transition or completed steps.
-- `[ ]` The sweep surfaces the full tail — owned WUs classified across `awaiting-review` / `mergeable` /
+- `[x]` The sweep surfaces the full tail — owned WUs classified across `awaiting-review` / `mergeable` /
   `blocked` / `merged-needs-archival`; stale tier respects `*_after_days` + the once-per-day marker; the
   `mergeable` / `merged-needs-archival` events bypass the threshold; the mergeable tier degrades to presence
   without `gh`.
-- `[ ]` No same-session merge falls through — a mid-session merge with control back at base is finalized
+- `[x]` No same-session merge falls through — a mid-session merge with control back at base is finalized
   (branch torn down, remote-tracking ref pruned, ephemeral worktree removed, inbox line dropped), a
   failed/blocked PR is surfaced loudly for both lanes, with no unbounded CI wait.
-- `[ ]` Notes stay coherent — after a post-merge base pull / fast-forward, current HEAD carries a saved note
+- `[x]` Notes stay coherent — after a post-merge base pull / fast-forward, current HEAD carries a saved note
   (no lingering `ancestor`-freshness gap).
-- `[ ]` The footer is real — an integration-ceremony commit emits `Context: integration (...)`, the
+- `[x]` The footer is real — an integration-ceremony commit emits `Context: integration (...)`, the
   `commit-msg` hook accepts it, and `commit-footer.md` (both copies) enumerates the kind.
-- `[ ]` The unattended lane completes — an auto-merged errand has its branch/worktree torn down and its
+- `[x]` The unattended lane completes — an auto-merged errand has its branch/worktree torn down and its
   slug-matched `USER-INBOX` line removed exactly once; the two backstops no-op when the line is already gone;
   the errand path drives no archival step.
-- `[ ]` Teardown is symmetric — `integrate-work-unit.md` Step 13 reaps the merged `feat/` branch on both the
+- `[x]` Teardown is symmetric — `integrate-work-unit.md` Step 13 reaps the merged `feat/` branch on both the
   primary-worktree and linked-worktree arms (merged-only-safe); `archive-work-unit.md` performs no branch
   teardown.
-- `[ ]` The reaper seam is recorded — the spec documents the facet split and `coord-probe`'s inbound-buffer
+- `[x]` The reaper seam is recorded — the spec documents the facet split and `coord-probe`'s inbound-buffer
   item reflects that facet 2 is owned here and facet 1 stays with `coord-probe`.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 
