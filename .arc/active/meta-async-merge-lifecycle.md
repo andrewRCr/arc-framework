@@ -11,14 +11,12 @@
 - **Design:** `spec-async-merge-lifecycle.md`
 - **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Generated `tasks-async-merge-lifecycle.md` (`high` depth — 6 phases + verification, 13
-  parents). Grounding audit settled the finalize-pass home (`session-handoff` + integrate prompt-catch, inline
-  single-authored for `composable-workflows` forward-compat) and pinned `integration.stale_after_days`; decision
-  recorded in `notes-async-merge-lifecycle.md` § Finalize pass.
-- **Next Task:** [none]
+- **Last Completed:** Generated + activated `async-merge-lifecycle` — `tasks-async-merge-lifecycle.md` (`high`
+  depth, 6 phases + verification, 13 parents); planning complete.
+- **Next Task:** Task 1.1 — `classifyInFlightWorkUnits` completion-tail classifier (line ~18)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — `classifyInFlightWorkUnits` completion-tail state classifier (Phase 1,
-  `tasks-async-merge-lifecycle.md`). Test-first pure module mirroring `classifyInFlightErrands`.
+- **Next Action:** Begin Task 1.1 — author test-first the pure `in-flight-work-unit-sweep.ts` classifier,
+  mirroring `classifyInFlightErrands`; run via `process-task-loop.md`.
 
 ---
