@@ -45,6 +45,7 @@ import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
+import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -230,6 +231,23 @@ export interface SessionInitProbeResult {
    * identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
+  /**
+   * Pre-computed plate-balance signal — the resolved `Class` composition
+   * (`Novel` / `Heavy` / `Light` counts) of the in-flight work units the roster
+   * surfaces, with `[TBD]` / field-absent rows excluded from the tally. Present
+   * only on the no-active-WU arm when the in-flight slice is non-empty (omitted
+   * otherwise). Read by next-work discovery to render the one-line plate-balance
+   * advisory when a `Heavy` / `Novel` stream is already in flight.
+   */
+  inFlightComposition?: ClassComposition;
+  /**
+   * Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md`,
+   * relative to cwd (forward-slash normalized). Present only when the active
+   * meta carries a `Cohort` value and the backing doc exists under
+   * `backlog/planned/`; omitted otherwise. The session-init workflow reads it
+   * during context-load to surface cross-member coordination awareness.
+   */
+  cohortDocPath?: string;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -467,6 +485,14 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * the eager phase whenever identity resolved; advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
+  /**
+   * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
+   * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value
+   * and resolves the coordinating `cohort-<leaf>.md` under `backlog/planned/`,
+   * returning its path or `null`. Called ONLY when the active slot resolved to a
+   * single work unit; degrades to `null` on any miss.
+   */
+  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

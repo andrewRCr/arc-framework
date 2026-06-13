@@ -12,13 +12,14 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, stat, mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, basename } from "node:path";
 import { tmpdir } from "node:os";
 
-import { runColdStart, deriveColdStartWuName } from "../../../src/commands/start.js";
+import { runColdStart, runCreateNew, deriveColdStartWuName } from "../../../src/commands/start.js";
 import { renderMetaFile } from "../../../src/lib/active/meta-reader.js";
 import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
+import { resolveWorktreeLocation } from "../../../src/lib/git/worktree-location.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
@@ -29,6 +30,23 @@ function recordingExec(): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
+    return { stdout: "" };
+  };
+  return { exec, calls };
+}
+
+/**
+ * A recording mock exec that additionally answers `git worktree list
+ * --porcelain` with a one-stanza listing whose path is `primaryPath` — the
+ * primary worktree create-new derives `{repo}` from. Every other call succeeds.
+ */
+function recordingExecWithPrimary(primaryPath: string): { exec: GitExec; calls: string[][] } {
+  const calls: string[][] = [];
+  const exec: GitExec = async (cmd, args) => {
+    calls.push([cmd, ...args]);
+    if (args[0] === "worktree" && args[1] === "list") {
+      return { stdout: `worktree ${primaryPath}\nHEAD abc123\nbranch refs/heads/main\n` };
+    }
     return { stdout: "" };
   };
   return { exec, calls };
@@ -138,6 +156,28 @@ describe("runColdStart — use-existing scaffolding", () => {
     });
 
     expect(await readWorktreeMarker(worktree)).toEqual({ kind: "absent" });
+  });
+
+  it("returns a refusal (no throw) when scaffolding fails", async () => {
+    // Force the scaffold write to reject — runColdStart must convert it to a
+    // refusal rather than throw (symmetric with runCreateNew's spawn guard).
+    const failIo: UserIOContext = {
+      ...io,
+      writeFile: async () => {
+        throw new Error("EACCES: permission denied");
+      },
+    };
+
+    const outcome = await runColdStart(ctx(failIo), {
+      worktreePath: worktree,
+      branch: "feat/widget",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/could not scaffold the work unit/i);
+    expect(outcome.reason).toMatch(/permission denied/);
   });
 });
 
@@ -314,5 +354,179 @@ describe("runColdStart — guards", () => {
     if (!outcome.ok) return;
     expect(outcome.value.wuName).toBe("foo");
     expect(await pathExists(join(worktree, ".arc", "active", "meta-foo.md"))).toBe(true);
+  });
+});
+
+describe("runCreateNew — create-new worktree spawn", () => {
+  let primaryRoot: string;
+
+  beforeEach(async () => {
+    // The primary worktree the command runs in (config source + `{repo}` source).
+    // Its basename is the `{repo}` expansion; spawned worktrees resolve as
+    // siblings under the same parent so the temp tree contains them.
+    primaryRoot = await mkdtemp(join(tmpdir(), "arc-createnew-myrepo-"));
+  });
+
+  afterEach(async () => {
+    await rm(primaryRoot, { recursive: true, force: true });
+  });
+
+  /** Template that lands the spawned worktree beside the primary (inside the temp parent). */
+  function siblingTemplate(): string {
+    return join(primaryRoot, "..", "{repo}.{branch}");
+  }
+
+  it("spawns a worktree on a new `plan/<name>` branch via spawnWorktree", async () => {
+    await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
+    const rec = recordingExecWithPrimary(primaryRoot);
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.branch).toBe("plan/widget");
+
+    const expectedPath = resolveWorktreeLocation({
+      template: siblingTemplate(),
+      repo: basename(primaryRoot),
+      branch: "plan/widget",
+    });
+    // The branch forks from the base via `git worktree add … -b plan/widget <base>`.
+    expect(rec.calls).toContainEqual([
+      "git", "worktree", "add", expectedPath, "-b", "plan/widget", "main",
+    ]);
+    // Spawn ran to completion: meta scaffolded + ownership marker written (ARC-created).
+    const record = parseMetaRecord(
+      await io.readFile(join(expectedPath, ".arc", "active", "meta-widget.md")),
+    );
+    expect(record.State).toBe("Planning");
+    expect(record.Branch).toBe("plan/widget");
+    expect((await readWorktreeMarker(expectedPath)).kind).toBe("present");
+
+    await rm(expectedPath, { recursive: true, force: true });
+  });
+
+  it("resolves baseBranch / locationTemplate / repo from config, not hard-coded values", async () => {
+    await writeArcConfig(primaryRoot, {
+      "branch.base": "develop",
+      "worktree.location_template": siblingTemplate(),
+    });
+    const rec = recordingExecWithPrimary(primaryRoot);
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+
+    const expectedPath = resolveWorktreeLocation({
+      template: siblingTemplate(),
+      repo: basename(primaryRoot),
+      branch: "plan/widget",
+    });
+    // base from config (`develop`, not the `main` default); path from the
+    // configured template expanded against the primary's basename (`{repo}`).
+    expect(rec.calls).toContainEqual([
+      "git", "worktree", "add", expectedPath, "-b", "plan/widget", "develop",
+    ]);
+    expect(outcome.value.worktreePath).toBe(expectedPath);
+
+    await rm(expectedPath, { recursive: true, force: true });
+  });
+
+  it("refuses with a reason when no work-unit name is supplied", async () => {
+    const rec = recordingExecWithPrimary(primaryRoot);
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/name/i);
+    // Refusal is total — no worktree created.
+    expect(rec.calls.some((c) => c[1] === "worktree" && c[2] === "add")).toBe(false);
+  });
+
+  it("surfaces the resolved worktree path + branch on success", async () => {
+    await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
+    const rec = recordingExecWithPrimary(primaryRoot);
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    const expectedPath = resolveWorktreeLocation({
+      template: siblingTemplate(),
+      repo: basename(primaryRoot),
+      branch: "plan/widget",
+    });
+    expect(outcome.value).toEqual({
+      worktreePath: expectedPath,
+      branch: "plan/widget",
+      wuName: "widget",
+    });
+
+    await rm(expectedPath, { recursive: true, force: true });
+  });
+
+  it("refuses when the primary worktree path can't be resolved (no `{repo}` source)", async () => {
+    // Empty `worktree list` output → no primary path → defensive refusal.
+    const rec = recordingExec();
+    const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(rec.calls.some((c) => c[1] === "worktree" && c[2] === "add")).toBe(false);
+  });
+
+  it("returns a refusal (no throw) when the worktree spawn fails", async () => {
+    await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
+    // The primary-path probe answers, but `git worktree add` rejects (e.g. the
+    // branch already exists). spawnWorktree propagates — runCreateNew must
+    // convert it to a refusal rather than throw, honoring the no-throw contract.
+    const exec: GitExec = async (cmd, args) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return { stdout: `worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n` };
+      }
+      if (args[0] === "worktree" && args[1] === "add") {
+        throw new Error("fatal: a branch named 'plan/widget' already exists");
+      }
+      return { stdout: "" };
+    };
+    const io: UserIOContext = { ...createUserIOContext(), exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/could not spawn the worktree/i);
+    expect(outcome.reason).toMatch(/already exists/);
   });
 });

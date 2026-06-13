@@ -340,6 +340,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     ),
     workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
+    cohortDoc: vi.fn(async (): Promise<string | null> => null),
     ...overrides,
   };
 }

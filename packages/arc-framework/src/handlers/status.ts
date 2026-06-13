@@ -70,6 +70,7 @@ import { runErrandState } from "../lib/session-init/errand-state.js";
 import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
+import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
@@ -407,6 +408,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+      cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
+        cwd,
+        activeMetaPath,
+        fs: {
+          readFile: (path) => readFile(path, "utf8"),
+          pathExists: (path) => access(path).then(() => true, () => false),
+        },
+      }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (json) {
