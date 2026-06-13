@@ -157,6 +157,28 @@ describe("runColdStart — use-existing scaffolding", () => {
 
     expect(await readWorktreeMarker(worktree)).toEqual({ kind: "absent" });
   });
+
+  it("returns a refusal (no throw) when scaffolding fails", async () => {
+    // Force the scaffold write to reject — runColdStart must convert it to a
+    // refusal rather than throw (symmetric with runCreateNew's spawn guard).
+    const failIo: UserIOContext = {
+      ...io,
+      writeFile: async () => {
+        throw new Error("EACCES: permission denied");
+      },
+    };
+
+    const outcome = await runColdStart(ctx(failIo), {
+      worktreePath: worktree,
+      branch: "feat/widget",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/could not scaffold the work unit/i);
+    expect(outcome.reason).toMatch(/permission denied/);
+  });
 });
 
 describe("runColdStart — spec-input classification (--from)", () => {
@@ -478,5 +500,33 @@ describe("runCreateNew — create-new worktree spawn", () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(rec.calls.some((c) => c[1] === "worktree" && c[2] === "add")).toBe(false);
+  });
+
+  it("returns a refusal (no throw) when the worktree spawn fails", async () => {
+    await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
+    // The primary-path probe answers, but `git worktree add` rejects (e.g. the
+    // branch already exists). spawnWorktree propagates — runCreateNew must
+    // convert it to a refusal rather than throw, honoring the no-throw contract.
+    const exec: GitExec = async (cmd, args) => {
+      if (args[0] === "worktree" && args[1] === "list") {
+        return { stdout: `worktree ${primaryRoot}\nHEAD abc123\nbranch refs/heads/main\n` };
+      }
+      if (args[0] === "worktree" && args[1] === "add") {
+        throw new Error("fatal: a branch named 'plan/widget' already exists");
+      }
+      return { stdout: "" };
+    };
+    const io: UserIOContext = { ...createUserIOContext(), exec };
+
+    const outcome = await runCreateNew(ctx(io), {
+      worktreePath: primaryRoot,
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/could not spawn the worktree/i);
+    expect(outcome.reason).toMatch(/already exists/);
   });
 });

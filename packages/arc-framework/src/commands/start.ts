@@ -172,15 +172,22 @@ export async function runColdStart(
     }
   }
 
-  await scaffoldIntoWorktree(ctx, {
-    worktreePath: params.worktreePath,
-    branch: params.branch,
-    wuName,
-    spawningIdentity: params.identity,
-    createdByArc: false,
-    origin,
-    design,
-  });
+  try {
+    await scaffoldIntoWorktree(ctx, {
+      worktreePath: params.worktreePath,
+      branch: params.branch,
+      wuName,
+      spawningIdentity: params.identity,
+      createdByArc: false,
+      origin,
+      design,
+    });
+  } catch (err) {
+    // Surface a scaffolding failure as a refusal so the no-throw contract holds
+    // end to end (symmetric with runCreateNew's spawn guard).
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `could not scaffold the work unit: ${message}` };
+  }
 
   return { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, origin, design, passthrough } };
 }
@@ -250,13 +257,22 @@ export async function runCreateNew(
   }
   const repo = basename(primaryWorktreePath);
 
-  const { worktreePath, branch } = await spawnWorktree(ctx, {
-    wuName,
-    spawningIdentity: params.identity,
-    baseBranch,
-    locationTemplate,
-    repo,
-  });
+  let worktreePath: string;
+  let branch: string;
+  try {
+    ({ worktreePath, branch } = await spawnWorktree(ctx, {
+      wuName,
+      spawningIdentity: params.identity,
+      baseBranch,
+      locationTemplate,
+      repo,
+    }));
+  } catch (err) {
+    // spawnWorktree rolls back the partial worktree before re-throwing; surface
+    // the failure as a refusal so the no-throw contract holds end to end.
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `could not spawn the worktree: ${message}` };
+  }
 
   return { ok: true, value: { worktreePath, branch, wuName } };
 }

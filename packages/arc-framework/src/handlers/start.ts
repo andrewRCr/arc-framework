@@ -73,7 +73,7 @@ export async function handleStart(
 
     const outcome = await runCreateNew(
       { io, internalTemplateDir: getInternalTemplatePath() },
-      { worktreePath: cwd, identity, name },
+      { worktreePath: cwd, identity, name: wuName },
     );
     if (!outcome.ok) {
       p.log.error(outcome.reason);
