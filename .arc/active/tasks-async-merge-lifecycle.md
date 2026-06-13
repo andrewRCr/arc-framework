@@ -15,30 +15,15 @@ _Design decisions:_ The errand 4-state enum does not map 1:1 to the WU tail, so 
 ~6-state enum and its own enumerator rather than extending the errand path. See `notes-async-merge-lifecycle.md`
 § Implementation grounding (Completion sweep) for the reuse-seam grounding.
 
-### `[ ]` **1.1 `classifyInFlightWorkUnits` — completion-tail state classifier**
+### `[x]` **1.1 `classifyInFlightWorkUnits` — completion-tail state classifier**
 
 - _Goal:_ A pure function maps caller-resolved facts about each owned in-flight WU to a single completion-tail
   state, so every consumer reads the WU's tail position without re-deriving it.
-- _Approach:_ Mirror `classifyInFlightErrands` (`in-flight-errand-sweep.ts`) — the caller resolves each WU's
-  PR / merge / age / archival facts; this module carries no git or network coupling. New module
-  `in-flight-work-unit-sweep.ts` alongside the errand sibling.
-- _Shape:_ State enum — `awaiting-review`, `mergeable`, `blocked` (changes-requested / checks-failed),
-  `merged-needs-archival`, `archived` (terminal — excluded from the in-flight surface), and `stale` (the
-  time-gated overlay on `awaiting-review`). Precedence: merged states beat open-PR states beat the threshold
-  overlay.
-- _Note:_ Whether `changes-requested` and `checks-failed` collapse into one `blocked` leaf or stay distinct is
-  an implementation call settled against live PR shapes; it does not change the surface contract.
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-
-        - merged + archival still pending → `merged-needs-archival`
-        - archived (meta swept to `completed/`) → excluded as terminal
-        - open PR, checks green + approved → `mergeable`
-        - open PR, changes-requested or checks-failed → `blocked`
-        - `Integrating` under the stale threshold → `awaiting-review`
-        - `Integrating` past the threshold → `stale`
-        - state precedence — a merged WU classifies merged even with stale-age facts
+- _Outcome:_ New `in-flight-work-unit-sweep.ts` — pure `classifyInFlightWorkUnits` over caller-resolved facts,
+  git/network-decoupled like the errand sibling. `archived` is modeled as an exclusion fact (terminal, never
+  surfaced) rather than a surfaced state, mirroring the errand sweep's meta-backed exclusion; `changes-requested`
+  and `checks-failed` collapse into one `blocked` state. Precedence: merged → blocked → mergeable →
+  stale-overlay-on-`awaiting-review` (the merged and PR-disposition states bypass the age threshold).
 
 ### `[ ]` **1.2 Owned-WU branch enumerator**
 
