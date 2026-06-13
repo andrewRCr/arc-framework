@@ -42,9 +42,9 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
   recently-active-remote-branch detection machinery rather than building a second scanner. The cross-machine
   `plan/` orphan is structural to the local-only rename model, so a sweep is the right remedy, not a rename
   change.
-- _Scope:_ probe surface (`sweep` sibling), session-init orientation arm, possibly a CLI primitive. **Possible
-  standalone split:** the `integrate-work-unit` Step 13 primary-worktree sub-gap (add a `git branch -d` on the
-  in-place arm) is a contained workflow fix that could land independently.
+- _Scope:_ probe surface (`sweep` sibling), session-init orientation arm, possibly a CLI primitive. The
+  `integrate-work-unit` Step 13 primary-worktree sub-gap (a `git branch -d` on the in-place arm) is **closed** in
+  `async-merge-lifecycle` (facet 2); this item narrows to facet 1, the cross-machine `plan/` orphan.
 
 ### `[ ]` **Coordinate the stale-local-branch reaper with `async-merge-lifecycle`'s post-merge teardown surface**
 
@@ -64,7 +64,11 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
   this WU's `gone`-upstream detection. Not a double-build: different fire points, branch types, and detection
   drivers. **The other extends:** if this WU builds a generic session-init stale-local-branch sweep surface,
   `async-merge-lifecycle` extends it rather than re-scanning.
-- _Scope:_ facet 1 (cross-machine `plan/` orphan) only — facet 2 (`feat/` teardown) is `async-merge-lifecycle`'s.
+- _Finalized (2026-06-13, `async-merge-lifecycle` Phase 6):_ facet 2 is built there — `integrate-work-unit`
+  Step 13 now reaps the primary-worktree `feat/` branch (merged-only-safe) with the in-flight completion sweep as
+  backstop. coord-probe's scope holds at facet 1; build it to extend that teardown surface, not re-scan.
+- _Scope:_ facet 1 (cross-machine `plan/` orphan) only — facet 2 (`feat/` teardown) is `async-merge-lifecycle`'s
+  (built; closed at its `integrate-work-unit` Step 13).
 
 ## Problem / Motivation
 

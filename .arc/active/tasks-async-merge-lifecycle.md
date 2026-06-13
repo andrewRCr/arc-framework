@@ -331,17 +331,18 @@ throughout; every change is awaiting-review accommodation layered on.
   small additive edits above (`session-handoff`, `deactivate-work-unit`, `archive-work-unit`), each in both copies
   (package source + `.arc/`). `integrate-work-unit` and `setup-merge-gate` were confirm-only.
 
-### `[ ]` **6.2 Reaper facet-split record + `coord-probe` buffer update**
+### `[x]` **6.2 Reaper facet-split record + `coord-probe` buffer update**
 
 - _Goal:_ The reaper facet split is recorded so the two surfaces stay coordinated — facet 2 (`feat/` orphan, unit
   7) owned here, facet 1 (cross-machine `plan/` orphan) staying with `coord-probe`.
 
-    - `[ ]` **6.2.a Confirm the spec documents the facet split**
-        - Verify Proposed Design § Reaper facet split and the notes companion carry the split (authored at
-          create-spec; confirm at finalize).
+    - `[x]` **6.2.a Confirm the spec documents the facet split**
+        - Confirmed — spec § Reaper facet split and the notes § Coordination seam both carry it (authored at
+          create-spec); no edit.
 
-    - `[ ]` **6.2.b Update `coord-probe`'s inbound-buffer item**
-        - Record that facet 2 is taken here and facet 1 stays with `coord-probe`.
+    - `[x]` **6.2.b Update `coord-probe`'s inbound-buffer item**
+        - Recorded facet 2 as built here at finalize and cleared the sibling entry's stale "standalone split"
+          pointer; `coord-probe`'s scope narrows to facet 1 (extends the shipped teardown surface).
 
 ## **Phase 7:** Verification
 
