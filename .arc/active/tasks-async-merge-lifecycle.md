@@ -119,19 +119,24 @@ is gated to handoff / no-active-WU and degrades to presence when `gh` is absent.
   session-init; the `nudge` marker state and the `behindBase` qualifier ride the `workUnitState` envelope slot for
   the Step 6 orientation routes (2.3) to consume.
 
-### `[ ]` **2.3 Orientation routes in `session-init.md`**
+### `[x]` **2.3 Orientation routes in `session-init.md`**
 
 - _Goal:_ Session-init surfaces the swept WUs as advisory orientation routes — mirroring the existing
   errand-in-flight surface — that the developer acts on, never auto-switching, auto-merging, or auto-archiving.
-- _Approach:_ Add the probe-field documentation to Step 1's envelope table and the surfacing block to Step 6,
-  modeled on the existing errand-in-flight / materializable routes. Both copies.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.3.a Document the sweep slot in the Step 1 envelope table**
+    - `[x]` **2.3.a Document the sweep slot in the Step 1 envelope table**
+        - Added the `workUnitState` row to the Step 1 envelope table — the tail states, the `behindBase`
+          qualifier, `value.nudge`, the roster-resolved arms, and the two-tier presence/sharpening cost model.
 
-    - `[ ]` **2.3.b Render the Step 6 orientation routes**
-        - Owned WUs in the tail: the stale nudge (batched), and the `mergeable` / `merged-needs-archival` event
-          routes — each advisory, none auto-acting.
+    - `[x]` **2.3.b Render the Step 6 orientation routes**
+        - Added the Step 6 surfacing block: owned tail WUs as advisory routes — the once-per-day-batched `stale`
+          nudge (with the marker write-back) and the immediate `mergeable` / `merged-needs-archival` event routes,
+          plus the `behindBase` qualifier — none auto-acting.
+
+- _Outcome:_ `session-init.md` (both copies — the `.arc` instance and the `.template.md` source) now documents
+  and surfaces the `workUnitState` sweep, closing Phase 2: the completion-tail forcing function reads from tracked
+  state, sharpens from live PR state off-WU, and surfaces as advisory orientation across the roster-resolved arms.
 
 ## **Phase 3:** Integration ceremony resume + eager teardown
 

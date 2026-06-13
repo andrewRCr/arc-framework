@@ -45,6 +45,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Atomic` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                                                                                                                                                                                                                                                |
 | `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved.                                                                                                                                                                                                                             |
 | `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                              |
+| `workUnitState`             | Pre-computed work-unit completion sweep over the operator's owned in-flight (`Integrating`) WUs, each classified across the tail (`awaiting-review` / `mergeable` / `blocked` / `merged-needs-archival` / `stale`) with a `behindBase` qualifier and whole-day `ageDays`. Present on the roster-resolved arms (primary / no-active-WU / branch-gone). `value.nudge` carries the once-per-calendar-day marker state gating the batched `stale` surface; the `mergeable` / `merged-needs-archival` events bypass it and surface every session-init. The presence tier is network-free; the mergeable-sharpening tier (live PR via `gh`) fires only on no-active-WU and degrades to presence when `gh` is absent                                                                                                         |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
@@ -657,6 +658,21 @@ tracked source documents the work.
   ```text
   **Materializable errands:** {N} remote `chore/` branch(es) available:
   - `{branch}` — materialize and resume?
+  ```
+
+- `workUnitState.value.inFlight.workUnits` non-empty (any roster-resolved arm): owned work units sit in the
+  completion tail (`Integrating`, awaiting review). Surface them as advisory routes — never auto-switch,
+  auto-merge, or auto-archive. The actionable events (`mergeable`, `merged-needs-archival`) surface every
+  session-init; the time-gated `stale` overlay batches once per calendar day — suppress `stale` entries unless
+  `workUnitState.value.nudge.shouldNudge`. A `behindBase` WU needs its base merged in before it can merge;
+  surface that qualifier alongside `mergeable`. After surfacing any `stale` entry, write
+  `workUnitState.value.nudge.today` to `workUnitState.value.nudge.markerPath` (create the parent directory if
+  needed) so the stale nudge batches to once per calendar day.
+
+  ```text
+  **Work units in flight:** {N} owned WU(s) in the completion tail:
+  - `{branch}` — {awaiting-review | mergeable | blocked | merged-needs-archival | stale} ({ageDays}d)
+  - mergeable but `behindBase` → merge the base in first; merged-needs-archival → archive it
   ```
 
 - `materializableWorkUnits.value.candidates` non-empty (Orient arm — no active WU): remote-only owned work units
