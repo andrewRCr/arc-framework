@@ -48,26 +48,19 @@ probe-side: session-init emits an in-flight `Class` composition (`1.3`) and the 
   unit-tested for config-driven base/template/repo resolution, the no-name and unresolved-primary refusals,
   and the success surface.
 
-### `[ ]` **1.2 Make worktree-creating the default in `init-work-unit`'s Execution Modes**
+### `[x]` **1.2 Make worktree-creating the default in `init-work-unit`'s Execution Modes**
 
 - _Goal:_ Creating a new work unit through `init-work-unit` defaults to spawning an isolated worktree under
   full protection when spawning is available; falls back to cutting the branch in the primary's base checkout
   when spawning is unavailable; cuts no branch under partial protection (direct base commit). Callers inherit
   the default by not forcing in-place; the `--here` cold-start path remains the explicit in-place override.
 
-- _Context:_ `init-work-unit`'s Execution Modes today documents both modes (in-place / worktree-creating) as
-  "caller-selected, no default." This task makes the mechanical default the resolved behavior of the mechanism
-  workflow itself, so every WU-creating caller — `decompose-work-unit`, `graduate-work-unit`, session-init
-  next-work dispatch — inherits worktree-default rather than re-authoring the policy.
-
-- _Approach:_ Author the protection × spawn-availability resolution into the Execution Modes section as the
-  default mode selection (the same read `run-errand` Launch performs for errand locus). The worktree-creating
-  mode runs the existing in-flight scope check before creating; the in-place path stays available for callers
-  that force it. Doc edits only — `init-work-unit` is Framework markdown (two-copy).
-
-- _Note:_ Exact phrasing of the override-and-inherit contract settles against the surrounding Execution Modes
-  prose at implementation. `run-errand` is not a caller of this default — it owns its own errand-locus
-  relocation (the mirrored shape) and reaches `init-work-unit` only on the errand→WU promotion path.
+- _Outcome:_ `init-work-unit`'s Execution Modes now resolves the mode mechanically (branch-protection ×
+  worktree-spawn availability, mirroring `run-errand` Launch) instead of leaving it "caller-selected, no
+  default": full protection defaults to worktree-creating where spawning is available and falls back to
+  in-place otherwise; partial protection stays no-branch direct-base. Authored once in the mechanism workflow
+  (both two-copy instances), so `decompose-`/`graduate-work-unit` and session-init next-work dispatch inherit
+  worktree-default by not forcing in-place; `--here` remains the explicit in-place override.
 
 ### `[ ]` **1.3 Surface a plate-balance advisory line from in-flight `Class` composition**
 

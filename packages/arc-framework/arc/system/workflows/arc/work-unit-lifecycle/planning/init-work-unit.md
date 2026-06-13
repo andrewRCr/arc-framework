@@ -41,7 +41,10 @@ spec/tasks as needed, then proceeds to task execution.
 
 ## Execution Modes
 
-The new-work-unit path runs in one of two modes, selected by the caller — there is no mode flag:
+The new-work-unit path runs in one of two modes. The mode is **resolved mechanically** from branch-protection
+mode × worktree-spawn availability — never a caller flag, and never keyed on `Class` or planning depth (the
+same read [run-errand][run-errand] Launch performs for the errand locus). Callers inherit the default by not
+forcing in-place; the `--here` cold-start path is the one explicit in-place override.
 
 - **In-place** — the planning branch is created in the current worktree (Step 2, `git checkout -b`) and the
   meta file is scaffolded inline (Step 4, Path B); the current worktree becomes the work unit's worktree.
@@ -51,6 +54,14 @@ The new-work-unit path runs in one of two modes, selected by the caller — ther
   spawn entry point performs this; the inline Step 2 and Step 4 (Path B) are its in-place counterpart. Before
   creating the worktree, run the [in-flight scope check][in-flight-scope-check] — an advisory pass over
   in-flight work units that surfaces scope overlap and never gates.
+
+**Default mode selection.** Resolve the mode per protection mode ([§ Branch Protection Modes][work-org-protection]):
+
+- **Full protection** — default to **worktree-creating** wherever worktree spawning is available, so concurrent
+  work units stay isolated by default; fall back to **in-place** (cut `plan/<name>` in the primary worktree's
+  base checkout) when spawning is unavailable.
+- **Partial protection** — no planning branch: new work proceeds directly from the base checkout (the documented
+  no-ceremony default), so these numbered steps don't run.
 
 Both modes share the rest of the workflow. Graduating a backlog stub (Step 3), reconciling an existing meta
 file (Step 4, Path A), and the idempotent-resume case stay part of the workflow in either mode — they
