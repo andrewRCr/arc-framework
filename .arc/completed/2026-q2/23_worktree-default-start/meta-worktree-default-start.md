@@ -1,8 +1,8 @@
 # Metadata: worktree-default-start
 
-| **State**       | **Owner** | **Branch**                    | **Class** | **Priority** |
-|-----------------|-----------|-------------------------------|-----------|--------------|
-| `Integrating`   | `andrew`  | `feat/worktree-default-start` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch**                    | **Class** | **Priority** |
+|-----------|-----------|-------------------------------|-----------|--------------|
+| `Shipped` | `andrew`  | `feat/worktree-default-start` | `Light`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** `concurrent-work-doctrine`
