@@ -23,6 +23,30 @@ auto-fix) is routed to `quality-gate-hooks`** (its commit-gate dispatch + dogfoo
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Make the MD060 → table-fixer path always-discoverable**
+
+- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-13); captured during `async-merge-lifecycle`
+  integration — hit MD060 twice (meta `State` flip → CI red; `ROADMAP` dep-list edit → local lint).
+- *Concern:* the table fixer is the **only** fixer for MD060 (table-column-style / pipe alignment) —
+  `markdownlint-cli2 --fix` does not touch it. That mapping lives only in `QUICK-REFERENCE` § Markdown Linting, an
+  on-demand section not loaded at session-init, so a session isn't "always aware" of it: editing a meta table cell
+  or a `ROADMAP` dependency list silently breaks alignment, and without knowing the tool an agent hand-realigns
+  (error-prone) or ships it to a CI failure.
+- *Proposed:* surface the MD060 → table-fixer pointer on an **always-loaded** surface rather than the on-demand
+  reference section. The capture guessed `DEV-RULES.PROJECT § Quality Gates` (where the lint commands live); this
+  WU already plans a "discoverability doc in the internal `QUICK-REFERENCE`" in its scope — **reconcile the two**
+  (always-loaded rule vs. on-demand reference) at iteration rather than landing both.
+- *Tool-name reconciliation:* the capture names `markdown-table-prettify`; this WU adopts `markdown-table-formatter`
+  (the file-I/O `--check` wrapper around that same engine). Land the discoverability pointer against the adopted
+  tool name.
+
+---
+
 ## Problem / Motivation
 
 Markdown table column alignment is hand-fixed in this repo nearly every session — a high-frequency,

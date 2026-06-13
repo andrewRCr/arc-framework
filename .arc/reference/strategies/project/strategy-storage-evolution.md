@@ -183,6 +183,10 @@ Touchpoints warranting joint attention:
   provisioning and the new-machine contributor flow.
 - **Per-editor freshness scaffolding** — materialized files need an editor watch-setting to live-reload (Zed
   `file_scan_inclusions` confirmed; Helix gapped); ARC should scaffold `.zed`/`.vscode` settings at init.
+- **Notes-history accumulation / compaction policy** — the user-notes ref today carries one full-workspace
+  snapshot per save-commit (~660 and growing, never pruned; ancestor-walk load relies on the chain). Whether the
+  backing store keeps full per-save history (nearest-ancestor load / time-travel) or compacts/prunes it is an open
+  backing-store policy call — low-stakes today (pack-amortized), decide as the substrate's history model firms up.
 
 This list is not exhaustive — other touchpoints surface during co-design.
 

@@ -103,6 +103,15 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
 - *Drain note (2026-06-12):* the capture framed the bridge as `async-merge-lifecycle`'s to land (option A); it was
   since carved out and **shipped** as the sibling `notes-merge-coherence`. Verify whether the projection builder
   already exists before planning the extension.
+- *Folded in — freshness-reporting unification (drain 2026-06-13):* routed from `USER-INBOX § Backlog`, captured
+  during `async-merge-lifecycle` integration. `arc user save` / `status` derive note freshness from the
+  `.sync-state.json` `sourceCommit` marker, while `arc user push` inspects the physical git-note anchor — they
+  disagreed post-merge (`status` reported "current with HEAD" while `push` warned "7 commit(s) behind"; reachability
+  hid any data loss). Same projection/freshness surface as this item: make save/status/push share **one** freshness
+  source of truth so they cannot diverge, and find why the post-merge `save` advanced the marker without writing a
+  note to `HEAD` (`runUserSave` writes unconditionally, so the skip is in the write leg — `io.writeNote` semantics
+  or a handler-layer guard, e.g. `git notes add` without `-f` over an existing note). The pruning-history facet of
+  that same capture routed separately to `strategy-storage-evolution`.
 - *Scope:* extension-on-existing; verify-then-extend.
 
 ---
