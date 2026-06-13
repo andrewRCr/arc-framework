@@ -79,10 +79,10 @@ program
 program
   .command("start [name]")
   .description(
-    "Start a work unit. `--here` cold-starts into the current worktree "
-    + "(scaffolds a Planning meta + SESSION-NOTES); create-new modes layer on later.",
+    "Start a work unit. Default spawns an isolated worktree on a new `plan/<name>` "
+    + "branch; `--here` cold-starts into the current worktree instead.",
   )
-  .option("--here", "Cold-start: scaffold into the current worktree (the only mode available today)")
+  .option("--here", "Cold-start in place: scaffold into the current worktree instead of spawning a new one")
   .option(
     "--from <pointer-or-blurb>",
     "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",

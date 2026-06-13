@@ -1,30 +1,37 @@
 /**
- * `arc start` command logic.
+ * `arc start` command logic — two testable no-throw cores behind one verb.
  *
- * Today this hosts the cold-start (`--here`) path only: scaffold a Planning
- * meta + SESSION-NOTES into the worktree the session is already in — one ARC
- * did not create (a tool-spawned or manual `git worktree add` checkout). It is
- * the invocable surface the `arc-session` skill reaches for on its cold-start
- * dispatch; the create-new modes (worktree creation + tier flags) layer onto
- * the same verb later.
+ * {@link runCreateNew} is the default (create-new) path: spawn an isolated
+ * worktree on a new `plan/<name>` branch via {@link spawnWorktree}, resolving
+ * base / location-template / repo from config. It is what the `arc-session`
+ * skill reaches for when starting fresh work; ARC mints the worktree, so the
+ * ownership marker is written.
  *
- * {@link runColdStart} is the testable core: it derives the WU name, refuses to
- * scaffold onto a protected base or to clobber a worktree that already holds an
- * active work unit, classifies the optional spec input, and delegates the writes to
- * {@link scaffoldIntoWorktree} with `createdByArc: false` (advisory marker — ARC
- * did not create this worktree). The handler resolves the ambient context (cwd,
- * branch, identity) and reports.
+ * {@link runColdStart} is the in-place (`--here`) override: scaffold a Planning
+ * meta + SESSION-NOTES into the worktree the session is already in — one ARC did
+ * not create (a tool-spawned or manual `git worktree add` checkout). It derives
+ * the WU name, refuses to scaffold onto a protected base or to clobber a worktree
+ * that already holds an active work unit, classifies the optional spec input, and
+ * delegates the writes to {@link scaffoldIntoWorktree} with `createdByArc: false`
+ * (advisory marker — ARC did not create this worktree).
+ *
+ * The handler resolves the ambient context (cwd, branch, identity), dispatches to
+ * the mode, and reports.
  *
  * @module
  */
 
+import { basename } from "node:path";
+
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
 import {
   scaffoldIntoWorktree,
+  spawnWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
 
@@ -176,4 +183,80 @@ export async function runColdStart(
   });
 
   return { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, origin, design, passthrough } };
+}
+
+/** Inputs for {@link runCreateNew} — the ambient context the handler resolves. */
+export interface CreateNewParams {
+  /** The primary worktree root the command runs in — config source and `{repo}` source. */
+  worktreePath: string;
+  /** Identity creating the WU — meta `Owner`, the marker, and the user subdir. */
+  identity: string;
+  /** Work-unit name — required; create-new cannot derive one from a branch. */
+  name?: string;
+}
+
+/** Outcome detail of a successful create-new spawn. */
+export interface CreateNewResult {
+  /** Filesystem path of the newly spawned worktree. */
+  worktreePath: string;
+  /** The `plan/<name>` branch the worktree was created on. */
+  branch: string;
+  /** The resolved WU name (meta filename / H1 / user subdir). */
+  wuName: string;
+}
+
+/** No-throw outcome — a refusal carries a reason instead of throwing. */
+export type CreateNewOutcome =
+  | { ok: true; value: CreateNewResult }
+  | { ok: false; reason: string };
+
+/**
+ * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
+ * unit. Resolves `branch.base` and `worktree.location_template` from config and
+ * derives `{repo}` from the primary worktree's basename, then delegates branch +
+ * worktree creation and scaffolding to {@link spawnWorktree} (`createdByArc:
+ * true` — ARC mints this one, so the ownership marker is written).
+ *
+ * Refuses, without writing, when no work-unit name is supplied (create-new has
+ * no branch to derive one from) or when the primary worktree path cannot be
+ * resolved (no `{repo}` source).
+ *
+ * @param ctx - I/O context and internal template directory.
+ * @param params - Resolved ambient context plus the required work-unit name.
+ * @returns A success outcome with the spawned worktree path + branch, or a refusal.
+ */
+export async function runCreateNew(
+  ctx: SpawnWorktreeContext,
+  params: CreateNewParams,
+): Promise<CreateNewOutcome> {
+  const wuName = params.name?.trim();
+  if (!wuName) {
+    return {
+      ok: false,
+      reason: "create-new requires a work-unit name (`arc start <name>`)",
+    };
+  }
+
+  const { settings } = await readConfigSettings(params.worktreePath);
+  const baseBranch = settings["branch.base"];
+  const locationTemplate = settings["worktree.location_template"];
+
+  const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
+  if (primaryWorktreePath === null) {
+    return {
+      ok: false,
+      reason: "could not resolve the primary worktree path to derive the repository name",
+    };
+  }
+  const repo = basename(primaryWorktreePath);
+
+  const { worktreePath, branch } = await spawnWorktree(ctx, {
+    wuName,
+    spawningIdentity: params.identity,
+    baseBranch,
+    locationTemplate,
+    repo,
+  });
+
+  return { ok: true, value: { worktreePath, branch, wuName } };
 }

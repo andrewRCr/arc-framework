@@ -22,41 +22,31 @@ probe-side: session-init emits an in-flight `Class` composition (`1.3`) and the 
 `session-init`, and `AGENT-BRIEF.ARC` are Framework markdown → two-copy edits (package source +
 `.arc/` instance). See `notes-worktree-default-start.md` for the caller map, two-copy file list, and anchors.
 
-### `[ ]` **1.1 Wire the create-new `arc start` worktree-spawning mode**
+### `[x]` **1.1 Wire the create-new `arc start` worktree-spawning mode**
 
 - _Goal:_ Bare `arc start <name>` (non-`--here`) spawns an isolated worktree on a new `plan/<name>` branch
   via the shipped `spawnWorktree` primitive — resolving location / base / repo from config — instead of
   erroring with the `--here` pointer.
 
-- _Approach:_ Mirror the existing `runColdStart` split — a testable no-throw core in `commands/start.ts`
-  resolves inputs and delegates to `spawnWorktree`; the handler resolves ambient context and reports.
+    - `[x]` **1.1.a Create-new core in `commands/start.ts`**
+        - Added `runCreateNew` (no-throw `{ ok, value | reason }`) as a peer to `runColdStart`: resolves
+          `branch.base` / `worktree.location_template` via `readConfigSettings`, derives `{repo}` from the
+          primary worktree's basename (`resolvePrimaryWorktreePath`), and delegates to `spawnWorktree`
+          (`createdByArc: true`). Refuses when no name is supplied, or when the primary path can't resolve.
 
-    - `[ ]` **1.1.a Create-new core in `commands/start.ts`**
-        - Add a `runCreateNew` core peer to `runColdStart`: resolve `branch.base` and
-          `worktree.location_template` via `readConfigSettings`, resolve the primary-worktree path
-          (`resolvePrimaryWorktreePath`) and derive `{repo}` from its basename, then call `spawnWorktree`
-          with `wuName`, `spawningIdentity`, `baseBranch`, `locationTemplate`, `repo`.
-        - Return the no-throw `{ ok, value | reason }` outcome shape; refuse (no write) when no name is
-          supplied — create-new cannot derive a name from a branch the way cold-start does.
-        - Build `test-first` (one behavior at a time):
-            - spawns a worktree on a new `plan/<name>` branch via `spawnWorktree`
-            - resolves `baseBranch` / `locationTemplate` / `repo` from config (not hard-coded)
-            - refuses with a reason when no work-unit name is supplied
-            - surfaces the resolved worktree path + branch on success
+    - `[x]` **1.1.b Handler dispatch + CLI surface**
+        - `handlers/start.ts` now dispatches the non-`--here` branch to `runCreateNew` (requires an explicit
+          name, confirms, reports the spawned worktree path + branch via `p.note`); `cli.ts` command and
+          `--here` descriptions now name worktree-spawn as the default and `--here` as the in-place override.
 
-    - `[ ]` **1.1.b Handler dispatch + CLI surface**
-        - In `handlers/start.ts`, replace the `!opts.here` error branch with the create-new dispatch:
-          require an explicit `name`, resolve identity, call `runCreateNew`, and report the spawned
-          worktree path + branch (`p.note`).
-        - Update the `arc start` command + `--here` option descriptions in `cli.ts` so they no longer claim
-          `--here` is "the only mode available today."
+    - `[x]` **1.1.c Drop the moot `--tier` reference + refresh stale module docs**
+        - Removed the `--tier` mention and the "only `--here` wired / create-new layers on later" framing
+          from `start.ts`'s module doc, which now describes the two-mode (create-new / `--here`) dispatch.
 
-    - `[ ]` **1.1.c Drop the moot `--tier` reference + refresh stale module docs**
-        - Remove the `--tier` flag reference from `start.ts`'s module doc — the `atomic` / `quick` /
-          `standard` tier model is retired in favor of `Class` (resolved during planning, not via a CLI flag).
-        - Refresh the "only `--here` wired" / "create-new modes layer on later" framing in the `start.ts`
-          module docs to describe what now _is_.
-        - _Note:_ No `--tier` flag grammar is introduced — only the stale doc reference is removed.
+- _Outcome:_ Create-new is wired end-to-end — `arc start <name>` spawns a `plan/<name>` worktree via
+  `spawnWorktree`, with `--here` remaining the in-place cold-start override. The new `runCreateNew` core is
+  unit-tested for config-driven base/template/repo resolution, the no-name and unresolved-primary refusals,
+  and the success surface.
 
 ### `[ ]` **1.2 Make worktree-creating the default in `init-work-unit`'s Execution Modes**
 
