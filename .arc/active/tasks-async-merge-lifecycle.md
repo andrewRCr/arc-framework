@@ -191,24 +191,28 @@ linked arm. Workflow-doc behavior, validated by walking the re-entry and teardow
 _Purpose:_ Land the two cross-cutting primitives the backstop completion paths consume, before wiring those paths
 in Phase 5: the standalone `integration` footer (emitter + doc enumeration) and the post-merge notes-sync leg.
 
-### `[ ]` **4.1 Standalone `integration` footer — emitter + `commit-footer.md` enumeration**
+### `[x]` **4.1 Standalone `integration` footer — emitter + `commit-footer.md` enumeration**
 
 - _Goal:_ The standalone `integration` footer becomes real — completion commits that run without an active WU
   chain emit `Context: integration (...)`, and `commit-footer.md` enumerates the kind so the source-of-truth line
   arrives with the producer.
-- _Context:_ The `commit-msg` hook already accepts `Context: integration (...)` as a single-parent footer kind,
-  but nothing emits it and `commit-footer.md` does not enumerate it.
-- _Note:_ When an active WU chain applies, `integrate-work-unit.md` keeps `meta-{name}.md (integration)`; the
-  standalone `integration` footer is for the no-WU-chain completion commits the backstop paths produce.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **4.1.a Enumerate the `integration` kind in `commit-footer.md`**
-        - Add it as a single-parent integration-ceremony context — distinct from the chain-named
-          `meta-*(integration)` and from the off-WU `standalone` anchor. Both copies (package source + `.arc/`).
+    - `[x]` **4.1.a Enumerate the `integration` kind in `commit-footer.md`**
+        - Added the `### Integration anchor — integration` section (both copies): a single-parent
+          integration-ceremony context for commits with no active WU chain to name, with the two freeform
+          examples the `commit-msg` hook already accepts and a "distinct from both neighbours" note vs.
+          `meta-*(integration)` and `standalone (...)`. Frontmatter description updated to list the anchor.
 
-    - `[ ]` **4.1.b Wire the emitters**
-        - The completion-sweep actionable commits, the unattended-merge completion trigger, and any
-          archival / finalize ceremony commit this WU wires emit the footer at their fire sites.
+    - `[x]` **4.1.b Wire the emitters** — re-scoped to the emission convention; path-wiring lands in Phase 5
+        - Documented the emission convention at the primitive level — an `**Emission**` note naming which
+          completion paths (a merge no attended ceremony owns, finalized from base context or on the unattended
+          auto-merge lane) emit the anchor, kept generic to avoid forward-pointing to unshipped paths. The actual
+          fire-site wiring lands when Phase 5 authors those paths (5.1 finalize pass, 5.2 unattended trigger).
+
+- _Outcome:_ The `integration` footer kind is real and documented producer-side, closing the producer-less
+  allowance the `commit-msg` hook shipped. Phase 5's completion paths consume the convention rather than
+  re-deriving the footer.
 
 ### `[ ]` **4.2 Post-merge notes-sync leg wiring**
 
