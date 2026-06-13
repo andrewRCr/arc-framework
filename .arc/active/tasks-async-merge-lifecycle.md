@@ -304,31 +304,32 @@ _Purpose:_ Re-ground the touchpoint set against current shipped code and adjust 
 record the reaper facet split and update `coord-probe`'s inbound buffer. Sync-merge stays the primary flow
 throughout; every change is awaiting-review accommodation layered on.
 
-### `[ ]` **6.1 Touchpoint re-grounding audit — option B (additive)**
+### `[x]` **6.1 Touchpoint re-grounding audit — option B (additive)**
 
 - _Goal:_ Each async-merge touchpoint gets explicit awaiting-review accommodation — at session-handoff,
   meta-file updates, worktree cleanup, and archival ordering — with sync-merge unchanged as the primary path.
-- _Context:_ The 2026-06-03 audit predates `concurrent-work-doctrine` and `merge-safety-mechanism`, both of which
-  touched these surfaces; this re-grounds against current shipped code.
-- **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **6.1.a `integrate-work-unit.md`**
-        - Reconcile with Phase 3's net-new resume / teardown; keep the awaiting-review accommodation coherent
-          (additive only — the net-new behavior lands in Phase 3).
+    - `[x]` **6.1.a `integrate-work-unit.md`**
+        - Confirmed coherent — the suspend/resume seam (Step 1 re-entry guard) and symmetric Step 13 teardown
+          already carry the accommodation; no edit.
 
-    - `[ ]` **6.1.b `archive-work-unit.md`**
-        - Meta-file updates, worktree cleanup, and archival ordering under awaiting-review; confirm teardown-free
-          (per 3.2).
+    - `[x]` **6.1.b `archive-work-unit.md`**
+        - Confirmed teardown-free; fixed a stale Next-step cross-reference (integrate Step 14 → Step 12).
 
-    - `[ ]` **6.1.c `session-handoff.md`**
-        - Awaiting-review accommodation at handoff — parking the `Integrating` state across the wait.
+    - `[x]` **6.1.c `session-handoff.md`**
+        - Added a mid-integration handoff note — meta stays `Integrating`, Next Action points at the integrate
+          resume step; a same-session merge is finalized by the § Sync finalize pass.
 
-    - `[ ]` **6.1.d `deactivate-work-unit.md`**
-        - Awaiting-review accommodation at the meta-file rotation.
+    - `[x]` **6.1.d `deactivate-work-unit.md`**
+        - Clarified that an `Integrating` (PR-open, awaiting-review) WU is the live Case B, not a deactivation —
+          deactivate does not rotate an `Integrating` meta.
 
-    - `[ ]` **6.1.e `setup-merge-gate.md`**
-        - Confirm orthogonal — it owns the auto-merge _lane_, not the completion tail; no completion-tail change
-          expected.
+    - `[x]` **6.1.e `setup-merge-gate.md`**
+        - Confirmed orthogonal — pure auto-merge-lane setup; no completion-tail content. No edit.
+
+- _Outcome:_ The awaiting-review accommodation was already largely shipped; the audit's net change is the three
+  small additive edits above (`session-handoff`, `deactivate-work-unit`, `archive-work-unit`), each in both copies
+  (package source + `.arc/`). `integrate-work-unit` and `setup-merge-gate` were confirm-only.
 
 ### `[ ]` **6.2 Reaper facet-split record + `coord-probe` buffer update**
 

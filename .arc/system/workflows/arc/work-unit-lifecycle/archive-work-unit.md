@@ -145,7 +145,7 @@ keep-a-changelog norms). No mechanical enforcement; convention only.
 
 ## Next step
 
-- **Inline under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit] Step 14 —
+- **Inline under `with-integration`:** Return to [`integrate-work-unit.md`][integrate-work-unit] Step 12 —
   the final integration push covers completion content + sweep + ROADMAP regen as one push.
 - **Standalone under `manual`:** Archival is the terminal step. Push the archive commit per project
   convention (under `branch.protection: full`, route through a housekeeping branch + PR).

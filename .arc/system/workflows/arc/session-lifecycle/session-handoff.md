@@ -509,6 +509,12 @@ If the work unit has already been archived, no active meta file remains. The per
 subdir is retired alongside the WU (`arc user close` handles this); WORKING-MEMORY.md persists
 unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
 
+## Handing Off Mid-Integration — `Integrating`
+
+PR open and awaiting review across the wait: the meta file stays `**State:** Integrating` and Next Action points
+at the integrate resume step (`integrate-work-unit Step <N> — <description>`) — the next session resumes there. A
+PR that merged during this session is finalized by the § Sync finalize pass, not parked here.
+
 ## Post-Update Cleanup
 
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter

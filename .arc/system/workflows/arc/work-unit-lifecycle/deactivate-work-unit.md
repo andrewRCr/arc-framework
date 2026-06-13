@@ -181,7 +181,9 @@ Context: meta-{name}.md (deactivation)
 ## Case B — some task work executed, not merged
 
 Task work has run but nothing has merged to base, so the activation is no longer the only thing to undo —
-committed work exists and its fate is the operator's call. This workflow does not automate Case B; it names the
+committed work exists and its fate is the operator's call. A WU in `**State:** Integrating` (PR open, awaiting
+review) is the live form of this case — deactivate does not rotate an `Integrating` meta; finish through
+[`integrate-work-unit.md`][integrate] or close the PR first. This workflow does not automate Case B; it names the
 three paths and routes each to the workflow that owns it.
 
 - **Integrate the partial scope.** The work done so far stands on its own and is worth shipping. Run
