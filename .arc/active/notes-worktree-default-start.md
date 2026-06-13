@@ -4,11 +4,10 @@
 
 Concrete code locations the buildables touch (all paths under `packages/arc-framework/src/`):
 
-- **`spawnWorktree` primitive** — `lib/git/worktree-scaffold.ts` (wraps `git worktree add -b`). Ships with no
-  CLI caller; the create-new `arc start` handler branch is the first caller.
-- **`arc start` handler** — `handlers/start.ts`. Currently rejects bare `arc start <name>` (non-`--here`)
-  outright with a pointer to `--here`; the module doc still carries the moot `--tier` flag reference to drop.
-  The `--here` cold-start path (use-existing worktree, `createdByArc: false`) already ships.
+- **`spawnWorktree` primitive** — `lib/git/worktree-scaffold.ts` (wraps `git worktree add -b`). The create-new
+  `arc start` handler branch is its CLI caller.
+- **`arc start` handler** — `handlers/start.ts`. Hosts the create-new dispatch branch (bare `arc start <name>`)
+  beside the `--here` cold-start path (use-existing worktree, `createdByArc: false`).
 - **Location templating** — `lib/git/worktree-location.ts` (resolves the worktree path from config).
 - **Full-protection scaffold guard** — already ships; the spawn path composes with it.
 - **`classComposition()` tally** — `lib/status/class-composition.ts`. Feeds the plate-balance advisory line; the
