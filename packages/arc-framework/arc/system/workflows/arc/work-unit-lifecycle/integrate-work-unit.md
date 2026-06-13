@@ -290,7 +290,11 @@ git fetch --prune origin   # remote branch removed by delete-on-merge — prune 
 
 Lowercase `-d` keeps the delete merged-only-safe and the presence guard makes it re-runnable; there is no
 `push --delete` — delete-on-merge typically removed the remote branch already, so prune the local tracking ref
-rather than re-deleting it. The workflow continues to `## Next step` normally.
+rather than re-deleting it.
+
+Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
+unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one
+on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 **Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
 on the resolved state:
@@ -344,6 +348,7 @@ on the resolved state:
 [template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
+[session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [create-spec]: ../create-spec.md
 [arc-config]: ../../../arc-config.yml
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md

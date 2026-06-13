@@ -237,37 +237,29 @@ _Purpose:_ Catch the merges that land outside an attended ceremony — same-sess
 base) and the unattended auto-merge lane — each with exactly one owning path and idempotent slug-line backstops.
 The finalize pass is workflow-doc behavior; the idempotent backstops carry a code-level no-op assertion.
 
-### `[ ]` **5.1 Same-session finalize pass**
+### `[x]` **5.1 Same-session finalize pass**
 
 - _Goal:_ When control returns to base context, an opportunistic bounded pass finalizes this session's PRs —
   merged-clean → eager teardown, failed / blocked → loud surface for both lanes, still-pending → hand to the
   sweep — without ever waiting on an unbounded CI run.
-- _Context:_ The sweep (Phase 2) is a next-session backstop; it leaves the same-session blind spot — a PR merging
-  mid-session after control returned to base. PRs #72 / #73 hit exactly this and needed manual cleanup.
-- _Approach:_ Author the pass once as a named procedure in `session-handoff.md` — the load-bearing same-session
-  home, symmetric with the session-init sweep so the two bracket the session and no merge falls through — and
-  invoke it by reference from `integrate-work-unit.md`'s primary-arm continuation for a prompter early catch. Not
-  a method (the per-PR classification is Phase 1's classifier; the pass is its action wrapper) and not a new
-  supplemental workflow (premature); single-authored + cross-referenced keeps it DRY and lets the future
-  `composable-workflows` hoist lift it cleanly. See `notes-async-merge-lifecycle.md` § Finalize pass.
-- _Note:_ Teardown reuses Phase 3.2's shape; the slug-line removal is one of unit 6's two idempotent backstops
-  (5.2). The pass and its teardown are `composable-workflows` hoist candidates — see the spec's Open Questions
-  (DRY-hoist timing).
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **5.1.a Define the pass in `session-handoff.md` — bounded poll + per-PR dispatch**
-        - Poll this session's PRs once / briefly with a hard ceiling (non-blocking — never hold the session for
-          an unbounded CI run), then dispatch:
-            - `merged-clean` → eager teardown (delete local branch, prune stale remote-tracking ref, remove any
-              ephemeral worktree, drop the slug-matched `USER-INBOX` line via the idempotent remover) + the
-              Phase 4.2 notes-sync leg.
-            - `failed` / `blocked` → surface loudly for both manual- and auto-merge lanes, so blocked integration
-              is flagged now, not rediscovered next session.
-            - `still-pending` → hand to the Phase 2 sweep; no action this session.
+    - `[x]` **5.1.a Define the pass in `session-handoff.md` — bounded poll + per-PR dispatch**
+        - Authored `## Same-session finalize pass` as a reusable named section (template + instance): opportunistic
+          guard, one bounded `gh pr view <branch> --json state,mergedAt` poll, per-PR dispatch — merged-clean →
+          presence-guarded teardown (switch off / `branch -d` / prune ref / remove worktree) + slug-line drop +
+          the notes-sync leg; failed/blocked → loud surface for both lanes; still-pending → hand to the sweep.
+          Wired its load-bearing fire at the top of § Sync so the re-anchored note rides the sync push.
 
-    - `[ ]` **5.1.b Wire the prompt-catch invocation in `integrate-work-unit.md`**
-        - At the primary-arm continuation, invoke the pass by reference under an opportunistic guard — a cheap
-          no-op unless this session opened an unfinalized PR.
+    - `[x]` **5.1.b Wire the prompt-catch invocation in `integrate-work-unit.md`**
+        - Invoked the pass by reference at the primary-arm continuation (post-merge teardown → `## Next step`)
+          under the opportunistic guard, plus the cross-file `[session-handoff-finalize]` link def (both copies).
+
+- _Outcome:_ The pass is single-authored in `session-handoff.md` and invoked from two return-to-base points —
+  load-bearing at handoff (§ Sync) and prompt-catch at the integration primary-arm — keeping it DRY for a future
+  shared-step hoist. Two-copy parity held (`integrate-work-unit.md` byte-identical; `session-handoff` diverges
+  only by the pre-existing team-mode block). The slug-line drop is described as idempotent here; its three-remover
+  reconciliation + the test-first no-op backstop land with 5.2.
 
 ### `[ ]` **5.2 Unattended-merge completion trigger + idempotent slug-line removal**
 
