@@ -601,6 +601,31 @@ probe-2 otherwise (manual mode or identity absent). Both surfaces compose from c
 - Errand-session confirmations use `**Errand:**` instead of `**Sync:**`; they report only the checkpoint/push
   result for the current branch and do not summarize other `chore/` branches.
 
+## Notes-sync leg
+
+A reusable completion step — invoked by reference from the paths that finalize a merge landing outside an
+attended ceremony, at merge completion, right after the WORKING-MEMORY / inbox maintenance that rides a work
+unit's close. It is not part of the linear handoff flow above.
+
+A post-merge base pull / fast-forward advances HEAD past the commit the user note was saved on, leaving the note
+reachable from an ancestor of HEAD but not from HEAD itself (`arc user status` reports an `ancestor` freshness
+state). Re-anchor it so the saved note travels with the merged state:
+
+```bash
+arc user save        # write the user note onto current HEAD
+```
+
+Then confirm HEAD carries the note — `arc user status` reports `current-head`, not `ancestor`. Re-running is
+safe: `arc user save` is idempotent against an already-current note, so the leg no-ops when HEAD already carries
+it.
+
+This step is only the wiring — call the sync at completion, leave HEAD fresh. The merge-coherence correctness it
+relies on (idempotent removal-tombstone resolution, projection-aware status, `ancestor`-freshness recognition)
+lives behind `arc user save` / `arc user sync`.
+
+**Identity absent** (`identity.identity === null`): skip the leg — user notes are identity-scoped, so there is no
+note to anchor.
+
 [arc-methods-session]: ../../../methods/session-state.md
 [commit-footer]: ../../../methods/commit-footer.md
 [drain-inbox]: ../supplemental/drain-inbox.md

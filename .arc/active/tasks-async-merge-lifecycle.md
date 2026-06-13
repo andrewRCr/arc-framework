@@ -214,21 +214,22 @@ in Phase 5: the standalone `integration` footer (emitter + doc enumeration) and 
   allowance the `commit-msg` hook shipped. Phase 5's completion paths consume the convention rather than
   re-deriving the footer.
 
-### `[ ]` **4.2 Post-merge notes-sync leg wiring**
+### `[x]` **4.2 Post-merge notes-sync leg wiring**
 
 - _Goal:_ Completion calls the notes sync so current HEAD carries a saved note after the post-merge base pull /
   fast-forward — closing the `localNoteFreshness.state === "ancestor"` gap.
-- _Approach:_ This member owns only the wiring — call the sync right after the WORKING-MEMORY / inbox maintenance
-  that rides WU completion, then leave HEAD fresh. The engine correctness (idempotent tombstone resolution,
-  projection-aware status, `ancestor`-freshness) is the shipped `notes-merge-coherence` dependency.
-- _Note:_ Build-first edge satisfied — `notes-merge-coherence` is shipped (`completed/2026-q2/21_…`). Wiring the
-  leg without that engine would ship a deterministically-broken sync.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **4.2.a Add the notes-sync leg to the finalize sequence**
-        - Define the leg as a reusable completion step — invoke the sync, assert HEAD carries a saved note after
-          the base pull / fast-forward. Phase 5 wires it into both the same-session finalize pass and the
-          unattended-merge trigger.
+    - `[x]` **4.2.a Add the notes-sync leg to the finalize sequence**
+        - Authored a reusable `## Notes-sync leg` block in `session-handoff.md` (template + instance): after the
+          post-merge base fast-forward, `arc user save` re-anchors the note onto HEAD, then `arc user status`
+          confirms `current-head` (not `ancestor`); idempotent re-run. Consumer described generically (no
+          forward-pointer to the unshipped paths); Phase 5 wires it into the finalize pass (5.1) and the
+          unattended-merge trigger (5.2).
+
+- _Outcome:_ The post-merge notes-sync leg exists as a slug-referenceable completion primitive grounded on the
+  shipped merge-coherence engine — wiring only, no engine logic. Both Phase 4 primitives (the `integration`
+  footer and this leg) are now in place for Phase 5 to consume.
 
 ## **Phase 5:** Same-session finalize + unattended-merge completion
 
