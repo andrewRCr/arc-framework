@@ -9,8 +9,7 @@
 
 ## Implementation grounding (file:line anchors)
 
-Grounding from the create-spec explore pass, against shipped code — for task generation, so the next pass
-needn't re-run the explore.
+Implementation grounding against shipped code, captured at create-spec.
 
 **Suspend/resume seam (unit 1).** `integrate-work-unit.md` hard-starts `Active → Integrating` with no re-entry
 guard. Step 13 deletes the WU branch only on the linked-worktree → `removable` arm — **not** the primary-worktree
