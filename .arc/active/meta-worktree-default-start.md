@@ -8,17 +8,15 @@
 - **Depends On:** `concurrent-work-doctrine`
 
 - **Origin:** [internal]
-- **Design:** `draft-worktree-default-start.md`
+- **Design:** `spec-worktree-default-start.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Planning. Before authoring requirements, evaluate whether `draft-worktree-default-start.md`
-  is spec-ready — detailed enough to run `create-spec.md` directly, or needs more `draft-*` exploration first —
-  then proceed accordingly. `Class` carried as a best estimate (`Light`) — net-new is the `arc start` create-new
-  CLI wiring plus three small session-init steering surfaces (the `spawnWorktree` primitive and `arc user close`
-  already ship); re-confirm at the create-spec read.
+- **Next Action:** Planning. Run `generate-tasks.md` — the `outline` spec (`spec-worktree-default-start.md`) is
+  finalized; decompose it into a task list. `Class: Light` confirmed at the create-spec read (CLI wiring +
+  default-flip + two small additive session-init surfaces; no design authoring realized, so the estimate holds).
 
 ---
