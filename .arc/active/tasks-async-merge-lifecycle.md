@@ -25,23 +25,27 @@ _Design decisions:_ The errand 4-state enum does not map 1:1 to the WU tail, so 
   and `checks-failed` collapse into one `blocked` state. Precedence: merged → blocked → mergeable →
   stale-overlay-on-`awaiting-review` (the merged and PR-disposition states bypass the age threshold).
 
-### `[ ]` **1.2 Owned-WU branch enumerator**
+### `[x]` **1.2 Owned-WU branch enumerator**
 
 - _Goal:_ Resolve the operator's in-flight work units to their branches and the tracked facts the presence tier
   classifies from — the WU-side analog of the errand path's `chore/` branch scan, sourced from the roster so it
   costs no network.
-- _Approach:_ The session-init roster already exposes each active WU's `branch`, `state`, and owner. Filter to
-  identity-owned WUs in `State: Integrating` and project each to the presence facts `classifyInFlightWorkUnits`
-  needs from tracked state alone (age, archival-pending), leaving the live PR facts to Phase 2's sharpening tier.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **1.2.a Enumerate owned `Integrating` WUs from the roster**
-        - Filter the roster to identity-owned entries in `State: Integrating`; carry `name`, `branch`, and the
-          tracked staleness anchor (committer date of the branch tip).
+    - `[x]` **1.2.a Enumerate owned `Integrating` WUs from the roster**
+        - Pure `enumerateOwnedIntegratingWorkUnits` filters the roster to meta-resolved `State: Integrating`
+          entries owned by the operator (or unattributed; `null` identity passes all), deriving each `name` from
+          its meta path and carrying the branch-tip committer date from a caller-resolved map as the staleness
+          anchor.
 
-    - `[ ]` **1.2.b Project tracked presence facts (no network)**
-        - Map each candidate to the classifier's fact shape using tracked state only — age vs. the threshold and
-          archival-pending (meta still in `active/`) — so the presence tier classifies before any oracle call.
+    - `[x]` **1.2.b Project tracked presence facts (no network)**
+        - Pure `projectWorkUnitPresenceFacts` maps each candidate to the classifier's `InFlightWorkUnitFacts`
+          shape — `archived: false` (meta still in `active/`), the live-PR facts left `false` for Phase 2's
+          sharpening tier, the committer date resolved to a whole-day age against `now`.
+
+- _Outcome:_ Both land in `in-flight-work-unit-sweep.ts` beside the classifier; the `enumerate → project →
+  classify` pipeline yields `awaiting-review` / `stale` from tracked state alone with no I/O — the committer-date
+  map and `now` are caller-injected, leaving the `for-each-ref` read and PR sharpening to Phase 2's composer.
 
 ## **Phase 2:** Session-init completion sweep surface
 

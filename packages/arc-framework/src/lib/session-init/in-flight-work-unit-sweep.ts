@@ -20,6 +20,10 @@
  * @module
  */
 
+import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
 /** Derived completion-tail state of a single in-flight work unit. */
 export type InFlightWorkUnitState =
   | "awaiting-review"
@@ -109,4 +113,106 @@ export function classifyInFlightWorkUnits(
     reports.push({ name: wu.name, branch: wu.branch, state, ageDays: wu.ageDays });
   }
   return { workUnits: reports };
+}
+
+/** One owned, in-flight work unit enumerated from tracked roster state. */
+export interface OwnedIntegratingWorkUnit {
+  /** The work unit's name, derived from its meta filename. */
+  name: string;
+  /** The work unit's branch name. */
+  branch: string;
+  /** Committer-date (unix seconds) of the branch tip — the staleness anchor; `null` when unresolved. */
+  committerDate: number | null;
+}
+
+export interface EnumerateOwnedIntegratingWorkUnitsOptions {
+  /** The session-init worktree roster. */
+  roster: readonly WorktreeRosterEntry[];
+  /** The operator's identity; `null` passes every entry (nothing to filter against). */
+  identity: string | null;
+  /** Branch → committer-date (unix seconds), resolved once by the caller from tracked refs. */
+  committerDates: ReadonlyMap<string, number>;
+}
+
+/**
+ * Enumerate the operator's in-flight work units from the roster — the WU-side
+ * analog of the errand path's `chore/` branch scan, sourced from tracked state
+ * so it costs no network.
+ *
+ * Keeps entries in `State: Integrating` that resolve a meta file and are owned
+ * by the operator (or unattributed — solo-owned); a `null` identity passes
+ * every entry. Each candidate carries its branch-tip committer date from the
+ * caller-resolved map as the staleness anchor.
+ *
+ * @param options - The roster, the operator's identity, and the committer-date map.
+ * @returns The owned, in-flight work units.
+ */
+export function enumerateOwnedIntegratingWorkUnits(
+  options: EnumerateOwnedIntegratingWorkUnitsOptions,
+): OwnedIntegratingWorkUnit[] {
+  const { roster, identity, committerDates } = options;
+
+  const workUnits: OwnedIntegratingWorkUnit[] = [];
+  for (const entry of roster) {
+    if (entry.state !== "Integrating") continue;
+    if (entry.metaFilePath === undefined) continue;
+    if (identity !== null && entry.identity !== undefined && entry.identity !== identity) continue;
+
+    workUnits.push({
+      name: workUnitNameFromMetaPath(entry.metaFilePath),
+      branch: entry.branch,
+      committerDate: committerDates.get(entry.branch) ?? null,
+    });
+  }
+  return workUnits;
+}
+
+export interface ProjectWorkUnitPresenceFactsOptions {
+  /** The enumerated owned, in-flight work units. */
+  workUnits: readonly OwnedIntegratingWorkUnit[];
+  /** ISO-8601 reference time for deterministic age calculation. */
+  now: string;
+}
+
+/**
+ * Project each enumerated work unit onto the classifier's fact shape using
+ * tracked state alone — no network.
+ *
+ * A roster-sourced WU has its meta in `active/`, so it is never `archived`; the
+ * live-PR facts (`merged`, `hasOpenPr`, `approved`, `changesRequested`,
+ * `checksFailed`) are left `false` for the mergeable-sharpening tier to upgrade.
+ * The committer-date anchor becomes a whole-day age against `now`. The presence
+ * tier therefore classifies every WU as `awaiting-review` (or `stale` when aged
+ * past the threshold) until a PR source sharpens it.
+ *
+ * @param options - The enumerated work units and the reference time.
+ * @returns The presence-tier facts ready for `classifyInFlightWorkUnits`.
+ */
+export function projectWorkUnitPresenceFacts(
+  options: ProjectWorkUnitPresenceFactsOptions,
+): InFlightWorkUnitFacts[] {
+  const nowMs = Date.parse(options.now);
+  return options.workUnits.map((wu) => ({
+    name: wu.name,
+    branch: wu.branch,
+    archived: false,
+    merged: false,
+    hasOpenPr: false,
+    approved: false,
+    changesRequested: false,
+    checksFailed: false,
+    ageDays: ageDays(wu.committerDate, nowMs),
+  }));
+}
+
+/** Derive a work unit's name from its meta filename (`meta-<name>.md` → `<name>`). */
+function workUnitNameFromMetaPath(metaFilePath: string): string {
+  const base = metaFilePath.split("/").pop() ?? metaFilePath;
+  return base.replace(/^meta-/u, "").replace(/\.md$/u, "");
+}
+
+/** Whole-day age of a unix-seconds timestamp against `nowMs`; 0 when unresolved. */
+function ageDays(timestamp: number | null, nowMs: number): number {
+  if (timestamp === null || Number.isNaN(nowMs)) return 0;
+  return Math.max(0, Math.floor((nowMs - timestamp * 1000) / MS_PER_DAY));
 }
