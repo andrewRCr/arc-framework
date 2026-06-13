@@ -60,6 +60,26 @@ post-trio architecture-remediation plans consume.
 - *Scope:* touches self-hosting skill wording, adopter-facing skill generation, and possible CLI surface area;
   the wording fix is small, the CLI-command question is the substantive / trackable half.
 
+### `[ ]` **Require commitment-level + priority as explicit inputs at stub creation (no silent `provisional`/`P3`)**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-13); captured during the `arc-plan-conductor`
+  decomposition (2026-06-12) — the agent defaulted a new stub to `provisional`; corrected to planned/P2. (That
+  decomposition's originating stub is since retired; the concern stands on its own.)
+- *Concern:* stub creation silently defaults commitment-level to `provisional` and priority to `P3` when an agent
+  scaffolds a stub, but both are the maintainer's explicit call — not maturity, not who minted the stub.
+  `drain-inbox § 5` already says "the user decides; never hard-default silently" for commitment-level, but that
+  rule isn't mechanically enforced; priority has no equivalent guard at all.
+- *Proposed:* make commitment-level (`provisional` | `planned`) **and** priority **required inputs** across the
+  stub-creation paths — `arc start` / cold-start, `decompose-work-unit`, drain new-stub scaffolding,
+  `init-work-unit` — a mechanical prompt / required-arg rather than agent discretion. The non-TTY half composes
+  with the "Uniform non-interactive handling" buffer item above (no silent default under non-TTY either: fail, or
+  require an explicit flag). Both axes are one "don't assume the maintainer's commitment / attention level" concern.
+- *Home split:* the mechanics (agent-invoked prompting-command contract + required-arg wiring) land here; the
+  **mandatory-fields policy** ("commitment + priority are the maintainer's explicit call at every stub-creation
+  path") cross-refs `strategy-work-organization` as the contract's authoritative statement. Kept as one capture,
+  not split, per the drain.
+- *Scope:* multi-step — several stub-creation paths plus CLI / workflow surfaces (two-copy).
+
 ---
 
 ## Problem / Motivation
