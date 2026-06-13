@@ -314,22 +314,14 @@ Update session state files before ending session:
   [OR for off-task-list/preparatory: specific action description]
   [Freeform — can be preparatory work, off-task-list activity, or simply "start Next Task"]
 
-_Note: Next Task shows WHICH task (stable pointer — always the next incomplete task). Next Action shows
-WHAT to do next (freeform — can be prep work, off-task-list activity, or specific subtask in progress)._
+_Content discipline: keep each field to one line (Next Action may span two for a multi-file scope); push
+longer context elsewhere — commit body, SESSION-NOTES, task-list completion notes. Wrap to the 120-char
+target._
 
-_Content discipline: the meta file is a project pointer, not session narrative. Keep each field to one
-line (Next Action may span two when it names a multi-file scope). Push longer context elsewhere — commit
-body for what-and-why, SESSION-NOTES for next-session context, task list completion notes for per-task
-detail. If Last Completed or Next Action exceeds ~2 lines, the content likely belongs in one of those
-surfaces instead. When fields do span lines, wrap to the 120-char target — under-wrapping (60-80 chars on
-continuation lines) is the common failure here._
-
-_Workflow step pointer: When the next action resumes a lifecycle workflow (integrate, archive), use
-the literal format `<workflow-name> Step <N> — <description>` — e.g., "integrate-work-unit Step 7 —
-push and create PR". The kebab-case workflow name matches the workflow filename without `.md`. Both
-the pre-commit validator (RULE 7 freshness check) and session-init's sessionType inference key on
-this prefix. Task-list-driven workflows (process-task-loop) don't need this; the task list checkbox
-state is the pointer._
+_Workflow step pointer: when Next Action resumes a lifecycle workflow (integrate, archive), use the literal
+format `<workflow-name> Step <N> — <description>` (e.g. "integrate-work-unit Step 7 — push and create PR";
+kebab-case name = filename without `.md`) — the pre-commit validator and session-init's sessionType inference
+key on this prefix. Task-list-driven workflows (process-task-loop) skip it; the checkbox state is the pointer._
 ```
 
 **Update `.arc/user/{identity}/<wu-name>/SESSION-NOTES.md`** (per-WU session context — gitignored; active-WU

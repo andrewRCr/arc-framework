@@ -112,6 +112,15 @@ Apply standard software engineering principles:
     - Short links (same directory or one level up) may remain inline at author discretion
     - Exception: movable ARC WU artifacts use filename-only references per [DEV-RULES.ARC][dev-rules-arc]
 
+### Workflow prose economy
+
+When authoring or editing a workflow, write for the agent *executing* it, not a reader evaluating the
+design. Judge each line by one test: **does a session executing this need it to act correctly?** Keep
+procedure and load-bearing constraints — the rule, the format, when to skip; cut author-facing justification
+— "what this is / isn't" framing, why-a-rule-exists rationale, and restatements an adjacent inline hint
+already carries. Full convention: [strategy-workflow-authoring][workflow-authoring] § Body Conventions
+(Prose economy).
+
 ## Package-Project Sync
 
 This repo has two copies of ARC framework content: `packages/arc-framework/arc/` (authoritative
@@ -226,3 +235,4 @@ for docs-site content.
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
 [testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
+[workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md

@@ -76,6 +76,16 @@ subset they need and carry no coverage requirement.
 - One frontmatter block at the top. Do not duplicate `**Audience:**` or `**Purpose:**` callouts in the body.
 - Reference-style links collected at the file end — one `---` separator, then link definitions.
 
+### Prose economy — write for the executing session
+
+Workflow prose is read by an agent *executing* the workflow, often on every run. The test for each line:
+**does a session executing this need it to act correctly?** Keep procedure and load-bearing constraints —
+the rule, the format, when to skip; cut author-facing justification — "what this is / isn't" framing,
+rationale for *why* a rule exists, and restatements of guidance an adjacent inline hint already carries.
+Rationale an author needs to trust the design belongs in the planning artifact (spec, draft, ADR), not in
+prose a session re-reads each run. Compress to the instruction; justification rarely earns its per-run token
+and judgement cost.
+
 ### Interlock markers
 
 Workflows that gate progress at a control point — agent stops to surface state and await direction —
