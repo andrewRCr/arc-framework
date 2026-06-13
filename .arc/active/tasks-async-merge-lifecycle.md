@@ -144,25 +144,27 @@ _Purpose:_ Make `integrate-work-unit.md` re-enterable from `Integrating` without
 close the Step 13 primary-worktree teardown gap so the merged `feat/` branch is reaped symmetrically with the
 linked arm. Workflow-doc behavior, validated by walking the re-entry and teardown paths.
 
-### `[ ]` **3.1 Re-entry guard + re-runnable tail steps**
+### `[x]` **3.1 Re-entry guard + re-runnable tail steps**
 
 - _Goal:_ A second entry into `integrate-work-unit.md` while the WU is already `Integrating` skips the state
   transition and the pre-PR / PR-open steps that already ran, resuming at the first incomplete tail step, with
   each tail step individually re-runnable.
-- _Context:_ Today Phase 1 Step 1 hard-starts `Active → Integrating` with no re-entry guard, and
-  merge → `arc user close` → teardown is one synchronous chain; handoff parks `Integrating` correctly, but
-  nothing resumes the ceremony and nothing owns `arc user close` on a merge that lands unattended.
-- _Note:_ The errand resume seam needs nothing new — `run-errand.md`'s Integrate phase is already re-enterable.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **3.1.a Re-entry guard on Step 1**
-        - When `State` is already `Integrating`, skip the transition and the already-run pre-PR / PR-open steps;
-          resolve the resume point from PR state (open vs. merged) and worktree presence.
+    - `[x]` **3.1.a Re-entry guard on Step 1**
+        - Step 1 now resolves an entry mode from `**State:**`: fresh (`Active`) runs the transition + commit;
+          resume (`Integrating`) skips both and re-enters via a resume table keyed on PR state (no PR → Step 2;
+          open → Step 4; merged → post-merge tail) plus worktree/branch presence.
 
-    - `[ ]` **3.1.b Tail steps own their own completion**
-        - Re-express merge → `arc user close` → teardown so each step is individually re-runnable: `arc user
-          close` is owned on the resume path (not only the synchronous chain), and teardown no-ops when the
-          branch / worktree is already gone.
+    - `[x]` **3.1.b Tail steps own their own completion**
+        - Step 12 skips the merge when the PR is already merged and owns `arc user close` on the resume path
+          (no-op when the subdir is retired); Step 13 teardown is presence-guarded per action, no-opping when the
+          worktree/branch is already gone while leaving `-d`'s merged-only safety intact.
+
+- _Outcome:_ `integrate-work-unit.md` is idempotent from `Integrating` onward — re-entry from any session/machine
+  resumes at the first incomplete step and every post-merge tail action is safely re-runnable. Both copies
+  (package source + `.arc/`) synced. The errand resume seam needed nothing — `run-errand.md`'s Integrate phase is
+  already re-enterable.
 
 ### `[ ]` **3.2 Eager post-merge teardown — Step 13 primary-arm symmetry**
 

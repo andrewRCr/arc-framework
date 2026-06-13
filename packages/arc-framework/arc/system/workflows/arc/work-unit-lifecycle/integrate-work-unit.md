@@ -36,7 +36,13 @@ sections, sweep + ROADMAP regen, and push the final pre-merge state.
 
 ## Phase 1: Open and iterate
 
-### 1) Pre-conditions + State transition (Active → Integrating)
+### 1) Pre-conditions + entry mode (fresh vs. resume)
+
+`Integrating` is a suspendable point: a session can enter it, hand off across the review wait, and a later
+session — or machine — re-enters here. Resolve the entry mode from `active/meta-{name}.md`'s `**State:**` before
+doing anything else.
+
+#### Fresh entry — `**State:** Active`
 
 Verify the integration context:
 
@@ -59,6 +65,28 @@ chore(arc): integrate {name}
 
 Context: meta-{name}.md (integration)
 ```
+
+Proceed to Step 2.
+
+#### Resume entry — `**State:** Integrating` (re-entry guard)
+
+The transition already ran in a prior session (or the merge landed unattended). **Skip the state transition and
+every pre-PR / PR-open step that already ran** — re-enter at the first incomplete tail step. Resolve the resume
+point from observable state — PR open vs. merged, plus worktree/branch presence — never by redoing a completed
+step:
+
+| Observed state               | Demonstrably already ran   | Resume at                                              |
+| ---------------------------- | -------------------------- | ------------------------------------------------------ |
+| No PR open for the WU branch | transition                 | Step 2 (pre-PR review → open the PR)                   |
+| PR open, not merged          | transition, PR open        | Step 4 (review iteration → Phase 2)                    |
+| PR already merged            | transition, PR open, merge | post-merge tail — Step 12 close, then Step 13 teardown |
+
+Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
+{type}/{name}`); resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
+Within Phase 2, pick up at the first step whose product isn't already present — composition already written into
+the meta's archive-phase sections, a sweep already committed — observe, don't redo. The tail steps (Steps 12–13
+below) are individually re-runnable and no-op when their target is already gone, so an over-eager resume costs
+nothing.
 
 ### 2) Pre-PR review
 
@@ -228,17 +256,26 @@ After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`]
 gh pr merge {pr-number} --merge   # or --squash / --rebase per config
 ```
 
-Post-merge, retire the per-WU user workspace subdir (filesystem op only, no git ops —
-contents are gitignored):
+**Skip the merge when the PR is already merged** — the resume path's PR-merged arm (Step 1) enters here with the
+merge already landed (attended elsewhere, or unattended on the auto-merge lane); proceed straight to `arc user
+close`.
+
+Retire the per-WU user workspace subdir (filesystem op only, no git ops — contents are gitignored):
 
 ```bash
 arc user close {name}
 ```
 
+This is an **individually re-runnable** step, not just the tail of a synchronous merge: on the resume path it is
+the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
+`arc user close` no-ops when the subdir is already retired, so a re-run is safe.
+
 ### 13) Post-merge worktree cleanup
 
 After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
-second prompt fires. Dispatch by current worktree identity:
+second prompt fires. Dispatch by current worktree identity. Every teardown action below is **presence-guarded**:
+it no-ops when its target is already gone (worktree already removed, branch already deleted), so a resume that
+re-enters here after a partial teardown skips what's done rather than erroring.
 
 **Primary worktree (in-place WU):** the WU branch lived directly in the main worktree — no distinct worktree
 exists to remove. The workflow continues to `## Next step` normally.
@@ -246,14 +283,17 @@ exists to remove. The workflow continues to `## Next step` normally.
 **Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
 on the resolved state:
 
-- **`removable`** — the worktree is ARC-marked, clean, and merged. Execute one cascade from another worktree
-  (typically main):
+- **`removable`** — the worktree is ARC-marked, clean, and merged. Execute the cascade from another worktree
+  (typically main), each step guarded on presence so a re-run after a partial teardown is safe:
 
     ```bash
-    cd <main-worktree-path> && git worktree remove <wu-worktree-path> && git branch -d <wu-branch>
+    cd <main-worktree-path>
+    git worktree list --porcelain | grep -q '<wu-worktree-path>' && git worktree remove <wu-worktree-path>
+    git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
     ```
 
-    Lowercase `-d` keeps the branch delete merged-only-safe; local branch cleanup rides with worktree removal.
+    Lowercase `-d` keeps the branch delete merged-only-safe — the presence guard suppresses it only when the
+    branch is already gone, never when it is unmerged, so the safety check stays intact.
 
     **Session terminates here.** The WU shipped, the worktree is removed, and the agent's prior cwd no longer
     exists. Start a fresh session in another worktree (typically main). `## Next step` does not apply on this
