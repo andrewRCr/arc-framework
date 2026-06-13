@@ -179,8 +179,10 @@ atomic work itself. Two explicit paths, the user's choice by context budget (nev
 `USER-INBOX` line is removed at the errand's **completion** (merge) — asynchronous on the auto-merge lane,
 review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
 in-flight-errand sweep is the backstop against orphaning (an abandoned errand keeps both its line and its pushed
-branch — both swept). Who fires teardown and line-removal on an _unattended_ merge is the merge-gate-awareness
-question captured for `concurrent-work-conventions`; until it lands, the sweep reconciles it.
+branch — both swept). On an _unattended_ merge (auto-merge lane), `run-errand`'s completion does not fire
+in-session; teardown and line-removal are replayed from base context by the same-session finalize pass or, next
+session, by this sweep — idempotent backstops to the authoritative removal in [`run-errand`][run-errand]
+§ Complete.
 
 ### 7. Confirm the drain is complete
 

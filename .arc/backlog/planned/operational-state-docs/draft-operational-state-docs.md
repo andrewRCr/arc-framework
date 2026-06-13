@@ -77,6 +77,12 @@
 - _Also codify:_ the entry field-ordering convention — parsed/managed fields (`_Slug:_` / `_Remind:_` /
   `_Created:_` / `_Hold:_` / `WU_Target:`) grouped and blank-line-separated from the prose descriptors, so the
   render engine emits a stable shape.
+- _Honor (async-merge-lifecycle, 2026-06-13):_ the slug-keyed removal must be **idempotent** — a no-op when the
+  matched line is already absent. The unattended-merge completion contract gives the slug-matched `USER-INBOX`
+  removal one authoritative point (`run-errand` § Complete) plus idempotent backstops (the same-session finalize
+  pass and session-init's in-flight-errand sweep), any of which may replay it, so the structured removal
+  primitive must preserve no-op-when-absent rather than erroring or double-removing. Until `_Slug:_` lands the
+  backstops match by entry title (the current parser key) and stay agent-driven.
 
 ### `[ ]` **Corpus-wide meta-schema conformance gate (validate the whole corpus, not changed-files-only)**
 

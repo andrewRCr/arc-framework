@@ -386,6 +386,21 @@ export async function runSessionInitStatus(
       }))
       : undefined;
 
+  // Work-unit completion sweep — a roster consumer surfacing the operator's
+  // owned in-flight (`Integrating`) WUs across the completion tail. Fires on
+  // every arm where the roster resolved (primary / no-WU / branch-gone),
+  // mirroring the stale-worktree sweep; the presence tier is network-free. The
+  // mergeable-sharpening tier's live PR query is requested ONLY on the
+  // no-active-WU arm — the same bounded network slice the materialize oracle uses.
+  const workUnitState =
+    roster?.ok
+      ? await safeProbe(() =>
+        probes.workUnitState({
+          roster: roster.value,
+          includeSharpening: active.ok && active.value.resolution === "none",
+        }))
+      : undefined;
+
   // Materializable-WU oracle slot — the discovery surface for cross-machine
   // pickup. Expressed through the same `gatedSlot` affordance as the roster:
   // fires the oracle's bounded network slice ONLY on the no-active-WU arm, so
@@ -413,6 +428,7 @@ export async function runSessionInitStatus(
     ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),
+    ...(workUnitState !== undefined ? { workUnitState } : {}),
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,

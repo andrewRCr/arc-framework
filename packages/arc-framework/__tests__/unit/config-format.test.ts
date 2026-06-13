@@ -21,6 +21,7 @@ import type {
 
 const FULL_SETTINGS: ConfigSettings = {
   "inbox.remind_after_days": "1",
+  "integration.stale_after_days": "2",
   "branch.base": "main",
   "branch.protection": "full",
   "worktree.location_template": "../{repo}.{branch}",

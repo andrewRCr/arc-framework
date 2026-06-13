@@ -66,10 +66,12 @@ import {
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
-import { runErrandState, type ErrandNudgeState } from "../lib/session-init/errand-state.js";
+import { runErrandState } from "../lib/session-init/errand-state.js";
+import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
+import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
-import { shouldNudge } from "../lib/session-init/nudge-rate-limit.js";
+import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
 import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
@@ -132,22 +134,36 @@ function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRo
 
 const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
 
+/**
+ * Marker for the work-unit staleness nudge — a separate per-user file from the
+ * errand reminder so the two batch independently (the errand reminder clears at
+ * housekeep; WU staleness clears when the WU merges / archives).
+ */
+const WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE = ".internal/work-unit-stale-last-nudge.txt";
+
 function parsePositiveInteger(raw: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
-async function resolveErrandNudgeState(
+/**
+ * Resolve once-per-calendar-day marker state for a batched session-init nudge
+ * from its per-user marker file. Shared across the rate-limited surfaces (errand
+ * reminder / stale-errand, work-unit staleness) — each passes its own
+ * `markerRelative` so the surfaces batch independently.
+ */
+async function resolveNudgeState(
   cwd: string,
   io: ReturnType<typeof createUserIOContext>,
   identity: string | null,
-): Promise<ErrandNudgeState> {
+  markerRelative: string,
+): Promise<NudgeMarkerState> {
   const today = new Date().toISOString().slice(0, 10);
   if (identity === null) {
     return { shouldNudge: false, markerPath: null, today };
   }
-  const markerPath = `.arc/user/${identity}/${ERRAND_NUDGE_MARKER_RELATIVE}`;
-  const absoluteMarkerPath = join(cwd, ".arc", "user", identity, ERRAND_NUDGE_MARKER_RELATIVE);
+  const markerPath = `.arc/user/${identity}/${markerRelative}`;
+  const absoluteMarkerPath = join(cwd, ".arc", "user", identity, markerRelative);
   const lastNudge = await io.readFile(absoluteMarkerPath).then(
     (content) => content.trim(),
     () => null,
@@ -366,13 +382,29 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
           entries,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
-          nudge: await resolveErrandNudgeState(cwd, io, identity),
+          nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE),
         });
       },
       materializableWorkUnits: async () => {
         const { entries, reachable } = await getOracle();
         if (!reachable) return { candidates: [] };
         return findMaterializableWorkUnits({ entries, identity });
+      },
+      workUnitState: async (input) => {
+        const resolved = await resolvedSettingsP;
+        const staleThresholdDays = parsePositiveInteger(
+          resolved.settings["integration.stale_after_days"],
+          2,
+        );
+        return runWorkUnitState({
+          exec: gitExec,
+          roster: input.roster.entries,
+          identity,
+          baseBranch: resolved.settings["branch.base"],
+          staleThresholdDays,
+          nudge: await resolveNudgeState(cwd, io, identity, WORK_UNIT_STALE_NUDGE_MARKER_RELATIVE),
+          prSource: input.includeSharpening ? createGhWorkUnitPrSource(gitExec) : undefined,
+        });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };

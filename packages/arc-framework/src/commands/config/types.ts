@@ -30,6 +30,7 @@ export interface ConfigSettings {
   "archive.cadence": string;
   "user.notes_push": string;
   "inbox.remind_after_days": string;
+  "integration.stale_after_days": string;
 }
 
 /**

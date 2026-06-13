@@ -321,3 +321,8 @@ split out. Dependencies above shape sequencing more than size.
 projection over the meta records. This WU's renderer is the first instance of the model's
 render-and-reconcile engine; coordinate the engine boundary with `operational-state-docs`. See
 `adr-022-managed-operational-state-documents.md` § Coordination.
+
+When the reconcile engine absorbs mutation of managed source-doc entries (e.g. removing the slug-matched
+`USER-INBOX` line on errand completion), honor `async-merge-lifecycle`'s idempotent-removal contract — one
+authoritative remover plus no-op-when-absent backstops, recorded in `draft-operational-state-docs.md`
+§ Reconcile the interim title-keyed parser.

@@ -1,6 +1,6 @@
 ---
 name: commit-footer
-description: Context footer naming the deepest spec-shaped artifact in the WU chain, or `standalone` off-WU
+description: Context footer naming the deepest spec-shaped artifact in the WU chain, or the `standalone` / `integration` off-WU anchors
 related:
   - commit-format
 override-active: false
@@ -92,6 +92,28 @@ describes the kind of work.
 that organizes future work without iterating a specific spec (ROADMAP, ATOMIC-INBOX edits).
 File-pointer `(planning)` — e.g., `tasks-[name].md (planning)` or `draft-[name].md (planning)` — is
 spec iteration on an active artifact.
+
+### Integration anchor — `integration`
+
+Used for a **single-parent integration-ceremony commit with no active WU chain to name** — a squash-merge
+result or a post-merge cleanup / archival move performed outside an attended ceremony, where the two-parent
+merge provenance (the `MERGE_HEAD` exemption) doesn't apply. The anchor marks the commit as integration-ceremony
+work; the parenthetical describes the action.
+
+- `Context: integration (squash-merge cleanup)`
+- `Context: integration (post-merge archival move)`
+
+The parenthetical is freeform — describe the integration-ceremony action.
+
+**Distinct from both neighbours.** `meta-[name].md (integration)` names integration prep **within** an active WU
+chain (the meta file is still under edit); the generic `standalone (...)` anchor covers off-WU work that is **not**
+an integration ceremony. Reach for `integration (...)` only when the commit finalizes a merge with no WU chain to
+point at.
+
+**Emission.** A completion path that lands a merge no attended ceremony owns — finalizing it from base context, or
+on the unattended auto-merge lane — emits this anchor on the single-parent commits it produces (cleanup, branch
+reap, archival move). When an active WU chain still applies, the in-chain marker (`meta-[name].md (integration)`)
+is named instead.
 
 ### Contributor
 

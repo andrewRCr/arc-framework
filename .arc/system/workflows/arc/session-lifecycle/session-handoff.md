@@ -509,6 +509,12 @@ If the work unit has already been archived, no active meta file remains. The per
 subdir is retired alongside the WU (`arc user close` handles this); WORKING-MEMORY.md persists
 unchanged across the archive boundary — its entries' eviction triggers handle cross-WU lifecycle.
 
+## Handing Off Mid-Integration — `Integrating`
+
+PR open and awaiting review across the wait: the meta file stays `**State:** Integrating` and Next Action points
+at the integrate resume step (`integrate-work-unit Step <N> — <description>`) — the next session resumes there. A
+PR that merged during this session is finalized by the § Sync finalize pass, not parked here.
+
 ## Post-Update Cleanup
 
 After updating session state files, verify clean markdown. If SESSION-NOTES.md is gitignored, your linter
@@ -518,6 +524,9 @@ may skip it by default — pass the path explicitly or use an IDE-integrated lin
 
 Errand-session handoff bypasses this section: it performs the current `chore/<slug>` branch push inline and
 writes no session state files.
+
+First, run the [Same-session finalize pass](#same-session-finalize-pass) — a no-op unless this session opened an
+unfinalized PR. Running it before sync lets a re-anchored post-merge note ride the sync push.
 
 For active-WU and between-WUs handoff, sync is gated on `syncInterlock.value`. `arc sync` (the orchestrator) owns
 the matrix dispatch
@@ -600,6 +609,54 @@ probe-2 otherwise (manual mode or identity absent). Both surfaces compose from c
   — same bounding as session-init orientation Next Action.
 - Errand-session confirmations use `**Errand:**` instead of `**Sync:**`; they report only the checkpoint/push
   result for the current branch and do not summarize other `chore/` branches.
+
+## Same-session finalize pass
+
+Finalize this session's PRs that merged outside an attended ceremony. A no-op unless this session opened a PR
+that has not been finalized — resolve this session's candidate branches (the WU or `chore/<slug>` branches whose
+PRs this session opened) and return when there are none.
+
+Poll each candidate once — a single `gh pr view <branch> --json state,mergedAt`, never a wait-loop (never block
+on CI) — then dispatch:
+
+- **merged-clean** → eager teardown. Each step is presence-guarded (safe to re-run):
+    - switch off the merged branch when checked out: `git switch <base-branch>`;
+    - delete the local branch, merged-only-safe: `git show-ref --quiet refs/heads/<branch> && git branch -d
+      <branch>`;
+    - prune the stale remote-tracking ref: `git fetch --prune origin` (delete-on-merge typically removed the
+      remote branch already);
+    - remove any ephemeral worktree: `git worktree list --porcelain | grep -q '<path>' && git worktree remove
+      <path>`;
+    - for a `chore/<slug>` errand candidate, drop the slug-matched `USER-INBOX` line (idempotent — a no-op when
+      the errand's own completion already removed it);
+    - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
+- **failed / blocked** → surface loudly, for both the manual- and auto-merge lanes.
+- **still-pending** → hand to the session-init completion sweep; no action this session.
+
+## Notes-sync leg
+
+A reusable completion step — invoked by reference from the paths that finalize a merge landing outside an
+attended ceremony, at merge completion, right after the WORKING-MEMORY / inbox maintenance that rides a work
+unit's close. It is not part of the linear handoff flow above.
+
+A post-merge base pull / fast-forward advances HEAD past the commit the user note was saved on, leaving the note
+reachable from an ancestor of HEAD but not from HEAD itself (`arc user status` reports an `ancestor` freshness
+state). Re-anchor it so the saved note travels with the merged state:
+
+```bash
+arc user save        # write the user note onto current HEAD
+```
+
+Then confirm HEAD carries the note — `arc user status` reports `current-head`, not `ancestor`. Re-running is
+safe: `arc user save` is idempotent against an already-current note, so the leg no-ops when HEAD already carries
+it.
+
+This step is only the wiring — call the sync at completion, leave HEAD fresh. The merge-coherence correctness it
+relies on (idempotent removal-tombstone resolution, projection-aware status, `ancestor`-freshness recognition)
+lives behind `arc user save` / `arc user sync`.
+
+**Identity absent** (`identity.identity === null`): skip the leg — user notes are identity-scoped, so there is no
+note to anchor.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [commit-footer]: ../../../methods/commit-footer.md

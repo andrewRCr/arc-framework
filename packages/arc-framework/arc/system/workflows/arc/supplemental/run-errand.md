@@ -178,9 +178,17 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
   ensured. An errand that started but never completed keeps its entry, so the intent is never lost;
   session-init's in-flight sweep backstops an abandoned branch.
 
+**Unattended completion (auto-merge lane).** When the merge lands unattended — after the session has moved on or
+ended — these steps do not fire here in-session. They are replayed from base context by the
+[same-session finalize pass][finalize-pass] or, next session, by session-init's in-flight-errand sweep. This
+section stays the authoritative specification of what completion does; the backstops replay it, and every step
+is idempotent — locus removal, ref prune, and the `USER-INBOX` line drop each no-op when their target is already
+gone — so the one-authoritative-point-plus-backstops shape never double-fires.
+
 ---
 
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
+[finalize-pass]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [drain-inbox]: drain-inbox.md
 [init-work-unit]: ../work-unit-lifecycle/planning/init-work-unit.md

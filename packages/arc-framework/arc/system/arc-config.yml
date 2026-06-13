@@ -253,3 +253,13 @@ archive.cadence: with-integration
 # (floor: never the same day). Conceptually a per-user preference; lives here today, migrating
 # to a per-user config substrate later.
 inbox.remind_after_days: 1
+
+# --- Integration ---
+
+# Staleness threshold, in whole days, for an owned work unit sitting in
+# `Integrating` (awaiting review). Once a WU's branch tip is this many days old
+# it surfaces as a batched session-init `stale` nudge (once per calendar day).
+# The actionable events — a mergeable or merged-needs-archival WU — bypass this
+# threshold and surface immediately. Conceptually a per-user preference; lives
+# here today, migrating to a per-user config substrate later.
+integration.stale_after_days: 2

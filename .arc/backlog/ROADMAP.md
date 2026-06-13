@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `6aebef5e`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `90007a80`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,12 +12,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_No work units in this tier._
+_No work units in flight._
 
 ## Ready
 
 | Work unit                    | Priority | Owner  | Depends on | Cohort                      |
-| ---------------------------- | -------- | ------ | ---------- | --------------------------- |
+|------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
 | decompose-work-unit-arms     | P1       | andrew | —          | —                           |
@@ -26,8 +26,8 @@ _No work units in this tier._
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement    |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
-| async-merge-lifecycle        | P2       | andrew | —          | concurrent-work-conventions |
 | single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
+| worktree-default-start       | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
@@ -67,19 +67,19 @@ _No work units in this tier._
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                               | Cohort                     |
-| ----------------------------- | -------- | ------ | -------------------------------------------------------------------------------------------------------- | -------------------------- |
-| finalize-parallelism          | P1       | andrew | async-merge-lifecycle, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                   | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                     | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                   | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                        | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                                                                                                | Cohort                     |
+|-------------------------------|----------|--------|-----------------------------------------------------------------------------------------------------------|----------------------------|
+| finalize-parallelism          | P1       | andrew | worktree-default-start, single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                    | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                      | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                      | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                    | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                         | release-readiness          |
 
 ### Depth 2
 
 | Work unit          | Priority | Owner  | Depends on         | Cohort            |
-| ------------------ | -------- | ------ | ------------------ | ----------------- |
+|--------------------|----------|--------|--------------------|-------------------|
 | wu5-public-release | P3       | andrew | docs-content-sweep | release-readiness |
 
 ---

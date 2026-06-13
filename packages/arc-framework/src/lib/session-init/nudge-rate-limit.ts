@@ -13,6 +13,21 @@
  * @module
  */
 
+/**
+ * Resolved once-per-calendar-day marker state for a batched session-init nudge.
+ * Shared shape across the rate-limited surfaces (errand reminder / stale-errand,
+ * work-unit staleness): the handler resolves it from the per-user marker file and
+ * the workflow writes `today` back to `markerPath` after surfacing the nudge.
+ */
+export interface NudgeMarkerState {
+  /** Whether a batched nudge may surface today. */
+  shouldNudge: boolean;
+  /** Repo-relative marker path the workflow updates after surfacing the nudge; `null` when unresolved. */
+  markerPath: string | null;
+  /** Today's calendar day (`YYYY-MM-DD`). */
+  today: string;
+}
+
 /** A `YYYY-MM-DD` calendar day, or `null` when no day could be read. */
 const calendarDay = (value: string): string | null => {
   const day = value.slice(0, 10);

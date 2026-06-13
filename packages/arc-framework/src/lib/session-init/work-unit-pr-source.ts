@@ -1,0 +1,131 @@
+/**
+ * `gh`-backed PR source for the work-unit completion sweep's mergeable-
+ * sharpening tier.
+ *
+ * Resolves live PR disposition (merged / open / review decision / check
+ * rollup) for the enumerated awaiting-review branches via a single
+ * `gh pr list --json` call, mapping each PR onto the classifier's fact shape.
+ * A `gh` failure — the binary is absent, unauthenticated, or the network is
+ * unreachable — propagates as a rejection so the composer degrades the sweep to
+ * the presence tier. A branch with no matching PR is simply absent from the
+ * result map.
+ *
+ * The list is scoped to the operator's own PRs (`--author @me`) — the sweep
+ * sharpens the operator's owned in-flight work units, whose PRs they opened, so
+ * author scope matches the consumed set exactly. Without it the repo-wide window
+ * would fill with other authors' PRs at team scale and bury an operator's own
+ * awaiting-review PR past the result cap; scoping keeps the cap from biting
+ * regardless of repo throughput. A PR opened by someone else on the operator's
+ * branch (a person-to-person handoff) falls to the presence tier — a benign,
+ * rare degradation.
+ *
+ * @module
+ */
+
+import type { GitExec } from "../git/exec.js";
+
+import type { WorkUnitPrFacts, WorkUnitPrSource } from "./work-unit-state.js";
+
+/** Cap on PRs fetched in one list call — awaiting-review WUs are few and recent. */
+const PR_LIST_LIMIT = "100";
+
+/** Network bound for the `gh` call, matching the repo's remote-read timeout posture. */
+const DEFAULT_GH_TIMEOUT_MS = 5000;
+
+/** `statusCheckRollup` conclusions / states that count as a failing check. */
+const FAILING_CHECK_OUTCOMES = new Set([
+  "FAILURE",
+  "ERROR",
+  "TIMED_OUT",
+  "CANCELLED",
+  "ACTION_REQUIRED",
+  "STARTUP_FAILURE",
+]);
+
+/**
+ * Build a {@link WorkUnitPrSource} backed by the GitHub CLI.
+ *
+ * @param exec - Injectable command executor (runs `gh`).
+ * @param timeoutMs - Network bound for the `gh` call; an over-run aborts and
+ *   rejects, so the composer degrades to the presence tier.
+ * @returns A PR source that resolves live disposition facts for the given branches.
+ */
+export function createGhWorkUnitPrSource(
+  exec: GitExec,
+  timeoutMs: number = DEFAULT_GH_TIMEOUT_MS,
+): WorkUnitPrSource {
+  return async (branches) => {
+    const result = new Map<string, WorkUnitPrFacts>();
+    if (branches.length === 0) return result;
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+    let stdout: string;
+    try {
+      ({ stdout } = await exec(
+        "gh",
+        ["pr", "list", "--author", "@me", "--state", "all", "--limit", PR_LIST_LIMIT, "--json",
+          "headRefName,state,reviewDecision,statusCheckRollup"],
+        { signal: controller.signal },
+      ));
+    } finally {
+      clearTimeout(timer);
+    }
+
+    const wanted = new Set(branches);
+    for (const pr of parsePrList(stdout)) {
+      if (!wanted.has(pr.headRefName)) continue;
+      result.set(pr.headRefName, toFacts(pr));
+    }
+    return result;
+  };
+}
+
+interface GhPr {
+  headRefName: string;
+  state: string;
+  reviewDecision: string;
+  statusCheckRollup: readonly unknown[];
+}
+
+/** Map one `gh` PR record onto the classifier's disposition facts. */
+function toFacts(pr: GhPr): WorkUnitPrFacts {
+  return {
+    merged: pr.state === "MERGED",
+    hasOpenPr: pr.state === "OPEN",
+    approved: pr.reviewDecision === "APPROVED",
+    changesRequested: pr.reviewDecision === "CHANGES_REQUESTED",
+    checksFailed: pr.statusCheckRollup.some(isFailingCheck),
+  };
+}
+
+/** Whether a `statusCheckRollup` entry reports a failing outcome (CheckRun or StatusContext). */
+function isFailingCheck(entry: unknown): boolean {
+  if (typeof entry !== "object" || entry === null) return false;
+  const record = entry as Record<string, unknown>;
+  const conclusion = typeof record["conclusion"] === "string" ? record["conclusion"] : "";
+  const state = typeof record["state"] === "string" ? record["state"] : "";
+  return FAILING_CHECK_OUTCOMES.has(conclusion) || FAILING_CHECK_OUTCOMES.has(state);
+}
+
+/** Parse and defensively narrow the `gh pr list --json` array. */
+function parsePrList(stdout: string): GhPr[] {
+  const parsed: unknown = JSON.parse(stdout);
+  if (!Array.isArray(parsed)) return [];
+  const prs: GhPr[] = [];
+  for (const item of parsed) {
+    if (typeof item !== "object" || item === null) continue;
+    const record = item as Record<string, unknown>;
+    const headRefName = record["headRefName"];
+    if (typeof headRefName !== "string" || headRefName === "") continue;
+    prs.push({
+      headRefName,
+      state: typeof record["state"] === "string" ? record["state"] : "",
+      reviewDecision: typeof record["reviewDecision"] === "string" ? record["reviewDecision"] : "",
+      statusCheckRollup: Array.isArray(record["statusCheckRollup"]) ? record["statusCheckRollup"] : [],
+    });
+  }
+  return prs;
+}

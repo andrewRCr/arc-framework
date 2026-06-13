@@ -49,6 +49,7 @@ const DEFAULTS: ConfigSettings = {
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
   "inbox.remind_after_days": "1",
+  "integration.stale_after_days": "2",
 };
 
 /**

@@ -42,6 +42,7 @@ function buildSettings(overrides: FixtureOverrides = {}): ResolvedSettingsResult
 
   const settings: ConfigSettings = {
     "inbox.remind_after_days": "1",
+    "integration.stale_after_days": "2",
     "branch.base": branchBase,
     "branch.protection": branchProtection,
     "worktree.location_template": "../{repo}.{branch}",
