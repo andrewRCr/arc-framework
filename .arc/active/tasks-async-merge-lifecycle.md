@@ -72,15 +72,15 @@ is gated to handoff / no-active-WU and degrades to presence when `gh` is absent.
           the roster, and degrades to age 0 plus a soft warning when the `for-each-ref` read fails. No network;
           fires wherever the roster resolves (per the spec amendment), not literally every session-init.
 
-    - `[ ]` **2.1.b Mergeable-sharpening tier — gate, sharpen, degrade**
-        - Implement and inject a `gh`-backed `PrSource` — the oracle's enrichment hook
-          (`in-flight-derivation.ts`) is injectable but unwired today, so it runs refs-only without it.
-        - Gate to handoff / no-active-WU (the oracle's network slice). Sharpen `awaiting-review →
-          mergeable | blocked | merged-needs-archival` from PR state.
-        - Build `test-first` (one behavior at a time):
-            - live PR mergeable → upgraded to `mergeable`
-            - oracle `null` (no `gh` / unreachable) → degrades to presence + soft warning
-            - real-`gh` test skipped in CI when unavailable
+    - `[x]` **2.1.b Mergeable-sharpening tier — gate, sharpen, degrade**
+        - New WU-specific `WorkUnitPrSource` contract (per-branch disposition facts) plus a `gh`-backed adapter
+          (`work-unit-pr-source.ts`, one `gh pr list --json` call mapped to facts). `runWorkUnitState` gains an
+          optional `prSource`: when present it sharpens the awaiting-review / stale leaves from live PR state and
+          re-classifies; when it throws it degrades to presence plus a soft warning. Chose a WU-specific source
+          over the oracle's `OpenPrSignal` hook — the sweep is roster-sourced and needs richer facts than
+          number/url. Gating the source to the handoff / no-active-WU arms wires up with the envelope in 2.1.c.
+        - Real-`gh` exercise is an opt-in integration smoke (`ARC_TEST_REAL_GH=1`); the unit tier stays hermetic
+          (mocked exec) so it runs fast and offline.
 
     - `[ ]` **2.1.c Expose the sweep on the session-init envelope**
         - Surface the result as a new envelope slot alongside `errandState` / `materializableWorkUnits` for the

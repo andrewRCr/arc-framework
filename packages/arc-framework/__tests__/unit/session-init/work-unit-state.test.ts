@@ -7,9 +7,33 @@
 
 import { describe, it, expect, vi } from "vitest";
 
-import { runWorkUnitState } from "../../../src/lib/session-init/work-unit-state.js";
+import {
+  runWorkUnitState,
+  type WorkUnitPrFacts,
+  type WorkUnitPrSource,
+} from "../../../src/lib/session-init/work-unit-state.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeRosterEntry } from "../../../src/lib/git/worktree-roster.js";
+
+const prFacts = (over: Partial<WorkUnitPrFacts> = {}): WorkUnitPrFacts => ({
+  merged: false,
+  hasOpenPr: true,
+  approved: false,
+  changesRequested: false,
+  checksFailed: false,
+  ...over,
+});
+
+/** A `WorkUnitPrSource` returning the given per-branch facts; unlisted branches resolve absent. */
+const sourceOf = (byBranch: Record<string, WorkUnitPrFacts>): WorkUnitPrSource =>
+  async (branches) => {
+    const map = new Map<string, WorkUnitPrFacts>();
+    for (const branch of branches) {
+      const facts = byBranch[branch];
+      if (facts !== undefined) map.set(branch, facts);
+    }
+    return map;
+  };
 
 const NOW = "2026-06-13T00:00:00.000Z";
 const NOW_SEC = Math.floor(Date.parse(NOW) / 1000);
@@ -101,5 +125,73 @@ describe("runWorkUnitState (presence tier)", () => {
     expect(result.inFlight.workUnits[0]).toMatchObject({ state: "awaiting-review", ageDays: 0 });
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toMatch(/committer date|for-each-ref|branch/i);
+  });
+});
+
+describe("runWorkUnitState (mergeable-sharpening tier)", () => {
+  const baseOptions = {
+    exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}` }),
+    roster: [rosterEntry()],
+    identity: "andrew",
+    staleThresholdDays: 3,
+    now: NOW,
+  };
+
+  it("upgrades an awaiting-review leaf to mergeable from live PR state", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      prSource: sourceOf({ "feat/widget": prFacts({ approved: true }) }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("mergeable");
+  });
+
+  it("upgrades to blocked when the PR has changes requested", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      prSource: sourceOf({ "feat/widget": prFacts({ changesRequested: true }) }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("blocked");
+  });
+
+  it("upgrades to merged-needs-archival when the PR is merged", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      prSource: sourceOf({ "feat/widget": prFacts({ merged: true, hasOpenPr: false }) }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("merged-needs-archival");
+  });
+
+  it("upgrades a stale leaf when its PR is now mergeable (event-driven bypasses the threshold)", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(9)}` }),
+      prSource: sourceOf({ "feat/widget": prFacts({ approved: true }) }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("mergeable");
+  });
+
+  it("keeps the presence classification for a branch the source has no PR for", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      prSource: sourceOf({}),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("awaiting-review");
+  });
+
+  it("degrades to presence with a soft warning when the PR source throws", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      prSource: async () => {
+        throw new Error("gh unreachable");
+      },
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("awaiting-review");
+    expect(result.warnings.some((w) => /sharpen|gh|pr/i.test(w))).toBe(true);
   });
 });

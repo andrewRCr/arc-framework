@@ -20,8 +20,26 @@ import {
   classifyInFlightWorkUnits,
   enumerateOwnedIntegratingWorkUnits,
   projectWorkUnitPresenceFacts,
+  type InFlightWorkUnitFacts,
   type InFlightWorkUnitSweepResult,
 } from "./in-flight-work-unit-sweep.js";
+
+/** Live PR disposition facts for one branch, sharpening a presence-tier leaf. */
+export type WorkUnitPrFacts = Pick<
+  InFlightWorkUnitFacts,
+  "merged" | "hasOpenPr" | "approved" | "changesRequested" | "checksFailed"
+>;
+
+/**
+ * PR-state source for the mergeable-sharpening tier — resolves live PR facts
+ * for the given branches, keyed by branch (branches with no resolvable PR are
+ * absent from the map). A source that rejects (e.g. `gh` is absent,
+ * unauthenticated, or the network is unreachable) degrades the sweep to the
+ * presence tier — the composer catches the throw and never propagates it.
+ */
+export type WorkUnitPrSource = (
+  branches: readonly string[],
+) => Promise<Map<string, WorkUnitPrFacts>>;
 
 /** Composite work-unit completion-sweep state exposed by the session-init envelope. */
 export interface WorkUnitStateResult {
@@ -39,6 +57,12 @@ export interface RunWorkUnitStateOptions {
   identity: string | null;
   /** Whole-day threshold for classifying an awaiting-review WU as stale. */
   staleThresholdDays: number;
+  /**
+   * Optional live-PR source for the mergeable-sharpening tier. When provided
+   * (the handoff / no-active-WU network slice), the presence-tier leaves are
+   * sharpened from live PR state; when omitted, the sweep stays presence-only.
+   */
+  prSource?: WorkUnitPrSource;
   /** ISO-8601 reference time for deterministic age calculation. */
   now?: string;
 }
@@ -69,12 +93,41 @@ export async function runWorkUnitState(
     workUnits,
     now: options.now ?? new Date().toISOString(),
   });
+  const warnings = [...committerDates.warnings];
+
+  const sharpened = await sharpenFromPrState(facts, options.prSource, warnings);
   const inFlight = classifyInFlightWorkUnits({
-    workUnits: facts,
+    workUnits: sharpened,
     staleThresholdDays: options.staleThresholdDays,
   });
 
-  return { inFlight, warnings: committerDates.warnings };
+  return { inFlight, warnings };
+}
+
+/**
+ * Sharpen the presence-tier facts from live PR state — the mergeable-sharpening
+ * tier. Queries the PR source for the enumerated branches and overlays each
+ * resolved PR's disposition onto its presence fact; branches with no resolvable
+ * PR keep their presence facts. A source that rejects degrades to presence —
+ * the original facts are returned and a soft warning is appended.
+ */
+async function sharpenFromPrState(
+  facts: readonly InFlightWorkUnitFacts[],
+  prSource: WorkUnitPrSource | undefined,
+  warnings: string[],
+): Promise<InFlightWorkUnitFacts[]> {
+  if (prSource === undefined || facts.length === 0) return [...facts];
+  try {
+    const prFacts = await prSource(facts.map((f) => f.branch));
+    return facts.map((f) => {
+      const pr = prFacts.get(f.branch);
+      return pr === undefined ? f : { ...f, ...pr };
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    warnings.push(`Mergeable-sharpening tier degraded to presence (PR source unavailable): ${message}`);
+    return [...facts];
+  }
 }
 
 interface BranchCommitterDates {
