@@ -61,6 +61,7 @@ import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
 import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
+import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
@@ -202,6 +203,10 @@ function errandStateResult(overrides: Partial<ErrandStateResult> = {}): ErrandSt
   };
 }
 
+function workUnitStateResult(overrides: Partial<WorkUnitStateResult> = {}): WorkUnitStateResult {
+  return { inFlight: { workUnits: [] }, warnings: [], ...overrides };
+}
+
 function configSessionInit(
   overrides: Partial<ConfigSessionInitResult> = {},
 ): ConfigSessionInitResult {
@@ -327,6 +332,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     materializableWorkUnits: vi.fn(
       async (): Promise<MaterializableWorkUnitsResult> => ({ candidates: [] }),
     ),
+    workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
     ...overrides,
   };
@@ -1404,6 +1410,69 @@ describe("runSessionInitStatus — stale-worktree sweep gating", () => {
     expect(result.sweep?.ok).toBe(false);
     if (result.sweep && !result.sweep.ok) {
       expect(result.sweep.error.message).toBe("sweep boom");
+    }
+    expect(result.worktree.ok).toBe(true);
+  });
+});
+
+describe("runSessionInitStatus — work-unit-state slot", () => {
+  it("fires on the primary-worktree arm, passing the roster and presence-only (no sharpening)", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/x" }] });
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "primary" })),
+      roster: vi.fn(async () => rosterValue),
+      workUnitState: vi.fn(async () => workUnitStateResult()),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.workUnitState).toHaveBeenCalledWith({ roster: rosterValue, includeSharpening: false });
+    expect(result.workUnitState?.ok).toBe(true);
+  });
+
+  it("requests the mergeable-sharpening tier on the no-active-WU arm", async () => {
+    const rosterValue = rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/x" }] });
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean", branch: "main" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "none", path: null })),
+      roster: vi.fn(async () => rosterValue),
+      workUnitState: vi.fn(async () => workUnitStateResult()),
+    });
+
+    await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.workUnitState).toHaveBeenCalledWith({ roster: rosterValue, includeSharpening: true });
+  });
+
+  it("omits the slot in a linked worktree (the roster never resolves there)", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "linked", path: "/wt/x" })),
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(probes.workUnitState).not.toHaveBeenCalled();
+    expect("workUnitState" in result).toBe(false);
+  });
+
+  it("wraps a rejecting work-unit-state probe as ok=false without rejecting the composite", async () => {
+    const probes = sessionInitProbes({
+      worktree: vi.fn(async () => worktreeSync({ state: "clean" })),
+      active: vi.fn(async () => activeSessionInit({ resolution: "single", path: ".arc/active/meta-x.md" })),
+      worktreeIdentity: vi.fn(async () => worktreeIdentity({ kind: "primary" })),
+      roster: vi.fn(async () => rosterResult({ entries: [{ worktreePath: "/wt", branch: "feat/x" }] })),
+      workUnitState: async () => { throw new Error("wu sweep boom"); },
+    });
+
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+
+    expect(result.workUnitState?.ok).toBe(false);
+    if (result.workUnitState && !result.workUnitState.ok) {
+      expect(result.workUnitState.error.message).toBe("wu sweep boom");
     }
     expect(result.worktree.ok).toBe(true);
   });

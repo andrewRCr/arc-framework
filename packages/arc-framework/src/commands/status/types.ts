@@ -43,6 +43,7 @@ import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retire
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
+import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
@@ -211,6 +212,16 @@ export interface SessionInitProbeResult {
    * of the slot means it never ran.
    */
   materializableWorkUnits?: Probe<MaterializableWorkUnitsResult>;
+  /**
+   * Pre-computed work-unit completion sweep — owned in-flight (`Integrating`)
+   * WUs classified across the completion tail (`awaiting-review` / `mergeable` /
+   * `blocked` / `merged-needs-archival` / `stale`). Present on the same arms the
+   * roster resolves (primary / no-active-WU / branch-gone) — it consumes that
+   * roster; omitted on the linked-worktree resume path. The presence tier is
+   * network-free; the mergeable-sharpening tier (live PR state via `gh`) fires
+   * only on the no-active-WU arm and degrades to presence when `gh` is absent.
+   */
+  workUnitState?: Probe<WorkUnitStateResult>;
   /**
    * Pre-computed inbox-state probe — the routable-entry count in `USER-INBOX`
    * and a `housekeepNeeded` flag, so the Orient arm offers housekeep from a
@@ -438,6 +449,18 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * cost. An unreachable remote degrades to an empty candidate list.
    */
   materializableWorkUnits: () => Promise<MaterializableWorkUnitsResult>;
+  /**
+   * Work-unit completion-sweep resolver. Receives the already-resolved roster
+   * and a sharpening gate from the orchestrator; the handler binds the git
+   * executor, identity, staleness threshold, and — when `includeSharpening` —
+   * the `gh`-backed PR source. Called ONLY when the roster resolved (primary /
+   * no-active-WU / branch-gone); sharpening is requested only on the
+   * no-active-WU arm.
+   */
+  workUnitState: (input: {
+    roster: WorktreeRosterResult;
+    includeSharpening: boolean;
+  }) => Promise<WorkUnitStateResult>;
   /**
    * Inbox-state resolver. Receives the resolved identity; the handler reads
    * `user/{identity}/USER-INBOX.md` and counts its routable entries. Fired in

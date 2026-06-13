@@ -67,6 +67,8 @@ import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState, type ErrandNudgeState } from "../lib/session-init/errand-state.js";
+import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
+import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge } from "../lib/session-init/nudge-rate-limit.js";
@@ -131,6 +133,12 @@ function releaseRoutingFromSettings(settings: ResolvedSettingsResult): ReleaseRo
 }
 
 const ERRAND_NUDGE_MARKER_RELATIVE = ".internal/errand-reminder-last-nudge.txt";
+
+/**
+ * Interim staleness threshold (whole days) for the work-unit completion sweep,
+ * until the dedicated `integration.stale_after_days` config key + schema land.
+ */
+const WORK_UNIT_STALE_THRESHOLD_DAYS = 2;
 
 function parsePositiveInteger(raw: string, fallback: number): number {
   const parsed = Number.parseInt(raw, 10);
@@ -374,6 +382,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         if (!reachable) return { candidates: [] };
         return findMaterializableWorkUnits({ entries, identity });
       },
+      workUnitState: (input) =>
+        runWorkUnitState({
+          exec: gitExec,
+          roster: input.roster.entries,
+          identity,
+          staleThresholdDays: WORK_UNIT_STALE_THRESHOLD_DAYS,
+          prSource: input.includeSharpening ? createGhWorkUnitPrSource(gitExec) : undefined,
+        }),
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });

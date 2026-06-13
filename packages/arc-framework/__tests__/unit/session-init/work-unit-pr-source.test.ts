@@ -37,6 +37,9 @@ function buildExec(options: { prs?: FakePr[]; failRun?: Error } = {}): GitExec {
   });
 }
 
+const lastExecOptions = (exec: GitExec): { signal?: AbortSignal } | undefined =>
+  (vi.mocked(exec).mock.calls.at(-1)?.[2]) as { signal?: AbortSignal } | undefined;
+
 describe("createGhWorkUnitPrSource", () => {
   it("maps an approved, green open PR to mergeable-shaped facts", async () => {
     const source = createGhWorkUnitPrSource(buildExec({ prs: [pr({ reviewDecision: "APPROVED" })] }));
@@ -116,5 +119,14 @@ describe("createGhWorkUnitPrSource", () => {
     const source = createGhWorkUnitPrSource(buildExec({ failRun: enoent }));
 
     await expect(source(["feat/widget"])).rejects.toThrow(/ENOENT/);
+  });
+
+  it("bounds the gh call with an abort signal so session-init is never blocked", async () => {
+    const exec = buildExec({ prs: [pr()] });
+    const source = createGhWorkUnitPrSource(exec);
+
+    await source(["feat/widget"]);
+
+    expect(lastExecOptions(exec)?.signal).toBeInstanceOf(AbortSignal);
   });
 });

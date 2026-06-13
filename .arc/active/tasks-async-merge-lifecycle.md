@@ -57,13 +57,10 @@ _Design decisions:_ Tier cost model mirrors the errand sweep — presence is fre
 is gated to handoff / no-active-WU and degrades to presence when `gh` is absent. See
 `notes-async-merge-lifecycle.md` § Implementation grounding (Completion sweep).
 
-### `[ ]` **2.1 Two-tier sweep composer**
+### `[x]` **2.1 Two-tier sweep composer**
 
 - _Goal:_ A composer assembles the session-init WU completion-sweep state from both tiers and exposes it on the
   status envelope, degrading to presence cleanly when the oracle or `gh` is unavailable.
-- _Approach:_ Mirror `runErrandState` (`errand-state.ts`) — the I/O boundary around the pure classifier. Presence
-  tier classifies from roster facts (Phase 1); the sharpening tier upgrades `awaiting-review` leaves from live PR
-  state via the in-flight oracle's `pr` enrichment.
 - **Strategies:** strategy-testing-methodology.md, strategy-session-operations.md
 
     - `[x]` **2.1.a Presence tier — classify from roster facts**
@@ -82,9 +79,18 @@ is gated to handoff / no-active-WU and degrades to presence when `gh` is absent.
         - Real-`gh` exercise is an opt-in integration smoke (`ARC_TEST_REAL_GH=1`); the unit tier stays hermetic
           (mocked exec) so it runs fast and offline.
 
-    - `[ ]` **2.1.c Expose the sweep on the session-init envelope**
-        - Surface the result as a new envelope slot alongside `errandState` / `materializableWorkUnits` for the
-          workflow to consume in orientation. Assembled in `commands/status/{run,types}.ts` + `handlers/status.ts`.
+- _Outcome:_ `runWorkUnitState` (`work-unit-state.ts`) composes the network-free presence tier and the
+  `gh`-gated mergeable-sharpening tier over the Phase 1 core, surfaced as the `workUnitState` envelope slot. It
+  fires on the roster-resolved arms (primary / no-active-WU / branch-gone); sharpening (live PR via the
+  WU-specific bounded `gh` source) is requested only on no-active-WU and degrades to presence on any `gh` failure.
+
+    - `[x]` **2.1.c Expose the sweep on the session-init envelope**
+        - New `workUnitState` slot on `SessionInitProbeResult`, wired in `commands/status/{run,types}.ts` +
+          `handlers/status.ts` as a roster consumer: fires wherever the roster resolves; the sharpening tier is
+          requested only on the no-active-WU arm. Bounded the `gh` adapter with a 5s abort signal (matching the
+          repo's network-read posture) so session-init is never blocked. Interim stale threshold is a handler
+          constant until 2.2 adds `integration.stale_after_days`. Verified live on
+          `arc status --session-init --json`.
 
 ### `[ ]` **2.2 Staleness threshold + event-driven triggers**
 

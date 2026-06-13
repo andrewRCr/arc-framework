@@ -20,6 +20,9 @@ import type { WorkUnitPrFacts, WorkUnitPrSource } from "./work-unit-state.js";
 /** Cap on PRs fetched in one list call — awaiting-review WUs are few and recent. */
 const PR_LIST_LIMIT = "100";
 
+/** Network bound for the `gh` call, matching the repo's remote-read timeout posture. */
+const DEFAULT_GH_TIMEOUT_MS = 5000;
+
 /** `statusCheckRollup` conclusions / states that count as a failing check. */
 const FAILING_CHECK_OUTCOMES = new Set([
   "FAILURE",
@@ -34,23 +37,33 @@ const FAILING_CHECK_OUTCOMES = new Set([
  * Build a {@link WorkUnitPrSource} backed by the GitHub CLI.
  *
  * @param exec - Injectable command executor (runs `gh`).
+ * @param timeoutMs - Network bound for the `gh` call; an over-run aborts and
+ *   rejects, so the composer degrades to the presence tier.
  * @returns A PR source that resolves live disposition facts for the given branches.
  */
-export function createGhWorkUnitPrSource(exec: GitExec): WorkUnitPrSource {
+export function createGhWorkUnitPrSource(
+  exec: GitExec,
+  timeoutMs: number = DEFAULT_GH_TIMEOUT_MS,
+): WorkUnitPrSource {
   return async (branches) => {
     const result = new Map<string, WorkUnitPrFacts>();
     if (branches.length === 0) return result;
 
-    const { stdout } = await exec("gh", [
-      "pr",
-      "list",
-      "--state",
-      "all",
-      "--limit",
-      PR_LIST_LIMIT,
-      "--json",
-      "headRefName,state,reviewDecision,statusCheckRollup",
-    ]);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      controller.abort();
+    }, timeoutMs);
+    let stdout: string;
+    try {
+      ({ stdout } = await exec(
+        "gh",
+        ["pr", "list", "--state", "all", "--limit", PR_LIST_LIMIT, "--json",
+          "headRefName,state,reviewDecision,statusCheckRollup"],
+        { signal: controller.signal },
+      ));
+    } finally {
+      clearTimeout(timer);
+    }
 
     const wanted = new Set(branches);
     for (const pr of parsePrList(stdout)) {
