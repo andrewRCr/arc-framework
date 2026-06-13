@@ -84,32 +84,30 @@ probe-side: session-init emits an in-flight `Class` composition (`1.3`) and the 
   arm only) and the workflow renders one awareness-only advisory line when a heavier stream is already in flight.
   `classComposition()` — previously uncalled — gains its first caller via the new roster-slice resolver.
 
-### `[ ]` **1.4 Read and surface the active WU's coordinating cohort doc**
+### `[x]` **1.4 Read and surface the active WU's coordinating cohort doc**
 
 - _Goal:_ When the active meta carries a `Cohort` value, session-init reads the coordinating `cohort-*.md`
   and surfaces its awareness during context-load, with a short `AGENT-BRIEF.ARC` note documenting the
   surface — so cross-member coordination is load-bearing on agent awareness.
 
-- _Approach:_ Resolve the cohort-doc path in the probe (which already parses the active meta + `Cohort`
-  field) and emit it on the envelope; the session-init workflow reads the resolved path during context-load.
-  Cohort docs are not co-located with the active WU — they live under `backlog/` / `completed/` subdirs as
-  `cohort-<leaf>.md` — so resolution is a path lookup from the `Cohort` value, not a co-located read.
+    - `[x]` **1.4.a Resolve and emit the cohort-doc path on the probe**
+        - Added `resolveActiveCohortDocPath()` (`lib/session-init/cohort-doc.ts`): reads the active meta's
+          `Cohort` value, derives the leaf, and checks for `cohort-<leaf>.md` at the deterministic
+          `backlog/planned/<field>/` path. Exposed as the handler-wired `cohortDoc` probe and emitted on the
+          envelope as `cohortDocPath`, gated to a single resolved active WU; degrades to null on any miss.
+        - _Scope:_ resolves at the `backlog/planned/` location only (not a `completed/` search): an active WU
+          is an in-flight cohort member, so its cohort can't be archived and the doc reliably sits there.
 
-    - `[ ]` **1.4.a Resolve and emit the cohort-doc path on the probe**
-        - From the active meta's `Cohort` value, resolve the backing `cohort-<leaf>.md` path across the
-          backlog / completed layout and emit it on the session-init envelope.
-        - Build `test-first` (one behavior at a time):
-            - resolves the `cohort-<leaf>.md` path from a `Cohort`-bearing active meta
-            - emits no cohort-doc path when the meta carries no `Cohort` value
-            - degrades cleanly (no path, no error) when no backing `cohort-*.md` is found
+    - `[x]` **1.4.b Read the cohort doc in context-load + document the surface**
+        - Added context-load item 11 (conditional `cohort-*.md` read gated on `cohortDocPath`), the Step 6
+          orientation surface (cohort coordination bearing on the current task), and the Step 1 field-table
+          row — all in both session-init two-copy instances. Added the cohort-doc surface note to the
+          `AGENT-BRIEF.ARC` `Cohort` vocabulary entry (two-copy).
 
-    - `[ ]` **1.4.b Read the cohort doc in context-load + document the surface**
-        - Add the conditional `cohort-*.md` read to session-init's context-load step, gated on the emitted
-          cohort-doc path, and surface its coordination awareness in orientation.
-        - Add a short `AGENT-BRIEF.ARC` note documenting the cohort-doc awareness surface. Both files are
-          Framework markdown (two-copy).
-        - _Note:_ Exact wording / placement of the surfaced awareness settles against the surrounding
-          context-load and orientation format at implementation.
+- _Outcome:_ Cohort coordination is now load-bearing on session context: the probe resolves the active WU's
+  `cohort-<leaf>.md` path (`cohortDocPath`) and the workflow reads it during context-load, surfacing
+  cross-member coordination in orientation when it bears on the work. Resolution is deterministic from the
+  `Cohort` field rather than a tree search, justified by the active-member invariant noted in 1.4.a.
 
 ## **Phase 2:** Verification
 

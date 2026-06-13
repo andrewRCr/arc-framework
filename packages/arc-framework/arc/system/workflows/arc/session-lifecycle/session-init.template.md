@@ -47,6 +47,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                              |
 | `workUnitState`             | Pre-computed work-unit completion sweep over the operator's owned in-flight (`Integrating`) WUs, each classified across the tail (`awaiting-review` / `mergeable` / `blocked` / `merged-needs-archival` / `stale`) with a `behindBase` qualifier and whole-day `ageDays`. Present on the roster-resolved arms (primary / no-active-WU / branch-gone). `value.nudge` carries the once-per-calendar-day marker state gating the batched `stale` surface; the `mergeable` / `merged-needs-archival` events bypass it and surface every session-init. The presence tier is network-free; the mergeable-sharpening tier (live PR via `gh`) fires only on no-active-WU and degrades to presence when `gh` is absent                                                                                                         |
 | `inFlightComposition`       | Pre-computed in-flight `Class` composition — `{novel, heavy, light}` resolved-`Class` counts over the in-flight roster slice (`[TBD]` / field-absent excluded). Present only on the no-active-WU arm when the slice is non-empty; consumed by Step 5's next-work discovery to render the concurrent-workload advisory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `cohortDocPath`             | Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md` (relative to cwd). Present only when the active meta carries a `Cohort` value and the backing doc exists under `backlog/planned/`; omitted otherwise. Read in Step 3's context-load (item 11) to surface cross-member coordination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
@@ -427,6 +428,13 @@ warning in orientation.
 
     Load later if the session pivots to a different lifecycle phase.
 
+11. **Cohort coordination doc** (conditional) — when the probe emits `cohortDocPath`, the active WU belongs to a
+    cohort whose coordinating `cohort-<leaf>.md` lives outside the WU's own artifacts. Read it in full: it carries
+    the cohort's shared coordination — purpose, member relationships, and the cross-member sequencing the work
+    must respect. The path is known from the probe, so it may be issued in the parallel batch with items 1–6, 8.
+    Carry its coordination into orientation when it bears on the active work. Absent `cohortDocPath` (a standalone
+    WU, or no backing doc found) — skip; the surface is purely additive.
+
 ## 4. Post-Context-Load Extensions · `#post-context-load`
 
 If `post-context-load` appears in the active-extensions list (from Step 1), load and execute its
@@ -541,7 +549,8 @@ no other tracked source documents.
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean` (worktree or notes), an unconsumed entry seed (non-cold-start entry), probe-failure fallback.
+`clean` (worktree or notes), an unconsumed entry seed (non-cold-start entry), cohort coordination bearing on the
+current task (from the `cohortDocPath` doc), probe-failure fallback.
 
 **Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
 detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no

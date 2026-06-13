@@ -241,6 +241,14 @@ export interface SessionInitProbeResult {
    */
   inFlightComposition?: ClassComposition;
   /**
+   * Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md`,
+   * relative to cwd (forward-slash normalized). Present only when the active
+   * meta carries a `Cohort` value and the backing doc exists under
+   * `backlog/planned/`; omitted otherwise. The session-init workflow reads it
+   * during context-load to surface cross-member coordination awareness.
+   */
+  cohortDocPath?: string;
+  /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
    * (or neither) prompts. Workflow renders verbatim instead of composing
@@ -477,6 +485,14 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * the eager phase whenever identity resolved; advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
+  /**
+   * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
+   * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value
+   * and resolves the coordinating `cohort-<leaf>.md` under `backlog/planned/`,
+   * returning its path or `null`. Called ONLY when the active slot resolved to a
+   * single work unit; degrades to `null` on any miss.
+   */
+  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

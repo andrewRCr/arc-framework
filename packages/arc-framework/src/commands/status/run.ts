@@ -421,6 +421,14 @@ export async function runSessionInitStatus(
       ? (resolveInFlightComposition(roster.value.entries) ?? undefined)
       : undefined;
 
+  // Cohort-doc resolution — when a single active WU resolved, locate its
+  // coordinating `cohort-<leaf>.md` so context-load can read it. Totalized to
+  // null on any miss; the call is guarded so the envelope never rejects.
+  const cohortDocPath =
+    active.ok && active.value.resolution === "single" && active.value.path !== null
+      ? await probes.cohortDoc(active.value.path).catch(() => null)
+      : null;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -443,6 +451,7 @@ export async function runSessionInitStatus(
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
+    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

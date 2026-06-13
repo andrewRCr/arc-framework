@@ -39,7 +39,8 @@ Precise meanings — assume the technical sense.
   from the quality-gate `Tier 1/2/3`.
 - **Cohort:** A deliberate grouping of sibling work units, recorded by a `cohort-{name}.md` that holds the
   group's shared coordination. The work unit is the leaf deliverable. Nesting is path-valued via the `Cohort`
-  field, capped at one level — `<cohort>/<subcohort>/<wu>`.
+  field, capped at one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
+  resolves and reads that `cohort-{name}.md`, so the group's shared coordination loads as session context.
 - **Atomic:** Work _character_ — a single logical concern that fits one review increment (typically one
   commit, even if multi-file). Executed inline within a same-domain WU, or on its own as an Errand. Inboxes
   route by character, not wrapper presence. Not "atomic" in the concurrency sense.
