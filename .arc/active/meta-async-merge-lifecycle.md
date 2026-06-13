@@ -1,7 +1,7 @@
 # Metadata: async-merge-lifecycle
 
-| **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ---------- | --------- | ---------------------------- | --------- | ------------ |
+| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------- | --------- | ------------ |
 | `Integrating` | `andrew`  | `feat/async-merge-lifecycle` | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
