@@ -11,14 +11,13 @@
 - **Design:** `spec-async-merge-lifecycle.md`
 - **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Task 5.2 — unattended-merge errand completion (doc-level reconciliation; downstream
-  coordination recorded); closes Phase 5, which also shipped the same-session finalize pass (5.1).
-- **Next Task:** Task 6.1 — Touchpoint re-grounding audit — option B (additive) (line ~307)
+- **Last Completed:** Task 6.2 — reaper facet-split record + `coord-probe` buffer update; closes Phase 6
+  (async-merge audit + reaper-seam coordination), which also re-grounded the touchpoint set against shipped
+  code (6.1).
+- **Next Task:** Task 7.1 — Complete verification (line ~349)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — re-ground each async-merge touchpoint (`integrate-work-unit` /
-  `archive-work-unit` / `session-handoff` / `deactivate-work-unit` / `setup-merge-gate`) against current shipped
-  code with additive awaiting-review accommodation only (option B; sync-merge stays primary). Then 6.2 records the
-  reaper facet-split and updates `coord-probe`'s inbound buffer. Both copies; run via `process-task-loop.md`.
+- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md` over the WU (Phase 7, the final
+  phase): walk the success criteria, run full quality gates, and confirm ready for integration.
 
 ---
