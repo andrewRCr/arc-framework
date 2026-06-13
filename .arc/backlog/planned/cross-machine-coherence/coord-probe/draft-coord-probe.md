@@ -55,10 +55,16 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
   (same-session completion finalize + subdir-removal primitive + unattended-merge teardown). The same
   `integrate-work-unit` Step 13 gap is in scope on both sides — it deletes the WU branch only on the
   linked-worktree→`removable` arm, not the primary-worktree in-place arm.
-- _Proposed:_ whichever member specs first owns the branch reaper; the other extends, no double-build.
-  `async-merge-lifecycle`'s § Open (eager vs. lazy post-merge teardown) is the coordination point; the
-  `integrate-work-unit` Step 13 primary-worktree branch-delete sub-gap may be `async-merge-lifecycle`'s to close.
-- _Scope:_ coordination / no-double-build; resolve ownership at whichever member specs first.
+- _Resolved (2026-06-12, `async-merge-lifecycle` create-spec — it specced first):_ **facet split.**
+  `async-merge-lifecycle` owns the **post-merge `feat/` teardown** (the `integrate-work-unit` Step 13
+  primary-worktree branch-delete sub-gap — closed there eagerly at the ceremony, backstopped by its in-flight
+  completion sweep over owned WUs). **This WU retains the cross-machine `plan/`-orphan facet** — the stale local
+  `plan/` `[gone]` branch left on a non-activating machine by `activate-work-unit` Step 5's local-only rename (the
+  § "Sweep stale local branches" item above, facet 1), which fires at session-init on another machine and needs
+  this WU's `gone`-upstream detection. Not a double-build: different fire points, branch types, and detection
+  drivers. **The other extends:** if this WU builds a generic session-init stale-local-branch sweep surface,
+  `async-merge-lifecycle` extends it rather than re-scanning.
+- _Scope:_ facet 1 (cross-machine `plan/` orphan) only — facet 2 (`feat/` teardown) is `async-merge-lifecycle`'s.
 
 ## Problem / Motivation
 
