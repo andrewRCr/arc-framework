@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-worktree-default-start.md`
-- **Task List:** [none]
+- **Task List:** `tasks-worktree-default-start.md`
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Planning. Run `generate-tasks.md` — the `outline` spec (`spec-worktree-default-start.md`) is
-  finalized; decompose it into a task list. `Class: Light` confirmed at the create-spec read (CLI wiring +
-  default-flip + two small additive session-init surfaces; no design authoring realized, so the estimate holds).
+- **Next Action:** Planning. Run `activate-work-unit.md` — the task list (`tasks-worktree-default-start.md`) is
+  generated and reviewed; `Class: Light` confirmed at the generate-tasks scale read (one substantive phase,
+  depth `low`). Activate to flip `Planning → Active` and rename `plan/ → <type>/` when implementation begins.
 
 ---

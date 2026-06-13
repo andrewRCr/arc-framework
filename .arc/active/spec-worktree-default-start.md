@@ -48,8 +48,10 @@ shipped `spawnWorktree` primitive, not the notes-merge engine).
 3. **Worktree-creating is the default under full protection.** When branch-protection is `full` and spawning is
    available, new-WU dispatch defaults to spawning an isolated worktree; when spawning is unavailable it falls
    back to cutting the branch in the primary worktree's base checkout; under partial protection no branch is cut
-   (direct base commit). This is the WU analogue of `run-errand` Launch, steered by the `arc-session` /
-   session-init new-WU dispatch. The `--here` cold-start path remains available as the explicit in-place override.
+   (direct base commit). This is the WU analogue of `run-errand` Launch, authored into `init-work-unit`'s
+   Execution Modes so every WU-creating caller (`decompose-work-unit`, `graduate-work-unit`, session-init
+   dispatch) inherits the default rather than re-authoring it. The `--here` cold-start path remains available as
+   the explicit in-place override.
 
 4. **Plate-balance awareness is a single advisory line at session-init.** Session-init's next-work discovery will
    surface one conditional advisory line accounting for in-flight `Class` composition — when a `Heavy` / `Novel`
@@ -107,10 +109,6 @@ shipped `spawnWorktree` primitive, not the notes-merge engine).
 
 ## Open items
 
-- **Authoring locus of the default-flip steering** — whether the protection × spawn-availability default is
-  written into `init-work-unit`'s dispatch or the session-init new-WU dispatch step. The behavioral contract
-  (worktree-default under full protection, mechanical keying, fallbacks) is settled in the Decisions above; only
-  the exact file the steering is authored into resolves during implementation.
 - **Exact wording and placement** of the plate-balance advisory line and the cohort-doc surfacing within
   session-init's orientation output — phrasing detail, settled against the surrounding orientation format at
   implementation time.
