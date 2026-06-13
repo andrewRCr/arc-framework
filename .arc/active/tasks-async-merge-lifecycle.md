@@ -166,23 +166,25 @@ linked arm. Workflow-doc behavior, validated by walking the re-entry and teardow
   (package source + `.arc/`) synced. The errand resume seam needed nothing — `run-errand.md`'s Integrate phase is
   already re-enterable.
 
-### `[ ]` **3.2 Eager post-merge teardown — Step 13 primary-arm symmetry**
+### `[x]` **3.2 Eager post-merge teardown — Step 13 primary-arm symmetry**
 
 - _Goal:_ Step 13 reaps the merged `feat/` branch on the primary-worktree arm too — a merged-only-safe local
   delete plus a stale remote-tracking-ref prune — matching the linked arm and `decompose-work-unit.md`'s
   park-exit block.
-- _Context:_ The primary-arm path currently does no branch delete ("no worktree to remove"), so a `feat/` branch
-  that lived directly in the primary worktree is never reaped by the ceremony.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **3.2.a Close the primary-arm teardown gap**
-        - Add a merged-only-safe `git branch -d <wu-branch>` (local) plus a stale remote-tracking-ref prune —
-          the remote is typically removed by delete-on-merge, so prune rather than `push --delete`. Teardown
-          rides the merge under the pre-merge `integration-interlock` approval; no second prompt.
+    - `[x]` **3.2.a Close the primary-arm teardown gap**
+        - Step 13's primary arm now switches off the merged branch, runs a presence-guarded merged-only-safe
+          `git branch -d <wu-branch>`, and prunes the stale remote-tracking ref (`git fetch --prune` — no
+          `push --delete`, since delete-on-merge removes the remote). Rides the pre-merge `integration-interlock`
+          approval; no second prompt.
 
-    - `[ ]` **3.2.b Confirm `archive-work-unit.md` stays teardown-free**
-        - Keep branch cleanup out of archival — coupling it to archival cadence would needlessly defer a
-          safe-once-merged delete. (Verified more broadly in Phase 6's audit.)
+    - `[x]` **3.2.b Confirm `archive-work-unit.md` stays teardown-free**
+        - Confirmed: `archive-work-unit.md` carries no branch/worktree teardown — branch cleanup stays owned by
+          the integration ceremony, not deferred to archival cadence.
+
+- _Outcome:_ Step 13 is symmetric across both arms — the in-place `feat/` branch is reaped at the ceremony rather
+  than left for the worktree-only stale sweep, matching the linked arm and `decompose`'s park-exit block.
 
 ## **Phase 4:** Shared completion primitives — integration footer + notes-sync leg
 

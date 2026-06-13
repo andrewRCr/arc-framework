@@ -278,7 +278,19 @@ it no-ops when its target is already gone (worktree already removed, branch alre
 re-enters here after a partial teardown skips what's done rather than erroring.
 
 **Primary worktree (in-place WU):** the WU branch lived directly in the main worktree — no distinct worktree
-exists to remove. The workflow continues to `## Next step` normally.
+exists to remove, but the merged branch still needs reaping, symmetric with the linked arm and
+`decompose-work-unit.md`'s park-exit block. Switch off the merged branch, then delete it locally and prune the
+stale remote-tracking ref:
+
+```bash
+git switch <base-branch>
+git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
+git fetch --prune origin   # remote branch removed by delete-on-merge — prune its stale tracking ref
+```
+
+Lowercase `-d` keeps the delete merged-only-safe and the presence guard makes it re-runnable; there is no
+`push --delete` — delete-on-merge typically removed the remote branch already, so prune the local tracking ref
+rather than re-deleting it. The workflow continues to `## Next step` normally.
 
 **Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
 on the resolved state:
