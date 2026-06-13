@@ -261,32 +261,42 @@ The finalize pass is workflow-doc behavior; the idempotent backstops carry a cod
   only by the pre-existing team-mode block). The slug-line drop is described as idempotent here; its three-remover
   reconciliation + the test-first no-op backstop land with 5.2.
 
-### `[ ]` **5.2 Unattended-merge completion trigger + idempotent slug-line removal**
+### `[x]` **5.2 Unattended-merge completion trigger + idempotent slug-line removal**
 
 - _Goal:_ The auto-merge (unattended) lane completes exactly once — teardown and slug-matched `USER-INBOX` line
   removal happen when no workflow step attends the merge — with one authoritative remover and two idempotent
   slug-matched no-op backstops preventing a double-fire.
-- _Context:_ `run-errand.md` and the `drain-inbox` transition defer post-merge cleanup to the errand's merge; on
-  the auto-merge lane that merge is unattended, so no workflow step fires the cleanup. The slug-line then has
-  three removers — `run-errand § Complete`, the same-session finalize pass, and the session-init errand sweep.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **5.2.a Reconcile the completion trigger**
-        - Define who runs teardown + line-removal when no one attends the merge, reconciling `run-errand.md`
-          § Complete and the drain's close.
+    - `[x]` **5.2.a Reconcile the completion trigger**
+        - Added an **Unattended completion** note to `run-errand.md` § Complete (both copies) — on the auto-merge
+          lane the in-session steps don't fire at merge, so the same-session finalize pass and session-init
+          errand sweep replay them from base context. Resolved the `drain-inbox.md` forward-pointer (the
+          "captured for `concurrent-work-conventions`" prose) to that now-landed mechanism.
 
-    - `[ ]` **5.2.b One authoritative remover**
-        - `run-errand § Complete` stays "the single point where that removal is ensured."
+    - `[x]` **5.2.b One authoritative remover**
+        - `run-errand § Complete` reaffirmed as the single authoritative point; the new note frames the other two
+          as idempotent backstops to it.
 
-    - `[ ]` **5.2.c Two idempotent backstops**
-        - The same-session finalize pass (5.1) and the session-init errand sweep no-op when the slug-matched line
-          is already absent.
-        - Build `test-first` (one behavior at a time):
-            - line already gone → removal is a no-op (asserted on both backstops)
+    - `[x]` **5.2.c Two idempotent backstops — re-scoped to a doc-level contract (no code primitive here)**
+        - Coordination decision (user-approved): the slug-keyed removal/reconcile **engine** is downstream-owned
+          (`operational-state-docs` grammar + `roadmap-tooling` reconcile engine) and the `_Slug:_` key isn't
+          shipped, so building a primitive here would pre-empt that substrate and key on the wrong grammar. The
+          idempotency (no-op when absent) is asserted as a workflow-doc contract on both backstops and recorded
+          in both downstream drafts' inbound buffers for the engine to honor; the test-first code moves with it.
+          Removal stays agent-driven (title-keyed) until the engine lands.
 
-    - `[ ]` **5.2.d Errand tail drives no archival**
-        - The completion sweep's WU "full tail" must not drive an archival step for an errand — the errand
-          close-out is symmetric but shorter (no meta, no archival stage).
+    - `[x]` **5.2.d Errand tail drives no archival**
+        - Confirmed structurally satisfied: the errand and work-unit completion sweeps are separate classifiers
+          (4-state vs. 5-state, no shared code), and the WU sweep emits only a surfaced `merged-needs-archival`
+          state — never an archival action — so an errand can't enter a WU archival path. No code change needed.
+
+- _Outcome:_ The unattended-merge gap is closed at the workflow-doc level — `run-errand` § Complete
+  authoritative, finalize pass + session-init sweep as idempotent backstops — and the slug-keyed removal **code**
+  substrate is deferred to its downstream owners with the idempotent-removal contract recorded in their inbound
+  buffers (`draft-operational-state-docs.md`, `draft-roadmap-tooling.md`); the spec's unit 6 records the
+  coordinated resolution. The toward-code shape the plan anticipated collapsed once substrate ownership was
+  traced — no new code in this task.
 
 ## **Phase 6:** Async-merge audit + reaper-seam coordination
 

@@ -224,6 +224,17 @@ prevent a double-fire against a present-then-absent line on the unattended lane:
 The errand close-out is symmetric to the WU tail but **shorter** — no meta / archival stage — so the completion
 sweep's WU "full tail" must **not** drive an archival step for an errand.
 
+**Resolution (coordinated — doc-level removal; code substrate downstream).** The slug-matched removal stays a
+workflow-doc behavior: `run-errand` § Complete is the one authoritative remover, and the same-session finalize
+pass and session-init in-flight-errand sweep are idempotent backstops that no-op when the line is already gone.
+No removal *primitive* is built here — the slug-keyed grammar (`_Slug:_`) and the managed-doc removal/reconcile
+**engine** are owned downstream by `operational-state-docs` (grammar) and `roadmap-tooling` (reconcile engine),
+and the `_Slug:_` key is not yet shipped; this WU records the idempotent-removal **contract** in their inbound
+buffers for that engine to honor, and removal stays agent-driven (title-keyed) until it lands. The errand-tail /
+no-archival requirement is already structurally met: the errand and work-unit completion sweeps are separate
+classifiers (4-state vs. 5-state) sharing no code, and the work-unit sweep emits only a surfaced
+`merged-needs-archival` state — never an archival action — so an errand can never enter a WU archival path.
+
 ### 7. Eager post-merge teardown (resolved: eager-in-ceremony, inline)
 
 `integrate-work-unit.md` Step 13 is asymmetric: the **linked-worktree** arm runs
