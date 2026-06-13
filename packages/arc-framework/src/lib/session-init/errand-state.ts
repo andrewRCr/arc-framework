@@ -23,6 +23,7 @@ import type { InFlightEntry, InFlightErrand } from "../git/in-flight-derivation.
 import { isBranchMerged } from "../git/worktree-cleanup.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
+import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 import {
   classifyInFlightErrands,
   type InFlightErrandSweepResult,
@@ -35,14 +36,7 @@ import {
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 /** Marker state for the rate-limited reminder / stale-errand nudge. */
-export interface ErrandNudgeState {
-  /** Whether a batched nudge may surface today. */
-  shouldNudge: boolean;
-  /** Repo-relative marker path the workflow updates after surfacing the nudge. */
-  markerPath: string | null;
-  /** Today's calendar day (`YYYY-MM-DD`). */
-  today: string;
-}
+export type ErrandNudgeState = NudgeMarkerState;
 
 /** Composite errand state exposed by the session-init envelope. */
 export interface ErrandStateResult {

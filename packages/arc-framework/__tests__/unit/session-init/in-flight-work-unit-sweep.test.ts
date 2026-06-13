@@ -37,6 +37,7 @@ const facts = (over: Partial<InFlightWorkUnitFacts> = {}): InFlightWorkUnitFacts
   approved: false,
   changesRequested: false,
   checksFailed: false,
+  behindBase: false,
   ageDays: 0,
   ...over,
 });
@@ -53,6 +54,7 @@ describe("classifyInFlightWorkUnits", () => {
         name: "widget-refactor",
         branch: "feat/widget-refactor",
         state: "merged-needs-archival",
+        behindBase: false,
         ageDays: 0,
       },
     ]);
@@ -122,8 +124,19 @@ describe("classifyInFlightWorkUnits", () => {
       name: "widget-refactor",
       branch: "feat/widget-refactor",
       state: "stale",
+      behindBase: false,
       ageDays: 7,
     });
+  });
+
+  it("carries the behindBase qualifier through onto the report without changing the state", () => {
+    const result = classifyInFlightWorkUnits({
+      workUnits: [facts({ approved: true, behindBase: true })],
+      staleThresholdDays: 3,
+    });
+
+    expect(result.workUnits[0]?.state).toBe("mergeable");
+    expect(result.workUnits[0]?.behindBase).toBe(true);
   });
 
   it("classifies a WU with no open PR yet as awaiting-review (Integrating, pre-PR)", () => {
@@ -267,6 +280,7 @@ describe("projectWorkUnitPresenceFacts", () => {
         approved: false,
         changesRequested: false,
         checksFailed: false,
+        behindBase: false,
         ageDays: 2,
       },
     ]);

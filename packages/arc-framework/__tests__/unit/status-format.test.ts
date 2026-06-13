@@ -92,6 +92,7 @@ function okConfig(): Probe<ConfigStatusResult> {
         "archive.cadence": "with-integration",
         "user.notes_push": "on-sync",
         "inbox.remind_after_days": "1",
+        "integration.stale_after_days": "2",
       },
       defaultsApplied: [],
       warnings: [],
@@ -263,7 +264,7 @@ describe("buildStatusSummary — full mode", () => {
     // Extensions full formatter headline: "N active · N inactive · N orphaned refs"
     expect(summary).toContain("1 active · 0 inactive · 0 orphaned refs");
     // Config formatter: "N agent-consumable settings"
-    expect(summary).toContain("19 agent-consumable settings");
+    expect(summary).toContain("20 agent-consumable settings");
     // Active formatter: "0 active work units"
     expect(summary).toContain("0 active work units");
   });

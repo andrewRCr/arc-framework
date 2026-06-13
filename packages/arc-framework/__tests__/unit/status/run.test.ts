@@ -129,6 +129,7 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
       "inbox.remind_after_days": "1",
+      "integration.stale_after_days": "2",
     },
     defaultsApplied: [],
     warnings: [],
@@ -204,7 +205,12 @@ function errandStateResult(overrides: Partial<ErrandStateResult> = {}): ErrandSt
 }
 
 function workUnitStateResult(overrides: Partial<WorkUnitStateResult> = {}): WorkUnitStateResult {
-  return { inFlight: { workUnits: [] }, warnings: [], ...overrides };
+  return {
+    inFlight: { workUnits: [] },
+    nudge: { shouldNudge: false, markerPath: null, today: "2026-06-01" },
+    warnings: [],
+    ...overrides,
+  };
 }
 
 function configSessionInit(

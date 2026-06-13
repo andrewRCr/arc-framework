@@ -14,6 +14,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import { countAheadBehindRef } from "../git/worktree-sync.js";
 import type { WorktreeRosterEntry } from "../git/worktree-roster.js";
 
 import {
@@ -23,6 +24,7 @@ import {
   type InFlightWorkUnitFacts,
   type InFlightWorkUnitSweepResult,
 } from "./in-flight-work-unit-sweep.js";
+import type { NudgeMarkerState } from "./nudge-rate-limit.js";
 
 /** Live PR disposition facts for one branch, sharpening a presence-tier leaf. */
 export type WorkUnitPrFacts = Pick<
@@ -45,6 +47,12 @@ export type WorkUnitPrSource = (
 export interface WorkUnitStateResult {
   /** The classified owned in-flight work units across the completion tail. */
   inFlight: InFlightWorkUnitSweepResult;
+  /**
+   * Once-per-calendar-day marker state for the batched `stale` nudge. The event
+   * states (`mergeable` / `merged-needs-archival`) bypass this gate and surface
+   * every session-init; only the time-gated `stale` overlay batches against it.
+   */
+  nudge: NudgeMarkerState;
   /** Soft diagnostics; a degraded read should not block session-init. */
   warnings: string[];
 }
@@ -55,8 +63,12 @@ export interface RunWorkUnitStateOptions {
   roster: readonly WorktreeRosterEntry[];
   /** The operator's identity; `null` passes every roster entry. */
   identity: string | null;
+  /** Resolved `branch.base` — the integration base each WU's behind-base fact is read against. */
+  baseBranch: string;
   /** Whole-day threshold for classifying an awaiting-review WU as stale. */
   staleThresholdDays: number;
+  /** Once-per-day marker state for the batched `stale` nudge, threaded onto the result. */
+  nudge: NudgeMarkerState;
   /**
    * Optional live-PR source for the mergeable-sharpening tier. When provided
    * (the handoff / no-active-WU network slice), the presence-tier leaves are
@@ -72,11 +84,12 @@ export interface RunWorkUnitStateOptions {
  *
  * Reads branch-tip committer dates, enumerates the operator's owned
  * `Integrating` work units from the roster, projects them onto the classifier's
- * fact shape using tracked state alone, and classifies the completion tail. No
- * network: every WU classifies as `awaiting-review` (or `stale` past the
- * threshold) until a PR source sharpens it.
+ * fact shape using tracked state alone, overlays a network-free behind-base read
+ * against the local `origin/<base>` ref, and classifies the completion tail. No
+ * network in the presence path: every WU classifies as `awaiting-review` (or
+ * `stale` past the threshold) until a PR source sharpens it.
  *
- * @param options - Git adapter, roster, identity, staleness threshold, and reference time.
+ * @param options - Git adapter, roster, identity, base branch, staleness threshold, nudge, and reference time.
  * @returns The composed work-unit completion-sweep state.
  */
 export async function runWorkUnitState(
@@ -96,12 +109,49 @@ export async function runWorkUnitState(
   const warnings = [...committerDates.warnings];
 
   const sharpened = await sharpenFromPrState(facts, options.prSource, warnings);
+  const withBase = await overlayBehindBase(sharpened, options.exec, options.baseBranch, warnings);
   const inFlight = classifyInFlightWorkUnits({
-    workUnits: sharpened,
+    workUnits: withBase,
     staleThresholdDays: options.staleThresholdDays,
   });
 
-  return { inFlight, warnings };
+  return { inFlight, nudge: options.nudge, warnings };
+}
+
+/**
+ * Overlay each WU's behind-base fact — the integration base carries commits the
+ * branch lacks, so a merge needs the base folded in first. Reuses the shared
+ * ahead/behind distance primitive against the *local* `origin/<base>` tracking
+ * ref (no fetch), keeping this an always-on, network-free read. A missing base
+ * ref or a per-branch read failure resolves to `behindBase: false` (advisory
+ * fail-safe) rather than blocking the sweep; the first failure adds one soft
+ * warning.
+ */
+async function overlayBehindBase(
+  facts: readonly InFlightWorkUnitFacts[],
+  exec: GitExec,
+  baseBranch: string,
+  warnings: string[],
+): Promise<InFlightWorkUnitFacts[]> {
+  if (facts.length === 0) return [...facts];
+
+  const baseRef = `origin/${baseBranch}`;
+  let warned = false;
+  return Promise.all(
+    facts.map(async (f) => {
+      try {
+        const { behind } = await countAheadBehindRef(exec, f.branch, baseRef);
+        return { ...f, behindBase: behind > 0 };
+      } catch (err) {
+        if (!warned) {
+          warned = true;
+          const message = err instanceof Error ? err.message : String(err);
+          warnings.push(`Behind-base read degraded (base ref unresolved): ${message}`);
+        }
+        return { ...f, behindBase: false };
+      }
+    }),
+  );
 }
 
 /**

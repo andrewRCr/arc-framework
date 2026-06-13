@@ -50,6 +50,13 @@ export interface InFlightWorkUnitFacts {
   changesRequested: boolean;
   /** Whether an open PR has failing checks. */
   checksFailed: boolean;
+  /**
+   * Whether the branch is behind its integration base — the base carries
+   * commits the branch lacks, so a merge needs the base folded in first. An
+   * advisory qualifier on the surfaced state (notably `mergeable`), never a
+   * state of its own.
+   */
+  behindBase: boolean;
   /** Whole-day age of the branch's latest commit — the staleness anchor. */
   ageDays: number;
 }
@@ -62,6 +69,12 @@ export interface InFlightWorkUnitReport {
   branch: string;
   /** Derived completion-tail state. */
   state: InFlightWorkUnitState;
+  /**
+   * Whether the branch is behind its integration base — an advisory qualifier
+   * the orientation surfaces alongside the state (e.g. "mergeable, but behind
+   * base"). Orthogonal to the state; never gates or auto-acts.
+   */
+  behindBase: boolean;
   /** Whole-day age of the branch's latest commit. */
   ageDays: number;
 }
@@ -110,7 +123,13 @@ export function classifyInFlightWorkUnits(
             ? "stale"
             : "awaiting-review";
 
-    reports.push({ name: wu.name, branch: wu.branch, state, ageDays: wu.ageDays });
+    reports.push({
+      name: wu.name,
+      branch: wu.branch,
+      state,
+      behindBase: wu.behindBase,
+      ageDays: wu.ageDays,
+    });
   }
   return { workUnits: reports };
 }
@@ -180,7 +199,8 @@ export interface ProjectWorkUnitPresenceFactsOptions {
  *
  * A roster-sourced WU has its meta in `active/`, so it is never `archived`; the
  * live-PR facts (`merged`, `hasOpenPr`, `approved`, `changesRequested`,
- * `checksFailed`) are left `false` for the mergeable-sharpening tier to upgrade.
+ * `checksFailed`) are left `false` for the mergeable-sharpening tier to upgrade,
+ * and `behindBase` `false` for the composer's network-free base read to overlay.
  * The committer-date anchor becomes a whole-day age against `now`. The presence
  * tier therefore classifies every WU as `awaiting-review` (or `stale` when aged
  * past the threshold) until a PR source sharpens it.
@@ -201,6 +221,7 @@ export function projectWorkUnitPresenceFacts(
     approved: false,
     changesRequested: false,
     checksFailed: false,
+    behindBase: false,
     ageDays: ageDays(wu.committerDate, nowMs),
   }));
 }

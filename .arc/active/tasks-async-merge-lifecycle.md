@@ -92,26 +92,32 @@ is gated to handoff / no-active-WU and degrades to presence when `gh` is absent.
           constant until 2.2 adds `integration.stale_after_days`. Verified live on
           `arc status --session-init --json`.
 
-### `[ ]` **2.2 Staleness threshold + event-driven triggers**
+### `[x]` **2.2 Staleness threshold + event-driven triggers**
 
 - _Goal:_ The `stale` tier fires only past a configurable `*_after_days` threshold (batched once per calendar
   day), while the `mergeable` and `merged-needs-archival` events bypass the threshold and surface immediately as
   actionable.
-- _Rationale:_ A time gate suits the "still waiting" tier; the actionable events name something the developer can
-  do now (merge it; archive it), so gating them behind a threshold would only delay the action.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **2.2.a Add the `integration.stale_after_days` threshold config key**
-        - One new key mirroring `inbox.remind_after_days` (`arc-config.yml`); default plus schema. Both copies
-          per package-project sync.
+    - `[x]` **2.2.a Add the `integration.stale_after_days` threshold config key**
+        - New `integration.stale_after_days` key (default 2, preserving the prior interim constant) across
+          `arc-config.yml`, `status-reader.ts` defaults, `config/types.ts`, and `validate-config.sh`
+          (positive-integer check + known-keys list) — both copies per package-project sync.
 
-    - `[ ]` **2.2.b Gate the `stale` tier behind the threshold + once-per-day marker**
-        - Reuse the shared nudge marker (`nudge-rate-limit.ts`) so the stale nudge batches to once per calendar
-          day, mirroring the errand reminder.
+    - `[x]` **2.2.b Gate the `stale` tier behind the threshold + once-per-day marker**
+        - `handlers/status.ts` reads the key (retiring the `WORK_UNIT_STALE_THRESHOLD_DAYS` constant) and resolves
+          a WU-stale `nudge` via the generalized `resolveNudgeState` over a dedicated `work-unit-stale-last-nudge.txt`
+          marker; `runWorkUnitState` threads it onto the `workUnitState` envelope slot. `NudgeMarkerState` is now
+          shared across the errand and WU nudge surfaces.
 
-    - `[ ]` **2.2.c Event-driven bypass for `mergeable` / `merged-needs-archival`**
-        - Surface these immediately regardless of the threshold; behind-base facts reuse
-          `merge-safety-mechanism`'s shipped behind-base primitive (`lib/git/base-distance.ts`).
+    - `[x]` **2.2.c Event-driven bypass for `mergeable` / `merged-needs-archival`**
+        - The events already bypass the age threshold via classifier precedence; added a network-free `behindBase`
+          qualifier — `runWorkUnitState` overlays it through `countAheadBehindRef` against the local `origin/<base>`
+          ref (advisory, fail-safe to `false`), surfaced alongside `mergeable` without adding a state.
+
+- _Outcome:_ Staleness is now config-driven and once-per-day-batched while the actionable events surface every
+  session-init; the `nudge` marker state and the `behindBase` qualifier ride the `workUnitState` envelope slot for
+  the Step 6 orientation routes (2.3) to consume.
 
 ### `[ ]` **2.3 Orientation routes in `session-init.md`**
 

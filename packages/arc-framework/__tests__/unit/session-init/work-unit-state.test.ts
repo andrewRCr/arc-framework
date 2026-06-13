@@ -39,6 +39,12 @@ const NOW = "2026-06-13T00:00:00.000Z";
 const NOW_SEC = Math.floor(Date.parse(NOW) / 1000);
 const daysAgo = (n: number): number => NOW_SEC - n * 86400;
 
+const NUDGE = {
+  shouldNudge: true,
+  markerPath: ".arc/user/andrew/.internal/work-unit-stale-last-nudge.txt",
+  today: "2026-06-13",
+};
+
 const rosterEntry = (over: Partial<WorktreeRosterEntry> = {}): WorktreeRosterEntry => ({
   worktreePath: "/repo",
   branch: "feat/widget",
@@ -50,15 +56,22 @@ const rosterEntry = (over: Partial<WorktreeRosterEntry> = {}): WorktreeRosterEnt
 
 /**
  * Git mock: `for-each-ref` returns the supplied committer-date lines (or a
- * default), every other invocation throws. Pass `failRefs` to simulate a
- * `for-each-ref` read failure.
+ * default); `rev-list` (the behind-base read) returns `0\t<behind>` (default
+ * `behind: 0`); every other invocation throws. Pass `failRefs` / `failBase` to
+ * simulate a read failure on the respective call.
  */
-function buildExec(options: { refs?: string; failRefs?: boolean } = {}): GitExec {
+function buildExec(
+  options: { refs?: string; failRefs?: boolean; behind?: number; failBase?: boolean } = {},
+): GitExec {
   return vi.fn(async (cmd: string, args: string[]) => {
     if (cmd !== "git") throw new Error(`unexpected command: ${cmd}`);
     if (args[0] === "for-each-ref") {
       if (options.failRefs === true) throw new Error("for-each-ref boom");
       return { stdout: options.refs ?? "", stderr: "" };
+    }
+    if (args[0] === "rev-list") {
+      if (options.failBase === true) throw new Error("rev-list boom");
+      return { stdout: `0\t${options.behind ?? 0}`, stderr: "" };
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });
@@ -74,12 +87,14 @@ describe("runWorkUnitState (presence tier)", () => {
         rosterEntry({ branch: "feat/theirs", metaFilePath: "/repo/.arc/active/meta-theirs.md", identity: "blair" }),
       ],
       identity: "andrew",
+      baseBranch: "main",
       staleThresholdDays: 3,
+      nudge: NUDGE,
       now: NOW,
     });
 
     expect(result.inFlight.workUnits).toEqual([
-      { name: "widget", branch: "feat/widget", state: "awaiting-review", ageDays: 1 },
+      { name: "widget", branch: "feat/widget", state: "awaiting-review", behindBase: false, ageDays: 1 },
     ]);
     expect(result.warnings).toEqual([]);
   });
@@ -89,7 +104,9 @@ describe("runWorkUnitState (presence tier)", () => {
       exec: buildExec(),
       roster: [],
       identity: "andrew",
+      baseBranch: "main",
       staleThresholdDays: 3,
+      nudge: NUDGE,
       now: NOW,
     });
 
@@ -101,7 +118,9 @@ describe("runWorkUnitState (presence tier)", () => {
       exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(9)}` }),
       roster: [rosterEntry()],
       identity: "andrew",
+      baseBranch: "main",
       staleThresholdDays: 3,
+      nudge: NUDGE,
       now: NOW,
     });
 
@@ -109,8 +128,23 @@ describe("runWorkUnitState (presence tier)", () => {
       name: "widget",
       branch: "feat/widget",
       state: "stale",
+      behindBase: false,
       ageDays: 9,
     });
+  });
+
+  it("threads the resolved nudge state through onto the result", async () => {
+    const result = await runWorkUnitState({
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}` }),
+      roster: [rosterEntry()],
+      identity: "andrew",
+      baseBranch: "main",
+      staleThresholdDays: 3,
+      nudge: NUDGE,
+      now: NOW,
+    });
+
+    expect(result.nudge).toEqual(NUDGE);
   });
 
   it("degrades to age 0 with a soft warning when the committer-date read fails", async () => {
@@ -118,7 +152,9 @@ describe("runWorkUnitState (presence tier)", () => {
       exec: buildExec({ failRefs: true }),
       roster: [rosterEntry()],
       identity: "andrew",
+      baseBranch: "main",
       staleThresholdDays: 3,
+      nudge: NUDGE,
       now: NOW,
     });
 
@@ -128,12 +164,56 @@ describe("runWorkUnitState (presence tier)", () => {
   });
 });
 
+describe("runWorkUnitState (behind-base overlay)", () => {
+  const baseOptions = {
+    roster: [rosterEntry()],
+    identity: "andrew" as const,
+    baseBranch: "main",
+    staleThresholdDays: 3,
+    nudge: NUDGE,
+    now: NOW,
+  };
+
+  it("flags behindBase when the local base ref is ahead of the branch", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}`, behind: 4 }),
+      prSource: sourceOf({ "feat/widget": prFacts({ approved: true }) }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.state).toBe("mergeable");
+    expect(result.inFlight.workUnits[0]?.behindBase).toBe(true);
+  });
+
+  it("leaves behindBase false when the branch is current with its base", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}`, behind: 0 }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.behindBase).toBe(false);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("degrades behindBase to false with one soft warning when the base read fails", async () => {
+    const result = await runWorkUnitState({
+      ...baseOptions,
+      exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}`, failBase: true }),
+    });
+
+    expect(result.inFlight.workUnits[0]?.behindBase).toBe(false);
+    expect(result.warnings.some((w) => /behind-base|base ref/i.test(w))).toBe(true);
+  });
+});
+
 describe("runWorkUnitState (mergeable-sharpening tier)", () => {
   const baseOptions = {
     exec: buildExec({ refs: `refs/heads/feat/widget\t${daysAgo(1)}` }),
     roster: [rosterEntry()],
     identity: "andrew",
+    baseBranch: "main",
     staleThresholdDays: 3,
+    nudge: NUDGE,
     now: NOW,
   };
 
