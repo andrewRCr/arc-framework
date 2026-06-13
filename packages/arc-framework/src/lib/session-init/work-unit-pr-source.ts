@@ -10,6 +10,15 @@
  * the presence tier. A branch with no matching PR is simply absent from the
  * result map.
  *
+ * The list is scoped to the operator's own PRs (`--author @me`) — the sweep
+ * sharpens the operator's owned in-flight work units, whose PRs they opened, so
+ * author scope matches the consumed set exactly. Without it the repo-wide window
+ * would fill with other authors' PRs at team scale and bury an operator's own
+ * awaiting-review PR past the result cap; scoping keeps the cap from biting
+ * regardless of repo throughput. A PR opened by someone else on the operator's
+ * branch (a person-to-person handoff) falls to the presence tier — a benign,
+ * rare degradation.
+ *
  * @module
  */
 
@@ -57,7 +66,7 @@ export function createGhWorkUnitPrSource(
     try {
       ({ stdout } = await exec(
         "gh",
-        ["pr", "list", "--state", "all", "--limit", PR_LIST_LIMIT, "--json",
+        ["pr", "list", "--author", "@me", "--state", "all", "--limit", PR_LIST_LIMIT, "--json",
           "headRefName,state,reviewDecision,statusCheckRollup"],
         { signal: controller.signal },
       ));

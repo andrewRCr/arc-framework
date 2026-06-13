@@ -129,4 +129,15 @@ describe("createGhWorkUnitPrSource", () => {
 
     expect(lastExecOptions(exec)?.signal).toBeInstanceOf(AbortSignal);
   });
+
+  it("scopes the list to the operator's own PRs so the result cap survives team scale", async () => {
+    const exec = buildExec({ prs: [pr()] });
+    const source = createGhWorkUnitPrSource(exec);
+
+    await source(["feat/widget"]);
+
+    const args = vi.mocked(exec).mock.calls.at(-1)?.[1] ?? [];
+    expect(args).toContain("--author");
+    expect(args[args.indexOf("--author") + 1]).toBe("@me");
+  });
 });
