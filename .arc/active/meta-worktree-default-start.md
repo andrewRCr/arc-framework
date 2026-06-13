@@ -12,7 +12,7 @@
 - **Task List:** `tasks-worktree-default-start.md`
 
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Wire the create-new `arc start` worktree-spawning mode (line ~25)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Task 1.1 — Wire the create-new `arc start` worktree-spawning mode
