@@ -320,6 +320,23 @@ deviation is a genuine ARC value-prop.
 
 ---
 
+## External Interchange — OKF Projection (forward-compat note)
+
+Captured 2026-06-13 from an idiomatic-alignment exploration. Google's **Open Knowledge Format** (OKF, v0.1,
+2026-06-12) and Karpathy's LLM-wiki describe the same markdown-frontmatter knowledge-base family ARC already
+belongs to. OKF is a *format, not a platform*, designed around producer/consumer independence — which makes ARC a
+natural optional **OKF producer** rather than something to reshape into OKF.
+
+The clean insertion is **a projection target, not a native reshape**, and it composes directly with this plan's
+model: ADR-022's record-canonical / markdown-is-a-projection + Architecture B (render/projection). If
+materialization already renders records → markdown, an OKF bundle is just one more projection — emit the
+`reference/` + project-knowledge layer (the part that *is* knowledge-base content), never the operational churn
+(`meta-*`, `tasks-*`, inboxes). OKF conformance is a trivially low bar (every non-reserved `.md` carries
+frontmatter with a non-empty `type`), and OKF's path-is-ID / type-is-frontmatter split means `type` derives
+mechanically from ARC's filename prefix — so projection is cheap. **Projection-ready, not adopt-now:** the spec is
+one day old; the value is keeping the option open, owned with `idiomatic-alignment`. See
+`strategy-storage-evolution.md` § Relationship to Other Documents.
+
 ## Non-Goals
 
 - **Hosted SaaS offering.** Self-hosted only.

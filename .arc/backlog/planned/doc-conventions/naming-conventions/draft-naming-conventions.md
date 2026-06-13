@@ -158,6 +158,19 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   adherence hook); `quality-gate-hooks` is the alternative generic-hook home if the method/test split lands better
   there.
 
+### `[ ]` **Coordinate the frontmatter-`type` / prefix-scheme question with `idiomatic-alignment`**
+
+- *Routed from:* OKF / LLM-wiki idiomatic-alignment exploration (2026-06-13).
+- *Concern:* the new `idiomatic-alignment` WU evaluates adding a uniform, orthogonal frontmatter `type` (OKF's
+  path-is-ID / type-is-frontmatter split) to resolve ARC's filename-prefix *double-duty* (the prefix carries a
+  type hint *and* rides the shared slug) and the prefix-less workflows / methods / extensions gap. That overlaps
+  this WU's naming-convention surface and the `strategy-file-classification.md` codification it owns, but its
+  driver (align with external knowledge-format norms for legitimacy / interop / projection) is distinct from this
+  WU's (internal consistency of the hub families).
+- *Proposed:* let `idiomatic-alignment` own and **pull** the frontmatter-`type` / prefix-scheme question for
+  cleaner boundaries; this WU keeps the `TYPE.QUALIFIER` hub renames + the file-classification codification.
+  Decide the exact split at this WU's next planning iteration (it may stay here if it lands cleaner).
+
 ---
 
 ## Problem / Motivation

@@ -202,6 +202,10 @@ This list is not exhaustive — other touchpoints surface during co-design.
   (inbox drains, ordering) is the backend's canonical responsibility (→ event-log).
 - **`adr-022-managed-operational-state-documents.md`** — records-canonical / markdown-projection; the interim
   notes-sync assignment is the tier-2 bridge; records lift to the backend without reshaping (Principle 2).
+- **`draft-idiomatic-alignment.md`** — OKF (Open Knowledge Format) as an optional projection/interchange target off
+  the record→markdown layer (Principle 2 / Architecture B). A *producer/projection*, not a native reshape; emit the
+  `reference/` + project-knowledge layer, not operational churn. Forward-compat: keep the option open, don't
+  foreclose it. Detail in `draft-arc-backend.md` § External Interchange — OKF Projection.
 - **[`strategy-configurability-architecture.md`][config-arch]** — customization mechanisms; storage tiering interacts
   with the configurability axes (Principles 8–9 share the axis-explosion concern).
 
