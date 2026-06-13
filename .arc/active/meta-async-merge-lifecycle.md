@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                   | **Class** | **Priority** |
 | ---------- | --------- | ---------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/async-merge-lifecycle` | `Heavy`   | `P2`         |
+| `Active`   | `andrew`  | `feat/async-merge-lifecycle` | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** `concurrent-work-doctrine`, `merge-safety-mechanism`, `notes-merge-coherence`
@@ -18,8 +18,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` — flip `State: Planning → Active`, rename
-  `plan/async-merge-lifecycle → feat/async-merge-lifecycle`. Implementation begins on the renamed branch at Task
-  1.1 (`classifyInFlightWorkUnits`). `Class: Heavy` confirmed by the scale read.
+- **Next Action:** Begin Task 1.1 — `classifyInFlightWorkUnits` completion-tail state classifier (Phase 1,
+  `tasks-async-merge-lifecycle.md`). Test-first pure module mirroring `classifyInFlightErrands`.
 
 ---
