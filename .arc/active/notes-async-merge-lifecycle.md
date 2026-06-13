@@ -3,6 +3,7 @@
 ## Contents
 
 - Implementation grounding (file:line anchors)
+- Finalize pass — home + vehicle (unit 3)
 - Dependency provenance
 - Coordination seam with `coord-probe`
 
@@ -38,6 +39,26 @@ case).
 delete-on-merge, so completion **prunes the stale remote-tracking ref** rather than `push --delete` (which
 `decompose`'s park-exit block does for a `plan/` branch it merges via the park-PR). Local delete stays
 merged-only-safe (`-d`, never `-D` for `feat/`).
+
+## Finalize pass — home + vehicle (unit 3)
+
+Resolved at task generation (grounding audit):
+
+- **Home — `session-handoff.md` (load-bearing) + `integrate-work-unit.md` primary-arm (prompt-catch).** The pass
+  fires on return to base context; `process-task-loop` is the wrong altitude (execution-only, per-increment
+  noise). Session-handoff is symmetric with the session-init sweep — the two bracket the session, so a
+  same-session merge is caught at handoff and a no-handoff session falls back to the next init sweep. The
+  integrate primary-arm invocation is a promptness enhancement (earlier loud-failure surface), not load-bearing
+  for coverage.
+- **Vehicle — inline, single-authored + cross-referenced.** Not a method (the per-PR decision is Phase 1's
+  `classifyInFlightWorkUnits`; the pass is the action wrapper around it) and not a new supplemental workflow
+  (premature for a small pass). Author once in `session-handoff.md`; invoke by reference from integrate.
+- **Forward-compat with `composable-workflows`.** The pass and the teardown it reuses are hoist candidates: when
+  the shared-step hoist lands, the single-authored block lifts into a composed step both points invoke — the same
+  deferred-DRY trigger the spec's Open Questions already record for the unit-7 / finalize teardown. Single-source
+  authoring now is what makes that hoist clean; duplicating inline would fight it.
+- **Opportunistic guard.** A cheap no-op unless this session opened an unfinalized PR — so invoking from multiple
+  return-to-base points costs nothing when there is nothing to finalize.
 
 ## Dependency provenance
 

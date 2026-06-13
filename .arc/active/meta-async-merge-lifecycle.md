@@ -9,19 +9,17 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-async-merge-lifecycle.md`
-- **Task List:** [none]
+- **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Created `spec-async-merge-lifecycle.md` (`detailed`·RFC); discovery settled both gating
-  decisions; draft retired, grounding migrated to `notes-async-merge-lifecycle.md`
+- **Last Completed:** Generated `tasks-async-merge-lifecycle.md` (`high` depth — 6 phases + verification, 13
+  parents). Grounding audit settled the finalize-pass home (`session-handoff` + integrate prompt-catch, inline
+  single-authored for `composable-workflows` forward-compat) and pinned `integration.stale_after_days`; decision
+  recorded in `notes-async-merge-lifecycle.md` § Finalize pass.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks.md` — consumes `spec-async-merge-lifecycle.md`. **Resolved this session:**
-  `Class: Heavy`, form **`detailed`·RFC**; both design-gating decisions settled — (1) **eager** post-merge
-  teardown owned by the ceremony, authored inline (close `integrate-work-unit.md` Step 13 primary-arm gap;
-  `archive` stays teardown-free; DRY-hoist to `decompose`'s park-exit block deferred to `composable-workflows`);
-  (2) **facet split** with `coord-probe` — this WU owns the post-merge `feat/` teardown, `coord-probe` retains the
-  cross-machine `plan/`-orphan sweep (its buffer item updated). PROJECT-PRD (Operational-friction principle) +
-  TECHNICAL-OVERVIEW (§ 2 / § 3) alignment checks passed.
+- **Next Action:** Run `activate-work-unit.md` — flip `State: Planning → Active`, rename
+  `plan/async-merge-lifecycle → feat/async-merge-lifecycle`. Implementation begins on the renamed branch at Task
+  1.1 (`classifyInFlightWorkUnits`). `Class: Heavy` confirmed by the scale read.
 
 ---
