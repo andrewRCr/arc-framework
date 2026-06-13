@@ -11,15 +11,19 @@
 - **Design:** `spec-async-merge-lifecycle.md`
 - **Task List:** `tasks-async-merge-lifecycle.md`
 
-- **Last Completed:** Task 2.3 — orientation routes in `session-init.md`; closes Phase 2 (the WU
-  completion-sweep surface is now end-to-end: network-free presence tier, `gh`-gated sharpening, config-gated
-  staleness, advisory orientation across the roster-resolved arms).
-- **Next Task:** Task 3.1 — Re-entry guard + re-runnable tail steps (line ~147)
+- **Last Completed:** Task 4.2 — post-merge notes-sync leg in `session-handoff.md`; closes Phase 4. Both Phase 4
+  completion primitives are now in place — the standalone `integration` commit-footer anchor and the reusable
+  notes-sync leg — for Phase 5 to consume. Phase 3 also shipped this session: `integrate-work-unit.md` is
+  idempotent from `Integrating` onward (re-entry guard + re-runnable tail) with symmetric primary/linked-arm
+  teardown.
+- **Next Task:** Task 5.1 — Same-session finalize pass (line ~239)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — add the `Integrating` re-entry guard to `integrate-work-unit.md` Step 1
-  (skip the transition + already-run pre-PR/PR-open steps; resolve the resume point from PR + worktree state) and
-  make the merge → `arc user close` → teardown tail individually re-runnable. Both copies. Run via
+- **Next Action:** Begin Task 5.1 — author the bounded same-session finalize pass as a named procedure in
+  `session-handoff.md` (poll this session's PRs once with a hard ceiling; merged-clean → eager teardown + the
+  notes-sync leg, failed/blocked → loud surface for both lanes, still-pending → hand to the sweep), then wire its
+  prompt-catch invocation from `integrate-work-unit.md`'s primary-arm continuation. Phase 5 shifts toward code —
+  5.2.c carries a test-first marker for the idempotent slug-line backstops. Both copies; run via
   `process-task-loop.md`.
 
 ---
