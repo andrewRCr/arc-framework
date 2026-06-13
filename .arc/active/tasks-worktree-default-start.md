@@ -111,24 +111,34 @@ probe-side: session-init emits an in-flight `Class` composition (`1.3`) and the 
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **2.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ markdown lint, TS lint, shell lint, typecheck (source + test), full test suite
+  (2512 unit/integration + 70 e2e), and build — all passed.
+- _Success criteria:_ 8 criteria, all met. The create-new handler coverage gap was closed by adding a
+  handler-level test (`__tests__/unit/handlers/start.test.ts`, 8 cases); the cohort-doc criterion carries a
+  `backlog/planned/`-only scope deviation (annotated above).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc start <name>` (bare, non-`--here`) under full protection spawns a worktree on a new branch via
+- `[x]` `arc start <name>` (bare, non-`--here`) under full protection spawns a worktree on a new branch via
   `spawnWorktree`, resolving location / base / repo from config — no longer errors with the `--here` pointer
-- `[ ]` New-WU dispatch defaults to worktree-creating under full protection when spawning is available;
+- `[x]` New-WU dispatch defaults to worktree-creating under full protection when spawning is available;
   falls back to a branch in the primary's base checkout when spawning is unavailable; cuts no branch under
   partial protection (direct base commit)
-- `[ ]` The moot `--tier` reference is gone from `start.ts`'s module doc
-- `[ ]` Session-init surfaces exactly one plate-balance advisory line when a `Heavy` / `Novel` stream is in
+- `[x]` The moot `--tier` reference is gone from `start.ts`'s module doc
+- `[x]` Session-init surfaces exactly one plate-balance advisory line when a `Heavy` / `Novel` stream is in
   flight, is silent otherwise, and never reorders or gates the suggestion set
-- `[ ]` Session-init reads and surfaces the active WU's `cohort-*.md` when the meta carries a `Cohort`;
+- `[x]` Session-init reads and surfaces the active WU's `cohort-*.md` when the meta carries a `Cohort`;
   `AGENT-BRIEF.ARC` documents the cohort-doc awareness surface
-- `[ ]` The create-new handler branch carries test coverage
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+    - _Deviation:_ resolution is `backlog/planned/`-only — an active WU is an in-flight cohort member, so its
+      cohort is never archived to `completed/`; resolution stays a deterministic path lookup rather than the
+      backlog/completed tree search the 1.4.a subtask wording implied. Criterion as written (surface the
+      cohort doc when the meta carries a `Cohort`) is satisfied.
+- `[x]` The create-new handler branch carries test coverage
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

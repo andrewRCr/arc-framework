@@ -11,12 +11,12 @@
 - **Design:** `spec-worktree-default-start.md`
 - **Task List:** `tasks-worktree-default-start.md`
 
-- **Last Completed:** Task 1.4 — Read and surface the active WU's coordinating cohort doc
-- **Next Task:** Task 2.1 — Complete verification (line ~114)
+- **Last Completed:** Task 2.1 — Complete verification (Tier 3 gates + success criteria)
+- **Next Task:** [none] — all phases complete; ready for integration
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — load and follow `verify-work-unit.md` for the verification phase
-  (`tasks-worktree-default-start.md`). Phase 1 (Tasks 1.1–1.4) is complete and committed; the
-  implementation is ready for the verification sweep before integration.
+- **Next Action:** integrate-work-unit Step 1 — verify completion. Verification passed: all quality gates
+  green and all 8 success criteria met (`tasks-worktree-default-start.md`), with the cohort-doc resolution
+  scoped to `backlog/planned/` noted as a deviation.
 
 ---
