@@ -66,12 +66,11 @@ is gated to handoff / no-active-WU and degrades to presence when `gh` is absent.
   state via the in-flight oracle's `pr` enrichment.
 - **Strategies:** strategy-testing-methodology.md, strategy-session-operations.md
 
-    - `[ ]` **2.1.a Presence tier — classify from roster facts**
-        - Compose `classifyInFlightWorkUnits` over the Phase 1 enumerator's output; no network. Runs every
-          session-init.
-        - Build `test-first` (one behavior at a time):
-            - roster with mixed-state WUs → only owned `Integrating` entries classified
-            - empty roster → empty result
+    - `[x]` **2.1.a Presence tier — classify from roster facts**
+        - New `work-unit-state.ts` composer (`runWorkUnitState`) — the I/O boundary mirroring `runErrandState`:
+          reads local branch-tip committer dates, runs the Phase 1 `enumerate → project → classify` pipeline over
+          the roster, and degrades to age 0 plus a soft warning when the `for-each-ref` read fails. No network;
+          fires wherever the roster resolves (per the spec amendment), not literally every session-init.
 
     - `[ ]` **2.1.b Mergeable-sharpening tier — gate, sharpen, degrade**
         - Implement and inject a `gh`-backed `PrSource` — the oracle's enrichment hook
