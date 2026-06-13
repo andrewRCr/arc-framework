@@ -141,8 +141,12 @@ is the reuse seam — it is git/network-decoupled and already battle-tested. Net
 
 Two tiers, matching the errand sweep's cost model:
 
-- **Presence tier** (roster-sourced, free, every session-init): classifies from tracked state alone — which owned
-  WUs are in `Integrating`, how long, against the stale threshold. No network.
+- **Presence tier** (roster-sourced, free): classifies from tracked state alone — which owned WUs are in
+  `Integrating`, how long, against the stale threshold. No network. Fires on every arm where the roster already
+  resolves (primary / no-active-WU / branch-gone), mirroring the stale-worktree sweep; the linked-worktree resume
+  path keeps the roster gated for latency, so the sweep surfaces a heads-down WU's siblings when control returns
+  to a roster-resolving arm rather than mid-execution. "Free" is the cost tier (no network), not a literal
+  every-arm guarantee.
 - **Mergeable-sharpening tier** (oracle, PR-source via `gh`, gated to handoff / no-active-WU): sharpens
   `awaiting-review → mergeable | blocked | merged-needs-archival` from live PR state. Degrades to presence
   cleanly when `gh` is absent or the network is unreachable.
@@ -332,9 +336,11 @@ firing order and any lane.
   when unavailable, per existing convention). The suspend/resume seam and finalize pass are workflow-doc behavior,
   validated by walking the re-entry and same-session paths; idempotent backstops get an explicit "line already
   gone → no-op" assertion.
-- **Performance / session-init latency.** The presence tier is free (tracked state only) and runs every
-  session-init. The mergeable-sharpening tier is the only network cost and is **gated to handoff / no-active-WU**
-  and **degrades to presence** without `gh` — session-init's critical path is never blocked on a live PR query.
+- **Performance / session-init latency.** The presence tier is free (tracked state only) and fires on every arm
+  where the roster already resolves (primary / no-active-WU / branch-gone) — it adds no cost to the
+  latency-protected linked-worktree resume path, which keeps the roster gated. The mergeable-sharpening tier is the
+  only network cost and is **gated to handoff / no-active-WU** and **degrades to presence** without `gh` —
+  session-init's critical path is never blocked on a live PR query.
 - **Migration / rollout.** Fully additive — **no new state, field, branch type, or config-shape change** beyond
   the one `*_after_days` threshold key (which reuses the inbox-reminder machinery). Existing sync-merge sessions
   are unaffected; the new surfaces activate only in the awaiting-review window. No backfill, no breaking change.
