@@ -62,31 +62,27 @@ probe-side: session-init emits an in-flight `Class` composition (`1.3`) and the 
   (both two-copy instances), so `decompose-`/`graduate-work-unit` and session-init next-work dispatch inherit
   worktree-default by not forcing in-place; `--here` remains the explicit in-place override.
 
-### `[ ]` **1.3 Surface a plate-balance advisory line from in-flight `Class` composition**
+### `[x]` **1.3 Surface a plate-balance advisory line from in-flight `Class` composition**
 
 - _Goal:_ Session-init's next-work discovery surfaces exactly one conditional advisory line when a `Heavy` /
   `Novel` stream is already in flight (the "roughly one genuinely-novel stream" balance rule), is silent
   otherwise, and never reorders, gates, suppresses, or re-nags the suggestion set.
 
-- _Approach:_ Compute the in-flight `Class` composition in the session-init probe (the `Novel` / `Heavy` /
-  `Light` tally via `classComposition()` over the in-flight slice it already gathers) and emit it on the
-  envelope; the session-init workflow reads that tally and renders the conditional line. Awareness-only.
+    - `[x]` **1.3.a Emit the in-flight composition on the session-init probe**
+        - Added `resolveInFlightComposition()` (`lib/session-init/in-flight-composition.ts`), which maps the
+          roster's in-flight slice through `classComposition()` and returns the `Novel`/`Heavy`/`Light` tally
+          (null for an empty slice). Wired into the `arc status --session-init` envelope as `inFlightComposition`,
+          gated to the no-active-WU arm; `[TBD]`/field-absent rows excluded per `classComposition()`'s contract.
 
-    - `[ ]` **1.3.a Emit the in-flight composition on the session-init probe**
-        - Wire `classComposition()` (currently uncalled) over the probe's in-flight slice and add the tally
-          to the session-init envelope alongside the existing next-work discovery data.
-        - Build `test-first` (one behavior at a time):
-            - tallies `Novel` / `Heavy` / `Light` over the in-flight slice via `classComposition()`
-            - excludes `[TBD]` / field-absent rows from the tally (per `classComposition()`'s contract)
-            - emits the composition on the envelope when the in-flight slice is non-empty
+    - `[x]` **1.3.b Render the advisory line in session-init next-work discovery**
+        - Added the conditional plate-balance advisory to session-init's next-work discovery (both two-copy
+          instances): surfaced only when `inFlightComposition` carries `heavy ≥ 1` or `novel ≥ 1`, silent
+          otherwise, with the awareness-only contract held in the prose. Documented the new envelope field in
+          the Step 1 field table.
 
-    - `[ ]` **1.3.b Render the advisory line in session-init next-work discovery**
-        - Add the conditional advisory line to session-init's next-work discovery step: surface it only when
-          the emitted composition shows a `Heavy` or `Novel` stream in flight; stay silent otherwise.
-        - Hold the awareness-only contract in the prose — the line never reorders, gates, suppresses, or
-          re-nags. Framework markdown (two-copy).
-        - _Note:_ Exact wording / placement settles against the surrounding orientation-output format at
-          implementation.
+- _Outcome:_ The plate-balance signal now resolves probe-side (`inFlightComposition` on the envelope, no-active-WU
+  arm only) and the workflow renders one awareness-only advisory line when a heavier stream is already in flight.
+  `classComposition()` — previously uncalled — gains its first caller via the new roster-slice resolver.
 
 ### `[ ]` **1.4 Read and surface the active WU's coordinating cohort doc**
 

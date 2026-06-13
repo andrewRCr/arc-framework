@@ -47,6 +47,7 @@ import {
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
+import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
 
 const IDENTITY_MISSING_MESSAGE =
@@ -410,6 +411,16 @@ export async function runSessionInitStatus(
     () => probes.materializableWorkUnits(),
   );
 
+  // Plate-balance signal — the in-flight `Class` composition over the roster
+  // slice, read by next-work discovery to surface the one-line advisory when a
+  // Heavy/Novel stream is already in flight. Gated to the no-active-WU arm
+  // (where discovery runs) and computed synchronously from the resolved roster;
+  // omitted when nothing is in flight.
+  const inFlightComposition =
+    active.ok && active.value.resolution === "none" && roster?.ok
+      ? (resolveInFlightComposition(roster.value.entries) ?? undefined)
+      : undefined;
+
   return {
     mode: "session-init",
     identity: buildIdentity(identity, role),
@@ -431,6 +442,7 @@ export async function runSessionInitStatus(
     ...(workUnitState !== undefined ? { workUnitState } : {}),
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
+    ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

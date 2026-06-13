@@ -45,6 +45,7 @@ import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
+import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
@@ -230,6 +231,15 @@ export interface SessionInitProbeResult {
    * identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
+  /**
+   * Pre-computed plate-balance signal — the resolved `Class` composition
+   * (`Novel` / `Heavy` / `Light` counts) of the in-flight work units the roster
+   * surfaces, with `[TBD]` / field-absent rows excluded from the tally. Present
+   * only on the no-active-WU arm when the in-flight slice is non-empty (omitted
+   * otherwise). Read by next-work discovery to render the one-line plate-balance
+   * advisory when a `Heavy` / `Novel` stream is already in flight.
+   */
+  inFlightComposition?: ClassComposition;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
