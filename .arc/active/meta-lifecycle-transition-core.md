@@ -11,7 +11,7 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** [none]
 
-- **Last Completed:** [none]
+- **Last Completed:** `create-spec` — `spec-lifecycle-transition-core.md` (detailed·RFC) + ADR-026 authored
 - **Next Task:** [none]
 - **Blockers:** [none]
 
