@@ -36,45 +36,36 @@ read via the existing `meta-reader.ts` parser, never re-parsed.
   resolver every cohort member builds on; tests cover the tier map, the planned-stub-vs-graduated phase split, the
   directory-wins lag tiebreak, and the unresolvable (unknown-tier / non-codified-State) cases.
 
-### `[ ]` **1.2 Lifecycle-complete index scan (`slug → { phase, location, cohort, path }`)**
+### `[x]` **1.2 Lifecycle-complete index scan (`slug → { phase, location, cohort, path }`)**
 
 - _Goal:_ One in-memory index, built once per invocation from a single scan across `backlog/provisional/`,
   `backlog/planned/`, `active/`, and `completed/`, mapping each work-unit slug to its phase, location, cohort,
   and path — the shared substrate both projections read.
-- _Approach:_ Injectable filesystem dependency (a narrow `*Fs` interface with `readdir` + `readFile`) per the
-  idiom in `src/lib/work-unit/completed-index.ts` (`CompletedIndexFs`) and `src/lib/session-init/cohort-doc.ts`
-  (`CohortDocFs`); production binds `node:fs/promises`. Field reads route through `parseMetaRecord` and
-  `metaCohortField` (`src/lib/active/`) — the meta schema is never re-parsed here.
-- **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **1.2.a Injectable-fs interface & module skeleton**
-        - Define the `*Fs` interface and an options object (`{ cwd, fs }`); resolve `.arc/` via the existing
-          `resolveArcRoot` helper (`src/lib/paths.ts`) at the command layer, passing `cwd` down.
-        - The interface needs directory detection for the recursive `planned/` / `provisional/` walk — a
-          `stat`/`isDirectory` method or a Dirent-returning `readdir`, mirroring the `readdirSync` + `statSync`
-          pair in `validate-cohort-consistency.ts`. `CompletedIndexFs`'s `readdir → string[]` alone is
-          insufficient.
+    - `[x]` **1.2.a Injectable-fs interface & module skeleton**
+        - `LifecycleIndexFs` exposes a Dirent-returning `readdir` (file-type detection for the recursive walk)
+          plus `readFile`; `BuildLifecycleIndexOptions` carries `{ cwd, fs }`. New module
+          `src/lib/work-unit/lifecycle-index.ts`, following the injectable-fs idiom of `completed-index.ts`.
 
-    - `[ ]` **1.2.b Per-tier directory walk**
-        - Build `test-first` (one behavior at a time):
-            - `active/` is a flat `meta-*.md` enumeration (non-recursive)
-            - `backlog/planned/` walks recursively (nested cohort dirs hold `meta-*.md` at depth)
-            - `backlog/provisional/` walks for the `provisional` location
-            - `completed/<quarter>/NN_<slug>/` resolves the archived slug, skipping `NNa_cohort-<slug>/`
-              closeout dirs (matching `completed-index.ts` archive semantics)
+    - `[x]` **1.2.b Per-tier directory walk**
+        - `active/` enumerated flat (non-recursive); `backlog/planned/`, `backlog/provisional/`, and `completed/`
+          walked recursively. Only `meta-*.md` files are collected, so `cohort-*.md` closeout dirs fall away by
+          filename match rather than archive-dir-prefix detection.
 
-    - `[ ]` **1.2.c Meta-field read into index entries**
-        - Build `test-first` (one behavior at a time):
-            - phase taken from `parseMetaRecord`'s `**State:**` value
-            - cohort taken from `metaCohortField` (`[none]` / absent → no cohort)
-            - slug derived from the `meta-<slug>.md` filename; `path` recorded for each entry
+    - `[x]` **1.2.c Meta-field read into index entries**
+        - Phase + location resolve through `resolveLifecyclePosition`; cohort via `metaCohortField` (`[none]` /
+          absent → `null`); slug and cwd-relative `path` from the `meta-<slug>.md` filename. The meta is parsed
+          once per file via `parseMetaRecord`.
 
-    - `[ ]` **1.2.d Build-once & resilience**
-        - Build `test-first` (one behavior at a time):
-            - exactly one scan per invocation builds the index; no persisted cache, no rebuild
-            - both projections read the same built index (one scan feeds membership and slug→state alike)
-            - a missing lifecycle directory yields an empty contribution (no throw)
-            - an unreadable or malformed meta is skipped, not fatal
+    - `[x]` **1.2.d Build-once & resilience**
+        - One scan per call returns a fresh `Map` (no persisted cache); a missing tier contributes nothing, and
+          an unreadable, malformed, or non-codified-`State` meta is skipped — never fatal.
+
+- _Outcome:_ `lifecycle-index.ts` builds the lifecycle-complete `slug → { phase, location, cohort, path }` index
+  in a single injectable-fs scan — composing Task 1.1's resolver for `(phase, location)` and reusing
+  `parseMetaRecord` / `metaCohortField`. The one built `Map` is the shared substrate both Phase 2/3 projections
+  read; the per-tier walk, field reads, and the missing-dir / unreadable / malformed skip paths are covered by
+  tests.
 
 ---
 
