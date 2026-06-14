@@ -32,6 +32,7 @@ describe("locationFromPath", () => {
     expect(locationFromPath(".arc/active/completed-feature/meta-completed-feature.md")).toBe(
       "active",
     );
+    expect(locationFromPath(".arc/active/completed/meta-completed.md")).toBe("active");
   });
 
   it("returns null for a path under no known tier", () => {

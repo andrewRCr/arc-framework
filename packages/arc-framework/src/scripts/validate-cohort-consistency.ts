@@ -69,17 +69,19 @@ export function classifyPath(path: string): PathClassification {
 /**
  * Build the live-tree cohort context from a flat artifact set spanning every
  * lifecycle state. `metas` carries every WU `meta-*.md` (across `active/`,
- * `backlog/planned/`, `completed/`) as path+content; `cohortDocPaths` lists every
- * backlog cohort doc. Pure over its inputs — the filesystem walk that gathers
- * them lives in {@link buildLiveCohortContextFromDisk} — so the mapping is
- * unit-testable without a real tree.
+ * `backlog/planned/`, `backlog/provisional/`, `completed/`) as path+content;
+ * `cohortDocPaths` lists every backlog cohort doc. Pure over its inputs — the
+ * filesystem walk that gathers them lives in
+ * {@link buildLiveCohortContextFromDisk} — so the mapping is unit-testable
+ * without a real tree.
  *
  * Membership is the work-unit lifecycle index's cohort projection
  * ({@link buildCohortMembership} over {@link buildLifecycleIndexFromMetas}) — the
  * one membership source, keying on each meta's `**Cohort:**` field value (the
- * position-independent source of truth), so an activated member in flat `active/`
- * or a shipped member under `completed/` still resolves to its cohort. A malformed
- * or unresolvable meta is skipped there, never thrown, preserving best-effort.
+ * position-independent source of truth), so an activated member in flat
+ * `active/`, a provisional member still in pre-commitment, or a shipped member
+ * under `completed/` still resolves to its cohort. A malformed or unresolvable
+ * meta is skipped there, never thrown, preserving best-effort.
  */
 export function buildLiveCohortContext(
   metas: BacklogFile[],
@@ -116,15 +118,17 @@ function* walkFiles(dir: string): Generator<string> {
 }
 
 /**
- * Walk the live `.arc/` tree under `cwd` — `active/`, `backlog/planned/`, and
- * `completed/` — collecting every WU meta and backlog cohort doc, then build the
- * {@link LiveCohortContext}. Read errors on individual files are skipped: the
- * context is a best-effort augmentation, never a hard gate.
+ * Walk the live `.arc/` tree under `cwd` — `active/`, `backlog/planned/`,
+ * `backlog/provisional/`, and `completed/` — collecting every WU meta and
+ * backlog cohort doc, then build the {@link LiveCohortContext}. Read errors on
+ * individual files are skipped: the context is a best-effort augmentation, never
+ * a hard gate.
  */
 export function buildLiveCohortContextFromDisk(cwd: string): LiveCohortContext {
   const roots = [
     join(cwd, ".arc", "active"),
     join(cwd, ".arc", "backlog", "planned"),
+    join(cwd, ".arc", "backlog", "provisional"),
     join(cwd, ".arc", "completed"),
   ];
   const metas: BacklogFile[] = [];

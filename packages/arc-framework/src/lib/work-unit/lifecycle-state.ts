@@ -67,11 +67,22 @@ export interface LifecyclePosition {
  *   lifecycle tier.
  */
 export function locationFromPath(path: string): Location | null {
-  if (path.includes("/backlog/provisional/")) return "provisional";
-  if (path.includes("/backlog/planned/")) return "planned";
-  if (path.includes("/completed/")) return "completed";
-  if (path.includes("/active/")) return "active";
-  return null;
+  const posix = path.replace(/\\/g, "/");
+  const match = /(?:^|\/)\.arc\/(active|completed|backlog\/(?:planned|provisional))(?:\/|$)/.exec(
+    posix,
+  );
+  switch (match?.[1]) {
+    case "active":
+      return "active";
+    case "completed":
+      return "completed";
+    case "backlog/planned":
+      return "planned";
+    case "backlog/provisional":
+      return "provisional";
+    default:
+      return null;
+  }
 }
 
 /** Inputs for {@link resolveLifecyclePosition}. */

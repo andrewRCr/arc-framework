@@ -55,7 +55,7 @@ resolver's derived-state projection, recapped here for the render buckets the tr
 | queued            | `location ∈ {provisional, planned}` ∧ `phase = Planning` |
 | on my plate       | `location = active` ∧ `phase ∈ {Planning, Active}`       |
 | awaiting review   | `phase = Integrating`                                    |
-| parked / suspended| `location ∈ backlog` ∧ `phase = Active`                  |
+| parked / suspended| `location = planned` ∧ `phase = Active`                  |
 | blocked (overlay) | unmet `Depends On` — orthogonal, layered over the cells  |
 | shipped           | `location = completed`                                   |
 
@@ -75,14 +75,16 @@ Headline pair: **`start` ⊥ `park`**.
 | phase                     | `activate`              | `Planning → Active`                                         | `deactivate`       |
 | phase                     | `deactivate`            | `Active → Planning` (undo activation; recoverable; narrow)  | `activate`         |
 | phase                     | `reopen`                | `Integrating → Active` (withdraw from review / PR rejected) | `integrate`        |
-| location (active↔backlog) | `park`                  | `active → backlog` (phase-polymorphic)                      | `resume` / `start` |
-| location (active↔backlog) | `resume`                | parked `backlog → active` (re-attach branch)                | `park`             |
-| location (within backlog) | `promote`               | `provisional → planned` (Class **must resolve**)            | `demote`           |
-| location (within backlog) | `demote`                | `planned → provisional` (Class sticky)                      | `promote`          |
-| forward                   | `stub`                  | idea → `backlog` (commitment + priority **required**)       | `abandon`          |
+| location (active↔planned) | `park`                  | `active → planned` (physical move to `backlog/planned/`)    | `resume` / `start` |
+| location (active↔planned) | `resume`                | parked `planned → active` (re-attach branch)                | `park`             |
+| location (backlog tier)   | `promote`               | `provisional → planned` (Class **must resolve**)            | `demote`           |
+| location (backlog tier)   | `demote`                | `planned → provisional` (Class sticky)                      | `promote`          |
+| forward                   | `stub`                  | idea → selected tier (commitment + priority required)       | `abandon`          |
 | composite                 | `decompose`             | `Planning → cohort` (matrix — `decompose-matrix` member)    | — (irreversible)   |
 | terminal                  | `integrate` + `archive` | `Active`/`Integrating → completed`                          | — (no-go)          |
 | destructive               | `abandon`               | any → deleted                                               | —                  |
+
+For `stub`, "selected tier" means logical `provisional` or `planned`; both are physically under `backlog/`.
 
 - **`arc start <name>` is a full lifecycle-state dispatch** (routing on the resolver's state): nonexistent →
   create-new; provisional/planned → begin (graduate via init Path A, resolving `Class`); **parked** → `resume`;

@@ -85,8 +85,9 @@ consumers, never the design itself:
 - **The code-level transition table** (legal edges between those states, inverses, guards). Owned by
   **`lifecycle-transition-core`** (_how you move between states_). Consumes the state-space model above.
 - **The slug→state resolver** — the derived projection of `(phase, location)`: `nonexistent` / `provisional` /
-  `planned` / `planning` / `active` / `integrating` / `parked` / `shipped` (`parked` ≡ `(Active, backlog)`,
-  derived not stored; `abandoned ≡ nonexistent`, no residue). Owned by `lifecycle-state-resolver`. Consumed by
+  `planned` / `planning` / `active` / `integrating` / `parked` / `shipped` (`parked` ≡
+  `(Active, planned)`, with physical storage under `backlog/planned/`; derived not stored;
+  `abandoned ≡ nonexistent`, no residue). Owned by `lifecycle-state-resolver`. Consumed by
   `lifecycle-transition-core` (`start` dispatch + worktree-occupancy guard) and `decompose-matrix`
   (cohort-membership reads).
 - **The 1↔1 relocation/sweep mutator bundle** (`relocate-artifacts` / `reconcile-branch` / `reconcile-worktree` /
