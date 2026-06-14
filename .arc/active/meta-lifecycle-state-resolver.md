@@ -11,12 +11,13 @@
 - **Design:** `spec-lifecycle-state-resolver.md`
 - **Task List:** `tasks-lifecycle-state-resolver.md`
 
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — `(phase, location)` state-space types & resolution rules (line ~17)
+- **Last Completed:** Task 2.2 — `occupied?` / `shipped?` predicates (Phase 2 complete)
+- **Next Task:** Task 3.1 — Lifecycle-complete cohort-membership resolver (line ~137)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — define the `(phase, location)` state-space types and location-first
-  resolution rules (`tasks-lifecycle-state-resolver.md`). Phase 1 lands the state-space model + the
-  build-once lifecycle-complete index; the two projections (slug→state, cohort-membership) build on it.
+- **Next Action:** Begin Phase 3, Task 3.1 — the lifecycle-complete cohort-membership resolver over the same
+  index (`tasks-lifecycle-state-resolver.md`), reconciling with the existing `buildLiveCohortContext` membership
+  walk in `validate-cohort-consistency.ts` so there is one membership source. Phase 3 also lands the
+  archival-trigger detection (Projection B).
 
 ---
