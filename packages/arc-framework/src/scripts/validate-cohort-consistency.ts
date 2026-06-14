@@ -23,9 +23,10 @@ import { fileURLToPath } from "node:url";
 import {
   checkCohortConsistency,
   cohortDocLocation,
-  metaCohortField,
   type BacklogFile,
 } from "../lib/active/cohort-consistency.js";
+import { buildLifecycleIndexFromMetas } from "../lib/work-unit/lifecycle-index.js";
+import { buildCohortMembership } from "../lib/work-unit/lifecycle-membership.js";
 import { runPathListScript } from "./cli-runner.js";
 
 /** Path classifications the validator dispatches on. */
@@ -70,28 +71,21 @@ export function classifyPath(path: string): PathClassification {
  * lifecycle state. `metas` carries every WU `meta-*.md` (across `active/`,
  * `backlog/planned/`, `completed/`) as path+content; `cohortDocPaths` lists every
  * backlog cohort doc. Pure over its inputs — the filesystem walk that gathers
- * them lives in {@link buildLiveCohortContextFromDisk} — so the membership
- * mapping is unit-testable without a real tree.
+ * them lives in {@link buildLiveCohortContextFromDisk} — so the mapping is
+ * unit-testable without a real tree.
  *
- * Membership keys on each meta's `**Cohort:**` field value (the position-
- * independent source of truth), so an activated member in flat `active/` or a
- * shipped member under `completed/` still resolves to its cohort.
+ * Membership is the work-unit lifecycle index's cohort projection
+ * ({@link buildCohortMembership} over {@link buildLifecycleIndexFromMetas}) — the
+ * one membership source, keying on each meta's `**Cohort:**` field value (the
+ * position-independent source of truth), so an activated member in flat `active/`
+ * or a shipped member under `completed/` still resolves to its cohort. A malformed
+ * or unresolvable meta is skipped there, never thrown, preserving best-effort.
  */
 export function buildLiveCohortContext(
   metas: BacklogFile[],
   cohortDocPaths: string[],
 ): LiveCohortContext {
-  const liveMembersByDir = new Map<string, Set<string>>();
-  for (const meta of metas) {
-    const filename = basename(meta.path.replace(/\\/g, "/"));
-    const slug = META_FILENAME_RE.exec(filename)?.[1];
-    if (slug === undefined) continue;
-    const cohort = metaCohortField(meta.content);
-    if (cohort === "") continue;
-    const set = liveMembersByDir.get(cohort) ?? new Set<string>();
-    set.add(slug);
-    liveMembersByDir.set(cohort, set);
-  }
+  const liveMembersByDir = buildCohortMembership(buildLifecycleIndexFromMetas(metas));
   const existingCohortDocDirs = new Set<string>();
   for (const path of cohortDocPaths) {
     const location = cohortDocLocation(path);

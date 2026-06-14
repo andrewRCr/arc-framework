@@ -157,20 +157,22 @@ only, since the `archive` fire-point is `lifecycle-transition-core`'s.
   under `completed/` (location-dominant; an empty membership set is false). Shares the `cohortMembers` filter with
   `resolveCohortMembers`.
 
-### `[ ]` **3.3 Reconcile with existing cohort-consistency membership**
+### `[x]` **3.3 Reconcile with existing cohort-consistency membership**
 
 - _Goal:_ One membership source of truth — `validate-cohort-consistency.ts`'s lifecycle-complete walk consumes
   the resolver index rather than duplicating the scan, so membership semantics cannot drift between the two.
-- _Approach:_ Migrate `buildLiveCohortContextFromDisk` onto the resolver. The seam to handle: the validator runs
-  as a synchronous pre-commit script (`readdirSync` / `readFileSync`) while the resolver is async injectable-fs —
-  reconcile via a sync-capable entry (or an awaited call at the script boundary), preserving the validator's
-  best-effort (never-hard-gate) behavior and pre-commit performance.
 
-    - `[ ]` **3.3.a Route the validator's membership through the resolver**
-        - Build `test-first` (one behavior at a time):
-            - the validator's existing cohort-consistency cases still pass against resolver-sourced membership
-            - the graduated-member (no false-orphan) behavior is preserved end-to-end
-            - an unreadable meta still degrades to best-effort, never a hard gate
+    - `[x]` **3.3.a Route the validator's membership through the resolver**
+        - `buildLiveCohortContext` now derives `liveMembersByDir` from `buildCohortMembership` over a new sync,
+          fs-free `buildLifecycleIndexFromMetas` (resolver) — the sync-capable entry that keeps the pre-commit
+          script synchronous and single-walk. Existing validator cases (drift, missing doc, orphan, graduated
+          member) and the end-to-end `npx tsx` run still pass; a malformed meta degrades to best-effort, where the
+          old field-only path could throw (`entryFromMeta`'s parse guard now drops it).
+
+- _Outcome:_ Membership is now the lifecycle index's cohort projection in both the resolver and the
+  cohort-consistency validator — one source, no parallel scan. Extracted a pure `entryFromMeta` core shared by the
+  async disk walk and the sync files-in builder. Index-sourced membership requires a resolvable `**State:**`, so
+  the integration fixtures gained that field (real metas always carry it).
 
 ---
 

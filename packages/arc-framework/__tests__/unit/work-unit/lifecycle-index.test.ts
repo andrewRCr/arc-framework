@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   buildLifecycleIndex,
+  buildLifecycleIndexFromMetas,
   type DirEntry,
   type LifecycleIndexFs,
 } from "../../../src/lib/work-unit/lifecycle-index.js";
@@ -218,5 +219,30 @@ describe("buildLifecycleIndex — build-once & resilience", () => {
 
     expect(first).not.toBe(second);
     expect([...first.keys()]).toEqual([...second.keys()]);
+  });
+});
+
+describe("buildLifecycleIndexFromMetas — files-in (sync, fs-free)", () => {
+  it("indexes in-memory metas across tiers, resolving location from each path", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-alpha.md", content: meta("Active", "c") },
+      { path: ".arc/backlog/planned/c/meta-beta.md", content: meta("Planning", "c") },
+      { path: ".arc/completed/2026-q2/01_gamma/meta-gamma.md", content: meta("Shipped", "c") },
+    ]);
+
+    expect(index.get("alpha")).toMatchObject({ location: "active", cohort: "c" });
+    expect(index.get("beta")?.location).toBe("planned");
+    expect(index.get("gamma")?.location).toBe("completed");
+    expect(index.size).toBe(3);
+  });
+
+  it("skips a malformed or unresolvable meta rather than throwing", () => {
+    const index = buildLifecycleIndexFromMetas([
+      { path: ".arc/active/meta-good.md", content: meta("Active") },
+      { path: ".arc/active/meta-bad.md", content: "# Metadata: bad\n\n| **State** |\n|---|\n" },
+      { path: ".arc/active/meta-legacy.md", content: meta("Paused (2026-04-12)") },
+    ]);
+
+    expect([...index.keys()]).toEqual(["good"]);
   });
 });

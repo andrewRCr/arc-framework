@@ -214,6 +214,19 @@ describe("buildLiveCohortContext", () => {
     expect(ctx.liveMembersByDir.has("")).toBe(false);
     expect([...ctx.existingCohortDocDirs].sort()).toEqual(["core", "core/sub"]);
   });
+
+  it("excludes a malformed (unparseable) meta from membership without throwing — best-effort", () => {
+    const metas = [
+      { path: ".arc/active/meta-good.md", content: metaFor("good", "core") },
+      { path: ".arc/active/meta-bad.md", content: "# Metadata: bad\n\n| **State** |\n|---|\n" },
+    ];
+
+    let ctx!: LiveCohortContext;
+    expect(() => {
+      ctx = buildLiveCohortContext(metas, []);
+    }).not.toThrow();
+    expect(ctx.liveMembersByDir.get("core")).toEqual(new Set(["good"]));
+  });
 });
 
 describe("validateFiles — lifecycle-complete context", () => {

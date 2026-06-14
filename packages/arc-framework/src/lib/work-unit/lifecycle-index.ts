@@ -36,6 +36,7 @@ import { metaCohortField } from "../active/cohort-consistency.js";
 import { parseMetaRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,
+  type LifecyclePosition,
   type Location,
   type Phase,
 } from "./lifecycle-state.js";
@@ -124,10 +125,46 @@ async function* walkMetaFiles(
 }
 
 /**
- * Read one meta file into an index entry, or skip it. Resolution failure at any
- * step — unreadable file, malformed core-block table, an unresolvable
- * `(phase, location)`, or a non-`meta-<slug>.md` name — drops the entry rather
- * than throwing, so a single bad meta never aborts the scan.
+ * Build one index entry from a meta's cwd-relative path and content, or `null`
+ * to skip it. The pure parse core shared by the disk walk ({@link readEntry}) and
+ * the files-in builder ({@link buildLifecycleIndexFromMetas}): a
+ * non-`meta-<slug>.md` name, a malformed core-block table, or an unresolvable
+ * `(phase, location)` all drop the entry rather than throwing, so one bad meta
+ * never aborts the caller.
+ *
+ * @param path - Meta path, cwd-relative and forward-slash normalized — supplies
+ *   the slug (its basename) and the location axis (its containing tier).
+ * @param content - The meta file's raw text.
+ * @returns The resolved entry, or `null` when it cannot be placed.
+ */
+export function entryFromMeta(path: string, content: string): LifecycleIndexEntry | null {
+  const slug = META_FILENAME_RE.exec(basename(path))?.[1];
+  if (slug === undefined) return null;
+
+  let position: LifecyclePosition | null;
+  let cohortRaw: string;
+  try {
+    const record = parseMetaRecord(content);
+    position = resolveLifecyclePosition({ path, state: record.State });
+    cohortRaw = metaCohortField(content);
+  } catch {
+    return null;
+  }
+  if (position === null) return null;
+
+  return {
+    slug,
+    phase: position.phase,
+    location: position.location,
+    cohort: cohortRaw === "" ? null : cohortRaw,
+    path,
+  };
+}
+
+/**
+ * Read one meta file into an index entry, or skip it. An unreadable file drops
+ * the entry (the missing-file resilience guarantee); every other resolution
+ * failure is handled by {@link entryFromMeta}.
  */
 async function readEntry(
   filePath: string,
@@ -140,31 +177,8 @@ async function readEntry(
   } catch {
     return null;
   }
-
-  const slugMatch = META_FILENAME_RE.exec(basename(filePath));
-  const slug = slugMatch?.[1];
-  if (slug === undefined) return null;
-
   const relPath = relative(cwd, filePath).split(sep).join("/");
-
-  let position: ReturnType<typeof resolveLifecyclePosition>;
-  let cohortRaw: string;
-  try {
-    const record = parseMetaRecord(content);
-    position = resolveLifecyclePosition({ path: relPath, state: record.State });
-    cohortRaw = metaCohortField(content);
-  } catch {
-    return null;
-  }
-  if (position === null) return null;
-
-  return {
-    slug,
-    phase: position.phase,
-    location: position.location,
-    cohort: cohortRaw === "" ? null : cohortRaw,
-    path: relPath,
-  };
+  return entryFromMeta(relPath, content);
 }
 
 /**
@@ -192,6 +206,29 @@ export async function buildLifecycleIndex(
       const entry = await readEntry(filePath, cwd, fs);
       if (entry !== null) index.set(entry.slug, entry);
     }
+  }
+  return index;
+}
+
+/**
+ * Build the lifecycle-complete index from an in-memory set of already-read meta
+ * files — the synchronous, filesystem-free counterpart to
+ * {@link buildLifecycleIndex}. Each `path` is cwd-relative (forward-slash) and
+ * supplies the location axis; malformed or unresolvable metas are skipped, never
+ * fatal. This lets a synchronous caller (e.g. the cohort-consistency validator,
+ * which gathers its own staged-tree files) source membership from the same index
+ * projection without duplicating the membership semantics or going async.
+ *
+ * @param metas - Already-read metas as `{ path, content }`, paths cwd-relative.
+ * @returns The slug→entry index for every resolvable meta in the set.
+ */
+export function buildLifecycleIndexFromMetas(
+  metas: ReadonlyArray<{ path: string; content: string }>,
+): LifecycleIndex {
+  const index: LifecycleIndex = new Map();
+  for (const { path, content } of metas) {
+    const entry = entryFromMeta(path, content);
+    if (entry !== null) index.set(entry.slug, entry);
   }
   return index;
 }
