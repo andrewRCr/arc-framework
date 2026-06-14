@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import type { LifecycleIndex, LifecycleIndexEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import {
   buildCohortMembership,
+  isArchivalTriggered,
   resolveCohortMembers,
 } from "../../../src/lib/work-unit/lifecycle-membership.js";
 import type { Location, Phase } from "../../../src/lib/work-unit/lifecycle-state.js";
@@ -102,5 +103,53 @@ describe("buildCohortMembership — full cohort→members grouping", () => {
 
     expect(first).not.toBe(second);
     expect(first.get("alpha")).toEqual(second.get("alpha"));
+  });
+});
+
+describe("isArchivalTriggered — last-member-shipped detection", () => {
+  it("is true when every member resolves under completed/", () => {
+    const index = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "completed", "c", "Shipped"),
+    );
+
+    expect(isArchivalTriggered(index, "c")).toBe(true);
+  });
+
+  it("is false when any member remains in planned/ or active/", () => {
+    const lingerPlanned = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "planned", "c"),
+    );
+    const lingerActive = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "active", "c", "Active"),
+    );
+
+    expect(isArchivalTriggered(lingerPlanned, "c")).toBe(false);
+    expect(isArchivalTriggered(lingerActive, "c")).toBe(false);
+  });
+
+  it("is false on an empty membership set — no last member to trip", () => {
+    // Only a standalone WU exists; cohort "c" has no members.
+    const index = indexOf(entry("solo", "completed", null, "Shipped"));
+
+    expect(isArchivalTriggered(index, "c")).toBe(false);
+  });
+
+  it("trips only as the final member crosses into completed/", () => {
+    const beforeLastShips = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "completed", "c", "Shipped"),
+      entry("tail", "active", "c", "Active"),
+    );
+    expect(isArchivalTriggered(beforeLastShips, "c")).toBe(false);
+
+    const afterLastShips = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "completed", "c", "Shipped"),
+      entry("tail", "completed", "c", "Shipped"),
+    );
+    expect(isArchivalTriggered(afterLastShips, "c")).toBe(true);
   });
 });

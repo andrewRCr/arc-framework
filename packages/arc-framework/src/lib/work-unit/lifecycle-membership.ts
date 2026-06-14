@@ -18,7 +18,21 @@
  * @module
  */
 
-import type { LifecycleIndex } from "./lifecycle-index.js";
+import type { LifecycleIndex, LifecycleIndexEntry } from "./lifecycle-index.js";
+
+/**
+ * The index entries whose `**Cohort:**` field resolves to `cohort` — the
+ * single-cohort membership filter both single-cohort projections build on.
+ * Keys on the field value, so a member is matched regardless of the directory
+ * it is filed under.
+ */
+function cohortMembers(index: LifecycleIndex, cohort: string): LifecycleIndexEntry[] {
+  const members: LifecycleIndexEntry[] = [];
+  for (const entry of index.values()) {
+    if (entry.cohort === cohort) members.push(entry);
+  }
+  return members;
+}
 
 /**
  * Group the index by `**Cohort:**` field value — cohort path → member slugs.
@@ -50,5 +64,25 @@ export function buildCohortMembership(index: LifecycleIndex): Map<string, Set<st
  * @returns The member slugs, or an empty set when the cohort has no members.
  */
 export function resolveCohortMembers(index: LifecycleIndex, cohort: string): Set<string> {
-  return buildCohortMembership(index).get(cohort) ?? new Set<string>();
+  return new Set(cohortMembers(index, cohort).map((entry) => entry.slug));
+}
+
+/**
+ * Whether a cohort's archival trigger has fired — its **last member has
+ * shipped**, i.e. the cohort has at least one member and **no** member remains
+ * outside `completed/`. Location-dominant, like the rest of the resolution path:
+ * a member physically under `completed/` counts as shipped even if its meta
+ * `**State:**` still trails. An empty membership set is `false` — no last member
+ * to trip.
+ *
+ * Detection only: the `archive` fire-point that sweeps the cohort doc to
+ * `completed/` on this signal lives in `lifecycle-transition-core`.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param cohort - The cohort path to test.
+ * @returns Whether every member of a non-empty cohort has shipped.
+ */
+export function isArchivalTriggered(index: LifecycleIndex, cohort: string): boolean {
+  const members = cohortMembers(index, cohort);
+  return members.length > 0 && members.every((entry) => entry.location === "completed");
 }

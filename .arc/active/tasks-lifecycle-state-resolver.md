@@ -149,16 +149,13 @@ only, since the `archive` fire-point is `lifecycle-transition-core`'s.
   `buildCohortMembership` emits the exact `Map<cohort, Set<slug>>` shape (`liveMembersByDir`) that Task 3.3 routes
   `validate-cohort-consistency.ts` onto — one membership source, no second tree scan.
 
-### `[ ]` **3.2 Archival-trigger detection predicate**
+### `[x]` **3.2 Archival-trigger detection predicate**
 
 - _Goal:_ A predicate reports "last member has shipped" iff no cohort member remains outside `completed/` —
   detection only; the sweeping `archive` fire-point lives in `lifecycle-transition-core`.
-
-    - Build `test-first` (one behavior at a time):
-        - true when every member resolves under `completed/`
-        - false when any member remains in `planned/` / `active/`
-        - false on an empty membership set (no members → no "last member" to trip)
-        - last-member-detection fixture: trips only as the final member crosses into `completed/`
+- _Outcome:_ `isArchivalTriggered` in `lifecycle-membership.ts` — true iff a non-empty cohort has every member
+  under `completed/` (location-dominant; an empty membership set is false). Shares the `cohortMembers` filter with
+  `resolveCohortMembers`.
 
 ### `[ ]` **3.3 Reconcile with existing cohort-consistency membership**
 
