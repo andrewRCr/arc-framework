@@ -35,8 +35,10 @@ branch + PR (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale` / `ma
 inbox → errand (`drain-inbox`); errand → WU (`init-work-unit` Promote Errand path).
 
 **Cohort-doc lifecycle (adjacent).** `cohort-<name>.md` minted at `decompose` (or incrementally on the predicted
-arm), lives in `backlog/planned/<cohort>/` as members graduate/ship around it, closeout-swept to `completed/` at
-last-member ship. Not a WU; membership derived from each member's `Cohort` field.
+arm), lives in `backlog/planned/<cohort>/` as members graduate/ship around it, swept to `completed/` at
+last-member ship by `lifecycle-transition-core`'s `archive` fire-point on the resolver's `isArchivalTriggered`
+signal (the resolver detects; transition-core sweeps). Not a WU; membership derived from each member's `Cohort`
+field.
 
 ## North star — deterministic mechanics in the CLI
 
