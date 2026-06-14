@@ -333,22 +333,43 @@ confirm. The CLI resolves + recommends; it never decides to start/defer.
 
 Ours: the gate + the adopt-draft entry edge. Theirs: dispatch, fragment-cut, errand-classification, readiness.
 
-### Protection-mode shaping — the model holds under partial, but the branch axis collapses
+### Protection-mode shaping — mode lives in the ship layer, not the transition mechanics
 
-The design above is written in the **full-protection frame** (plan/ + feat/ branches, PRs, the pointer-record). But
-partial protection is the **default**, and under it the **branch encoding largely collapses**, reshaping most of the
-verb set — a first-class design axis, not a cross-mode audit cell:
+The design above is written in the **full-protection frame** (plan/ + feat/ branches, PRs, the pointer-record).
+Partial protection is the **default** and the **floor** — ARC defines exactly two modes (`full`, `partial`); there
+is no `none`. Critically, *partial still branches planned work* (`strategy-work-organization` § Mode Summary:
+"Planned Work: Branches required") and still holds "main carries no in-flight WU artifacts." A regime that put
+tracked-WU work directly on base would be a `none` mode ARC does not define — out of scope. The projection layer
+recognizes `{full, partial}` and **degrades any unknown `branch.protection` value to partial** (the safe floor —
+never silently drop to no-branches; the config value is an unconstrained string today, so a stray value must fail
+safe). Breadcrumb: tighten config validation to reject unknown values (coordination seam, not this WU's scope).
 
-- Planning runs on **base, no `plan/` branch**; `stub` is a **direct base commit** (no PR/branch); `park`/`resume`
-  become **artifact-only relocations** (`reconcile-branch` no-ops).
-- **park@Active under partial dissolves the pointer-record** differently: the in-progress code is already on base
-  (committed directly), not on a branch — no branch to preserve, no main-vs-branch divergence; parking relocates only
-  the planning artifacts. Cleaner in one sense (no divergence), with its own question (incomplete code resting on
-  base).
-- So three-encoding consistency is effectively **two-encoding** under partial (no branch axis for many transitions).
+The verb-set × {full, partial} sweep resolves into **two orthogonal layers, and only the second is mode-shaped**:
 
-The relocation mutator bundle must be **protection-mode-shaped** (`reconcile-branch`/`reconcile-worktree` no-op or
-differ under partial). A deliberate verb-set × {full, partial} pass is required before formalization-ready.
+- **Mutator bundle — the *what* of a transition** (`relocate-artifacts`, `reconcile-branch`, `reconcile-worktree`,
+  `set-phase`): **mode-invariant for every tracked-WU transition.** A tracked WU owns its single branch
+  (`plan/<name>` → `<type>/<name>`) in *both* modes, so `park`@Planning deletes the `plan/` branch, `park`@Active
+  preserves the `<type>/` branch and writes the pointer-record, `activate` rotates the prefix, `resume` re-attaches —
+  identically under partial. The bundle never branches on protection mode.
+- **Ship mechanism — how a transition's resulting commit lands on the protected base**: mode-shaped but **uniform**,
+  not per-transition. Full ships every change through branch + PR (backlog/meta grooming via the auto-merge lane,
+  design/code via the reviewed lane); partial ships backlog grooming (`stub` / `promote` / `demote`) and errands as
+  **direct base commits**, while tracked feature work and integration still branch + PR. Owned by the commit/release
+  ceremony + auto-merge-lane classification — a transition declares *what lands on main*; the ship layer decides
+  *how*, parameterized by mode.
+
+So partial relaxes exactly **two surfaces**, neither inside the mutator bundle:
+
+1. **The pre-WU drafting boundary.** Pre-formalization drafting may sit on base under partial (no branch or meta
+   until the work formalizes into a tracked WU); full requires `plan/<name>` from inception. The planning-entry
+   write-context gate owns this — its route-1 "committable drafting context" is mode-parameterized (**base** under
+   partial, **`plan/<name>`** under full). Not a mutator change.
+2. **The ship mechanism** for non-WU grooming (above).
+
+Consequence: three-encoding consistency stays **three-encoding for tracked WUs in both modes** — the branch axis does
+not collapse for them; only the pre-WU and non-WU paths lack a WU branch, and they never had one. The park@Active
+"incomplete code resting on base" tension does not arise: Active code lives on its `<type>/` branch in both modes;
+the on-base picture describes only a loose pre-WU draft, which is not a tracked WU and does not park.
 
 ### The `Integrating` phase's edges
 
@@ -365,19 +386,76 @@ We treat `integrate`/`archive` *internals* as no-go, but the phase has edges the
 
 These compose *toward*; this WU never waits *on* them.
 
-- **`composable-workflows` — the workflow-shell twin.** Its resolve-then-load / thin-orchestration thesis is the
-  other half of the north star: as transition mechanics move to the CLI, the remaining workflows are exactly the
-  judgment + orchestration shells it wants. **This WU's code-level transition primitives *are* the procedure
-  library `composable-workflows` orchestrates.** Coordinate the boundary; it also owns the cross-file anchor
-  convention the lifecycle rewrite will lean on.
+**The alignment posture (the spine).** This WU is the **first real CLI-orchestration WU**, and the ROADMAP shows it
+sitting *upstream* of nearly all the substrate it would naturally consume: it is the only In-Flight WU;
+`cli-substrate-adoption` and `roadmap-tooling` are Ready-but-unstarted; `operational-state-docs` and
+`schema-introspection-layer` are Blocked on CSA. So the question is **not** "what to pull in early" (almost nothing
+is ready, and pulling it in would import the WOR→CSA→OSD chain as a hard dependency this WU's P1 urgency can't
+afford). It is four postures, applied per neighbor:
+
+- **Design *toward*** (no hard dep): `arc-backend` / ADR-022 record+projection; storage-agnostic record shapes.
+- **Hand-roll now, migrate later**: executor mechanics CSA will own (raw `git` + a minimal non-TTY guard now →
+  execa / zod / neverthrow + the shared prompting substrate later).
+- **Build v1 / re-home**: the slug→state resolver (this WU is first-need *and* lands first → it builds v1; OSD
+  generalizes).
+- **Decline** (other layers' concerns, captured so they aren't re-opened): frontmatter `type`, `index.md`/`log.md`,
+  schema-introspection.
+
+Per neighbor:
+
+- **`cli-substrate-adoption` — downstream substrate, not an upstream blocker.** CSA's own draft defers
+  "state-machine codification for WU lifecycle … until WOR + trio + AWL ship, to avoid codifying during churn" —
+  and **WOR + the worktree/parallelism foundation have shipped, so that condition is now *satisfied***: proceeding
+  now is consistent with CSA's guidance, not against it. Posture: hand-roll the thin executor's git + non-TTY
+  mechanics now; CSA later migrates them to execa / zod / neverthrow + the shared prompting substrate. The `stub`
+  required-fields **policy** stays ours (authored in `strategy-work-organization`); the non-TTY prompting
+  **mechanic** migrates to CSA's substrate. CSA's eventual zod `State`-enum + meta schema are forward-compatible
+  with the two-axis logical model (no collision).
+- **`operational-state-docs` — the slug→state resolver flips consume→produce; dep-edge discharge defers.** The
+  draft routes `arc start`'s dispatch "via OSD's slug→state resolver," but OSD is two hops downstream (Blocked on
+  CSA) while this WU lands first and needs it. **This WU builds the minimal resolver** (resolve by *location*
+  first — `completed/`/`active/`/`backlog/` presence — meta `State` second), and **OSD later generalizes it** (adds
+  `parked-in-backlog`, dep-edge integration, managed-doc context). Record the flip on both sides. By contrast,
+  **dep-edge lifecycle discharge stays OSD's** — it is not load-bearing for the foot-gun fixes, so `activate` notes
+  the seam ("fires dep-edge discharge when OSD lands") and does *not* hand-roll it.
+- **`roadmap-tooling` — this WU produces predicates + the Parked state; RT renders.** Boundary is already right (we
+  emit derived-state predicates and keep them queryable; RT consumes). Interim caveat: `park` introduces a **Parked
+  render bucket RT doesn't render yet**, so until RT ships, `reconcile-roadmap` rides the **hand-render discipline**
+  (per WORKING-MEMORY) and that discipline must cover the Parked bucket. RT's "now/next/later is a render *mode*,
+  not a curated doc" decision means our predicates feed its modes — see the goal-relative thread below.
+- **`schema-introspection-layer` — nothing to do; pure publication.** Post-CSA `arc schema` surface; our `State`
+  enum + transition table simply *become* introspectable when it ships. Load-bearing distinction it sharpens: our
+  table is a **behavior contract** (who may transition where), a different concern from SIL's **I/O contracts** —
+  so the transition table gets its **own home and does not wait on the (still-unresolved) schema-home convention**.
+- **`composable-workflows` — the workflow-shell twin; the markdown-tier counterpart of our code-tier bundle.** Its
+  resolve-then-load / thin-orchestration thesis is the other half of the north star: as transition mechanics move
+  to the CLI, the remaining workflows are exactly the judgment + orchestration shells it wants. **Our mutator
+  bundle is the code-tier worked example of a `public + fixed` shared procedure** (non-overridable *because*
+  three-encoding consistency depends on identical behavior everywhere); the ceremonies' judgment halves are the
+  markdown-tier private orchestration fragments it will own. A method-model refinement this surfaced (give the
+  method model orthogonal *visibility* + *override-policy* axes; fragments = private methods; model fragments as
+  method-shaped *pull*, not extension-shaped *push*) is **CW's design, not ours** — routed to its inbound buffer,
+  with the bundle cited as the worked example. It also owns the cross-file anchor convention the rewrite leans on.
 - **`arc-backend` — the deepest constraint (forward-compat, non-negotiable).** It makes `meta`/`tasks`/`status` a
   materialized *projection of records* (ADR-022, Architecture B) in a separate git backing store. The state machine
   models WU state as a **logical record** (phase, location as fields), with the physical encoding (directory,
-  branch) a projection — which is exactly the B1 + logical-location + pointer-record direction above. Self-check
-  against `strategy-storage-evolution.md`.
-- **`idiomatic-alignment` — names the verbs.** Its register applies: align with dominant developer idioms unless the
-  deviation is a genuine value-prop. The verb-naming pass (above) is an explicit idiom-alignment pass; the final
-  register check coordinates with it.
+  branch) a projection — exactly the B1 + logical-location + pointer-record direction above (pointer → record,
+  `Branch` → code-ref field; zero reshape). **Design guard (the blast-radius warning, made a constraint):** the
+  slug→state resolver *and* the worktree-occupancy guard resolve state from **location + meta fields, never from
+  `git branch` / `git log` inference** (the named anti-pattern). Note arc-backend moves *PM state* out of tree, not
+  *code* — so park@Active "preserve the `feat/` branch as the durable shelf for in-progress code" stays valid; only
+  the pointer/meta must be storage-agnostic. Self-check record shapes against `strategy-storage-evolution.md`.
+- **`idiomatic-alignment` — names the verbs; `type` declined for this WU.** Its register applies to the verb-naming
+  pass (align with dominant idioms unless deviation is a genuine value-prop); the final register check coordinates
+  with it. Its **frontmatter `type`** proposal has real merit as a *corpus-wide* machine-legible classification, but
+  it is the **wrong layer for this WU**: we relocate a *known* artifact set keyed by **prefix+slug** and never query
+  the corpus by type, and the machine-legibility we need is the logical `(phase, location)` record we already model.
+  Declined here; owned by IA. (The authoritative record-world machine-classification is OSD/ADR-022's write-path
+  subtype + `structural_contract`, not a frontmatter `type` field.) **`index.md`/`log.md` declined too**: an index
+  is redundant (prefix+slug glob / probe `companions` already enumerate the artifact set the bundle moves); a per-WU
+  log cuts against ADR-022's "no separate status/completion doc — that content is `meta-*` fields," and transition
+  auditing (if ever wanted) rides the existing audit-log substrate, not per-WU markdown. IA already rejected the
+  rename.
 - **Goal-relative work selection — consumes the derived-state predicates.** A future "direction layer" / next-work
   recommender (captured this session, `WU_Target: TBD`; it reopens `roadmap-tooling`'s "Direction's home" lean)
   reads the parked / in-flight / on-my-plate predicates this WU produces, plus the dependency graph. The obligation
@@ -414,10 +492,6 @@ The load-bearing forks are resolved above (CLI-migration depth → B1; phase ⊥
 predicates; the verb set; the 1↔1 relocation primitive; park@Active pointer-record; the `stub` contract; the
 planning-entry write-context gate). What remains:
 
-- **Protection-mode pass (first-class, substantive — next).** A deliberate verb-set × {full, partial} pass: partial
-  is the default mode and collapses the branch axis (see § Protection-mode shaping); the model holds, but the mutator
-  bundle and several transitions (`stub`, `park`/`resume`, park@Active) need their partial shaping specified. The
-  last substantive design before formalization-ready.
 - **Totality items to spec** (named in the model above; mechanics to settle): the `Integrating → Active` reopen
   inverse and the Integrating→park/abandon routing; `abandon`'s per-cell mechanics incl. the post-merge reversal
   (PR-revert) corners; `start`'s full eight-state dispatch + the worktree-occupancy guard; execution-locus
@@ -486,8 +560,12 @@ verb-rename cascade (`graduate → promote`, `abandon` split, `start` dispatch) 
 ### Dependencies
 
 - **Hard:** none. Everything it builds on has shipped (`arc start`, `decompose-work-unit`'s `park-exit` block).
-- **Coordination (forward-compat):** `composable-workflows`, `arc-backend` / `strategy-storage-evolution.md`,
-  `idiomatic-alignment`, and the goal-relative work-selection capture.
+- **Coordination (forward-compat):** `cli-substrate-adoption` (downstream substrate — hand-roll now, migrate
+  later), `operational-state-docs` (slug→state resolver: build v1, OSD generalizes; dep-edge discharge defers to
+  OSD), `roadmap-tooling` (we produce predicates + Parked state, RT renders), `schema-introspection-layer` (pure
+  publication; nothing to do), `composable-workflows`, `arc-backend` / `strategy-storage-evolution.md`,
+  `idiomatic-alignment`, and the goal-relative work-selection capture. See § Forward-compat threads for the per-
+  neighbor posture.
 - **Downstream:** de-risks `finalize-parallelism` and should sequence before it — propose adding
   `lifecycle-state-machine` to that WU's `Depends On` (an edit to its meta, flagged not yet made).
 
@@ -497,8 +575,9 @@ verb-rename cascade (`graduate → promote`, `abandon` split, `start` dispatch) 
 
 - **Readiness state:** maturing — scope is known and the load-bearing forks are settled (CLI-migration depth →
   B1; phase ⊥ location → two logical axes + derived predicates; the full inverse-paired verb set; the 1↔1
-  relocation mutator bundle; park@Active pointer-record; the `stub` required-fields contract). The remaining open
-  items are detail-design, deferred-to-`create-spec`, or wait-and-see — not fundamentals.
+  relocation mutator bundle; park@Active pointer-record; the `stub` required-fields contract; protection-mode
+  shaping = ship-layer + pre-WU boundary, mutator bundle invariant). The remaining open items are detail-design,
+  deferred-to-`create-spec`, or wait-and-see — not fundamentals.
 - **Resolved (this session):** CLI-migration depth = **B1** (logical code table + thin executor) + full-cluster
   scope + logical location; the exclusions principle (2D cut; "excluded" = executor-not-migrated, model total);
   `deactivate` is a semantic+totality seam (stays narrow); **shelve = `park` made phase-polymorphic** with the
@@ -517,8 +596,29 @@ verb-rename cascade (`graduate → promote`, `abandon` split, `start` dispatch) 
   reversal corners, `start` full eight-state dispatch + worktree-occupancy guard, execution-locus relocation, and
   the bundle's ROADMAP / dep-edge / user-state side-effects; `single-owner-wu-model` assessed → coordination seam,
   not absorbed (owner-count-agnostic by construction).
-- **Open:** the protection-mode (full/partial) pass (next, substantive); the totality items to spec (Integrating
-  reopen, abandon per-cell, `start` dispatch, occupancy guard, locus relocation); `graduation-cleanup` boundary
-  (wait-and-see); final transition-table representation + guard placement; ship shape (→ `create-spec`).
-- **Next:** take the **protection-mode pass** — the last substantive thread — then run the completeness audit and
-  consolidate toward formalization-ready.
+- **Resolved (protection-mode pass):** protection mode is a property of the **ship layer**, not the transition
+  mechanics — the relocation mutator bundle is **mode-invariant for every tracked-WU transition** (a tracked WU owns
+  its single branch in both modes; "main carries no in-flight WU artifacts" holds in both). Partial relaxes exactly
+  two surfaces: the **pre-WU drafting boundary** (base under partial, `plan/<name>` under full — owned by the
+  planning-entry gate's route-1) and the **ship mechanism** for non-WU grooming (`stub`/`promote`/`demote`/errands →
+  direct base commits vs branch + PR). Partial is the **floor** (`{full, partial}` only; unknown values degrade to
+  partial; config-validation tightening filed as a breadcrumb). Corrected the prior draft's branch-axis-collapse
+  framing: park@Planning still deletes the `plan/` branch and park@Active still preserves its branch + pointer-record
+  under partial; the "incomplete code on base" tension evaporates.
+- **Resolved (forward-compat alignment pass):** confirmed the **alignment posture** — this WU sits *upstream* of its
+  substrate (only In-Flight WU; CSA/RT Ready-unstarted; OSD/SIL Blocked on CSA), so: design *toward* arc-backend/
+  ADR-022 (record+projection, storage-agnostic, **no `git branch`/`log` state inference** in the resolver or
+  occupancy guard); **hand-roll now, migrate later** the executor mechanics CSA owns (raw git + minimal non-TTY
+  guard → execa/zod/neverthrow + shared prompting substrate); **build v1 of the slug→state resolver** that OSD later
+  generalizes (consume→produce flip; dep-edge discharge stays OSD's — `activate` notes the seam, doesn't hand-roll);
+  **decline** frontmatter `type` (wrong layer — IA owns), `index.md`/`log.md` (redundant / against ADR-022), and
+  schema-introspection (pure publication). CSA's "defer the state machine until WOR settles" condition is now
+  *satisfied* (WOR + worktree foundation shipped) — proceeding is consistent with CSA's guidance. RT interim caveat:
+  the Parked render bucket rides the hand-render discipline until RT ships. Surfaced a method-model refinement
+  (visibility + override-policy axes; fragments = private methods; pull-not-push) — **routed to `composable-workflows`'
+  inbound buffer** (its design, not ours); our mutator bundle is the code-tier `public+fixed` worked example.
+- **Open:** the totality items to spec (Integrating reopen, abandon per-cell, `start` dispatch, occupancy guard,
+  locus relocation); `graduation-cleanup` boundary (wait-and-see); final transition-table representation + guard
+  placement; ship shape (→ `create-spec`).
+- **Next:** the substantive design is settled; run the completeness audit (the user has further input to bring in
+  first), then consolidate toward formalization-ready.
