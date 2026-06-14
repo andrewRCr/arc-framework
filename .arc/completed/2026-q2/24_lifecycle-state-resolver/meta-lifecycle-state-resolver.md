@@ -2,7 +2,7 @@
 
 | **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
 |---------------|-----------|---------------------------------|-----------|--------------|
-| `Integrating` | `andrew`  | `feat/lifecycle-state-resolver` | `Heavy`   | `P1`         |
+| `Shipped`     | `andrew`  | `feat/lifecycle-state-resolver` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
