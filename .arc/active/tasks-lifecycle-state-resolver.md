@@ -224,24 +224,30 @@ phase against the current status surface — either satisfies the queryable cons
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Goal:_ The work unit is validated against full quality gates and spec success criteria before integration.
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck:all`,
+  `npm run build`, and `npm test` passed; the full test run reported 2569 standard tests passed with 1 skipped,
+  plus 70 E2E tests passed.
+- _Success criteria:_ 9 criteria met; none superseded or open.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Resolver returns the correct `(phase, location)` pair and derived enum for every state — including
+- `[x]` Resolver returns the correct `(phase, location)` pair and derived enum for every state — including
   parked@Active, park@Planning→`planned`, `nonexistent` (abandoned and never-existed), and the
   directory-trails-meta lag tiebreak — with no `git branch` / `git log` call on the resolution path.
-- `[ ]` Membership resolver distinguishes a graduated member from a removed one over a mixed-state cohort (the
+- `[x]` Membership resolver distinguishes a graduated member from a removed one over a mixed-state cohort (the
   false-orphan regression fixture passes).
-- `[ ]` Archival-trigger predicate reports "last member" iff no member remains outside `completed/`.
-- `[ ]` Dep-state read answers "is `X` landed?" via slug→state, with no state-blind edge read.
-- `[ ]` Exactly one index is built per invocation and both projections read it; no persisted cache.
-- `[ ]` Module is pure `lib` with injectable dependencies; exposed predicate set limited to `occupied?` /
+- `[x]` Archival-trigger predicate reports "last member" iff no member remains outside `completed/`.
+- `[x]` Dep-state read answers "is `X` landed?" via slug→state, with no state-blind edge read.
+- `[x]` Exactly one index is built per invocation and both projections read it; no persisted cache.
+- `[x]` Module is pure `lib` with injectable dependencies; exposed predicate set limited to `occupied?` /
   `shipped?` (both pure-local — no network read).
-- `[ ]` Resolved predicates are reachable from a probe / status query surface, not render-only.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` Resolved predicates are reachable from a probe / status query surface, not render-only.
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

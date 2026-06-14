@@ -15,7 +15,6 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~220)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5, Task 5.1 — load and follow `verify-work-unit.md` for the work-unit
-  verification pass (the final phase; the task description is a pointer to that workflow).
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
