@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
 |------------|-----------|---------------------------------|-----------|--------------|
-| `Planning` | `andrew`  | `plan/lifecycle-state-resolver` | `Heavy`   | `P1`         |
+| `Active`   | `andrew`  | `feat/lifecycle-state-resolver` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
@@ -15,10 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `activate-work-unit.md` — task list generated at `high` depth (5 phases: state-space model
-  & index → Projection A slug→state → Projection B membership & archival-trigger → consumer reads & queryable
-  surface → verification). Grounding audit settled `parked = (Active, planned)`, `shipped?` as merged-fact-only
-  (integration-time readiness deferred to `lifecycle-transition-core`), and migration of the cohort-consistency
-  validator onto the resolver. Activation can defer until implementation begins.
+- **Next Action:** Begin Task 1.1 — define the `(phase, location)` state-space types and location-first
+  resolution rules (`tasks-lifecycle-state-resolver.md`). Phase 1 lands the state-space model + the
+  build-once lifecycle-complete index; the two projections (slug→state, cohort-membership) build on it.
 
 ---
