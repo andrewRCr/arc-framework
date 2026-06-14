@@ -3,6 +3,8 @@ import { describe, it, expect } from "vitest";
 import type { LifecycleIndex, LifecycleIndexEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import {
   deriveState,
+  isOccupied,
+  isShipped,
   resolveSlugPosition,
   resolveSlugState,
 } from "../../../src/lib/work-unit/lifecycle-resolver.js";
@@ -15,6 +17,17 @@ function entry(slug: string, phase: Phase, location: Location): LifecycleIndexEn
 function indexOf(...entries: LifecycleIndexEntry[]): LifecycleIndex {
   return new Map(entries.map((e) => [e.slug, e]));
 }
+
+/** One entry per derived state — slug named for the state it resolves to. */
+const everyState = indexOf(
+  entry("provisional", "Planning", "provisional"),
+  entry("planned", "Planning", "planned"),
+  entry("planning", "Planning", "active"),
+  entry("active", "Active", "active"),
+  entry("integrating", "Integrating", "active"),
+  entry("parked", "Active", "planned"),
+  entry("shipped", "Shipped", "completed"),
+);
 
 describe("resolveSlugPosition", () => {
   it("returns the (phase, location) pair for a slug in the index", () => {
@@ -74,5 +87,33 @@ describe("resolveSlugState", () => {
     expect(resolveSlugState(index, "gamma")).toBe("integrating");
     expect(resolveSlugState(index, "delta")).toBe("shipped");
     expect(resolveSlugState(index, "missing")).toBe("nonexistent");
+  });
+});
+
+describe("isOccupied", () => {
+  it("is true for the on-a-branch states and false for every other derived state", () => {
+    expect(isOccupied(everyState, "planning")).toBe(true);
+    expect(isOccupied(everyState, "active")).toBe(true);
+    expect(isOccupied(everyState, "integrating")).toBe(true);
+
+    expect(isOccupied(everyState, "provisional")).toBe(false);
+    expect(isOccupied(everyState, "planned")).toBe(false);
+    expect(isOccupied(everyState, "parked")).toBe(false);
+    expect(isOccupied(everyState, "shipped")).toBe(false);
+    expect(isOccupied(everyState, "missing")).toBe(false); // nonexistent
+  });
+});
+
+describe("isShipped", () => {
+  it("is true only for shipped — integrating (unmerged) reads false", () => {
+    expect(isShipped(everyState, "shipped")).toBe(true);
+
+    expect(isShipped(everyState, "integrating")).toBe(false);
+    expect(isShipped(everyState, "active")).toBe(false);
+    expect(isShipped(everyState, "planning")).toBe(false);
+    expect(isShipped(everyState, "parked")).toBe(false);
+    expect(isShipped(everyState, "planned")).toBe(false);
+    expect(isShipped(everyState, "provisional")).toBe(false);
+    expect(isShipped(everyState, "missing")).toBe(false); // nonexistent
   });
 });

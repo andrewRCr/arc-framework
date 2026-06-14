@@ -101,26 +101,22 @@ one-per-state.
   of the residual lag combos. The pair is the arc-backend-safe primitive; the enum is the single switch value
   `start` dispatch and the status surfaces consume.
 
-### `[ ]` **2.2 Curated predicate sugar (`occupied?` / `shipped?`)**
+### `[x]` **2.2 Curated predicate sugar (`occupied?` / `shipped?`)**
 
 - _Goal:_ Two booleans read directly off the pair for the guard call-sites that prefer a boolean to a switch —
   nothing more.
-- _Rationale:_ A mechanical `isPlanned?` / `isParked?` set would duplicate the enum; materialize is not a
-  predicate here (a remote-vs-local delta needs a network read this pure-local resolver does not do). Keeping the
-  set pure-local is itself the no-git-inference guard holding at the surface.
 
-    - `[ ]` **2.2.a `occupied?` — slug live on a branch / worktree**
-        - Build `test-first` (one behavior at a time):
-            - true for `planning` / `active` / `integrating`; false for every other derived state
-            - the worktree-occupancy guard call-site reads it as a boolean
+    - `[x]` **2.2.a `occupied?` — slug live on a branch / worktree**
+        - `isOccupied(index, slug)` is true for `planning` / `active` / `integrating`, false for every other
+          derived state — the worktree-occupancy guard's boolean.
 
-    - `[ ]` **2.2.b `shipped?` — landed for dep-discharge & completion checks**
-        - _Note:_ `shipped?` is a fact (merged / in `completed/`), not a forecast — the `integrating` state
-          (PR open, unmerged) reads false. "Far enough along to start a dependent" is a readiness overlay a
-          consumer composes from the enum (`shipped` ∨ `integrating`), not this predicate.
-        - Build `test-first` (one behavior at a time):
-            - true for `shipped`; false for every other derived state (including `integrating`)
-            - no git / network call on the predicate path
+    - `[x]` **2.2.b `shipped?` — landed for dep-discharge & completion checks**
+        - `isShipped(index, slug)` is true only for `shipped`; `integrating` (PR open, unmerged) reads false —
+          a fact, not a forecast. Pure-local: no git / network on the predicate path.
+
+- _Outcome:_ `isOccupied` / `isShipped` added to `lifecycle-resolver.ts` — the curated, pure-local predicate
+  pair over the derived state (no mechanical per-state set, no materialize predicate). Both compose
+  `resolveSlugState`, so the no-git-inference guard holds at the surface.
 
 ---
 

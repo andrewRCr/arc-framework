@@ -115,3 +115,34 @@ export function resolveSlugPosition(
 export function resolveSlugState(index: LifecycleIndex, slug: string): LifecycleState {
   return deriveState(resolveSlugPosition(index, slug));
 }
+
+/** The derived states for which a slug is live on a branch / worktree. */
+const OCCUPYING: ReadonlySet<LifecycleState> = new Set(["planning", "active", "integrating"]);
+
+/**
+ * Whether a slug is **occupied** — live on a branch / worktree (`planning` /
+ * `active` / `integrating`). The worktree-occupancy guard's boolean. Pure-local:
+ * reads the pre-built index, no git or network on the path.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param slug - The work-unit slug.
+ * @returns Whether the slug occupies a branch / worktree.
+ */
+export function isOccupied(index: LifecycleIndex, slug: string): boolean {
+  return OCCUPYING.has(resolveSlugState(index, slug));
+}
+
+/**
+ * Whether a slug is **shipped** — merged and archived (`completed/`). A fact,
+ * not a forecast: an `integrating` slug (PR open, unmerged) reads `false`. The
+ * dep-edge discharge read and completion checks consume it; "far enough along to
+ * start a dependent" (`shipped ∨ integrating`) is a readiness overlay a consumer
+ * composes from the enum, not this predicate. Pure-local — no git or network.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param slug - The work-unit slug.
+ * @returns Whether the slug has shipped.
+ */
+export function isShipped(index: LifecycleIndex, slug: string): boolean {
+  return resolveSlugState(index, slug) === "shipped";
+}
