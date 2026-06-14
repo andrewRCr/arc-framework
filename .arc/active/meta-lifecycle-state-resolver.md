@@ -12,7 +12,7 @@
 - **Task List:** `tasks-lifecycle-state-resolver.md`
 
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — `(phase, location)` state-space types & resolution rules (line ~17)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Task 1.1 — define the `(phase, location)` state-space types and location-first
