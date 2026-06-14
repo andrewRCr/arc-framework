@@ -176,6 +176,13 @@ _Consumes:_ `lifecycle-state-resolver`'s `(phase, location)` state-space model (
 moves over) and the slug→state projection (for `start` dispatch + the worktree-occupancy guard + the dep-state
 read at `activate`).
 
+_Coordination — dep-edge discharge readiness:_ the resolver exposes `shipped?` as a _merged fact only_
+(`integrating` reads not-landed), deliberately leaving the "may a dependent start at its dependency's
+_integration_ rather than its merge?" question — the team-review-latency case, where blocking a dependent on
+days of review is undesirable — to this member's discharge write. Reckon with it explicitly when building
+dep-edge discharge at `activate`: compose the readiness policy over the resolver's enum (`shipped` ∨
+`integrating`), rather than redefining `shipped?`.
+
 ### `decompose-matrix`
 
 _Exposes:_ the full decompose matrix (4 transform shapes × 3 parent positions), the generalized conservation
