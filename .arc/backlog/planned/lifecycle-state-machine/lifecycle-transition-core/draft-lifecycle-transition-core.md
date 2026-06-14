@@ -9,8 +9,9 @@
   pointer-record, the `stub` required-fields contract, and the planning-entry write-context gate. Take the first
   deliberate step toward the north star (deterministic mechanics → CLI).
 
-> Shared context — the as-is lifecycle, the north star, the cross-member contracts (this member *owns* the model,
-> the transition table, and the mutator bundle) — lives in `cohort-lifecycle-state-machine.md`.
+> Shared context — the as-is lifecycle, the north star, the cross-member contracts (this member owns the
+> transition table and the mutator bundle, and *consumes* the `(phase, location)` state-space model owned by
+> `lifecycle-state-resolver`) — lives in `cohort-lifecycle-state-machine.md`.
 
 ---
 
@@ -30,9 +31,10 @@
 
 ## Resolved model
 
-### Two logical axes: phase ⊥ location
+### Two logical axes: phase ⊥ location (consumed from `lifecycle-state-resolver`)
 
-ARC smears two orthogonal axes onto `Planning`. Split them:
+The transition table reasons over the `(phase, location)` state-space model **owned by `lifecycle-state-resolver`**
+(§ Shared contracts) — recapped here as the substrate the verbs move across:
 
 - **Lifecycle phase** — `Planning` / `Active` / `Integrating` / `Shipped`. This *is* the meta `State` field.
 - **Commitment location** — `provisional` / `planned` / `active` / `completed`.
@@ -40,11 +42,13 @@ ARC smears two orthogonal axes onto `Planning`. Split them:
 A `planned/` stub and a WU on a `plan/` branch are *both* phase `Planning`; phase + location together say where it
 lives. **Resolution: location is a logical value** (a field, or computed-but-named), **not raw
 directory-derivation** — a table reasoning about logical `(phase, location)` is arc-backend-safe (the physical
-encoding becomes a projection).
+encoding becomes a projection). The resolver owns *resolving* a state; this member owns the *legal edges* between
+states.
 
 ### Derived-state vocabulary — engagement is computed, not a third axis
 
-The rendered/filtered "states" are a derived lattice over `(phase, location)` + the dependency graph:
+The rendered/filtered "states" are a derived lattice over `(phase, location)` + the dependency graph — the
+resolver's derived-state projection, recapped here for the render buckets the transitions populate:
 
 | Rendered state    | Derivation                                               |
 |-------------------|----------------------------------------------------------|
@@ -116,8 +120,9 @@ Strictly 1↔1; a bundle of phase-aware encoding-mutators fired **together** so 
 `relocate-artifacts` + conditioned branch/worktree mutators; phase-movers (`activate` / `deactivate` / `reopen` /
 `integrate` flip) call `reconcile-branch` (when the prefix rotates) + `set-phase`. **Transition side-effects the
 bundle fires** (mechanics the neighbors own): `reconcile-roadmap` / `reconcile-status-user` on every location
-move; dep-edge discharge at `activate` (→ resolver member); the user-workspace satellite (`arc user open/close`)
-across init/start/activate/integrate/decompose/park/resume/abandon.
+move; dep-edge discharge at `activate` — the discharge *write* is owned here, reading landed-edge state from
+`lifecycle-state-resolver`'s dep-state query; the user-workspace satellite (`arc user open/close`) across
+init/start/activate/integrate/decompose/park/resume/abandon.
 
 ### Shelve — `park` made phase-polymorphic + the pointer-record
 
@@ -186,8 +191,9 @@ targets relocation/sweep-mechanics-that-are-seams. `archive`'s sweep + `{NN}`/`{
 
 ## Dependencies
 
-- **Cohort-internal:** `Depends On: lifecycle-state-resolver` (`start` dispatch + the worktree-occupancy guard
-  call the resolver's enum).
+- **Cohort-internal:** `Depends On: lifecycle-state-resolver` — the transition table moves over its
+  `(phase, location)` state-space model; `start` dispatch + the worktree-occupancy guard call its slug→state
+  projection; dep-edge discharge reads its dep-state query.
 - **Forward-compat:** arc-backend (logical-record design target; no git-inference); CSA (hand-roll executor git +
   non-TTY now, migrate later); roadmap-tooling (emits the Parked bucket + predicates, RT renders);
   composable-workflows (the mutator bundle is its code-tier worked example); graduation-cleanup (names the
@@ -197,9 +203,10 @@ targets relocation/sweep-mechanics-that-are-seams. `archive`'s sweep + `{NN}`/`{
 
 ## Continuity
 
-- **Readiness:** formalization-ready. The load-bearing forks are resolved (B1; two logical axes; the full
-  inverse-paired verb set; the 1↔1 mutator bundle; park@Active pointer-record; the `stub` contract; the
-  planning-entry gate; protection-mode = ship-layer property). Remaining items are create-spec per-cell detail.
+- **Readiness:** formalization-ready. The load-bearing forks are resolved (B1; the full inverse-paired verb set;
+  the 1↔1 mutator bundle; park@Active pointer-record; the `stub` contract; the planning-entry gate; protection-mode
+  = ship-layer property). The `(phase, location)` state-space model it moves over is owned by
+  `lifecycle-state-resolver` (consumed here). Remaining items are create-spec per-cell detail.
 - **Next:** activate via `init-work-unit` Path A once `lifecycle-state-resolver` ships → `create-spec`.
 
 ---
