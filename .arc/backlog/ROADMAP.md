@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2d2727bd`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `df48626b`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -20,7 +20,7 @@ _No work units currently in flight._
 |------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
-| lifecycle-state-resolver     | P1       | andrew | —          | lifecycle-state-machine     |
+| lifecycle-transition-core    | P1       | andrew | —          | lifecycle-state-machine     |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
@@ -68,30 +68,24 @@ _No work units currently in flight._
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on               | Cohort                     |
-|-------------------------------|----------|--------|--------------------------|----------------------------|
-| lifecycle-transition-core     | P1       | andrew | lifecycle-state-resolver | lifecycle-state-machine    |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption   | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization     | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization     | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption   | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh        | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                | Cohort                     |
+|-------------------------------|----------|--------|---------------------------|----------------------------|
+| decompose-matrix              | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
+| errand-lattice                | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption    | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization      | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization      | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption    | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh         | release-readiness          |
 
 ### Depth 2
-
-| Work unit          | Priority | Owner  | Depends on                | Cohort                  |
-|--------------------|----------|--------|---------------------------|-------------------------|
-| decompose-matrix   | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine |
-| errand-lattice     | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine |
-| wu5-public-release | P3       | andrew | docs-content-sweep        | release-readiness       |
-
-### Depth 3
 
 | Work unit          | Priority | Owner  | Depends on                                                                            | Cohort                  |
 |--------------------|----------|--------|---------------------------------------------------------------------------------------|-------------------------|
 | lifecycle-closeout | P1       | andrew | lifecycle-state-resolver, lifecycle-transition-core, decompose-matrix, errand-lattice | lifecycle-state-machine |
+| wu5-public-release | P3       | andrew | docs-content-sweep                                                                    | release-readiness       |
 
-### Depth 4
+### Depth 3
 
 | Work unit            | Priority | Owner  | Depends on                                                                                            | Cohort            |
 |----------------------|----------|--------|-------------------------------------------------------------------------------------------------------|-------------------|

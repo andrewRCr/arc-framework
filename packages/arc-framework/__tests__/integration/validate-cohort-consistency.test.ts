@@ -56,8 +56,16 @@ async function writeFixture(base: string, relPath: string, content: string): Pro
   return full;
 }
 
-function metaFixture(cohort: string): string {
-  return [`# Metadata: widget`, "", `- **Cohort:** ${cohort}`, "", "---", ""].join("\n");
+function metaFixture(cohort: string, state = "Planning"): string {
+  return [
+    `# Metadata: widget`,
+    "",
+    `- **State:** ${state}`,
+    `- **Cohort:** ${cohort}`,
+    "",
+    "---",
+    "",
+  ].join("\n");
 }
 
 function cohortDocFixture(
@@ -181,7 +189,7 @@ describe("validate-cohort-consistency.ts (pre-commit CHECK 18)", () => {
         cohortDocFixture("core", { members: ["widget", "shipped"] }),
       );
       // `shipped` graduated to active/ — present on disk, absent from the staged set.
-      await writeFixture(dir, ".arc/active/meta-shipped.md", metaFixture("`core`"));
+      await writeFixture(dir, ".arc/active/meta-shipped.md", metaFixture("`core`", "Active"));
       const result = await runValidator([meta, doc]);
       expect(result.code).toBe(0);
       expect(result.stderr).toBe("");

@@ -74,12 +74,21 @@ Each `Depends On` edge is a **live gate discharged at the depended-on member's a
 Cross-member design no single member owns in isolation — each is a _pointer_ to its owning member's spec plus the
 consumers, never the design itself:
 
-- **The logical `(phase, location)` model + derived-state predicates + the code-level transition table.**
-  Authoritative definition owned by `lifecycle-transition-core`. Consumed by every member — it is the substrate
-  the resolver projects from, the matrix transforms over, and the closeout documents.
-- **The slug→state resolver enum** (`provisional` / `planning` / `active` / `parked-in-backlog` / `integrating` /
-  `shipped` / `nonexistent`; `abandoned ≡ nonexistent`, no residue). Owned by `lifecycle-state-resolver`.
-  Consumed by `lifecycle-transition-core` (`start` dispatch + worktree-occupancy guard) and `decompose-matrix`
+- **The `(phase, location)` state-space model + derived-state predicates.** The two orthogonal axes (phase = the
+  meta `State` field; location = `provisional` / `planned` / `active` / `completed` as a logical value) and the
+  derived-state projection over them. Authoritative definition owned by **`lifecycle-state-resolver`** (the
+  read-side foundation: _what the states are and how you resolve one_). Consumed by every member — it is the
+  substrate the resolver's slug→state projection exposes, the matrix transforms over, the closeout documents, and
+  the transition table moves between. _Planning maturity_ (draft / spec / tasks presence) is **not** a state value
+  — it is a derived readiness overlay (owned by `planning-pipeline-readiness` / `roadmap-tooling`), layered over
+  `planned` like `blocked`; the "did work begin?" signal is the phase axis (`parked` vs `planned`).
+- **The code-level transition table** (legal edges between those states, inverses, guards). Owned by
+  **`lifecycle-transition-core`** (_how you move between states_). Consumes the state-space model above.
+- **The slug→state resolver** — the derived projection of `(phase, location)`: `nonexistent` / `provisional` /
+  `planned` / `planning` / `active` / `integrating` / `parked` / `shipped` (`parked` ≡
+  `(Active, planned)`, with physical storage under `backlog/planned/`; derived not stored;
+  `abandoned ≡ nonexistent`, no residue). Owned by `lifecycle-state-resolver`. Consumed by
+  `lifecycle-transition-core` (`start` dispatch + worktree-occupancy guard) and `decompose-matrix`
   (cohort-membership reads).
 - **The 1↔1 relocation/sweep mutator bundle** (`relocate-artifacts` / `reconcile-branch` / `reconcile-worktree` /
   `set-phase`, fired together so the three-encoding invariant holds by construction). Owned by
@@ -150,19 +159,30 @@ cross-cutting sweep + audit (global consistency).
 
 ### `lifecycle-state-resolver`
 
-_Exposes:_ the slug→state resolver (the state enum) and the lifecycle-complete cohort-membership resolver +
-archival-trigger loop — the read-side state-resolution infra every other member queries.
+_Exposes:_ the `(phase, location)` state-space model + derived-state predicates (the shared read-side contract),
+the slug→state resolver (its derived projection), and the lifecycle-complete cohort-membership resolver +
+archival-trigger loop — the read-side state-resolution infra every other member queries. Also the dep-state
+_read_ half of dep-edge discharge (the _write_ half is transition-core's, at `activate`).
 
 _Consumes:_ nothing from siblings (foundational). Designs _toward_ OSD's eventual record substrate.
 
 ### `lifecycle-transition-core`
 
-_Exposes:_ the logical `(phase, location)` model + derived predicates, the code transition table, the thin
-executor, the 1↔1 mutator bundle (with teardown legs), the guards, `start` dispatch, the park@Active
-pointer-record, the `archive` sweep, the `stub` required-fields contract, and the planning-entry write-context
-gate — the state machine itself.
+_Exposes:_ the code transition table (legal edges over the state-space model), the thin executor, the 1↔1 mutator
+bundle (with teardown legs), the guards, `start` dispatch, the park@Active pointer-record, the `archive` sweep,
+the `stub` required-fields contract, the planning-entry write-context gate, and the dep-edge discharge _write_ at
+`activate` — the state machine itself.
 
-_Consumes:_ `lifecycle-state-resolver`'s enum (for `start` dispatch + the worktree-occupancy guard).
+_Consumes:_ `lifecycle-state-resolver`'s `(phase, location)` state-space model (the substrate its transition table
+moves over) and the slug→state projection (for `start` dispatch + the worktree-occupancy guard + the dep-state
+read at `activate`).
+
+_Coordination — dep-edge discharge readiness:_ the resolver exposes `shipped?` as a _merged fact only_
+(`integrating` reads not-landed), deliberately leaving the "may a dependent start at its dependency's
+_integration_ rather than its merge?" question — the team-review-latency case, where blocking a dependent on
+days of review is undesirable — to this member's discharge write. Reckon with it explicitly when building
+dep-edge discharge at `activate`: compose the readiness policy over the resolver's enum (`shipped` ∨
+`integrating`), rather than redefining `shipped?`.
 
 ### `decompose-matrix`
 

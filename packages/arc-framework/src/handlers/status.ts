@@ -91,12 +91,16 @@ import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { runStatusUserView } from "../lib/status/user-view.js";
 import { loadReadyMineSlice } from "../lib/status/ready-mine-source.js";
+import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
   user?: boolean;
+  /** `--lifecycle <slug>`: resolve one work unit's lifecycle state as a slug→state query. */
+  lifecycle?: string;
   /** `--local`: render the user view from local refs without a network read. */
   local?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
@@ -177,10 +181,15 @@ async function resolveNudgeState(
 }
 
 export async function handleStatus(opts: StatusCliOptions): Promise<void> {
-  const modeCount = [opts.sessionInit, opts.sessionHandoff, opts.user].filter(Boolean).length;
+  const modeCount = [
+    opts.sessionInit,
+    opts.sessionHandoff,
+    opts.user,
+    opts.lifecycle,
+  ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: --session-init, --session-handoff, and --user are mutually exclusive.\n",
+      "Error: --session-init, --session-handoff, --user, and --lifecycle are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -189,6 +198,29 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
   const json = Boolean(opts.json);
+
+  if (opts.lifecycle !== undefined) {
+    // Slug→state query: a subject-keyed read over the lifecycle-complete index,
+    // independent of session identity / settings. The index walk binds real I/O;
+    // the resolution stays a pure lib projection.
+    const index = await buildLifecycleIndex({
+      cwd,
+      fs: {
+        readdir: (path) => readdir(path, { withFileTypes: true }),
+        readFile: (path) => readFile(path, "utf8"),
+      },
+    });
+    const query = resolveSlugQuery(index, opts.lifecycle);
+    if (json) {
+      process.stdout.write(`${JSON.stringify(query)}\n`);
+      return;
+    }
+    p.intro("arc status");
+    p.note(formatSlugStateQuery(query), "Lifecycle state");
+    p.outro("Done.");
+    return;
+  }
+
   const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
   // Both the inbox-state and reminder-sweep probes read the same personal
@@ -479,6 +511,26 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   p.intro("arc status");
   p.note(buildStatusSummary(result), "Status");
   p.outro("Done.");
+}
+
+/** Compact human render of a slug→state query for the non-`--json` path. */
+function formatSlugStateQuery(query: SlugStateQuery): string {
+  const position =
+    query.position === null
+      ? "—"
+      : `${query.position.phase} · ${query.position.location}`;
+  const lines = [
+    `${query.slug} → ${query.state}`,
+    `position: ${position}`,
+    `occupied: ${query.occupied} · shipped: ${query.shipped}`,
+  ];
+  if (query.dependsOn.length > 0) {
+    lines.push("depends on:");
+    for (const dep of query.dependsOn) {
+      lines.push(`  - ${dep.slug} — ${dep.landed ? "landed" : "not landed"}`);
+    }
+  }
+  return lines.join("\n");
 }
 
 const META_FILE_RE = /^meta-(.+)\.md$/;

@@ -13,12 +13,17 @@
  * either as an orphan.
  */
 
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, it, expect } from "vitest";
 
 import {
   classifyPath,
   validateFiles,
   buildLiveCohortContext,
+  buildLiveCohortContextFromDisk,
   deriveScanRoot,
   type LiveCohortContext,
 } from "../../../src/scripts/validate-cohort-consistency.js";
@@ -194,6 +199,10 @@ describe("buildLiveCohortContext", () => {
     const metas = [
       { path: ".arc/active/meta-active-one.md", content: metaFor("active-one", "core") },
       {
+        path: ".arc/backlog/provisional/core/provisional-one/meta-provisional-one.md",
+        content: metaFor("provisional-one", "core"),
+      },
+      {
         path: ".arc/completed/2026-q2/01_shipped/meta-shipped-one.md",
         content: metaFor("shipped-one", "core"),
       },
@@ -208,11 +217,45 @@ describe("buildLiveCohortContext", () => {
       ".arc/backlog/planned/core/sub/cohort-sub.md",
     ]);
     expect(ctx.liveMembersByDir.get("core")).toEqual(
-      new Set(["active-one", "shipped-one", "planned-one"]),
+      new Set(["active-one", "provisional-one", "shipped-one", "planned-one"]),
     );
     // A standalone WU ([none]) contributes no membership.
     expect(ctx.liveMembersByDir.has("")).toBe(false);
     expect([...ctx.existingCohortDocDirs].sort()).toEqual(["core", "core/sub"]);
+  });
+
+  it("excludes a malformed (unparseable) meta from membership without throwing — best-effort", () => {
+    const metas = [
+      { path: ".arc/active/meta-good.md", content: metaFor("good", "core") },
+      { path: ".arc/active/meta-bad.md", content: "# Metadata: bad\n\n| **State** |\n|---|\n" },
+    ];
+
+    let ctx!: LiveCohortContext;
+    expect(() => {
+      ctx = buildLiveCohortContext(metas, []);
+    }).not.toThrow();
+    expect(ctx.liveMembersByDir.get("core")).toEqual(new Set(["good"]));
+  });
+});
+
+describe("buildLiveCohortContextFromDisk", () => {
+  it("walks backlog/provisional as part of lifecycle-complete membership", () => {
+    const root = mkdtempSync(join(tmpdir(), "arc-cohort-live-"));
+    try {
+      const planned = join(root, ".arc", "backlog", "planned", "core");
+      const provisional = join(root, ".arc", "backlog", "provisional", "core", "drafty");
+      mkdirSync(planned, { recursive: true });
+      mkdirSync(provisional, { recursive: true });
+      writeFileSync(join(planned, "cohort-core.md"), cohortDoc("core"));
+      writeFileSync(join(provisional, "meta-drafty.md"), metaFor("drafty", "core"));
+
+      const ctx = buildLiveCohortContextFromDisk(root);
+
+      expect(ctx.liveMembersByDir.get("core")).toEqual(new Set(["drafty"]));
+      expect(ctx.existingCohortDocDirs).toEqual(new Set(["core"]));
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
 
