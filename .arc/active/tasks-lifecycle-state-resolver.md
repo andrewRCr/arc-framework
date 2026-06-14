@@ -185,18 +185,17 @@ _Design decisions:_ The dep-state read is a slug→state query that falls out of
 shape (a dedicated probe vs. extending an existing status command) is an implementation detail settled in this
 phase against the current status surface — either satisfies the queryable constraint.
 
-### `[ ]` **4.1 Dep-state read (read half of dep-edge discharge)**
+### `[x]` **4.1 Dep-state read (read half of dep-edge discharge)**
 
 - _Goal:_ "Is dependency `X` landed?" is answered via the `shipped?` slug→state query over a work unit's
   `**Depends On:**` edges, closing the state-blind dependency-edge read hazard.
-- _Note:_ Read half only, and `shipped` means merged — an in-flight (`integrating`) dependency reads not-landed.
-  The write half (rewriting a landed edge inside `activate`'s mutator sequence) and any "may I start at the
-  dependency's integration?" readiness policy are `lifecycle-transition-core`'s, out of scope here.
 
-    - Build `test-first` (one behavior at a time):
-        - an edge to a shipped dependency reads landed
-        - an edge to an `integrating` (unmerged) dependency reads not-landed
-        - multiple edges resolve independently
+- _Outcome:_ `resolveDepStates(index, slug)` in `lifecycle-deps.ts` returns per-edge `{ slug, landed }` over a
+  WU's `**Depends On:**` edges, with `landed` composed from `isShipped` (an `integrating` dependency reads
+  not-landed). Edges are sourced from the index: `LifecycleIndexEntry` gained a `dependsOn: string[]` field
+  parsed once in the single scan (same projection pattern as `cohort`), so the read is a pure slug-keyed
+  projection a status surface can query without re-reading metas. Read half only — the write (edge rewrite in
+  `activate`) and the integration-vs-merge readiness policy stay `lifecycle-transition-core`'s.
 
 ### `[ ]` **4.2 Queryable probe / status surface exposure**
 

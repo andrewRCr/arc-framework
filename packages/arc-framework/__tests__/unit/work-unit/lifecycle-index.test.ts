@@ -57,10 +57,14 @@ function buildMemFs(
   };
 }
 
-/** Minimal valid meta — H1 plus the flat-bullet `State` and optional `Cohort`. */
-function meta(state: string, cohort?: string): string {
+/** Minimal valid meta — H1 plus the flat-bullet `State` and optional `Cohort` / `Depends On`. */
+function meta(state: string, cohort?: string, dependsOn?: string[]): string {
   const lines = ["# Metadata: x", "", `- **State:** ${state}`];
   if (cohort !== undefined) lines.push(`- **Cohort:** ${cohort}`);
+  if (dependsOn !== undefined) {
+    const value = dependsOn.length === 0 ? "[none]" : dependsOn.map((s) => `\`${s}\``).join(", ");
+    lines.push(`- **Depends On:** ${value}`);
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -130,8 +134,23 @@ describe("buildLifecycleIndex — meta-field reads", () => {
       phase: "Integrating",
       location: "active",
       cohort: "lifecycle-state-machine",
+      dependsOn: [],
       path: ".arc/active/meta-alpha.md",
     });
+  });
+
+  it("parses the Depends On edges into the entry, empty when absent or [none]", async () => {
+    const fs = buildMemFs({
+      [A("active/meta-alpha.md")]: meta("Active", undefined, ["dep-a", "dep-b"]),
+      [A("backlog/planned/meta-beta.md")]: meta("Planning", undefined, []),
+      [A("backlog/planned/meta-gamma.md")]: meta("Planning"),
+    });
+
+    const index = await buildLifecycleIndex({ cwd, fs });
+
+    expect(index.get("alpha")?.dependsOn).toEqual(["dep-a", "dep-b"]);
+    expect(index.get("beta")?.dependsOn).toEqual([]);
+    expect(index.get("gamma")?.dependsOn).toEqual([]);
   });
 
   it("records a null cohort when the field is absent or the [none] sentinel", async () => {

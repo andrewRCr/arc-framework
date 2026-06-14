@@ -11,7 +11,7 @@ import {
 import type { Location, Phase } from "../../../src/lib/work-unit/lifecycle-state.js";
 
 function entry(slug: string, phase: Phase, location: Location): LifecycleIndexEntry {
-  return { slug, phase, location, cohort: null, path: `.arc/${location}/meta-${slug}.md` };
+  return { slug, phase, location, cohort: null, dependsOn: [], path: `.arc/${location}/meta-${slug}.md` };
 }
 
 function indexOf(...entries: LifecycleIndexEntry[]): LifecycleIndex {

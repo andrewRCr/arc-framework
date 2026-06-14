@@ -6,14 +6,15 @@
  * in-memory map keyed by slug:
  *
  * ```text
- * slug → { phase, location, cohort, path }
+ * slug → { phase, location, cohort, dependsOn, path }
  * ```
  *
  * Phase + location come from {@link resolveLifecyclePosition} (location from the
  * containing tier, phase from the meta `**State:**` field — no git inference);
- * cohort comes from {@link metaCohortField}; the slug is the `meta-<slug>.md`
- * filename. The meta schema is parsed once per file through the shared
- * {@link parseMetaRecord} reader and never re-parsed here.
+ * cohort comes from {@link metaCohortField}; the `**Depends On:**` edges from
+ * {@link parseIdentifierList}; the slug is the `meta-<slug>.md` filename. The
+ * meta schema is parsed once per file through the shared {@link parseMetaRecord}
+ * reader and never re-parsed here.
  *
  * The index is built fresh per invocation — in-memory, process-scoped, no
  * persisted cache. The CLI process is short-lived and the meta set is small
@@ -33,7 +34,7 @@
 import { basename, join, relative, sep } from "node:path";
 
 import { metaCohortField } from "../active/cohort-consistency.js";
-import { parseMetaRecord } from "../active/meta-reader.js";
+import { parseIdentifierList, parseMetaRecord } from "../active/meta-reader.js";
 import {
   resolveLifecyclePosition,
   type LifecyclePosition,
@@ -83,6 +84,8 @@ export interface LifecycleIndexEntry {
   location: Location;
   /** Cohort path the WU's `**Cohort:**` field names, or `null` when standalone. */
   cohort: string | null;
+  /** Dependency slugs from the WU's `**Depends On:**` edges; empty when none. */
+  dependsOn: string[];
   /** Meta path relative to `cwd`, forward-slash normalized. */
   path: string;
 }
@@ -143,10 +146,12 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
 
   let position: LifecyclePosition | null;
   let cohortRaw: string;
+  let dependsOn: string[];
   try {
     const record = parseMetaRecord(content);
     position = resolveLifecyclePosition({ path, state: record.State });
     cohortRaw = metaCohortField(content);
+    dependsOn = parseIdentifierList(record["Depends On"]);
   } catch {
     return null;
   }
@@ -157,6 +162,7 @@ export function entryFromMeta(path: string, content: string): LifecycleIndexEntr
     phase: position.phase,
     location: position.location,
     cohort: cohortRaw === "" ? null : cohortRaw,
+    dependsOn,
     path,
   };
 }

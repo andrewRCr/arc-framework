@@ -14,7 +14,7 @@ function entry(
   cohort: string | null,
   phase: Phase = "Planning",
 ): LifecycleIndexEntry {
-  return { slug, phase, location, cohort, path: `.arc/${location}/meta-${slug}.md` };
+  return { slug, phase, location, cohort, dependsOn: [], path: `.arc/${location}/meta-${slug}.md` };
 }
 
 function indexOf(...entries: LifecycleIndexEntry[]): LifecycleIndex {
@@ -39,6 +39,7 @@ describe("resolveCohortMembers — membership projection over the index", () => 
       phase: "Active",
       location: "active",
       cohort: "core/sub",
+      dependsOn: [],
       path: ".arc/active/meta-leaf.md",
     });
 
