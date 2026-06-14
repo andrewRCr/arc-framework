@@ -9,16 +9,16 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-lifecycle-state-resolver.md`
-- **Task List:** [none]
+- **Task List:** `tasks-lifecycle-state-resolver.md`
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks.md` — the `detailed`·RFC spec is saved and self-reviewed. It crystallizes
-  the `(phase, location)` model, the one-index / two-projections resolver (slug→state + cohort-membership), the
-  archival-trigger detection, and the dep-state read half; the three entry-time open questions are resolved
-  (single scan, pair + enum + `occupied?`/`shipped?` predicates, one index). Scale read keys on the implementation
-  surface — a `src/lib/` pure-logic module plus fixtures.
+- **Next Action:** Run `activate-work-unit.md` — task list generated at `high` depth (5 phases: state-space model
+  & index → Projection A slug→state → Projection B membership & archival-trigger → consumer reads & queryable
+  surface → verification). Grounding audit settled `parked = (Active, planned)`, `shipped?` as merged-fact-only
+  (integration-time readiness deferred to `lifecycle-transition-core`), and migration of the cohort-consistency
+  validator onto the resolver. Activation can defer until implementation begins.
 
 ---

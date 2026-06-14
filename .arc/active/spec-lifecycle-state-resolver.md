@@ -94,9 +94,12 @@ resolver owns *what the states are and how you resolve one*; transition-core own
 - **Meta `**State:**` second** — supplies the phase axis, and acts as the lag tiebreak when the field trails the
   directory (Axis-1 git-is-truth, the same precedence session-init uses).
 - **Never** `git branch` / `git log` inference — a design guard, not a preference.
-- **Parked-from-Active** resolves as `(phase = Active, location = backlog)` — phase stays `Active` (its
-  pointer-record on `main` carries `State: Active (parked)`), location is backlog. Fully resolvable, no git
-  inference.
+- **Parked-from-Active** resolves as `(phase = Active, location = planned)` — phase stays `Active` (its
+  pointer-record carries `State: Active (parked)`); park@Active relocates the WU's artifacts to
+  `backlog/planned/`, so location is `planned`. Fully resolvable, no git inference. There is no
+  `(Active, provisional)`: park *preserves* activated work (committed, hence `planned`), whereas demoting a WU
+  back toward a pre-commitment idea *discards* that work — a distinct `demote` transition (owned by
+  `lifecycle-transition-core`) that drops the phase to `Planning`, landing it as plain `(Planning, provisional)`.
 - **Park-from-Planning** carries no code and re-cuts its branch on resume, so it collapses back to `planned`.
 - **`abandoned`** leaves no residue, so it resolves to the absent case (`nonexistent`) — a reused name resolves
   cleanly through create-new.
@@ -104,8 +107,8 @@ resolver owns *what the states are and how you resolve one*; transition-core own
 ### The index
 
 Built **once per invocation** (resolved OQ — single scan, no persisted cache). A single scan across
-`backlog/planned/` + `active/` + `completed/` reads each work unit's meta for `**State:**` (phase) and
-`**Cohort:**`, with location taken from the containing directory, yielding:
+`backlog/provisional/` + `backlog/planned/` + `active/` + `completed/` reads each work unit's meta for
+`**State:**` (phase) and `**Cohort:**`, with location taken from the containing directory, yielding:
 
 ```text
 slug → { phase, location, cohort, path }
@@ -134,14 +137,16 @@ A layered surface (resolved OQ — pair primitive + derived enum + curated predi
   | `planning`    | `(Planning, active)` — graduated onto a `plan/` branch   |
   | `active`      | `(Active, active)`                                       |
   | `integrating` | `(Integrating, active)`                                  |
-  | `parked`      | `(Active, backlog)` — park@Active                        |
+  | `parked`      | `(Active, planned)` — park@Active                        |
   | `shipped`     | `(Shipped, completed)`                                   |
 
-  `parked` is a *derived* value of `(Active, backlog)`, not a stored primitive.
+  `parked` is a *derived* value of `(Active, planned)`, not a stored primitive.
 - **Predicate sugar — curated to the guard call-sites, not one-per-state.** A small set where a boolean reads
   better than a switch: `occupied?` (the worktree-occupancy guard — slug live on a branch/worktree:
-  `planning` / `active` / `integrating`) and `shipped?` (dep-edge discharge read + completion checks: `Shipped`,
-  or integrated). Both are pure functions of the pair; a mechanical `isPlanned?` / `isParked?` / … set is
+  `planning` / `active` / `integrating`) and `shipped?` (dep-edge discharge read + completion checks: `Shipped`
+  only — a *fact* that the work is merged, not the `integrating` *forecast* that it will be; "far enough along to
+  start a dependent" is a readiness overlay a consumer composes from the enum, not this predicate). Both are pure
+  functions of the pair; a mechanical `isPlanned?` / `isParked?` / … set is
   deliberately **not** exposed — it would duplicate the enum. Materialize is **not** a predicate here: a
   remote-only candidate is a remote-vs-local delta requiring a network read, which this pure-local resolver does
   not do — materialize discovery consumes the resolver (a remote branch resolving locally to `nonexistent` is the
@@ -169,9 +174,12 @@ is `lifecycle-transition-core`'s.
 
 ### The dep-state read (read half of dep-edge discharge)
 
-"Is dependency `X` landed?" is a slug→state query (`shipped`, or integrated) — it falls out of the resolver and
+"Is dependency `X` landed?" is the `shipped?` slug→state query — landed means *merged* (`Shipped` / in
+`completed/`); an `integrating` dependency (PR open, unmerged) reads not-landed. It falls out of the resolver and
 closes the state-blind dependency-edge read hazard this member targets. The write half (rewriting the edge inside
-`activate`'s mutator sequence) defers to `lifecycle-transition-core`.
+`activate`'s mutator sequence) — and any policy permitting a dependent to start at the dependency's *integration*
+rather than its merge (the team-review-latency case) — defers to `lifecycle-transition-core`, which composes that
+readiness judgment over the enum this resolver exposes.
 
 ### Where it lives
 
