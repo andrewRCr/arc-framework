@@ -27,6 +27,22 @@
 - _Scope:_ `packages/arc-framework/__tests__/integration/user.test.ts` (one test); test-reliability hardening,
   fits this WU's cluster (cf. its `writeGitNote` / `readGitNote` entry-point cases).
 
+### `[ ]` **De-flake the `arc save`/sync integration tests under concurrent full-suite runs**
+
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during Task 1 of
+  `lifecycle-state-resolver`.
+- _Concern:_ A full `npx vitest run` showed 12 failures across 3 test files, coinciding with stderr warnings from
+  `src/handlers/sync.ts` — `Save failed: save verification failed`, `Worktree push skipped because the save step
+  failed`, `Notes push skipped because the save step failed`. Two subsequent clean runs passed (2614 passed /
+  1 skipped, exit 0), so the save/sync integration tests appear to race on real git state under concurrent
+  execution. Distinct from the shallow-clone git-notes timeout entry above: this is a save-verification /
+  notes-push concurrency flake.
+- _Approach:_ Re-verify the candidate tests in
+  `packages/arc-framework/__tests__/integration/{user,multi-clone,status}.test.ts`, then isolate each test's
+  save/sync git state (unique tmp repos / refs), or serialize the save/sync integration group so they do not
+  contend on shared git state.
+- _Scope:_ test-reliability hardening; likely integration-test harness isolation rather than product behavior.
+
 ---
 
 ## Problem / Motivation
