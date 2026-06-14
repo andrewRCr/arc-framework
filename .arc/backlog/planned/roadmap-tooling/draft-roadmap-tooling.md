@@ -143,6 +143,10 @@
 - *Proposed:* fold into the § Render standard pass above (same doc + `render.ts`); decide the nested-cohort
   segment rule and the multi-dep / over-width policy; consume `arc.identity.short`
   (config-storage-architecture) to shrink the Owner column.
+- *Refinement (routed from `USER-INBOX § Backlog`, housekeep drain 2026-06-14):* high fan-in kills the
+  "accept-wide / big-screen artifact" option outright — `finalize-parallelism`'s row now depends on so many WUs
+  that the `Depends on` cell can't fit the table at all, well past the ~127-char two-dep case above. Pushes the
+  over-width policy toward a generated graph/list view or the by-priority/horizon render mode, not one wide cell.
 - *Scope:* S — render-standard + renderer; lands with the uniform-columns reconciliation.
 
 ### `[ ]` **Render-standard decisions from CWC planning (refinements to existing buffer items)**

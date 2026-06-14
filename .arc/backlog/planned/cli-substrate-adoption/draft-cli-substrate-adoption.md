@@ -78,7 +78,15 @@ post-trio architecture-remediation plans consume.
   **mandatory-fields policy** ("commitment + priority are the maintainer's explicit call at every stub-creation
   path") cross-refs `strategy-work-organization` as the contract's authoritative statement. Kept as one capture,
   not split, per the drain.
-- *Scope:* multi-step — several stub-creation paths plus CLI / workflow surfaces (two-copy).
+- *Narrowed (routed from `USER-INBOX § Backlog`, housekeep drain 2026-06-14):* the **required-at-primitive**
+  half is no longer this WU's — `lifecycle-transition-core` mints a unified `stub` primitive that every
+  create-path (`start` / cold-start, `decompose`, drain new-stub scaffolding, `init`-resume) routes through, and
+  puts the no-silent-`provisional`/`P3` contract on that one chokepoint (see its draft § "`stub` creation
+  contract"). What stays here is the **generic non-TTY prompting-command substrate** the `stub` primitive rides
+  on — the interactive-elicit + fail-or-require-flag-under-non-TTY behavior, shared with the "Uniform
+  non-interactive handling" item above. The mandatory-fields policy statement still cross-refs
+  `strategy-work-organization`.
+- *Scope:* multi-step — the non-TTY prompting substrate plus CLI / workflow surfaces (two-copy).
 
 ---
 

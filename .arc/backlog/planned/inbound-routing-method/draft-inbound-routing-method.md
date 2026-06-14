@@ -13,6 +13,30 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
+> (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Codify the direct-edit-inbound-buffer vs. `arc-inbox` threshold on an always-loaded surface**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during
+  `lifecycle-state-machine` forward-compat alignment.
+- *Concern:* the routing table + express lane *are* codified on an always-loaded surface (`DEV-RULES.ARC
+  § Discovered Work Routing`), but the express lane names only "run an errand" and "scaffold a `backlog/` stub" —
+  writing into an **existing** WU's inbound buffer is described only as a *drain* action ("the housekeep drain
+  writes it straight in"). So "may I write directly into another live WU's inbound buffer, or must it go via
+  `arc-inbox`?" has no explicit codified line; it is derivable (out-of-WU + not-urgent → inbox default;
+  planning-artifacts-aren't-capture-surfaces) but gets re-judged each time. Hit live deciding where to route the
+  method-model note (now in `composable-workflows`).
+- *Proposed:* make the threshold explicit so it isn't re-derived — a sentence on the always-loaded surface
+  and/or folded into this method. Candidate framing: an ad-hoc cross-WU write into an existing WU's inbound
+  buffer, from another session, defaults to `arc-inbox` capture; direct-to-buffer is a drain action (or an
+  explicit express-lane the rule names). Confirm the design-vs-consequence test is the intended line, or
+  supersede it.
+
+---
+
 ## Problem / Motivation
 
 The holistic-vs-`## Inbound Buffer` integration-mode fork is codified only inline in `drain-inbox` (§ 5) and
