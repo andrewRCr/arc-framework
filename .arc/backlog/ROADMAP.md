@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `843d7bc3`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `3e622bf4`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,9 +12,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit               | Priority | Owner  | Depends on | Cohort |
-|----------|-------------------------|----------|--------|------------|--------|
-| Planning | lifecycle-state-machine | P1       | andrew | —          | —      |
+_No work units currently in flight._
 
 ## Ready
 
@@ -22,7 +20,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 |------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
-| decompose-work-unit-arms     | P1       | andrew | —          | —                           |
+| lifecycle-state-resolver     | P1       | andrew | —          | lifecycle-state-machine     |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
@@ -33,7 +31,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
 | graduation-cleanup           | P2       | andrew | —          | —                           |
-| maintenance-errand-class     | P2       | andrew | —          | —                           |
 | planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization  |
@@ -69,20 +66,34 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                        | Cohort                     |
-|-------------------------------|----------|--------|-----------------------------------------------------------------------------------|----------------------------|
-| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                            | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                            | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                 | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on               | Cohort                     |
+|-------------------------------|----------|--------|--------------------------|----------------------------|
+| lifecycle-transition-core     | P1       | andrew | lifecycle-state-resolver | lifecycle-state-machine    |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption   | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization     | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization     | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption   | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh        | release-readiness          |
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on         | Cohort            |
-|--------------------|----------|--------|--------------------|-------------------|
-| wu5-public-release | P3       | andrew | docs-content-sweep | release-readiness |
+| Work unit          | Priority | Owner  | Depends on                | Cohort                  |
+|--------------------|----------|--------|---------------------------|-------------------------|
+| decompose-matrix   | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine |
+| errand-lattice     | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine |
+| wu5-public-release | P3       | andrew | docs-content-sweep        | release-readiness       |
+
+### Depth 3
+
+| Work unit          | Priority | Owner  | Depends on                                                                            | Cohort                  |
+|--------------------|----------|--------|---------------------------------------------------------------------------------------|-------------------------|
+| lifecycle-closeout | P1       | andrew | lifecycle-state-resolver, lifecycle-transition-core, decompose-matrix, errand-lattice | lifecycle-state-machine |
+
+### Depth 4
+
+| Work unit            | Priority | Owner  | Depends on                                                                                            | Cohort            |
+|----------------------|----------|--------|-------------------------------------------------------------------------------------------------------|-------------------|
+| finalize-parallelism | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry, lifecycle-closeout | agile-parallelism |
 
 ---
 
