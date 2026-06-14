@@ -18,10 +18,19 @@ describe("locationFromPath", () => {
     expect(locationFromPath("/repo/.arc/backlog/planned/foo/meta-foo.md")).toBe("planned");
   });
 
-  it("does not mistake a slug containing a tier word for the tier", () => {
+  it("does not mistake nested names containing tier words for the tier", () => {
     // `active-something` is a WU name, not the active/ tier.
     expect(locationFromPath(".arc/backlog/planned/active-something/meta-active-something.md")).toBe(
       "planned",
+    );
+    // A cohort or WU subdirectory can be literally named `completed`; the
+    // containing backlog tier still wins.
+    expect(locationFromPath(".arc/backlog/planned/completed/meta-completed.md")).toBe("planned");
+    expect(
+      locationFromPath(".arc/backlog/provisional/completed/meta-completed.md"),
+    ).toBe("provisional");
+    expect(locationFromPath(".arc/active/completed-feature/meta-completed-feature.md")).toBe(
+      "active",
     );
   });
 

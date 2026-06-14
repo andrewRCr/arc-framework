@@ -67,9 +67,9 @@ export interface LifecyclePosition {
  *   lifecycle tier.
  */
 export function locationFromPath(path: string): Location | null {
-  if (path.includes("/completed/")) return "completed";
   if (path.includes("/backlog/provisional/")) return "provisional";
   if (path.includes("/backlog/planned/")) return "planned";
+  if (path.includes("/completed/")) return "completed";
   if (path.includes("/active/")) return "active";
   return null;
 }

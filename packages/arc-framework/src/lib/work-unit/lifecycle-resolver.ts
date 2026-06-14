@@ -8,7 +8,7 @@
  * substrate persists; the enum is the convenience lattice (`start` dispatch's
  * single switch value, the in-flight / status render input) derived from it.
  *
- * The enum is a total function of the pair: the eight canonical
+ * The enum is a total function of the pair: the seven canonical
  * `(phase, location)` combinations map explicitly, and every residual
  * combination — the directory-trails-meta lag cases — falls to a deterministic
  * location-dominant value (the directory wins, as everywhere on the resolution
@@ -44,7 +44,7 @@ export type LifecycleState =
   | "parked"
   | "shipped";
 
-/** The eight canonical `(phase, location)` combinations, keyed `phase:location`. */
+/** The seven canonical `(phase, location)` combinations, keyed `phase:location`. */
 const CANONICAL: Readonly<Record<string, LifecycleState>> = {
   "Planning:provisional": "provisional",
   "Planning:planned": "planned",
