@@ -130,24 +130,24 @@ _Design decisions:_ Membership keys on each meta's `**Cohort:**` field (position
 existing `buildLiveCohortContext` semantics; the archival-trigger is a pure query over membership — detection
 only, since the `archive` fire-point is `lifecycle-transition-core`'s.
 
-### `[ ]` **3.1 Lifecycle-complete cohort-membership resolver**
+### `[x]` **3.1 Lifecycle-complete cohort-membership resolver**
 
 - _Goal:_ Given a cohort path, return the set of member work units whose `**Cohort:**` field resolves to it,
   across every lifecycle state — so a graduated member (now in `active/`) is distinguished from a removed one.
-- _Approach:_ Project over the same Phase 1 index (each entry carries its cohort), reproducing the
-  position-independent membership semantics of `buildLiveCohortContext` (`src/scripts/validate-cohort-consistency.ts`).
 
-    - `[ ]` **3.1.a Membership projection over the index**
-        - Build `test-first` (one behavior at a time):
-            - members spread across `planned/`, `active/`, and `completed/` all resolve to the cohort
-            - nested-cohort paths match on the field value, not the filed directory
-            - a non-member (different / absent `**Cohort:**`) is excluded
+    - `[x]` **3.1.a Membership projection over the index**
+        - `resolveCohortMembers` / `buildCohortMembership` in `lifecycle-membership.ts` key on each index entry's
+          `**Cohort:**` field: members spread across `planned/`, `active/`, and `completed/` all resolve to the
+          cohort; a nested path matches the field value, not the filed directory; a non-member is excluded.
 
-    - `[ ]` **3.1.b False-orphan regression fixture (graduated vs. removed)**
-        - Build `test-first` (one behavior at a time):
-            - a graduated member (field intact, now in `active/`) is a member, not an orphan
-            - a removed member (no meta anywhere) is absent — the false-orphan flag does not fire
-        - **Strategies:** strategy-testing-methodology.md
+    - `[x]` **3.1.b False-orphan regression fixture (graduated vs. removed)**
+        - A graduated member (field intact, now in `active/`) resolves as a member; a removed member (no meta
+          anywhere) is simply absent from the set — the membership-level guarantee the validator's false-orphan
+          check rests on.
+
+- _Outcome:_ Projection B lands as a pure projection over the Phase 1 index, sibling to the slug→state resolver.
+  `buildCohortMembership` emits the exact `Map<cohort, Set<slug>>` shape (`liveMembersByDir`) that Task 3.3 routes
+  `validate-cohort-consistency.ts` onto — one membership source, no second tree scan.
 
 ### `[ ]` **3.2 Archival-trigger detection predicate**
 
