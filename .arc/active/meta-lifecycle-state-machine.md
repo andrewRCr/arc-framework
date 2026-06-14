@@ -11,8 +11,8 @@
 - **Design:** `draft-lifecycle-state-machine.md`
 - **Task List:** [none]
 
-- **Last Completed:** Work unit initialized; `park-resume-lifecycle` superseded and retired (its park/resume
-  mechanics + DRY constraints absorbed into the new draft).
+- **Last Completed:** Rough draft authored — framing, today's-state inventory, four pillars, north star,
+  forward-compat threads, and the completeness-audit method; `park-resume-lifecycle` superseded + retired.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
