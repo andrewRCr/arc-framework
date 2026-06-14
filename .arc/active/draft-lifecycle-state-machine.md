@@ -182,6 +182,46 @@ Carried forward (the stub retires at this draft's capture, absorb-then-retire):
 - **Ship shape.** Hold as one coherent draft now (per the maturity gate); let `create-spec` decide whether it
   decomposes into a stack as the deliverable cuts firm up. Avoid re-shattering what we are consolidating.
 
+## Completeness audit — finding the rest of the seams
+
+> Planning-phase method (run at the draft → spec gate), not now. Captured so the work doesn't ship only to have a
+> missed seam surface a week later.
+
+The explicit state machine is its own audit instrument: seams kept surprising us because the lifecycle was
+*implicit*, with no complete model to check against. Once the model exists, most seams are empty, ambiguous, or
+inconsistent *cells* — found by sweep, not by luck. The audit is a validation pass over the model.
+
+**Static model sweeps** (cheap once the model is drafted):
+
+- **Totality matrix.** Every `state × verb` cell: defined? legal? owned (CLI / workflow)? guarded? named inverse?
+  Empty or ambiguous cells are seams — the missing transitions (park/resume, demote) are empty cells; the
+  `arc start` mis-scaffold is a mis-defined one.
+- **Inverse symmetry.** Walk edges in pairs: `activate ↔ deactivate` clean; `park ↔ resume` both absent;
+  `graduate ↔ demote` absent.
+- **Three-encoding consistency.** State is triple-encoded — meta `State`, directory, branch prefix. For every
+  state the three must agree, and every transition must update all three; one that moves one but not another (the
+  `planned`-stub `Branch: [none]` case) is a seam.
+- **Deterministic-but-prose sweep (the north-star filter).** Classify each transition: deterministic mechanic, in
+  code or prose? Every deterministic-but-prose-only gate is a north-star gap (the planning-entry gate).
+- **Negative space / guards.** Per transition, precondition-violation behavior: guarded-and-loud, or
+  silently-wrong (the `arc start` foot-gun)? Unguarded bad input is a seam.
+
+**Behavioral sweeps** (catch what statics miss):
+
+- **Workflow-trace reconciliation.** Map each lifecycle workflow (`init`, `activate`, `deactivate`, `graduate`,
+  `decompose`, `integrate`, `archive`, `park`, `resume`) step-by-step onto the model's edges; divergences are
+  seams.
+- **Scenario catalog (dogfooding).** Drive the real journeys — start-a-planned-stub, pivot-mid-planning, park,
+  cross-machine resume, decompose, abandon — each through the model. This is the method that *found* these two
+  seams; a deliberate catalog walk surfaces the rest.
+- **Cross-mode matrix.** Run the sweeps × {full, partial protection} × {primary, linked worktree} × cross-machine;
+  many seams hide in one cell (the full-protection commit-to-main problem).
+
+**The durable payoff — ship it, don't just audit it.** Turn the totality + encoding-consistency invariants into a
+mechanical guard / test shipped as a deliverable, so (a) a seam we *miss* fails loud (rejected transition) instead
+of silently corrupting, and (b) new seams can't be introduced. Zero misses isn't guaranteeable; loud-on-miss is.
+`finalize-parallelism`'s end-to-end trace is the final backstop — this audit shrinks what it discovers reactively.
+
 ## No-gos
 
 - Planning-pipeline *content* — owned by `planning-pipeline-readiness`.
