@@ -52,7 +52,10 @@ Verify the integration context:
 Edit `active/meta-{name}.md`: `**State:** Active` → `**State:** Integrating`. The `Integrating` state covers PR
 open through review-response.
 
-Stage the edit.
+Regenerate `backlog/ROADMAP.md` in the same commit so the In Flight table's rendered `State` column reflects
+`Integrating`.
+
+Stage the meta and ROADMAP edits.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
