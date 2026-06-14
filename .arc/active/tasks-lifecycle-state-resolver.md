@@ -197,20 +197,28 @@ phase against the current status surface — either satisfies the queryable cons
   projection a status surface can query without re-reading metas. Read half only — the write (edge rewrite in
   `activate`) and the integration-vs-merge readiness policy stay `lifecycle-transition-core`'s.
 
-### `[ ]` **4.2 Queryable probe / status surface exposure**
+### `[x]` **4.2 Queryable probe / status surface exposure**
 
 - _Goal:_ The resolved state and predicates are reachable from a probe / status query surface so a slug's
   lifecycle state can be queried, keeping the `lib` pure and the wiring at the command layer.
-- _Approach:_ Surface through the status probe orchestrator (`src/commands/status/run.ts`, the `safeProbe`
-  fan-out) or a dedicated subcommand — chosen against the current status surface. Per the testing methodology,
-  CLI wiring is test-after; cover the resolver logic it feeds, not Commander/clack wiring.
 
-    - `[ ]` **4.2.a Wire the resolver into the status / probe surface**
-        - Keep the resolver in `lib`; the command layer resolves `cwd` and binds the production fs.
+    - `[x]` **4.2.a Wire the resolver into the status / probe surface**
+        - `arc status --lifecycle <slug>` builds the lifecycle index from disk (real `node:fs/promises`,
+          `requireArcProjectRoot`-resolved `cwd`) and calls the pure resolver; the `lib` stays fs-free. New
+          mode folded into the handler's mutual-exclusion guard alongside the other modes.
 
-    - `[ ]` **4.2.b JSON output shape for a slug→state query**
-        - Return the `(phase, location)` pair, derived enum, and predicate values in a typed, `--json`-friendly
-          shape consistent with the existing probe envelope.
+    - `[x]` **4.2.b JSON output shape for a slug→state query**
+        - `resolveSlugQuery` (`lifecycle-query.ts`) aggregates the `(phase, location)` pair, derived enum,
+          curated predicates (`occupied` / `shipped`), and the dep-edge states into one flat, totalized
+          `--json` record (absent slug → `nonexistent` / `null` / `[]`, never an error). A compact text
+          render backs the non-`--json` path.
+
+- _Outcome:_ The read-side surface is reachable as a subject-keyed query. Placed as a `status` **mode** rather
+  than a new `lifecycle` command group: the verb namespace (`start` / `park` / …) is owned downstream by
+  `lifecycle-transition-core` + `idiomatic-alignment`, so minting it here would pre-empt their design. The
+  durable artifact is the pure `resolveSlugQuery` aggregator; the CLI entry is a thin, relocatable shell that
+  can move beside the lifecycle write verbs when they land (JSON shape unchanged). Per the testing methodology,
+  `resolveSlugQuery` is unit-covered and the command wiring is verified by live dogfooding.
 
 ---
 
