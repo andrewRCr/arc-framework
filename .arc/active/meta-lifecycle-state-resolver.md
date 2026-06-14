@@ -15,9 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec.md`. The draft is formalization-ready — the contract is settled (state
-  enum, location-first resolution order, no-`git`-inference guard); spec-time work is the open questions
-  (index shape + caching/invalidation, dep-edge discharge composing with `activate`'s mutator sequence,
-  one-index-two-projections).
+- **Next Action:** Run `create-spec.md` — the draft is formalization-ready, reconciled to the cohort's
+  `(phase, location)` model (dep-edge composition deferred to `lifecycle-transition-core`); the open questions
+  (index shape/caching, projection surface, one-index-two-projections) are create-spec detail.
 
 ---
