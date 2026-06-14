@@ -79,32 +79,27 @@ _Design decisions:_ The pair primitive is the source of truth (the arc-backend-s
 enum and predicates derive from it. The predicate set is deliberately curated to the guard call-sites, not
 one-per-state.
 
-### `[ ]` **2.1 Pair primitive & derived state enum**
+### `[x]` **2.1 Pair primitive & derived state enum**
 
 - _Goal:_ A slug resolves to its `(phase, location)` pair (the primitive return) and to the derived state enum
   consumers switch on, correct across the full matrix.
-- _Note:_ Planning maturity (which of draft / spec / tasks exist) is **not** a state value — it is a derived
-  readiness overlay owned elsewhere. A fully-planned-but-unactivated WU and a bare stub are both
-  `(Planning, planned)`.
 
-    - `[ ]` **2.1.a Pair-primitive resolution from the index**
-        - Resolve a slug to its `LifecyclePosition`, or to the absent case when the slug is in no tier.
+    - `[x]` **2.1.a Pair-primitive resolution from the index**
+        - `resolveSlugPosition(index, slug)` returns the entry's `LifecyclePosition`, or `null` for the absent
+          case (slug in no tier).
 
-    - `[ ]` **2.1.b Derived state enum & derivation map**
-        - _Note:_ The enum is a total function over the legal `(phase, location)` matrix; for any residual
-          undefined combo, location dominates (deterministic) — the lag tiebreak already covers the common stale
-          case (e.g. a `completed/` meta whose `**State:**` trails to `Shipped`).
-        - Build `test-first` (one behavior at a time):
-            - `nonexistent` — slug absent everywhere (covers both never-existed and `abandoned` — no residue)
-            - `provisional` = `(Planning, provisional)`
-            - `planned` = `(Planning, planned)` — and park@Planning collapses here
-            - `planning` = `(Planning, active)` — graduated onto a `plan/` branch
-            - `active` = `(Active, active)`
-            - `integrating` = `(Integrating, active)`
-            - `parked` = `(Active, planned)` (park@Active relocates to `backlog/planned/`) — derived, not stored
-            - `shipped` = `(Shipped, completed)`
-            - the directory-trails-meta lag tiebreak yields the directory-correct enum value
+    - `[x]` **2.1.b Derived state enum & derivation map**
+        - `deriveState` maps the eight canonical `(phase, location)` combinations to the `LifecycleState` enum
+          (`nonexistent` / `provisional` / `planned` / `planning` / `active` / `integrating` / `parked` /
+          `shipped`); every residual lag combo falls to a deterministic location-dominant value (e.g.
+          `(Integrating, completed)` → `shipped`, `(Shipped, active)` → `active`). `resolveSlugState` composes
+          the lookup with the derivation.
         - **Strategies:** strategy-testing-methodology.md
+
+- _Outcome:_ New `src/lib/work-unit/lifecycle-resolver.ts` exposes Projection A — the `(phase, location)` pair
+  primitive and the derived slug→state enum, a total function over the matrix with directory-dominant resolution
+  of the residual lag combos. The pair is the arc-backend-safe primitive; the enum is the single switch value
+  `start` dispatch and the status surfaces consume.
 
 ### `[ ]` **2.2 Curated predicate sugar (`occupied?` / `shipped?`)**
 
