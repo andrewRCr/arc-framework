@@ -8,6 +8,22 @@
 
 ## Inbox
 
+### `[ ]` **Return protection mode from housekeep write-context checks**
+
+- _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-14); captured during between-WUs handoff /
+  housekeep after PR #99 (`lifecycle-state-resolver`) merge cleanup.
+- _Observation:_ `npx arc housekeep check --json` returned `verdict: proceed` on `main` with `baseBranch: main`,
+  but omitted the resolved project `branch.protection`. The drain workflow's next write-mechanics branch depends
+  on `full` vs. `partial`, so the missing field pushed the agent into re-probing weaker surfaces (`git config`,
+  broad grep, code defaults) before reading `.arc/system/arc-config.yml`.
+- _Approach:_ Extend the write-context check envelope, at least for `arc housekeep check --json`, with the
+  caller-resolved protection mode from config, for example `branchProtection: "full" | "partial"`. Consider the
+  same field for shared write-context/check primitives whose consumers immediately branch on protection mode.
+  Update human copy/tests so `verdict: proceed` cannot be mistaken for "direct base write is allowed."
+- _Files:_ `packages/arc-framework/src/handlers/housekeep.ts`,
+  `packages/arc-framework/src/lib/git/write-context.ts`, housekeep/write-context tests, and `drain-inbox.md` if
+  the workflow should name the returned field.
+
 ### `[ ]` **Split `supplemental/` workflows into session-adjacent vs installation-level**
 
 - _Observation:_ `.arc/system/workflows/arc/supplemental/` mixes two implicit categories: framework-level

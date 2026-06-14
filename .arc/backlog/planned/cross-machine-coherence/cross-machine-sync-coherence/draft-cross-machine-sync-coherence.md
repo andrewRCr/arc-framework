@@ -112,6 +112,15 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   note to `HEAD` (`runUserSave` writes unconditionally, so the skip is in the write leg — `io.writeNote` semantics
   or a handler-layer guard, e.g. `git notes add` without `-f` over an existing note). The pruning-history facet of
   that same capture routed separately to `strategy-storage-evolution`.
+- *Folded in — manual push vs. sync divergence (drain 2026-06-14):* routed from `USER-INBOX § Backlog`, captured
+  during `lifecycle-state-resolver` post-merge cleanup. After PR #99, `npx arc user save` on `b14f352d` made
+  `status --json` report `local note ahead` / `diskStatus: current`; `npx arc user push` then reported "Remote
+  user notes already match local user notes" but left status at older note `8663de7b` (`git note out of date`,
+  `diskStatus: mixed`, 9 commits behind). Repeating save+push reproduced it, while `npx arc sync --json` after a
+  fresh save completed `notes: save+push:success` and left status current/in sync. Add regression coverage
+  comparing manual `save -> user push` with paired sync `save+push` around the idempotent no-op/recovery path, and
+  align `runUserPush` / push-recovery freshness semantics with the sync path so a no-op cannot collapse status back
+  to an ancestor note after a current save.
 - *Scope:* extension-on-existing; verify-then-extend.
 
 ---

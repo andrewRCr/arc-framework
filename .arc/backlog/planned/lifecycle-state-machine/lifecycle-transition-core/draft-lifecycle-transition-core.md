@@ -15,6 +15,41 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Codify integration-entry meta status updates**
+
+- *Routed from:* `USER-INBOX § Atomic`, housekeep drain (2026-06-14); captured during PR review response for
+  `lifecycle-state-resolver` integration.
+- *Concern:* `verify-work-unit` pre-aligns `Next Action` to
+  `integrate-work-unit Step 1 — verify completion`, and `integrate-work-unit` Step 1 flips
+  `State: Active → Integrating`, but neither workflow updates `Last Completed`, `Next Task`, and `Next Action`
+  after verification is complete and integration has begun. That leaves cold-session orientation reading stale
+  task pointers even though `State: Integrating` and PR state drive integration resume.
+- *Proposed:* Fold into the `Active → Integrating` transition side-effect model. Decide whether
+  `verify-work-unit` should set verification complete and point at integration entry, or `integrate-work-unit`
+  Step 1 should update these fields when it flips to `Integrating`; keep review-cycle bookkeeping out of the meta
+  file and capture only durable phase-transition state.
+- *Scope:* transition-table / mutator-bundle coordination plus workflow-doc cascade.
+
+### `[ ]` **Relocate the slug→state read into the lifecycle verb group**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: lifecycle-transition-core`), housekeep drain (2026-06-14);
+  captured during Task 4.2 of `lifecycle-state-resolver`.
+- *Concern:* the slug→state read currently surfaces as `arc status --lifecycle <slug>`. It was placed on
+  `status` deliberately to avoid pre-empting the lifecycle verb namespace (`start` / `park` / `promote` /
+  `demote` / `reopen` / `abandon`), which this WU owns. When the verb group exists, the read should join its
+  family, for example `arc lifecycle state <slug>`, while preserving the shipped JSON shape.
+- *Proposed:* Treat the pure `resolveSlugQuery` aggregator in `lib/work-unit/lifecycle-query.ts` as the durable
+  artifact, and relocate only the thin CLI shell (`handlers/status.ts` `--lifecycle` branch plus `cli.ts` option).
+  Coordinate the final verb name with `idiomatic-alignment`.
+- *Scope:* CLI surface relocation after the lifecycle verb group lands.
+
+---
+
 ## Problem / Motivation (this member's slice)
 
 - **The verbs are a half-built, asymmetric set.** `activate ↔ deactivate` is the only clean inverse pair; `park` /
