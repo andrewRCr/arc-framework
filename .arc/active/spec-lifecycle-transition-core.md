@@ -1,0 +1,480 @@
+# Spec (`detailed` · `RFC`): lifecycle-transition-core
+
+- **Origin:** [internal] — `lifecycle-state-machine` cohort member (decomposed 2026-06-14). The heavy member:
+  the state machine itself.
+
+- **Purpose:** Build the work-unit lifecycle as an explicit, complete, coherent state machine in code — a
+  hand-rolled declarative transition table over the logical `(phase, location)` model, a thin imperative
+  executor, the 1↔1 relocation/sweep mutator bundle, the guards, and the full inverse-paired verb set — taking
+  the first deliberate step toward deterministic mechanics living in the CLI while judgment stays in the
+  workflows.
+
+---
+
+## Introduction / Context
+
+The work-unit lifecycle today is ~90% markdown ceremony. Of roughly ten transitions, exactly one is code-driven
+(`arc start` create-new, the newest, bolted on); the rest are agent-run workflows whose transition rules — branch
+prefix, meta `State`, preconditions — are restated per workflow with no single source of truth. The consequences
+are concrete and have bitten live:
+
+- **The verb set is half-built and asymmetric.** `activate ↔ deactivate` is the only clean inverse pair; `park` /
+  `resume` are unshipped on both sides; `graduate` has no inverse; the create-stub forward edge is unowned.
+- **`arc start` has an unguarded foot-gun.** It is create-new only; run against an existing `backlog/` stub it
+  silently mis-scaffolds — a fresh template meta losing backfilled fields, an orphaned draft, two metas in
+  `active/`, no graduation. The two-metas case broke the release wrapper (`no-active-wu`, code 10) mid-pivot.
+- **Relocation logic is duplicated** across `init` Path A, `decompose`'s park-exit, `archive`'s sweep, and the
+  unshipped park/resume — re-authored each time, never unified, so the three-encoding invariant (meta `State` ·
+  directory · branch) is hand-maintained and drifts.
+- **The planning-entry gate is prose-only.** `arc-plan` can drop a draft onto `main` where it cannot be
+  committed, because no mechanical preflight resolves write-context and routes (discovered live starting this
+  work).
+
+This RFC settles the technical design that makes the lifecycle a shippable, testable mechanical guard rather than
+a per-workflow audit. It consumes the read-side `(phase, location)` state-space model and slug→state resolver
+owned by the already-shipped `lifecycle-state-resolver`; it owns the **write side** — the legal edges between
+states and the mechanics that execute them.
+
+## Goals
+
+- **A single authoritative transition table.** One declarative source of states, legal edges, inverses, guard
+  requirements, and per-transition encoding updates — replacing the per-workflow restatement.
+- **Totality and encoding-consistency as mechanical invariants.** The table is total over the state space; a test
+  walking it proves every cell is either a legal edge or an explicitly-marked illegal cell, and that every edge's
+  encoding updates keep meta `State` · directory · branch consistent by construction.
+- **A complete, inverse-paired verb set** with every edge owned — no orphaned forward edges, no missing inverses.
+- **The relocation primitive unified once.** A 1↔1 mutator bundle fired together so the three-encoding invariant
+  holds by construction, called by every location-moving transition rather than re-authored per ceremony.
+- **`arc start` as a safe full-lifecycle dispatch** — routing on resolved state, guarded against name-collision
+  and worktree-occupancy, never mis-scaffolding an existing stub.
+- **Mechanics in the CLI, judgment in the workflows.** Deterministic mechanics (`git mv`, branch/worktree
+  reconcile, scaffold, ROADMAP regen, archival path computation, transition-legality validation) move to code;
+  the interlocks and value-supplying decisions stay in the workflows.
+- **Arc-backend-safe by construction.** The table reasons over *logical* `(phase, location)`, never raw git
+  inference, so the physical encoding stays a projection a later backend can re-home with zero reshape.
+
+## Non-Goals
+
+- **Re-deriving the read side.** The `(phase, location)` model, derived-state predicates, slug→state projection,
+  and cohort-membership resolver are `lifecycle-state-resolver`'s and are consumed, not redefined.
+- **A generic transition engine (B2).** Depth is settled at **B1** — a hand-rolled declarative table + thin
+  imperative executor. A B2 engine that bakes `git mv` in as *the* mechanism would re-commit the file-location
+  assumption this design is built to avoid.
+- **The decompose matrix and the errand lattice.** Those are sibling members (`decompose-matrix`,
+  `errand-lattice`); this WU exposes the mutator-bundle teardown legs and crossing-edge firing points they
+  consume, but does not author their transforms.
+- **Migrating the executor's git/non-TTY mechanics to the shared substrate.** Hand-rolled now; `cli-substrate-adoption`
+  migrates them to execa / zod / neverthrow + the shared prompting substrate later.
+- **The ROADMAP renderer.** This WU emits the derived-state predicates and the new **Parked** render bucket;
+  `roadmap-tooling` renders. Interim hand-render discipline covers the Parked bucket until RT ships.
+- **The verb-rename documentation cascade.** Cross-cutting strategy/rules/brief sweeps are `lifecycle-closeout`'s;
+  per-member docs update locally with this code.
+
+## Proposed Design
+
+### 1. The state space (consumed from `lifecycle-state-resolver`)
+
+Two orthogonal logical axes, recapped as the substrate the table moves across:
+
+- **Phase** — `Planning` / `Active` / `Integrating` / `Shipped`. This *is* the meta `State` field (the resolver's
+  `Phase` reuses the codified `WorkUnitState`).
+- **Location** — `provisional` / `planned` / `active` / `completed`. A **logical value** read today from the
+  containing lifecycle directory (the resolver's "directory-wins" rule, `locationFromPath`). Arc-backend-safety
+  is **no `git branch` / `git log` inference** — *not* "no directory derivation": directory is the current,
+  deterministic source the resolver reads, and `(phase, location)` is the logical-record shape a later backend
+  re-homes (directory → a record field) with zero reshape.
+
+A `planned/` stub and a WU on a `plan/` branch are *both* phase `Planning`; phase + location together fix where
+it lives. The resolver resolves the two axes independently and never cross-derives them (directory wins for
+location, meta wins for phase). The resolver owns *resolving* a state from a slug; this member owns the *legal
+edges* between states.
+
+The **derived-state projection** (resolver-owned, consumed for the render buckets transitions populate). The
+enum is the shipped resolver's `LifecycleState` (`lifecycle-resolver.ts`) — this WU consumes these values, it
+does not name them:
+
+| Derived state (resolver enum) | Canonical `(phase, location)`                           |
+|-------------------------------|---------------------------------------------------------|
+| `provisional`                 | `(Planning, provisional)`                               |
+| `planned`                     | `(Planning, planned)`                                   |
+| `planning`                    | `(Planning, active)`                                    |
+| `active`                      | `(Active, active)`                                      |
+| `integrating`                 | `(Integrating, active)`                                 |
+| `parked`                      | `(Active, planned)`                                     |
+| `shipped`                     | `(Shipped, completed)`                                  |
+| blocked (overlay)             | unmet `Depends On` — orthogonal, layered over the cells |
+
+These are the resolver's seven canonical pairs (`nonexistent` is the absent eighth). A residual non-canonical
+pair — a directory-trails-meta lag (e.g. a `completed/` meta still tagged `Integrating`) — the resolver
+normalizes location-dominant (→ `shipped`); such pairs are lag-states the resolver smooths, not table cells.
+Engagement is fully derived, not a third axis. The model **forbids** "suspended but still in `active/`" (the
+dormant-branch rot) — parking *moves location*, which is what makes suspension legible. `park@Planning` collapses
+into `planned`; only `park@Active` produces the `parked` state, the input to the new **Parked** render bucket
+(excluded from parallel-capacity math).
+
+> **Render-bucket labels are `roadmap-tooling`'s, not this WU's.** How these enum states group into ROADMAP
+> display buckets and what those buckets are *labeled* is a presentation concern owned downstream. One naming
+> snag to settle there: the existing ROADMAP **In Flight** tier already denotes the whole `active/` location
+> (any phase), so it cannot be reused for the narrower `active`-engaged state without blurring that boundary.
+> This WU only emits the enum + the new Parked bucket as a queryable predicate; it asserts no display label.
+
+### 2. The verb set — fully inverse-paired, every edge owned
+
+Headline pair: **`start` ⊥ `park`**.
+
+| Axis / role               | Verb                    | Move                                                       | Inverse            |
+|---------------------------|-------------------------|------------------------------------------------------------|--------------------|
+| phase                     | `activate`              | `Planning → Active`                                        | `deactivate`       |
+| phase                     | `deactivate`            | `Active → Planning` (undo activation; recoverable; narrow) | `activate`         |
+| phase                     | `reopen`                | `Integrating → Active` (withdraw from review)              | `integrate`        |
+| location (active↔planned) | `park`                  | `active → planned` (physical move to `backlog/planned/`)   | `resume` / `start` |
+| location (active↔planned) | `resume`                | parked `planned → active` (re-attach branch)               | `park`             |
+| location (backlog tier)   | `promote`               | `provisional → planned` (Class **must resolve**)           | `demote`           |
+| location (backlog tier)   | `demote`                | `planned → provisional` (Class sticky)                     | `promote`          |
+| forward                   | `stub`                  | idea → selected tier (commitment + priority required)      | `abandon`          |
+| composite                 | `decompose`             | `Planning → cohort` (matrix — `decompose-matrix` member)   | — (irreversible)   |
+| terminal                  | `integrate` + `archive` | `Active`/`Integrating → completed`                         | — (no-go)          |
+| destructive               | `abandon`               | any → deleted                                              | —                  |
+
+For `stub`, "selected tier" is logical `provisional` or `planned`; both are physically under `backlog/`.
+
+**Renames and additions** (the asymmetry fixes):
+
+- `graduate → promote`, with the missing `demote` inverse added.
+- `abandon` splits out of `deactivate` — undo-activation vs. throw-away are different intents.
+- `reopen` added as the missing `Integrating → Active` inverse.
+- `activate` / `deactivate` keep their names — the model fix resolves the old overload; no rename needed.
+- `promote` carries a **Class gate** (never leaves `planned/` carrying `[TBD]`); `demote` is **Class-sticky**
+  (the ratchet protects realized work).
+
+### 3. The transition table (B1 — declarative data + thin executor)
+
+A declarative table **as code** — an array of transition records, each:
+
+```text
+TransitionRecord {
+  verb:            Verb
+  from:            State            // logical (phase, location)
+  to:              State            // logical (phase, location)
+  inverse:         Verb | null
+  guards:          GuardId[]        // validated before any mutation
+  encodingUpdates: MutatorSpec      // which bundle legs fire, with what direction/conditioning
+  sideEffects:     SideEffectId[]   // ROADMAP/status-user regen, dep-edge discharge, user-workspace, PR ops
+}
+```
+
+The table is **total over the resolver's seven canonical states** (§1): every `(verb, from)` is either a legal
+edge or an explicitly **marked-illegal cell** (legal XOR illegal). Non-canonical `(phase, location)` lag-pairs
+are not table cells — the resolver normalizes them location-dominant before the executor ever looks up an edge.
+Marked illegal: `(*, Integrating)` reached from a backlog tier — no integration from `provisional` / `planned`;
+direct `integrating → park` / `abandon` — must route through `reopen` first; any edge out of `completed` except
+the new-WU-with-origin-link path (which is a fresh `stub`, not an edge from the sink).
+
+**The thin executor** — `executeTransition(verb, slug, inputs)`:
+
+1. Resolve the current state via the resolver's slug→state projection.
+2. Look up the legal edge `(verb, from)`; reject if none (illegal/unknown transition).
+3. Validate every declared guard against current state + inputs; reject on first failure with an actionable
+   message.
+4. Fire the `encodingUpdates` mutator bundle (§ 4) — atomically in intent: the legs are sequenced so a partial
+   failure is recoverable and reported, never silently half-applied.
+5. Fire declared `sideEffects`.
+
+The executor **never decides** to take a transition (except where the decision is genuinely deterministic — a
+name collision forces graduate-not-scaffold) and **never fabricates** judgment values (commitment, priority,
+`Class`): it requires them supplied as `inputs`.
+
+**Totality + encoding-consistency are shippable guards**, not audits: a unit test walks the table asserting
+(a) every `(phase, location)` cell is a legal edge source/target or explicitly illegal, (b) every paired verb's
+inverse round-trips to the origin state, and (c) every edge's `encodingUpdates` leave meta `State` · directory ·
+branch mutually consistent for the target state.
+
+### 4. The relocation primitive — a 1↔1 mutator bundle
+
+Strictly 1↔1; a bundle of phase-aware encoding-mutators fired **together** so the three-encoding invariant holds
+by construction:
+
+- **`relocate-artifacts`** — the `git mv` of the WU's artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`,
+  companions): `backlog ↔ active`, `active → completed`.
+- **`reconcile-branch`** — create / rename / delete / **preserve**, phase-and-direction-conditioned.
+- **`reconcile-worktree`** — spawn / teardown, **including execution-locus relocation** (§ 7): a transition
+  tearing down the worktree it runs from must hop the agent's locus out first.
+- **`set-phase`** — the meta `State` write (phase-axis mutator, no location move).
+
+**Caller shapes:**
+
+- **Location-movers** (`park` / `resume` / `promote` / `demote` / `init` Path A / **`archive` sweep**) call
+  `relocate-artifacts` + conditioned branch/worktree mutators.
+- **Phase-movers** (`activate` / `deactivate` / `reopen` / the `integrate` flip) call `reconcile-branch` (only
+  when the prefix rotates) + `set-phase`.
+
+**Transition side-effects the bundle fires** (mechanics the neighbors own the rendering/reading of):
+
+- `reconcile-roadmap` / `reconcile-status-user` on **every location move**.
+- **Dep-edge discharge at `activate`** — the discharge *write* is owned here. The resolver exposes per-edge
+  *facts* only: `resolveDepStates` returns each `Depends On` edge's `landed` boolean (merged / `shipped`;
+  `integrating` reads not-landed) and `resolveSlugState` gives a dependency's enum. This member composes the
+  **readiness verdict** over those — `shipped ∨ integrating` — rather than redefining `shipped?`, covering the
+  team-review-latency case (a dependent may start at its dependency's *integration*, not only its merge).
+- **User-workspace satellite** (`arc user open` / `close`) across `init` / `start` / `activate` / `integrate` /
+  `decompose` / `park` / `resume` / `abandon`.
+
+### 5. `start` — full lifecycle-state dispatch
+
+`arc start <name>` routes on the resolver's resolved state:
+
+| Resolved state             | Dispatch                                                         |
+|----------------------------|------------------------------------------------------------------|
+| `nonexistent`              | create-new (scaffold a fresh `Planning` WU)                      |
+| `provisional` / `planned`  | begin — graduate via `init` Path A, resolving `Class`            |
+| `parked` (Active, planned) | `resume` (re-attach the preserved branch)                        |
+| `active`                   | **error — occupied** (worktree-occupancy guard)                  |
+| `integrating`              | route via the Integrating edges (`reopen` to resume work)        |
+| `shipped`                  | offer a new WU with an origin-link (a fresh `stub`, not an edge) |
+
+`abandoned` is not a distinct arm — `abandon` leaves no residue, so the resolver returns `nonexistent`.
+
+**Two guards:**
+
+1. **Name-collision** — `start <name>` against an existing stub routes to graduate, never mis-scaffold. This is
+   the foot-gun fix; the collision *forces* the deterministic branch (graduate-not-scaffold) — the one place the
+   executor decides.
+2. **Worktree-occupancy** — one active WU per worktree. If the target worktree already holds a meta in `active/`
+   with phase ∈ {Planning, Active, Integrating} backing a *different* branch, reject. This is the live foot-gun
+   that put two metas in `active/` and broke the release wrapper.
+
+`scaffold` is the internal structure-generation mechanic (`stub`, `start` create-new, `decompose`, `init`
+Path B, errand→WU promotion all invoke it). `stub` / `start` are the judgment-bearing front doors.
+
+`start` dispatch is **mode-invariant**; the sole protection variance is branch-cut *timing*, owned by the
+planning-entry gate (§11) and §12 — under partial, pre-formalization drafting may precede the branch; the
+tracked-WU branch is then cut identically in both modes.
+
+### 6. `park` — phase-polymorphic, with the pointer-record
+
+- **park@Planning** — no code exists yet on the branch; tear the branch down, re-cut `plan/<name>` on resume.
+  Resolves back to `planned`.
+- **park@Active** — code exists; **preserve the branch** (the pushed branch *is* the durable shelf), tear down
+  only the worktree, relocate artifacts to `backlog/planned/`. Resume re-attaches (≈ the Materialize mechanic).
+  Resolves to `parked`.
+
+**The pointer-record (tracked-file resolution).** A parked-Active WU's authoritative artifacts stay on the
+preserved branch; `main` carries only a minimal **render-pointer** — `State: Active (parked)`, `Branch: feat/X`,
+plus render fields — **blessed as a legal state shape** the three-encoding sweep expects rather than flags. The
+branch meta is authoritative; the pointer is regenerable, never hand-edited. This is the arc-backend
+record+projection model applied early to one state (pointer → record, `Branch` → code-ref field, zero reshape);
+it **ships in this member**.
+
+**Park guards:** reject park-from-`Integrating` (close/withdraw the PR via `reopen` first); commitment is picked
+at park time (an `inputs` value, not fabricated).
+
+### 7. Per-cell mechanics (the open-question resolutions)
+
+- **`reopen` (`Integrating → Active`)** — a phase-only move: `set-phase` (Integrating → Active), no location
+  move, no branch rotation (the branch already carries its `<type>/` prefix from `activate`). Side-effect:
+  withdraw the PR (close it, or mark it draft per `inputs`) — a `gh` operation, not a bundle leg. This is the
+  genuinely-missing inverse of `integrate`.
+
+- **Worktree-occupancy guard** — implemented as a guard predicate over the resolver's active-WU set scoped to the
+  current worktree, evaluated in the executor's guard phase before any mutation (§ 5 guard 2).
+
+- **Execution-locus relocation** — `reconcile-worktree`'s teardown leg detects self-teardown (the transition
+  tears down the worktree it is executing from), hops the agent's CWD/locus out to the primary worktree's base
+  checkout *first*, then runs `git worktree remove`. Without this, `park@Active` / `abandon` of the current WU
+  would saw off the branch they stand on.
+
+- **`abandon` per-cell set** — `abandon` deletes residue from any state and is the destructive inverse of `stub`:
+    - **Pre-merge** (no shipped commits) — delete branch (local + remote), worktree, artifacts, user-workspace,
+      and the ROADMAP row. The resolver then returns `nonexistent`.
+    - **Post-merge — `abandon`@merged (Case D)** — the WU already merged; revert the merge on base (the PR-revert
+      mechanic), then remove residue. Net target: **deleted**.
+
+- **`deactivate`@merged (Case C)** — shares the PR-revert mechanic with Case D but differs by **target**: revert
+  the merge on base, restore to **Planning** (location `planned`, phase `Planning`) rather than deleting. The two
+  post-merge corners are distinct cells sharing one mechanic, separated by their target state.
+
+  Outside the merged corner, `deactivate` stays narrow — "undo a premature activation" (recoverable phase↓);
+  shelving an in-progress WU is `park@Active`, and destructive teardown is `abandon`.
+
+### 8. The `Integrating` phase edges
+
+- `Active → Integrating` — `integrate`, owned by `integrate-work-unit`.
+- `Integrating → Active` — `reopen` (§ 7).
+- `Integrating → park` / `abandon` — **no direct edge**; route through `reopen` first (withdraw the PR before a
+  location move).
+- `Integrating → completed` — `archive` (the sweep migrates; § 9).
+- `completed` is a **sink** — reopen-after-ship is a new WU with an origin-link, not an edge out of the sink.
+
+**Integration-entry meta write.** On the `Active → Integrating` flip, **`integrate-work-unit` Step 1 owns**
+writing the durable phase-transition meta fields (`Last Completed`, `Next Task`, `Next Action`) so cold-session
+orientation is not left reading stale task pointers. The write rides the transition that actually changes phase;
+review-cycle bookkeeping stays out of the meta file — only durable phase-transition state is captured. (Folds in
+the routed-in "Codify integration-entry meta status updates" concern.)
+
+### 9. `archive` sweep + path computation (ships here)
+
+`archive` (`Active`/`Integrating → completed`) is a `relocate-artifacts` caller: the sweep migrates the WU's
+artifact set from `active/` to `completed/`, and the executor **computes the dated/numbered destination path**
+(`completed/{YYYY-qN}/{NN}_{name}/`) deterministically. Both the sweep and the `{NN}` / `{dated}` computation are
+pure deterministic mechanics — they **migrate** into the executor (correcting the draft's earlier "no-go"
+framing). Judgment (merge approval, archival timing) stays in `integrate-work-unit` / `archive` workflow.
+
+**Cohort-doc archival sweep.** When the archived member is the *last* in its cohort, `archive` also sweeps the
+coordinating `cohort-<name>.md` to `completed/`. Detection is the resolver's — `lifecycle-membership.ts`'s
+`isArchivalTriggered` (true once a non-empty cohort has no member outside `completed/`); its docs explicitly
+assign the **fire-point** (the sweep itself) to this member. The executor consumes the predicate and performs the
+`git mv`; it never re-derives membership.
+
+### 10. The `stub` creation contract
+
+`stub` requires **commitment** (`provisional` | `planned`) **and priority** as explicit `inputs` — no silent
+`provisional` / `P3` default. The unified `stub` primitive makes enforcement a single chokepoint: every
+create-path routes through it. Under non-TTY it fails or requires an explicit flag (riding CSA's prompting
+substrate later). The mandatory-fields **policy statement** is authored in `strategy-work-organization`
+(→ `lifecycle-closeout` cascade); the **enforcement mechanic** lives here.
+
+### 11. The planning-entry write-context gate
+
+A mechanical preflight in `arc-plan` (the planning analog of `run-errand`'s `resolveWriteContext`) that resolves
+write-context and **routes** before `draft-design` runs. Inputs: branch context × protection mode ×
+draft-presence/location × active-WU. Routes:
+
+1. **Committable drafting context** → proceed.
+2. **Not committable** → by WU-worthiness: start now (`start` / `init`) or defer (classify → errand or `stub`).
+3. **Pre-authored draft, no branch → adopt** — `start --from <draft>`: cut `plan/<name>`, relocate the draft
+   into `active/`. A new entry edge (the draft-first path neither create-new nor `init` Path A handled).
+
+The `resolveWriteContext` *mechanic* → CLI (reuse/extend the existing one); the route *decision* surfaces to
+`arc-plan` for the developer to confirm.
+
+**Coordination seam:** shares `resolveWriteContext` + the start-new code path with `out-of-wu-entry`
+(agile-parallelism) — a distinct concern (entry-signal dispatch vs. lifecycle-transition write-context).
+Sequence, don't merge: whoever touches `resolveWriteContext` / the start-new path second rebases on the first.
+
+### 12. Protection-mode shaping — mode lives in the ship layer
+
+The **mutator bundle is mode-invariant for every transition**: a WU's branch state is a function of its
+`(phase, location)`, not the protection mode. This holds because the branch model is itself mode-invariant — a
+tracked WU at an **active** location owns its single branch in both `full` and `partial` (grounded in
+`strategy-work-organization` § Branch Protection Modes: planned work requires a branch from
+inception in *both* modes), and a **backlog-tier stub** (`provisional` / `planned`) is **branchless in both
+modes** (it carries a meta with `Branch: [none]`; the branch is cut at graduate). So `reconcile-branch` keys on
+`(phase, location)` direction alone: it *creates* the branch when a stub graduates (`init` Path A), *rotates*
+`plan/ → <type>/` at `activate`, *preserves* at `park@Active`, *tears down* at `park@Planning` / pre-merge
+`abandon` — each identical across modes.
+
+Mode shapes only the **ship layer** — how a transition's resulting commit/PR lands on base — never the bundle.
+Three ship-layer concerns, all outside the executor:
+
+1. **Pre-WU drafting boundary** — route-1 of the planning-entry gate (§11) is `base` under partial,
+   `plan/<name>` under full. This is the one place mode changes *where work begins*, and the gate already owns it.
+2. **Non-WU grooming ship** — off-WU maintenance is a direct base commit under partial, a micro-branch + PR
+   under full.
+3. **Auto-merge lane (full only)** — under full, per-WU grooming PRs the transitions emit (`meta-*` / `draft-*` /
+   `tasks-*` / `notes-*` / `cohort-*`) classify onto the auto-merge lane while `spec-*` / code / constitutional
+   surfaces stay reviewed. ARC classifies; the host gate enforces. The executor emits the commit identically in
+   both modes; lane classification and merge-gating are downstream (integration / `roadmap-tooling` territory),
+   not a bundle concern.
+
+Floor = partial; **unknown `branch.protection` values degrade to partial** (fail-safe).
+
+### 13. Slug→state read relocation
+
+The slug→state read currently surfaces as `arc status --lifecycle <slug>` — placed on `status` deliberately to
+avoid pre-empting the lifecycle verb namespace this WU now owns. With the verb group landing here, the read joins
+its family as **`arc lifecycle state <slug>`**, preserving the shipped JSON shape. The pure `resolveSlugQuery`
+aggregator in `lib/work-unit/lifecycle-query.ts` is the durable artifact and stays put; only the thin CLI shell
+relocates (the `handlers/status.ts` `--lifecycle` branch + the `cli.ts` option). Coordinate the final verb name
+with `idiomatic-alignment`. (Folds in the routed-in "Relocate the slug→state read" concern.)
+
+## Alternatives & Rationale
+
+- **B0 (doc-only) vs. B1 (table-as-code) vs. B2 (generic engine).** B0 keeps the status quo — the lifecycle stays
+  an audit, not a guard, and the duplication persists. B2 (a generic transition engine) over-generalizes: baking
+  `git mv` in as *the* transition mechanism re-commits the physical-file-location assumption, fighting the
+  arc-backend direction. **B1 wins** — a declarative table over *logical* `(phase, location)` makes totality and
+  encoding-consistency shippable invariants while keeping the physical encoding a projection. The executor stays
+  thin precisely so the table, not the engine, is the source of truth.
+
+- **State from git-inference vs. logical `(phase, location)`.** Inferring state from `git branch` / `git log` is
+  non-deterministic across machines and worktrees and bakes in exactly the coupling a record backend must unwind.
+  The resolver instead resolves location from the containing directory (deterministic, directory-wins) and phase
+  from the meta — a **logical pair** that is the record shape a backend re-homes with zero reshape. Directory
+  derivation is the chosen *projection*, not the thing rejected; git inference is.
+
+- **Engagement as a third axis vs. derived.** Modelling engaged / parked as stored state invites the
+  dormant-branch rot the model is built to forbid (suspended-but-still-in-`active/`). Deriving engagement from
+  `(phase, location)` makes suspension *legible by construction* — you cannot be parked without having moved
+  location.
+
+- **Park as branch-delete vs. the pointer-record.** Deleting a parked-Active branch loses the durable shelf and
+  forces a full re-cut on resume. The **pointer-record** preserves the branch as the authoritative shelf and
+  leaves only a regenerable projection on `main` — and doubles as the first concrete worked example of the
+  arc-backend record/projection model, de-risking it early on one well-bounded state.
+
+- **Integration-entry meta write: `verify-work-unit` vs. `integrate-work-unit` Step 1.** Coupling the durable
+  field write to verification spreads phase-transition state across two workflows. Putting it on the phase flip
+  (`integrate-work-unit` Step 1) keeps the side-effect with the transition that actually changes phase and keeps
+  review-cycle bookkeeping out of the meta. **Chosen: Step 1.**
+
+- **Archive-sweep executor: ship here vs. feed back.** The sweep is a `relocate-artifacts` caller and the
+  `{NN}` / `{dated}` computation is pure deterministic mechanics — splitting them across members would fracture
+  the relocation primitive this WU exists to unify. **Chosen: ship here.**
+
+## Cross-cutting Considerations
+
+- **Testing.** The table-walking tests (totality, inverse round-trip, encoding-consistency) are the headline
+  guard and ship with the table. Each mutator leg is unit-tested with injected fs/git dependencies (per the
+  three-layer architecture — `lib/` takes dependencies in). Executor dispatch + guard rejection paths get
+  integration coverage; `start` dispatch across all resolved states and both foot-gun guards get E2E coverage
+  against real worktrees.
+- **Arc-backend forward-compat (ADR-022).** The resolver and the worktree-occupancy guard resolve state from
+  location + meta fields, **never** `git branch` / `git log` inference. The pointer-record is the record/projection
+  model applied early.
+- **CSA forward-compat.** The executor's git + non-TTY mechanics are hand-rolled now and migrate to
+  execa / zod / neverthrow + the shared prompting substrate later; the `stub` required-fields *policy* stays ours.
+- **Migration / rollout.** Existing workflows (`init`, `decompose`, `archive`, `activate` / `deactivate`) are
+  re-pointed to call the executor rather than re-author relocation inline; per-member docs update locally with the
+  code. The cross-cutting verb-rename doc sweep is deferred to `lifecycle-closeout` (global consistency tail).
+- **Architecture rationale (ADR-026).** The B1 depth choice, the mechanics-in-CLI / judgment-in-workflow split,
+  and the early application of the record/projection model to `park@Active` are captured in ADR-026, the
+  companion to this Novel spec.
+- **User-facing impact.** `arc start` becomes safe against existing stubs and worktree occupancy; the new
+  `arc lifecycle state` surface replaces `arc status --lifecycle` (JSON shape preserved). `park` / `resume` /
+  `promote` / `demote` / `reopen` / `abandon` become real CLI verbs.
+
+## Success Criteria
+
+1. A single declarative transition table in `lib/` is the authoritative source of states, legal edges, inverses,
+   guard requirements, and per-transition encoding updates — with no relocation logic re-authored in any workflow.
+2. Table-walking tests pass and fail correctly: totality (every cell legal-or-marked-illegal), inverse
+   round-trip for every paired verb, and encoding-consistency (meta `State` · directory · branch) for every edge.
+3. The 1↔1 mutator bundle (`relocate-artifacts` / `reconcile-branch` / `reconcile-worktree` / `set-phase`) is the
+   sole relocation primitive, called by every location-moving transition.
+4. `arc start <name>` dispatches correctly across all resolved states and is provably guarded: a name-collision
+   routes to graduate (never mis-scaffolds), and worktree-occupancy rejects a second active WU in one worktree.
+5. The full inverse-paired verb set is shipped: `promote` / `demote`, `park` / `resume`, `reopen`, `abandon` (split
+   from `deactivate`), each an executor-dispatched transition.
+6. `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches.
+7. `abandon` (both pre- and post-merge Case D) and `deactivate`@merged (Case C) execute their per-cell mechanics,
+   including execution-locus relocation when tearing down the current worktree.
+8. The `archive` sweep + dated-path computation run from the executor, and the cohort-doc archival sweep fires on
+   `isArchivalTriggered` (last member shipped) to migrate `cohort-<name>.md` to `completed/`.
+9. The `stub` contract rejects creation without explicit commitment + priority.
+10. The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
+    pre-authored-draft adopt edge (`start --from <draft>`).
+11. `arc lifecycle state <slug>` serves the slug→state read with the JSON shape preserved from `arc status
+    --lifecycle`.
+
+## Open Questions
+
+- **Transition-record granularity for composite verbs.** `decompose` and `integrate` are owned by sibling/other
+  workflows but appear in the table as edges; the exact split between the table-declared edge and the workflow's
+  judgment half is settled per-verb at task time (the table declares the edge + encoding updates; the workflow
+  keeps the judgment). Implementation detail, not a design fork.
+- **PR-withdrawal mechanic surface for `reopen`** — close vs. convert-to-draft as the default, and whether it is a
+  `--keep-pr` `inputs` toggle. Resolved at task time against the `gh` surface; does not affect the state model.
+- **Exact `inputs` schema per verb** (the values the executor requires supplied) — enumerated during task
+  generation from the per-transition guard + side-effect set; no open *design* decision remains.
+
+---

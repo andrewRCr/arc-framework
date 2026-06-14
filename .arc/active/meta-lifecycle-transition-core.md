@@ -8,15 +8,15 @@
 - **Depends On:** `lifecycle-state-resolver`
 
 - **Origin:** [internal]
-- **Design:** `draft-lifecycle-transition-core.md`
+- **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec.md` to formalize `draft-lifecycle-transition-core.md` into a spec. The heavy
-  member — carries the logical model, the code transition table, the executor, the mutator bundle, and the
-  guards. Draft is the formalization-ready slice from the `lifecycle-state-machine` decomposition.
+- **Next Action:** Run `generate-tasks.md` to decompose `spec-lifecycle-transition-core.md` into a task list. The
+  heavy member — carries the logical model, the code transition table, the executor, the mutator bundle, and the
+  guards. ADR-026 captures the architecture rationale.
 
 ---
