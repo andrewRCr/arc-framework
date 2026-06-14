@@ -14,26 +14,27 @@ _Design decisions:_ One index per invocation (no cache), built from a single sca
 directories; injectable-fs `lib` module following the `completed-index.ts` / `cohort-doc.ts` idiom; meta fields
 read via the existing `meta-reader.ts` parser, never re-parsed.
 
-### `[ ]` **1.1 `(phase, location)` state-space types & resolution rules**
+### `[x]` **1.1 `(phase, location)` state-space types & resolution rules**
 
 - _Goal:_ A work unit's lifecycle position is a single orthogonal `(phase, location)` pair resolved
   deterministically from location + meta fields — replacing reads of the overloaded `**State:**` field, with no
   git inference on the resolution path.
 
-    - `[ ]` **1.1.a Define the `Phase`, `Location`, and position types**
-        - `Phase` reuses `WorkUnitState` (`"Planning" | "Active" | "Integrating" | "Shipped"`) from
-          `src/commands/active/types.ts`; `Location` is `"provisional" | "planned" | "active" | "completed"`.
-        - Pair type (e.g. `LifecyclePosition = { phase: Phase; location: Location }`) — the source-of-truth
-          shape, and the logical-record shape `operational-state-docs` will later persist.
+    - `[x]` **1.1.a Define the `Phase`, `Location`, and position types**
+        - `Phase` aliases `WorkUnitState` (imported from `src/commands/active/types.ts`); `Location` is
+          `"provisional" | "planned" | "active" | "completed"`; `LifecyclePosition = { phase; location }` is the
+          source-of-truth pair — and the logical-record shape a later record substrate persists.
 
-    - `[ ]` **1.1.b Implement location-first resolution rules**
-        - Build `test-first` (one behavior at a time):
-            - location resolves from the containing tier (`completed/` → `completed`, `active/` → `active`,
-              `backlog/provisional/` → `provisional`, `backlog/planned/` → `planned`)
-            - phase reads from the meta `**State:**` field
-            - directory-trails-meta lag tiebreak — directory wins, the git-is-truth precedence session-init uses
-            - no `git branch` / `git log` call anywhere on the resolution path
+    - `[x]` **1.1.b Implement location-first resolution rules**
+        - `locationFromPath` reads location from the containing tier (segment-matched, robust to relative and
+          absolute paths); `resolveLifecyclePosition` pairs it with the phase from `validateState`, returning
+          `null` for an unknown tier or a non-codified `**State:**`. Directory wins the location axis (never
+          inferred from meta State); both are pure synchronous functions — no fs/git on the resolution path.
         - **Strategies:** strategy-testing-methodology.md
+
+- _Outcome:_ New `src/lib/work-unit/lifecycle-state.ts` establishes the two-axis state space and the location-first
+  resolver every cohort member builds on; tests cover the tier map, the planned-stub-vs-graduated phase split, the
+  directory-wins lag tiebreak, and the unresolvable (unknown-tier / non-codified-State) cases.
 
 ### `[ ]` **1.2 Lifecycle-complete index scan (`slug → { phase, location, cohort, path }`)**
 
