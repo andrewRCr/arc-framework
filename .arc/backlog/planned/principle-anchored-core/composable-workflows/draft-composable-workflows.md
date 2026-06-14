@@ -112,6 +112,33 @@
 - *Coupling:* pairs with `idiomatic-alignment` (which owns the `index.md`/`log.md` ↔ ARC correspondence) and the
   navigability open question in § Open Design Questions.
 
+### `[ ]` **Model fragments as a point in the existing method space, not a separate subsystem**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-14);
+  captured during `lifecycle-state-machine` forward-compat alignment.
+- *Concern:* this WU is poised to invent a separate "workflow-fragment" subsystem, but ARC already has no `final`
+  — every method is **public + overridable** (the methods README defines method-hood *by* the
+  contract/default/`.override` structure). Fragments are cheaper to recognize as a point in the *existing* method
+  space: ARC occupies one cell of a 2×2 it could occupy four of.
+- *Proposed:* give the method concept two orthogonal properties — **visibility** (public = many callers via
+  `arc.methods`; private = callable only by one owning workflow, point-scanner-enforced, exempt from the corpus
+  "declared by ≥1 workflow" coverage audit) and **override-policy** (`overridable | fixed`, a frontmatter field).
+  Decouple overridability from method-hood (method-hood becomes "a procedure with a contract"). Populates the
+  empty cells: `public+fixed` = a shared invariant procedure projects must NOT redefine; `private+fixed` =
+  this WU's fragments.
+- *Critique to feed the open question:* a workflow spoke is **pulled** by its workflow ("load this block if
+  tier=X"), not **fired** by the framework at a fire-point — so fragments are **method-shaped (call), not
+  extension-shaped (hook)**. Model them on the method surface + a visibility axis, borrowing only the
+  config-resolution mechanism from extensions. The current "anchor on the extension/active-set surface" lean is
+  subtly the wrong surface.
+- *Worked example:* `lifecycle-state-machine`'s relocation mutator bundle is the canonical `public+fixed` shared
+  procedure (non-overridable *because* three-encoding consistency requires identical behavior everywhere),
+  implemented in the code tier — the north-star "mechanics → CLI" is literally "a fixed public method, code-tier";
+  the ceremonies' judgment halves are the `private+fixed` orchestration fragments.
+- *Cautions:* visibility in markdown is convention + tooling, not enforcement; don't force the near-empty
+  `private+overridable` cell; "method" would overload — needs a qualifier (pairs with the `path`/`lane`
+  reservation item above).
+
 ---
 
 ## Problem / Motivation

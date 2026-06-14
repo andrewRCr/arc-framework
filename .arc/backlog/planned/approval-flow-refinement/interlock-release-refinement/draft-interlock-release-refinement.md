@@ -32,8 +32,11 @@ atomic companion and the personal atomic inbox.
   wrapper's active-WU precondition cannot resolve and it refuses (code 10) — forcing a raw-`git` fallback for a
   routine ceremony. **Same root in errand shape:** `run-errand` tags its commit `taskCommit` (→ wrapper per
   release routing), but an errand has no active WU at all, so `arc release commit` refuses with the same
-  `no-active-wu` code 10 — hit 4× draining errands this session. Both are legitimate no-active-WU ceremony
-  contexts the precondition wrongly rejects.
+  `no-active-wu` code 10 — hit 4× draining errands this session. **Third instance — decomposition** (routed from
+  `USER-INBOX § Backlog`, 2026-06-14): a `decompose-work-unit` ceremony that retires the only active WU leaves
+  `active/` empty at commit time, so the wrapper has nothing to validate and refuses (hit live on the
+  `lifecycle-state-machine` decomposition). Add decomposition to the enumerated no-active-WU ceremony list.
+  All are legitimate no-active-WU ceremony contexts the precondition wrongly rejects.
 - *Resolution (decided at drain — wrapper-teaching):* teach the wrapper to recognize valid no-active-WU contexts
   — the archival commit moving `active/ → completed/`, AND the errand's `chore/<slug>` + `standalone` footer —
   and accept them; validate the alternate provenance instead of an active WU rather than refusing. The doc-only

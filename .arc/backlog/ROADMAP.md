@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `3e622bf4`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `2d2727bd`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -30,6 +30,7 @@ _No work units currently in flight._
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
+| goal-aware-direction         | P2       | andrew | —          | —                           |
 | graduation-cleanup           | P2       | andrew | —          | —                           |
 | planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
@@ -50,6 +51,7 @@ _No work units currently in flight._
 | adr-accept-timing            | P3       | andrew | —          | —                           |
 | arc-modes                    | P3       | andrew | —          | —                           |
 | arc-reinforce                | P3       | andrew | —          | —                           |
+| cohort-cut-coherence         | P3       | andrew | —          | —                           |
 | contributor-path             | P3       | andrew | —          | —                           |
 | idiomatic-alignment          | P3       | andrew | —          | —                           |
 | inbound-routing-method       | P3       | andrew | —          | —                           |

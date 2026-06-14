@@ -14,6 +14,27 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration
+> (`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **`decompose-work-unit` prescribes an invalid commit Context `(decomposition)`**
+
+- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-14); captured during the
+  `lifecycle-state-machine` decomposition ceremony.
+- *Concern:* `decompose-work-unit.md` Step 10 prescribes `Context: meta-<name>.md (decomposition)`, but the
+  commit-msg hook rejects `(decomposition)` (allowed meta parentheticals: handoff / activation / integration /
+  archival / deactivation / maintenance). Precedent (the CWC decomposition, `f8429599`) used `(maintenance)`,
+  which the `lifecycle-state-machine` decomposition matched. A workflow↔hook drift — same shape as the drained
+  `(graduation)` context-category item (2026-06-11).
+- *Resolve (at this member's rewrite of `decompose-work-unit`):* either fix the template to `(maintenance)`, OR
+  add `decomposition` to the hook's allowed parentheticals if decomposition warrants its own Context category
+  (pairs with the broader "reconcile the commit-footer meta-category set across method, hook, and test"
+  concern).
+
+---
+
 ## Problem / Motivation
 
 The shipped `decompose-work-unit` handles only `live-plan-branch origin → fully-retired origin →
