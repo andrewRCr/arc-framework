@@ -11,16 +11,16 @@
 - **Design:** `draft-lifecycle-state-machine.md`
 - **Task List:** [none]
 
-- **Last Completed:** Rough draft authored — framing, today's-state inventory, four pillars, north star,
-  forward-compat threads, and the completeness-audit method; `park-resume-lifecycle` superseded + retired.
+- **Last Completed:** Consolidated the draft rough → maturing — CLI-migration depth (B1), the inverse-paired verb
+  set, the 1:1 relocation primitive, shelve/park@Active, the planning-entry write-context gate, and a completeness
+  pass all resolved (`a5da716a`).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft toward spec readiness (high-path iterative shaping; `Novel`). Start from the
-  central open question — CLI-migration depth (which transition *mechanics* move to code vs. stay workflow
-  judgment); it gates the other open questions. Then the state-model representation (phase ⊥ location) and the
-  verb-naming pass. Coordinate forward-compat with `composable-workflows` (workflow-shell boundary), `arc-backend`
-  (state-as-record / pluggable persistence) + `strategy-storage-evolution.md`, and `idiomatic-alignment` (verb
-  naming).
+- **Next Action:** Continue high-path planning — the draft is at `maturing` and its `Continuity` block is the
+  resume anchor. Next substantive thread: the protection-mode (full/partial) pass (partial is the default and
+  collapses the branch axis); then run the completeness audit and consolidate toward formalization-ready. A
+  sequencing recommendation is recorded in the draft: propose `finalize-parallelism → lifecycle-state-machine`
+  `Depends On` (likely decomposes into a cohort; edge granularity resolves at `create-spec`).
 
 ---
