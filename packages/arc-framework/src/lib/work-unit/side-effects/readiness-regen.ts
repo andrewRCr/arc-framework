@@ -80,6 +80,43 @@ export async function reconcileStatusUser(
   return { written: true, path };
 }
 
+/** Parameters for {@link reconcileStatusUserSideEffect} — the reconcile params plus the move being reported. */
+export interface ReconcileStatusUserSideEffectParams extends ReconcileStatusUserParams {
+  /** The work unit's slug. */
+  slug: string;
+  /** Source position, or `null` for a creation edge. */
+  from: LifecyclePosition | null;
+  /** Target position, or `null` for a deletion edge. */
+  to: LifecyclePosition | null;
+}
+
+/**
+ * Fire the real `STATUS.USER` reconcile as a transition side-effect, degrading to
+ * an advisory instead of throwing when the render or write fails. A readiness-view
+ * regen must never fail the transition that triggered it — the view is recoverable
+ * on demand via `arc status --user`, so a failed regen surfaces as an advisory the
+ * executor reports, not an `encoding-failed` outcome.
+ *
+ * @param ctx - Injected composer + filesystem seams (same as {@link reconcileStatusUser}).
+ * @param params - Repository root, identity, and the slug / from / to for the degrade advisory.
+ * @returns `undefined` on a successful (or identity-skipped) write; an advisory string on degrade.
+ */
+export async function reconcileStatusUserSideEffect(
+  ctx: ReconcileStatusUserContext,
+  params: ReconcileStatusUserSideEffectParams,
+): Promise<string | undefined> {
+  try {
+    await reconcileStatusUser(ctx, { cwd: params.cwd, identity: params.identity });
+    return undefined;
+  } catch {
+    const move = `${positionLabel(params.from)} → ${positionLabel(params.to)}`;
+    return (
+      `STATUS.USER regen failed: \`${params.slug}\` ${move}` +
+      " — run `arc status --user` to refresh."
+    );
+  }
+}
+
 /** Parameters for {@link reconcileRoadmap}. */
 export interface ReconcileRoadmapParams {
   /** The work unit's slug. */

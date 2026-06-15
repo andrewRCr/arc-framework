@@ -362,25 +362,17 @@ share `resolveWriteContext`.
   `arc housekeep check` write-context-gate pattern. The `resolveWriteContext` / start-new path stays a rebase seam
   with `out-of-wu-entry`; final verb naming coordinates with `idiomatic-alignment`.
 
-### `[ ]` **5.4 Wire the executor binder's `reconcile-status-user` to the real local render**
+### `[x]` **5.4 Wire the executor binder's `reconcile-status-user` to the real local render**
 
 - _Goal:_ The production executor binder regenerates `STATUS.USER.md` for real on a location move — the shipped
   `runStatusUserView` in local-only mode — replacing the interim advisory Task 5.1 stands it up with.
 
-- _Note:_ Task 5.1 introduces the first production executor-context binder with `reconcile-status-user` as a
-  precise advisory (symmetric to `reconcile-roadmap`), keeping 5.1 scoped to `start` dispatch + the foot-gun guards;
-  start's graduate/resume arms are agent-invoked and `STATUS.USER` regenerates on demand via `arc status --user`, so
-  the advisory is tolerable there. This task completes the binder before Phase 6 re-points real, status-changing
-  ceremonies (`activate` / `integrate` / `archive`) through it (6.1 / 6.4), where auto-regen is load-bearing. Unlike
-  `reconcile-roadmap` — whose renderer is genuinely downstream (`roadmap-tooling`) and stays advisory — the status
-  renderer is already shipped, so the cohort's consistency-on-exit standard requires a real render here, not a
-  permanent advisory. Extract the `arc status --user` local-render assembly from `handlers/status.ts` into one
-  shared helper reused by both the handler and the binder (DRY).
-
-    - Build `test-first` (one behavior at a time):
-        - The binder's `reconcile-status-user` writes a real `STATUS.USER.md` on a location-move transition (local-only).
-        - A render failure degrades to an advisory without failing the transition.
-        - The extracted assembler is the single source for both `arc status --user` and the binder.
+- _Outcome:_ Extracted the `arc status --user` render assembly into `assembleStatusUserView`
+  (`lib/status/assemble-user-view.ts`) — the single seam-binding source now shared by `handlers/status.ts` and the
+  executor binder, so the rendered view can't fork. The binder's `reconcile-status-user` renders for real (local-only)
+  and writes `STATUS.USER.md` via the new `reconcileStatusUserSideEffect` wrapper, which degrades to an advisory
+  instead of failing the transition when the render or write throws. `buildExecutorContext` gains a `teamMode` dep
+  (threaded from `start`'s spawn config) for the in-flight oracle's identity filter.
 
 ## **Phase 5.R:** Verb command surface
 

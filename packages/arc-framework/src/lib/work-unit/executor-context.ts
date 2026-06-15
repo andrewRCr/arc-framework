@@ -18,11 +18,12 @@
  * artifact runner and the `withdraw-pr` / `discharge-dep-edges` side-effects
  * (used only by other verbs) are left for the phase that wires those verbs.
  *
- * `reconcile-status-user` is wired here as a precise **interim advisory**,
- * symmetric with `reconcile-roadmap`: start's arms are agent-invoked and
- * `STATUS.USER` regenerates on demand via `arc status --user`, so the real
- * local render is completed as its own task before the executor backs real,
- * status-changing ceremonies.
+ * `reconcile-status-user` renders for real here: it composes the per-developer
+ * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
+ * uses) in local-only mode and writes `STATUS.USER.md`, degrading to an advisory
+ * rather than failing the transition if the render or write throws.
+ * `reconcile-roadmap` stays a forward-compat advisory — `roadmap-tooling` owns the
+ * real ROADMAP renderer.
  *
  * @module
  */
@@ -33,17 +34,17 @@ import { isAbsolute, join } from "node:path";
 import { setMetaBulletFields } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
+import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
-import type { LifecyclePosition } from "./lifecycle-state.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import { reconcileWorktree } from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
-import { reconcileRoadmap } from "./side-effects/readiness-regen.js";
+import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -53,26 +54,10 @@ export interface ExecutorContextDeps {
   io: UserIOContext;
   /** Resolved identity (`null` skips the identity-scoped side-effects). */
   identity: string | null;
+  /** Team mode — gates the `STATUS.USER` in-flight oracle's identity filtering. */
+  teamMode: boolean;
   /** Internal template directory for the user-workspace SESSION-NOTES seed. */
   internalTemplateDir: string;
-}
-
-/** Render a position as `phase/location`, or `nonexistent` for an absent endpoint. */
-function positionLabel(position: LifecyclePosition | null): string {
-  return position === null ? "nonexistent" : `${position.phase}/${position.location}`;
-}
-
-/**
- * The interim `reconcile-status-user` advisory — a precise line naming the WU and
- * its `from → to` move, pointing at the on-demand refresh. Replaced by the real
- * local render in its own task before the executor backs status-changing
- * ceremonies.
- */
-function statusUserAdvisory(slug: string, from: LifecyclePosition | null, to: LifecyclePosition | null): string {
-  return (
-    `STATUS.USER regen pending (interim): \`${slug}\` ${positionLabel(from)} → ${positionLabel(to)}` +
-    " — run `arc status --user` to refresh."
-  );
 }
 
 /**
@@ -84,7 +69,7 @@ function statusUserAdvisory(slug: string, from: LifecyclePosition | null, to: Li
  * @returns The bound executor context, ready to pass to {@link executeTransition}.
  */
 export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransitionContext {
-  const { cwd, io, identity, internalTemplateDir } = deps;
+  const { cwd, io, identity, teamMode, internalTemplateDir } = deps;
 
   /** Resolve a cwd-relative path (the shape the executor passes) to an absolute one. */
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
@@ -134,7 +119,26 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
 
     sideEffects: {
       "reconcile-roadmap": ({ slug, from, to }) => reconcileRoadmap({ slug, from, to }),
-      "reconcile-status-user": ({ slug, from, to }) => statusUserAdvisory(slug, from, to),
+      "reconcile-status-user": ({ slug, from, to }) =>
+        reconcileStatusUserSideEffect(
+          {
+            composeView: async () =>
+              (
+                await assembleStatusUserView({
+                  cwd,
+                  exec,
+                  identity,
+                  teamMode,
+                  localOnly: true,
+                  readFile: io.readFile,
+                  readdir: (p) => readdir(p),
+                })
+              ).output,
+            mkdir: io.mkdir,
+            writeFile: io.writeFile,
+          },
+          { cwd, identity, slug, from, to },
+        ),
       "user-workspace": userWorkspaceHandler,
     },
   };

@@ -132,7 +132,7 @@ interface ArmContext {
 /** Resolve `branch.base`, `worktree.location_template`, and the `{repo}` basename from config + git. */
 async function resolveSpawnConfig(
   ctx: ArmContext,
-): Promise<{ baseBranch: string; locationTemplate: string; repo: string } | null> {
+): Promise<{ baseBranch: string; locationTemplate: string; repo: string; teamMode: boolean } | null> {
   const { settings } = await readConfigSettings(ctx.cwd);
   const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
   if (primaryWorktreePath === null) {
@@ -144,6 +144,7 @@ async function resolveSpawnConfig(
     baseBranch: settings["branch.base"],
     locationTemplate: settings["worktree.location_template"],
     repo: basename(primaryWorktreePath),
+    teamMode: settings["team.mode"] === "true",
   };
 }
 
@@ -212,14 +213,17 @@ async function graduate(
     }
   }
 
-  const result = await runGraduate(buildExecutorContext({ ...ctx, internalTemplateDir: getInternalTemplatePath() }), {
-    name: wuName,
-    cls,
-    baseBranch: config.baseBranch,
-    locationTemplate: config.locationTemplate,
-    repo: config.repo,
-    spawningIdentity: ctx.identity,
-  });
+  const result = await runGraduate(
+    buildExecutorContext({ ...ctx, teamMode: config.teamMode, internalTemplateDir: getInternalTemplatePath() }),
+    {
+      name: wuName,
+      cls,
+      baseBranch: config.baseBranch,
+      locationTemplate: config.locationTemplate,
+      repo: config.repo,
+      spawningIdentity: ctx.identity,
+    },
+  );
   if (result.status === "rejected") {
     p.log.error(result.reason);
     process.exitCode = 1;
@@ -248,7 +252,11 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
 
   const result = await runResume(
     {
-      executor: buildExecutorContext({ ...ctx, internalTemplateDir: getInternalTemplatePath() }),
+      executor: buildExecutorContext({
+        ...ctx,
+        teamMode: config.teamMode,
+        internalTemplateDir: getInternalTemplatePath(),
+      }),
       fs: { writeFile: (path, content) => ctx.io.writeFile(path, content) },
     },
     { name: wuName, locationTemplate: config.locationTemplate, repo: config.repo, spawningIdentity: ctx.identity },

@@ -140,7 +140,7 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(dispatch.arm).toBe("graduate");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
       {
         name: "widget",
         cls: "Light",
@@ -157,6 +157,10 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
     // The worktree spawned on the cut branch.
     expect(await pathExists(wt)).toBe(true);
+    // The `reconcile-status-user` side-effect rendered for real (local-only) and wrote STATUS.USER.
+    const statusUserPath = join(h.repo, ".arc", "user", IDENTITY, "STATUS.USER.md");
+    expect(await pathExists(statusUserPath)).toBe(true);
+    expect(await readFile(statusUserPath, "utf8")).toContain("## In Flight");
   });
 
   it("worktree-occupancy: graduating into a worktree already holding an active WU is rejected", async () => {
@@ -165,7 +169,7 @@ describe("arc start dispatch — against real worktrees", () => {
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
 
     const result = await runGraduate(
-      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, internalTemplateDir: getInternalTemplatePath() }),
+      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
       {
         name: "widget",
         cls: "Light",

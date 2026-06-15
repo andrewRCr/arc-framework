@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import {
   reconcileStatusUser,
+  reconcileStatusUserSideEffect,
   reconcileRoadmap,
   type ReconcileStatusUserContext,
 } from "../../../../src/lib/work-unit/side-effects/readiness-regen.js";
@@ -63,6 +64,60 @@ describe("reconcileStatusUser", () => {
 
     expect(result).toEqual({ written: false, path: null });
     expect(state.composeCalls).toBe(0);
+    expect(state.writes).toEqual([]);
+  });
+});
+
+describe("reconcileStatusUserSideEffect", () => {
+  it("writes the real view and returns no advisory on success", async () => {
+    const { ctx, state } = buildCtx("## In Flight\n\nrows");
+
+    const advisory = await reconcileStatusUserSideEffect(ctx, {
+      cwd: "/repo",
+      identity: "andrew",
+      slug: "demo-wu",
+      from: PARKED,
+      to: ACTIVE,
+    });
+
+    expect(advisory).toBeUndefined();
+    expect(state.writes).toHaveLength(1);
+  });
+
+  it("degrades to an advisory (never throws) when the render fails", async () => {
+    const ctx: ReconcileStatusUserContext = {
+      composeView: () => Promise.reject(new Error("remote unreachable mid-render")),
+      mkdir: async () => undefined,
+      writeFile: async () => undefined,
+    };
+
+    const advisory = await reconcileStatusUserSideEffect(ctx, {
+      cwd: "/repo",
+      identity: "andrew",
+      slug: "demo-wu",
+      from: PARKED,
+      to: ACTIVE,
+    });
+
+    expect(advisory).toContain("demo-wu");
+    expect(advisory).toContain("Active/planned");
+    expect(advisory).toContain("Active/active");
+    expect(advisory).toMatch(/STATUS\.USER/);
+    expect(advisory).toMatch(/arc status --user/);
+  });
+
+  it("returns no advisory when identity is absent (the reconcile skips, no failure)", async () => {
+    const { ctx, state } = buildCtx("body");
+
+    const advisory = await reconcileStatusUserSideEffect(ctx, {
+      cwd: "/repo",
+      identity: null,
+      slug: "demo-wu",
+      from: PARKED,
+      to: ACTIVE,
+    });
+
+    expect(advisory).toBeUndefined();
     expect(state.writes).toEqual([]);
   });
 });
