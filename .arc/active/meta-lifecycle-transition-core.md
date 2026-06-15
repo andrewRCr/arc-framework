@@ -11,15 +11,16 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** Phase 4 (partial) — the first verb handlers (Tasks 4.1–4.2): `runStub` (the create
-  chokepoint enforcing commitment + priority, scaffolding the backlog-tier meta) and `runPromote` / `runDemote`
-  (the backlog-tier inverse pair with the Class ratchet), under `lib/work-unit/verbs/`
-- **Next Task:** `Task 4.3 — park / resume & the pointer-record (line ~228)`
+- **Last Completed:** Phase 4 complete (Tasks 4.1–4.7) — the full inverse-paired verb set under
+  `lib/work-unit/verbs/` + `side-effects/`: `stub`, `promote`/`demote`, `park`/`resume` (+ the pointer-record),
+  `reopen` (+ the `withdraw-pr` gh side-effect), the narrow `deactivate`, `abandon`, and the `activate` dep-edge
+  discharge write — each an executor-dispatched transition; lib contracts only (CLI surface deferred to Phase 6)
+- **Next Task:** `Task 5.1 — start full lifecycle-state dispatch (line ~309)`
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.3 — `park` / `resume` & the pointer-record: `park@Active` preserves the pushed
-  branch and lands a render-pointer on `main` (meta `State: Active`, `parked` derived from location), `resume`
-  re-attaches; adds the `--reason` input and the park-from-`Integrating` guard, per
+- **Next Action:** Begin Task 5.1 — extend `handlers/start.ts` to full-lifecycle dispatch routing on the
+  resolver's resolved state (recomposing the create-new / cold-start arms on the bundle legs, not the coarse
+  `spawnWorktree`) and wire the name-collision + worktree-occupancy guards, per
   `tasks-lifecycle-transition-core.md`.
 
 ---
