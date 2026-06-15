@@ -212,18 +212,18 @@ the executor never derives or authors them.
   committed target `location` (serving any future multi-target verb). The user-facing `arc stub` command is deferred
   to the Phase-6 command-surface work.
 
-### `[ ]` **4.2 `promote` / `demote`**
+### `[x]` **4.2 `promote` / `demote`**
 
 - _Goal:_ Backlog-tier movement is an inverse pair with the Class ratchet enforced — `promote` never carries a
   `[TBD]` into `planned/`, `demote` keeps the realized Class.
 
-- _Note:_ Both slug-required (you're not "in" a backlog stub); bare → list that tier's stubs. Replaces the
-  `graduate → promote` rename and adds the missing `demote` inverse.
-
-    - Build `test-first` (one behavior at a time):
-        - `promote` (`provisional → planned`) rejects when `Class` is `[TBD]` (the Class gate).
-        - `promote` relocates the stub to `backlog/planned/` when `Class` is resolved.
-        - `demote` (`planned → provisional`) preserves `Class` (Class-sticky ratchet).
+- _Outcome:_ `runPromote` / `runDemote` (`lib/work-unit/verbs/promote-demote.ts`) dispatch the two content-preserving
+  backlog-tier relocations through `executeTransition`. `promote` reads the source stub's realized `Class` from its
+  meta and feeds it to the existing `class-resolved` guard, so a `[TBD]` stub is refused before any move; `demote` is
+  the unguarded inverse, and the Class ratchet is sticky by construction — a content-preserving relocate carries the
+  field down untouched (no soft-field rewrite). Both verbs take a full executor context (the relocate mutator is
+  pre-bound); no executor change was needed beyond Task 4.1's. CLI surface (slug-required, bare → tier candidate
+  list) is deferred to the Phase-6 command work.
 
 ### `[ ]` **4.3 `park` / `resume` & the pointer-record**
 
