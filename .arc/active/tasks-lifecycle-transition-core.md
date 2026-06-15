@@ -94,26 +94,20 @@ against them.
   six unit tests cover rotate, preserve, local+remote teardown (default + explicit remote), the swallowed
   remote-delete failure, and the create no-op.
 
-### `[ ]` **2.3 `reconcile-worktree` mutator (incl. execution-locus relocation)**
+### `[x]` **2.3 `reconcile-worktree` mutator (incl. execution-locus relocation)**
 
 - _Goal:_ Worktree state is spawned or torn down per transition, and a transition tearing down the worktree it
   runs from first hops the agent's locus to the primary checkout — so park@Active / abandon of the current WU never
   saws off the branch it stands on.
 
-- _Note:_ The spawn leg is the **decomposition** of the shipped `spawnWorktree` (`git worktree add -b` + ownership
-  marker), with the fresh-meta write and `runUserOpen` lifted out to `scaffold` and the user-workspace side-effect
-  respectively — not a delegation (which would clobber graduate's relocated meta). Create-new / cold-start
-  recompose on this leg in 5.1. Teardown is **not** the rollback path: `--force` stays rollback-only; this leg
-  refuses a dirty worktree (gate on `isWorktreeClean`). Occupancy/identity from the resolver + worktree roster
-  (`resolvePrimaryWorktreePath` is the locus-hop target), never `git branch` inference.
-  _Notes:_ See `notes-lifecycle-transition-core.md` § `spawnWorktree` decomposition map, § Worktree teardown is not
-  the rollback path.
-
-    - Build `test-first` (one behavior at a time):
-        - Spawns a worktree at the `location_template`-resolved path on graduate / start (decomposed from
-          `spawnWorktree`; create-new / cold-start tests pin the recompose).
-        - Tears down a worktree on park / abandon / archive, refusing a dirty worktree (no `--force`).
-        - Detects self-teardown and relocates CWD/locus to the primary base checkout before `git worktree remove`.
+- _Outcome:_ New `lib/work-unit/mutators/reconcile-worktree.ts` — `reconcileWorktree` dispatches a `spawn` /
+  `teardown` op union. `spawn` is the decomposition of `spawnWorktree` (`git worktree add -b` at the
+  `resolveWorktreeLocation` path + `writeWorktreeOwnershipMarker`), with the meta write and `runUserOpen` left to
+  `scaffold` / the user-workspace side-effect. `teardown` gates on `isWorktreeClean` (refuses dirty; never
+  `--force`) and, on self-teardown (`currentLocus` inside `worktreePath`, a `node:path` containment check), resolves
+  the primary via `resolvePrimaryWorktreePath` and hops the injected `chdir` before `git worktree remove`. The git
+  seam and locus-hop are both injected; four unit tests (real-fs marker for spawn) pin spawn, clean non-self
+  teardown, dirty refusal, and the hop-before-remove ordering.
 
 ### `[ ]` **2.4 `set-phase` mutator**
 
