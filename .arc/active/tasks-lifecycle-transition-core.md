@@ -129,13 +129,15 @@ against them.
 
 - _Notes:_ See `notes-lifecycle-transition-core.md` § Side-effect implementation split, § User-workspace side-effect.
 
-    - `[ ]` **2.5.a Readiness-view regen** — `reconcile-roadmap` / `reconcile-status-user`, declared on every
-      location-move edge.
-        - `reconcile-status-user` builds for real — composes via the shipped renderer (`runStatusUserView` /
-          `composeUserView`, `lib/status/`) and writes `STATUS.USER`.
-        - `reconcile-roadmap` is declared as a `SideEffectId` (forward-compat — `roadmap-tooling` fills the
-          renderer), with an interim implementation that emits a precise advisory naming the WU + its `from→to`
-          location move. No format / bucket / Parked-label commitment here (downstream).
+    - `[x]` **2.5.a Readiness-view regen** — `reconcile-roadmap` / `reconcile-status-user` in
+      `lib/work-unit/side-effects/readiness-regen.ts`.
+        - `reconcileStatusUser` composes via an injected `composeView` seam (executor binds the shipped
+          `runStatusUserView`, local-only) and writes `STATUS.USER.md` under `.arc/user/{identity}/`
+          (ensures the dir, single trailing newline); a null identity skips. The side-effect owns the write, not
+          the status subsystem's git surface.
+        - `reconcileRoadmap` returns a precise advisory naming the WU + its `from → to` (`phase/location`, or
+          `nonexistent` for a creation/deletion endpoint), flagging a hand-render until `roadmap-tooling` ships the
+          renderer — no format / bucket / Parked-label commitment.
 
     - `[ ]` **2.5.b User-workspace satellite** — open/close across
       `init` / `start` / `activate` / `integrate` / `decompose` / `park` / `resume` / `abandon`.
