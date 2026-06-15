@@ -35,7 +35,7 @@ import {
   type LifecycleIndexFs,
 } from "./lifecycle-index.js";
 import { resolveSlugPosition } from "./lifecycle-resolver.js";
-import type { LifecyclePosition } from "./lifecycle-state.js";
+import type { LifecyclePosition, Location } from "./lifecycle-state.js";
 import type { ReconcileBranchOp } from "./mutators/reconcile-branch.js";
 import type {
   ReconcileWorktreeOp,
@@ -83,6 +83,12 @@ export interface TransitionInputs {
   confirmed?: boolean;
   /** The ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
+  /**
+   * The committed target location, supplied when an edge set shares `(verb,
+   * from)` and must be disambiguated by where it lands — e.g. `stub` →
+   * `provisional` vs `planned`. Single-edge transitions ignore it.
+   */
+  commitment?: Location;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,6 +286,24 @@ function positionsEqual(a: LifecyclePosition | null, b: LifecyclePosition | null
   return a.phase === b.phase && a.location === b.location;
 }
 
+/**
+ * Resolve the single legal edge for `(verb, from)`. When more than one edge
+ * shares that source — `stub` is the case today, with `provisional` and
+ * `planned` targets from the `nonexistent` source — the caller's committed
+ * target `location` disambiguates; absent a commitment there is no basis to
+ * choose, so it resolves to no edge (a `lookup` rejection). Single-edge
+ * transitions are unaffected.
+ */
+function selectEdge(
+  verb: Verb,
+  position: LifecyclePosition | null,
+  commitment: Location | undefined,
+): TransitionRecord | undefined {
+  const matches = TRANSITIONS.filter((t) => t.verb === verb && positionsEqual(t.from, position));
+  if (matches.length <= 1) return matches[0];
+  return matches.find((t) => t.to !== null && t.to.location === commitment);
+}
+
 /** Whether the soft-field apply pass runs for this edge. */
 function softFieldsApply(record: TransitionRecord): boolean {
   return (
@@ -311,9 +335,7 @@ export async function executeTransition(
   const position = resolveSlugPosition(index, slug);
 
   // 2. Look up the legal edge for (verb, from); reject illegal / unknown.
-  const record = TRANSITIONS.find(
-    (t) => t.verb === verb && positionsEqual(t.from, position),
-  );
+  const record = selectEdge(verb, position, inputs.commitment);
   if (record === undefined) {
     return { status: "rejected", stage: "lookup", message: lookupRejection(verb, position) };
   }

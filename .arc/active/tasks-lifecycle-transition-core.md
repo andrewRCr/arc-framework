@@ -198,21 +198,19 @@ model), hand-rolled now per the spec's CSA-forward-compat note. Each verb suppli
 (§14 — e.g. `activate` → the first task; `park` → the frozen pointer) and emits an ephemeral next-step suggestion;
 the executor never derives or authors them.
 
-### `[ ]` **4.1 `stub` creation contract**
+### `[x]` **4.1 `stub` creation contract**
 
 - _Goal:_ Every create path routes through one `stub` chokepoint that refuses creation without explicit commitment
   and priority — no silent `provisional` / `P3` default.
 
-- _Note:_ `stub` is a create verb — takes a new name (not an existing slug); commitment + priority supplied as
-  `inputs` (flags), no bare default. The required-fields _policy_ is authored in `strategy-work-organization` (a
-  `lifecycle-closeout` cascade); the _enforcement mechanic_ lives here. `scaffold` is the internal structure-gen
-  mechanic that `stub` / `start` create-new / `decompose` / `init` Path B / errand→WU promotion all invoke.
-
-    - Build `test-first` (one behavior at a time):
-        - Rejects `stub` without commitment (`provisional` | `planned`) supplied.
-        - Rejects `stub` without priority supplied.
-        - Scaffolds the selected-tier meta under `backlog/` when both are supplied.
-        - Under non-TTY, fails (or requires an explicit flag) rather than defaulting.
+- _Outcome:_ `runStub` (`lib/work-unit/verbs/stub.ts`) is the enforcement front door — it rejects a creation missing
+  commitment or priority (pure over its inputs, so the non-interactive case is the same rejection, never a default),
+  then registers the `scaffold` artifact runner and dispatches through `executeTransition` to write the branchless
+  `Planning` / `Branch: [none]` meta at `backlog/<tier>/<name>/`. Enforcement sits at the handler chokepoint, not a
+  guard, because commitment must be resolved at dispatch — it selects which of the two `stub` edges fires — so
+  `executeTransition` gained a verb-agnostic `selectEdge` that disambiguates a shared-`(verb, from)` edge set by the
+  committed target `location` (serving any future multi-target verb). The user-facing `arc stub` command is deferred
+  to the Phase-6 command-surface work.
 
 ### `[ ]` **4.2 `promote` / `demote`**
 
