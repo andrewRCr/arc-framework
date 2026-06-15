@@ -306,25 +306,22 @@ _Purpose:_ Make `arc start` a safe full-lifecycle dispatch routing on resolved s
 planning-entry preflight that resolves write-context before `draft-design` runs — the two entry surfaces that
 share `resolveWriteContext`.
 
-### `[ ]` **5.1 `start` full lifecycle-state dispatch**
+### `[x]` **5.1 `start` full lifecycle-state dispatch**
 
 - _Goal:_ `arc start <name>` routes on the resolver's resolved state and refuses an occupied worktree — never
   mis-scaffolding an existing stub.
 
-- _Note:_ Extends `handlers/start.ts` (today create-new + `--here` cold-start only) to full dispatch; wires the two
-  guards from 3.2. The create-new and cold-start arms **recompose on the bundle legs** (the Finding-D decomposition
-  of `spawnWorktree`), not the old coarse primitive. `start` stays mode-invariant — branch-cut timing is owned by the
-  planning-entry gate (5.3). `start [name]` keeps its optional-name shape (create-new needs a name; bare cold-start
-  derives from branch). Dispatch route: `nonexistent` → create-new · `provisional`/`planned` → graduate (`init` Path
-  A, resolve Class) · `parked` → resume · `active` → error (occupied) · `integrating` → route via the Integrating
-  edges (`reopen`) · `shipped` → offer a new WU with an origin-link.
-  _Notes:_ See `notes-lifecycle-transition-core.md` § `spawnWorktree` decomposition map (recomposition).
-
-    - Build `test-first` (one behavior at a time):
-        - Dispatches to the correct arm for each resolved state.
-        - Name-collision against an existing stub routes to graduate (never mis-scaffolds).
-        - Worktree-occupancy rejects a second active WU in one worktree.
-        - E2E: `start` dispatch across resolved states and both foot-gun guards against real worktrees.
+- _Outcome:_ `resolveStartDispatch` (`commands/start.ts`) routes a name on its resolved state — create-new,
+  graduate, resume, or a directed refusal for the live/terminal states; `handlers/start.ts` dispatches and reports
+  (`--here` stays the orthogonal cold-start arm). The graduate/resume arms run through the first production executor
+  binder (`lib/work-unit/executor-context.ts`, `buildExecutorContext`) — the four mutators, the foot-gun guards, and
+  the render + user-workspace side-effects closed over real git/fs. create-new and cold-start recompose on the bundle
+  legs (`reconcile-worktree.spawn` + `scaffoldIntoWorktree`), retiring the coarse `spawnWorktree`. The two foot-gun
+  guards gate the spawning arms (name-collision routes an existing stub to graduate; worktree-occupancy rejects a
+  second active WU). `reconcile-status-user` ships an interim advisory (real local render deferred to 5.4 — the
+  renderer is shipped, so it must build for real before ship). Covered by unit (dispatch, graduate, recomposition),
+  handler, and a real-worktree integration suite. See `notes-lifecycle-transition-core.md` § `start` arm wiring for
+  the executor-vs-direct-recompose split.
 
 ### `[ ]` **5.2 `start --from <draft>` adopt edge**
 
@@ -356,6 +353,26 @@ share `resolveWriteContext`.
 
     - `[ ]` **5.3.c Surface the route decision** to `arc-plan` for the developer to confirm — mechanic in the CLI,
       the route decision in the workflow.
+
+### `[ ]` **5.4 Wire the executor binder's `reconcile-status-user` to the real local render**
+
+- _Goal:_ The production executor binder regenerates `STATUS.USER.md` for real on a location move — the shipped
+  `runStatusUserView` in local-only mode — replacing the interim advisory Task 5.1 stands it up with.
+
+- _Note:_ Task 5.1 introduces the first production executor-context binder with `reconcile-status-user` as a
+  precise advisory (symmetric to `reconcile-roadmap`), keeping 5.1 scoped to `start` dispatch + the foot-gun guards;
+  start's graduate/resume arms are agent-invoked and `STATUS.USER` regenerates on demand via `arc status --user`, so
+  the advisory is tolerable there. This task completes the binder before Phase 6 re-points real, status-changing
+  ceremonies (`activate` / `integrate` / `archive`) through it (6.1 / 6.4), where auto-regen is load-bearing. Unlike
+  `reconcile-roadmap` — whose renderer is genuinely downstream (`roadmap-tooling`) and stays advisory — the status
+  renderer is already shipped, so the cohort's consistency-on-exit standard requires a real render here, not a
+  permanent advisory. Extract the `arc status --user` local-render assembly from `handlers/status.ts` into one
+  shared helper reused by both the handler and the binder (DRY).
+
+    - Build `test-first` (one behavior at a time):
+        - The binder's `reconcile-status-user` writes a real `STATUS.USER.md` on a location-move transition (local-only).
+        - A render failure degrades to an advisory without failing the transition.
+        - The extracted assembler is the single source for both `arc status --user` and the binder.
 
 ## **Phase 6:** Terminal sweep, read relocation & workflow re-pointing
 

@@ -34,6 +34,24 @@ the coupling smell. Hence decompose.
 
 Existing create-new / cold-start tests pin behavior across the refactor (refactor under green).
 
+## `start` arm wiring (Task 5.1)
+
+**Executor-routed vs. direct-recompose split.** The graduate and resume arms route through `executeTransition`
+(the relocate-based location-movers); create-new and cold-start recompose the bundle legs **directly**
+(`reconcile-worktree.spawn` + `scaffoldIntoWorktree`), _not_ through the executor. The reason is the executor's
+fixed leg order (`artifacts` before `reconcileWorktree`): a create-new edge would fire `scaffold` before the
+worktree is spawned, leaving nowhere to write the fresh meta. The `start`/`null` table edge still exists for
+totality + as the declarative leg spec, but it is never executed — the foot-gun guards (`name-collision`,
+`worktree-occupancy`) instead reach create-new via the dispatcher's routing (an existing slug routes to graduate,
+never create-new) and the executor's guard phase on the graduate/resume arms.
+
+**Binder side-effect scope.** `buildExecutorContext` wires only what start's edges declare — the four mutators,
+the foot-gun guards, and `reconcile-roadmap` / `reconcile-status-user` / `user-workspace`. `scaffoldOrRemove` and
+the `withdraw-pr` / `discharge-dep-edges` side-effects (other verbs) extend it in Phase 6. `reconcile-status-user`
+ships as an interim advisory (symmetric with `reconcile-roadmap`); its real local render is **Task 5.4** — unlike
+roadmap (renderer downstream), the status renderer is shipped, so consistency-on-exit requires it build for real
+before the WU ships.
+
 ## Side-effect implementation split
 
 The location-move side-effects (2.5) are **not** symmetric in what they can build today.

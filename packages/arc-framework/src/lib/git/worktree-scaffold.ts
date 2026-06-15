@@ -1,17 +1,19 @@
 /**
- * Worktree scaffolding primitives — one shared writer behind two entry points.
+ * Worktree scaffolding — the shared meta + SESSION-NOTES writer for a work-unit
+ * worktree.
  *
  * {@link scaffoldIntoWorktree} writes the managed meta, the per-WU
  * SESSION-NOTES seed, and the conditional ownership marker into an existing
- * worktree root. {@link spawnWorktree} wraps it with `git worktree add`: it
- * creates the branch + worktree first, then scaffolds. A cold-start caller
- * enters a worktree it did not create and calls {@link scaffoldIntoWorktree}
- * directly — no `git worktree add` — passing `createdByArc: false` so no
- * marker is written (cleanup there stays advisory).
+ * worktree root — never running `git worktree add` itself. Both `start` entry
+ * paths build on it: create-new cuts the worktree via the
+ * `reconcile-worktree.spawn` leg (which writes the ARC-created marker), then
+ * scaffolds with `createdByArc: false` so this pass keeps that marker; a
+ * cold-start enters a worktree it did not create and scaffolds directly, also
+ * `createdByArc: false`, so no marker is written (cleanup there stays advisory).
  *
  * The git/fs mechanics live here (testable) rather than in agent workflow
- * bash. The originating session is never disturbed: the primitives write to
- * the target root and never change the working directory.
+ * bash. The originating session is never disturbed: it writes to the target
+ * root and never changes the working directory.
  *
  * @module
  */
@@ -22,8 +24,6 @@ import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
 import { ensureDir } from "../template/files.js";
-import type { GitExec } from "./exec.js";
-import { resolveWorktreeLocation } from "./worktree-location.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
 /** Life-phase shaping for the scaffolded branch + meta. */
@@ -48,45 +48,11 @@ export interface SpawnWorktreeContext {
   internalTemplateDir: string;
 }
 
-/** Parameters for {@link spawnWorktree}. */
-export interface SpawnWorktreeParams {
-  /** Work-unit name — drives the branch, meta filename, H1, and user subdir. */
-  wuName: string;
-  /** Identity creating the worktree — meta `Owner`, the marker, and the user subdir. */
-  spawningIdentity: string;
-  /** Base ref the new branch forks from — the resolved `branch.base` (local ref; no fetch). */
-  baseBranch: string;
-  /** Worktree location template — the resolved `worktree.location_template`. */
-  locationTemplate: string;
-  /** Main-worktree directory basename — the `{repo}` expansion. */
-  repo: string;
-  /** Meta `Next Action` seed; defaults to a generic planning kickoff. */
-  nextAction?: string;
-  /** Life-phase shaping; defaults to a planning branch + `Planning` state. */
-  lifePhase?: WorktreeLifePhase;
-  /** Whether ARC created the worktree (gates the ownership marker); defaults to `true`. */
-  createdByArc?: boolean;
-  /** Forward-compat tier hint — accepted, not branched on. */
-  tier?: string;
-  /** Forward-compat type hint — accepted, not branched on. */
-  type?: string;
-  /** Marker timestamp (epoch millis); injectable for tests. */
-  now?: number;
-}
-
-/** Outcome of a successful spawn. */
-export interface SpawnWorktreeResult {
-  /** Resolved filesystem path of the new worktree. */
-  worktreePath: string;
-  /** Branch created for the worktree. */
-  branch: string;
-}
-
 /**
- * Parameters for {@link scaffoldIntoWorktree}. Unlike {@link SpawnWorktreeParams}
- * these carry no worktree-*creation* inputs (no base/location/repo): the target
- * worktree already exists. {@link spawnWorktree} builds this shape after running
- * `git worktree add`; a cold-start caller builds it for the worktree it entered.
+ * Parameters for {@link scaffoldIntoWorktree}. These carry no
+ * worktree-*creation* inputs (no base/location/repo): the target worktree
+ * already exists. Create-new builds this shape after the `reconcile-worktree.spawn`
+ * leg cuts the worktree; a cold-start caller builds it for the worktree it entered.
  */
 export interface ScaffoldWorktreeParams {
   /** Target worktree root — already created (by spawn, a tool, or a manual `git worktree add`). */
@@ -113,73 +79,6 @@ export interface ScaffoldWorktreeParams {
   type?: string;
   /** Marker timestamp (epoch millis); injectable for tests. */
   now?: number;
-}
-
-/**
- * Create a new worktree for a work unit and scaffold its initial state.
- *
- * Runs `git worktree add <path> -b <branch> <base>` (the branch forks from the
- * resolved base, not the spawning HEAD), then writes the Planning meta, seeds
- * SESSION-NOTES, and writes the ownership marker into the new root. The
- * originating worktree is untouched — no working-directory change.
- *
- * @param ctx - I/O context and template directory.
- * @param params - Work-unit identity, base, location template, and scaffold inputs.
- * @returns The resolved worktree path and the branch created.
- */
-export async function spawnWorktree(
-  ctx: SpawnWorktreeContext,
-  params: SpawnWorktreeParams,
-): Promise<SpawnWorktreeResult> {
-  const lifePhase = params.lifePhase ?? PLANNING_LIFE_PHASE;
-  const branch = `${lifePhase.branchPrefix}${params.wuName}`;
-  const worktreePath = resolveWorktreeLocation({
-    template: params.locationTemplate,
-    repo: params.repo,
-    branch,
-  });
-
-  await ctx.io.exec("git", ["worktree", "add", worktreePath, "-b", branch, params.baseBranch]);
-
-  try {
-    await scaffoldIntoWorktree(ctx, {
-      worktreePath,
-      branch,
-      wuName: params.wuName,
-      spawningIdentity: params.spawningIdentity,
-      initialState: lifePhase.initialState,
-      nextAction: params.nextAction,
-      createdByArc: params.createdByArc,
-      tier: params.tier,
-      type: params.type,
-      now: params.now,
-    });
-  } catch (err) {
-    // Post-add failure: roll back so no partial, unmarked worktree survives for
-    // the cleanup machinery to misclassify. The original failure is what surfaces.
-    await rollbackWorktree(ctx.io.exec, worktreePath, branch);
-    throw err;
-  }
-
-  return { worktreePath, branch };
-}
-
-/**
- * Best-effort rollback of a partially-scaffolded spawn: force-remove the new
- * worktree and delete its branch. Errors here are swallowed so the original
- * scaffold failure surfaces as the thrown cause rather than a rollback error.
- */
-async function rollbackWorktree(
-  exec: GitExec,
-  worktreePath: string,
-  branch: string,
-): Promise<void> {
-  try {
-    await exec("git", ["worktree", "remove", "--force", worktreePath]);
-    await exec("git", ["branch", "-D", branch]);
-  } catch {
-    // Best-effort — the original scaffold failure is the one worth surfacing.
-  }
 }
 
 /**

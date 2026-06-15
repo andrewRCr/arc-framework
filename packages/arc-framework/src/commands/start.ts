@@ -1,11 +1,16 @@
 /**
- * `arc start` command logic — two testable no-throw cores behind one verb.
+ * `arc start` command logic — the state dispatcher plus the per-arm no-throw cores.
  *
- * {@link runCreateNew} is the default (create-new) path: spawn an isolated
- * worktree on a new `plan/<name>` branch via {@link spawnWorktree}, resolving
- * base / location-template / repo from config. It is what the `arc-session`
- * skill reaches for when starting fresh work; ARC mints the worktree, so the
- * ownership marker is written.
+ * {@link resolveStartDispatch} routes a named work unit to its arm on resolved
+ * lifecycle state; {@link runCreateNew}, {@link runGraduate}, and
+ * {@link runColdStart} are the per-arm cores (resume reuses the shipped `resume`
+ * verb).
+ *
+ * {@link runCreateNew} is the default (create-new) path: it cuts an isolated
+ * worktree on a new `plan/<name>` branch via the `reconcile-worktree.spawn` leg
+ * (ARC mints it, so the ownership marker lands), then scaffolds the Planning meta
+ * + SESSION-NOTES. It is what the `arc-session` skill reaches for when starting
+ * fresh work.
  *
  * {@link runColdStart} is the in-place (`--here`) override: scaffold a Planning
  * meta + SESSION-NOTES into the worktree the session is already in — one ARC did
@@ -29,11 +34,137 @@ import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 import { branchToWorkUnitSlug } from "../lib/work-unit/completed-index.js";
+import type { LifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
+import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
+import {
+  executeTransition,
+  type ExecuteTransitionContext,
+  type TransitionInputs,
+  type TransitionOutcome,
+} from "../lib/work-unit/lifecycle-executor.js";
+import { reconcileWorktree } from "../lib/work-unit/mutators/reconcile-worktree.js";
 import {
   scaffoldIntoWorktree,
-  spawnWorktree,
   type SpawnWorktreeContext,
 } from "../lib/git/worktree-scaffold.js";
+
+/**
+ * The arm `start` dispatches to for a resolved lifecycle state. `create-new`
+ * and `cold-start` mint a fresh worktree; `graduate` relocates a backlog stub
+ * onto its branch; `resume` re-attaches a parked shelf; `refuse` carries a
+ * directed reason for the already-live / terminal states.
+ */
+export type StartArm =
+  | { arm: "create-new" }
+  | { arm: "cold-start" }
+  | { arm: "graduate" }
+  | { arm: "resume" }
+  | { arm: "refuse"; reason: string };
+
+/**
+ * Resolve which `start` arm a named work unit routes to, purely from its
+ * lifecycle state in the index — the foot-gun fix at the routing layer: an
+ * existing stub graduates (never mis-scaffolds), an already-started or terminal
+ * WU is refused with direction rather than mutated. The `--here` cold-start
+ * override is handled by the caller before this runs; this routes the default
+ * (spawning) path.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param name - The work-unit name `start` was invoked with.
+ * @returns The dispatch arm (with a reason on the refuse arm).
+ */
+export function resolveStartDispatch(index: LifecycleIndex, name: string): StartArm {
+  switch (resolveSlugState(index, name)) {
+    case "nonexistent":
+      return { arm: "create-new" };
+    case "provisional":
+    case "planned":
+      return { arm: "graduate" };
+    case "parked":
+      return { arm: "resume" };
+    case "planning":
+      return {
+        arm: "refuse",
+        reason: `\`${name}\` is already started (a planning WU on its branch) — resume work in its worktree, not \`start\`.`,
+      };
+    case "active":
+      return {
+        arm: "refuse",
+        reason: `\`${name}\` is occupied — it is already Active. One active work unit per worktree.`,
+      };
+    case "integrating":
+      return {
+        arm: "refuse",
+        reason: `\`${name}\` is in review — resume work via \`arc reopen\`, not \`start\`.`,
+      };
+    case "shipped":
+      return {
+        arm: "refuse",
+        reason: `\`${name}\` has shipped — begin new work as a fresh origin-linked WU, not \`start\`.`,
+      };
+  }
+}
+
+/** The flat `active/` tier a graduated WU lands in. */
+const ACTIVE_DIR = ".arc/active";
+
+/** Inputs for {@link runGraduate} — the resolved config + judgment the arm supplies. */
+export interface GraduateParams {
+  /** Backlog-stub name to graduate (its current tier is resolved from the index). */
+  name: string;
+  /** The WU's resolved `Class` — the `class-resolved` guard input; an unresolved `[TBD]` is refused. */
+  cls: string;
+  /** Resolved `branch.base` — the base the new `plan/<name>` branch forks from. */
+  baseBranch: string;
+  /** Resolved `worktree.location_template` — where the spawned worktree lands. */
+  locationTemplate: string;
+  /** Main-worktree basename — the `{repo}` expansion. */
+  repo: string;
+  /** Identity graduating the WU — the worktree ownership marker. */
+  spawningIdentity: string;
+}
+
+/** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
+export type GraduateResult =
+  | { status: "rejected"; reason: string }
+  | { status: "graduated"; outcome: TransitionOutcome; metaPath: string; branch: string };
+
+/**
+ * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
+ * artifact set into `active/` and cut + spawn its `plan/<name>` branch, dispatched
+ * through {@link executeTransition} as the `start` verb. The executor selects the
+ * provisional-vs-planned source edge from the index; the `class-resolved` guard
+ * refuses a stub whose `Class` is still `[TBD]` (a realized WU never leaves the
+ * backlog carrying an unresolved weight).
+ *
+ * @param ctx - The executor seams (the real mutators / guards are caller-bound).
+ * @param params - The stub name, its resolved `Class`, and the worktree-spawn config.
+ * @returns A rejection (unresolved `Class`, illegal source, executor failure) or the graduated meta path.
+ */
+export async function runGraduate(
+  ctx: ExecuteTransitionContext,
+  params: GraduateParams,
+): Promise<GraduateResult> {
+  const branch = `plan/${params.name}`;
+  const inputs: TransitionInputs = {
+    toDir: ACTIVE_DIR,
+    branchOp: { mutation: "create" },
+    worktreeOp: {
+      mutation: "spawn",
+      branch,
+      base: params.baseBranch,
+      locationTemplate: params.locationTemplate,
+      repo: params.repo,
+      wuName: params.name,
+      spawningIdentity: params.spawningIdentity,
+    },
+    class: params.cls,
+  };
+
+  const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
+  if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
+  return { status: "graduated", outcome, metaPath: `${ACTIVE_DIR}/meta-${params.name}.md`, branch };
+}
 
 /** Inputs for {@link runColdStart} — the ambient context the handler resolves. */
 export interface ColdStartParams {
@@ -219,14 +350,18 @@ export type CreateNewOutcome =
 
 /**
  * Spawn an isolated worktree on a new `plan/<name>` branch for a brand-new work
- * unit. Resolves `branch.base` and `worktree.location_template` from config and
- * derives `{repo}` from the primary worktree's basename, then delegates branch +
- * worktree creation and scaffolding to {@link spawnWorktree} (`createdByArc:
- * true` — ARC mints this one, so the ownership marker is written).
+ * unit, recomposed on the lifecycle bundle legs: the `reconcile-worktree.spawn`
+ * leg cuts the branch + worktree and writes the ownership marker (ARC mints this
+ * one), then the `scaffold` + user-workspace legs (via {@link
+ * scaffoldIntoWorktree}, `createdByArc: false` so the spawn's marker is kept) write
+ * the fresh `Planning` meta and seed SESSION-NOTES. Resolves `branch.base` and
+ * `worktree.location_template` from config and derives `{repo}` from the primary
+ * worktree's basename.
  *
  * Refuses, without writing, when no work-unit name is supplied (create-new has
  * no branch to derive one from) or when the primary worktree path cannot be
- * resolved (no `{repo}` source).
+ * resolved (no `{repo}` source). A scaffold failure after the spawn rolls the
+ * partial worktree back so cleanup never misclassifies an unscaffolded checkout.
  *
  * @param ctx - I/O context and internal template directory.
  * @param params - Resolved ambient context plus the required work-unit name.
@@ -256,23 +391,62 @@ export async function runCreateNew(
     };
   }
   const repo = basename(primaryWorktreePath);
+  const branch = `plan/${wuName}`;
 
+  // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
-  let branch: string;
   try {
-    ({ worktreePath, branch } = await spawnWorktree(ctx, {
-      wuName,
-      spawningIdentity: params.identity,
-      baseBranch,
-      locationTemplate,
-      repo,
-    }));
+    ({ worktreePath } = await reconcileWorktree(
+      { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); } },
+      {
+        mutation: "spawn",
+        branch,
+        base: baseBranch,
+        locationTemplate,
+        repo,
+        wuName,
+        spawningIdentity: params.identity,
+      },
+    ));
   } catch (err) {
-    // spawnWorktree rolls back the partial worktree before re-throwing; surface
-    // the failure as a refusal so the no-throw contract holds end to end.
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
   }
 
+  // Scaffold + user-workspace legs: the fresh meta and SESSION-NOTES seed. The
+  // marker is already written by the spawn, so this pass writes none.
+  try {
+    await scaffoldIntoWorktree(ctx, {
+      worktreePath,
+      branch,
+      wuName,
+      spawningIdentity: params.identity,
+      createdByArc: false,
+    });
+  } catch (err) {
+    await rollbackSpawnedWorktree(ctx.io.exec, worktreePath, branch);
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `could not scaffold the work unit: ${message}` };
+  }
+
   return { ok: true, value: { worktreePath, branch, wuName } };
+}
+
+/**
+ * Best-effort teardown of a spawned-but-unscaffolded worktree — force-remove the
+ * worktree and delete its branch. Errors are swallowed so the original scaffold
+ * failure is the one surfaced (the user-facing teardown leg refuses a dirty
+ * worktree; `--force` stays rollback-only, as here).
+ */
+async function rollbackSpawnedWorktree(
+  exec: SpawnWorktreeContext["io"]["exec"],
+  worktreePath: string,
+  branch: string,
+): Promise<void> {
+  try {
+    await exec("git", ["worktree", "remove", "--force", worktreePath]);
+    await exec("git", ["branch", "-D", branch]);
+  } catch {
+    // Best-effort — the original scaffold failure is the one worth surfacing.
+  }
 }
