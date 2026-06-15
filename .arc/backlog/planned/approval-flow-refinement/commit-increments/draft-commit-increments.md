@@ -31,6 +31,18 @@
   hold the commit until X?". The current rules handle a user overriding with `y; hold the commit`; this fills the
   agent-proactive recommendation case already motivating this draft's commit-interlock prompt work.
 
+### `[ ]` **Coordinate vocabulary + decoupling with the new sibling `unit-scoped-review`**
+
+- *Coordination (cross-member, 2026-06-15):* `unit-scoped-review` joined the cohort — it widens the *review*
+  increment to whole-WU scope (the limit of a leaf/phase/WU axis) and carries a hard `Depends On` to this WU.
+- *Vocabulary:* it introduces "review increment = whole WU." The term reconsideration above must settle jointly
+  with it — keep the rename cascade whole; don't land a canonical term here that the WU-scope case then bends.
+- *Decoupling:* its per-leaf-commits-*during*-a-WU-batch property IS this WU's deferred-review-releases-commits
+  fix at maximal scope. Confirm the fix generalizes to a WU-spanning batch (handoff-clean leaf commits; bundling
+  signals still fire within the batch).
+- *Provenance:* the parallel approval-provenance-state concept (§ Unknowns) composes with its batch authorization
+  (a provenance source with WU scope) and its deviation ledger. See `cohort-approval-flow-refinement.md`.
+
 ---
 
 ## Problem / Motivation
