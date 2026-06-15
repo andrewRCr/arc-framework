@@ -331,27 +331,36 @@ share `resolveWriteContext`.
   and cuts the branch. See `spec-lifecycle-transition-core.md` §12 (Branchless ≠ recordless); the corpus-wide doc
   reconciliation of the position routes to `lifecycle-closeout`.
 
-### `[ ]` **5.3 Planning-entry write-context gate in `arc-plan`**
+### `[x]` **5.3 Planning-entry write-context gate in `arc-plan`**
 
 - _Goal:_ `arc-plan` resolves write-context mechanically before `draft-design` runs and routes — so a draft never
   lands on `main` where it can't be committed.
 
-- _Note:_ Shares `resolveWriteContext` + the start-new path with `out-of-wu-entry` (agile-parallelism) — a distinct
-  concern; sequence, don't merge. Whoever touches `resolveWriteContext` / the start-new path second rebases.
+    - `[x]` **5.3.a Extend `resolveWriteContext`** for the planning-entry inputs (branch context × protection ×
+      draft-presence/location × active-WU) in `lib/git/write-context.ts`.
+        - `classifyPlanningEntry` is the new pure layer over the shipped `classifyWriteContext` branch-vs-base
+          core: it takes the core verdict plus `protection` / `onPlanningBranch` / `draftPresent` /
+          `activeWorkUnit` and returns `proceed` | `redirect{reason, facts}` — net-new planning routing, not a
+          one-param add.
 
-    - `[ ]` **5.3.a Extend `resolveWriteContext`** for the planning-entry inputs (branch context × protection ×
-      draft-presence/location × active-WU) in `lib/git/write-context.ts`. Reuses the shipped `classifyWriteContext`
-      branch-vs-base core (`proceed` / `relocate` / `refuse`) but **layers net-new planning routing** on top — not a
-      one-param add.
-
-    - `[ ]` **5.3.b Route via the two-layer gate** — layer 1: committable → proceed (the write-context verdict);
+    - `[x]` **5.3.b Route via the two-layer gate** — layer 1: committable → proceed (the write-context verdict);
       layer 2: not-committable → start-now (`start` / `init`), `stub`, or errand by WU-worthiness. Draft-presence
       parameterizes the `stub` leg (fold the draft in, then graduate — no adopt edge), not the leg selection.
-        - Build `test-first`: layer 1 resolves committable vs. not; layer 2 routes each leg correctly across the
-          input combinations; the stub leg folds a pre-authored draft when present.
+        - Committability is mode-shaped: `partial` keys on the base branch, `full` on an active `Planning` WU's
+          planning branch. The CLI resolves layer 1 and carries the layer-2 facts; it never picks the leg
+          (WU-worthiness stays the workflow's judgment). Covered by the `classifyPlanningEntry` unit matrix.
 
-    - `[ ]` **5.3.c Surface the route decision** to `arc-plan` for the developer to confirm — mechanic in the CLI,
+    - `[x]` **5.3.c Surface the route decision** to `arc-plan` for the developer to confirm — mechanic in the CLI,
       the route decision in the workflow.
+        - New `arc plan check [--name <slug>] --json` command (`handlers/plan.ts`) resolves the live inputs and
+          emits the route; `draft-design.md`'s new "Planning-entry gate" section calls it and surfaces
+          start / stub / errand on `redirect`. E2E in `plan.e2e.test.ts`.
+
+- _Outcome:_ The planning-entry gate ships end to end: a pure two-layer classifier (`classifyPlanningEntry`), the
+  `arc plan check` CLI surface resolving protection / active-WU / draft-presence and emitting the route as JSON
+  (with an exit-1 human guard), and the `draft-design` workflow wiring — mirroring the `arc errand check` /
+  `arc housekeep check` write-context-gate pattern. The `resolveWriteContext` / start-new path stays a rebase seam
+  with `out-of-wu-entry`; final verb naming coordinates with `idiomatic-alignment`.
 
 ### `[ ]` **5.4 Wire the executor binder's `reconcile-status-user` to the real local render**
 

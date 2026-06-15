@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 
 import {
   classifyPathSurface,
+  classifyPlanningEntry,
   classifyWriteContext,
   resolveWriteContext,
 } from "../../../src/lib/git/write-context.js";
+import type { WriteContext } from "../../../src/lib/git/write-context.js";
 import type { ExecResult, GitExec } from "../../../src/lib/git/index.js";
 
 /** Keyed mock exec — matches a prefix of the invocation's args (`*` wildcards). */
@@ -127,6 +129,108 @@ describe("classifyPathSurface", () => {
 
   it("does not classify an artifact-named path outside .arc/ as a planning surface", () => {
     expect(classifyPathSurface("src/notes-helper.md")).toBe("other");
+  });
+});
+
+describe("classifyPlanningEntry", () => {
+  /** Build a real branch-vs-base core verdict for the planning layer to wrap. */
+  const core = (currentBranch: string | null, baseBranch: string | null): WriteContext =>
+    classifyWriteContext({ currentBranch, baseBranch, primaryWorktreePath: "/repo" });
+
+  // Layer 1 — committable, by mode.
+
+  it("proceeds under partial protection on the base branch", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("main", "main"),
+      protection: "partial",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: false,
+    });
+    expect(route).toMatchObject({ route: "proceed", protection: "partial", currentBranch: "main" });
+  });
+
+  it("proceeds under full protection on an active Planning WU's planning branch", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("plan/some-wu", "main"),
+      protection: "full",
+      onPlanningBranch: true,
+      draftPresent: false,
+      activeWorkUnit: true,
+    });
+    expect(route).toMatchObject({ route: "proceed", protection: "full", currentBranch: "plan/some-wu" });
+  });
+
+  // Layer 2 — not committable, with the reason worded for the workflow.
+
+  it("redirects under partial protection on a work-unit branch", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("feat/some-wu", "main"),
+      protection: "partial",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: true,
+    });
+    expect(route).toMatchObject({ route: "redirect", reason: "work-unit-branch" });
+  });
+
+  it("redirects under full protection on the base branch — base is protected", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("main", "main"),
+      protection: "full",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: false,
+    });
+    expect(route).toMatchObject({ route: "redirect", reason: "protected-base" });
+  });
+
+  it("redirects under full protection on a non-planning work-unit branch", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("feat/other-wu", "main"),
+      protection: "full",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: true,
+    });
+    expect(route).toMatchObject({ route: "redirect", reason: "work-unit-branch" });
+  });
+
+  // Degenerate branch-vs-base contexts propagate to a redirect in either mode.
+
+  it("redirects with the detached-head reason on a detached HEAD", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core(null, "main"),
+      protection: "partial",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: false,
+    });
+    expect(route).toMatchObject({ route: "redirect", reason: "detached-head" });
+  });
+
+  it("redirects with the no-base reason when no base branch resolves", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("main", null),
+      protection: "full",
+      onPlanningBranch: false,
+      draftPresent: false,
+      activeWorkUnit: false,
+    });
+    expect(route).toMatchObject({ route: "redirect", reason: "no-base" });
+  });
+
+  // Draft-presence and active-WU ride into the redirect as facts the workflow surfaces.
+
+  it("carries draft-presence into the redirect to parameterize the stub leg's fold-in", () => {
+    const route = classifyPlanningEntry({
+      writeContext: core("main", "main"),
+      protection: "full",
+      onPlanningBranch: false,
+      draftPresent: true,
+      activeWorkUnit: false,
+    });
+    expect(route).toMatchObject({ route: "redirect", draftPresent: true, activeWorkUnit: false });
   });
 });
 

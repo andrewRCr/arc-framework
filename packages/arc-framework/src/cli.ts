@@ -21,6 +21,7 @@ import {
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
+import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -115,6 +116,20 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+const plan = program
+  .command("plan")
+  .description(
+    "Planning-entry operations. `check` classifies the write context before drafting (committable "
+    + "→ proceed, else redirect to start / stub / errand) so a draft never lands where it can't commit.",
+  );
+
+plan
+  .command("check")
+  .description("Classify the planning-entry route — committable (proceed) or not (redirect to start / stub / errand)")
+  .option("--name <slug>", "The design's WU-name slug — gates the draft-presence check")
+  .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
+  .action((opts: PlanCheckOptions) => handlePlanCheck(opts));
 
 // --- Lifecycle ---
 
