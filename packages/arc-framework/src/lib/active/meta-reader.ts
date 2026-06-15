@@ -401,6 +401,48 @@ export function renderMetaFile(
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Rewrite the core-block `State` cell in place, re-rendering *only* the three
+ * core-table rows so column alignment stays correct, and leaving every bullet,
+ * narrative field, and section below byte-identical. The other core fields keep
+ * their values (only their machine-alignment padding may shift). The caller
+ * validates `state` against {@link WorkUnitState} first — this is a
+ * projection-level rewrite, not a phase validator.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param state - The canonical target phase to write into the State cell.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaState(content: string, state: string): string {
+  const lines = content.split("\n");
+  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
+  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
+  const sepIdx = lines.findIndex(
+    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
+  );
+  const headerLine = sepIdx > 0 ? lines[sepIdx - 1] : undefined;
+  const valueLine = sepIdx === -1 ? undefined : lines[sepIdx + 1];
+  if (headerLine === undefined || valueLine === undefined) {
+    throw new Error("Cannot set meta State: no core-block table found.");
+  }
+  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) {
+    throw new Error("Cannot set meta State: core-block table header not recognized.");
+  }
+
+  const cells = splitTableRow(valueLine);
+  const current = new Map<string, string | null>();
+  headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
+
+  const valueOf = (field: MetaFieldDescriptor): string => {
+    if (field.name === "State") return state;
+    return current.get(field.name) ?? field.default;
+  };
+  lines.splice(sepIdx - 1, 3, ...renderCoreTable(valueOf));
+  return lines.join("\n");
+}
+
 /** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
 const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
 

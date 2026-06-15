@@ -109,19 +109,18 @@ against them.
   seam and locus-hop are both injected; four unit tests (real-fs marker for spawn) pin spawn, clean non-self
   teardown, dirty refusal, and the hop-before-remove ordering.
 
-### `[ ]` **2.4 `set-phase` mutator**
+### `[x]` **2.4 `set-phase` mutator**
 
 - _Goal:_ The meta `State` field is the single write point for a phase-axis move — no location change, no branch
   touch.
 
-- _Note:_ Net-new and **frontmatter-preserving**: `meta-reader.ts` is read-only and `renderMetaFile` writes a full
-  fresh meta, so neither fits — `set-phase` edits the `**State:**` field in place, leaving every other field
-  untouched.
-
-    - Build `test-first` (one behavior at a time):
-        - Writes the meta `**State:**` field to the target phase, preserving all other fields.
-        - Rejects an unknown phase (validates against `WorkUnitState` via `validateState` in
-          `commands/active/types.ts`).
+- _Outcome:_ New `lib/work-unit/mutators/set-phase.ts` — `setPhase` validates the target via `validateState`
+  (rejects an unknown phase before any read/write), then reads the meta, rewrites only the core-block `State` cell,
+  and writes it back; read/write fs seams injected. The in-place rewrite is a net-new `setMetaState` export in
+  `meta-reader.ts` (neither the read-only reader nor full-fresh `renderMetaFile` fit) that re-renders only the
+  three core-table rows via the shared `renderCoreTable` — preserving alignment and leaving every other field,
+  bullet, and narrative section byte-identical. Three mutator tests (write-and-preserve, unknown-phase reject,
+  no-table throw); `meta-reader` suite stays green (71).
 
 ### `[ ]` **2.5 Transition side-effects**
 
