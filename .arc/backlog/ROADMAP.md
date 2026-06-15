@@ -73,6 +73,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 |-------------------------------|----------|--------|---------------------------|----------------------------|
 | decompose-matrix              | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
 | errand-lattice                | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
+| unit-scoped-review            | P2       | andrew | commit-increments         | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption    | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization      | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | handoff-optimization      | agent-context-optimization |
