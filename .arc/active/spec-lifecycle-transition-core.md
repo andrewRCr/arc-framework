@@ -372,13 +372,17 @@ substrate later). The mandatory-fields **policy statement** is authored in `stra
 
 A mechanical preflight in `arc-plan` (the planning analog of `run-errand`'s `resolveWriteContext`) that resolves
 write-context and **routes** before `draft-design` runs. Inputs: branch context × protection mode ×
-draft-presence/location × active-WU. Routes:
+draft-presence/location × active-WU. Two layers:
 
-1. **Committable drafting context** → proceed.
-2. **Not committable** → by WU-worthiness: start now (`start` / `init`) or defer (classify → errand or `stub`).
-3. **Pre-authored draft, no branch → stub** — mint a `provisional`/`planned` stub for it and fold the existing
-   draft in, then graduate (or keep drafting first) through the shipped path. No meta-less draft and no bespoke
-   adopt edge: the draft-first path unifies on `stub` → draft → `graduate` (per §12, Branchless ≠ recordless).
+- **Layer 1 — mechanical (CLI).** Is the current context committable for a draft? This is the write-context
+  verdict (`proceed` vs. not) — the existing `classifyWriteContext` branch-vs-base axis. Committable → **proceed**
+  (draft here). Otherwise fan out to layer 2.
+- **Layer 2 — judgment (surfaced to `arc-plan`).** When not committable, route by WU-worthiness to one of
+  **start now** (`start` / `init`), **stub** (mint a `provisional`/`planned` record), or **errand** (atomic /
+  off-WU). Draft-presence **parameterizes the stub leg** — when a draft is pre-authored, `stub` folds it in, then
+  graduate (or keep drafting first) through the shipped path. It does not select the leg: a pre-authored draft can
+  equally proceed (committable) or start (WU-worthy now). No meta-less draft and no bespoke adopt edge — the
+  draft-first path unifies on `stub` → draft → `graduate` (per §12, Branchless ≠ recordless).
 
 The `resolveWriteContext` *mechanic* → CLI (reuse/extend the existing one); the route *decision* surfaces to
 `arc-plan` for the developer to confirm.
@@ -538,8 +542,9 @@ disposition governs the executor transitions.
 8. The `archive` sweep + dated-path computation run from the executor, and the cohort-doc archival sweep fires on
    `isArchivalTriggered` (last member shipped) to migrate `cohort-<name>.md` to `completed/`.
 9. The `stub` contract rejects creation without explicit commitment + priority.
-10. The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
-    pre-authored-draft route to `stub` (mint a record, fold the draft in, then graduate — no adopt edge).
+10. The planning-entry write-context gate routes `arc-plan` correctly: layer 1 resolves committable → proceed via
+    the write-context verdict; layer 2 routes not-committable by WU-worthiness to start / `stub` / errand, with a
+    pre-authored draft folded into the `stub` leg (mint a record, fold the draft in, then graduate — no adopt edge).
 11. `arc status <slug>` serves the slug→state read with the JSON shape preserved from the interim `arc status
     --lifecycle`.
 12. Each transition applies its declared soft-field disposition (`reset` / `input` / `leave`) so `Next Task` /

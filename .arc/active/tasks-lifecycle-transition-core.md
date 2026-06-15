@@ -344,10 +344,11 @@ share `resolveWriteContext`.
       branch-vs-base core (`proceed` / `relocate` / `refuse`) but **layers net-new planning routing** on top — not a
       one-param add.
 
-    - `[ ]` **5.3.b Route the three outcomes** — committable → proceed; not-committable → start-now (`start` /
-      `init`) or defer (classify → errand or `stub`); pre-authored draft with no branch → mint a stub (`stub`,
-      fold the draft in, then graduate — no adopt edge).
-        - Build `test-first`: each route resolves correctly across the input combinations.
+    - `[ ]` **5.3.b Route via the two-layer gate** — layer 1: committable → proceed (the write-context verdict);
+      layer 2: not-committable → start-now (`start` / `init`), `stub`, or errand by WU-worthiness. Draft-presence
+      parameterizes the `stub` leg (fold the draft in, then graduate — no adopt edge), not the leg selection.
+        - Build `test-first`: layer 1 resolves committable vs. not; layer 2 routes each leg correctly across the
+          input combinations; the stub leg folds a pre-authored draft when present.
 
     - `[ ]` **5.3.c Surface the route decision** to `arc-plan` for the developer to confirm — mechanic in the CLI,
       the route decision in the workflow.
