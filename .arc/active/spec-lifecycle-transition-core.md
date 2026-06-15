@@ -142,7 +142,7 @@ Headline pair: **`start` ⊥ `park`**.
 | forward                   | `stub`                  | idea → selected tier (commitment + priority required)      | `abandon`          |
 | composite                 | `decompose`             | `Planning → cohort` (matrix — `decompose-matrix` member)   | — (irreversible)   |
 | terminal                  | `integrate` + `archive` | `Active`/`Integrating → completed`                         | — (no-go)          |
-| destructive               | `abandon`               | any → deleted                                              | —                  |
+| destructive               | `abandon`               | pre-merge any → deleted                                    | —                  |
 
 For `stub`, "selected tier" is logical `provisional` or `planned`; both are physically under `backlog/`.
 
@@ -304,31 +304,36 @@ with usage, non-TTY-safe).
   checkout *first*, then runs `git worktree remove`. Without this, `park@Active` / `abandon` of the current WU
   would saw off the branch they stand on.
 
-- **`abandon` per-cell set** — `abandon` deletes residue from any state and is the destructive inverse of `stub`.
-  Both cells are destructive cascades, so the handler **presents an impact plan and gates on explicit confirmation**
-  (a `--yes` flag; bare invocation prints the plan and refuses — safe default under non-TTY is not-destroy) per
-  DEV-RULES § Cascade-undo. The executor stays pure mechanics; the confirmation reaches it as an `inputs` value.
-    - **Pre-merge** (no shipped commits) — delete branch (local + remote), worktree, artifacts, user-workspace,
-      and the ROADMAP row. The resolver then returns `nonexistent`.
-    - **Post-merge — `abandon`@merged (Case D)** — the WU already merged; revert the merge on base (the PR-revert
-      mechanic), then remove residue. Net target: **deleted**.
+- **`abandon`** — the destructive inverse of `stub`: deletes a WU's residue, after which the resolver returns
+  `nonexistent`. A destructive cascade, so the handler **presents an impact plan and gates on explicit
+  confirmation** (a `--yes` flag; bare invocation prints the plan and refuses — safe default under non-TTY is
+  not-destroy) per DEV-RULES § Cascade-undo. The executor stays pure mechanics; the confirmation reaches it as an
+  `inputs` value. Legal only from the **pre-merge** states (`provisional` / `planned` / `planning` / `active` /
+  `parked`): delete branch (local + remote), worktree, artifacts, user-workspace, and the ROADMAP row. **Not**
+  legal from `integrating` (route via `reopen` first) or from a merged WU — backing out merged work is a new
+  origin-linked follow-up WU, never a mutation of the shipped unit (§ Post-merge rework).
 
-- **`deactivate`@merged (Case C)** — shares the PR-revert mechanic with Case D but differs by **target**: revert
-  the merge on base, restore to **Planning** (location `planned`, phase `Planning`) rather than deleting. The two
-  post-merge corners are distinct cells sharing one mechanic, separated by their target state. As a merge-reverting
-  cascade it carries the same impact-plan + `--yes` confirmation gate as `abandon`.
-
-  Outside the merged corner, `deactivate` stays narrow — "undo a premature activation" (recoverable phase↓);
-  shelving an in-progress WU is `park@Active`, and destructive teardown is `abandon`.
+- **`deactivate`** — narrow by design: "undo a premature activation" (recoverable phase↓, `Active → Planning`).
+  Shelving an in-progress WU is `park@Active`; destructive teardown is `abandon`. It does **not** apply to a merged
+  WU (no merged-corner cell exists — see § Post-merge rework).
 
 ### 8. The `Integrating` phase edges
 
 - `Active → Integrating` — `integrate`, owned by `integrate-work-unit`.
-- `Integrating → Active` — `reopen` (§ 7).
+- `Integrating → Active` — `reopen` (§ 7); a guard rejects it when the PR has **already merged** (no open PR to
+  withdraw) — that case is a new origin-linked WU, not a reopen (§ Post-merge rework).
 - `Integrating → park` / `abandon` — **no direct edge**; route through `reopen` first (withdraw the PR before a
   location move).
 - `Integrating → completed` — `archive` (the sweep migrates; § 9).
 - `completed` is a **sink** — reopen-after-ship is a new WU with an origin-link, not an edge out of the sink.
+
+**Post-merge rework.** Once a PR merges, the WU is committed to ship; the post-merge window (merged but
+pre-archival under `archive.cadence: manual`) is a *finish-the-sweep* window, not a mutation window. Backing out or
+reworking merged work is a **new follow-up WU with an origin-link** to the reverted one — never a same-unit
+reopen. This matches universal forge / branching practice: GitHub and GitLab both forbid reopening a merged PR/MR,
+and post-merge backout is a revert PR + new branch across git-flow / GitHub Flow / trunk-based (ADR-026). The
+"reopen" idiom belongs to the issue-tracker layer (reopen the *concern*), which the origin-link lineage already
+captures; the ensuing code is a fresh delivery unit regardless. Pre-merge rework remains first-class via `reopen`.
 
 **Integration-entry meta write.** On the `Active → Integrating` flip, the durable phase-transition meta fields
 (`Last Completed`, `Next Task`, `Next Action`) are written so cold-session orientation is not left reading stale
@@ -501,8 +506,7 @@ disposition governs the executor transitions.
 - **User-facing impact.** `arc start` becomes safe against existing stubs and worktree occupancy. The slug→state
   read returns to `arc status <slug>` (replacing the interim `arc status --lifecycle`, JSON shape preserved).
   `park` / `resume` / `promote` / `demote` / `reopen` / `abandon` become real **top-level** CLI verbs (peers of
-  `start`); destructive verbs (`abandon`, `deactivate`@merged) present an impact plan and require an explicit
-  `--yes`.
+  `start`); the destructive `abandon` verb presents an impact plan and requires an explicit `--yes`.
 
 ## Success Criteria
 
@@ -517,8 +521,9 @@ disposition governs the executor transitions.
 5. The full inverse-paired verb set is shipped: `promote` / `demote`, `park` / `resume`, `reopen`, `abandon` (split
    from `deactivate`), each an executor-dispatched transition.
 6. `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches.
-7. `abandon` (both pre- and post-merge Case D) and `deactivate`@merged (Case C) execute their per-cell mechanics,
-   including execution-locus relocation when tearing down the current worktree.
+7. `abandon` executes its destructive cascade from the pre-merge states only (never from `integrating` or a merged
+   WU — post-merge backout is a new origin-linked WU), including execution-locus relocation when tearing down the
+   current worktree.
 8. The `archive` sweep + dated-path computation run from the executor, and the cohort-doc archival sweep fires on
    `isArchivalTriggered` (last member shipped) to migrate `cohort-<name>.md` to `completed/`.
 9. The `stub` contract rejects creation without explicit commitment + priority.

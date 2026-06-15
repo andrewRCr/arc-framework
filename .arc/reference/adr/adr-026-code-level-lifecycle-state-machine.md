@@ -100,6 +100,32 @@ CLI and workflows shrink to the judgment that decides whether and when to fire t
 - Depth is fixed at B1 deliberately; if a genuine need for a generic engine (B2) emerges later, that is a
   supersession, not an in-place expansion.
 
+### Amendment (2026-06-15): Post-merge rework is a follow-up unit, not a same-unit reopen
+
+A design corner surfaced at execution time: a merged WU that later needs backing out or reworking. An earlier draft
+of the verb set carried merged-corner cells (`abandon`@merged: revert + delete; `deactivate`@merged: revert +
+restore to Planning), but they conflicted with the rule that `integrating → abandon` / `park` are illegal (route
+via `reopen`), and the resolver's `integrating` state cannot distinguish a merged PR from an open one — leaving no
+clean state to key the cells on.
+
+Resolved by aligning with universal industry practice rather than inventing a same-unit reopen:
+
+- **Merge is the terminal commitment.** GitHub and GitLab both forbid reopening a *merged* PR/MR (GitHub Docs:
+  "You cannot reopen a merged pull request"; GitLab removed the reopen affordance for merged MRs). Backing out a
+  merged change is a *new* revert PR (`git revert -m`); post-merge rework is a *new* branch/PR across git-flow
+  (hotfix branches), GitHub Flow, and trunk-based development — never a reuse of the merged branch.
+- **The "reopen" idiom lives at the issue-tracker layer** (reopen the *concern*), which the origin-link lineage
+  already captures; the ensuing code is a fresh delivery unit regardless.
+
+So the verb set carries **no merged-corner cells**. Pre-merge rework is `reopen` (`Integrating → Active`, withdraw
+the open PR); post-merge rework is a new origin-linked WU. `abandon` is legal only from the pre-merge states (a
+guard rejects it from `integrating` and from a merged WU); `deactivate` stays narrow (undo a premature
+`activate`). The machine stays complete without a merged sub-state or a guarded-legal hack, and matches what
+adopters expect from the forges and branching models they already use.
+
+Evidence: GitHub Docs (reverting a pull request); GitLab (reopen-merged-MR removal); git-flow (nvie); GitHub Flow;
+trunk-based development; Atlassian Jira (reopen-vs-linked-follow-up guidance).
+
 ## Amending This Document
 
 - **Amendments** (post-implementation learnings that don't change the decision): append a dated
