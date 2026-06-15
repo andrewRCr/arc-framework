@@ -70,21 +70,17 @@ three-encoding invariant (meta `State` · directory · branch) holds by construc
 location moves fire. Each leg takes fs/git dependencies injected (three-layer architecture) and is unit-tested
 against them.
 
-### `[ ]` **2.1 `relocate-artifacts` mutator**
+### `[x]` **2.1 `relocate-artifacts` mutator**
 
 - _Goal:_ A single primitive performs the `git mv` of a WU's full artifact set between lifecycle locations, so no
   transition re-authors relocation inline.
 
-- _Note:_ Operates on the logical artifact set; the destination path is supplied by the caller (the dated-path
-  computation lives in `archive`, 6.1). This is the _move-existing_ path — distinct from create-new's fresh
-  `scaffold` (template meta); graduate relocates, create-new scaffolds.
-  _Notes:_ See `notes-lifecycle-transition-core.md` § `spawnWorktree` decomposition map.
-
-    - Build `test-first` (one behavior at a time):
-        - Moves the artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`, companions) `backlog → active`.
-        - Moves the set `active → completed` (caller-supplied dated/numbered destination).
-        - Moves the set `active → backlog/planned` (the park@Active relocation).
-        - Missing optional artifacts are no-ops, not errors; no stray artifact left behind.
+- _Outcome:_ New `lib/work-unit/mutators/relocate-artifacts.ts` — `relocateArtifacts` discovers the set from the
+  source directory by slug (`^[a-z]+-<slug>.md$`, so missing optionals drop out and a foreign meta or `cohort-*.md`
+  sharing the dir is never moved), ensures the caller-supplied destination, then `git mv`s each file in sorted
+  order; an empty match is a no-op (no move, no `mkdir`). Git + fs seams injected (three-layer). Five unit tests
+  cover the three directions (`backlog→active`, `active→completed`, `active→backlog/planned`) plus the
+  missing-optional, foreign-file, and empty-set cases.
 
 ### `[ ]` **2.2 `reconcile-branch` mutator**
 
