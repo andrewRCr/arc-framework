@@ -382,6 +382,90 @@ share `resolveWriteContext`.
         - A render failure degrades to an advisory without failing the transition.
         - The extracted assembler is the single source for both `arc status --user` and the binder.
 
+## **Phase 5.R:** Verb command surface
+
+_Purpose:_ Surface the Phase-4 lifecycle verbs as user-facing CLI commands — the command layer for the verb set
+whose logic, executor dispatch, and guards already exist (Phase 3–4). This phase is the handlers, the registration,
+and the CLI shape; no new transition logic. Sequenced before Phase 6 because the workflow re-pointing (6.4) re-points
+ceremonies onto these commands, so they must exist first.
+
+_Design decisions:_ The verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
+candidate list, never a clack `select`) and the `abandon` destructive-cascade gate (impact plan + `--yes`) are
+specified in `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invocation and § Abandon safety gate. Verbs
+land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). Final verb naming coordinates with
+`idiomatic-alignment`.
+
+### `[ ]` **5.R.1 Installation-handler rename**
+
+- _Goal:_ Free `handlers/lifecycle.ts` for the WU-transition verb handlers by relocating the installation handlers to
+  their own precise home — `handlers/lifecycle.ts` → `handlers/installation.ts` (`update` / `health` / `diff`), with
+  the one `cli.ts` import updated.
+
+- _Note:_ Pure relocation, no behavior change; existing installation-command coverage exercises it. Moved here from
+  Phase 6 (was 6.3.b) — the rename's sole purpose is to free the name for the verb handlers below, so it leads this
+  phase rather than riding the unrelated slug→state read.
+
+### `[ ]` **5.R.2 Verb-handler scaffold & shared CLI shape**
+
+- _Goal:_ A shared dispatch shape in the freed `handlers/lifecycle.ts` so each verb handler is a thin, consistent
+  binding over `executeTransition` — context-defaulting where a current-WU default is safe, slug-required where it is
+  not.
+
+    - `[ ]` **5.R.2.a Context-defaulting vs. slug-required dispatch** — slug optional (defaults to the current
+      worktree's WU via `readActiveMetaCandidates`) for `park` / `reopen` / `archive` / `activate` / `deactivate`;
+      slug-required for `resume` / `promote` / `demote` / `abandon` (no safe current-WU default, or destructive).
+
+    - `[ ]` **5.R.2.b Bare-invocation candidate-list helper** — a bare slug-required verb (or a context verb run
+      outside a WU) prints the **non-interactive** candidate list for that verb's valid from-state
+      (resolver/index-derived) plus the usage line, then exits. Never a clack `select` (the non-TTY hang); mirrors
+      `start`'s `p.log.error`-with-usage precedent.
+        - Build `test-first`: each dispatch mode resolves the target slug correctly; bare invocation lists the valid
+          candidates and exits non-interactively.
+
+### `[ ]` **5.R.3 Register the non-destructive verb commands**
+
+- _Goal:_ `stub` / `promote` / `demote` / `park` / `resume` / `deactivate` / `activate` are registered top-level
+  commands, each binding its Phase-4 `run*` transition with the §14 soft-field and side-effect `inputs` supplied.
+
+- _Note:_ Includes wiring `activate`'s `discharge-dep-edges` `SideEffectHandler` binding (deferred from 4.7) and the
+  `reconcile-status-user` / `reconcile-roadmap` regen on the location-movers. Each command surfaces the verb's
+  required `inputs` (e.g. `park --reason`, `stub`'s commitment + priority) — never fabricated, refused when absent.
+  (`abandon` / `reopen` carry extra gates — their own tasks below; `archive`'s command rides its executor work in
+  6.1.)
+    - Build `test-first`: each command dispatches its transition and refuses on missing required `inputs`.
+
+### `[ ]` **5.R.4 `abandon` command — destructive-cascade gate**
+
+- _Goal:_ `arc abandon <slug>` presents the impact plan and refuses without explicit `--yes` — the safe-by-default
+  destructive gate (§7, DEV-RULES.ARC § Cascade-undo).
+
+- _Note:_ The handler (judgment layer) prints the cascade/impact plan — branch (local + remote), worktree, artifacts,
+  user-workspace, ROADMAP row — then requires `--yes`; bare `arc abandon <slug>` shows the plan and refuses (safe
+  default under non-TTY = don't destroy). The `confirmation` guard (built in 4.6) reads `--yes` as its `inputs` value;
+  the executor stays pure mechanics.
+    - Build `test-first`: bare invocation prints the plan and refuses (non-zero); `--yes` proceeds; the plan
+      enumerates the cascade for the resolved from-state.
+
+### `[ ]` **5.R.5 `reopen` command — merge-fact read**
+
+- _Goal:_ `arc reopen [<slug>]` withdraws an `Integrating` WU to `Active`, resolving the merge fact and forwarding the
+  withdrawal mode — the CLI binding for the 4.4 transition.
+
+- _Note:_ Resolves the `pr-unmerged` guard input via a `gh` read (the read-side `gh` model, `work-unit-pr-source.ts`
+  pattern), degrading safely when `gh` / remote is absent; a merged PR is refused (post-merge rework is a new
+  origin-linked WU, §8). Withdrawal mode (`close` default / `draft`) is a flag forwarded to the `withdraw-pr`
+  side-effect.
+    - Build `test-first`: an unmerged `Integrating` WU reopens (mode forwarded); a merged PR is refused.
+
+### `[ ]` **5.R.6 Re-point `draft-design`'s stub leg**
+
+- _Goal:_ With `arc stub` now shipped (5.R.3), the planning-entry gate's redirect surface names the concrete command
+  instead of the generic stub action.
+
+- _Note:_ Update `draft-design.md`'s "Planning-entry gate" § stub leg (both the package source and `.arc/` copies) to
+  call `arc stub <name>` with its commitment + priority `inputs`, then graduate via `init`. Markdown + package-sync
+  only — no code.
+
 ## **Phase 6:** Terminal sweep, read relocation & workflow re-pointing
 
 _Purpose:_ Migrate the deterministic terminal mechanics into the executor, move the slug→state read into its verb
@@ -396,7 +480,8 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
 - _Note:_ Corrects the draft's earlier "no-go" framing. Judgment (merge approval, archival timing) stays in the
   `integrate-work-unit` / `archive` workflow. The path computation is net-new but reuses `completed-index.ts`'s
   `NN_<slug>` parsing + quarter scan to find the next sequence number; the quarter comes from the current date via
-  an **injected clock** (testable, three-layer).
+  an **injected clock** (testable, three-layer). The `arc archive` command (context-defaulting, per § Verb CLI shape)
+  binds here alongside the executor work, so the workflow re-pointing (6.4) has it.
 
     - Build `test-first` (one behavior at a time):
         - Computes `completed/{YYYY-qN}/{NN}_{name}/` deterministically (quarter from injected clock + next `NN`
@@ -418,24 +503,20 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
         - `git mv`s `cohort-<name>.md` to `completed/` when triggered.
         - Does not fire while any member remains outside `completed/`.
 
-### `[ ]` **6.3 Slug→state read surface + installation-handler rename**
+### `[ ]` **6.3 Slug→state read surface**
 
 - _Goal:_ The slug→state read is `arc status <slug>` (bare `arc status` = session/active view; a slug = that WU's
   lifecycle state), preserving the shipped JSON shape, with the pure aggregator left in place.
 
 - _Note:_ Only the thin CLI shell changes; `resolveSlugQuery` (`lib/work-unit/lifecycle-query.ts`) is the durable
-  artifact and stays put. No `arc lifecycle` namespace — the verbs are top-level (peers of `start`); the read's
-  home is `status`. Coordinate verb naming with `idiomatic-alignment`.
+  artifact and stays put. No `arc lifecycle` namespace — the verbs are top-level (peers of `start`); the read's home
+  is `status`. The `--lifecycle <slug>` option becomes a `status <slug>` positional; `handlers/status.ts` dispatches
+  to `resolveSlugQuery` when a slug is given, else the session view. (The handler rename that frees
+  `handlers/lifecycle.ts` is in Phase 5.R.) Coordinate verb naming with `idiomatic-alignment`.
   _Notes:_ See `notes-lifecycle-transition-core.md` § Command surface.
 
-    - `[ ]` **6.3.a Move `--lifecycle` to a `status <slug>` positional** — the `cli.ts` option becomes a positional;
-      `handlers/status.ts` dispatches to `resolveSlugQuery` when a slug is given, else the session view.
-        - Build `test-first`: `arc status <slug>` returns the shape previously served by `arc status --lifecycle`;
-          bare `arc status` is unchanged.
-
-    - `[ ]` **6.3.b Rename the installation handler** — `handlers/lifecycle.ts` → `handlers/installation.ts`
-      (`update` / `health` / `diff`) + update the `cli.ts` import, freeing `handlers/lifecycle.ts` for the
-      WU-transition verb handlers.
+    - Build `test-first`: `arc status <slug>` returns the shape previously served by `arc status --lifecycle`; bare
+      `arc status` is unchanged.
 
 ### `[ ]` **6.4 Re-point existing workflows to the executor**
 
