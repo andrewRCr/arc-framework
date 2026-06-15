@@ -11,12 +11,13 @@
  * root — a relocation `git mv` and a worktree `add` stay correct regardless of
  * `process.cwd()`.
  *
- * Scope: this binder wires what the `start` dispatch's executor-routed arms
- * (graduate / resume) need — the four encoding mutators, the foot-gun guards, and
- * the `reconcile-roadmap` / `reconcile-status-user` / `user-workspace`
- * side-effects start's edges declare. The destructive `scaffold` / `remove`
- * artifact runner and the `withdraw-pr` / `discharge-dep-edges` side-effects
- * (used only by other verbs) are left for the phase that wires those verbs.
+ * Scope: this binder wires the four encoding mutators, the foot-gun guards, and the
+ * `reconcile-roadmap` / `reconcile-status-user` / `user-workspace` side-effects the
+ * `start` dispatch's executor-routed arms (graduate / resume) declare, plus the
+ * `discharge-dep-edges` side-effect the `activate` edge fires (the dep-edge
+ * lifecycle's write half). The destructive `scaffold` / `remove` artifact runner and
+ * the `withdraw-pr` side-effect (the verbs that build their own runner / carry a `gh`
+ * write) are left for the phase that wires those verbs.
  *
  * `reconcile-status-user` renders for real here: it composes the per-developer
  * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
@@ -38,12 +39,14 @@ import { assembleStatusUserView } from "../status/assemble-user-view.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { runUserOpen } from "../../commands/user/open.js";
 import { runUserClose } from "../../commands/user/close.js";
+import { buildLifecycleIndex, type LifecycleIndexFs } from "./lifecycle-index.js";
 import type { ExecuteTransitionContext, SideEffectHandler } from "./lifecycle-executor.js";
 import { buildFootgunGuards } from "./lifecycle-guards.js";
 import { reconcileBranch } from "./mutators/reconcile-branch.js";
 import { reconcileWorktree } from "./mutators/reconcile-worktree.js";
 import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
+import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
@@ -77,6 +80,12 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   /** Git executor pinned to the repository root, so cwd-relative `git mv` / worktree ops resolve. */
   const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
 
+  /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
+  const indexFs: LifecycleIndexFs = {
+    readdir: (p) => readdir(at(p), { withFileTypes: true }),
+    readFile: (p) => io.readFile(at(p)),
+  };
+
   const userWorkspaceHandler: SideEffectHandler = async ({ slug, to }) => {
     // Direction rule: a move into an active location opens the workspace; a move
     // out (to backlog / completed / nonexistent) closes it. Start's arms all land
@@ -89,13 +98,25 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     return undefined;
   };
 
+  // `activate` discharges satisfied `Depends On` edges — the dep-edge lifecycle's
+  // write half. Fires after the encoding legs, so the freshly-built index reflects
+  // the just-activated WU; each edge's dependency is read against current state and
+  // only the satisfied ones (`shipped` ∨ `integrating`) are dropped from the gate.
+  const dischargeDepEdgesHandler: SideEffectHandler = async ({ slug }) => {
+    const index = await buildLifecycleIndex({ cwd, fs: indexFs });
+    const { discharged } = await dischargeDepEdges(
+      { index, readMeta: (p) => io.readFile(at(p)), writeMeta: (p, c) => io.writeFile(at(p), c) },
+      { slug, metaPath: `.arc/active/meta-${slug}.md` },
+    );
+    return discharged.length > 0
+      ? `Discharged ${discharged.length} satisfied dependency edge(s): ${discharged.join(", ")}.`
+      : undefined;
+  };
+
   return {
     cwd,
     exec,
-    indexFs: {
-      readdir: (p) => readdir(at(p), { withFileTypes: true }),
-      readFile: (p) => io.readFile(at(p)),
-    },
+    indexFs,
 
     setPhase: (params) =>
       setPhase(
@@ -140,6 +161,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
           { cwd, identity, slug, from, to },
         ),
       "user-workspace": userWorkspaceHandler,
+      "discharge-dep-edges": dischargeDepEdgesHandler,
     },
   };
 }

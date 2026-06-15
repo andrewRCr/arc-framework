@@ -416,14 +416,27 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
 ### `[ ]` **5.R.3 Register the non-destructive verb commands**
 
 - _Goal:_ `stub` / `promote` / `demote` / `park` / `resume` / `deactivate` / `activate` are registered top-level
-  commands, each binding its Phase-4 `run*` transition with the §14 soft-field and side-effect `inputs` supplied.
+  commands, each binding its `run*` transition with the §14 soft-field and side-effect `inputs` supplied.
 
-- _Note:_ Includes wiring `activate`'s `discharge-dep-edges` `SideEffectHandler` binding (deferred from 4.7) and the
-  `reconcile-status-user` / `reconcile-roadmap` regen on the location-movers. Each command surfaces the verb's
-  required `inputs` (e.g. `park --reason`, `stub`'s commitment + priority) — never fabricated, refused when absent.
-  (`abandon` / `reopen` carry extra gates — their own tasks below; `archive`'s command rides its executor work in
-  6.1.)
-    - Build `test-first`: each command dispatches its transition and refuses on missing required `inputs`.
+- _Note:_ Split into a foundational increment (5.R.3.a — the missing `activate` verb infra) and the command-surface
+  increment (5.R.3.b). Discovered at task entry: no `runActivate` exists — Phase 4's 4.7 built only the
+  `discharge-dep-edges` side-effect logic and deferred the verb + its binding here (its outcome: "the
+  `SideEffectHandler` binding rides the `activate` verb/CLI"). The `reconcile-status-user` / `reconcile-roadmap` regen
+  on location-movers is already bound in `buildExecutorContext` (5.4). Each command surfaces the verb's required
+  `inputs` (e.g. `park --reason`, `stub`'s commitment + priority) — never fabricated, refused when absent. (`abandon`
+  / `reopen` carry extra gates — their own tasks below; `archive`'s command rides its executor work in 6.1.)
+
+    - `[x]` **5.R.3.a `runActivate` verb & `discharge-dep-edges` binding** — `runActivate` co-located with
+      `runDeactivate` in `verbs/activate-deactivate.ts` (the inverse pair, matching `park-resume` / `promote-demote`):
+      rotates `plan/<name>` → the caller-supplied working branch, `setPhase` → `Active`, writes the `Next Task` /
+      `Next Action` inputs, and fires `discharge-dep-edges`. The deferred `discharge-dep-edges` `SideEffectHandler` is
+      now bound in `buildExecutorContext` (fresh index → `dischargeDepEdges` for the activated WU → discharge-count
+      advisory) — closing the Phase-4 `activate` gap.
+
+    - `[ ]` **5.R.3.b Register the verb commands** — the 7 top-level command handlers (thin bindings over the 5.R.2
+      dispatch scaffold + each `run*`) plus their `cli.ts` registration, each surfacing the verb's required `inputs`
+      and refusing when absent.
+        - Build `test-first`: each command dispatches its transition and refuses on missing required `inputs`.
 
 ### `[ ]` **5.R.4 `abandon` command — destructive-cascade gate**
 
