@@ -122,12 +122,10 @@ against them.
   bullet, and narrative section byte-identical. Three mutator tests (write-and-preserve, unknown-phase reject,
   no-table throw); `meta-reader` suite stays green (71).
 
-### `[ ]` **2.5 Transition side-effects**
+### `[x]` **2.5 Transition side-effects**
 
 - _Goal:_ The broad transition side-effects — readiness-view regen on every location move, and user-workspace
   open/close across the WU-touching verbs — are declared effects the executor fires by id, not inline ceremony.
-
-- _Notes:_ See `notes-lifecycle-transition-core.md` § Side-effect implementation split, § User-workspace side-effect.
 
     - `[x]` **2.5.a Readiness-view regen** — `reconcile-roadmap` / `reconcile-status-user` in
       `lib/work-unit/side-effects/readiness-regen.ts`.
@@ -139,11 +137,12 @@ against them.
           `nonexistent` for a creation/deletion endpoint), flagging a hand-render until `roadmap-tooling` ships the
           renderer — no format / bucket / Parked-label commitment.
 
-    - `[ ]` **2.5.b User-workspace satellite** — open/close across
-      `init` / `start` / `activate` / `integrate` / `decompose` / `park` / `resume` / `abandon`.
-        - Calls the non-interactive `runUserOpen` / `runUserClose` (`commands/user/`) that `scaffoldIntoWorktree`
-          already uses headlessly — never the interactive `handleUserOpen` handler (TTY-blocking, destructive
-          default; owned by `cli-substrate-adoption`).
+    - `[x]` **2.5.b User-workspace satellite** — `userWorkspace` in
+      `lib/work-unit/side-effects/user-workspace.ts`.
+        - Dispatches an `open` / `close` op (direction decided per-edge by the executor) to the injected
+          non-interactive `runUserOpen` / `runUserClose` seams — never the interactive `handleUserOpen` handler
+          (TTY-blocking, destructive default; owned by `cli-substrate-adoption`). A null identity skips
+          (workspace is identity-scoped). Three tests cover open, close, and the skip.
 
 ## **Phase 3:** The thin executor & foot-gun guards
 
