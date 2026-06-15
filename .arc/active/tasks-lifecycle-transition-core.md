@@ -387,15 +387,11 @@ specified in `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invoc
 land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). Final verb naming coordinates with
 `idiomatic-alignment`.
 
-### `[ ]` **5.R.1 Installation-handler rename**
+### `[x]` **5.R.1 Installation-handler rename**
 
 - _Goal:_ Free `handlers/lifecycle.ts` for the WU-transition verb handlers by relocating the installation handlers to
   their own precise home — `handlers/lifecycle.ts` → `handlers/installation.ts` (`update` / `health` / `diff`), with
   the one `cli.ts` import updated.
-
-- _Note:_ Pure relocation, no behavior change; existing installation-command coverage exercises it. Moved here from
-  Phase 6 (was 6.3.b) — the rename's sole purpose is to free the name for the verb handlers below, so it leads this
-  phase rather than riding the unrelated slug→state read.
 
 ### `[ ]` **5.R.2 Verb-handler scaffold & shared CLI shape**
 

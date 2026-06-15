@@ -22,7 +22,7 @@ import {
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
-import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
+import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
