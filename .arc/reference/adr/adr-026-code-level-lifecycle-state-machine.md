@@ -28,6 +28,16 @@ Three migration depths were considered for that write side:
 - **Option B2 — a generic transition engine.** A general state-machine engine parameterized over the lifecycle.
   It over-generalizes and, worse, the natural implementation bakes `git mv` in as *the* transition mechanism —
   re-committing the physical-file-location coupling that ADR-022's record/projection direction exists to remove.
+    - **A third-party FSM library (XState et al.) is a packaged B2** and loses on the same grounds plus three of
+      its own: its runtime model is a long-lived in-memory interpreter holding current state, which fights the
+      resolve-`(phase, location)`-from-disk-per-invocation design (we would use ~10% of it and discard the
+      interpreter); the encoding-consistency invariant is ours, so the table-walking guard wants plain inspectable
+      `TransitionRecord[]` data, not a graph encoded in the library's config shape; and the substantive surface is
+      the git/fs mechanics (`relocate-artifacts`, `reconcile-worktree`, dated-path, the pointer-record), which no
+      FSM library touches. The lone-process CLI runs exactly one transition per invocation over seven flat states —
+      none of the statechart machinery (interpreter, hierarchy, parallel regions, history) is used. Runtime
+      state-store libraries (Zustand / Redux) are a different category entirely — in-memory app-state stores with
+      no role in a per-invocation CLI — not a transition system at all.
 - **Option B1 (chosen) — a hand-rolled declarative transition table as code + a thin imperative executor**, over
   *logical* `(phase, location)`. The table is data (states, legal edges, inverses, guard requirements,
   per-transition encoding updates); the executor resolves current state via the resolver, validates guards, and
