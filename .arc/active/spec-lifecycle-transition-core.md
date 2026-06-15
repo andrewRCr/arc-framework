@@ -533,8 +533,9 @@ disposition governs the executor transitions.
    sole relocation primitive, called by every location-moving transition.
 4. `arc start <name>` dispatches correctly across all resolved states and is provably guarded: a name-collision
    routes to graduate (never mis-scaffolds), and worktree-occupancy rejects a second active WU in one worktree.
-5. The full inverse-paired verb set is shipped: `promote` / `demote`, `park` / `resume`, `reopen`, `abandon` (split
-   from `deactivate`), each an executor-dispatched transition.
+5. The full inverse-paired verb set is shipped as real **top-level CLI verbs** (peers of `arc start`) —
+   `promote` / `demote`, `park` / `resume`, `reopen`, `abandon` (split from `deactivate`) — each an
+   executor-dispatched transition, with the destructive `abandon` gated behind an impact plan + explicit `--yes`.
 6. `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches.
 7. `abandon` executes its destructive cascade from the pre-merge states only (never from `integrating` or a merged
    WU — post-merge backout is a new origin-linked WU), including execution-locus relocation when tearing down the
