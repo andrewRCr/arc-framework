@@ -79,6 +79,8 @@ export interface TransitionInputs {
   class?: string;
   /** Whether the WU's PR has merged — the `pr-unmerged` guard input (`reopen`). */
   prMerged?: boolean;
+  /** The PR-withdrawal mode the `withdraw-pr` side-effect applies — `close` (default) or `draft` (`reopen`). */
+  prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
   /** The ephemeral next-step suggestion to surface (advisory; never persisted). */

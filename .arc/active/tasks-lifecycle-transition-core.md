@@ -241,18 +241,19 @@ the executor never derives or authors them.
   on the preserved branch) is the park ceremony's, and `resume`'s checkout-existing re-attach is a `reconcile-worktree`
   `spawn` refinement — both noted at their call sites. CLI surface (`arc park` / `resume`) deferred to Phase 6.
 
-### `[ ]` **4.4 `reopen`**
+### `[x]` **4.4 `reopen`**
 
 - _Goal:_ An `Integrating` WU can be withdrawn back to `Active` for more work — the genuinely-missing inverse of
   `integrate`.
 
-- _Note:_ Context-defaulting (slug optional → the current Integrating WU). PR-withdrawal default (close vs.
-  convert-to-draft) and any `--keep-pr` toggle are settled against the `gh` surface at execution; they don't affect
-  the state model. The PR op is a net-new gh side-effect (see preamble), not a bundle leg.
-
-    - Build `test-first` (one behavior at a time):
-        - `reopen` (`Integrating → Active`) is a `set-phase`-only move — no location move, no branch rotation.
-        - Withdraws the PR (close, or convert-to-draft per `inputs`).
+- _Outcome:_ `runReopen` (`lib/work-unit/verbs/reopen.ts`) dispatches the `set-phase`-only `Integrating → Active`
+  flip through `executeTransition` — no location move, no branch rotation — forwarding the merge fact (the
+  `pr-unmerged` guard input) and the withdrawal mode as inputs. The net-new PR-withdrawal `gh` side-effect ships as
+  `lib/work-unit/side-effects/withdraw-pr.ts`: `close` (default → `gh pr close`) or `draft`
+  (`gh pr ready --undo`), hand-rolled behind the injected executor per the read-side `gh` model. The `prWithdrawMode`
+  input was added to the executor's `TransitionInputs` so the side-effect reads the mode at fire time. Merge-fact
+  resolution (a `gh` read) and the handler's CLI binding are deferred to the Phase-6 command surface; the verb takes
+  the fact as a supplied input (never fabricated).
 
 ### `[ ]` **4.5 `deactivate`**
 
