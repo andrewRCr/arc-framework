@@ -84,6 +84,14 @@ Two orthogonal logical axes, recapped as the substrate the table moves across:
   deterministic source the resolver reads, and `(phase, location)` is the logical-record shape a later backend
   re-homes (directory → a record field) with zero reshape.
 
+The two axes measure different things: **phase is maturity** (how far the work has progressed — design authored,
+code begun, in review, shipped), **location is engagement** (shelved in `backlog/` vs. live in `active/`). They are
+independent, which is why engagement is **derived, never a phase value**: `parked` is the derived state
+`(Active, planned)` — "reached the code-exists stage, now shelved" — and is never stored as a `State`. So
+"`Active` in `backlog/`" is not a contradiction but the precise encoding of a paused-but-code-exists WU; the
+legibility of that raw shape is handled at the render layer (§ 6's pointer-record callout), not by polluting the
+phase enum.
+
 A `planned/` stub and a WU on a `plan/` branch are *both* phase `Planning`; phase + location together fix where
 it lives. The resolver resolves the two axes independently and never cross-derives them (directory wins for
 location, meta wins for phase). The resolver owns *resolving* a state from a slug; this member owns the *legal
@@ -259,14 +267,27 @@ tracked-WU branch is then cut identically in both modes.
   Resolves to `parked`.
 
 **The pointer-record (tracked-file resolution).** A parked-Active WU's authoritative artifacts stay on the
-preserved branch; `main` carries only a minimal **render-pointer** — `State: Active (parked)`, `Branch: feat/X`,
-plus render fields — **blessed as a legal state shape** the three-encoding sweep expects rather than flags. The
-branch meta is authoritative; the pointer is regenerable, never hand-edited. This is the arc-backend
+preserved branch; `main` carries only a minimal **render-pointer** — meta `State: Active` (the literal,
+resolver-valid value; `parked` is *derived* from the `backlog/planned/` location, never stored — see §1),
+`Branch: feat/X`, plus render fields — **blessed as a legal state shape** the three-encoding sweep expects rather
+than flags. Because a raw `State: Active` under `backlog/` reads ambiguously, the pointer-record (itself a
+regenerated render artifact) **opens with a derived-state callout** naming the parked state, the authoritative
+branch, and the park reason:
+
+```text
+> **Parked** — Active-phase work shelved here; authoritative artifacts on branch `feat/<name>`.
+> Reason: {reason}
+> Regenerated pointer — do not hand-edit.
+```
+
+The branch meta is authoritative; the pointer is regenerable, never hand-edited. This is the arc-backend
 record+projection model applied early to one state (pointer → record, `Branch` → code-ref field, zero reshape);
 it **ships in this member**.
 
-**Park guards:** reject park-from-`Integrating` (close/withdraw the PR via `reopen` first); commitment is picked
-at park time (an `inputs` value, not fabricated).
+**Park guards & inputs:** reject park-from-`Integrating` (close/withdraw the PR via `reopen` first). `park` requires
+two `inputs` (never fabricated): the **commitment** tier and a free-form **`reason`** string — the latter rendered
+in the callout above (and in the relocated meta for park@Planning), supplied via `--reason` (bare invocation errors
+with usage, non-TTY-safe).
 
 ### 7. Per-cell mechanics (the open-question resolutions)
 
@@ -283,7 +304,10 @@ at park time (an `inputs` value, not fabricated).
   checkout *first*, then runs `git worktree remove`. Without this, `park@Active` / `abandon` of the current WU
   would saw off the branch they stand on.
 
-- **`abandon` per-cell set** — `abandon` deletes residue from any state and is the destructive inverse of `stub`:
+- **`abandon` per-cell set** — `abandon` deletes residue from any state and is the destructive inverse of `stub`.
+  Both cells are destructive cascades, so the handler **presents an impact plan and gates on explicit confirmation**
+  (a `--yes` flag; bare invocation prints the plan and refuses — safe default under non-TTY is not-destroy) per
+  DEV-RULES § Cascade-undo. The executor stays pure mechanics; the confirmation reaches it as an `inputs` value.
     - **Pre-merge** (no shipped commits) — delete branch (local + remote), worktree, artifacts, user-workspace,
       and the ROADMAP row. The resolver then returns `nonexistent`.
     - **Post-merge — `abandon`@merged (Case D)** — the WU already merged; revert the merge on base (the PR-revert
@@ -291,7 +315,8 @@ at park time (an `inputs` value, not fabricated).
 
 - **`deactivate`@merged (Case C)** — shares the PR-revert mechanic with Case D but differs by **target**: revert
   the merge on base, restore to **Planning** (location `planned`, phase `Planning`) rather than deleting. The two
-  post-merge corners are distinct cells sharing one mechanic, separated by their target state.
+  post-merge corners are distinct cells sharing one mechanic, separated by their target state. As a merge-reverting
+  cascade it carries the same impact-plan + `--yes` confirmation gate as `abandon`.
 
   Outside the merged corner, `deactivate` stays narrow — "undo a premature activation" (recoverable phase↓);
   shelving an in-progress WU is `park@Active`, and destructive teardown is `abandon`.
@@ -305,11 +330,12 @@ at park time (an `inputs` value, not fabricated).
 - `Integrating → completed` — `archive` (the sweep migrates; § 9).
 - `completed` is a **sink** — reopen-after-ship is a new WU with an origin-link, not an edge out of the sink.
 
-**Integration-entry meta write.** On the `Active → Integrating` flip, **`integrate-work-unit` Step 1 owns**
-writing the durable phase-transition meta fields (`Last Completed`, `Next Task`, `Next Action`) so cold-session
-orientation is not left reading stale task pointers. The write rides the transition that actually changes phase;
-review-cycle bookkeeping stays out of the meta file — only durable phase-transition state is captured. (Folds in
-the routed-in "Codify integration-entry meta status updates" concern.)
+**Integration-entry meta write.** On the `Active → Integrating` flip, the durable phase-transition meta fields
+(`Last Completed`, `Next Task`, `Next Action`) are written so cold-session orientation is not left reading stale
+task pointers. This is the `integrate` row's **soft-field disposition** (§14): the executor writes the values at
+the flip, `integrate-work-unit` supplies them as `input` — review-cycle bookkeeping stays out of the meta, only
+durable phase-transition state is captured. (Folds in the routed-in "Codify integration-entry meta status updates"
+concern; §14 generalizes it across all transitions.)
 
 ### 9. `archive` sweep + path computation (ships here)
 
@@ -378,14 +404,47 @@ Three ship-layer concerns, all outside the executor:
 
 Floor = partial; **unknown `branch.protection` values degrade to partial** (fail-safe).
 
-### 13. Slug→state read relocation
+### 13. Slug→state read surface
 
-The slug→state read currently surfaces as `arc status --lifecycle <slug>` — placed on `status` deliberately to
-avoid pre-empting the lifecycle verb namespace this WU now owns. With the verb group landing here, the read joins
-its family as **`arc lifecycle state <slug>`**, preserving the shipped JSON shape. The pure `resolveSlugQuery`
-aggregator in `lib/work-unit/lifecycle-query.ts` is the durable artifact and stays put; only the thin CLI shell
-relocates (the `handlers/status.ts` `--lifecycle` branch + the `cli.ts` option). Coordinate the final verb name
-with `idiomatic-alignment`. (Folds in the routed-in "Relocate the slug→state read" concern.)
+The slug→state read surfaces as **`arc status <slug>`**: bare `arc status` keeps the session/active view, and a
+slug argument resolves that work unit's lifecycle state — preserving the shipped JSON shape from the interim
+`arc status --lifecycle <slug>`. The lifecycle verbs land **top-level** (peers of `arc start`; `start ⊥ park` is an
+inverse pair so the family shares `start`'s shape, and a generic `arc lifecycle` namespace would over-claim —
+errands have their own lifecycle, under `arc errand`), so there is no verb namespace for the read to join: `status`
+is its permanent home, not a placeholder. The pure `resolveSlugQuery` aggregator in
+`lib/work-unit/lifecycle-query.ts` is the durable artifact and stays put; only the thin CLI shell changes (the
+`handlers/status.ts` `--lifecycle` option becomes a `status <slug>` positional). Verb-transition handlers live in
+`handlers/lifecycle.ts` — the existing installation handlers (`update` / `health` / `diff`) move to
+`handlers/installation.ts` to free the precise name. Coordinate final verb naming with `idiomatic-alignment`.
+(Folds in the routed-in "Relocate the slug→state read" concern.)
+
+### 14. Soft-field disposition at transitions
+
+Beyond the three-encoding triple (`State` · directory · branch), a transition can leave the meta's **soft fields**
+— `Next Task`, `Next Action`, `Last Completed`, `Blockers` — stale or nonsensical (a shipped WU still pointing at
+"Task 5.5"; a just-activated WU still `Next Task: [none]`). This is the same stale-orientation hazard §8's
+integration-entry write addresses, generalized. Extending the consistency mandate from the hard triple to the soft
+fields, each transition declares a **soft-field disposition** alongside its `encodingUpdates` / `sideEffects` — per
+field, one of:
+
+- **`reset: <constant>`** — the executor writes a fixed value (`archive` / `deactivate` → `Next Task: [none]`).
+  Deterministic; pure mechanics.
+- **`input`** — the executor writes a caller-supplied value (`activate` → `Next Task` = the first task, supplied by
+  the workflow; `integrate` → `Last Completed` / `Next Action`, supplied). This **generalizes §8**: the
+  integration-entry write becomes the `integrate` row's disposition (executor writes at the flip, the workflow
+  supplies the values) rather than a special-cased workflow step.
+- **`leave`** — untouched.
+
+The executor never *derives* (no task-list parsing) and never *fabricates* prose — judgment values are supplied,
+exactly like `commitment` / `reason`. This keeps it thin: reset-to-constant or write-a-supplied-input.
+
+**Stored vs. suggested (the inconsistency guard).** The *stored* `Next Action` stays **conservative** — `reset`
+only where the next step is genuinely canonical, else `input` / `leave` — so a reader is never unsure whether the
+field is authoritative guidance or a machine-stamped default. The "what's next" nudge instead lives in the
+transition's **ephemeral CLI completion message** ("Parked `foo` — resume with `arc resume foo`"; "Activated —
+begin the task loop"), which every transition emits freely: advisory output, never persisted, so it carries **zero
+meta-consistency cost**. Planning-stage ceremonies continue to author their own `Next Action` hand-offs; the
+disposition governs the executor transitions.
 
 ## Alternatives & Rationale
 
@@ -439,9 +498,11 @@ with `idiomatic-alignment`. (Folds in the routed-in "Relocate the slug→state r
 - **Architecture rationale (ADR-026).** The B1 depth choice, the mechanics-in-CLI / judgment-in-workflow split,
   and the early application of the record/projection model to `park@Active` are captured in ADR-026, the
   companion to this Novel spec.
-- **User-facing impact.** `arc start` becomes safe against existing stubs and worktree occupancy; the new
-  `arc lifecycle state` surface replaces `arc status --lifecycle` (JSON shape preserved). `park` / `resume` /
-  `promote` / `demote` / `reopen` / `abandon` become real CLI verbs.
+- **User-facing impact.** `arc start` becomes safe against existing stubs and worktree occupancy. The slug→state
+  read returns to `arc status <slug>` (replacing the interim `arc status --lifecycle`, JSON shape preserved).
+  `park` / `resume` / `promote` / `demote` / `reopen` / `abandon` become real **top-level** CLI verbs (peers of
+  `start`); destructive verbs (`abandon`, `deactivate`@merged) present an impact plan and require an explicit
+  `--yes`.
 
 ## Success Criteria
 
@@ -463,8 +524,11 @@ with `idiomatic-alignment`. (Folds in the routed-in "Relocate the slug→state r
 9. The `stub` contract rejects creation without explicit commitment + priority.
 10. The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
     pre-authored-draft adopt edge (`start --from <draft>`).
-11. `arc lifecycle state <slug>` serves the slug→state read with the JSON shape preserved from `arc status
+11. `arc status <slug>` serves the slug→state read with the JSON shape preserved from the interim `arc status
     --lifecycle`.
+12. Each transition applies its declared soft-field disposition (`reset` / `input` / `leave`) so `Next Task` /
+    `Next Action` / `Last Completed` stay consistent post-transition — the executor writes resets + supplied
+    inputs, never deriving or authoring — and emits an ephemeral next-step suggestion that is never persisted.
 
 ## Open Questions
 

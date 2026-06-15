@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-lifecycle-transition-core.md`
-- **Task List:** [none]
+- **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** `create-spec` — `spec-lifecycle-transition-core.md` (detailed·RFC) + ADR-026 authored
+- **Last Completed:** `generate-tasks` — `tasks-lifecycle-transition-core.md` (high depth, 3-pass) + grounding
+  audit; spec §§1/6/7/13–14 propagated, `notes-lifecycle-transition-core.md` authored
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks.md` to decompose `spec-lifecycle-transition-core.md` into a task list. The
-  heavy member — carries the logical model, the code transition table, the executor, the mutator bundle, and the
-  guards. ADR-026 captures the architecture rationale.
+- **Next Action:** Run `activate-work-unit.md` — flip `**State:**` to `Active` and rename `plan/` →
+  `<type>/lifecycle-transition-core`; implementation begins on the renamed branch.
 
 ---
