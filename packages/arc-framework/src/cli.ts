@@ -24,6 +24,18 @@ import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/hou
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
+  handleStub,
+  handlePromote,
+  handleDemote,
+  handlePark,
+  handleResume,
+  handleActivate,
+  handleDeactivate,
+  type StubOptions,
+  type ParkOptions,
+  type ActivateOptions,
+} from "./handlers/lifecycle.js";
+import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
@@ -90,6 +102,53 @@ program
   )
   .option("-y, --yes", "Skip the confirm prompt")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
+
+// --- Lifecycle verbs (top-level peers of `arc start`) ---
+// Each takes an optional positional so a bare invocation reaches the handler's
+// candidate-list surface; slug-required verbs refuse a missing target there.
+
+program
+  .command("stub [name]")
+  .description("Create a new backlog work unit at a committed tier (provisional | planned)")
+  .option("--commitment <tier>", "Committed backlog tier: `provisional` or `planned` (required)")
+  .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
+  .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
+  .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
+  .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
+
+program
+  .command("promote [slug]")
+  .description("Raise a provisional stub to planned (requires a resolved `Class`)")
+  .action((slug: string | undefined) => handlePromote(slug));
+
+program
+  .command("demote [slug]")
+  .description("Lower a planned stub back to provisional")
+  .action((slug: string | undefined) => handleDemote(slug));
+
+program
+  .command("park [slug]")
+  .description("Shelve a started work unit off the active set (defaults to the current WU)")
+  .option("--reason <text>", "Why the work unit is being parked (required)")
+  .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
+
+program
+  .command("resume [slug]")
+  .description("Re-attach a parked work unit's preserved branch in a fresh worktree")
+  .action((slug: string | undefined) => handleResume(slug));
+
+program
+  .command("activate [slug]")
+  .description("Raise a planning work unit to Active (defaults to the current WU)")
+  .option("--type <type>", "Working-branch type, e.g. `feat` — composes `<type>/<slug>` (required)")
+  .option("--task <task>", "First task to orient on → meta `Next Task` (required)")
+  .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
+  .action((slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts));
+
+program
+  .command("deactivate [slug]")
+  .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
+  .action((slug: string | undefined) => handleDeactivate(slug));
 
 const errand = program
   .command("errand")

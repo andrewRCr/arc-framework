@@ -1,26 +1,35 @@
 /**
- * The shared CLI binding shape for the work-unit lifecycle verbs.
+ * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
+ * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate`).
  *
- * Every transition-targeting verb (`park` / `resume` / `activate` / … ) opens the
- * same way: resolve *which* work unit it acts on, or — when that can't be answered
- * non-interactively — print the actionable candidates and bail. {@link resolveVerbTargetOrReport}
- * is that shared opening: each verb handler calls it to obtain its target slug, and
- * returns early when it gets `null` (the candidate list has already been surfaced).
+ * Each handler is a thin, consistent binding: resolve the ambient context
+ * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
+ * shared dispatch shape ({@link resolveVerbTargetOrReport} — explicit slug,
+ * current-WU default, or the non-interactive candidate list), build the production
+ * executor context, dispatch the verb's `run*` transition with its required
+ * `inputs` supplied, and report the outcome. No verb fabricates a judgment value:
+ * a missing required `input` (`stub`'s commitment / priority, `park`'s reason,
+ * `activate`'s branch type / orientation) is a refusal, surfaced uniformly.
  *
- * The decision logic is the pure {@link selectVerbTarget} core; this layer adds only
- * the I/O the core can't own — building the lifecycle index, reading the current
- * worktree's WU for the context-defaulting fallback, and printing the
- * **non-interactive** candidate surface (a `p.log.error` line plus a non-zero exit,
- * never a TTY-blocking `select` — the same precedent as `start`'s usage refusal).
+ * The decision logic the dispatch shape rests on is the pure {@link selectVerbTarget}
+ * core; this layer adds the I/O — index build, current-WU read, executor binding,
+ * and the `p.log` surfaces — and the per-verb operand assembly each `run*` needs.
  *
  * @module
  */
 
+import { basename, join } from "node:path";
 import { readFile, readdir } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
-import { readActiveMetaCandidates } from "../lib/active/meta-reader.js";
+import { parseMetaRecord, readActiveMetaCandidates } from "../lib/active/meta-reader.js";
+import { readConfigSettings } from "../lib/config/status-reader.js";
+import { createUserIOContext } from "../lib/io-context.js";
+import { getInternalTemplatePath } from "../lib/paths.js";
+import { resolvePrimaryWorktreePath, resolveWorktreePathsByBranch } from "../lib/git/worktree-roster.js";
+import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
+import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
 import {
   DISPATCH_MODE,
@@ -29,6 +38,15 @@ import {
   selectVerbTarget,
   type TransitionVerb,
 } from "../lib/work-unit/verbs/dispatch.js";
+import { runActivate, runDeactivate } from "../lib/work-unit/verbs/activate-deactivate.js";
+import { runDemote, runPromote, type BacklogMoveResult } from "../lib/work-unit/verbs/promote-demote.js";
+import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
+import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
+import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
+
+// ---------------------------------------------------------------------------
+// Shared dispatch shape — target resolution + candidate surfacing
+// ---------------------------------------------------------------------------
 
 /** The production filesystem seam for the lifecycle-index scan (mirrors `start`). */
 const lifecycleFs: LifecycleIndexFs = {
@@ -80,4 +98,290 @@ export async function resolveVerbTargetOrReport(
   p.log.error(formatVerbCandidates(verb, findVerbCandidates(index, verb)));
   process.exitCode = 1;
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Shared handler preamble + reporting
+// ---------------------------------------------------------------------------
+
+/** The ambient context every verb handler resolves once. */
+interface VerbBase {
+  identity: string;
+  cwd: string;
+  io: ReturnType<typeof createUserIOContext>;
+}
+
+/** Resolve identity, repo root, and the I/O context; `null` when a guard already reported. */
+async function resolveVerbBase(): Promise<VerbBase | null> {
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return null;
+    throw err;
+  }
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return null;
+  return { identity, cwd, io: createUserIOContext() };
+}
+
+/** Read config once and build the production executor context, returning both. */
+async function buildExecutor(
+  base: VerbBase,
+): Promise<{ executor: ExecuteTransitionContext; settings: Awaited<ReturnType<typeof readConfigSettings>>["settings"] }> {
+  const { settings } = await readConfigSettings(base.cwd);
+  const executor = buildExecutorContext({
+    cwd: base.cwd,
+    io: base.io,
+    identity: base.identity,
+    teamMode: settings["team.mode"] === "true",
+    internalTemplateDir: getInternalTemplatePath(),
+  });
+  return { executor, settings };
+}
+
+/** Surface a transition's success note plus any side-effect advisories. */
+function reportOutcome(label: string, lines: string[], outcome: TransitionOutcome): void {
+  p.note(lines.join("\n"), label);
+  if (outcome.status === "ok") for (const advisory of outcome.advisories) p.log.info(advisory);
+  p.outro("Done.");
+}
+
+/** Report a refusal and set a non-zero exit code. */
+function refuse(reason: string): void {
+  p.log.error(reason);
+  process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------------------
+// Creation — `stub`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc stub`. */
+export interface StubOptions {
+  commitment?: string;
+  priority?: string;
+  origin?: string;
+  design?: string;
+}
+
+/**
+ * `arc stub <name>` — create a new backlog work unit at a committed tier. Refuses
+ * without a name, and (via `runStub`) without an explicit commitment + priority.
+ */
+export async function handleStub(name: string | undefined, opts: StubOptions): Promise<void> {
+  p.intro("arc stub");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const wuName = name?.trim();
+  if (!wuName) {
+    refuse("`arc stub <name>` requires a work-unit name.");
+    return;
+  }
+
+  // Narrow the raw flag to the committed tier; an absent / invalid value reaches
+  // `runStub` as undefined and is refused there (no silent default).
+  const commitment: StubCommitment | undefined =
+    opts.commitment === "provisional" || opts.commitment === "planned" ? opts.commitment : undefined;
+
+  const { executor } = await buildExecutor(base);
+  const result = await runStub(
+    { executor, fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile } },
+    { name: wuName, commitment, priority: opts.priority, owner: base.identity, origin: opts.origin, design: opts.design },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Stubbed", [`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Backlog-tier moves — `promote` / `demote`
+// ---------------------------------------------------------------------------
+
+/** Shared body for the slug-required backlog-tier moves. */
+async function handleBacklogMove(
+  verb: "promote" | "demote",
+  slug: string | undefined,
+  run: (ctx: ExecuteTransitionContext, params: { name: string }) => Promise<BacklogMoveResult>,
+  label: string,
+): Promise<void> {
+  p.intro(`arc ${verb}`);
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport(verb, slug, base.cwd);
+  if (target === null) return;
+
+  const { executor } = await buildExecutor(base);
+  const result = await run(executor, { name: target });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome(label, [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+/** `arc promote <slug>` — raise a provisional stub to planned (Class ratchet enforced by `runPromote`). */
+export function handlePromote(slug: string | undefined): Promise<void> {
+  return handleBacklogMove("promote", slug, runPromote, "Promoted");
+}
+
+/** `arc demote <slug>` — lower a planned stub back to provisional. */
+export function handleDemote(slug: string | undefined): Promise<void> {
+  return handleBacklogMove("demote", slug, runDemote, "Demoted");
+}
+
+// ---------------------------------------------------------------------------
+// Phase moves — `activate` / `deactivate`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc activate`. */
+export interface ActivateOptions {
+  type?: string;
+  task?: string;
+  action?: string;
+}
+
+/**
+ * `arc activate [slug]` — raise a planning WU to Active. Refuses without the branch
+ * type and orientation inputs (`--type` / `--task` / `--action`); the working branch
+ * is composed `<type>/<slug>`. Discharges satisfied `Depends On` edges via the table.
+ */
+export async function handleActivate(slug: string | undefined, opts: ActivateOptions): Promise<void> {
+  p.intro("arc activate");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("activate", slug, base.cwd);
+  if (target === null) return;
+
+  const type = opts.type?.trim();
+  const task = opts.task?.trim();
+  const action = opts.action?.trim();
+  if (!type || !task || !action) {
+    refuse(
+      "`arc activate` requires `--type <type>`, `--task <first task>`, and `--action <next action>` — refusing to fabricate orientation.",
+    );
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runActivate(executor, {
+    name: target,
+    toBranch: `${type}/${target}`,
+    nextTask: task,
+    nextAction: action,
+  });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Activated", [`Work unit: ${target}`, `Branch:    ${type}/${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+/** `arc deactivate [slug]` — undo a premature activation (Active → Planning). */
+export async function handleDeactivate(slug: string | undefined): Promise<void> {
+  p.intro("arc deactivate");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("deactivate", slug, base.cwd);
+  if (target === null) return;
+
+  const { executor } = await buildExecutor(base);
+  const result = await runDeactivate(executor, { name: target });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome(
+    "Deactivated",
+    [`Work unit: ${target}`, `Branch:    plan/${target}`, `Meta:      ${result.metaPath}`],
+    result.outcome,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Location moves — `park` / `resume`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc park`. */
+export interface ParkOptions {
+  reason?: string;
+}
+
+/**
+ * Resolve the target WU's worktree to tear down — looked up by its meta `Branch`
+ * from the worktree list, falling back to the current worktree (the common
+ * park-the-current-WU case).
+ */
+async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<string> {
+  try {
+    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    const branch = record.Branch;
+    if (branch !== null && branch !== "[none]") {
+      const byBranch = await resolveWorktreePathsByBranch(base.io.exec);
+      const path = byBranch.get(branch);
+      if (path !== undefined) return path;
+    }
+  } catch {
+    // Fall through — the target meta may not be in active/ (the verb refuses below).
+  }
+  return base.cwd;
+}
+
+/** `arc park [slug]` — shelve a started WU off the active set. Refuses without `--reason`. */
+export async function handlePark(slug: string | undefined, opts: ParkOptions): Promise<void> {
+  p.intro("arc park");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("park", slug, base.cwd);
+  if (target === null) return;
+
+  const worktreePath = await resolveWuWorktreePath(base, target);
+  const { executor } = await buildExecutor(base);
+  const result = await runPark(
+    { executor, fs: { writeFile: base.io.writeFile } },
+    { name: target, reason: opts.reason, worktreePath, currentLocus: base.cwd },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Parked", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+/** `arc resume <slug>` — re-attach a parked WU's preserved branch in a fresh worktree. */
+export async function handleResume(slug: string | undefined): Promise<void> {
+  p.intro("arc resume");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("resume", slug, base.cwd);
+  if (target === null) return;
+
+  const { executor, settings } = await buildExecutor(base);
+  const primaryWorktreePath = await resolvePrimaryWorktreePath(base.io.exec);
+  if (primaryWorktreePath === null) {
+    refuse("could not resolve the primary worktree path to derive the repository name");
+    return;
+  }
+  const result = await runResume(
+    { executor, fs: { writeFile: base.io.writeFile } },
+    {
+      name: target,
+      locationTemplate: settings["worktree.location_template"],
+      repo: basename(primaryWorktreePath),
+      spawningIdentity: base.identity,
+    },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }

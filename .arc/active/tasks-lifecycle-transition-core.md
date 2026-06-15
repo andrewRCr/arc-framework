@@ -413,7 +413,7 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
   candidate derivation + formatting) and a thin CLI binding (`handlers/lifecycle.ts` — `resolveVerbTargetOrReport`,
   the shared opening each Phase-5.R verb handler calls to get its target slug or surface the candidate list and bail).
 
-### `[ ]` **5.R.3 Register the non-destructive verb commands**
+### `[x]` **5.R.3 Register the non-destructive verb commands**
 
 - _Goal:_ `stub` / `promote` / `demote` / `park` / `resume` / `deactivate` / `activate` are registered top-level
   commands, each binding its `run*` transition with the §14 soft-field and side-effect `inputs` supplied.
@@ -433,10 +433,11 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
       now bound in `buildExecutorContext` (fresh index → `dischargeDepEdges` for the activated WU → discharge-count
       advisory) — closing the Phase-4 `activate` gap.
 
-    - `[ ]` **5.R.3.b Register the verb commands** — the 7 top-level command handlers (thin bindings over the 5.R.2
-      dispatch scaffold + each `run*`) plus their `cli.ts` registration, each surfacing the verb's required `inputs`
-      and refusing when absent.
-        - Build `test-first`: each command dispatches its transition and refuses on missing required `inputs`.
+    - `[x]` **5.R.3.b Register the verb commands** — 7 top-level handlers in `handlers/lifecycle.ts` (thin bindings
+      over the 5.R.2 dispatch scaffold + each `run*`) plus `cli.ts` registration, all with an optional positional so a
+      bare invocation reaches the candidate-list surface. Required `inputs` are refused when absent: `stub`
+      `--commitment` / `--priority`, `park` `--reason`, `activate` `--type` / `--task` / `--action` (the working branch
+      composed `<type>/<slug>`).
 
 ### `[ ]` **5.R.4 `abandon` command — destructive-cascade gate**
 
