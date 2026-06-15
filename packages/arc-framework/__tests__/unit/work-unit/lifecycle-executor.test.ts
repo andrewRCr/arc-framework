@@ -314,12 +314,13 @@ describe("executeTransition — guard validation", () => {
   });
 
   it("uses an injected guard validator when supplied", async () => {
-    const clean: GuardValidator = () => ({ ok: true });
+    const occupancy: GuardValidator = () => ({ ok: true });
     const { ctx } = buildSpies({
       metas: [PLANNED_META],
-      guardValidators: { "worktree-clean": clean },
+      guardValidators: { "worktree-occupancy": occupancy },
     });
-    // start from planned → graduate (relocate + branch create + worktree spawn).
+    // start from planned → graduate (relocate + branch create + worktree spawn);
+    // declares class-resolved (default) + worktree-occupancy (injected).
     const outcome = await executeTransition(ctx, {
       verb: "start",
       slug: "demo",
@@ -339,6 +340,66 @@ describe("executeTransition — guard validation", () => {
       },
     });
     expect(outcome.status).toBe("ok");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Foot-gun guards (Task 3.2) plugged into the executor's guard phase.
+// ---------------------------------------------------------------------------
+
+/** The full spawn op a graduate / create-new edge needs. */
+const SPAWN_OP = {
+  mutation: "spawn" as const,
+  branch: "plan/demo",
+  base: "main",
+  locationTemplate: "{repo}.{branch}",
+  repo: "repo",
+  wuName: "demo",
+  spawningIdentity: "andrew",
+};
+
+describe("executeTransition — foot-gun guards", () => {
+  it("rejects a start when worktree-occupancy fails, before any mutation", async () => {
+    const occupied: GuardValidator = () => ({ ok: false, message: "worktree already holds `other`." });
+    const { ctx, calls } = buildSpies({
+      metas: [PLANNED_META],
+      guardValidators: { "worktree-occupancy": occupied },
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "start",
+      slug: "demo",
+      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+    });
+
+    expect(outcome.status).toBe("rejected");
+    if (outcome.status !== "rejected") return;
+    expect(outcome.stage).toBe("guard");
+    expect(outcome.message).toMatch(/worktree already holds/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("routes `start` against an existing stub to graduate — relocates, never scaffolds", async () => {
+    const pass: GuardValidator = () => ({ ok: true });
+    const { ctx, calls } = buildSpies({
+      metas: [PROVISIONAL_META],
+      guardValidators: { "worktree-occupancy": pass },
+    });
+
+    // The slug resolves to the provisional stub, so the start@provisional
+    // (graduate) edge is selected — not start@null (create-new / scaffold).
+    const outcome = await executeTransition(ctx, {
+      verb: "start",
+      slug: "demo",
+      inputs: { class: "Novel", toDir: ".arc/active", branchOp: { mutation: "create" }, worktreeOp: SPAWN_OP },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.from).toEqual({ phase: "Planning", location: "provisional" });
+    // It relocated the existing stub; no scaffold leg ran.
+    expect(calls.some((c) => c.startsWith("leg:artifacts:relocate:"))).toBe(true);
+    expect(calls).not.toContain("leg:artifacts:scaffold");
   });
 });
 

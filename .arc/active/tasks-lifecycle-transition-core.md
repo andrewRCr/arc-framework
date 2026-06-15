@@ -167,22 +167,21 @@ executor never decides and never fabricates judgment values; it requires them su
   side-effect handlers, `input`-disposed soft values) is validated before any mutation; Phase-4 verbs register
   their side-effect handlers + `scaffold`/`remove` artifact runner.
 
-### `[ ]` **3.2 Foot-gun guard predicates**
+### `[x]` **3.2 Foot-gun guard predicates**
 
 - _Goal:_ The two live foot-guns become guard rejections — an existing stub is never mis-scaffolded, and a second
   active WU in one worktree is refused.
 
-- _Note:_ The worktree-occupancy guard is **not** `isOccupied(index, slug)` alone (that's slug-scoped/global) — it
-  composes `readActiveMetaCandidates(worktree)` (the lite/full-aware active-meta reader session-init's
-  active-resolution uses) with `resolveSlugState`, rejecting when any candidate ≠ target sits in an occupying state
-  backing a different branch. Resolved from meta + location, never `git branch` inference (arc-backend-safe).
-
-    - Build `test-first` (one behavior at a time):
-        - Name-collision: `start <name>` against an existing stub forces graduate-not-scaffold (the one
-          deterministic decision the executor makes).
-        - Worktree-occupancy: rejects when `readActiveMetaCandidates(worktree)` yields a candidate ≠ target in an
-          occupying state (phase ∈ {Planning, Active, Integrating}) backing a different branch.
-        - Both evaluate in the executor's guard phase, before any mutation.
+- _Outcome:_ `lib/work-unit/lifecycle-guards.ts` ships both predicates, resolved from meta + location (never
+  `git branch` inference): `hasNameCollision(index, slug)` — the signal `start` dispatch reads to
+  graduate-not-scaffold — wired as the create-new edge's `name-collision` guard, and
+  `makeWorktreeOccupancyGuard({ cwd, readActiveMetaCandidates })`, which composes the lite/full-aware active-meta
+  reader with `deriveState` and rejects a *different* work unit occupying the worktree (`planning` / `active` /
+  `integrating`) on another branch. `buildFootgunGuards` assembles both into the `guardValidators` map the executor
+  merges over its pure defaults; `worktree-occupancy` is now declared on all four `start` edges. Since the
+  executor's state resolution already routes an existing slug to its graduate edge, the `name-collision` guard is
+  the defensive floor — a forced create-new over a live name is refused. Both verified through `executeTransition`'s
+  guard phase, before any mutation.
 
 ## **Phase 4:** The inverse-paired verb set
 
