@@ -11,15 +11,13 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** Task 5.1 — `start` full lifecycle-state dispatch: the dispatch core (`resolveStartDispatch`)
-  plus the first production executor binder (`buildExecutorContext`, in `lib/work-unit/executor-context.ts`);
-  create-new/cold-start recomposed on the bundle legs with the coarse `spawnWorktree` retired;
-  `reconcile-status-user` ships an interim advisory (real local render carved out as the new Task 5.4)
-- **Next Task:** `Task 5.3 — Planning-entry write-context gate in arc-plan (line ~337)`
+- **Last Completed:** Task 5.3 — Planning-entry write-context gate: `classifyPlanningEntry` (two-layer, mode-shaped
+  committability) over the branch-vs-base core, the `arc plan check` CLI surface, and `draft-design` wiring
+- **Next Task:** `Task 5.4 — Wire the executor binder's reconcile-status-user to the real local render (line ~365)`
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.3 — but first settle `spec-lifecycle-transition-core.md` §11's route structure
-  (keep 3 routes vs collapse to 2; see `SESSION-NOTES`), reshaped by today's adopt-edge retirement, before 5.3.b
-  implements against it. Then implement 5.3.a/b/c grounded against `lib/git/write-context.ts`.
+- **Next Action:** Start Task 5.4 — extract the `arc status --user` local render into a shared helper, then wire the
+  binder's `reconcile-status-user` to it (replaces 5.1's interim advisory). New Phase 5.R (verb command surface)
+  now precedes Phase 6.
 
 ---
