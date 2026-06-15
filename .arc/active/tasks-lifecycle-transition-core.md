@@ -82,20 +82,17 @@ against them.
   cover the three directions (`backlog→active`, `active→completed`, `active→backlog/planned`) plus the
   missing-optional, foreign-file, and empty-set cases.
 
-### `[ ]` **2.2 `reconcile-branch` mutator**
+### `[x]` **2.2 `reconcile-branch` mutator**
 
 - _Goal:_ Branch state is reconciled to a transition's `(phase, location)` direction — rotated, preserved, or torn
   down — identically in both protection modes.
 
-- _Note:_ Mode-invariant by construction: a tracked WU at an active location owns its single branch in both modes,
-  and a backlog-tier stub is branchless in both. Mode shapes only the ship layer, never this leg. Branch _creation_
-  is not a standalone op here — it only ever co-spawns a worktree (graduate / create-new), so it rides
-  `reconcile-worktree.spawn`'s `git worktree add -b` (2.3). This leg owns the standalone rotate / preserve / delete.
-
-    - Build `test-first` (one behavior at a time):
-        - Rotates `plan/ → <type>/` at `activate`.
-        - Preserves the branch at `park@Active` (no delete).
-        - Tears down the branch (local + remote) at `park@Planning` and pre-merge `abandon`.
+- _Outcome:_ New `lib/work-unit/mutators/reconcile-branch.ts` — `reconcileBranch` dispatches a discriminated
+  `ReconcileBranchOp`: `rename` rotates locally (`git branch -m`), `delete` force-deletes the local branch then
+  best-effort deletes the remote ref (an unpushed planning branch's missing remote is swallowed; local teardown is
+  authoritative), `preserve` and `create` are no-ops (`create` rides the worktree-spawn leg). Git seam injected;
+  six unit tests cover rotate, preserve, local+remote teardown (default + explicit remote), the swallowed
+  remote-delete failure, and the create no-op.
 
 ### `[ ]` **2.3 `reconcile-worktree` mutator (incl. execution-locus relocation)**
 
