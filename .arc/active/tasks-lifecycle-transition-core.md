@@ -225,30 +225,21 @@ the executor never derives or authors them.
   pre-bound); no executor change was needed beyond Task 4.1's. CLI surface (slug-required, bare → tier candidate
   list) is deferred to the Phase-6 command work.
 
-### `[ ]` **4.3 `park` / `resume` & the pointer-record**
+### `[x]` **4.3 `park` / `resume` & the pointer-record**
 
 - _Goal:_ A WU can be parked off the active set and resumed without losing its branch — `park@Active` preserves the
   pushed branch as the durable shelf and lands a blessed render-pointer on `main`; `resume` re-attaches.
 
-- _Note:_ The pointer-record is ADR-022's record/projection model proven on one bounded state — see spec §6 for the
-  render shape. Its meta `State` is the literal **`Active`** (resolver-valid); `parked` is _derived_ from the
-  `backlog/planned/` location, never stored (a literal "Active (parked)" would fail `validateState` → break
-  resolution). The pointer opens with a derived-state callout (parked + authoritative branch + park reason). `park`
-  is **context-defaulting** (slug optional → the current worktree's WU) and requires two `inputs`: commitment + a
-  free-form **`reason`** (`--reason`, non-TTY-safe), rendered in the callout. Park guard: reject park-from-Integrating
-  (withdraw via `reopen` first).
-  _Notes:_ See `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invocation.
-
-    - Build `test-first` (one behavior at a time):
-        - `park@Planning` tears down the branch (no code yet) and relocates artifacts to `backlog/planned/` →
-          resolves `planned`.
-        - `park@Active` preserves the branch, tears down only the worktree, relocates artifacts → resolves
-          `parked`.
-        - `park@Active` writes the pointer-record on `main` — meta `State: Active` (parked derived from location),
-          `Branch`, render fields, opened by the derived-state callout carrying the `reason`.
-        - `park` requires a `reason`; bare invocation without `--reason` errors with usage.
-        - `resume` re-attaches the preserved branch (≈ the Materialize mechanic) and relocates back to `active/`.
-        - `park` from `Integrating` is rejected.
+- _Outcome:_ `runPark` / `runResume` (`lib/work-unit/verbs/park-resume.ts`) dispatch the location-axis pair through
+  `executeTransition`, resolving park's phase-polymorphism from the source meta's `State`: `park@Planning` supplies a
+  branch-delete op, `park@Active` omits the branch leg (preserve) and writes a pointer-record at the relocated meta.
+  The pointer is a pure composer (`lib/work-unit/pointer-record.ts`, ADR-022's record/projection on one state) — a
+  derived-state callout (parked notice + authoritative branch + `reason`) over a minimal meta whose `State` stays the
+  literal `Active` (so `parked` derives from location and `parseMetaRecord` round-trips). `reason` is a required,
+  never-fabricated input (mirrors `stub`); park-from-`Integrating` rejects via the table's marked-illegal cell. Two
+  seams stay downstream: the cross-branch selectivity (commit only the pointer to the tracked branch, full artifacts
+  on the preserved branch) is the park ceremony's, and `resume`'s checkout-existing re-attach is a `reconcile-worktree`
+  `spawn` refinement — both noted at their call sites. CLI surface (`arc park` / `resume`) deferred to Phase 6.
 
 ### `[ ]` **4.4 `reopen`**
 
