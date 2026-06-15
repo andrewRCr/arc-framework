@@ -135,7 +135,6 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     "discharge-dep-edges",
     "user-workspace",
     "withdraw-pr",
-    "revert-merge",
   ];
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ALL_SIDE_EFFECTS) {

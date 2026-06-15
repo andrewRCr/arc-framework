@@ -190,13 +190,14 @@ the asymmetry so every forward edge is owned and every inverse present. Each ver
 supplies its `inputs`; the executor and bundle do the work.
 
 _Design decisions:_ Verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
-candidate list, never a clack `select`) and the destructive-cascade safety gate (`abandon` / `deactivate`@merged:
-impact plan + `--yes`) are cross-cutting across this phase — see `notes-lifecycle-transition-core.md` § Verb CLI
-shape & bare invocation, § Abandon & post-merge safety gate. The PR/gh write mechanics (`reopen` / `deactivate` /
-`abandon`) are net-new (no existing wrapper; the `gh`-read pattern in `session-init/work-unit-pr-source.ts` is the
-model), hand-rolled now per the spec's CSA-forward-compat note. Each verb supplies its `softFields` `input` values
-(§14 — e.g. `activate` → the first task; `park` → the frozen pointer) and emits an ephemeral next-step suggestion;
-the executor never derives or authors them.
+candidate list, never a clack `select`) and the destructive-cascade safety gate (`abandon`: impact plan + `--yes`)
+are cross-cutting across this phase — see `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invocation,
+§ Abandon safety gate. The only net-new PR/gh write mechanic is `reopen`'s PR withdrawal (no existing wrapper; the
+`gh`-read pattern in `session-init/work-unit-pr-source.ts` is the model), hand-rolled now per the spec's
+CSA-forward-compat note — there is **no merged-corner cell** to revert (ADR-026 amendment: post-merge rework is a
+new origin-linked WU, so `deactivate` stays narrow and `abandon` is pre-merge only). Each verb supplies its
+`softFields` `input` values (§14 — e.g. `activate` → the first task; `park` → the frozen pointer) and emits an
+ephemeral next-step suggestion; the executor never derives or authors them.
 
 ### `[x]` **4.1 `stub` creation contract**
 
@@ -257,33 +258,33 @@ the executor never derives or authors them.
 
 ### `[ ]` **4.5 `deactivate`**
 
-- _Goal:_ `deactivate` stays the narrow "undo a premature activation," with the merged corner (Case C) reverting
-  the merge and restoring to Planning rather than deleting.
+- _Goal:_ `deactivate` is the narrow "undo a premature activation" — a recoverable phase↓ (`Active → Planning`),
+  the clean inverse of `activate`. No merged corner: post-merge rework is a new origin-linked WU.
 
-- _Note:_ Context-defaulting (slug optional → the current WU). Case C shares the PR-revert mechanic with `abandon`
-  Case D but differs by target (restore vs. delete). Shelving in-progress work is `park@Active`; destructive teardown
-  is `abandon`. Case C is a merge-reverting cascade → it carries the impact-plan + `--yes` gate (§ Abandon &
-  post-merge safety gate); the narrow non-merged `deactivate` does not.
+- _Note:_ Context-defaulting (slug optional → the current WU). Narrow by design — no PR-revert and no `--yes` gate
+  (those belonged to the dropped merged corner; ADR-026 amendment). Shelving in-progress work is `park@Active`;
+  destructive teardown is `abandon`. The move is just the branch rotation (`<type>/ → plan/`) plus the phase write.
 
     - Build `test-first` (one behavior at a time):
-        - `deactivate` (`Active → Planning`) reverses a premature activation (recoverable phase↓).
-        - `deactivate`@merged (Case C): prints the impact plan, requires `--yes`, then reverts the merge on base and
-          restores to Planning (location `planned`, phase `Planning`).
+        - `deactivate` (`Active → Planning`) reverses a premature activation — the branch rotates `<type>/ → plan/`,
+          the phase drops to `Planning`; recoverable via `activate`.
 
 ### `[ ]` **4.6 `abandon`**
 
-- _Goal:_ `abandon` removes a WU from any state — the destructive inverse of `stub` — leaving no residue, so the
-  resolver returns `nonexistent`.
+- _Goal:_ `abandon` removes a WU from any **pre-merge** state — the destructive inverse of `stub` — leaving no
+  residue, so the resolver returns `nonexistent`.
 
-- _Note:_ Slug-required (safety — never default-to-current). Both cells are destructive cascades → impact plan +
-  `--yes` gate (§ Abandon & post-merge safety gate). PR-revert + branch-delete are net-new gh/git ops (see preamble).
+- _Note:_ Slug-required (safety — never default-to-current). A destructive cascade → impact plan + `--yes` gate
+  (§ Abandon safety gate). Legal only from the pre-merge states (`provisional` / `planned` / `planning` / `active` /
+  `parked`); `integrating` and merged/`shipped` are illegal cells — post-merge backout is a new origin-linked WU
+  (ADR-026 amendment), never a same-unit `abandon`. Branch-delete (local + remote) is a net-new git op (see preamble).
 
     - Build `test-first` (one behavior at a time):
         - Bare `arc abandon <slug>` prints the impact plan and refuses without `--yes`; `--yes` proceeds.
         - Pre-merge: delete branch (local + remote), worktree, artifacts, user-workspace, and the ROADMAP row.
-        - Post-merge (Case D): revert the merge on base (PR-revert), then remove residue; net target deleted.
         - `abandon` of the current WU triggers execution-locus relocation before worktree teardown.
-        - Direct `integrating → abandon` is rejected (route via `reopen` first).
+        - Direct `integrating → abandon` is rejected (route via `reopen` first); a merged/`shipped` WU likewise
+          (back out merged work via a new origin-linked WU).
 
 ### `[ ]` **4.7 `activate` dep-edge discharge write**
 
@@ -456,8 +457,9 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
 
 - `[ ]` `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches
 
-- `[ ]` `abandon` (pre- and post-merge Case D) and `deactivate`@merged (Case C) execute their per-cell mechanics,
-  including execution-locus relocation
+- `[ ]` `abandon` executes its per-cell mechanics across the pre-merge states (including execution-locus
+  relocation) and rejects from `integrating` / merged states; `deactivate` stays the narrow `Active → Planning`
+  undo — no merged-corner cells (ADR-026 amendment)
 
 - `[ ]` The `archive` sweep + dated-path computation run from the executor, and the cohort-doc sweep fires on
   `isArchivalTriggered`

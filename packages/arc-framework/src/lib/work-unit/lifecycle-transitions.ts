@@ -95,16 +95,17 @@ export type GuardId =
  * - `user-workspace` — open / close the user-workspace satellite (`arc user
  *   open` / `close`) across the entry / exit edges.
  * - `withdraw-pr` — at `reopen`, close or draft the open PR (a `gh` op).
- * - `revert-merge` — at the post-merge `deactivate` / `abandon` corners, revert
- *   the merge on base before the rest of the cascade.
+ *
+ * There is deliberately no `revert-merge`: the verb set carries no merged-corner
+ * cells (ADR-026 amendment), so post-merge backout is a new origin-linked WU, not
+ * a same-unit cascade with a base-revert side-effect.
  */
 export type SideEffectId =
   | "reconcile-roadmap"
   | "reconcile-status-user"
   | "discharge-dep-edges"
   | "user-workspace"
-  | "withdraw-pr"
-  | "revert-merge";
+  | "withdraw-pr";
 
 /**
  * The artifact-set leg's disposition — what happens to the WU's `meta-*` /

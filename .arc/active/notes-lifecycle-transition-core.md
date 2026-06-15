@@ -91,11 +91,13 @@ have their own lifecycle, under `arc errand`).
   print + exit, never a clack `select` (the non-TTY hang). E.g. `arc resume` → "Parked: `foo`, `bar` · usage
   `arc resume <slug>`". Mirrors `start`'s `p.log.error`-with-usage precedent, but lists actionable targets.
 
-## Abandon & post-merge safety gate
+## Abandon safety gate
 
-`abandon` (all cells) and `deactivate`@merged (Case C) are destructive cascades — delete branch (local + remote) /
-worktree / artifacts / user-workspace / ROADMAP row; the post-merge cells also revert the merge on base. Per
-DEV-RULES.ARC § Cascade-undo they **present an impact plan and require explicit confirmation**.
+`abandon` (all its pre-merge cells) is a destructive cascade — delete branch (local + remote) / worktree /
+artifacts / user-workspace / ROADMAP row. Per DEV-RULES.ARC § Cascade-undo it **presents an impact plan and
+requires explicit confirmation**. There is **no merged-corner cell**: post-merge backout is a new origin-linked WU
+(ADR-026 amendment), never a same-unit `abandon`, and `deactivate` stays the narrow `Active → Planning` undo with no
+merge-revert.
 
 Mechanism (non-TTY-safe): the **handler** (judgment layer) prints the cascade/impact plan, then requires an
 explicit `--yes` to proceed — bare `arc abandon <slug>` shows the plan and refuses without `--yes` (safe default
