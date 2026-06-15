@@ -10,27 +10,19 @@ _Purpose:_ Land the single authoritative source of truth — the declarative tra
 `(phase, location)` state space — and the table-walking tests that make totality, inverse-pairing, and
 encoding-consistency shippable guards rather than per-workflow audits. Pure data + pure tests, no fs/git seam.
 
-### `[ ]` **1.1 Transition-record & verb-set types**
+### `[x]` **1.1 Transition-record & verb-set types**
 
 - _Goal:_ The table has a typed vocabulary, so an illegal verb, state, guard reference, or mutator spec is a
   compile error and the executor dispatches over exhaustive unions.
 
-    - Define the `Verb` union (`start`, `park`, `resume`, `activate`, `deactivate`, `reopen`, `integrate`,
-      `promote`, `demote`, `stub`, `decompose`, `archive`, `abandon`).
-    - Define `GuardId`, `SideEffectId`, and `MutatorSpec` (which bundle legs fire, with direction/conditioning).
-    - Define `TransitionRecord` (`verb`, `from`, `to`, `inverse`, `guards`, `encodingUpdates`, `sideEffects`,
-      `softFields`), with `from`/`to` typed as the resolver's source-of-truth `LifecyclePosition` pair — never raw
-      branch/dir, and never the derived enum. The `LifecycleState` enum is derived where needed (`deriveState` for
-      `start` dispatch's switch and display), keeping the table itself reasoning over logical `(phase, location)`.
-    - `softFields`: the per-transition disposition for `Next Task` / `Next Action` / `Last Completed` / `Blockers`
-      — each `{ reset: <constant> } | "input" | "leave"` (§14). Conservative for `Next Action` (`reset` only where
-      the next step is canonical; else `input` / `leave`) so a stored value is never ambiguous as authored vs.
-      stamped.
-    - Represent illegal cells **explicitly** as a sibling `markedIllegal: { verb, from, reason }[]` list — not a
-      `legal: false` variant (which would carry meaningless `to` / `guards` / `encodingUpdates`). Legal XOR illegal:
-      a cell in neither list is a _forgotten_ cell, which the 1.3 totality walk catches.
-    - New module co-located with the resolver (e.g. `lib/work-unit/lifecycle-transitions.ts`); reuse
-      `LifecyclePosition` / `LifecycleState` from `lifecycle-state.ts` / `lifecycle-resolver.ts`.
+- _Outcome:_ New `lib/work-unit/lifecycle-transitions.ts` types the full vocabulary — `Verb` (13), `GuardId`,
+  `SideEffectId`, `MutatorSpec` (the four bundle legs as direction-typed optional flags: `relocateArtifacts` /
+  `setPhase` booleans, `reconcileBranch` / `reconcileWorktree` enums), `SoftFieldDispositions`
+  (`{ reset } | "input" | "leave"` per field, conservative on `nextAction`), `TransitionRecord`, and the disjoint
+  `IllegalCell`. `from`/`to` are the resolver's `LifecyclePosition` (logical `(phase, location)`, never the derived
+  enum); illegal cells are a sibling list, not a `legal: false` variant, so 1.3's totality walk can catch a
+  forgotten cell. `GuardId` / `SideEffectId` are the spec-grounded seed registry — 1.2's table authoring and
+  Phase 2–3 extend them as edges crystallize.
 
 ### `[ ]` **1.2 The declarative transition table**
 
