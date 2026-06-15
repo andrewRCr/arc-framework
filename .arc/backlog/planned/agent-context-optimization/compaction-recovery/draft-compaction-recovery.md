@@ -135,3 +135,20 @@ The target seed reads the managed operational-state document records/schema (ADR
 ARC "already produces structured state" is fully realized by the model; the final emitter consumes records,
 not parsed markdown. The first slice may use today's probe + markdown readers as an interim bridge. See
 `adr-022-managed-operational-state-documents.md` § Coordination.
+
+## Coordination — `unit-scoped-review` (cross-cohort: `approval-flow-refinement`)
+
+`unit-scoped-review` (deferring the review increment to a whole WU) leans on this plan as a **backstop**, not a
+prerequisite: its orchestration architecture keeps every context bounded (judgment in a lean primary; execution
+in disposable per-phase subagents), so it *sidesteps* compaction rather than depending on surviving it. Even so,
+the orchestrator reads each phase's diff to validate, so a very large WU can still compact — `session-recover`
+(the recovery-after-discontinuity path here, **not** the rejected routine `arc-refresh`) is its safety net.
+
+**Two-way alignment, flagged for this draft's next planning iteration.** Several framing assertions here —
+"emergency bridge only," the unchanged "disable auto-compaction" default, and the `arc-refresh` rejection
+rationale ("drift is from sessions running too long / spanning too many tasks") — are in tension with a
+deliberately-long, opt-in batch mode and are likely overcautious. The resolution is *alignment, not workaround*:
+orchestration answers the bounded-*context* concern (no single context holds too much), so this plan's blanket
+anti-long-session stance should soften from "no" to "a scoped, orchestrated exception exists, with
+`session-recover` as its backstop." Neither draft is more authoritative; reconcile them. See
+`draft-unit-scoped-review.md` § ADR-002 / P5 reckoning and `cohort-approval-flow-refinement.md` § Cross-cohort.

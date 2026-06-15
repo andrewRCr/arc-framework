@@ -125,6 +125,19 @@ atomic companion and the personal atomic inbox.
   safe paired with making the outcome path-independent; that coupling is itself the argument for
   wrapper-owns-the-triage.
 
+### `[ ]` **Coordinate the "release the tail" pattern with the new sibling `unit-scoped-review`**
+
+- *Coordination (cross-member, 2026-06-15):* `unit-scoped-review` joined the cohort — it widens the *review*
+  increment to whole-WU scope. Its batch authorization is the same "one approval releases the tail" pattern as
+  this WU's errand approval-collapse, at *WU* scope rather than *errand* scope — but it **stops at validation**
+  (the integration interlock holds; it does **not** collapse the merge). Align the two framings; don't diverge.
+- *Pre-flight config gate:* its batch mode requires a non-blocking commit/push path, consuming this WU's
+  wrapper-routing + approval-provenance work (the precondition check is `unit-scoped-review`'s; the friction
+  fixes are this WU's). Bypass is **not** required — "normal harness config + release wrappers" (narrow
+  wrapper-allowlist + `releaseOptedIn`) is the expected common shape.
+- *Provenance:* the approval-provenance-state concept (this WU's watch item + `commit-increments` § Unknowns)
+  composes with its WU-scoped batch authorization. See `cohort-approval-flow-refinement.md`.
+
 ---
 
 ## Problem / Motivation
