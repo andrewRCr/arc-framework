@@ -223,7 +223,11 @@ by construction:
   *facts* only: `resolveDepStates` returns each `Depends On` edge's `landed` boolean (merged / `shipped`;
   `integrating` reads not-landed) and `resolveSlugState` gives a dependency's enum. This member composes the
   **readiness verdict** over those — `shipped ∨ integrating` — rather than redefining `shipped?`, covering the
-  team-review-latency case (a dependent may start at its dependency's *integration*, not only its merge).
+  team-review-latency case (a dependent may start at its dependency's *integration*, not only its merge). The
+  write treats `Depends On` as the **live gate** and resolves satisfied edges *off* it — no mirrored lineage
+  field (resolve is not destroy: lineage lives in git history, the archive, and spec prose), per
+  `operational-state-docs` § Dependency-edge lifecycle; the list mutation re-homes onto a record `dependsOn`
+  array with zero reshape.
 - **User-workspace satellite** (`arc user open` / `close`) across `init` / `start` / `activate` / `integrate` /
   `decompose` / `park` / `resume` / `abandon`.
 

@@ -283,18 +283,22 @@ ephemeral next-step suggestion; the executor never derives or authors them.
   "a WU's artifact set") so a foreign `cohort-*.md` is never touched — and drops the emptied per-WU backlog subdir,
   never the shared flat `active/` tier. CLI surface deferred to Phase 6.
 
-### `[ ]` **4.7 `activate` dep-edge discharge write**
+### `[x]` **4.7 `activate` dep-edge discharge write**
 
 - _Goal:_ Activating a WU discharges its satisfied `Depends On` edges — the write half of dep-edge lifecycle — so a
   dependent never reads a satisfied dependency as still-blocking.
 
-- _Note:_ `resolveDepStates` returns per-edge `landed` (shipped/merged only — `false` while integrating), so the
-  discharge composes the readiness verdict `landed || resolveSlugState(dep) === "integrating"` (the
-  team-review-latency case); it never redefines the resolver's `shipped?`. Wired at the `activate` edge.
-
-    - Build `test-first` (one behavior at a time):
-        - On `activate`, each `Depends On` edge whose dependency is shipped OR integrating is marked discharged.
-        - An edge whose dependency is only planning/active stays live.
+- _Outcome:_ The `discharge-dep-edges` side-effect (`lib/work-unit/side-effects/discharge-dep-edges.ts`) treats
+  `Depends On` as the **live gate** and resolves satisfied edges off it at `activate`: per edge it composes the
+  readiness verdict `landed || resolveSlugState(dep) === "integrating"` (the team-review-latency case) over the
+  resolver's enum — never redefining `shipped?` — then rewrites the `Depends On` bullet to the live set only
+  (`[none]` when all clear), leaving genuinely-blocking deps. **Representation decision** (confirmed against
+  `operational-state-docs` § Dependency-edge lifecycle + `strategy-storage-evolution`): the gate is the single
+  source of truth and discharge is removal — no mirrored lineage field (a second source of truth, YAGNI; "resolve"
+  is not "destroy" — lineage lives in git history, the archive, and spec prose). This is the only representation
+  compatible with both the OSD lean and arc-backend's "no new per-artifact booleans," and re-homes onto a record
+  `dependsOn` array with zero reshape. The index + meta read/write are injected seams; the `SideEffectHandler`
+  binding rides the `activate` verb/CLI (Phase 6).
 
 ## **Phase 5:** `start` dispatch & the planning-entry gate
 
