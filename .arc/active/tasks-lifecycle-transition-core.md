@@ -256,18 +256,17 @@ ephemeral next-step suggestion; the executor never derives or authors them.
   resolution (a `gh` read) and the handler's CLI binding are deferred to the Phase-6 command surface; the verb takes
   the fact as a supplied input (never fabricated).
 
-### `[ ]` **4.5 `deactivate`**
+### `[x]` **4.5 `deactivate`**
 
 - _Goal:_ `deactivate` is the narrow "undo a premature activation" — a recoverable phase↓ (`Active → Planning`),
   the clean inverse of `activate`. No merged corner: post-merge rework is a new origin-linked WU.
 
-- _Note:_ Context-defaulting (slug optional → the current WU). Narrow by design — no PR-revert and no `--yes` gate
-  (those belonged to the dropped merged corner; ADR-026 amendment). Shelving in-progress work is `park@Active`;
-  destructive teardown is `abandon`. The move is just the branch rotation (`<type>/ → plan/`) plus the phase write.
-
-    - Build `test-first` (one behavior at a time):
-        - `deactivate` (`Active → Planning`) reverses a premature activation — the branch rotates `<type>/ → plan/`,
-          the phase drops to `Planning`; recoverable via `activate`.
+- _Outcome:_ `runDeactivate` (`lib/work-unit/verbs/deactivate.ts`) reads the current working branch from the meta,
+  derives the `plan/<name>` rotation target, and dispatches the phase-mover through `executeTransition` — the branch
+  rename (`<type>/ → plan/`), the `Active → Planning` phase write, and the `Next Task` reset are the table's; the WU
+  stays in `active/` (no location move). A non-`active` source falls to the table's illegal-edge lookup (only an
+  `active` WU qualifies). Narrow by construction — no PR-revert, no `--yes` gate (the dropped merged corner;
+  ADR-026 amendment). CLI surface deferred to Phase 6.
 
 ### `[ ]` **4.6 `abandon`**
 
