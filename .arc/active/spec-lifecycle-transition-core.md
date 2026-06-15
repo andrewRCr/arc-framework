@@ -376,8 +376,9 @@ draft-presence/location × active-WU. Routes:
 
 1. **Committable drafting context** → proceed.
 2. **Not committable** → by WU-worthiness: start now (`start` / `init`) or defer (classify → errand or `stub`).
-3. **Pre-authored draft, no branch → adopt** — `start --from <draft>`: cut `plan/<name>`, relocate the draft
-   into `active/`. A new entry edge (the draft-first path neither create-new nor `init` Path A handled).
+3. **Pre-authored draft, no branch → stub** — mint a `provisional`/`planned` stub for it and fold the existing
+   draft in, then graduate (or keep drafting first) through the shipped path. No meta-less draft and no bespoke
+   adopt edge: the draft-first path unifies on `stub` → draft → `graduate` (per §12, Branchless ≠ recordless).
 
 The `resolveWriteContext` *mechanic* → CLI (reuse/extend the existing one); the route *decision* surfaces to
 `arc-plan` for the developer to confirm.
@@ -397,6 +398,12 @@ modes** (it carries a meta with `Branch: [none]`; the branch is cut at graduate)
 `(phase, location)` direction alone: it *creates* the branch when a stub graduates (`init` Path A), *rotates*
 `plan/ → <type>/` at `activate`, *preserves* at `park@Active`, *tears down* at `park@Planning` / pre-merge
 `abandon` — each identical across modes.
+
+**Branchless ≠ recordless.** The same cut applies to the *record* as to the bundle: a draft is **always
+meta-bearing** — accompanied by a meta from inception, whether a `provisional`/`planned` stub or an active
+Planning WU — never a free-floating, stateless file. Partial protection skips the *branch* (drafting on `base`),
+never the *meta*; the lightweight pre-WU entry is one explicit `stub` call, not a meta-less draft. A recordless
+artifact has no derivable lifecycle state, so it is a gap in the state machine, not a lighter mode of it.
 
 Mode shapes only the **ship layer** — how a transition's resulting commit/PR lands on base — never the bundle.
 Three ship-layer concerns, all outside the executor:
@@ -532,7 +539,7 @@ disposition governs the executor transitions.
    `isArchivalTriggered` (last member shipped) to migrate `cohort-<name>.md` to `completed/`.
 9. The `stub` contract rejects creation without explicit commitment + priority.
 10. The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
-    pre-authored-draft adopt edge (`start --from <draft>`).
+    pre-authored-draft route to `stub` (mint a record, fold the draft in, then graduate — no adopt edge).
 11. `arc status <slug>` serves the slug→state read with the JSON shape preserved from the interim `arc status
     --lifecycle`.
 12. Each transition applies its declared soft-field disposition (`reset` / `input` / `leave`) so `Next Task` /

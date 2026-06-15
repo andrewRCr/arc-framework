@@ -323,16 +323,13 @@ share `resolveWriteContext`.
   handler, and a real-worktree integration suite. See `notes-lifecycle-transition-core.md` § `start` arm wiring for
   the executor-vs-direct-recompose split.
 
-### `[ ]` **5.2 `start --from <draft>` adopt edge**
+### `[~]` **5.2 `start --from <draft>` adopt edge** — retired
 
-- _Goal:_ A pre-authored draft with no branch can be adopted into a WU — `start --from <draft>` cuts `plan/<name>`
-  and relocates the draft into `active/`.
-
-- _Note:_ A new entry edge neither create-new nor `init` Path A handled (the draft-first path).
-
-    - Build `test-first` (one behavior at a time):
-        - `start --from <draft>` with no existing branch cuts `plan/<name>` and relocates the draft to `active/`.
-        - Reuses the existing `--from` resolution (issue → Origin, spec/draft artifact → Design).
+- _Outcome:_ Retired — the draft-first path unifies on the shipped `stub` → draft → `graduate` chain, so there is
+  no bespoke adopt edge to build. A draft is always meta-bearing (no meta-less / branchless-but-recordless state):
+  `stub` (Task 4.1) mints the record, then `graduate` (Task 5.1) relocates the full artifact set (meta + draft)
+  and cuts the branch. See `spec-lifecycle-transition-core.md` §12 (Branchless ≠ recordless); the corpus-wide doc
+  reconciliation of the position routes to `lifecycle-closeout`.
 
 ### `[ ]` **5.3 Planning-entry write-context gate in `arc-plan`**
 
@@ -348,7 +345,8 @@ share `resolveWriteContext`.
       one-param add.
 
     - `[ ]` **5.3.b Route the three outcomes** — committable → proceed; not-committable → start-now (`start` /
-      `init`) or defer (classify → errand or `stub`); pre-authored draft with no branch → adopt (`start --from`).
+      `init`) or defer (classify → errand or `stub`); pre-authored draft with no branch → mint a stub (`stub`,
+      fold the draft in, then graduate — no adopt edge).
         - Build `test-first`: each route resolves correctly across the input combinations.
 
     - `[ ]` **5.3.c Surface the route decision** to `arc-plan` for the developer to confirm — mechanic in the CLI,
@@ -485,7 +483,7 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
 - `[ ]` The `stub` contract rejects creation without explicit commitment + priority
 
 - `[ ]` The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
-  pre-authored-draft adopt edge
+  pre-authored-draft route to `stub` (no adopt edge)
 
 - `[ ]` `arc status <slug>` serves the slug→state read with the JSON shape preserved (from the interim
   `arc status --lifecycle`)
