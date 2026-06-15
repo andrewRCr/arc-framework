@@ -150,28 +150,22 @@ _Purpose:_ The imperative shell that drives the table — resolve current state,
 guards, fire the mutator bundle, fire side-effects — and the two guards that close the live foot-guns. The
 executor never decides and never fabricates judgment values; it requires them supplied as `inputs`.
 
-### `[ ]` **3.1 `executeTransition` dispatch**
+### `[x]` **3.1 `executeTransition` dispatch**
 
 - _Goal:_ A transition is a table lookup plus mechanical application — `executeTransition(verb, slug, inputs)`
   resolves state, validates, mutates, and fires side-effects, with no bespoke per-verb code.
 
-- _Note:_ The per-verb `inputs` schema is enumerated from each edge's guard + side-effect set (resolves the spec's
-  `inputs`-schema open question). The executor stays thin; the table is the source of truth. The single fs seam is
-  at entry: build the index once via `buildLifecycleIndex({ cwd, fs })` (async, injected `fs` — three-layer), then
-  the table lookup + guard validation run **pure** over it.
-
-    - Build `test-first` (one behavior at a time):
-        - Resolves current state via `resolveSlugPosition(index, slug)` over the entry-built index.
-        - Rejects an illegal/unknown `(verb, from)` with an actionable message and no mutation.
-        - Validates every declared guard against state + inputs; rejects on first failure with no mutation.
-        - Fires `encodingUpdates` legs sequenced so a partial failure is recoverable and reported, never silently
-          half-applied.
-        - Fires declared side-effects only after the encoding succeeds.
-        - Applies the `softFields` disposition (§14): writes `reset` constants + supplied `input` values, leaves the
-          rest — never derives (no task-list parsing) or authors prose.
-        - Emits an ephemeral next-step suggestion in CLI output (advisory, never persisted to the meta).
-        - Never fabricates judgment values (commitment / priority / `Class` / soft-field prose) — requires them in
-          `inputs`.
+- _Outcome:_ `executeTransition` (`lib/work-unit/lifecycle-executor.ts`) is a verb-agnostic engine: build index →
+  resolve → edge lookup → guard validation → encoding legs in the canonical `setPhase → artifacts → worktree →
+  branch` order (worktree teardown precedes branch delete) → side-effects → soft-field disposition → ephemeral
+  suggestion. The four mutators, side-effect handlers, guard validators, and a new in-place soft-field writer
+  `setMetaBulletFields` (`meta-reader.ts`, the bullet-field complement of `setMetaState`) reach it as injected
+  seams; the single direct fs touch is `buildLifecycleIndex` at entry. Per-verb operands + judgment values arrive
+  as the enumerated `TransitionInputs` schema and are *required*, never fabricated (a missing input rejects).
+  Rejections (illegal/guard/missing-input) and a mid-bundle leg failure surface as a discriminated
+  `TransitionOutcome` carrying what landed — never silently half-applied. Wiring completeness (required operands,
+  side-effect handlers, `input`-disposed soft values) is validated before any mutation; Phase-4 verbs register
+  their side-effect handlers + `scaffold`/`remove` artifact runner.
 
 ### `[ ]` **3.2 Foot-gun guard predicates**
 
