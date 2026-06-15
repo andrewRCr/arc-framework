@@ -393,22 +393,25 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
   their own precise home — `handlers/lifecycle.ts` → `handlers/installation.ts` (`update` / `health` / `diff`), with
   the one `cli.ts` import updated.
 
-### `[ ]` **5.R.2 Verb-handler scaffold & shared CLI shape**
+### `[x]` **5.R.2 Verb-handler scaffold & shared CLI shape**
 
 - _Goal:_ A shared dispatch shape in the freed `handlers/lifecycle.ts` so each verb handler is a thin, consistent
   binding over `executeTransition` — context-defaulting where a current-WU default is safe, slug-required where it is
   not.
 
-    - `[ ]` **5.R.2.a Context-defaulting vs. slug-required dispatch** — slug optional (defaults to the current
-      worktree's WU via `readActiveMetaCandidates`) for `park` / `reopen` / `archive` / `activate` / `deactivate`;
-      slug-required for `resume` / `promote` / `demote` / `abandon` (no safe current-WU default, or destructive).
+    - `[x]` **5.R.2.a Context-defaulting vs. slug-required dispatch** — `DISPATCH_MODE` + `selectVerbTarget`: an
+      explicit slug always wins; context verbs (`park` / `reopen` / `archive` / `activate` / `deactivate`) fall back to
+      the current worktree's WU (single active meta via `readActiveMetaCandidates`); slug-required verbs (`resume` /
+      `promote` / `demote` / `abandon`) never default.
 
-    - `[ ]` **5.R.2.b Bare-invocation candidate-list helper** — a bare slug-required verb (or a context verb run
-      outside a WU) prints the **non-interactive** candidate list for that verb's valid from-state
-      (resolver/index-derived) plus the usage line, then exits. Never a clack `select` (the non-TTY hang); mirrors
-      `start`'s `p.log.error`-with-usage precedent.
-        - Build `test-first`: each dispatch mode resolves the target slug correctly; bare invocation lists the valid
-          candidates and exits non-interactively.
+    - `[x]` **5.R.2.b Bare-invocation candidate-list helper** — `validFromStates` reads each verb's legal from-states
+      off the transition table; `findVerbCandidates` lists matching slugs from the lifecycle index;
+      `formatVerbCandidates` renders the one-line, state-grouped surface + usage. The handler binding prints it via
+      `p.log.error` + non-zero exit — non-interactive, never a clack `select`.
+
+- _Outcome:_ Split into a pure dispatch core (`lib/work-unit/verbs/dispatch.ts` — mode table, target selection,
+  candidate derivation + formatting) and a thin CLI binding (`handlers/lifecycle.ts` — `resolveVerbTargetOrReport`,
+  the shared opening each Phase-5.R verb handler calls to get its target slug or surface the candidate list and bail).
 
 ### `[ ]` **5.R.3 Register the non-destructive verb commands**
 
