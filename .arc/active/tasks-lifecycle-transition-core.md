@@ -268,22 +268,20 @@ ephemeral next-step suggestion; the executor never derives or authors them.
   `active` WU qualifies). Narrow by construction — no PR-revert, no `--yes` gate (the dropped merged corner;
   ADR-026 amendment). CLI surface deferred to Phase 6.
 
-### `[ ]` **4.6 `abandon`**
+### `[x]` **4.6 `abandon`**
 
 - _Goal:_ `abandon` removes a WU from any **pre-merge** state — the destructive inverse of `stub` — leaving no
   residue, so the resolver returns `nonexistent`.
 
-- _Note:_ Slug-required (safety — never default-to-current). A destructive cascade → impact plan + `--yes` gate
-  (§ Abandon safety gate). Legal only from the pre-merge states (`provisional` / `planned` / `planning` / `active` /
-  `parked`); `integrating` and merged/`shipped` are illegal cells — post-merge backout is a new origin-linked WU
-  (ADR-026 amendment), never a same-unit `abandon`. Branch-delete (local + remote) is a net-new git op (see preamble).
-
-    - Build `test-first` (one behavior at a time):
-        - Bare `arc abandon <slug>` prints the impact plan and refuses without `--yes`; `--yes` proceeds.
-        - Pre-merge: delete branch (local + remote), worktree, artifacts, user-workspace, and the ROADMAP row.
-        - `abandon` of the current WU triggers execution-locus relocation before worktree teardown.
-        - Direct `integrating → abandon` is rejected (route via `reopen` first); a merged/`shipped` WU likewise
-          (back out merged work via a new origin-linked WU).
+- _Outcome:_ `runAbandon` (`lib/work-unit/verbs/abandon.ts`) resolves the source state from the lifecycle index and
+  composes the per-cell cascade: a backlog stub (`provisional` / `planned`) is artifact-removal only; a started WU
+  (`planning` / `active`) also deletes the branch and tears down the worktree (passing the current locus so the
+  mutator's self-teardown hop fires); a `parked` WU deletes its preserved branch but tears down no worktree. The
+  `confirmation` guard enforces the `--yes` refusal (the impact-plan print is the handler's, Phase 6); `integrating`
+  and merged/`shipped` fall to the table's illegal-edge lookup. The verb registers a `remove` artifact runner that
+  deletes the WU's own set by slug — reusing `relocate-artifacts`'s now-exported `artifactMatcher` (one definition of
+  "a WU's artifact set") so a foreign `cohort-*.md` is never touched — and drops the emptied per-WU backlog subdir,
+  never the shared flat `active/` tier. CLI surface deferred to Phase 6.
 
 ### `[ ]` **4.7 `activate` dep-edge discharge write**
 

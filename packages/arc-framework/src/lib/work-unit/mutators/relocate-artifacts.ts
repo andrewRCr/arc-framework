@@ -61,8 +61,11 @@ export interface RelocateArtifactsResult {
  * prefix is a hyphen-free token (`meta` / `spec` / `tasks` / `draft` / `notes` /
  * a companion), so the hyphenated slug anchors unambiguously: a foreign WU whose
  * name merely ends with this slug cannot match, nor can a `cohort-<name>.md`.
+ *
+ * Exported so the `remove`-disposition runner (`abandon`) selects the same set
+ * this `relocate` mutator moves — one definition of "a WU's artifact set".
  */
-function artifactMatcher(slug: string): RegExp {
+export function artifactMatcher(slug: string): RegExp {
   const escaped = slug.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return new RegExp(`^[a-z]+-${escaped}\\.md$`);
 }
