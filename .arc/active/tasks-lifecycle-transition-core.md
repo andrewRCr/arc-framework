@@ -24,45 +24,44 @@ encoding-consistency shippable guards rather than per-workflow audits. Pure data
   forgotten cell. `GuardId` / `SideEffectId` are the spec-grounded seed registry — 1.2's table authoring and
   Phase 2–3 extend them as edges crystallize.
 
-### `[ ]` **1.2 The declarative transition table**
+### `[x]` **1.2 The declarative transition table**
 
 - _Goal:_ One array of `TransitionRecord`s is the authoritative set of legal lifecycle edges and explicitly-marked
   illegal cells — replacing the transition rules restated per workflow.
 
-- _Note:_ Composite verbs (`decompose`, `integrate`) appear here as edges (the table declares the edge + encoding
-  updates); their judgment halves stay in the owning workflows — the per-verb granularity split is settled here.
+    - `[x]` **1.2.a Phase-axis edges** — `activate` / `deactivate` (branch rotates `plan/`↔`<type>/`, `setPhase`)
+      and `integrate` / `reopen` (`setPhase` only, no rotation); `reopen` guards on `pr-unmerged`.
 
-    - `[ ]` **1.2.a Phase-axis edges** — `activate` / `deactivate` / `reopen` / the `integrate` flip, with
-      branch-rotation encoding where the prefix changes.
+    - `[x]` **1.2.b Location-axis edges** — `park` (phase-polymorphic: `park@Active` preserves the branch,
+      `park@Planning` deletes it) / `resume` / `promote` / `demote` / `start` graduate, each an `artifacts: relocate`
+      caller with conditioned branch/worktree mutators.
 
-    - `[ ]` **1.2.b Location-axis edges** — `park` / `resume` / `promote` / `demote` / `init` Path A graduate,
-      each a `relocate-artifacts` caller with conditioned branch/worktree mutators.
+    - `[x]` **1.2.c Forward, terminal & destructive edges** — `stub` (scaffold → provisional/planned), the `start`
+      dispatcher (create-new / graduate / resume-arm), `archive` (Active·Integrating → shipped), `abandon`
+      (pre-merge states → nonexistent), `decompose` (Planning-phase → cohort; full matrix refined by `decompose-matrix`).
 
-    - `[ ]` **1.2.c Forward, terminal & destructive edges** — `stub`, `archive`, `abandon`, `decompose`.
+    - `[x]` **1.2.d Marked-illegal cells** — the full complement of the legal canonical edges, built via an
+      `illegalCells(verb, froms, reason)` helper so each cell is explicit with a reason; includes
+      `integrating → park`/`abandon` (route via `reopen`) and the `completed`-sink exits.
 
-    - `[ ]` **1.2.d Marked-illegal cells** — `(*, Integrating)` reached from a backlog tier; direct
-      `integrating → park` / `abandon` (route via `reopen`); any edge out of `completed` except the origin-link
-      `stub`.
+- _Outcome:_ 25 legal `TransitionRecord`s + 69 `MARKED_ILLEGAL` cells in `lifecycle-transitions.ts`, total over the
+  `13 verbs × 7 states` grid. Encoding modeled as an `artifacts` disposition (`relocate`/`scaffold`/`remove`) +
+  conditioned branch/worktree/`setPhase`; `from`/`to` widened to `LifecyclePosition | null` for the `nonexistent`
+  endpoint (`stub` source / `abandon` target / create-new); `VERBS` array added as the totality axis. Reflects the
+  post-merge-rework resolution — no merged-corner cells (`abandon` pre-merge only, `deactivate` narrow, `reopen`
+  guards `pr-unmerged`).
 
-### `[ ]` **1.3 Table-walking invariant tests**
+### `[x]` **1.3 Table-walking invariant tests**
 
 - _Goal:_ A documented-but-inconsistent transition fails CI rather than surfacing as a live foot-gun — the table's
   three invariants are proven mechanically.
 
-- _Note:_ Pure assertions over the `TransitionRecord[]` + `markedIllegal` data — no fs/git seam. Encoding-consistency
-  compares each edge's _declared_ `encodingUpdates` against the _expected_ encoding for its target — so it needs a
-  pure `expectedEncoding(position) → { dirTier, branchPrefix, metaState }` helper (phase → branch-prefix, location →
-  directory-tier) that both table authoring and this test reference. This is the test home for the table authored in
-  1.2 (the two co-develop).
-
-    - Build `test-first` (one behavior at a time):
-        - Totality — walking the full `verbs × 7-states` grid, every `(verb, from)` cell is in the legal
-          `TransitionRecord[]` or the `markedIllegal` list, never both and never neither.
-        - Inverse round-trip — applying a paired verb then its `inverse` returns to the origin state.
-        - Encoding-consistency — every edge's declared `encodingUpdates` match `expectedEncoding(to)`, so meta
-          `State` · directory · branch land mutually consistent for the target state.
-        - Non-canonical `(phase, location)` lag-pairs are absent from the table (the resolver normalizes them
-          location-dominant before any lookup).
+- _Outcome:_ `lifecycle-transitions.test.ts` — six passing walks: totality (every `(verb, from)` legal XOR illegal,
+  never both/neither; illegal cells canonical-only; no dupes), inverse round-trip (a paired verb + its `inverse`
+  returns to the origin), encoding-consistency (each edge's `encodingUpdates` equal the mutators derived
+  independently from `expectedEncoding(from→to)`), and non-canonical lag-pairs absent. The shared
+  `expectedEncoding(position)` oracle lives in the module, referenced by both table authoring and the test.
+  Behaviors batched single-pass — tightly-coupled assertions over one shared data structure.
 
 ## **Phase 2:** The 1↔1 mutator bundle & transition side-effects
 
