@@ -161,7 +161,7 @@ executor never decides and never fabricates judgment values; it requires them su
   suggestion. The four mutators, side-effect handlers, guard validators, and a new in-place soft-field writer
   `setMetaBulletFields` (`meta-reader.ts`, the bullet-field complement of `setMetaState`) reach it as injected
   seams; the single direct fs touch is `buildLifecycleIndex` at entry. Per-verb operands + judgment values arrive
-  as the enumerated `TransitionInputs` schema and are *required*, never fabricated (a missing input rejects).
+  as the enumerated `TransitionInputs` schema and are _required_, never fabricated (a missing input rejects).
   Rejections (illegal/guard/missing-input) and a mid-bundle leg failure surface as a discriminated
   `TransitionOutcome` carrying what landed — never silently half-applied. Wiring completeness (required operands,
   side-effect handlers, `input`-disposed soft values) is validated before any mutation; Phase-4 verbs register
@@ -176,7 +176,7 @@ executor never decides and never fabricates judgment values; it requires them su
   `git branch` inference): `hasNameCollision(index, slug)` — the signal `start` dispatch reads to
   graduate-not-scaffold — wired as the create-new edge's `name-collision` guard, and
   `makeWorktreeOccupancyGuard({ cwd, readActiveMetaCandidates })`, which composes the lite/full-aware active-meta
-  reader with `deriveState` and rejects a *different* work unit occupying the worktree (`planning` / `active` /
+  reader with `deriveState` and rejects a _different_ work unit occupying the worktree (`planning` / `active` /
   `integrating`) on another branch. `buildFootgunGuards` assembles both into the `guardValidators` map the executor
   merges over its pure defaults; `worktree-occupancy` is now declared on all four `start` edges. Since the
   executor's state resolution already routes an existing slug to its graduate edge, the `name-collision` guard is
