@@ -188,7 +188,7 @@ describe("sync orchestrator", () => {
     await initAndCommit(tmpDir);
 
     bareDir = join(tmpDir, "sync-remote.git");
-    await git(["init", "--bare", bareDir], tmpDir);
+    await git(["init", "-b", "main", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
     const branch = await git(["branch", "--show-current"], tmpDir);
     await git(["push", "-u", "origin", branch], tmpDir);
@@ -229,7 +229,7 @@ describe("user push/pull portability", () => {
 
     // Create bare remote and add as origin
     bareDir = join(tmpDir, "bare-remote.git");
-    await git(["init", "--bare", bareDir], tmpDir);
+    await git(["init", "-b", "main", "--bare", bareDir], tmpDir);
     await git(["remote", "add", "origin", bareDir], tmpDir);
 
     // Push commits and notes
