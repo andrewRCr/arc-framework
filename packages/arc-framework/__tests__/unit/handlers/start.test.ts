@@ -176,7 +176,7 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockNote).not.toHaveBeenCalled();
   });
 
-  it("`--here` cold-starts in place, bypassing dispatch", async () => {
+  it("`--here` with no name cold-starts in place, bypassing dispatch", async () => {
     mockRunColdStart.mockResolvedValue({
       ok: true,
       value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
@@ -187,6 +187,35 @@ describe("handleStart — dispatch orchestration", () => {
     expect(mockResolveStartDispatch).not.toHaveBeenCalled();
     expect(mockRunColdStart).toHaveBeenCalledTimes(1);
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Cold-started");
+  });
+
+  it("`--here` against a nonexistent name cold-starts in place (not create-new spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+    expect(mockRunCreateNew).not.toHaveBeenCalled();
+  });
+
+  it("`--here` against a backlog stub graduates in place (no spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunGraduate).toHaveBeenCalledTimes(1);
+    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", inPlace: true });
+    expect(mockRunGraduate.mock.calls[0]?.[1]).not.toHaveProperty("baseBranch");
   });
 
   it("aborts on confirm-decline — routes nothing", async () => {

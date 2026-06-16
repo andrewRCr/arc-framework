@@ -163,6 +163,25 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await readFile(statusUserPath, "utf8")).toContain("## In Flight");
   });
 
+  it("graduate --here: cuts the branch in the current checkout, no worktree spawned", async () => {
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const spawnWt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
+
+    const result = await runGraduate(
+      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      { name: "widget", cls: "Light", inPlace: true },
+    );
+
+    expect(result.status).toBe("graduated");
+    // The stub relocated `backlog → active` (real `git mv`) in the current checkout.
+    expect(await pathExists(join(h.repo, ".arc", "active", "meta-widget.md"))).toBe(true);
+    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(false);
+    // The branch was cut in the CURRENT worktree (HEAD moved onto it) — no spawn.
+    const { stdout: head } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: h.repo });
+    expect(head.trim()).toBe("plan/widget");
+    expect(await pathExists(spawnWt)).toBe(false);
+  });
+
   it("worktree-occupancy: graduating into a worktree already holding an active WU is rejected", async () => {
     // An active WU already occupies the worktree on a different branch.
     await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");

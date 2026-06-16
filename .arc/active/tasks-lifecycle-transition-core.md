@@ -546,11 +546,13 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       realization, so the edge keeps declaring `reconcileBranch: "create"` on both paths and the executor's
       mutation-match check is untouched (no executor change). The 6.4.b/c in-place arms supply the `inPlace` branch.
 
-    - `[ ]` **6.4.b `graduate --here`** — the graduate arm threads a no-spawn variant composing relocate + in-place
-      branch create, skipping `reconcile-worktree.spawn`; CLI `--here` flag; the occupancy guard rejects a checkout
-      already holding an active WU.
-      Build `test-first`: `arc start <stub> --here` graduates into the current checkout (no worktree spawned);
-      refused when the checkout holds an active WU; bare `arc start <stub>` still spawns.
+    - `[x]` **6.4.b `graduate --here`** — the executor gained `TransitionInputs.inPlace`, which suppresses the
+      `reconcile-worktree` *spawn* leg and waives its `worktreeOp` (the "reuse the legs minus the spawn" mechanism;
+      reused by 6.4.c). `runGraduate`'s params became a spawn/in-place union — the in-place arm composes relocate +
+      `branchOp.create{inPlace}` + `inPlace`, no `worktreeOp`. `handleStart` now routes `--here` *through* dispatch
+      (create-new→cold-start, graduate→in-place) rather than short-circuiting to cold-start; the `--here` CLI help
+      broadened to match. The shipped `worktree-occupancy` guard already rejects a checkout holding an active WU —
+      reused unchanged. Integration test cuts `plan/<name>` in the current checkout (HEAD moves, no spawn).
 
     - `[ ]` **6.4.c `resume --here`** — the resume arm threads the no-spawn variant (re-attach the preserved branch
       in the current checkout); CLI `--here` flag; same occupancy guard.

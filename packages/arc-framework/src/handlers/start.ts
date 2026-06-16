@@ -82,16 +82,16 @@ export async function handleStart(
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  // `--here`: the in-place cold-start override — scaffold into the current
-  // worktree. Orthogonal to the resolved-state dispatch below.
-  if (opts.here) {
+  // `--here` with no name: there is no slug to resolve a state against, so this
+  // is unambiguously a cold-start, deriving the WU name from the current branch.
+  const wuName = name?.trim();
+  if (opts.here && !wuName) {
     await coldStart(name, opts, { io, cwd, identity });
     return;
   }
 
-  // Default (spawning) path: create-new requires an explicit name — unlike
-  // cold-start there is no current branch to derive one from.
-  const wuName = name?.trim();
+  // A name is required for every other path — the dispatcher resolves against it
+  // (and create-new has no current branch to derive one from).
   if (!wuName) {
     p.log.error("`arc start <name>` requires a work-unit name (or `--here` to cold-start in place).");
     process.exitCode = 1;
@@ -104,13 +104,17 @@ export async function handleStart(
   });
   const dispatch = resolveStartDispatch(index, wuName);
 
+  // `--here` is the in-place opt-out, orthogonal to the resolved state: a
+  // nonexistent name cold-starts in place (vs. create-new's spawn) and a backlog
+  // stub graduates in place (vs. spawning a worktree).
   switch (dispatch.arm) {
     case "refuse":
       p.log.error(dispatch.reason);
       process.exitCode = 1;
       return;
     case "create-new":
-      await createNew(wuName, opts, { io, cwd, identity });
+      if (opts.here) await coldStart(name, opts, { io, cwd, identity });
+      else await createNew(wuName, opts, { io, cwd, identity });
       return;
     case "graduate":
       await graduate(wuName, opts, { io, cwd, identity, metaPath: index.get(wuName)?.path });
@@ -180,7 +184,11 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
   p.outro("Done.");
 }
 
-/** Graduate arm — relocate a backlog stub onto its `plan/<name>` branch (`init` Path A). */
+/**
+ * Graduate arm — relocate a backlog stub onto its `plan/<name>` branch (`init`
+ * Path A). Spawns a dedicated worktree by default; `--here` instead cuts the
+ * branch in the current checkout (no spawn), gated by the same occupancy guard.
+ */
 async function graduate(
   wuName: string,
   opts: StartOptions,
@@ -200,6 +208,35 @@ async function graduate(
   } catch {
     p.log.error(`could not read the backlog meta for \`${wuName}\`.`);
     process.exitCode = 1;
+    return;
+  }
+
+  // In place (`--here`): no worktree spawned, so the spawn config (base / location
+  // template / repo) isn't needed — only `team.mode` for the executor's status
+  // side-effect. The branch is cut off current HEAD in this checkout.
+  if (opts.here) {
+    const { settings } = await readConfigSettings(ctx.cwd);
+    if (!skipConfirm(opts)) {
+      if (!(await confirmStep(`Graduate "${wuName}" onto a new plan/${wuName} branch in this worktree (no spawn)?`))) {
+        p.log.info("Graduate cancelled.");
+        return;
+      }
+    }
+    const result = await runGraduate(
+      buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+      { name: wuName, cls, inPlace: true },
+    );
+    if (result.status === "rejected") {
+      p.log.error(result.reason);
+      process.exitCode = 1;
+      return;
+    }
+    p.note(
+      [`Work unit: ${wuName}`, `Branch:    ${result.branch}`, `Meta:      ${result.metaPath}`].join("\n"),
+      "Graduated (in place)",
+    );
+    reportAdvisories(result.outcome);
+    p.outro("Done.");
     return;
   }
 

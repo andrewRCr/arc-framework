@@ -86,7 +86,7 @@ interface Harness {
   calls: string[];
 }
 
-function buildCtx(metas: MetaSpec[]): Harness {
+function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const calls: string[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
@@ -106,7 +106,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(`branch:${op.mutation}`);
+      calls.push(op.mutation === "create" && op.inPlace ? "branch:create:in-place" : `branch:${op.mutation}`);
     },
     reconcileWorktree: async (op) => {
       calls.push(`worktree:${op.mutation}`);
@@ -118,19 +118,22 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
     },
     sideEffects,
-    guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
+    guardValidators: {
+      "worktree-occupancy": () =>
+        occupancyOk ? { ok: true } : { ok: false, message: "worktree already holds an active work unit `other`." },
+    },
   };
 
   return { ctx, calls };
 }
 
-const BASE: Omit<GraduateParams, "cls"> = {
+const BASE = {
   name: "widget",
   baseBranch: "main",
   locationTemplate: "../{repo}-{branch}",
   repo: "arc-framework",
   spawningIdentity: "andrew",
-};
+} satisfies Omit<Extract<GraduateParams, { inPlace?: false }>, "cls">;
 
 describe("runGraduate — backlog stub onto its branch", () => {
   it("relocates a provisional stub to active/ and spawns its plan/ branch", async () => {
@@ -161,6 +164,38 @@ describe("runGraduate — backlog stub onto its branch", () => {
 
     expect(result.status).toBe("graduated");
     expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+  });
+
+  it("graduates in place (no worktree spawned) when inPlace is set", async () => {
+    const { ctx, calls } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Novel" },
+    ]);
+
+    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(result.branch).toBe("plan/widget");
+    expect(result.metaPath).toBe(".arc/active/meta-widget.md");
+    // Relocate + in-place branch create fire; no worktree is spawned.
+    expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+    expect(calls).toContain("branch:create:in-place");
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("refuses an in-place graduate into a checkout that already holds an active WU", async () => {
+    const { ctx, calls } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Novel" }],
+      /* occupancyOk */ false,
+    );
+
+    const result = await runGraduate(ctx, { name: "widget", cls: "Novel", inPlace: true });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/already holds an active work unit/i);
+    // Refusal is total — no relocate, no branch create.
+    expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
   });
 
   it("rejects when the Class is unresolved ([TBD]) — the class-resolved guard", async () => {

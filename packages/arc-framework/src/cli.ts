@@ -98,9 +98,12 @@ program
   .command("start [name]")
   .description(
     "Start a work unit. Default spawns an isolated worktree on a new `plan/<name>` "
-    + "branch; `--here` cold-starts into the current worktree instead.",
+    + "branch; `--here` works in the current worktree instead.",
   )
-  .option("--here", "Cold-start in place: scaffold into the current worktree instead of spawning a new one")
+  .option(
+    "--here",
+    "Work in the current worktree, no spawn: cold-start a fresh WU, or graduate a backlog stub in place",
+  )
   .option(
     "--from <pointer-or-blurb>",
     "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",

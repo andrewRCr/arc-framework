@@ -108,12 +108,18 @@ export function resolveStartDispatch(index: LifecycleIndex, name: string): Start
 /** The flat `active/` tier a graduated WU lands in. */
 const ACTIVE_DIR = ".arc/active";
 
-/** Inputs for {@link runGraduate} — the resolved config + judgment the arm supplies. */
-export interface GraduateParams {
+/** The fields every `graduate` shares, regardless of locus. */
+interface GraduateBaseParams {
   /** Backlog-stub name to graduate (its current tier is resolved from the index). */
   name: string;
   /** The WU's resolved `Class` — the `class-resolved` guard input; an unresolved `[TBD]` is refused. */
   cls: string;
+}
+
+/** Spawn-path `graduate` (the default) — cuts `plan/<name>` in a fresh worktree. */
+export interface GraduateSpawnParams extends GraduateBaseParams {
+  /** In-place opt-out off by default — this is the spawning path. */
+  inPlace?: false;
   /** Resolved `branch.base` — the base the new `plan/<name>` branch forks from. */
   baseBranch: string;
   /** Resolved `worktree.location_template` — where the spawned worktree lands. */
@@ -124,6 +130,19 @@ export interface GraduateParams {
   spawningIdentity: string;
 }
 
+/**
+ * In-place `graduate` (`--here`) — cut `plan/<name>` in the current checkout, no
+ * worktree spawned. The spawn-only config (base / location template / repo /
+ * identity) does not apply: the branch is born off current HEAD.
+ */
+export interface GraduateInPlaceParams extends GraduateBaseParams {
+  /** Execute in the current worktree — no spawn. */
+  inPlace: true;
+}
+
+/** Inputs for {@link runGraduate} — spawn (default) or in-place (`--here`). */
+export type GraduateParams = GraduateSpawnParams | GraduateInPlaceParams;
+
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
   | { status: "rejected"; reason: string }
@@ -131,35 +150,45 @@ export type GraduateResult =
 
 /**
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
- * artifact set into `active/` and cut + spawn its `plan/<name>` branch, dispatched
- * through {@link executeTransition} as the `start` verb. The executor selects the
- * provisional-vs-planned source edge from the index; the `class-resolved` guard
- * refuses a stub whose `Class` is still `[TBD]` (a realized WU never leaves the
- * backlog carrying an unresolved weight).
+ * artifact set into `active/` and bring up its `plan/<name>` branch, dispatched
+ * through {@link executeTransition} as the `start` verb. By default the branch is
+ * cut in a freshly-spawned worktree; the `--here` opt-out (`inPlace`) instead cuts
+ * it in the current checkout via the in-place `reconcile-branch` create, skipping
+ * the spawn. The executor selects the provisional-vs-planned source edge from the
+ * index; the `class-resolved` guard refuses a stub whose `Class` is still `[TBD]`,
+ * and the `worktree-occupancy` guard refuses an in-place graduate into a checkout
+ * already holding an active WU.
  *
  * @param ctx - The executor seams (the real mutators / guards are caller-bound).
- * @param params - The stub name, its resolved `Class`, and the worktree-spawn config.
- * @returns A rejection (unresolved `Class`, illegal source, executor failure) or the graduated meta path.
+ * @param params - The stub name, its resolved `Class`, and (spawn path only) the worktree-spawn config.
+ * @returns A rejection (unresolved `Class`, occupied worktree, illegal source, executor failure) or the graduated meta path.
  */
 export async function runGraduate(
   ctx: ExecuteTransitionContext,
   params: GraduateParams,
 ): Promise<GraduateResult> {
   const branch = `plan/${params.name}`;
-  const inputs: TransitionInputs = {
-    toDir: ACTIVE_DIR,
-    branchOp: { mutation: "create" },
-    worktreeOp: {
-      mutation: "spawn",
-      branch,
-      base: params.baseBranch,
-      locationTemplate: params.locationTemplate,
-      repo: params.repo,
-      wuName: params.name,
-      spawningIdentity: params.spawningIdentity,
-    },
-    class: params.cls,
-  };
+  const inputs: TransitionInputs = params.inPlace
+    ? {
+        toDir: ACTIVE_DIR,
+        branchOp: { mutation: "create", inPlace: { branch } },
+        inPlace: true,
+        class: params.cls,
+      }
+    : {
+        toDir: ACTIVE_DIR,
+        branchOp: { mutation: "create" },
+        worktreeOp: {
+          mutation: "spawn",
+          branch,
+          base: params.baseBranch,
+          locationTemplate: params.locationTemplate,
+          repo: params.repo,
+          wuName: params.name,
+          spawningIdentity: params.spawningIdentity,
+        },
+        class: params.cls,
+      };
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
