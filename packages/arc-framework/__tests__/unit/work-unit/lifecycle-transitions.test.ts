@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
 
+import {
+  establishedBranch,
+  softFieldsApply,
+  type TransitionInputs,
+} from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { LifecyclePosition } from "../../../src/lib/work-unit/lifecycle-state.js";
 import {
   CANONICAL_POSITIONS,
@@ -7,6 +12,7 @@ import {
   TRANSITIONS,
   VERBS,
   expectedEncoding,
+  type BranchCategory,
   type MutatorSpec,
   type TransitionRecord,
   type Verb,
@@ -145,6 +151,90 @@ describe("lifecycle transition table — encoding consistency", () => {
         normalizeMutators(edge.encodingUpdates),
         `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) encoding`,
       ).toEqual(expectedMutators);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Branch-field projection — the executor writes the right `Branch` *value*, not
+// only the right branch *mutation category* the walk above checks.
+// ---------------------------------------------------------------------------
+
+/** A representative branch name per category — the oracle's branch-value axis. */
+const WORK_BRANCH = "feat/demo";
+const PLAN_BRANCH = "plan/demo";
+const NONE_BRANCH = "[none]";
+
+function categoryBranch(category: BranchCategory): string {
+  switch (category) {
+    case "work":
+      return WORK_BRANCH;
+    case "plan":
+      return PLAN_BRANCH;
+    case "none":
+      return NONE_BRANCH;
+  }
+}
+
+/** The branch category an endpoint expects, or `none` for the nonexistent endpoint. */
+function branchCategory(position: LifecyclePosition | null): BranchCategory {
+  return expectedEncoding(position)?.branch ?? "none";
+}
+
+/**
+ * Synthesize the branch-affecting `inputs` a verb handler would supply for an edge,
+ * with each leg carrying its endpoint category's representative branch — a `rename`
+ * rotates the source branch onto the *target* branch, a `delete` names the source,
+ * a worktree `spawn` carries the *target* branch (graduate/resume birth/attach). The
+ * names encode the category so `establishedBranch` is checked against the *target's*
+ * expected branch, catching a projection that echoes the source instead.
+ */
+function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
+  const e = edge.encodingUpdates;
+  const fromBranch = categoryBranch(edge.from === null ? "none" : branchCategory(edge.from));
+  const toBranch = categoryBranch(branchCategory(edge.to));
+  const inputs: TransitionInputs = {};
+
+  if (e.reconcileBranch === "rename") inputs.branchOp = { mutation: "rename", branch: fromBranch, toBranch };
+  else if (e.reconcileBranch === "delete") inputs.branchOp = { mutation: "delete", branch: fromBranch };
+  else if (e.reconcileBranch === "create") inputs.branchOp = { mutation: "create" };
+
+  if (e.reconcileWorktree === "spawn") {
+    inputs.worktreeOp = { mutation: "spawn", inPlace: true, branch: toBranch, createBranch: true };
+  } else if (e.reconcileWorktree === "teardown") {
+    inputs.worktreeOp = { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" };
+  }
+
+  return inputs;
+}
+
+/**
+ * The `Branch` field the executor *should* project for an edge — derived from the
+ * endpoints, independent of {@link establishedBranch}'s leg-reading logic. Creation
+ * (`scaffold`) and deletion (`remove` / nonexistent target) edges get no projection
+ * (`scaffold` owns fresh fields; a removed WU has no meta) — gated by endpoint
+ * presence, mirroring `softFieldsApply` without consulting it. Otherwise a branch
+ * teardown clears to `[none]`, a rotate / worktree-spawn establishes the target's
+ * branch, and a leg-less move leaves the field untouched (`null`).
+ */
+function expectedBranchField(edge: TransitionRecord): string | null {
+  if (edge.from === null || edge.to === null) return null;
+  const e = edge.encodingUpdates;
+  if (e.reconcileBranch === "delete") return NONE_BRANCH;
+  if (e.reconcileBranch === "rename") return categoryBranch(branchCategory(edge.to));
+  if (e.reconcileWorktree === "spawn") return categoryBranch(branchCategory(edge.to));
+  return null;
+}
+
+describe("lifecycle transition table — branch-field projection", () => {
+  it("projects the target's expected Branch field on every edge", () => {
+    for (const edge of TRANSITIONS) {
+      // The executor's effective projection: gated exactly like `applyBranchField`.
+      const projected = softFieldsApply(edge) ? establishedBranch(synthBranchInputs(edge)) : null;
+      expect(
+        projected,
+        `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) Branch field`,
+      ).toBe(expectedBranchField(edge));
     }
   });
 });

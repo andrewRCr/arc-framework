@@ -316,8 +316,14 @@ function selectEdge(
   return matches.find((t) => t.to !== null && t.to.location === commitment);
 }
 
-/** Whether the soft-field apply pass runs for this edge. */
-function softFieldsApply(record: TransitionRecord): boolean {
+/**
+ * Whether the soft-field / branch-field apply pass runs for this edge. False for
+ * creation (`scaffold`) and deletion (`remove`) edges — `scaffold` owns its fresh
+ * fields and a removed WU has no meta. Exported so the encoding-consistency
+ * table-walk can assert the executor's branch-field projection per edge without a
+ * transition-running harness.
+ */
+export function softFieldsApply(record: TransitionRecord): boolean {
   return (
     record.to !== null &&
     record.encodingUpdates.artifacts !== "remove" &&
@@ -575,8 +581,12 @@ function effectiveMetaPath(
  * - otherwise (a worktree-only `teardown` / `preserve`, e.g. park@Active) →
  *   `null`: the edge establishes no branch the field should track. park@Active's
  *   `Branch` is owned by its pointer-record, not this projection.
+ *
+ * Exported so the encoding-consistency table-walk can assert the projected
+ * `Branch` *field* per edge (not only the branch *category*) against synthesized
+ * inputs, without running a transition.
  */
-function establishedBranch(inputs: TransitionInputs): string | null {
+export function establishedBranch(inputs: TransitionInputs): string | null {
   const branchOp = inputs.branchOp;
   if (branchOp?.mutation === "rename") return branchOp.toBranch;
   if (branchOp?.mutation === "delete") return "[none]";

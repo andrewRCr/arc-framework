@@ -562,20 +562,13 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   single cohesive axis. Locus-only (branch, `(phase, location)` record, notes-sync identical to spawn); resume's
   cross-branch relocate correctness stays park's deferred concern.
 
-### `[ ]` **6.5 Executor owns the meta `Branch`-field encoding**
+### `[x]` **6.5 Executor owns the meta `Branch`-field encoding**
 
 - _Goal:_ Close the encoding-boundary gap surfaced while planning the re-point (6.6): the executor owns the `State`,
   directory, and git-branch encodings, but **not** the meta `Branch` _field_ — `graduate` (`start`) and `activate` /
   `deactivate` establish the branch in git yet leave the meta field stale (only `park`'s full pointer-record render
   writes it). Make the field a deterministic encoding the executor writes on every branch-affecting edge, so no
   workflow ever hand-reconciles it. Pure mechanics migration — no new judgment, no new edges.
-
-- _Note:_ The `Branch` field is a projection of the branch the edge establishes (`create` → `plan/<slug>`, `rename` →
-  `toBranch`, `park` / `delete` → `[none]`, resume → the preserved branch), derivable from the edge's `branchOp` —
-  drive it off the executor's existing branch leg, not per-verb writes. The `Current Workflow` + `Design`-as-event-
-  pointer fields are deliberately **out of scope** here: they land in `planning-pipeline-readiness` (now a cohort
-  follow-up), which owns the planning sub-stage advancement that fills them. See `cohort-lifecycle-state-machine.md`
-  § Shared contracts.
 
     - `[x]` **6.5.a `Branch`-field encoding write** — the executor projects the meta `Branch` field on every
       branch-affecting edge (`applyBranchField` in `lifecycle-executor.ts`, gated like the soft-field pass, surfaced
@@ -592,12 +585,20 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       pointer stale on withdrawal. Every other edge correct as-is — `park` / `resume` / `start`-resume preserve by
       design, `archive` / `integrate` already reset. No task-list parsing — the executor never derives.
 
-    - `[ ]` **6.5.c Extend encoding-consistency to the `Branch` field** — assert each edge's projected `Branch`
-      field matches the expected branch, not only the derived branch _category_ the existing walk checks. The
-      consistency test (`lifecycle-transitions.test.ts`) is a pure table-walk over `encodingUpdates` — it never
-      executes a transition or reads a meta, so assert the executor's **projection** per edge
-      (`TransitionOutcome.branchFieldWritten` / `establishedBranch`, added in 6.5.a) rather than building a
-      transition-running harness. The gap slipped because the walk checked category, not the field.
+    - `[x]` **6.5.c Extend encoding-consistency to the `Branch` field** — added a per-edge branch-field projection
+      walk to `lifecycle-transitions.test.ts`: it synthesizes each edge's branch-affecting `inputs` (each leg
+      carrying its endpoint category's representative branch) and asserts the executor's gated `establishedBranch`
+      projection equals the target's expected branch _value_ — `[none]` on teardown, the target branch on
+      rotate / worktree-spawn, no-write (`null`) otherwise — independently derived from the endpoints. Exported
+      `establishedBranch` / `softFieldsApply` so the walk reuses the real projection (no transition-running
+      harness). Catches a projection echoing the source branch or dropping the scaffold/remove gate.
+
+- _Outcome:_ The executor owns the meta `Branch` field end-to-end: projected on every branch-affecting edge from
+  the branch-affecting _leg_ (6.5.a — `applyBranchField` / `establishedBranch`, surfaced on `branchFieldWritten`),
+  and the encoding-consistency table-walk now asserts the projected field _value_ per edge, not only the branch
+  _category_ (6.5.c). En route, the soft-field disposition audit (6.5.b) closed two stale-`Next Action` leaks at the
+  `deactivate` / `reopen` phase-return edges. The `Current Workflow` / `Design`-event-pointer fields stay
+  `planning-pipeline-readiness`'s.
 
 ### `[ ]` **6.6 Re-point existing workflows to the executor**
 
