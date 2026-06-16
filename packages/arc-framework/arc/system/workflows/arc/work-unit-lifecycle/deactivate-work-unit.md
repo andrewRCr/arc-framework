@@ -109,58 +109,34 @@ gh pr close {pr-number} --comment "Deactivating work unit; abandoning. No task w
 
 See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-### 2) Branch + worktree teardown · dispatched by worktree identity
-
-Dispatch by the current worktree's identity:
-
-**Primary worktree (in-place WU):** no distinct worktree exists. Switch to base and force-delete the branch:
+### 2) Run the `abandon` transition
 
 ```bash
-git switch {base-branch}
-git branch -D {type}/{name}                 # local (force — unmerged is expected for abandonment)
-git push origin --delete {type}/{name}      # remote (if pushed)
+arc abandon {name} --yes
 ```
 
-`-D` (force) is required — the activation commit never merged to base. That's expected.
+The destructive cascade tears the WU down in one call: removes its artifact set, force-deletes the branch
+(`-D` locally **and** the remote ref — force is required since the activation commit never merged), tears down
+the WU's worktree, removes the user session workspace, and regenerates `STATUS.USER`. `--yes` confirms the
+cascade — `arc abandon` prints the impact plan and refuses without it; the slug is required (`abandon` never
+defaults to the current WU). It also emits a ROADMAP hand-render advisory — fold that re-render into Step 3.
 
-**Linked worktree (spawned WU):** navigate to another worktree (typically main):
-
-```bash
-cd <main-worktree-path>
-```
-
-Consult `decideWorktreeCleanup` against the abandoned WU's worktree with abandonment context. Abandonment
-authorizes removal of unmerged work — the merge gate is bypassed; marker + clean resolves to `removable`.
-
-- **`removable`** — auto-remove the WU worktree:
-
-    ```bash
-    git worktree remove <wu-worktree-path>
-    ```
-
-- **`blocked`** (marker + dirty) or **`external`** (no ARC marker) — surface the state; do not auto-remove.
-  The operator's tool handles externally-spawned worktree removal; manually clean up a `blocked` worktree
-  before re-invoking if its state matters.
-
-Then force-delete the branch from main:
-
-```bash
-git branch -D {type}/{name}                 # local (force — unmerged is expected)
-git push origin --delete {type}/{name}      # remote (if pushed)
-```
-
-The agent's prior cwd no longer exists if it was in the WU worktree (on the `removable` arm).
+The worktree-identity dispatch is the handler's: it resolves the WU's worktree path and current locus, so the
+single call covers both arms — the **primary** (in-place) WU, where the self-teardown hops the execution locus
+to the base before deleting the branch, and the **linked** (spawned) WU, whose worktree is torn down. The
+agent's prior cwd no longer exists if it was in a torn-down WU worktree.
 
 ### 3) Clean up base-branch leftovers (per `pm.mode`)
 
-Branch deletion in Step 2 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
-`active/notes-*`, any residual `active/draft-*`) — they lived only on the deleted branch and
-were never merged. The remaining cleanup concerns base-branch leftovers that activation never touched:
+The Step 2 cascade removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+`active/notes-*`, any residual `active/draft-*`) along with its branch and worktree — they lived only on the
+deleted branch and were never merged. The remaining cleanup concerns base-branch leftovers the cascade doesn't
+reach:
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
   (init moved its draft-doc + companions onto the WU branch but the source folder isn't removed on base until
-  merge). Remove if present. ROADMAP may also need a re-render to drop the abandoned WU — see
-  [Work Organization Strategy § ROADMAP][work-org-roadmap].
+  merge). Remove if present, then hand-render ROADMAP to drop the abandoned WU (the re-render Step 2's advisory
+  flagged, now also reflecting the removed backlog row) — see [Work Organization Strategy § ROADMAP][work-org-roadmap].
 - **`external`:** Update the external tracker — move the work item back to its pre-activation state or to an
   abandoned bucket. No local file cleanup needed.
 - **`none`:** No file cleanup needed.

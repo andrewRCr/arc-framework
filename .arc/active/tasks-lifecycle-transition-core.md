@@ -699,21 +699,22 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           other local spec/code divergence found; the broader strategy/rules/brief verb-rename sweep stays
           `lifecycle-closeout`'s.
 
-    - `[ ]` **6.6.g `deactivate-work-unit` Case A-delete → `abandon`** — re-point the abandon variant's inline
+    - `[x]` **6.6.g `deactivate-work-unit` Case A-delete → `abandon`** — re-point the abandon variant's inline
       branch/worktree teardown (`git branch -D` \+ `git worktree remove` \+ remote delete) to the shipped `arc abandon`
       transition. A distinct verb from 6.6.d's deactivate pair (destructive pre-merge teardown, no `Branch`-field
       write), so it was held out of 6.6.d's named scope — but a hand-rolled teardown while the executor owns `abandon`
-      is the half-migration the cohort's consistency-on-exit standard absorbs (same shape as 6.6.e). At task time,
-      confirm `arc abandon`'s worktree-identity dispatch (primary vs. linked) covers Case A-delete's two arms before
-      dropping the inline blocks. Markdown + wiring. (Surfaced by the 6.6.d re-point, 2026-06-16.)
+      is the half-migration the cohort's consistency-on-exit standard absorbs (same shape as 6.6.e). Markdown only.
 
-        - _Audit (2026-06-16):_ `handleAbandon` already resolves the WU's `worktreePath` + `currentLocus` and the
-          executor's teardown leg does the self-teardown locus-hop, so `arc abandon` **already covers both arms**
-          (primary in-place / linked worktree) — the re-point is a clean delegation that drops the manual
-          `decideWorktreeCleanup` / `git branch -D` / `git worktree remove` blocks. **Retain Case A-delete Step 3**
-          (base-branch leftover cleanup): abandon's cascade removes the WU's own artifacts + the ROADMAP row, not the
-          base-side `backlog/{state}/{name}/` source folder left by `init` Path A — keep that cleanup (+ ROADMAP
-          re-render) in the workflow, or confirm at impl time that abandon reaches it.
+        - _Outcome:_ `deactivate-work-unit.md` Case A-delete Step 2 collapsed from the two-arm inline teardown
+          (primary `git branch -D` + remote-delete; linked `decideWorktreeCleanup` + `git worktree remove`) to a
+          single `arc abandon {name} --yes`. The verb owns the full cascade — artifact removal, branch delete
+          (local **and** remote, via `reconcile-branch`'s `delete` leg), worktree teardown with the self-teardown
+          locus-hop, user-workspace removal, and `STATUS.USER` regen — covering both worktree arms via
+          `handleAbandon`'s `worktreePath` / `currentLocus` resolution (no code change; the verb already covered
+          both, audit-confirmed). **Step 3 retained:** the cascade's `remove` runner deletes from `active/`, never
+          the base-side `backlog/{state}/{name}/` source folder `init` Path A leaves on base, so that leftover +
+          its ROADMAP hand-render stay workflow-owned (ROADMAP is an advisory the verb surfaces, not a regen it
+          performs). Both Framework copies synced.
 
     - `[ ]` **6.6.h Cohort-aware `promote` (nested `provisional → planned`)** — `promote` / `demote` compute a
       **flat** `backlog/{tier}/{name}` path (`tierDir` in `verbs/promote-demote.ts`), so `arc promote` can't relocate
