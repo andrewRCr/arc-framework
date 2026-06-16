@@ -789,8 +789,17 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           `pre-push-review` declared. Surfaced: `reopen` ships a verb but has no ceremony workflow (gap of the same
           shape as the park/resume slip).
 
-    - `[ ]` **6.7.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
+    - `[x]` **6.7.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
       re-attach orchestration. Markdown + wiring (not test-first).
+
+        - _Outcome:_ `resume-work-unit.md` authored in both Framework copies (byte-identical), scoped to the
+          **parked** (park@Active) re-entry: `arc resume {name} [--here]` re-attaches the preserved branch (spawn
+          default / in-place), and the verb removes the pointer-record + prunes the emptied parked dir; the workflow
+          owns the base-checkout run-context and the ship (`workflowCommit` + ROADMAP un-Park regen; full-mode
+          grooming PR on `chore/resume-{name}`). Made the parked-vs-`planned` boundary explicit — a park@Planning
+          unit re-enters via `arc start` / graduate (`init-work-unit` Path A), not `resume`. Wired the `park ⊥
+          resume` inverse pair bidirectionally (upgraded `park-work-unit.md`'s reference + Related-workflows link to
+          `resume-work-unit.md`). `pre-push-review` declared.
 
     - `[ ]` **6.7.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
       in both placement modes (spawn and `--here`): pointer-on-tracked-branch, artifacts authoritative on the WU

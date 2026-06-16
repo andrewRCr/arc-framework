@@ -130,12 +130,13 @@ branch (the shelf); park@Planning deleted the `plan/` branch.
 
 ## Next step
 
-Resume later with `arc resume {name}` — driven by the `resume-work-unit.md` ceremony (the inverse) — which
+Resume later with `arc resume {name}` — driven by the [`resume-work-unit`][resume] ceremony (the inverse) — which
 re-attaches the preserved branch (spawn by default, or `--here`) and removes the pointer-record. `arc start {name}`
 on a parked unit routes to `resume`.
 
 ## Related workflows
 
+- [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
 - [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
   reverses its graduate.
 - [`decompose-work-unit`][decompose] — shares the single-source park-exit relocate + teardown choreography.
@@ -144,6 +145,7 @@ on a parked unit routes to `resume`.
 
 ---
 
+[resume]: resume-work-unit.md
 [init-work-unit]: planning/init-work-unit.md
 [decompose]: decompose-work-unit.md
 [deactivate]: deactivate-work-unit.md
