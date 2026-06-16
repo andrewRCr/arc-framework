@@ -17,11 +17,18 @@
  * resolve the branch, computes the destination, composes the relocate / branch /
  * worktree operands, and dispatches through {@link executeTransition}.
  *
+ * When the archived member is the **last** of its cohort, the same sweep also
+ * relocates the coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
+ * closeout sidecar (see {@link sweepCohortDoc}). Detection is the resolver's
+ * (`isArchivalTriggered`) — this verb consumes the predicate over the post-move
+ * index and performs the `git mv`; it never re-derives membership.
+ *
  * @module
  */
 
 import { join } from "node:path";
 
+import { cohortLeaf } from "../../active/cohort-path.js";
 import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import {
   computeArchiveDestination,
@@ -29,6 +36,8 @@ import {
   type Clock,
   type CompletedIndexFs,
 } from "../completed-index.js";
+import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
+import { isArchivalTriggered } from "../lifecycle-membership.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -38,6 +47,9 @@ import {
 
 /** The flat `active/` tier — where an Active / Integrating WU's artifacts live. */
 const ACTIVE_DIR = ".arc/active";
+
+/** The standalone-WU sentinel; carries no cohort grouping. */
+const NONE_SENTINEL = "[none]";
 
 /** The seams `runArchive` drives: the executor's transition engine plus the quarter-scan fs + clock. */
 export interface ArchiveContext {
@@ -70,6 +82,11 @@ export type ArchiveResult =
       metaPath: string;
       /** The computed dated/numbered destination. */
       destination: ArchiveDestination;
+      /**
+       * The relocated cohort-doc path when this archive shipped the cohort's last
+       * member, or `null` when the WU is standalone or members remain in flight.
+       */
+      cohortSwept: string | null;
     };
 
 /**
@@ -106,5 +123,49 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const outcome = await executeTransition(executor, { verb: "archive", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
-  return { status: "archived", outcome, metaPath: `${destination.toDir}/meta-${name}.md`, destination };
+  // The member is now under `completed/`. Rebuild the index so the cohort-sweep
+  // predicate reads the post-move state, then sweep the cohort doc if this was the
+  // last member to ship.
+  const postIndex = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const cohortSwept = await sweepCohortDoc(executor.relocateArtifacts, postIndex, {
+    cohort: record.Cohort,
+    quarter: destination.quarter,
+    sequence: destination.sequence,
+  });
+
+  return { status: "archived", outcome, metaPath: `${destination.toDir}/meta-${name}.md`, destination, cohortSwept };
+}
+
+/**
+ * Sweep a cohort's coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
+ * closeout sidecar when the cohort's **last member has shipped** — the archival
+ * trigger, detected by the resolver's {@link isArchivalTriggered} over the
+ * post-move index (never re-derived here). The sidecar shares the final member's
+ * completion-order number (`{NN}a`), keeping `completed/` chronological. A
+ * standalone WU, the `[none]` sentinel, or a cohort with members still in flight
+ * is a no-op.
+ *
+ * The move reuses the `relocate-artifacts` git-mv primitive with the cohort leaf
+ * as the match key, so only `cohort-<leaf>.md` in the grouping dir is moved.
+ *
+ * @param relocate - The pre-bound `relocate-artifacts` mutator.
+ * @param index - The post-move lifecycle index.
+ * @param args - The archived member's cohort field and the sidecar's quarter / NN.
+ * @returns The relocated cohort-doc path, or `null` when the sweep did not fire.
+ */
+export async function sweepCohortDoc(
+  relocate: ExecuteTransitionContext["relocateArtifacts"],
+  index: LifecycleIndex,
+  args: { cohort: string | null; quarter: string; sequence: string },
+): Promise<string | null> {
+  const { cohort, quarter, sequence } = args;
+  if (cohort === null) return null;
+  const field = cohort.trim();
+  if (field === "" || field === NONE_SENTINEL) return null;
+  if (!isArchivalTriggered(index, field)) return null;
+
+  const leaf = cohortLeaf(field);
+  const toDir = `.arc/completed/${quarter}/${sequence}a_cohort-${leaf}`;
+  const { moved } = await relocate({ slug: leaf, fromDir: `.arc/backlog/planned/${field}`, toDir });
+  return moved.length > 0 ? `${toDir}/cohort-${leaf}.md` : null;
 }

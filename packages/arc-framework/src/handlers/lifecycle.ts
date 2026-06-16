@@ -547,5 +547,7 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
     refuse(result.reason);
     return;
   }
-  reportOutcome("Archived", [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`], result.outcome);
+  const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
+  if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
+  reportOutcome("Archived", lines, result.outcome);
 }

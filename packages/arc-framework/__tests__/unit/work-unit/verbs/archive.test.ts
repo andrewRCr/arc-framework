@@ -15,11 +15,20 @@ import type {
   ExecuteTransitionContext,
   SideEffectHandler,
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
-import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
-import type { RelocateArtifactsParams } from "../../../../src/lib/work-unit/mutators/relocate-artifacts.js";
+import type {
+  DirEntry,
+  LifecycleIndex,
+  LifecycleIndexEntry,
+  LifecycleIndexFs,
+} from "../../../../src/lib/work-unit/lifecycle-index.js";
+import type { Location, Phase } from "../../../../src/lib/work-unit/lifecycle-state.js";
+import type {
+  RelocateArtifactsParams,
+  RelocateArtifactsResult,
+} from "../../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import type { CompletedIndexFs } from "../../../../src/lib/work-unit/completed-index.js";
-import { runArchive, type ArchiveContext } from "../../../../src/lib/work-unit/verbs/archive.js";
+import { runArchive, sweepCohortDoc, type ArchiveContext } from "../../../../src/lib/work-unit/verbs/archive.js";
 
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
@@ -164,5 +173,111 @@ describe("runArchive — the dated sweep", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/archive|active/i);
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
+  });
+
+  it("reports no cohort sweep for a standalone WU (no Cohort field)", async () => {
+    // The default fixture meta carries no Cohort field — the sweep never fires.
+    const { ctx } = buildCtx({});
+
+    const result = await runArchive(ctx, BASE);
+
+    expect(result.status).toBe("archived");
+    if (result.status !== "archived") return;
+    expect(result.cohortSwept).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cohort-doc archival sweep — gated on the resolver's `isArchivalTriggered`
+// ---------------------------------------------------------------------------
+
+/** A lifecycle-index entry, mirroring the membership-test fixture shape. */
+function entry(slug: string, location: Location, cohort: string | null, phase: Phase = "Planning"): LifecycleIndexEntry {
+  return { slug, phase, location, cohort, dependsOn: [], path: `.arc/${location}/meta-${slug}.md` };
+}
+
+function indexOf(...entries: LifecycleIndexEntry[]): LifecycleIndex {
+  return new Map(entries.map((e) => [e.slug, e]));
+}
+
+/** A `relocateArtifacts` spy recording its params; `moved` controls the reported result. */
+function relocateSpy(moved: string[]): {
+  fn: (params: RelocateArtifactsParams) => Promise<RelocateArtifactsResult>;
+  calls: RelocateArtifactsParams[];
+} {
+  const calls: RelocateArtifactsParams[] = [];
+  return {
+    calls,
+    fn: async (params) => {
+      calls.push(params);
+      return { moved };
+    },
+  };
+}
+
+describe("sweepCohortDoc — the cohort-doc archival sweep", () => {
+  const at = { quarter: "2026-q2", sequence: "25" };
+
+  it("git mvs cohort-<name>.md to the NNa_cohort sidecar when the last member has shipped", async () => {
+    const index = indexOf(
+      entry("a", "completed", "lifecycle-state-machine", "Shipped"),
+      entry("b", "completed", "lifecycle-state-machine", "Shipped"),
+    );
+    const { fn, calls } = relocateSpy(["cohort-lifecycle-state-machine.md"]);
+
+    const swept = await sweepCohortDoc(fn, index, { cohort: "lifecycle-state-machine", ...at });
+
+    expect(calls).toEqual([
+      {
+        slug: "lifecycle-state-machine",
+        fromDir: ".arc/backlog/planned/lifecycle-state-machine",
+        toDir: ".arc/completed/2026-q2/25a_cohort-lifecycle-state-machine",
+      },
+    ]);
+    expect(swept).toBe(".arc/completed/2026-q2/25a_cohort-lifecycle-state-machine/cohort-lifecycle-state-machine.md");
+  });
+
+  it("does not fire while any member remains outside completed/", async () => {
+    const lingering = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "active", "c", "Active"),
+    );
+    const { fn, calls } = relocateSpy(["cohort-c.md"]);
+
+    const swept = await sweepCohortDoc(fn, lingering, { cohort: "c", ...at });
+
+    expect(calls).toEqual([]);
+    expect(swept).toBeNull();
+  });
+
+  it("resolves the leaf segment for a nested cohort path", async () => {
+    const index = indexOf(entry("leaf", "completed", "core/sub", "Shipped"));
+    const { fn, calls } = relocateSpy(["cohort-sub.md"]);
+
+    const swept = await sweepCohortDoc(fn, index, { cohort: "core/sub", ...at });
+
+    expect(calls[0]).toMatchObject({
+      slug: "sub",
+      fromDir: ".arc/backlog/planned/core/sub",
+      toDir: ".arc/completed/2026-q2/25a_cohort-sub",
+    });
+    expect(swept).toBe(".arc/completed/2026-q2/25a_cohort-sub/cohort-sub.md");
+  });
+
+  it("is a no-op for a standalone WU or the [none] sentinel", async () => {
+    const index = indexOf(entry("solo", "completed", null, "Shipped"));
+    const { fn, calls } = relocateSpy(["x"]);
+
+    expect(await sweepCohortDoc(fn, index, { cohort: null, ...at })).toBeNull();
+    expect(await sweepCohortDoc(fn, index, { cohort: "[none]", ...at })).toBeNull();
+    expect(await sweepCohortDoc(fn, index, { cohort: "  ", ...at })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("returns null when the trigger holds but no cohort doc was found to move", async () => {
+    const index = indexOf(entry("a", "completed", "c", "Shipped"));
+    const { fn } = relocateSpy([]); // nothing matched in the source dir
+
+    expect(await sweepCohortDoc(fn, index, { cohort: "c", ...at })).toBeNull();
   });
 });

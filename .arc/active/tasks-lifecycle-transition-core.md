@@ -501,19 +501,18 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
   (context-defaulting) bound via `handleArchive`. Self-teardown of the current primary worktree is wired but left to
   the integration context that re-points the ceremony (6.4c).
 
-### `[ ]` **6.2 Cohort-doc archival sweep**
+### `[x]` **6.2 Cohort-doc archival sweep**
 
 - _Goal:_ When the last cohort member ships, its coordinating `cohort-*.md` is swept to `completed/` in the same
   archive — the cohort doc never lingers in `backlog/` after its members are gone.
 
-- _Note:_ Detection is the resolver's (`isArchivalTriggered` in `lifecycle-membership.ts`); the executor consumes
-  the predicate and performs the `git mv` — it never re-derives membership. Destination uses the **`NNa_cohort-<slug>`**
-  closeout dir shape (already recognized + WU-index-excluded by `completed-index.ts`), not a regular `NN_<slug>`.
-
-    - Build `test-first` (one behavior at a time):
-        - Fires only when `isArchivalTriggered` is true (non-empty cohort, no member outside `completed/`).
-        - `git mv`s `cohort-<name>.md` to `completed/` when triggered.
-        - Does not fire while any member remains outside `completed/`.
+- _Outcome:_ `sweepCohortDoc` (in `verbs/archive.ts`) runs after the member relocate: `runArchive` rebuilds the
+  index over the post-move tree and the sweep gates on the resolver's `isArchivalTriggered` (consumed, never
+  re-derived). When triggered, it `git mv`s `cohort-<leaf>.md` into the `{NN}a_cohort-<leaf>` sidecar — sharing the
+  final member's `NN` from the same `destination` — reusing `relocate-artifacts` with the cohort leaf as the match
+  key. Standalone WUs, `[none]`, and cohorts with members still in flight are no-ops; the swept path surfaces on
+  `ArchiveResult.cohortSwept` and in the `arc archive` report. Single-cohort scope; the nested-parent `{NN}b`
+  cascade is left for the closeout member's audit.
 
 ### `[ ]` **6.3 Slug→state read surface**
 
