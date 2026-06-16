@@ -749,12 +749,13 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   don't re-author). See `spec-lifecycle-transition-core.md` §6 (park/resume ceremony) + §4–5 (placement modes) +
   Success Criterion 13. Locus/orchestration only — no new transition-table edges.
 
-    - `[ ]` **6.7.a `reconcile-worktree` spawn-path re-attach** — the fresh-worktree spawn attaches an existing
-      preserved branch (`git worktree add <path> <branch>`, no `-b`) when resuming; today it force-creates
-      (`-b <branch> <branch>`, which fails for an existing branch). Mirror the in-place `createBranch` flag onto the
-      fresh-worktree variant.
-      Build `test-first`: resume spawn re-attaches an existing branch (bare add); graduate/create-new spawn still
-      cuts a new one (`-b`).
+    - `[x]` **6.7.a `reconcile-worktree` spawn-path re-attach** — the fresh-worktree `spawn` op gained a
+      `createBranch` modifier mirroring the in-place variant: `false` re-attaches an existing preserved branch via a
+      bare `git worktree add <path> <branch>` (resume), default/`true` keeps `-b <branch> <base>` (graduate /
+      create-new). `runResume`'s spawn arm now sets `createBranch: false` (its prior `base: branch` self-base
+      workaround is demoted to an ignored carry). `base` stays required on the op — supplied but unused on re-attach.
+      Test-first: added the bare-add re-attach case (still writes the ownership marker); the existing `-b` create
+      case is unchanged.
 
     - `[ ]` **6.7.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
       pointer-record on the **tracked** branch while the WU branch's `active/` stays authoritative (handler-enforced

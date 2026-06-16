@@ -223,8 +223,9 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
       : {
           mutation: "spawn",
           branch,
-          // Re-attach the preserved branch as its own base (the checkout-existing
-          // refinement of the fresh-worktree `spawn` is the reconcile-worktree leg's to make).
+          // Re-attach the preserved branch: a bare `git worktree add <path> <branch>`, no `-b`.
+          createBranch: false,
+          // Ignored on re-attach (no `-b`); carried only to satisfy the spawn op.
           base: branch,
           locationTemplate: params.locationTemplate,
           repo: params.repo,

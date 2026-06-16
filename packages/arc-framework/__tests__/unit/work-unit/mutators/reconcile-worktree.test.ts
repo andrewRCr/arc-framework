@@ -103,6 +103,34 @@ describe("reconcileWorktree — spawn", () => {
       marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
     });
   });
+
+  it("re-attaches an existing branch (bare add, no -b) and still marks the worktree for resume", async () => {
+    const { ctx, events } = buildCtx();
+    const template = join(root, "{repo}.{branch}");
+    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "feat/demo-wu" });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      createBranch: false,
+      branch: "feat/demo-wu",
+      // Supplied to satisfy the spawn op, but ignored on re-attach — asserted absent from the add below.
+      base: "feat/demo-wu",
+      locationTemplate: template,
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+      now: Date.parse("2026-06-15T12:00:00.000Z"),
+    });
+
+    expect(result).toEqual({ mutation: "spawn", worktreePath: expectedPath, branch: "feat/demo-wu" });
+    expect(events).toEqual([["git", "worktree", "add", expectedPath, "feat/demo-wu"]]);
+
+    const marker = await readWorktreeMarker(expectedPath);
+    expect(marker).toMatchObject({
+      kind: "present",
+      marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
+    });
+  });
 });
 
 describe("reconcileWorktree — spawn in place (--here)", () => {

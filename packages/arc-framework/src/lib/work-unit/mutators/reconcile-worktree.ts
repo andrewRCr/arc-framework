@@ -6,8 +6,11 @@
  *
  * - `spawn` — establish the WU's working tree, in one of two **placement modes**:
  *     - *fresh worktree* (default): the decomposition of the shipped
- *       `spawnWorktree` — `git worktree add -b <branch> <base>` at the
- *       `location_template`-resolved path, then the ownership marker. The
+ *       `spawnWorktree` — `git worktree add` at the `location_template`-resolved
+ *       path, then the ownership marker. `createBranch` selects branch birth:
+ *       `-b <branch> <base>` to cut a fresh branch (graduate / create-new), or a
+ *       bare `git worktree add <path> <branch>` to re-attach an existing preserved
+ *       branch (resume). The
  *       fresh-meta write and `runUserOpen` are *not* part of this leg — they are
  *       lifted to `scaffold` and the user-workspace side-effect respectively, so a
  *       graduate (which relocates an existing meta in) is not clobbered by a
@@ -63,9 +66,14 @@ export type ReconcileWorktreeOp =
       mutation: "spawn";
       /** Fresh-worktree placement (the default). */
       inPlace?: false;
-      /** Full branch to create (e.g. `plan/<name>`). */
+      /** Full branch to create or re-attach (e.g. `plan/<name>`). */
       branch: string;
-      /** Base ref the branch forks from (local ref; no fetch). */
+      /**
+       * `true`/absent cuts a fresh branch (`-b <branch> <base>`, graduate / create-new); `false`
+       * re-attaches an existing preserved branch (bare `git worktree add <path> <branch>`, resume).
+       */
+      createBranch?: boolean;
+      /** Base ref the branch forks from (local ref; no fetch). Ignored on re-attach (`createBranch: false`). */
       base: string;
       /** Resolved `worktree.location_template`. */
       locationTemplate: string;
@@ -141,7 +149,13 @@ export async function reconcileWorktree(
       repo: op.repo,
       branch: op.branch,
     });
-    await ctx.exec("git", ["worktree", "add", worktreePath, "-b", op.branch, op.base]);
+    // Re-attach (`createBranch: false`) checks out an existing preserved branch — bare `add`, no
+    // `-b`/base; the default cuts a fresh branch (`-b <branch> <base>`) for graduate / create-new.
+    const add =
+      op.createBranch === false
+        ? ["worktree", "add", worktreePath, op.branch]
+        : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
+    await ctx.exec("git", add);
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
       wuName: op.wuName,
