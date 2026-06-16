@@ -11,15 +11,13 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** Task 6.2 — Cohort-doc archival sweep, completing the executor's terminal-sweep mechanics
-  (6.1 `archive` relocation + dated-path computation + the `arc archive` command; 6.2 last-member cohort-doc sweep)
-- **Next Task:** `Task 6.3 — slug→state read surface (line ~517)`
+- **Last Completed:** Task 6.3 — slug→state read surface: the read is now `arc status <slug>` (the `--lifecycle
+  <slug>` option became a positional; JSON shape preserved, `resolveSlugQuery` unchanged)
+- **Next Task:** `Task 6.4.a — reconcile-branch in-place create (line ~543)`
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.3 — move the slug→state read to `arc status <slug>` (bare `arc status` =
-  session/active view; a slug = that WU's lifecycle state, preserving the shipped JSON shape). Only the thin CLI
-  shell changes — `handlers/status.ts` dispatches to `resolveSlugQuery` (the durable artifact, stays put); the
-  `--lifecycle <slug>` option becomes a `status <slug>` positional. Then 6.4 (re-point existing workflows) before
-  Phase 7.
+- **Next Action:** Start Task 6.4.a — give `reconcile-branch.create` a real current-worktree `git checkout -b`
+  realization (test-first), opening Task 6.4 (the new in-place `--here` opt-out). See SESSION-NOTES for the design
+  context behind why 6.4 was inserted ahead of the 6.5 re-point.
 
 ---
