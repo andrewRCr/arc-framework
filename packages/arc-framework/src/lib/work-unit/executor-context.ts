@@ -15,9 +15,11 @@
  * `reconcile-roadmap` / `reconcile-status-user` / `user-workspace` side-effects the
  * `start` dispatch's executor-routed arms (graduate / resume) declare, plus the
  * `discharge-dep-edges` side-effect the `activate` edge fires (the dep-edge
- * lifecycle's write half). The destructive `scaffold` / `remove` artifact runner and
- * the `withdraw-pr` side-effect (the verbs that build their own runner / carry a `gh`
- * write) are left for the phase that wires those verbs.
+ * lifecycle's write half) and the `withdraw-pr` side-effect the `reopen` edge fires
+ * (a `gh` write — close or draft the open PR, degrading to an advisory when `gh` is
+ * unavailable so the applied phase flip is never left mid-transition). The
+ * destructive `scaffold` / `remove` artifact runner is left to the verbs that build
+ * their own runner (`stub` / `abandon`).
  *
  * `reconcile-status-user` renders for real here: it composes the per-developer
  * view through the shared `STATUS.USER` assembly (the same one `arc status --user`
@@ -32,7 +34,7 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
-import { setMetaBulletFields } from "../active/meta-reader.js";
+import { parseMetaRecord, setMetaBulletFields } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
@@ -48,6 +50,7 @@ import { relocateArtifacts } from "./mutators/relocate-artifacts.js";
 import { setPhase } from "./mutators/set-phase.js";
 import { dischargeDepEdges } from "./side-effects/discharge-dep-edges.js";
 import { reconcileRoadmap, reconcileStatusUserSideEffect } from "./side-effects/readiness-regen.js";
+import { withdrawPr } from "./side-effects/withdraw-pr.js";
 
 /** Ambient inputs the binder closes the executor seams over. */
 export interface ExecutorContextDeps {
@@ -113,6 +116,28 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       : undefined;
   };
 
+  // `reopen` withdraws the WU's open PR — close it (default) or convert it back to a
+  // draft (`--keep-pr`). A `gh` write: resolve the head branch from the meta, then
+  // run the op. The `pr-unmerged` guard already refused a merged PR upstream, so a
+  // failure here means `gh` is absent / unauthenticated / offline — degrade to an
+  // advisory rather than throwing, so the already-applied `Integrating → Active`
+  // flip isn't left mid-transition (the operator finishes the withdrawal by hand).
+  const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
+    const { Branch: branch } = parseMetaRecord(await io.readFile(at(`.arc/active/meta-${slug}.md`)));
+    const mode = inputs.prWithdrawMode ?? "close";
+    if (branch === null || branch === "[none]") {
+      return `Could not withdraw the PR for \`${slug}\`: no branch recorded — close or convert it manually.`;
+    }
+    try {
+      await withdrawPr({ exec }, { branch, mode });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      const action = mode === "draft" ? "convert the PR to a draft" : "close the PR";
+      return `Could not ${action} for \`${branch}\` via \`gh\` (${detail}) — withdraw it manually.`;
+    }
+    return undefined;
+  };
+
   return {
     cwd,
     exec,
@@ -162,6 +187,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
         ),
       "user-workspace": userWorkspaceHandler,
       "discharge-dep-edges": dischargeDepEdgesHandler,
+      "withdraw-pr": withdrawPrHandler,
     },
   };
 }

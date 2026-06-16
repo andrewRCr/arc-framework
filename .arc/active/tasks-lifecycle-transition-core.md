@@ -456,11 +456,24 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
 - _Goal:_ `arc reopen [<slug>]` withdraws an `Integrating` WU to `Active`, resolving the merge fact and forwarding the
   withdrawal mode — the CLI binding for the 4.4 transition.
 
-- _Note:_ Resolves the `pr-unmerged` guard input via a `gh` read (the read-side `gh` model, `work-unit-pr-source.ts`
-  pattern), degrading safely when `gh` / remote is absent; a merged PR is refused (post-merge rework is a new
-  origin-linked WU, §8). Withdrawal mode (`close` default / `draft`) is a flag forwarded to the `withdraw-pr`
-  side-effect.
-    - Build `test-first`: an unmerged `Integrating` WU reopens (mode forwarded); a merged PR is refused.
+- _Note:_ Split into a foundational increment (5.R.5.a — the deferred `withdraw-pr` executor binding) and the
+  command-surface increment (5.R.5.b), mirroring 5.R.3's a/b shape. Discovered at task entry: the `withdraw-pr`
+  side-effect the `reopen` edge declares is still declared-but-unbound in `buildExecutorContext` (deferred to "the
+  phase that wires those verbs"), exactly as `discharge-dep-edges` was before 5.R.3.a. The `reopen` command can't
+  dispatch until its side-effect handler is registered.
+
+    - `[x]` **5.R.5.a `withdraw-pr` executor binding** — registered the `withdraw-pr` `SideEffectHandler` in
+      `buildExecutorContext`: it reads the WU's `Branch` from its active meta, calls `withdrawPr` with
+      `inputs.prWithdrawMode` (`close` default / `draft`), and degrades to an advisory (never throws) when the `gh`
+      op fails — so the already-applied `Integrating → Active` flip isn't left mid-transition. A missing branch
+      surfaces an advisory without calling `gh`. Closes the gap `discharge-dep-edges` left open (the last deferred
+      side-effect binding).
+
+    - `[ ]` **5.R.5.b `reopen` command** — `handleReopen` (context-defaulting) resolves the `pr-unmerged` guard input
+      via a `gh` read (the read-side `gh` model, `work-unit-pr-source.ts` pattern), degrading safely when `gh` /
+      remote is absent; a merged PR is refused (post-merge rework is a new origin-linked WU, §8). Withdrawal mode
+      (`close` default / `--keep-pr` → `draft`) is forwarded to `runReopen`; plus `cli.ts` registration.
+        - Build `test-first`: an unmerged `Integrating` WU reopens (mode forwarded); a merged PR is refused.
 
 ### `[ ]` **5.R.6 Re-point `draft-design`'s stub leg**
 
