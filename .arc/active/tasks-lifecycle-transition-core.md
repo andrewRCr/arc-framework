@@ -589,9 +589,12 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       transition never leaves stale guidance (e.g. entering `Integrating` resets `Next Task`); the machinery exists
       (`reset` / `input` / `leave`), it is merely under-applied. No task-list parsing — the executor never derives.
 
-    - `[ ]` **6.5.c Extend encoding-consistency to the `Branch` field** — the table-walking consistency test asserts
-      the meta `Branch` _field_ (not only the derived branch category) matches the established branch on every edge.
-      The gap slipped because the test checked category, not the field.
+    - `[ ]` **6.5.c Extend encoding-consistency to the `Branch` field** — assert each edge's projected `Branch`
+      field matches the expected branch, not only the derived branch _category_ the existing walk checks. The
+      consistency test (`lifecycle-transitions.test.ts`) is a pure table-walk over `encodingUpdates` — it never
+      executes a transition or reads a meta, so assert the executor's **projection** per edge
+      (`TransitionOutcome.branchFieldWritten` / `establishedBranch`, added in 6.5.a) rather than building a
+      transition-running harness. The gap slipped because the walk checked category, not the field.
 
 ### `[ ]` **6.6 Re-point existing workflows to the executor**
 
@@ -601,8 +604,12 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 - _Note:_ Re-pointing only — no new transition logic; the workflows shrink to judgment + an executor call. Existing
   integration/E2E coverage exercises the re-pointed paths (not test-first — markdown + wiring edits).
 
-    - `[ ]` **6.6.a `init-work-unit` Path A** → call the graduate transition for both the spawn (`arc start`) and
-      in-place (`--here`, 6.4) paths (relocate + `reconcile-branch`), replacing the inline `git mv`.
+    - `[ ]` **6.6.a `init-work-unit` Path A** → call the `start` transition for both the spawn (`arc start`) and
+      in-place (`--here`, 6.4) paths (relocate + `reconcile-worktree` spawn, which births the branch — not a
+      standalone `reconcile-branch`, post-Option-B 6.4), replacing the inline `git mv`. **Drop** init-work-unit's
+      inline `Branch`-field reconciliation (Step 4 Path A) — the executor owns the `Branch` write as of 6.5.a.
+      (`start`, not "graduate": `start` is the planned→active verb; `graduate-work-unit.md` is the separate
+      `provisional → planned` rung re-pointed in 6.6.e.)
 
     - `[ ]` **6.6.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
       `reconcile-worktree`); the full decompose matrix rewrite is the sibling `decompose-matrix` member's, not
@@ -611,9 +618,15 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
     - `[ ]` **6.6.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
 
     - `[ ]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
-      (`activate` fires the dep-edge discharge, 4.7).
+      (`activate` fires the dep-edge discharge, 4.7). Drop the inline branch rename **and** the inline `Branch`-field
+      write — the executor owns both the rotate and the field as of 6.5.a.
 
-    - `[ ]` **6.6.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
+    - `[ ]` **6.6.e `graduate-work-unit` → `promote`** → re-point the `provisional → planned` ceremony's inline
+      `git mv` to the `promote` transition (`artifacts: relocate`; shipped in `verbs/promote-demote.ts`). A
+      branchless flat relocate — but a hand-rolled relocate while the executor owns `relocate` is the half-migration
+      the cohort's consistency-on-exit standard absorbs. (Surfaced by the Phase-6 task audit, 2026-06-16.)
+
+    - `[ ]` **6.6.f Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
 
 ### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
@@ -639,7 +652,9 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
     - `[ ]` **6.7.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
       pointer-record on the **tracked** branch while the WU branch's `active/` stays authoritative (handler-enforced
       run-context vs. documented run-from-tracked — settle at task time); confirm the `worktree-clean` guard targets
-      the torn-down worktree, not the relocate locus.
+      the torn-down worktree, not the relocate locus. **Forward-compat (run the `strategy-storage-evolution`
+      self-check):** don't bake "the code repo's tracked branch" as the pointer's only home — under the materialized
+      backend the pointer-record is a projection and WU identity stays decoupled from branch (P5).
 
     - `[ ]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
       run-context (6.7.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
