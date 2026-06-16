@@ -87,8 +87,9 @@ Then settle the judgment + cleanup the executor doesn't own:
 - `**Class:**` settle via [`classify-work-unit`][classify-work-unit] — pre-implementation is the last cheap
   confirm-or-ratchet before execution. Ratchet up to the realized floor when planning authored design since
   the last touchpoint; otherwise confirm the value holds.
-- Remove any residual draft-doc — `git rm .arc/active/draft-{name}.md`. Safety-catch: the draft-doc should already
-  be absent (deleted at PRD creation per `create-spec.md`); this covers paths that skipped the create-PRD boundary.
+- Remove any residual draft-doc — `[ -f .arc/active/draft-{name}.md ] && git rm .arc/active/draft-{name}.md`.
+  Safety-catch: the draft-doc should already be absent (deleted at PRD creation per `create-spec.md`); the presence
+  guard no-ops cleanly on the common path while still covering paths that skipped the create-PRD boundary.
 
 Stage all edits.
 
