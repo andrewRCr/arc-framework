@@ -819,50 +819,57 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ markdown lint (396 files), TypeScript + shell lint, typecheck (source + test), 2798 unit +
+  75 e2e tests (1 skipped), and build — all passed (Tier 3 full suite).
+- _Success criteria:_ 14 criteria, all met — the 12 design criteria plus quality-gates and ready-for-integration.
+  The planning-entry gate's three-way leg choice (start / stub / errand) is surfaced to the `arc-plan` workflow
+  by design; the CLI resolves committability and carries the facts (`draftPresent` parameterizes the stub
+  fold-in), with no adopt edge in the verb set.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A single declarative transition table in `lib/` is the authoritative source of states, legal edges,
+- `[x]` A single declarative transition table in `lib/` is the authoritative source of states, legal edges,
   inverses, guard requirements, and per-transition encoding updates — no relocation logic re-authored in a workflow
 
-- `[ ]` Table-walking tests pass and fail correctly: totality, inverse round-trip, and encoding-consistency for
+- `[x]` Table-walking tests pass and fail correctly: totality, inverse round-trip, and encoding-consistency for
   every edge
 
-- `[ ]` The 1↔1 mutator bundle is the sole relocation primitive, called by every location-moving transition
+- `[x]` The 1↔1 mutator bundle is the sole relocation primitive, called by every location-moving transition
 
-- `[ ]` `arc start <name>` dispatches correctly across all resolved states and is provably guarded (name-collision
+- `[x]` `arc start <name>` dispatches correctly across all resolved states and is provably guarded (name-collision
   routes to graduate; worktree-occupancy rejects a second active WU)
 
-- `[ ]` The full inverse-paired verb set ships: `promote`/`demote`, `park`/`resume`, `reopen`, `abandon` (split
+- `[x]` The full inverse-paired verb set ships: `promote`/`demote`, `park`/`resume`, `reopen`, `abandon` (split
   from `deactivate`), each executor-dispatched
 
-- `[ ]` `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches
+- `[x]` `park@Active` preserves the branch and lands the blessed pointer-record on `main`; resume re-attaches
 
-- `[ ]` `abandon` executes its per-cell mechanics across the pre-merge states (including execution-locus
+- `[x]` `abandon` executes its per-cell mechanics across the pre-merge states (including execution-locus
   relocation) and rejects from `integrating` / merged states; `deactivate` stays the narrow `Active → Planning`
   undo — no merged-corner cells (ADR-026 amendment)
 
-- `[ ]` The `archive` sweep + dated-path computation run from the executor, and the cohort-doc sweep fires on
+- `[x]` The `archive` sweep + dated-path computation run from the executor, and the cohort-doc sweep fires on
   `isArchivalTriggered`
 
-- `[ ]` The `stub` contract rejects creation without explicit commitment + priority
+- `[x]` The `stub` contract rejects creation without explicit commitment + priority
 
-- `[ ]` The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
+- `[x]` The planning-entry write-context gate routes `arc-plan` correctly across its three routes, including the
   pre-authored-draft route to `stub` (no adopt edge)
 
-- `[ ]` `arc status <slug>` serves the slug→state read with the JSON shape preserved (from the interim
+- `[x]` `arc status <slug>` serves the slug→state read with the JSON shape preserved (from the interim
   `arc status --lifecycle`)
 
-- `[ ]` Each transition applies its `softFields` disposition (`reset` / `input` / `leave`) so `Next Task` /
+- `[x]` Each transition applies its `softFields` disposition (`reset` / `input` / `leave`) so `Next Task` /
   `Next Action` / `Last Completed` stay consistent post-transition (executor writes resets + supplied inputs, never
   deriving/authoring), and emits an ephemeral, never-persisted next-step suggestion
 
-- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[x]` All quality gates pass (tests, linting, type checking)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
 
 ---
 
