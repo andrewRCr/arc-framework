@@ -200,7 +200,8 @@ branch mutually consistent for the target state.
 ### 4. The relocation primitive — a 1↔1 mutator bundle
 
 Strictly 1↔1; a bundle of phase-aware encoding-mutators fired **together** so the three-encoding invariant holds
-by construction:
+by construction (the `archive` `→ completed/` edge is the one partial exception — its physical teardown legs defer
+to post-merge; § 9):
 
 - **`relocate-artifacts`** — the `git mv` of the WU's artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`,
   companions): `backlog ↔ active`, `active → completed`.
@@ -214,11 +215,16 @@ by construction:
   plain checkout / bare add attaches an existing one (resume). A teardown tearing down the worktree it runs from
   must hop the agent's locus out first.
 - **`set-phase`** — the meta `State` write (phase-axis mutator, no location move).
+- **`clearBranchField`** — the logical `Branch → [none]` write (a meta-field mutator, **no git op**), fired where a
+  transition retires the working branch from the *record* without a physical branch op: `archive`'s mergeable
+  sweep (physical teardown deferred — § 9) and the local branchless targets (`park@Planning` / `abandon`).
 
 **Caller shapes:**
 
-- **Location-movers** (`park` / `resume` / `promote` / `demote` / `init` Path A / **`archive` sweep**) call
-  `relocate-artifacts` + conditioned branch/worktree mutators.
+- **Location-movers** (`park` / `resume` / `promote` / `demote` / `init` Path A) call `relocate-artifacts` +
+  conditioned branch/worktree mutators. The **`archive` sweep** is a location-mover too, but fires
+  `relocate-artifacts` + `clearBranchField` + `set-phase` — its physical branch/worktree teardown defers to
+  post-merge (§ 9).
 - **Phase-movers** (`activate` / `deactivate` / `reopen` / the `integrate` flip) call `reconcile-branch` (only
   when the prefix rotates) + `set-phase`.
 
@@ -389,6 +395,16 @@ artifact set from `active/` to `completed/`, and the executor **computes the dat
 (`completed/{YYYY-qN}/{NN}_{name}/`) deterministically. Both the sweep and the `{NN}` / `{dated}` computation are
 pure deterministic mechanics — they **migrate** into the executor (correcting the draft's earlier "no-go"
 framing). Judgment (merge approval, archival timing) stays in `integrate-work-unit` / `archive` workflow.
+
+**Mergeable sweep vs. physical teardown.** The `archive` edge fires only the **mergeable** legs —
+`relocate-artifacts` (`active/ → completed/`) + `clearBranchField` (logical `Branch → [none]`) + `set-phase`
+(`State → Shipped`) — so the whole sweep **rides the ship PR** (one PR under both protection modes). Physical
+branch/worktree teardown is **non-mergeable** (deleting the branch would close the open PR), so it stays
+`integrate-work-unit`'s post-merge cleanup, not a leg of this edge. The three-encoding invariant therefore holds
+at the **record** level (the logical field-clear) at sweep time; the **physical** encoding reconciles after merge
+— consistent with the record/projection model (§ 6), where directory + branch are a projection of the logical
+`(phase, location)`. The encoding-consistency oracle models `→ completed/` as deferring physical teardown, while
+local branchless targets (`park@Planning` / `abandon`) still reconcile the branch in place.
 
 **Cohort-doc archival sweep.** When the archived member is the *last* in its cohort, `archive` also sweeps the
 coordinating `cohort-<name>.md` to `completed/`. Detection is the resolver's — `lifecycle-membership.ts`'s

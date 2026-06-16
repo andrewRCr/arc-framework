@@ -687,19 +687,17 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           `relocate-artifacts`, decompose-matrix disclaims relocate, closeout is docs-only). Both Framework copies
           synced.
 
-    - `[ ]` **6.6.f Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
+    - `[x]` **6.6.f Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
 
-        - _Includes the 6.6.c archive un-bundle reconciliation._ `spec-lifecycle-transition-core.md` and `adr-026`
-          still describe the **bundled-teardown** model (the `archive` edge fires branch-delete + worktree-teardown
-          inline); shipped code split it — `arc archive` fires only the **mergeable sweep** (relocate → `completed/`
-          \+ `State → Shipped` \+ logical `Branch → [none]` \+ soft-reset \+ cohort sweep, riding the ship PR), while
-          **physical** branch/worktree teardown stays the integration tail's post-merge cleanup. Update the spec's
-          archive-edge description and ADR-026 Decision §3 (the "fired together so the three-encoding invariant holds
-          by construction, called by every location-moving transition" framing now carries the `→ completed/`
-          deferred-physical-teardown special-case). ADR-026 is a **shared cohort** ADR — if the amendment proves
-          cross-cutting it may fall to `lifecycle-closeout`'s consistency audit instead; anchored here for a visible
-          owner. (Captured 2026-06-16.)
+        - _Outcome:_ Reconciled the 6.6.c archive un-bundle into this WU's design record. `spec-*` §4 adds the
+          `clearBranchField` mutator and re-states the `archive` caller-shape (`relocate-artifacts` +
+          `clearBranchField` + `set-phase`; physical teardown deferred), with the "fired together" line caveated for
+          the `→ completed/` exception; §9 gains a mergeable-sweep-vs-physical-teardown paragraph. `adr-026` takes a
+          dated **Amendment (2026-06-16)** naming Decision §3's one deferred-teardown exception (record-level
+          invariant at sweep time, physical encoding reconciles post-merge — per the §4 record/projection model). No
+          other local spec/code divergence found; the broader strategy/rules/brief verb-rename sweep stays
+          `lifecycle-closeout`'s.
 
     - `[ ]` **6.6.g `deactivate-work-unit` Case A-delete → `abandon`** — re-point the abandon variant's inline
       branch/worktree teardown (`git branch -D` \+ `git worktree remove` \+ remote delete) to the shipped `arc abandon`

@@ -126,6 +126,24 @@ adopters expect from the forges and branching models they already use.
 Evidence: GitHub Docs (reverting a pull request); GitLab (reopen-merged-MR removal); git-flow (nvie); GitHub Flow;
 trunk-based development; Atlassian Jira (reopen-vs-linked-follow-up guidance).
 
+### Amendment (2026-06-16): `archive` un-bundles physical teardown from the mergeable sweep
+
+Execution surfaced that Decision §3's "fired together so the three-encoding invariant holds by construction"
+over-generalized at the `→ completed/` edge. `archive` runs as part of the **ship PR**, and the bundle splits
+along a **mergeable / non-mergeable** seam there:
+
+- **Mergeable** — `relocate-artifacts` (`active/ → completed/`) + a logical `Branch → [none]` field-clear +
+  `set-phase` (`State → Shipped`). These ride the ship PR (one PR under both protection modes).
+- **Non-mergeable** — physical branch/worktree teardown. Deleting the branch would close the open PR, so it
+  cannot ride the sweep; it stays the post-merge integration tail, where the markdown already placed it.
+
+So the `archive` edge fires the mergeable legs only. The three-encoding invariant holds at the **record** level
+(the logical field-clear) at sweep time; the **physical** encoding reconciles after merge — consistent with the
+record/projection model (Decision §4), where directory + branch are a projection of the logical
+`(phase, location)`. The encoding-consistency oracle models `→ completed/` as deferring physical teardown, while
+local branchless targets (`park@Planning` / `abandon`) still reconcile the branch in place. Decision §3 stands for
+every other location-moving transition; this names its one deferred-teardown exception.
+
 ## Amending This Document
 
 - **Amendments** (post-implementation learnings that don't change the decision): append a dated
