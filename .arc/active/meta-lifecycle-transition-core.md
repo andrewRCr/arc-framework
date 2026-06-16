@@ -13,11 +13,11 @@
 
 - **Last Completed:** Task 6.4 — in-place (`--here`) opt-out for `graduate` + `resume`, with all placement
   (spawn / in-place; create / attach) consolidated onto the `reconcile-worktree` leg (Option B)
-- **Next Task:** `Task 6.5.a — init-work-unit Path A → call the graduate transition (line ~573)`
+- **Next Task:** `Task 6.5.a — Executor Branch-field encoding write (line ~581)`
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.5.a (re-point existing ceremonies to the executor). Phase 6 also gained Task 6.6
-  (park/resume ceremony recovery) — sequenced after 6.5; pull 6.6.a (the spawn-resume `add -b <existing>` bug)
-  forward if preferred. See SESSION-NOTES for the Option B rationale + the 6.6 scope decision.
+- **Next Action:** Start Task 6.5 (executor owns the meta `Branch`-field encoding) — `test-first` on 6.5.a, then
+  6.5.b/c. Re-point is now Task 6.6, park/resume 6.7; PPR folded into the cohort as the fast follow-up. See
+  SESSION-NOTES for the boundary rationale + the deferred `Current Workflow` / `Design`-event-pointer design.
 
 ---
