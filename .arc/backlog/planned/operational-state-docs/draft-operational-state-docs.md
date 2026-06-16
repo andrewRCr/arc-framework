@@ -245,6 +245,27 @@
   into a **loud** failure. Interim mitigation is an authoring convention (single-line headers ≤120) — whack-a-mole;
   the durable fix is the record/harness.
 
+### `[ ]` **Frame write-path enforcement explicitly: the consistency-hook is the compliance mechanism**
+
+- _Routed from:_ `lifecycle-transition-core` determinism/judgment-boundary review (2026-06-16); surfaced asking
+  whether cross-WU awareness (is a dep still live or shipped? who are the cohort siblings?) can be made
+  deterministic / automated rather than drift-prone.
+- _Concern:_ this WU's dep-edge resolution + projection substrate make cross-WU state _resolvable_, but the draft
+  frames the guarantee as "resolve at lifecycle triggers" without naming **what makes the automation trustworthy**.
+  The realization: automation is guaranteed **not** by "always use the CLI" (you cannot prevent a hand-edit to a
+  markdown file in git) but by a **consistency check that makes non-CLI drift non-survivable at commit**. Two halves
+  with different guarantees — **reads → resolve-don't-store** (drift _impossible_: nothing stored to drift — the same
+  reason cohort siblings aren't stored in the meta), **writes → CLI-mutate + consistency-hook** (drift _caught_ at
+  commit).
+- _Approach:_ the precedent is `lifecycle-transition-core`'s encoding-consistency invariant (asserts meta `State` ·
+  directory · branch — and, after that WU's executor task, the meta `Branch` _field_). Generalize it: the
+  render/reconcile round-trip harness + the corpus conformance gate assert that every _stored_ cross-ref (dep-edge
+  state, cohort membership, the planning-stage pointers) matches its _resolved_ projection, so a hand-edit that
+  drifts fails the gate. State this explicitly in the substrate design as the compliance mechanism, paired with
+  resolve-don't-store.
+- _Note:_ ties together the Dependency-edge lifecycle entry (the dep-edge half) and the corpus-wide conformance gate
+  entry (the enforcement vehicle) — it is the _framing_ that unifies them, not a separate build.
+
 ---
 
 ## Purpose
