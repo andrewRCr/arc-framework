@@ -31,10 +31,12 @@ import {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleReopen,
   handleAbandon,
   type StubOptions,
   type ParkOptions,
   type ActivateOptions,
+  type ReopenOptions,
   type AbandonOptions,
 } from "./handlers/lifecycle.js";
 import {
@@ -151,6 +153,12 @@ program
   .command("deactivate [slug]")
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
   .action((slug: string | undefined) => handleDeactivate(slug));
+
+program
+  .command("reopen [slug]")
+  .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
+  .option("--keep-pr", "Convert the PR to a draft instead of closing it")
+  .action((slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts));
 
 program
   .command("abandon [slug]")

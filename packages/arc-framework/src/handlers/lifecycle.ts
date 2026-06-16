@@ -1,6 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
- * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` / `abandon`).
+ * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` / `reopen` /
+ * `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -44,6 +45,8 @@ import { runDemote, runPromote, type BacklogMoveResult } from "../lib/work-unit/
 import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
+import { runReopen } from "../lib/work-unit/verbs/reopen.js";
+import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -386,6 +389,67 @@ export async function handleResume(slug: string | undefined): Promise<void> {
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Phase move (withdrawal) — `reopen`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc reopen`. */
+export interface ReopenOptions {
+  keepPr?: boolean;
+}
+
+/**
+ * Resolve whether the target WU's PR has merged — the `pr-unmerged` guard input.
+ * Reads the WU's branch from its active meta and queries live PR disposition via
+ * `gh`. Returns `undefined` (unknown) when the branch is unresolved or `gh` / the
+ * remote is unavailable, so the reopen degrades open rather than blocking; only a
+ * positively-merged PR (the guard's refusal) is reported as `true`.
+ */
+async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
+  let branch: string | null;
+  try {
+    branch = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`))).Branch;
+  } catch {
+    return undefined;
+  }
+  if (branch === null || branch === "[none]") return undefined;
+  try {
+    const facts = await createGhWorkUnitPrSource(base.io.exec)([branch]);
+    return facts.get(branch)?.merged;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * `arc reopen [slug]` — withdraw an `Integrating` WU back to `Active` for more work
+ * (defaults to the current WU). Resolves the PR's merge fact via `gh` (never
+ * fabricated), degrading to unknown when `gh` / the remote is unavailable so the
+ * reopen still proceeds; a positively-merged PR is refused — post-merge rework is a
+ * new origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
+ */
+export async function handleReopen(slug: string | undefined, opts: ReopenOptions): Promise<void> {
+  p.intro("arc reopen");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("reopen", slug, base.cwd);
+  if (target === null) return;
+
+  const prMerged = await resolvePrMerged(base, target);
+  const { executor } = await buildExecutor(base);
+  const result = await runReopen(executor, {
+    name: target,
+    prMerged,
+    withdrawMode: opts.keepPr === true ? "draft" : "close",
+  });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Reopened", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
 // ---------------------------------------------------------------------------

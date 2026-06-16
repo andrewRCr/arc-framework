@@ -85,6 +85,20 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
   planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
 }));
 
+const mockRunReopen = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
+  runReopen: (...a: unknown[]) => mockRunReopen(...a),
+}));
+
+// The `gh`-backed PR source feeds the `pr-unmerged` guard input; the factory returns
+// the source fn, so handler tests drive merge state (and gh-failure degradation) by
+// resolving / rejecting that fn.
+const mockPrSource = vi.fn();
+const mockCreateGhWorkUnitPrSource = vi.fn();
+vi.mock("../../../src/lib/session-init/work-unit-pr-source.js", () => ({
+  createGhWorkUnitPrSource: (...a: unknown[]) => mockCreateGhWorkUnitPrSource(...a),
+}));
+
 // The slug→state resolver feeds the handler's impact-plan composition; keep the
 // rest of the resolver real (the dispatch core's `deriveState` rides on it).
 const mockResolveSlugState = vi.fn();
@@ -102,6 +116,7 @@ const {
   handleActivate,
   handleDeactivate,
   handleAbandon,
+  handleReopen,
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
@@ -119,6 +134,9 @@ beforeEach(() => {
   mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
+  mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
+  mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
+  mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
 });
 
 afterEach(() => {
@@ -257,5 +275,41 @@ describe("handleAbandon", () => {
     expect(mockRunAbandon).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleReopen", () => {
+  it("reopens an unmerged WU, forwarding the resolved merge fact and the default close mode", async () => {
+    await handleReopen("foo", {});
+    expect(mockRunReopen).toHaveBeenCalledTimes(1);
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo", prMerged: false, withdrawMode: "close" });
+  });
+
+  it("forwards the draft withdrawal mode under --keep-pr", async () => {
+    await handleReopen("foo", { keepPr: true });
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ withdrawMode: "draft" });
+  });
+
+  it("forwards a merged PR fact and surfaces the resulting rejection", async () => {
+    mockPrSource.mockResolvedValueOnce(new Map([["feat/foo", { merged: true }]]));
+    mockRunReopen.mockResolvedValueOnce({ status: "rejected", reason: "the PR has already merged — back out via a new WU." });
+    await handleReopen("foo", {});
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ prMerged: true });
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("degrades the merge fact to undefined when gh is unavailable, still reopening", async () => {
+    mockPrSource.mockRejectedValueOnce(new Error("gh: command not found"));
+    await handleReopen("foo", {});
+    expect(mockRunReopen).toHaveBeenCalledTimes(1);
+    expect(mockRunReopen.mock.calls[0]?.[1]?.prMerged).toBeUndefined();
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo", withdrawMode: "close" });
+  });
+
+  it("defaults a bare invocation to the current worktree's WU", async () => {
+    await handleReopen(undefined, {});
+    expect(mockRunReopen).toHaveBeenCalledTimes(1);
+    expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
 });

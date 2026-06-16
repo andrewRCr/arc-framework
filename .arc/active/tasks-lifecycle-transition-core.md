@@ -451,16 +451,14 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
   `runAbandon` cascade and `confirmation` guard already existed from Phase 4, so this is the command / judgment layer
   only — `planAbandon` shares the verb's existing teardown-state sets so the plan can't drift from the actual cascade.
 
-### `[ ]` **5.R.5 `reopen` command — merge-fact read**
+### `[x]` **5.R.5 `reopen` command — merge-fact read**
 
 - _Goal:_ `arc reopen [<slug>]` withdraws an `Integrating` WU to `Active`, resolving the merge fact and forwarding the
   withdrawal mode — the CLI binding for the 4.4 transition.
 
-- _Note:_ Split into a foundational increment (5.R.5.a — the deferred `withdraw-pr` executor binding) and the
-  command-surface increment (5.R.5.b), mirroring 5.R.3's a/b shape. Discovered at task entry: the `withdraw-pr`
-  side-effect the `reopen` edge declares is still declared-but-unbound in `buildExecutorContext` (deferred to "the
-  phase that wires those verbs"), exactly as `discharge-dep-edges` was before 5.R.3.a. The `reopen` command can't
-  dispatch until its side-effect handler is registered.
+- _Note:_ Split a/b (foundational `withdraw-pr` binding, then the command surface) — the `reopen` edge's `withdraw-pr`
+  side-effect was still declared-but-unbound in `buildExecutorContext`, the same deferral `discharge-dep-edges` carried
+  before 5.R.3.a.
 
     - `[x]` **5.R.5.a `withdraw-pr` executor binding** — registered the `withdraw-pr` `SideEffectHandler` in
       `buildExecutorContext`: it reads the WU's `Branch` from its active meta, calls `withdrawPr` with
@@ -469,11 +467,11 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
       surfaces an advisory without calling `gh`. Closes the gap `discharge-dep-edges` left open (the last deferred
       side-effect binding).
 
-    - `[ ]` **5.R.5.b `reopen` command** — `handleReopen` (context-defaulting) resolves the `pr-unmerged` guard input
-      via a `gh` read (the read-side `gh` model, `work-unit-pr-source.ts` pattern), degrading safely when `gh` /
-      remote is absent; a merged PR is refused (post-merge rework is a new origin-linked WU, §8). Withdrawal mode
-      (`close` default / `--keep-pr` → `draft`) is forwarded to `runReopen`; plus `cli.ts` registration.
-        - Build `test-first`: an unmerged `Integrating` WU reopens (mode forwarded); a merged PR is refused.
+    - `[x]` **5.R.5.b `reopen` command** — `handleReopen` (context-defaulting, defaults to the current WU) resolves
+      the `pr-unmerged` guard input via `createGhWorkUnitPrSource` (the read-side `gh` model), degrading the merge
+      fact to unknown when the branch is unresolved or `gh` / the remote is unavailable so the reopen proceeds; a
+      positively-merged PR drives the guard's refusal. Withdrawal mode (`close` default / `--keep-pr` → `draft`) is
+      forwarded to `runReopen`; registered `arc reopen [slug]` in `cli.ts`.
 
 ### `[ ]` **5.R.6 Re-point `draft-design`'s stub leg**
 
