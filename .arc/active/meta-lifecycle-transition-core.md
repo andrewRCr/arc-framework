@@ -11,15 +11,15 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** Task 5.R.3 — Register the non-destructive verb commands (`stub` / `promote` / `demote` /
-  `park` / `resume` / `activate` / `deactivate` as top-level CLI commands over the shared dispatch scaffold), plus
-  5.R.3.a's `runActivate` verb + `discharge-dep-edges` binding and 5.R.2's dispatch scaffold / 5.R.1's handler rename
-- **Next Task:** `Task 5.R.4 — abandon command — destructive-cascade gate (line ~428)`
+- **Last Completed:** Task 5.R.6 — Re-point `draft-design`'s stub leg, completing Phase 5.R (5.R.4 `abandon`
+  command + destructive-cascade gate, 5.R.5 `reopen` command + the foundational `withdraw-pr` executor binding,
+  5.R.6 stub-leg re-point)
+- **Next Task:** `Task 6.1 — archive sweep + dated-path computation in the executor (line ~491)`
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.R.4 — `arc abandon <slug>` prints the cascade/impact plan (branch local+remote,
-  worktree, artifacts, user-workspace, ROADMAP row) and refuses without `--yes`; the `confirmation` guard (built in
-  4.6) reads `--yes` as its `inputs` value, the executor stays pure mechanics. Then 5.R.5 (`reopen` merge-fact read),
-  5.R.6 (re-point `draft-design` stub leg) close Phase 5.R before Phase 6.
+- **Next Action:** Start Task 6.1 — compute + execute the `archive` relocation in the executor: the dated
+  `completed/{YYYY-qN}/{NN}_{name}/` destination from an injected clock + `completed-index.ts`'s quarter scan, the
+  `relocate-artifacts` move, and the context-defaulting `arc archive` command bound alongside. Then 6.2 (cohort-doc
+  archival sweep), 6.3 (slug→state read surface), 6.4 (re-point existing workflows) before Phase 7.
 
 ---
