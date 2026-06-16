@@ -1,8 +1,8 @@
 # Metadata: lifecycle-transition-core
 
-| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
-|-----------|-----------|----------------------------------|-----------|--------------|
-| `Active`  | `andrew`  | `feat/lifecycle-transition-core` | `Novel`   | `P1`         |
+| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
+|---------------|-----------|----------------------------------|-----------|--------------|
+| `Integrating` | `andrew`  | `feat/lifecycle-transition-core` | `Novel`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** `lifecycle-state-resolver`
