@@ -772,10 +772,22 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       `runPark` split into verb-orchestrated `parkActive` + executor-routed `parkPlanning`; new cross-worktree
       source-meta resolution + pointer-record fs seam in the handler.
 
-    - `[ ]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
+    - `[x]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
       run-context (6.7.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
       (not test-first). Author to the established re-point convention (6.6.a–e): call `arc park`; the executor owns
       the relocate / branch-preserve / pointer-record write; push legs + judgment stay in the workflow.
+
+        - _Outcome:_ `park-work-unit.md` authored in both Framework copies (byte-identical) as a thin v1: the
+          phase-polymorphic gate (park@Active preserve-branch + pointer-record / park@Planning relocate
+          `active/ → backlog/planned/`), the judgment step (`--reason` required + the resume-vs-`abandon`
+          commitment), and a **base-checkout run-context** (handler-enforced for park@Active; prescribed for
+          park@Planning too, so the verb-staged result stays committable after the worktree teardown). Calls
+          `arc park {name} --reason` — the verb owns relocate / branch-preserve / pointer-record / teardown /
+          side-effects (stages, never commits); the workflow owns the ship (`workflowCommit` + ROADMAP **Parked**
+          bucket regen; full-mode grooming PR on the auto-merge lane). Reuses `decompose-work-unit.md`'s
+          `#the-park-exit-block` by reference rather than re-authoring; `Integrating` gated to `arc reopen` first.
+          `pre-push-review` declared. Surfaced: `reopen` ships a verb but has no ceremony workflow (gap of the same
+          shape as the park/resume slip).
 
     - `[ ]` **6.7.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
       re-attach orchestration. Markdown + wiring (not test-first).
