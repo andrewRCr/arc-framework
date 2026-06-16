@@ -40,8 +40,8 @@ idea. Act on the emitted `route`:
   a degenerate context). Don't draft here. Surface the route by WU-worthiness and **confirm with the developer**
   before acting — the mechanic resolved the context, but the leg is judgment:
     - **start now** — WU-worthy → `arc start <name>`, then draft on its branch.
-    - **stub** — defer → mint a `provisional` / `planned` backlog stub; when `draftPresent`, fold the existing
-      draft in, then graduate via `init` (or keep drafting first).
+    - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
+      backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 ## Resolve depth & Class

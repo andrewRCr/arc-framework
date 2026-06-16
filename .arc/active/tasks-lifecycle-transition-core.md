@@ -473,14 +473,14 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
       positively-merged PR drives the guard's refusal. Withdrawal mode (`close` default / `--keep-pr` → `draft`) is
       forwarded to `runReopen`; registered `arc reopen [slug]` in `cli.ts`.
 
-### `[ ]` **5.R.6 Re-point `draft-design`'s stub leg**
+### `[x]` **5.R.6 Re-point `draft-design`'s stub leg**
 
 - _Goal:_ With `arc stub` now shipped (5.R.3), the planning-entry gate's redirect surface names the concrete command
   instead of the generic stub action.
 
-- _Note:_ Update `draft-design.md`'s "Planning-entry gate" § stub leg (both the package source and `.arc/` copies) to
-  call `arc stub <name>` with its commitment + priority `inputs`, then graduate via `init`. Markdown + package-sync
-  only — no code.
+- _Outcome:_ The `draft-design.md` Planning-entry-gate stub leg now names `arc stub <name>` with its
+  `--commitment provisional|planned` / `--priority` inputs (mirroring the `arc start <name>` start-now leg above
+  it), in both the package source and `.arc/` copies. Markdown + package-sync only.
 
 ## **Phase 6:** Terminal sweep, read relocation & workflow re-pointing
 
