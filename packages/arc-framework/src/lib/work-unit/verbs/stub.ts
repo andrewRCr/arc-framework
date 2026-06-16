@@ -82,6 +82,15 @@ export type StubResult =
  * @returns A rejection (missing judgment) or the scaffolded meta's repo-relative path.
  */
 export async function runStub(ctx: StubContext, params: StubParams): Promise<StubResult> {
+  // `name` flows straight into directory/file path composition below, so reject
+  // anything but a slug before it can escape `.arc/backlog/` via separators or
+  // dot-segments and write an arbitrary repo path.
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(params.name)) {
+    return {
+      status: "rejected",
+      reason: "`stub` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
+    };
+  }
   if (params.commitment !== "provisional" && params.commitment !== "planned") {
     return {
       status: "rejected",
