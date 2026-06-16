@@ -540,10 +540,11 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   `spec-lifecycle-transition-core.md` §5 (in-place opt-out) + §4 (reconcile-branch create realizations). The
   Materialize cross-machine twin is downstream (captured for `finalize-parallelism`).
 
-    - `[ ]` **6.4.a `reconcile-branch` in-place create** — the `create` op gains a current-worktree `git checkout
-      -b` realization (today a no-op deferred to the spawn leg), selected on the no-spawn path.
-      Build `test-first`: in-place create leaves the new branch checked out in the current worktree; the
-      spawn-backed path stays inert.
+    - `[x]` **6.4.a `reconcile-branch` in-place create** — the `create` op now carries an optional
+      `inPlace: { branch }` operand: present → a current-worktree `git checkout -b <branch>` (off HEAD); absent →
+      inert spawn-backed path (the worktree-spawn `-b` owns the birth), as before. Operand-presence keys the
+      realization, so the edge keeps declaring `reconcileBranch: "create"` on both paths and the executor's
+      mutation-match check is untouched (no executor change). The 6.4.b/c in-place arms supply the `inPlace` branch.
 
     - `[ ]` **6.4.b `graduate --here`** — the graduate arm threads a no-spawn variant composing relocate + in-place
       branch create, skipping `reconcile-worktree.spawn`; CLI `--here` flag; the occupancy guard rejects a checkout
