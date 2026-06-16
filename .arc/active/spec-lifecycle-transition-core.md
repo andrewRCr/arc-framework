@@ -204,7 +204,10 @@ by construction:
 
 - **`relocate-artifacts`** — the `git mv` of the WU's artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`,
   companions): `backlog ↔ active`, `active → completed`.
-- **`reconcile-branch`** — create / rename / delete / **preserve**, phase-and-direction-conditioned.
+- **`reconcile-branch`** — create / rename / delete / **preserve**, phase-and-direction-conditioned. *Create* is
+  realized two ways: **spawn-backed** (the default — the branch is born from `reconcile-worktree`'s `git worktree
+  add -b`, so the standalone create leg is inert) and **in-place** (`--here` — a current-worktree `git checkout
+  -b`, no spawn; see §5).
 - **`reconcile-worktree`** — spawn / teardown, **including execution-locus relocation** (§ 7): a transition
   tearing down the worktree it runs from must hop the agent's locus out first.
 - **`set-phase`** — the meta `State` write (phase-axis mutator, no location move).
@@ -261,6 +264,21 @@ Path B, errand→WU promotion all invoke it). `stub` / `start` are the judgment-
 `start` dispatch is **mode-invariant**; the sole protection variance is branch-cut *timing*, owned by the
 planning-entry gate (§11) and §12 — under partial, pre-formalization drafting may precede the branch; the
 tracked-WU branch is then cut identically in both modes.
+
+**In-place opt-out (`--here`).** The `graduate` and `resume` arms spawn a dedicated worktree **by default**
+(isolation-by-default), but accept a `--here` flag to execute **in place** — cut/attach the branch in the current
+checkout, no spawn — mirroring the door `create-new` already exposes via cold-start. The spawn-vs-in-place axis is
+**orthogonal to protection mode**: both modes default to spawn and both accept `--here`. In-place reuses the same
+executor legs **minus the spawn**: `relocate-artifacts` + `reconcile-branch` *create* (the in-place realization, §4)
+for graduate; the branch re-attach for resume. It honors the **worktree-occupancy guard** — refused when the
+current checkout already holds an active WU (graduate into a base-sitting checkout; spawn or park first otherwise).
+This serves **WU-grade** in-place development (sequential single-checkout work; heavy-toolchain repos avoiding the
+per-worktree dependency-provisioning tax; resuming parked work in one checkout); the atomic 5-minute case is
+**errands'**, not this. It is **locus-only** — the branch, the `(phase, location)` record, and notes-sync are
+identical to the spawn path, so cross-machine coherence is unaffected, and in-place additionally sidesteps the
+`worktree.location_template` path-portability wrinkle. The cross-machine **Materialize** pickup is the same
+spawn-vs-in-place question on a remote WU; mirroring `--here` there is downstream (in-flight-awareness /
+cross-machine), not this WU.
 
 ### 6. `park` — phase-polymorphic, with the pointer-record
 

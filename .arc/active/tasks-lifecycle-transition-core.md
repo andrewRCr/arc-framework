@@ -378,7 +378,7 @@ share `resolveWriteContext`.
 
 _Purpose:_ Surface the Phase-4 lifecycle verbs as user-facing CLI commands — the command layer for the verb set
 whose logic, executor dispatch, and guards already exist (Phase 3–4). This phase is the handlers, the registration,
-and the CLI shape; no new transition logic. Sequenced before Phase 6 because the workflow re-pointing (6.4) re-points
+and the CLI shape; no new transition logic. Sequenced before Phase 6 because the workflow re-pointing (6.5) re-points
 ceremonies onto these commands, so they must exist first.
 
 _Design decisions:_ The verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
@@ -485,8 +485,9 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
 ## **Phase 6:** Terminal sweep, read relocation & workflow re-pointing
 
 _Purpose:_ Migrate the deterministic terminal mechanics into the executor, move the slug→state read into its verb
-family, and re-point the existing markdown ceremonies to call the executor rather than re-author relocation inline
-— leaving the lifecycle corpus locally consistent (the cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
+family, add the in-place (`--here`) opt-out the re-point depends on, and re-point the existing markdown ceremonies
+to call the executor rather than re-author relocation inline — leaving the lifecycle corpus locally consistent (the
+cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 
 ### `[x]` **6.1 `archive` sweep + dated-path computation in the executor**
 
@@ -499,7 +500,7 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
   computes the destination and dispatches the edge's full encoding through the executor — `relocate` to the dated
   path, branch delete, worktree teardown, `State → Shipped`, soft-field reset. `arc archive [slug]`
   (context-defaulting) bound via `handleArchive`. Self-teardown of the current primary worktree is wired but left to
-  the integration context that re-points the ceremony (6.4c).
+  the integration context that re-points the ceremony (6.5c).
 
 ### `[x]` **6.2 Cohort-doc archival sweep**
 
@@ -526,7 +527,36 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
   `status <slug>` and adds a bare-`arc status` assertion (no top-level `slug` key — the positional left it
   untouched).
 
-### `[ ]` **6.4 Re-point existing workflows to the executor**
+### `[ ]` **6.4 In-place (`--here`) opt-out for `graduate` / `resume`**
+
+- _Goal:_ The begin-work transitions accept a `--here` flag to execute in the current checkout without spawning a
+  worktree (spawn stays the default), so single-checkout / heavy-toolchain WU development re-points to the executor
+  rather than the inline `git mv` Success Criterion 1 forbids.
+
+- _Note:_ Locus-only — branch, `(phase, location)` record, and notes-sync are identical to the spawn path
+  (cross-machine coherence unaffected; in-place sidesteps the `location_template` path-portability wrinkle). The
+  atomic in-place case stays **errands'**; this is WU-grade. Honors the worktree-occupancy guard (refuse a checkout
+  already holding an active WU). Spawn-vs-in-place is orthogonal to protection mode. See
+  `spec-lifecycle-transition-core.md` §5 (in-place opt-out) + §4 (reconcile-branch create realizations). The
+  Materialize cross-machine twin is downstream (captured for `finalize-parallelism`).
+
+    - `[ ]` **6.4.a `reconcile-branch` in-place create** — the `create` op gains a current-worktree `git checkout
+      -b` realization (today a no-op deferred to the spawn leg), selected on the no-spawn path.
+      Build `test-first`: in-place create leaves the new branch checked out in the current worktree; the
+      spawn-backed path stays inert.
+
+    - `[ ]` **6.4.b `graduate --here`** — the graduate arm threads a no-spawn variant composing relocate + in-place
+      branch create, skipping `reconcile-worktree.spawn`; CLI `--here` flag; the occupancy guard rejects a checkout
+      already holding an active WU.
+      Build `test-first`: `arc start <stub> --here` graduates into the current checkout (no worktree spawned);
+      refused when the checkout holds an active WU; bare `arc start <stub>` still spawns.
+
+    - `[ ]` **6.4.c `resume --here`** — the resume arm threads the no-spawn variant (re-attach the preserved branch
+      in the current checkout); CLI `--here` flag; same occupancy guard.
+      Build `test-first`: `arc resume <parked> --here` re-attaches in place (no spawn); bare `arc resume <parked>`
+      still spawns.
+
+### `[ ]` **6.5 Re-point existing workflows to the executor**
 
 - _Goal:_ The existing ceremonies call the executor instead of re-authoring relocation/branch logic inline — ending
   the per-workflow duplication, with each workflow's local docs updated to match.
@@ -534,18 +564,19 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
 - _Note:_ Re-pointing only — no new transition logic; the workflows shrink to judgment + an executor call. Existing
   integration/E2E coverage exercises the re-pointed paths (not test-first — markdown + wiring edits).
 
-    - `[ ]` **6.4.a `init-work-unit` Path A** → call the graduate transition (relocate + `reconcile-branch`).
+    - `[ ]` **6.5.a `init-work-unit` Path A** → call the graduate transition for both the spawn (`arc start`) and
+      in-place (`--here`, 6.4) paths (relocate + `reconcile-branch`), replacing the inline `git mv`.
 
-    - `[ ]` **6.4.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
+    - `[ ]` **6.5.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
       `reconcile-worktree`); the full decompose matrix rewrite is the sibling `decompose-matrix` member's, not
       this WU's.
 
-    - `[ ]` **6.4.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
+    - `[ ]` **6.5.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
 
-    - `[ ]` **6.4.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
+    - `[ ]` **6.5.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
       (`activate` fires the dep-edge discharge, 4.7).
 
-    - `[ ]` **6.4.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
+    - `[ ]` **6.5.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
 
 ## **Phase 7:** Verification
