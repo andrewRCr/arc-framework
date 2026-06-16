@@ -31,9 +31,11 @@ import {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleAbandon,
   type StubOptions,
   type ParkOptions,
   type ActivateOptions,
+  type AbandonOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -149,6 +151,12 @@ program
   .command("deactivate [slug]")
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
   .action((slug: string | undefined) => handleDeactivate(slug));
+
+program
+  .command("abandon [slug]")
+  .description("Destroy a pre-merge work unit (artifacts, branch, worktree) — prints the impact plan; requires --yes")
+  .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
+  .action((slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts));
 
 const errand = program
   .command("errand")

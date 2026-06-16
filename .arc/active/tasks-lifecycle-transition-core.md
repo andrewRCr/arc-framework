@@ -439,17 +439,17 @@ land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). 
       `--commitment` / `--priority`, `park` `--reason`, `activate` `--type` / `--task` / `--action` (the working branch
       composed `<type>/<slug>`).
 
-### `[ ]` **5.R.4 `abandon` command — destructive-cascade gate**
+### `[x]` **5.R.4 `abandon` command — destructive-cascade gate**
 
 - _Goal:_ `arc abandon <slug>` presents the impact plan and refuses without explicit `--yes` — the safe-by-default
   destructive gate (§7, DEV-RULES.ARC § Cascade-undo).
 
-- _Note:_ The handler (judgment layer) prints the cascade/impact plan — branch (local + remote), worktree, artifacts,
-  user-workspace, ROADMAP row — then requires `--yes`; bare `arc abandon <slug>` shows the plan and refuses (safe
-  default under non-TTY = don't destroy). The `confirmation` guard (built in 4.6) reads `--yes` as its `inputs` value;
-  the executor stays pure mechanics.
-    - Build `test-first`: bare invocation prints the plan and refuses (non-zero); `--yes` proceeds; the plan
-      enumerates the cascade for the resolved from-state.
+- _Outcome:_ Added `handleAbandon` + the `abandon [slug]` registration (`handlers/lifecycle.ts`, `cli.ts`) over a new
+  pure `planAbandon` impact-plan composer (`verbs/abandon.ts`) — it resolves the from-state, prints the per-cell
+  cascade (artifacts always; branch on planning/active/parked; worktree on planning/active; workspace + ROADMAP), and
+  refuses without `--yes`; an illegal source (`integrating` / merged) is refused outright with no plan. The
+  `runAbandon` cascade and `confirmation` guard already existed from Phase 4, so this is the command / judgment layer
+  only — `planAbandon` shares the verb's existing teardown-state sets so the plan can't drift from the actual cascade.
 
 ### `[ ]` **5.R.5 `reopen` command — merge-fact read**
 

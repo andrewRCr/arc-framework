@@ -1,6 +1,6 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
- * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate`).
+ * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -19,7 +19,7 @@
  */
 
 import { basename, join } from "node:path";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, rm, rmdir } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
@@ -31,6 +31,7 @@ import { resolvePrimaryWorktreePath, resolveWorktreePathsByBranch } from "../lib
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
+import { resolveSlugState } from "../lib/work-unit/lifecycle-resolver.js";
 import {
   DISPATCH_MODE,
   findVerbCandidates,
@@ -42,6 +43,7 @@ import { runActivate, runDeactivate } from "../lib/work-unit/verbs/activate-deac
 import { runDemote, runPromote, type BacklogMoveResult } from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
+import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -384,4 +386,69 @@ export async function handleResume(slug: string | undefined): Promise<void> {
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Destructive — `abandon`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc abandon`. */
+export interface AbandonOptions {
+  yes?: boolean;
+}
+
+/**
+ * `arc abandon <slug>` — destroy a pre-merge work unit, leaving no residue. The
+ * judgment layer of the destructive gate: resolve the source state, print the
+ * cascade/impact plan it implies, then refuse without an explicit `--yes` (the safe
+ * non-TTY default — a bare `arc abandon <slug>` shows the plan and bails). An
+ * illegal source (`integrating` / merged) is refused outright, printing no plan:
+ * post-merge backout is a new origin-linked work unit, never a same-unit abandon.
+ * Confirmation reaches the pure executor as the `confirmation` guard's `inputs` value.
+ */
+export async function handleAbandon(slug: string | undefined, opts: AbandonOptions): Promise<void> {
+  p.intro("arc abandon");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("abandon", slug, base.cwd);
+  if (target === null) return;
+
+  // Resolve the source state to compose a truthful impact plan — the cascade legs
+  // vary by cell (a backlog stub removes only artifacts; a started WU also tears
+  // down its branch and worktree; a parked WU deletes its branch but has none).
+  const index = await buildLifecycleIndex({ cwd: base.cwd, fs: lifecycleFs });
+  const state = resolveSlugState(index, target);
+  const entry = index.get(target);
+  const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
+
+  const plan = planAbandon(state, branch);
+  if (!plan.legal) {
+    refuse(
+      state === "nonexistent"
+        ? `\`${target}\` is not a known work unit.`
+        : `\`abandon\` cannot act on a \`${state}\` work unit — withdraw an unmerged \`Integrating\` WU with \`arc reopen\` first; `
+          + `post-merge backout is a new origin-linked work unit.`,
+    );
+    return;
+  }
+
+  // Present the destructive cascade before any mutation, then gate on explicit confirmation.
+  p.note(plan.lines.join("\n"), `Abandon \`${target}\` — impact plan`);
+  if (opts.yes !== true) {
+    refuse(`Refusing to abandon \`${target}\` without \`--yes\` (safe default). Re-run with \`--yes\` to proceed.`);
+    return;
+  }
+
+  const worktreePath = await resolveWuWorktreePath(base, target);
+  const { executor } = await buildExecutor(base);
+  const result = await runAbandon(
+    { executor, fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) } },
+    { name: target, confirmed: true, worktreePath, currentLocus: base.cwd },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Abandoned", [`Work unit: ${target}`], result.outcome);
 }

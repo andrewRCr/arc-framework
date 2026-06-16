@@ -43,6 +43,7 @@ import {
 } from "../lifecycle-executor.js";
 import { resolveSlugState, type LifecycleState } from "../lifecycle-resolver.js";
 import { artifactMatcher } from "../mutators/relocate-artifacts.js";
+import { validFromStates } from "./dispatch.js";
 
 /** Filesystem seam for the `remove` artifact disposition — list, delete files, drop the emptied subdir. */
 export interface AbandonFs {
@@ -85,6 +86,35 @@ const BRANCH_TEARDOWN: ReadonlySet<LifecycleState> = new Set(["planning", "activ
 
 /** Source states whose abandon cascade also tears down a worktree (started WU only). */
 const WORKTREE_TEARDOWN: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
+
+/** The destructive-cascade impact preview for an `abandon` — its legality and the cascade lines. */
+export interface AbandonPlan {
+  /** Whether `abandon` may legally act on the resolved state (a pre-merge cell). */
+  legal: boolean;
+  /** The cascade lines to present before requiring confirmation (empty when illegal). */
+  lines: string[];
+}
+
+/**
+ * Compose the destructive-cascade impact plan for a resolved source state — the
+ * teardown legs that will fire, gated on the state's table cell (a backlog stub
+ * removes only artifacts; a started WU also tears down its branch and worktree; a
+ * parked WU deletes its branch but has no worktree). Pure: the handler resolves the
+ * state + branch, prints these lines, and refuses without explicit confirmation.
+ *
+ * @param state - The target WU's resolved lifecycle state.
+ * @param branch - The WU's branch (for the branch-delete leg), or null when none.
+ * @returns The legality verdict and the impact-plan lines (empty when illegal).
+ */
+export function planAbandon(state: LifecycleState, branch: string | null): AbandonPlan {
+  if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
+  const lines = ["Artifacts: remove the work unit's artifact set"];
+  if (BRANCH_TEARDOWN.has(state)) lines.push(`Branch:    delete \`${branch ?? "[none]"}\` (local + remote)`);
+  if (WORKTREE_TEARDOWN.has(state)) lines.push("Worktree:  tear down the work unit's worktree");
+  lines.push("Workspace: remove the user session workspace");
+  lines.push("ROADMAP:   remove its row");
+  return { legal: true, lines };
+}
 
 /**
  * Run `abandon`: resolve the source state, compose the per-cell teardown operands,

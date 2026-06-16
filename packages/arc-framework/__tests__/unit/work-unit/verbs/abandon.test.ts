@@ -20,7 +20,7 @@ import type {
 } from "../../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
-import { runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
+import { planAbandon, runAbandon, type AbandonContext, type AbandonParams } from "../../../../src/lib/work-unit/verbs/abandon.js";
 
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
@@ -215,6 +215,40 @@ describe("runAbandon — parked WU", () => {
     if (result.status !== "abandoned") return;
     expect(calls).toContain("branch:delete:feat/foo");
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+  });
+});
+
+describe("planAbandon — the impact plan per from-state", () => {
+  it("a started WU (active) plans branch + worktree teardown alongside artifacts", () => {
+    const plan = planAbandon("active", "feat/foo");
+    expect(plan.legal).toBe(true);
+    expect(plan.lines.some((l) => /Branch:.*feat\/foo.*local \+ remote/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Worktree:/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
+  });
+
+  it("a backlog stub (provisional) plans only the artifact removal — no branch or worktree", () => {
+    const plan = planAbandon("provisional", null);
+    expect(plan.legal).toBe(true);
+    expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Branch:|Worktree:/.test(l))).toBe(false);
+  });
+
+  it("a parked WU plans branch teardown but no worktree (parked has none)", () => {
+    const plan = planAbandon("parked", "feat/foo");
+    expect(plan.legal).toBe(true);
+    expect(plan.lines.some((l) => /Branch:/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Worktree:/.test(l))).toBe(false);
+  });
+
+  it("an illegal source (integrating) yields no plan", () => {
+    const plan = planAbandon("integrating", "feat/foo");
+    expect(plan.legal).toBe(false);
+    expect(plan.lines).toEqual([]);
+  });
+
+  it("a merged / shipped WU yields no plan", () => {
+    expect(planAbandon("shipped", null).legal).toBe(false);
   });
 });
 

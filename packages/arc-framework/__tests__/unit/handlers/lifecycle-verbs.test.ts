@@ -10,10 +10,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
+const mockNote = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
-  note: vi.fn(),
+  note: (...a: unknown[]) => mockNote(...a),
   log: { error: (...a: unknown[]) => mockLogError(...a), info: (...a: unknown[]) => mockLogInfo(...a) },
 }));
 
@@ -77,6 +78,21 @@ vi.mock("../../../src/lib/work-unit/verbs/activate-deactivate.js", () => ({
   runDeactivate: (...a: unknown[]) => mockRunDeactivate(...a),
 }));
 
+const mockRunAbandon = vi.fn();
+const mockPlanAbandon = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
+  runAbandon: (...a: unknown[]) => mockRunAbandon(...a),
+  planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
+}));
+
+// The slug→state resolver feeds the handler's impact-plan composition; keep the
+// rest of the resolver real (the dispatch core's `deriveState` rides on it).
+const mockResolveSlugState = vi.fn();
+vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", async (orig) => ({
+  ...(await orig<typeof import("../../../src/lib/work-unit/lifecycle-resolver.js")>()),
+  resolveSlugState: (...a: unknown[]) => mockResolveSlugState(...a),
+}));
+
 const {
   handleStub,
   handlePromote,
@@ -85,6 +101,7 @@ const {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleAbandon,
 } = await import("../../../src/handlers/lifecycle.js");
 
 const okOutcome = { status: "ok", advisories: [] as string[] };
@@ -99,6 +116,9 @@ beforeEach(() => {
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
+  mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
+  mockResolveSlugState.mockReturnValue("active");
+  mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
 });
 
 afterEach(() => {
@@ -203,5 +223,39 @@ describe("handleDeactivate", () => {
     await handleDeactivate("foo");
     expect(mockRunDeactivate).toHaveBeenCalledTimes(1);
     expect(mockRunDeactivate.mock.calls[0]?.[1]).toEqual({ name: "foo" });
+  });
+});
+
+describe("handleAbandon", () => {
+  it("prints the impact plan and refuses without --yes, never dispatching the cascade", async () => {
+    await handleAbandon("foo", {});
+    expect(mockNote).toHaveBeenCalledTimes(1);
+    expect(mockRunAbandon).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("dispatches runAbandon with the confirmation flag when --yes is given", async () => {
+    await handleAbandon("foo", { yes: true });
+    expect(mockNote.mock.calls[0]?.[1]).toContain("impact plan");
+    expect(mockRunAbandon).toHaveBeenCalledTimes(1);
+    expect(mockRunAbandon.mock.calls[0]?.[1]).toMatchObject({ name: "foo", confirmed: true });
+  });
+
+  it("refuses an illegal source state up front, printing no plan and never dispatching", async () => {
+    mockResolveSlugState.mockReturnValue("integrating");
+    mockPlanAbandon.mockReturnValue({ legal: false, lines: [] });
+    await handleAbandon("foo", { yes: true });
+    expect(mockNote).not.toHaveBeenCalled();
+    expect(mockRunAbandon).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("a bare invocation (no slug) surfaces the candidate list and never dispatches", async () => {
+    await handleAbandon(undefined, {});
+    expect(mockRunAbandon).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });
