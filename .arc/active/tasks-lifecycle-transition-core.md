@@ -600,7 +600,7 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   `deactivate` / `reopen` phase-return edges. The `Current Workflow` / `Design`-event-pointer fields stay
   `planning-pipeline-readiness`'s.
 
-### `[ ]` **6.6 Re-point existing workflows to the executor**
+### `[x]` **6.6 Re-point existing workflows to the executor**
 
 - _Goal:_ The existing ceremonies call the executor instead of re-authoring relocation/branch logic inline — ending
   the per-workflow duplication, with each workflow's local docs updated to match.
