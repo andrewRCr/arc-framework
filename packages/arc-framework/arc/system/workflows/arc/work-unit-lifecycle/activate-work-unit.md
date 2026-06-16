@@ -66,27 +66,29 @@ re-checks overlap, which may have drifted since the WU was scoped at pick/scaffo
 surface any overlap (a foreign-owned collision can warrant parking the WU until that unit integrates) and proceed
 unless the operator redirects.
 
-### 4) State-flip + Branch + Next Action edits + draft-doc removal
+### 4) Run the `activate` transition + settle Class + draft-doc removal
 
-Edit `active/meta-{name}.md`:
+Compose the activation inputs (judgment — never fabricated):
 
-- `**State:** Planning` → `**State:** Active`
-- `**Branch:** plan/{name}` → `**Branch:** {type}/{name}` (matches the Step 5 rename)
-- `**Next Action:**` refresh to point at the first incomplete task in `tasks-{name}.md` (e.g.,
-  `Begin Task 1.1 — <task description>`). The pre-activation pointer named this workflow; post-activation
-  it should describe the next executable step.
+- `<type>` — working-branch type per [`branch-format`][branch-format]; composes the `{type}/{name}` working branch
+- first task — the first incomplete task in `tasks-{name}.md` (e.g., `Begin Task 1.1 — <task description>`)
+- next action — the post-activation pointer (the next executable step, not this workflow)
+
+```bash
+arc activate {name} --type {type} --task "{first task}" --action "{next action}"
+```
+
+The executor fires the full `activate` edge: flips `**State:** Planning → Active`, rotates
+`**Branch:** plan/{name} → {type}/{name}` **and** renames the local branch, writes `**Next Task:**` /
+`**Next Action:**`, and discharges satisfied `**Depends On:**` edges. `{name}` defaults to the current worktree's WU.
+
+Then settle the judgment + cleanup the executor doesn't own:
+
 - `**Class:**` settle via [`classify-work-unit`][classify-work-unit] — pre-implementation is the last cheap
   confirm-or-ratchet before execution. Ratchet up to the realized floor when planning authored design since
   the last touchpoint; otherwise confirm the value holds.
-
-Remove any residual draft-doc:
-
-```bash
-git rm .arc/active/draft-{name}.md
-```
-
-Safety-catch — the draft-doc should already be absent (deleted at PRD creation per `create-spec.md`); this covers
-paths that skipped the create-PRD boundary.
+- Remove any residual draft-doc — `git rm .arc/active/draft-{name}.md`. Safety-catch: the draft-doc should already
+  be absent (deleted at PRD creation per `create-spec.md`); this covers paths that skipped the create-PRD boundary.
 
 Stage all edits.
 
@@ -97,15 +99,17 @@ Stage all edits.
 chore(arc): activate {work-name} work unit
 
 - Flip State: Planning → Active
-- Branch field: plan/{name} → {type}/{name}
-- Refresh Next Action to first task
+- Rotate branch: plan/{name} → {type}/{name}
+- Set Next Task / Next Action; discharge satisfied Depends On edges
 - Settle Class (confirm-or-ratchet)
 - Remove draft-{name}.md (graduated to PRD; safety-catch)
 
 Context: meta-{name}.md (activation)
 ```
 
-### 5) Branch rename · 3-step routing
+### 5) Push the rotated branch · 2-step routing
+
+The local branch rename landed in Step 4 (executor-owned); only the remote legs remain.
 
 - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
   (established at session init), load and execute its `.actions` before the `workflowPush` push.
@@ -113,14 +117,12 @@ Context: meta-{name}.md (activation)
   Otherwise, skip.
 
 ```bash
-git branch -m plan/{name} {type}/{name}    # local rename (raw)
 git push -u origin {type}/{name}            # workflowPush
 git push origin --delete plan/{name}        # raw — destructive flag stays literal
 ```
 
-`<type>` per [`branch-format`][branch-format]. The wrapper refuses `--delete` by design, so the old-remote
-deletion stays as raw `git`. See [Work Organization Strategy § Branching][work-org-branching] for the rename's
-role in the WU lifecycle.
+The wrapper refuses `--delete` by design, so the old-remote deletion stays as raw `git`. See [Work Organization
+Strategy § Branching][work-org-branching] for the rename's role in the WU lifecycle.
 
 Reaffirm the per-WU user workspace subdir (idempotent on prior `init-work-unit` invocation;
 covers paths that activated without going through `init-work-unit` first):

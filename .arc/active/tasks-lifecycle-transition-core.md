@@ -659,9 +659,19 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           (rides the PR) and Step 13 the deferred post-merge physical teardown. Both Framework copies synced; lint
           clean.
 
-    - `[ ]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
+    - `[x]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
       (`activate` fires the dep-edge discharge, 4.7). Drop the inline branch rename **and** the inline `Branch`-field
       write — the executor owns both the rotate and the field as of 6.5.a.
+
+        - _Outcome:_ `activate-work-unit.md` Steps 4–5 and `deactivate-work-unit.md` Case A Steps 2–3 now call
+          `arc activate {name} --type/--task/--action` / `arc deactivate {name}` — the executor owns the state-flip,
+          the `Branch`-field write, the local `git branch -m` rotate, the `Next Task`/`Next Action` disposition, and
+          (activate) the `Depends On` discharge; the inline meta edits + `git branch -m` are gone. The push legs
+          (`git push -u` workflowPush + raw remote-delete) stay in the workflow — `reconcile-branch` renames locally
+          only, never pushes. Class settle, draft-doc removal, absorption cleanup, and ROADMAP regen remain workflow
+          judgment. Both Framework copies synced. _Out of scope (named only activate/deactivate):_ Case A-delete's
+          inline teardown is the `abandon` transition, not deactivate — its re-point is surfaced for separate
+          triage.
 
     - `[ ]` **6.6.e `graduate-work-unit` → `promote`** → re-point the `provisional → planned` ceremony's inline
       `git mv` to the `promote` transition (`artifacts: relocate`; shipped in `verbs/promote-demote.ts`). A
@@ -670,6 +680,25 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 
     - `[ ]` **6.6.f Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
+
+        - _Includes the 6.6.c archive un-bundle reconciliation._ `spec-lifecycle-transition-core.md` and `adr-026`
+          still describe the **bundled-teardown** model (the `archive` edge fires branch-delete + worktree-teardown
+          inline); shipped code split it — `arc archive` fires only the **mergeable sweep** (relocate → `completed/`
+          \+ `State → Shipped` \+ logical `Branch → [none]` \+ soft-reset \+ cohort sweep, riding the ship PR), while
+          **physical** branch/worktree teardown stays the integration tail's post-merge cleanup. Update the spec's
+          archive-edge description and ADR-026 Decision §3 (the "fired together so the three-encoding invariant holds
+          by construction, called by every location-moving transition" framing now carries the `→ completed/`
+          deferred-physical-teardown special-case). ADR-026 is a **shared cohort** ADR — if the amendment proves
+          cross-cutting it may fall to `lifecycle-closeout`'s consistency audit instead; anchored here for a visible
+          owner. (Captured 2026-06-16.)
+
+    - `[ ]` **6.6.g `deactivate-work-unit` Case A-delete → `abandon`** — re-point the abandon variant's inline
+      branch/worktree teardown (`git branch -D` \+ `git worktree remove` \+ remote delete) to the shipped `arc abandon`
+      transition. A distinct verb from 6.6.d's deactivate pair (destructive pre-merge teardown, no `Branch`-field
+      write), so it was held out of 6.6.d's named scope — but a hand-rolled teardown while the executor owns `abandon`
+      is the half-migration the cohort's consistency-on-exit standard absorbs (same shape as 6.6.e). At task time,
+      confirm `arc abandon`'s worktree-identity dispatch (primary vs. linked) covers Case A-delete's two arms before
+      dropping the inline blocks. Markdown + wiring. (Surfaced by the 6.6.d re-point, 2026-06-16.)
 
 ### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
 

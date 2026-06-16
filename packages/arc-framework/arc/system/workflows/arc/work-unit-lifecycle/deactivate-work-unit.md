@@ -56,14 +56,17 @@ gh pr close {pr-number} --comment "Deactivating work unit; returning to Planning
 
 See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
-### 2) State-flip + Branch field edit
+### 2) Run the `deactivate` transition
 
-Edit `.arc/active/meta-{name}.md`:
+```bash
+arc deactivate {name}
+```
 
-- `**State:** Active` → `**State:** Planning`
-- `**Branch:** {type}/{name}` → `**Branch:** plan/{name}`
+The executor fires the `deactivate` edge: flips `**State:** Active → Planning`, rotates
+`**Branch:** {type}/{name} → plan/{name}` **and** renames the local branch back, and clears the `**Next Task:**` /
+`**Next Action:**` set at activation. `{name}` defaults to the current worktree's WU.
 
-Stage both edits.
+Stage the edits.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -72,14 +75,15 @@ Stage both edits.
 chore(arc): deactivate {work-name} work unit
 
 - Flip State: Active → Planning
-- Branch field: {type}/{name} → plan/{name}
+- Rotate branch: {type}/{name} → plan/{name}
+- Clear Next Task / Next Action
 
 Context: meta-{name}.md (deactivation)
 ```
 
-### 3) Branch rename · 3-step routing
+### 3) Push the rotated branch · 2-step routing
 
-Inverse of activation:
+The local branch rename back landed in Step 2 (executor-owned); only the remote legs remain.
 
 - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
   (established at session init), load and execute its `.actions` before the `workflowPush` push.
@@ -87,13 +91,11 @@ Inverse of activation:
   Otherwise, skip.
 
 ```bash
-git branch -m {type}/{name} plan/{name}    # local rename (raw)
 git push -u origin plan/{name}              # workflowPush
 git push origin --delete {type}/{name}      # raw — destructive flag stays literal
 ```
 
-`<type>` per [`branch-format`][branch-format]. The wrapper refuses `--delete` by design, so the old-remote deletion
-stays as raw `git`.
+The wrapper refuses `--delete` by design, so the old-remote deletion stays as raw `git`.
 
 ---
 
