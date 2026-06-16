@@ -306,6 +306,19 @@ describe("runPark — park@Active", () => {
     // Teardown gates before any write — no pointer-record left behind.
     expect(writes).toEqual([]);
   });
+
+  it("rejects when the Active source has no preserved branch (resume could not re-attach)", async () => {
+    const { ctx, writes, calls } = buildCtx([ACTIVE]);
+
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor({ ...ACTIVE, branch: "[none]" }) });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/preserved branch/i);
+    // Rejected before teardown — no worktree touched, no pointer-record written.
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
 });
 
 describe("runPark — the reason is required", () => {

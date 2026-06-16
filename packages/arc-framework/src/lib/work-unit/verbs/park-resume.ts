@@ -271,6 +271,17 @@ async function parkActive(
   worktreePath: string,
   currentLocus: string,
 ): Promise<ParkResult> {
+  // An Active WU must carry its preserved branch: `resume` hard-rejects a
+  // pointer with `Branch: [none]`, so parking one would be unresumable. Reject
+  // before teardown, leaving no partial state behind.
+  const branch = sourceRecord.Branch;
+  if (branch === null || branch.trim() === "" || branch === "[none]") {
+    return {
+      status: "rejected",
+      reason: `\`${name}\` has no preserved branch in meta — refusing to park (resume would have nothing to re-attach).`,
+    };
+  }
+
   // Teardown first: its clean-guard gates the whole park before anything is
   // written, so a dirty preserved-branch worktree rejects without leaving a pointer.
   try {
@@ -283,7 +294,7 @@ async function parkActive(
   const metaPath = `${toDir}/meta-${name}.md`;
   const pointerRecord = composePointerRecord({
     name,
-    branch: sourceRecord.Branch ?? "[none]",
+    branch,
     reason,
     renderFields: renderFieldsFrom(sourceRecord),
   });
@@ -291,17 +302,25 @@ async function parkActive(
   await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), pointerRecord);
 
   const advisories: string[] = [];
+  const sideEffectsFired: SideEffectId[] = [];
   for (const id of PARK_ACTIVE_SIDE_EFFECTS) {
     const handler = ctx.executor.sideEffects?.[id];
     if (handler === undefined) continue;
-    const advisory = await handler({
-      cwd: ctx.executor.cwd,
-      slug: name,
-      from: PARK_ACTIVE_FROM,
-      to: PARK_ACTIVE_TO,
-      inputs: {},
-    });
-    if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    try {
+      const advisory = await handler({
+        cwd: ctx.executor.cwd,
+        slug: name,
+        from: PARK_ACTIVE_FROM,
+        to: PARK_ACTIVE_TO,
+        inputs: {},
+      });
+      sideEffectsFired.push(id);
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
+    } catch (err) {
+      // A side-effect failure (e.g. ROADMAP regen) is advisory, not fatal: the
+      // park's authoritative legs already landed. Surface it without unwinding.
+      advisories.push(`side-effect ${id} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   const outcome: TransitionOutcome = {
@@ -310,7 +329,7 @@ async function parkActive(
     from: PARK_ACTIVE_FROM,
     to: PARK_ACTIVE_TO,
     legsFired: ["reconcileWorktree"] as EncodingLeg[],
-    sideEffectsFired: [...PARK_ACTIVE_SIDE_EFFECTS],
+    sideEffectsFired,
     advisories,
     softFieldsWritten: [],
     branchFieldWritten: null,
