@@ -124,9 +124,10 @@ export async function handleDiff(): Promise<void> {
             ]);
             return stdout;
           } catch (err: unknown) {
-            // git diff --no-index exits 1 when differences found — not an error
-            const stdout = (err as { stdout?: string }).stdout;
-            if (typeof stdout === "string") return stdout;
+            // git diff --no-index exits 1 when differences found — not an error;
+            // any other exit code is a real failure that must not be masked.
+            const { code, stdout } = err as { code?: number; stdout?: string };
+            if (code === 1 && typeof stdout === "string") return stdout;
             throw err;
           }
         },
