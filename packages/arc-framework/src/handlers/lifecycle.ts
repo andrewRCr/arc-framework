@@ -46,6 +46,7 @@ import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
+import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
@@ -515,4 +516,36 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
     return;
   }
   reportOutcome("Abandoned", [`Work unit: ${target}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Terminal — `archive`
+// ---------------------------------------------------------------------------
+
+/**
+ * `arc archive [slug]` — sweep a shipped work unit to `completed/` (defaults to the
+ * current WU). Computes the dated/numbered `completed/{YYYY-qN}/{NN}_{name}/`
+ * destination, relocates the artifact set there, and tears down the working branch
+ * and worktree. Judgment — merge approval, archival timing — is the integration
+ * ceremony's; this command runs the deterministic sweep once that call is made.
+ */
+export async function handleArchive(slug: string | undefined): Promise<void> {
+  p.intro("arc archive");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("archive", slug, base.cwd);
+  if (target === null) return;
+
+  const worktreePath = await resolveWuWorktreePath(base, target);
+  const { executor } = await buildExecutor(base);
+  const result = await runArchive(
+    { executor, fs: { readdir: (path) => readdir(path) }, clock: () => new Date() },
+    { name: target, worktreePath, currentLocus: base.cwd },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Archived", [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`], result.outcome);
 }

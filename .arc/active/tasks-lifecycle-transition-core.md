@@ -488,22 +488,18 @@ _Purpose:_ Migrate the deterministic terminal mechanics into the executor, move 
 family, and re-point the existing markdown ceremonies to call the executor rather than re-author relocation inline
 — leaving the lifecycle corpus locally consistent (the cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 
-### `[ ]` **6.1 `archive` sweep + dated-path computation in the executor**
+### `[x]` **6.1 `archive` sweep + dated-path computation in the executor**
 
 - _Goal:_ The archive relocation and its dated/numbered destination are computed and executed by the executor —
   pure deterministic mechanics, no longer hand-run in the workflow.
 
-- _Note:_ Corrects the draft's earlier "no-go" framing. Judgment (merge approval, archival timing) stays in the
-  `integrate-work-unit` / `archive` workflow. The path computation is net-new but reuses `completed-index.ts`'s
-  `NN_<slug>` parsing + quarter scan to find the next sequence number; the quarter comes from the current date via
-  an **injected clock** (testable, three-layer). The `arc archive` command (context-defaulting, per § Verb CLI shape)
-  binds here alongside the executor work, so the workflow re-pointing (6.4) has it.
-
-    - Build `test-first` (one behavior at a time):
-        - Computes `completed/{YYYY-qN}/{NN}_{name}/` deterministically (quarter from injected clock + next `NN`
-          from the quarter scan).
-        - `archive` (`Active` / `Integrating → completed`) relocates the artifact set to the computed path via
-          `relocate-artifacts`.
+- _Outcome:_ `computeArchiveDestination` added to `completed-index.ts` (now the read- and write-side owner of the
+  `completed/` layout): quarter from an injected `Clock`, next `NN` from a scan of that quarter that also counts the
+  shared number of `NNa_cohort-*` sidecars, resetting per quarter. The thin `archive` verb (`verbs/archive.ts`)
+  computes the destination and dispatches the edge's full encoding through the executor — `relocate` to the dated
+  path, branch delete, worktree teardown, `State → Shipped`, soft-field reset. `arc archive [slug]`
+  (context-defaulting) bound via `handleArchive`. Self-teardown of the current primary worktree is wired but left to
+  the integration context that re-points the ceremony (6.4c).
 
 ### `[ ]` **6.2 Cohort-doc archival sweep**
 

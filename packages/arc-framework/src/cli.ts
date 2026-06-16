@@ -33,6 +33,7 @@ import {
   handleDeactivate,
   handleReopen,
   handleAbandon,
+  handleArchive,
   type StubOptions,
   type ParkOptions,
   type ActivateOptions,
@@ -165,6 +166,11 @@ program
   .description("Destroy a pre-merge work unit (artifacts, branch, worktree) — prints the impact plan; requires --yes")
   .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
   .action((slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts));
+
+program
+  .command("archive [slug]")
+  .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
+  .action((slug: string | undefined) => handleArchive(slug));
 
 const errand = program
   .command("errand")
