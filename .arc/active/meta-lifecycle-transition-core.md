@@ -11,13 +11,14 @@
 - **Design:** `spec-lifecycle-transition-core.md`
 - **Task List:** `tasks-lifecycle-transition-core.md`
 
-- **Last Completed:** Task 6.4 — in-place (`--here`) opt-out for `graduate` + `resume`, with all placement
-  (spawn / in-place; create / attach) consolidated onto the `reconcile-worktree` leg (Option B)
-- **Next Task:** `Task 6.5.a — Executor Branch-field encoding write (line ~581)`
+- **Last Completed:** Task 6.5.a — executor projects the meta `Branch` field on every branch-affecting edge
+  (`applyBranchField` / `setMetaBranch`, sourced from the branch-affecting leg; park@Active a deliberate no-write)
+- **Next Task:** `Task 6.5.b — Soft-field disposition audit (line ~588)`
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 6.5 (executor owns the meta `Branch`-field encoding) — `test-first` on 6.5.a, then
-  6.5.b/c. Re-point is now Task 6.6, park/resume 6.7; PPR folded into the cohort as the fast follow-up. See
-  SESSION-NOTES for the boundary rationale + the deferred `Current Workflow` / `Design`-event-pointer design.
+- **Next Action:** Continue Task 6.5 — 6.5.b (audit each edge's `nextTask` / `nextAction` disposition for stale
+  guidance), then 6.5.c (extend encoding-consistency to assert the `Branch` _field_ via `branchFieldWritten` /
+  `establishedBranch` — the table-walk hook, not a transition runner). Phase-6 remainder realigned to the shipped
+  surface this session (6.6.a/d, new 6.6.e `graduate-work-unit`→`promote`, 6.7.b). See SESSION-NOTES.
 
 ---
