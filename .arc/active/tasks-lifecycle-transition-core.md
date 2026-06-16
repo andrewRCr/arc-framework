@@ -608,12 +608,14 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 - _Note:_ Re-pointing only — no new transition logic; the workflows shrink to judgment + an executor call. Existing
   integration/E2E coverage exercises the re-pointed paths (not test-first — markdown + wiring edits).
 
-    - `[ ]` **6.6.a `init-work-unit` Path A** → call the `start` transition for both the spawn (`arc start`) and
-      in-place (`--here`, 6.4) paths (relocate + `reconcile-worktree` spawn, which births the branch — not a
-      standalone `reconcile-branch`, post-Option-B 6.4), replacing the inline `git mv`. **Drop** init-work-unit's
-      inline `Branch`-field reconciliation (Step 4 Path A) — the executor owns the `Branch` write as of 6.5.a.
-      (`start`, not "graduate": `start` is the planned→active verb; `graduate-work-unit.md` is the separate
-      `provisional → planned` rung re-pointed in 6.6.e.)
+    - `[x]` **6.6.a `init-work-unit` Path A** → re-pointed the graduate path (Step 3) to `arc start {name}` /
+      `--here`, which relocates the backlog subdir → `active/`, births `plan/{name}`, writes the meta `Branch`
+      field, and opens the user workspace via the executor (`user-workspace` side-effect) — replacing the inline
+      `git mv`. Dropped Step 4 Path A's inline `Branch`-field reconcile (executor owns it as of 6.5.a) and moved the
+      `Class`-resolution precondition ahead of the call (the `class-resolved` guard refuses `[TBD]`). Scoped Step 2
+      to the fresh-WU branch, reconciled the Execution-Modes blurb, and re-pointed the idempotent-resume note to
+      Path B. Markdown-only (both `.arc/` + package copies); the shipped `start` graduate path and its
+      `start-dispatch` coverage exercise the re-pointed flow.
 
     - `[ ]` **6.6.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
       `reconcile-worktree`); the full decompose matrix rewrite is the sibling `decompose-matrix` member's, not
