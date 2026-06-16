@@ -88,7 +88,10 @@ export async function runActivate(ctx: ExecuteTransitionContext, params: Activat
     return { status: "rejected", reason: `\`${name}\` is not a planning WU in \`active/\` — nothing to activate.` };
   }
 
-  const branch = record.Branch ?? "[none]";
+  const branch = record.Branch;
+  if (branch === null || branch.trim() === "" || branch === "[none]") {
+    return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to activate.` };
+  }
   const outcome = await executeTransition(ctx, {
     verb: "activate",
     slug: name,
@@ -125,7 +128,10 @@ export async function runDeactivate(
     return { status: "rejected", reason: `\`${name}\` is not an active WU in \`active/\` — nothing to deactivate.` };
   }
 
-  const branch = record.Branch ?? "[none]";
+  const branch = record.Branch;
+  if (branch === null || branch.trim() === "" || branch === "[none]") {
+    return { status: "rejected", reason: `\`${name}\` has no tracked branch in meta — refusing to deactivate.` };
+  }
   const outcome = await executeTransition(ctx, {
     verb: "deactivate",
     slug: name,
