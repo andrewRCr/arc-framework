@@ -97,8 +97,6 @@ export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
   user?: boolean;
-  /** `--lifecycle <slug>`: resolve one work unit's lifecycle state as a slug→state query. */
-  lifecycle?: string;
   /** `--local`: render the user view from local refs without a network read. */
   local?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
@@ -178,16 +176,16 @@ async function resolveNudgeState(
   };
 }
 
-export async function handleStatus(opts: StatusCliOptions): Promise<void> {
+export async function handleStatus(slug: string | undefined, opts: StatusCliOptions): Promise<void> {
   const modeCount = [
+    slug !== undefined,
     opts.sessionInit,
     opts.sessionHandoff,
     opts.user,
-    opts.lifecycle,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: --session-init, --session-handoff, --user, and --lifecycle are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, and --user are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -197,7 +195,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   if (!cwd) return;
   const json = Boolean(opts.json);
 
-  if (opts.lifecycle !== undefined) {
+  if (slug !== undefined) {
     // Slug→state query: a subject-keyed read over the lifecycle-complete index,
     // independent of session identity / settings. The index walk binds real I/O;
     // the resolution stays a pure lib projection.
@@ -208,7 +206,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readFile: (path) => readFile(path, "utf8"),
       },
     });
-    const query = resolveSlugQuery(index, opts.lifecycle);
+    const query = resolveSlugQuery(index, slug);
     if (json) {
       process.stdout.write(`${JSON.stringify(query)}\n`);
       return;

@@ -361,6 +361,10 @@ activeCmd
 program
   .command("status")
   .description("Composite probe: identity + user-sync + extensions + config + active state")
+  .argument(
+    "[slug]",
+    "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
+  )
   .addOption(
     new Option(
       "--session-init",
@@ -378,12 +382,6 @@ program
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
     ).conflicts(["session-init", "session-handoff"]),
-  )
-  .addOption(
-    new Option(
-      "--lifecycle <slug>",
-      "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
-    ).conflicts(["session-init", "session-handoff", "user"]),
   )
   .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user: skip the network read; render from local refs")

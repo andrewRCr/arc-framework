@@ -514,20 +514,17 @@ family, and re-point the existing markdown ceremonies to call the executor rathe
   `ArchiveResult.cohortSwept` and in the `arc archive` report. Single-cohort scope; the nested-parent `{NN}b`
   cascade is left for the closeout member's audit.
 
-### `[ ]` **6.3 Slug→state read surface**
+### `[x]` **6.3 Slug→state read surface**
 
 - _Goal:_ The slug→state read is `arc status <slug>` (bare `arc status` = session/active view; a slug = that WU's
   lifecycle state), preserving the shipped JSON shape, with the pure aggregator left in place.
 
-- _Note:_ Only the thin CLI shell changes; `resolveSlugQuery` (`lib/work-unit/lifecycle-query.ts`) is the durable
-  artifact and stays put. No `arc lifecycle` namespace — the verbs are top-level (peers of `start`); the read's home
-  is `status`. The `--lifecycle <slug>` option becomes a `status <slug>` positional; `handlers/status.ts` dispatches
-  to `resolveSlugQuery` when a slug is given, else the session view. (The handler rename that frees
-  `handlers/lifecycle.ts` is in Phase 5.R.) Coordinate verb naming with `idiomatic-alignment`.
-  _Notes:_ See `notes-lifecycle-transition-core.md` § Command surface.
-
-    - Build `test-first`: `arc status <slug>` returns the shape previously served by `arc status --lifecycle`; bare
-      `arc status` is unchanged.
+- _Outcome:_ The `--lifecycle <slug>` option on `arc status` became a `[slug]` positional (`cli.ts`); `handleStatus`
+  (`handlers/status.ts`) now takes the slug as its first argument, folds it into the mutual-exclusion check against
+  `--session-init` / `--session-handoff` / `--user`, and dispatches to `resolveSlugQuery` when present (JSON shape
+  unchanged) else the composite session view. `resolveSlugQuery` stayed put. The `status-lifecycle` e2e now drives
+  `status <slug>` and adds a bare-`arc status` assertion (no top-level `slug` key — the positional left it
+  untouched).
 
 ### `[ ]` **6.4 Re-point existing workflows to the executor**
 
