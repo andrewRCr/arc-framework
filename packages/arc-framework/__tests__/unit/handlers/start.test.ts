@@ -204,6 +204,18 @@ describe("handleStart — dispatch orchestration", () => {
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Cold-started");
   });
 
+  it("`--here` with a whitespace-only name treats it as omitted and cold-starts in place", async () => {
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart("   ", { here: true });
+
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+  });
+
   it("`--here` against a nonexistent name cold-starts in place (not create-new spawn)", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
     mockRunColdStart.mockResolvedValue({

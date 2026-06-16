@@ -73,7 +73,11 @@ describe("status <slug>", () => {
 
     expect(result.exitCode).toBe(0);
     // The composite probe result carries no top-level `slug` key — the
-    // positional branch did not capture the bare invocation.
-    expect(JSON.parse(result.stdout)).not.toHaveProperty("slug");
+    // positional branch did not capture the bare invocation — and is a
+    // non-empty object (the session/active view actually rendered).
+    const payload = JSON.parse(result.stdout);
+    expect(payload).not.toHaveProperty("slug");
+    expect(typeof payload).toBe("object");
+    expect(payload).not.toEqual({});
   });
 });

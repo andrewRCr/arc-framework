@@ -45,6 +45,7 @@ vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/t
 vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
   resolvePrimaryWorktreePath: async () => "/repos/myrepo",
   resolveWorktreePathsByBranch: async () => new Map<string, string>(),
+  runWorktreeRoster: async () => ({ entries: [], warnings: [] }),
 }));
 
 vi.mock("../../../src/lib/active/meta-reader.js", () => ({
