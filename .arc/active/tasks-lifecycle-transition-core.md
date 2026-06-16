@@ -378,7 +378,7 @@ share `resolveWriteContext`.
 
 _Purpose:_ Surface the Phase-4 lifecycle verbs as user-facing CLI commands — the command layer for the verb set
 whose logic, executor dispatch, and guards already exist (Phase 3–4). This phase is the handlers, the registration,
-and the CLI shape; no new transition logic. Sequenced before Phase 6 because the workflow re-pointing (6.5) re-points
+and the CLI shape; no new transition logic. Sequenced before Phase 6 because the workflow re-pointing (6.6) re-points
 ceremonies onto these commands, so they must exist first.
 
 _Design decisions:_ The verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
@@ -500,7 +500,7 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   computes the destination and dispatches the edge's full encoding through the executor — `relocate` to the dated
   path, branch delete, worktree teardown, `State → Shipped`, soft-field reset. `arc archive [slug]`
   (context-defaulting) bound via `handleArchive`. Self-teardown of the current primary worktree is wired but left to
-  the integration context that re-points the ceremony (6.5c).
+  the integration context that re-points the ceremony (6.6.c).
 
 ### `[x]` **6.2 Cohort-doc archival sweep**
 
@@ -562,7 +562,36 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   single cohesive axis. Locus-only (branch, `(phase, location)` record, notes-sync identical to spawn); resume's
   cross-branch relocate correctness stays park's deferred concern.
 
-### `[ ]` **6.5 Re-point existing workflows to the executor**
+### `[ ]` **6.5 Executor owns the meta `Branch`-field encoding**
+
+- _Goal:_ Close the encoding-boundary gap surfaced while planning the re-point (6.6): the executor owns the `State`,
+  directory, and git-branch encodings, but **not** the meta `Branch` _field_ — `graduate` (`start`) and `activate` /
+  `deactivate` establish the branch in git yet leave the meta field stale (only `park`'s full pointer-record render
+  writes it). Make the field a deterministic encoding the executor writes on every branch-affecting edge, so no
+  workflow ever hand-reconciles it. Pure mechanics migration — no new judgment, no new edges.
+
+- _Note:_ The `Branch` field is a projection of the branch the edge establishes (`create` → `plan/<slug>`, `rename` →
+  `toBranch`, `park` / `delete` → `[none]`, resume → the preserved branch), derivable from the edge's `branchOp` —
+  drive it off the executor's existing branch leg, not per-verb writes. The `Current Workflow` + `Design`-as-event-
+  pointer fields are deliberately **out of scope** here: they land in `planning-pipeline-readiness` (now a cohort
+  follow-up), which owns the planning sub-stage advancement that fills them. See `cohort-lifecycle-state-machine.md`
+  § Shared contracts.
+
+    - `[ ]` **6.5.a `Branch`-field encoding write** — the executor writes the meta `Branch` field from the edge's
+      `branchOp` on every branch-affecting edge (a sibling to `set-phase`'s `State` write), retiring the per-verb
+      asymmetry (`park` renders it; `graduate` / `activate` / `deactivate` don't).
+      Build `test-first`: graduate sets `Branch: plan/<slug>`; activate sets `<type>/<slug>`; deactivate restores
+      `plan/<slug>`; park clears to `[none]`; resume restores the preserved branch.
+
+    - `[ ]` **6.5.b Soft-field disposition audit** — audit each edge's `nextTask` / `nextAction` disposition so a
+      transition never leaves stale guidance (e.g. entering `Integrating` resets `Next Task`); the machinery exists
+      (`reset` / `input` / `leave`), it is merely under-applied. No task-list parsing — the executor never derives.
+
+    - `[ ]` **6.5.c Extend encoding-consistency to the `Branch` field** — the table-walking consistency test asserts
+      the meta `Branch` _field_ (not only the derived branch category) matches the established branch on every edge.
+      The gap slipped because the test checked category, not the field.
+
+### `[ ]` **6.6 Re-point existing workflows to the executor**
 
 - _Goal:_ The existing ceremonies call the executor instead of re-authoring relocation/branch logic inline — ending
   the per-workflow duplication, with each workflow's local docs updated to match.
@@ -570,22 +599,22 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 - _Note:_ Re-pointing only — no new transition logic; the workflows shrink to judgment + an executor call. Existing
   integration/E2E coverage exercises the re-pointed paths (not test-first — markdown + wiring edits).
 
-    - `[ ]` **6.5.a `init-work-unit` Path A** → call the graduate transition for both the spawn (`arc start`) and
+    - `[ ]` **6.6.a `init-work-unit` Path A** → call the graduate transition for both the spawn (`arc start`) and
       in-place (`--here`, 6.4) paths (relocate + `reconcile-branch`), replacing the inline `git mv`.
 
-    - `[ ]` **6.5.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
+    - `[ ]` **6.6.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
       `reconcile-worktree`); the full decompose matrix rewrite is the sibling `decompose-matrix` member's, not
       this WU's.
 
-    - `[ ]` **6.5.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
+    - `[ ]` **6.6.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
 
-    - `[ ]` **6.5.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
+    - `[ ]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
       (`activate` fires the dep-edge discharge, 4.7).
 
-    - `[ ]` **6.5.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
+    - `[ ]` **6.6.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
 
-### `[ ]` **6.6 `park` / `resume` ceremony workflows & end-to-end correctness**
+### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
 
 - _Goal:_ Recover the park/resume ceremony layer that slipped the `arc-plan-conductor` → `lifecycle-state-machine`
   fold. The verbs + executor mechanics + the pointer-record shipped in Phase 4.3, but their judgment-half
@@ -598,26 +627,26 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   don't re-author). See `spec-lifecycle-transition-core.md` §6 (park/resume ceremony) + §4–5 (placement modes) +
   Success Criterion 13. Locus/orchestration only — no new transition-table edges.
 
-    - `[ ]` **6.6.a `reconcile-worktree` spawn-path re-attach** — the fresh-worktree spawn attaches an existing
+    - `[ ]` **6.7.a `reconcile-worktree` spawn-path re-attach** — the fresh-worktree spawn attaches an existing
       preserved branch (`git worktree add <path> <branch>`, no `-b`) when resuming; today it force-creates
       (`-b <branch> <branch>`, which fails for an existing branch). Mirror the in-place `createBranch` flag onto the
       fresh-worktree variant.
       Build `test-first`: resume spawn re-attaches an existing branch (bare add); graduate/create-new spawn still
       cuts a new one (`-b`).
 
-    - `[ ]` **6.6.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
+    - `[ ]` **6.7.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
       pointer-record on the **tracked** branch while the WU branch's `active/` stays authoritative (handler-enforced
       run-context vs. documented run-from-tracked — settle at task time); confirm the `worktree-clean` guard targets
       the torn-down worktree, not the relocate locus.
 
-    - `[ ]` **6.6.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
-      run-context (6.6.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
+    - `[ ]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
+      run-context (6.7.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
       (not test-first).
 
-    - `[ ]` **6.6.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
+    - `[ ]` **6.7.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
       re-attach orchestration. Markdown + wiring (not test-first).
 
-    - `[ ]` **6.6.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
+    - `[ ]` **6.7.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
       in both placement modes (spawn and `--here`): pointer-on-tracked-branch, artifacts authoritative on the WU
       branch, clean re-attach. The end-to-end coverage the verbs shipped without.
 
