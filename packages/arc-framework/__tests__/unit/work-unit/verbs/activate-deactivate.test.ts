@@ -186,8 +186,10 @@ describe("runDeactivate — the narrow undo", () => {
     expect(calls).toContain("branch:rename:feat/foo->plan/foo");
     expect(calls).toContain("setPhase:Planning");
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
-    // The just-activated Next Task is cleared (the activation is undone).
+    // The just-activated Next Task and the stale Active-phase Next Action are both
+    // cleared (the activation is undone — neither pointer survives the drop to Planning).
     expect(softFields).toContain("Next Task");
+    expect(softFields).toContain("Next Action");
   });
 });
 

@@ -62,11 +62,13 @@ interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
   withdrawInputs: ("close" | "draft" | undefined)[];
+  softWrites: Record<string, string>[];
 }
 
 function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const withdrawInputs: Harness["withdrawInputs"] = [];
+  const softWrites: Record<string, string>[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user"] satisfies SideEffectId[]) {
@@ -97,11 +99,13 @@ function buildCtx(metas: MetaSpec[]): Harness {
     },
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
-    writeSoftFields: async () => {},
+    writeSoftFields: async (_path, updates) => {
+      softWrites.push(updates as Record<string, string>);
+    },
     sideEffects,
   };
 
-  return { ctx, calls, withdrawInputs };
+  return { ctx, calls, withdrawInputs, softWrites };
 }
 
 const INTEGRATING: MetaSpec = { slug: "foo", state: "Integrating", branch: "feat/foo" };
@@ -125,6 +129,19 @@ describe("runReopen — the set-phase-only move", () => {
     expect(calls).toContain("setPhase:Active");
     // No location move and no branch rotation — the working branch already carries its prefix.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
+  });
+});
+
+describe("runReopen — soft-field disposition", () => {
+  it("clears the now-stale integration Next Action pointer on withdrawal", async () => {
+    const { ctx, softWrites } = buildCtx([INTEGRATING]);
+
+    await runReopen(ctx, BASE);
+
+    // Withdrawing from review back to Active: the integration `Next Action` is
+    // cleared (no longer "open the PR"); `Next Task` stays untouched.
+    expect(softWrites).toHaveLength(1);
+    expect(softWrites[0]).toEqual({ "Next Action": "[none]" });
   });
 });
 

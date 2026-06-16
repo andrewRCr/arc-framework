@@ -585,9 +585,12 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       stays the pointer-record's. Core-table write via `setMetaBranch` (sibling of `setMetaState`; both delegate to a
       shared `setMetaCoreFields`), bound as the executor's `writeBranchField` seam.
 
-    - `[ ]` **6.5.b Soft-field disposition audit** — audit each edge's `nextTask` / `nextAction` disposition so a
-      transition never leaves stale guidance (e.g. entering `Integrating` resets `Next Task`); the machinery exists
-      (`reset` / `input` / `leave`), it is merely under-applied. No task-list parsing — the executor never derives.
+    - `[x]` **6.5.b Soft-field disposition audit** — audited every edge's `nextTask` / `nextAction` disposition
+      against the "never leaves stale guidance" mandate; two under-applications fixed table-only in
+      `lifecycle-transitions.ts` (both `reset → [none]`, no caller input): `deactivate` (Active→Planning) left the
+      Active-phase `Next Action` stale, and `reopen` (Integrating→Active, was `PRESERVE_SOFT`) left the integration
+      pointer stale on withdrawal. Every other edge correct as-is — `park` / `resume` / `start`-resume preserve by
+      design, `archive` / `integrate` already reset. No task-list parsing — the executor never derives.
 
     - `[ ]` **6.5.c Extend encoding-consistency to the `Branch` field** — assert each edge's projected `Branch`
       field matches the expected branch, not only the derived branch _category_ the existing walk checks. The

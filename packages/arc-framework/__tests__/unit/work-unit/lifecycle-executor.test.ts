@@ -565,7 +565,8 @@ describe("executeTransition — soft-field disposition", () => {
   });
 
   it("writes soft fields in place (no relocate) at the meta's current path", async () => {
-    // deactivate (Active → Planning): resets nextTask only, no location move.
+    // deactivate (Active → Planning): clears nextTask AND the stale Active-phase
+    // nextAction, no location move.
     const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
 
     const outcome = await executeTransition(ctx, {
@@ -576,7 +577,7 @@ describe("executeTransition — soft-field disposition", () => {
 
     expect(outcome.status).toBe("ok");
     expect(softWrites[0]!.path).toBe(".arc/active/meta-demo.md");
-    expect(softWrites[0]!.updates).toEqual({ "Next Task": "[none]" });
+    expect(softWrites[0]!.updates).toEqual({ "Next Task": "[none]", "Next Action": "[none]" });
   });
 
   it("writes soft fields at the post-relocation path when the edge relocates (archive)", async () => {

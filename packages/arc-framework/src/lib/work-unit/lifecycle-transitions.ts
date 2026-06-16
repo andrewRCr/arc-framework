@@ -366,7 +366,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     guards: [],
     encodingUpdates: { reconcileBranch: "rename", setPhase: true },
     sideEffects: withRender(),
-    softFields: { nextTask: { reset: NONE }, nextAction: "leave", lastCompleted: "leave", blockers: "leave" },
+    softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
   {
     verb: "integrate",
@@ -386,7 +386,9 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     guards: ["pr-unmerged"],
     encodingUpdates: { setPhase: true },
     sideEffects: withRender("withdraw-pr"),
-    softFields: PRESERVE_SOFT,
+    // Withdrawal back to Active clears the now-stale integration `Next Action`
+    // pointer (e.g. "open the PR"); `Next Task` stays `[none]` from `integrate`.
+    softFields: { nextTask: "leave", nextAction: { reset: NONE }, lastCompleted: "leave", blockers: "leave" },
   },
 
   // -- Location axis: park / resume (park is phase-polymorphic), promote / demote --

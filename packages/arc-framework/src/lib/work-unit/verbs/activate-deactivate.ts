@@ -13,7 +13,7 @@
  *   lifecycle's write half) via the table's `discharge-dep-edges` side-effect.
  * - **`deactivate`** (`Active → Planning`) undoes a *premature* activation: the
  *   working branch rotates back to `plan/<name>`, the phase drops to `Planning`, and
- *   the just-set `Next Task` clears. Narrow by design — shelving in-progress work is
+ *   the just-set `Next Task` / `Next Action` clear. Narrow by design — shelving in-progress work is
  *   `park@Active`, destructive teardown is `abandon`, and there is no merged corner
  *   (post-merge rework is a new origin-linked WU; ADR-026 amendment).
  *

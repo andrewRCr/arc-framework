@@ -11,9 +11,10 @@
  *
  * The verb stays thin — it forwards the merge fact and the withdrawal mode as
  * `inputs` and dispatches through {@link executeTransition}; the guard, the
- * `set-phase` leg, and the `withdraw-pr` handler are the table's. The merge fact
- * is resolved against `gh` by the caller (never fabricated here); the withdrawal
- * mode defaults to `close`.
+ * `set-phase` leg, the `withdraw-pr` handler, and the soft-field disposition
+ * (clearing the now-stale integration `Next Action` pointer) are the table's. The
+ * merge fact is resolved against `gh` by the caller (never fabricated here); the
+ * withdrawal mode defaults to `close`.
  *
  * @module
  */
