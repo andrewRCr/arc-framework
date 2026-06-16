@@ -204,12 +204,15 @@ by construction:
 
 - **`relocate-artifacts`** — the `git mv` of the WU's artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`,
   companions): `backlog ↔ active`, `active → completed`.
-- **`reconcile-branch`** — create / rename / delete / **preserve**, phase-and-direction-conditioned. *Create* is
-  realized two ways: **spawn-backed** (the default — the branch is born from `reconcile-worktree`'s `git worktree
-  add -b`, so the standalone create leg is inert) and **in-place** (`--here` — a current-worktree `git checkout
-  -b`, no spawn; see §5).
-- **`reconcile-worktree`** — spawn / teardown, **including execution-locus relocation** (§ 7): a transition
-  tearing down the worktree it runs from must hop the agent's locus out first.
+- **`reconcile-branch`** — rename / delete / **preserve**, phase-and-direction-conditioned. *Create* is a **no-op**
+  in this leg: branch birth always rides `reconcile-worktree` (below), in both placement modes, so the standalone
+  create leg never touches git.
+- **`reconcile-worktree`** — spawn / teardown, **including execution-locus relocation** (§ 7) and **branch birth**.
+  The spawn leg has two **placement modes**: a *fresh worktree* (`git worktree add [-b] <branch>` at the
+  `location_template` path, with the ownership marker) or *in-place* (`--here`, see §5 — `git checkout [-b]
+  <branch>` in the current worktree, no new worktree, no marker). `-b` cuts a new branch (graduate / create-new);
+  plain checkout / bare add attaches an existing one (resume). A teardown tearing down the worktree it runs from
+  must hop the agent's locus out first.
 - **`set-phase`** — the meta `State` write (phase-axis mutator, no location move).
 
 **Caller shapes:**
@@ -268,9 +271,11 @@ tracked-WU branch is then cut identically in both modes.
 **In-place opt-out (`--here`).** The `graduate` and `resume` arms spawn a dedicated worktree **by default**
 (isolation-by-default), but accept a `--here` flag to execute **in place** — cut/attach the branch in the current
 checkout, no spawn — mirroring the door `create-new` already exposes via cold-start. The spawn-vs-in-place axis is
-**orthogonal to protection mode**: both modes default to spawn and both accept `--here`. In-place reuses the same
-executor legs **minus the spawn**: `relocate-artifacts` + `reconcile-branch` *create* (the in-place realization, §4)
-for graduate; the branch re-attach for resume. It honors the **worktree-occupancy guard** — refused when the
+**orthogonal to protection mode**: both modes default to spawn and both accept `--here`. In-place runs the same
+executor legs, with the `reconcile-worktree` spawn leg in its **in-place placement mode** (§4) instead of spawning a
+fresh worktree — `git checkout -b` cuts the branch for graduate / create-new, plain `git checkout` re-attaches the
+preserved branch for resume; `reconcile-branch` create stays inert (branch birth is the worktree leg's in both
+modes). It honors the **worktree-occupancy guard** — refused when the
 current checkout already holds an active WU (graduate into a base-sitting checkout; spawn or park first otherwise).
 This serves **WU-grade** in-place development (sequential single-checkout work; heavy-toolchain repos avoiding the
 per-worktree dependency-provisioning tax; resuming parked work in one checkout); the atomic 5-minute case is
@@ -310,6 +315,19 @@ it **ships in this member**.
 two `inputs` (never fabricated): the **commitment** tier and a free-form **`reason`** string — the latter rendered
 in the callout above (and in the relocated meta for park@Planning), supplied via `--reason` (bare invocation errors
 with usage, non-TTY-safe).
+
+**Park / resume ceremony workflows.** The verbs ship as the *mechanics* half (CLI + executor + pointer-record);
+their *judgment* half is `park-work-unit.md` / `resume-work-unit.md` — thin ceremonies authored **here**. They were
+`arc-plan-conductor` §20's; that WU decomposed and park/resume folded into this cohort (via the retired
+`park-resume-lifecycle`) with no other member claiming the workflows, so authoring them closes a slip, not new
+scope. The load-bearing piece is `park-work-unit`'s **cross-branch run-context**: park@Active's relocate +
+pointer-record must land on the **tracked** branch while the WU branch's `active/` artifacts stay authoritative
+(the executor does pure `git mv` in its cwd and never commits, so *which* worktree the ceremony drives the legs from
+is what makes the pointer-on-main / artifacts-on-branch split hold — settle the run-context at task time: enforced
+in the handler vs. documented run-from-tracked). It reuses `decomposition-machinery`'s single-source `active/ →
+backlog/` + teardown blocks rather than re-authoring them. `resume-work-unit` drives `arc resume` (spawn + `--here`)
+and the re-attach. Authored as **v1**; the composable-fragment factoring is `composable-workflows`'. park@Active and
+resume are proven end-to-end by a park→resume round-trip — the coverage the verbs shipped without.
 
 ### 7. Per-cell mechanics (the open-question resolutions)
 
@@ -569,6 +587,11 @@ disposition governs the executor transitions.
 12. Each transition applies its declared soft-field disposition (`reset` / `input` / `leave`) so `Next Task` /
     `Next Action` / `Last Completed` stay consistent post-transition — the executor writes resets + supplied
     inputs, never deriving or authoring — and emits an ephemeral next-step suggestion that is never persisted.
+13. `park-work-unit.md` / `resume-work-unit.md` ceremony workflows drive the verbs end-to-end: park@Active's
+    relocate + pointer-record land on the tracked branch (the WU branch's `active/` stays authoritative) and resume
+    re-attaches in both placement modes (spawn and `--here`), proven by a park→resume round-trip integration test.
+    `reconcile-worktree`'s fresh-worktree spawn re-attaches an existing preserved branch (bare `git worktree add`,
+    no `-b`) for resume.
 
 ## Open Questions
 

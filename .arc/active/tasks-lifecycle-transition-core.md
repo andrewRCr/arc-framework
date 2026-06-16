@@ -585,6 +585,42 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
     - `[ ]` **6.5.e Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
 
+### `[ ]` **6.6 `park` / `resume` ceremony workflows & end-to-end correctness**
+
+- _Goal:_ Recover the park/resume ceremony layer that slipped the `arc-plan-conductor` → `lifecycle-state-machine`
+  fold. The verbs + executor mechanics + the pointer-record shipped in Phase 4.3, but their judgment-half
+  workflows (`park-work-unit.md` / `resume-work-unit.md`) and the cross-branch run-context were never authored —
+  leaving park@Active / resume unverified and not provably correct end-to-end. Close it here per the cohort's
+  consistency-on-exit standard (a documented-but-unbuilt core, not an un-enhanced nicety).
+
+- _Note:_ Thin **v1** ceremonies — judgment + run-context only; the composable-fragment factoring stays
+  `composable-workflows`' (reuse `decomposition-machinery`'s single-source `active/ → backlog/` + teardown blocks,
+  don't re-author). See `spec-lifecycle-transition-core.md` §6 (park/resume ceremony) + §4–5 (placement modes) +
+  Success Criterion 13. Locus/orchestration only — no new transition-table edges.
+
+    - `[ ]` **6.6.a `reconcile-worktree` spawn-path re-attach** — the fresh-worktree spawn attaches an existing
+      preserved branch (`git worktree add <path> <branch>`, no `-b`) when resuming; today it force-creates
+      (`-b <branch> <branch>`, which fails for an existing branch). Mirror the in-place `createBranch` flag onto the
+      fresh-worktree variant.
+      Build `test-first`: resume spawn re-attaches an existing branch (bare add); graduate/create-new spawn still
+      cuts a new one (`-b`).
+
+    - `[ ]` **6.6.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
+      pointer-record on the **tracked** branch while the WU branch's `active/` stays authoritative (handler-enforced
+      run-context vs. documented run-from-tracked — settle at task time); confirm the `worktree-clean` guard targets
+      the torn-down worktree, not the relocate locus.
+
+    - `[ ]` **6.6.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
+      run-context (6.6.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
+      (not test-first).
+
+    - `[ ]` **6.6.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
+      re-attach orchestration. Markdown + wiring (not test-first).
+
+    - `[ ]` **6.6.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
+      in both placement modes (spawn and `--here`): pointer-on-tracked-branch, artifacts authoritative on the WU
+      branch, clean re-attach. The end-to-end coverage the verbs shipped without.
+
 ## **Phase 7:** Verification
 
 ### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
