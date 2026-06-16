@@ -736,7 +736,7 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           create + prune, sibling retention, nested `[TBD]` gate, nested demote); behaviors batched (one verb-pair
           rewrite + shared harness). Both Framework copies synced.
 
-### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
+### `[x]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
 
 - _Goal:_ Recover the park/resume ceremony layer that slipped the `arc-plan-conductor` → `lifecycle-state-machine`
   fold. The verbs + executor mechanics + the pointer-record shipped in Phase 4.3, but their judgment-half
@@ -801,9 +801,21 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           resume` inverse pair bidirectionally (upgraded `park-work-unit.md`'s reference + Related-workflows link to
           `resume-work-unit.md`). `pre-push-review` declared.
 
-    - `[ ]` **6.7.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
+    - `[x]` **6.7.e park→resume round-trip coverage** — integration/e2e proving park@Active → resume lands correctly
       in both placement modes (spawn and `--here`): pointer-on-tracked-branch, artifacts authoritative on the WU
       branch, clean re-attach. The end-to-end coverage the verbs shipped without.
+
+        - _Outcome:_ Round-trip integration coverage (`park-resume-roundtrip.test.ts`, 3 cases) proves park@Active →
+          resume against real worktrees in both placement modes: the pointer-record lands on the tracked branch
+          (blessed `State: Active` + callout/reason) while the branch is preserved and its `active/` stays
+          authoritative; spawn re-attaches in a fresh worktree and prunes the pointer; `--here` re-attaches with no
+          orphan. Surfaced + fixed a real `--here` ordering bug — the verb checked out the WU branch _before_
+          removing the pointer, throwing ENOENT and orphaning the pointer on the tracked branch (a staged or
+          committed deletion is silently discarded on a branch switch; verified). Fix: `reconcile-worktree`'s
+          in-place op gained `deferCheckout`; `runResume` in-place removes the pointer (staged) and returns the
+          `branch` and an `inPlaceCheckoutPending` flag rather than checking out, so the ceremony commits the removal
+          then `git checkout {branch}`. Handler report, `resume-work-unit.md`'s `--here` step, and the verb unit
+          tests updated to match.
 
 ## **Phase 7:** Verification
 

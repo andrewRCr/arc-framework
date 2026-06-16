@@ -44,7 +44,8 @@ branch to re-attach. Any other state is not resumable.
 
 - **Spawn** (default) — re-attach the preserved branch in a fresh worktree (isolation-by-default).
 - **`--here`** — re-attach in the current checkout, no spawn. Honors the worktree-occupancy guard: refused if the
-  current checkout already holds an active unit.
+  current checkout already holds an active unit. The physical checkout is **deferred to after the ship commit**
+  (Step 4) — see the run note below.
 
 ### 3) Run `arc resume` from a base checkout
 
@@ -56,11 +57,16 @@ arc resume {name}          # spawn: re-attach in a fresh worktree
 arc resume {name} --here   # in-place: re-attach in the current checkout
 ```
 
-`{name}` defaults to the current worktree's unit when omitted. `arc resume` re-attaches the preserved branch — a
-bare `git worktree add <path> <branch>` (spawn) or `git checkout <branch>` (`--here`), no `-b` — then **stages but
-does not commit**: it removes the tracked-branch pointer-record, prunes the emptied parked dir, regenerates
-`STATUS.USER`, and opens the user workspace. The authoritative artifacts return on the re-attached branch; the
-pointer removal is the only change left on the tracked branch.
+`{name}` defaults to the current worktree's unit when omitted. `arc resume` **stages but does not commit** — it
+removes the tracked-branch pointer-record, prunes the emptied parked dir, regenerates `STATUS.USER`, and opens the
+user workspace. The pointer removal is the only change left on the tracked branch; the authoritative artifacts ride
+the re-attached branch. The re-attach itself differs by placement:
+
+- **Spawn** re-attaches immediately in a fresh worktree (bare `git worktree add <path> <branch>`, no `-b`); cwd
+  stays on the tracked branch, so the removal commits there cleanly in Step 4.
+- **`--here` defers the physical checkout.** Switching off the tracked branch before the removal is committed would
+  discard it — leaving the pointer orphaned on the branch. So the verb removes the pointer and reports the branch;
+  the in-place `git checkout {branch}` runs in Step 4, **after** the ship commit.
 
 ### 4) Ship per protection mode
 
@@ -108,6 +114,15 @@ gh pr create --base {base-branch} --head chore/resume-{name}
 ```bash
 gh pr merge {pr-number} --squash   # or per merge.strategy
 ```
+
+**`--here` re-attach (after the removal lands on the base).** Only once the pointer removal is committed on the
+tracked branch, check out the preserved branch in place — the deferred step from Step 3:
+
+```bash
+git checkout {branch}   # re-attach in the current checkout; artifacts come back on the branch
+```
+
+Spawn needs no such step — its worktree re-attached in Step 3.
 
 ---
 

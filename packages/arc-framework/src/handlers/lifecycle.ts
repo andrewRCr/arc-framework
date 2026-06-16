@@ -484,7 +484,17 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
       refuse(result.reason);
       return;
     }
-    reportOutcome("Resumed (in place)", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+    reportOutcome(
+      "Resumed (in place)",
+      [
+        `Work unit: ${target}`,
+        `Meta:      ${result.metaPath}`,
+        ``,
+        `Pointer-record removed (staged, not committed). Commit it on the tracked branch,`,
+        `then re-attach in this checkout:  git checkout ${result.branch}`,
+      ],
+      result.outcome,
+    );
     return;
   }
 

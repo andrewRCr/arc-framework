@@ -145,7 +145,19 @@ export type ParkResult =
 /** The outcome of a `resume` attempt — a rejection, or the re-attached meta path. */
 export type ResumeResult =
   | { status: "rejected"; reason: string }
-  | { status: "resumed"; outcome: TransitionOutcome; metaPath: string };
+  | {
+      status: "resumed";
+      outcome: TransitionOutcome;
+      metaPath: string;
+      /** The re-attached branch. */
+      branch: string;
+      /**
+       * In-place only: the physical checkout was deferred (the pointer-record removal is staged but
+       * uncommitted). The caller must commit the removal, then `git checkout <branch>` to re-attach —
+       * switching branches first would discard the staged removal, orphaning the pointer.
+       */
+      inPlaceCheckoutPending: boolean;
+    };
 
 /** The source-meta render fields a pointer-record carries forward (sans State / Branch). */
 const POINTER_RENDER_FIELDS: readonly MetaFieldName[] = [
@@ -311,12 +323,17 @@ async function parkActive(
  * Run `resume`: re-attach the preserved branch and remove the tracked-branch
  * pointer-record (the authoritative artifacts ride the re-attached branch back —
  * no git-mv relocate). By default this spawns a fresh worktree on the existing
- * branch (≈ the Materialize mechanic); the `--here` opt-out (`inPlace`) instead
- * checks the preserved branch out in the current worktree, no spawn. The branch
- * re-attach rides the `reconcile-worktree` spawn leg in `createBranch: false`
- * mode (the branch already exists). The worktree spawn routes through the executor
- * (the pointer-record *is* in this base tree, so the WU resolves `parked`); the
- * pointer removal + empty-dir prune are this verb's, mirroring park@Active's write.
+ * branch (≈ the Materialize mechanic), so cwd stays on the tracked branch and the
+ * pointer removal commits there cleanly. The `--here` opt-out (`inPlace`) instead
+ * re-attaches in the current checkout, but **defers** the physical checkout
+ * (`deferCheckout`): switching off the tracked branch first would discard the
+ * staged pointer removal (orphaning the pointer), so the verb removes the pointer
+ * and returns `inPlaceCheckoutPending` + `branch` for the caller to commit, then
+ * `git checkout <branch>`. The branch re-attach rides the `reconcile-worktree`
+ * spawn leg in `createBranch: false` mode (the branch already exists); the worktree
+ * spawn routes through the executor (the pointer-record *is* in this base tree, so
+ * the WU resolves `parked`), and the pointer removal + empty-dir prune are this
+ * verb's, mirroring park@Active's write.
  *
  * @param ctx - The executor seams plus the pointer-record fs seam.
  * @param params - The target WU and (spawn path only) the worktree-spawn config.
@@ -337,7 +354,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const branch = record.Branch ?? "[none]";
   const inputs: TransitionInputs = {
     worktreeOp: params.inPlace
-      ? { mutation: "spawn", inPlace: true, branch, createBranch: false }
+      ? { mutation: "spawn", inPlace: true, branch, createBranch: false, deferCheckout: true }
       : {
           mutation: "spawn",
           branch,
@@ -355,8 +372,11 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const outcome = await executeTransition(ctx.executor, { verb: "resume", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
-  // Remove the tracked-branch pointer-record and prune the emptied parked dir —
-  // the authoritative artifacts came back on the re-attached branch.
+  // Remove the tracked-branch pointer-record and prune the emptied parked dir.
+  // Spawn re-attaches in a separate worktree (cwd stays on the tracked branch), so
+  // the artifacts are already back; in place the checkout is deferred (below), so
+  // the removal lands on the tracked branch for the caller to commit before
+  // switching — a checkout first would discard it, orphaning the pointer.
   await ctx.fs.rm(join(ctx.executor.cwd, sourceMetaPath));
   const parkedAbs = join(ctx.executor.cwd, parkedSubdir);
   try {
@@ -365,5 +385,11 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     // Best-effort prune — a non-empty or already-gone dir is left as-is.
   }
 
-  return { status: "resumed", outcome, metaPath: `${ACTIVE_DIR}/meta-${name}.md` };
+  return {
+    status: "resumed",
+    outcome,
+    metaPath: `${ACTIVE_DIR}/meta-${name}.md`,
+    branch,
+    inPlaceCheckoutPending: params.inPlace === true,
+  };
 }

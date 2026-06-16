@@ -94,6 +94,12 @@ export type ReconcileWorktreeOp =
       branch: string;
       /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
       createBranch: boolean;
+      /**
+       * Skip the physical `git checkout`, returning the branch for the caller to attach later. Resume sets
+       * this: its tracked-branch pointer-record removal must be committed *before* switching off that branch
+       * (a checkout would discard the staged removal), so the ceremony commits, then re-attaches.
+       */
+      deferCheckout?: boolean;
     }
   | {
       mutation: "teardown";
@@ -136,9 +142,13 @@ export async function reconcileWorktree(
 ): Promise<ReconcileWorktreeResult> {
   if (op.mutation === "spawn" && op.inPlace) {
     // In place: cut/attach the branch in the current worktree — no `worktree add`,
-    // no ownership marker (ARC did not mint this checkout).
-    const checkout = op.createBranch ? ["checkout", "-b", op.branch] : ["checkout", op.branch];
-    await ctx.exec("git", checkout);
+    // no ownership marker (ARC did not mint this checkout). `deferCheckout` skips
+    // the physical checkout — the caller (resume) re-attaches after committing the
+    // pointer-record removal, since switching branches first would discard it.
+    if (!op.deferCheckout) {
+      const checkout = op.createBranch ? ["checkout", "-b", op.branch] : ["checkout", op.branch];
+      await ctx.exec("git", checkout);
+    }
     const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
     return { mutation: "spawn", worktreePath: stdout.trim(), branch: op.branch };
   }

@@ -341,6 +341,9 @@ describe("runResume — the inverse", () => {
       expect(result.outcome.to).toEqual({ phase: "Active", location: "active" });
     }
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
+    expect(result.branch).toBe("feat/foo");
+    // Spawn re-attaches in a fresh worktree — no deferred checkout to hand back.
+    expect(result.inPlaceCheckoutPending).toBe(false);
     // Re-attach: the worktree spawns; no relocate, no branch re-creation.
     expect(calls).toContain("worktree:spawn");
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
@@ -350,7 +353,7 @@ describe("runResume — the inverse", () => {
     expect(removals).toContain("rmdir:/repo/.arc/backlog/planned/foo");
   });
 
-  it("re-attaches in place (`--here`) — checks out the preserved branch, no spawn", async () => {
+  it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {
     const { ctx, calls, removals } = buildCtx([PARKED]);
 
     const result = await runResume(ctx, { name: "foo", inPlace: true });
@@ -358,7 +361,11 @@ describe("runResume — the inverse", () => {
     expect(result.status).toBe("resumed");
     if (result.status !== "resumed") return;
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
-    // In-place placement (checkout existing); no fresh worktree, no relocate, no branch leg.
+    // The physical checkout is deferred to the caller (commit the pointer removal first),
+    // so the verb hands back the branch + the pending signal.
+    expect(result.branch).toBe("feat/foo");
+    expect(result.inPlaceCheckoutPending).toBe(true);
+    // In-place placement (no fresh worktree, no relocate, no branch leg).
     expect(calls).toContain("worktree:spawn:in-place");
     expect(calls).not.toContain("worktree:spawn");
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
