@@ -63,24 +63,16 @@ resolved value in its current `provisional/` location.
 
 ### 3) Promote provisional → planned
 
-**Standalone stub** — fire the transition:
+Fire the transition:
 
 ```bash
 arc promote {name}
 ```
 
-It relocates `backlog/provisional/{name}/ → backlog/planned/{name}/` (refusing if `**Class:**` is still `[TBD]`),
-regenerates `STATUS.USER`, and emits a ROADMAP hand-render advisory naming the move.
-
-**Cohort-nested stub** (`backlog/provisional/{cohort}/{name}/`) — the `promote` transition handles the flat
-layout only, so move inline:
-
-```bash
-git mv .arc/backlog/provisional/{cohort}/{name}/ .arc/backlog/planned/{cohort}/{name}/
-```
-
-Create the planned-side cohort directory first (`mkdir -p`) when this is its first graduated member; remove an
-emptied `provisional/{cohort}/` directory only when no other provisional members remain.
+It relocates the stub from `provisional/` to `planned/` (refusing if `**Class:**` is still `[TBD]`), regenerates
+`STATUS.USER`, and emits a ROADMAP hand-render advisory naming the move. It is cohort-aware: a nested stub
+(`backlog/provisional/{cohort}/{name}/`) relocates within its cohort segment — creating the planned-side cohort
+directory and pruning the emptied `provisional/{cohort}/` when no other members remain.
 
 Stage the move together with the Step 2 `**Class:**` edit.
 
@@ -103,9 +95,8 @@ Refresh the readiness views so the graduated work unit appears as startable:
 - **ROADMAP** — hand-render per [Work Organization Strategy § ROADMAP][work-org-roadmap]; the work unit joins
   the **Ready** tier (or **Blocked**, when it carries unsatisfied dependencies). `arc promote` emits the regen
   advisory but mints no ROADMAP — the renderer is downstream.
-- **STATUS.USER** — the standalone `arc promote` path regenerates it automatically (per
-  [§ STATUS.USER][work-org-statususer]); for a cohort-nested inline move, refresh locally via `arc status --user`.
-  It is a gitignored per-machine cache — not part of the commit.
+- **STATUS.USER** — `arc promote` regenerates it automatically (per [§ STATUS.USER][work-org-statususer]). It is a
+  gitignored per-machine cache — not part of the commit.
 
 Default: dedicated `chore(arc):` commit for the ROADMAP re-render. It may ride the graduation commit (Step 3)
 only when the render delta is trivial — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].

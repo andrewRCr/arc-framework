@@ -41,7 +41,12 @@ import {
   type TransitionVerb,
 } from "../lib/work-unit/verbs/dispatch.js";
 import { runActivate, runDeactivate } from "../lib/work-unit/verbs/activate-deactivate.js";
-import { runDemote, runPromote, type BacklogMoveResult } from "../lib/work-unit/verbs/promote-demote.js";
+import {
+  runDemote,
+  runPromote,
+  type BacklogMoveContext,
+  type BacklogMoveResult,
+} from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
@@ -211,7 +216,7 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
 async function handleBacklogMove(
   verb: "promote" | "demote",
   slug: string | undefined,
-  run: (ctx: ExecuteTransitionContext, params: { name: string }) => Promise<BacklogMoveResult>,
+  run: (ctx: BacklogMoveContext, params: { name: string }) => Promise<BacklogMoveResult>,
   label: string,
 ): Promise<void> {
   p.intro(`arc ${verb}`);
@@ -222,7 +227,8 @@ async function handleBacklogMove(
   if (target === null) return;
 
   const { executor } = await buildExecutor(base);
-  const result = await run(executor, { name: target });
+  const fs = { readdir: (path: string) => readdir(path), rmdir: (path: string) => rmdir(path) };
+  const result = await run({ executor, fs }, { name: target });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;

@@ -716,18 +716,25 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           its ROADMAP hand-render stay workflow-owned (ROADMAP is an advisory the verb surfaces, not a regen it
           performs). Both Framework copies synced.
 
-    - `[ ]` **6.6.h Cohort-aware `promote` (nested `provisional → planned`)** — `promote` / `demote` compute a
-      **flat** `backlog/{tier}/{name}` path (`tierDir` in `verbs/promote-demote.ts`), so `arc promote` can't relocate
-      a cohort-nested stub (`backlog/provisional/{cohort}/{name}/`); `graduate-work-unit.md`'s nested branch stays a
-      hand-rolled `git mv` (6.6.e) until this lands. **Home is here:** this WU owns both `promote`/`demote` and
-      `relocate-artifacts`, and `relocate-artifacts` already takes arbitrary caller-supplied `from`/`to` dirs (and
-      skips the `cohort-*.md`), so the fix is local — derive the cohort segment from the source location / meta
-      `Cohort` field, pass the nested `from`/`to`, and clean up an emptied `provisional/{cohort}/`. Not
-      `decompose-matrix` (it disclaims `relocate-artifacts` — teardown legs only); not `lifecycle-closeout`
-      (docs-only). Closes the nested half of 6.6.e per the cohort's consistency-on-exit standard.
-      Build `test-first` (verb path): flat promote unchanged; a cohort-nested stub relocates with planned-side
-      cohort-dir create + emptied-source cleanup; the Class ratchet still refuses `[TBD]`. (Surfaced by the 6.6.e
-      re-point, 2026-06-16.)
+    - `[x]` **6.6.h Cohort-aware `promote` (nested `provisional → planned`)** — `promote` / `demote` assumed a
+      **flat** `backlog/{tier}/{name}` path, so `arc promote` couldn't relocate a cohort-nested stub
+      (`backlog/provisional/{cohort}/{name}/`); `graduate-work-unit.md`'s nested branch stayed a hand-rolled
+      `git mv` (6.6.e) until this. **Home is here:** this WU owns both `promote`/`demote` and `relocate-artifacts`,
+      so the fix is local. Closes the nested half of 6.6.e per the cohort's consistency-on-exit standard.
+      Build `test-first` (verb path). (Surfaced by the 6.6.e re-point, 2026-06-16.)
+
+        - _Outcome:_ `runPromote` / `runDemote` (`verbs/promote-demote.ts`) became cohort-aware: they locate the
+          stub via `buildLifecycleIndex` instead of assuming the flat `tierDir` path (the bug — the flat Class-read
+          `ENOENT`'d a nested stub into a false "not a provisional stub" rejection), derive `fromDir` from the
+          resolved meta path, and `swapTier` it for the nested `toDir` (the executor already derived its own
+          `fromDir` from the meta path; the verb now supplies the matching `toDir`, and `relocate-artifacts`'
+          `ensureDir` creates the planned-side cohort dir). Added a `BacklogMoveContext { executor, fs }` with a
+          prune seam (`readdir`/`rmdir`, mirroring `abandon`); `pruneEmptySource` walks up from the WU subdir
+          removing emptied dirs and stops at the tier root, so a sibling-retained cohort dir survives. Re-pointed
+          `graduate-work-unit.md` Step 3 — collapsed the standalone/cohort-nested split into one `arc promote {name}`,
+          dropping the inline `git mv`. Test-first: 8 verb tests (flat unchanged, nested relocate + cohort-dir
+          create + prune, sibling retention, nested `[TBD]` gate, nested demote); behaviors batched (one verb-pair
+          rewrite + shared harness). Both Framework copies synced.
 
 ### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
 
