@@ -31,7 +31,7 @@
 
 import { join } from "node:path";
 
-import { cohortLeaf } from "../../active/cohort-path.js";
+import { cohortLeaf, isSafeCohortPath } from "../../active/cohort-path.js";
 import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import {
   computeArchiveDestination,
@@ -162,6 +162,10 @@ export async function sweepCohortDoc(
   if (cohort === null) return null;
   const field = cohort.trim();
   if (field === "" || field === NONE_SENTINEL) return null;
+  // Refuse to build a path from a field that could escape `backlog/planned/`
+  // (`..` traversal, a leading `/`, a backslash, or a Windows drive). No-op,
+  // matching the empty/sentinel skip above — never construct the path or sweep.
+  if (!isSafeCohortPath(field)) return null;
   if (!isArchivalTriggered(index, field)) return null;
 
   const leaf = cohortLeaf(field);

@@ -291,4 +291,32 @@ describe("sweepCohortDoc — the cohort-doc archival sweep", () => {
 
     expect(await sweepCohortDoc(fn, index, { cohort: "c", ...at })).toBeNull();
   });
+
+  it("refuses to construct an escaping path from a traversal cohort field", async () => {
+    // A `..` segment (or absolute/backslash/drive escape) must no-op: no path is
+    // built and no relocate fires, even though the member shows as shipped.
+    const { fn, calls } = relocateSpy(["x"]);
+
+    for (const cohort of ["../../../etc", "../escape", "/absolute", "a\\b", "C:\\win"]) {
+      const index = indexOf(entry("a", "completed", cohort, "Shipped"));
+      expect(await sweepCohortDoc(fn, index, { cohort, ...at })).toBeNull();
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it("still sweeps a normal single-segment cohort field", async () => {
+    const index = indexOf(entry("a", "completed", "safe-cohort", "Shipped"));
+    const { fn, calls } = relocateSpy(["cohort-safe-cohort.md"]);
+
+    const swept = await sweepCohortDoc(fn, index, { cohort: "safe-cohort", ...at });
+
+    expect(calls).toEqual([
+      {
+        slug: "safe-cohort",
+        fromDir: ".arc/backlog/planned/safe-cohort",
+        toDir: ".arc/completed/2026-q2/25a_cohort-safe-cohort",
+      },
+    ]);
+    expect(swept).toBe(".arc/completed/2026-q2/25a_cohort-safe-cohort/cohort-safe-cohort.md");
+  });
 });
