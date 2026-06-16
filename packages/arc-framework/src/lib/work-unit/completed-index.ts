@@ -177,7 +177,14 @@ export async function computeArchiveDestination(
   let entries: string[];
   try {
     entries = await fs.readdir(join(cwd, ".arc", "completed", quarter));
-  } catch {
+  } catch (err) {
+    // Only an absent quarter directory defaults to empty; real errors (EACCES,
+    // etc.) must fail fast rather than silently mis-assign sequence numbers.
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    if (code !== "ENOENT") throw err;
     entries = [];
   }
 

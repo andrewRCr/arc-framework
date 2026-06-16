@@ -464,7 +464,15 @@ function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): stri
     throw new Error("Cannot set meta core field: core-block table header not recognized.");
   }
 
+  const separatorLine = lines[sepIdx];
+  const separators = separatorLine === undefined ? [] : splitTableRow(separatorLine);
   const cells = splitTableRow(valueLine);
+  if (headers.length !== separators.length || headers.length !== cells.length) {
+    throw new Error(
+      `Cannot set meta core field: malformed core-block table column-count mismatch ` +
+        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
+    );
+  }
   const current = new Map<string, string | null>();
   headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
 
