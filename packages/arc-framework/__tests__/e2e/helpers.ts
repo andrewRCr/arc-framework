@@ -97,7 +97,10 @@ export async function createTempRepo(
   prefix = "arc-e2e-",
 ): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix));
-  await execFileAsync("git", ["init", dir]);
+  // Pin the initial branch to the configured `branch.base` (`main`) rather than
+  // inheriting the ambient `init.defaultBranch` — otherwise a runner defaulting
+  // to `master` mismatches the base and write-context resolves `relocate`.
+  await execFileAsync("git", ["init", "-b", "main", dir]);
   await execFileAsync("git", ["config", "user.email", "test@test.com"], {
     cwd: dir,
   });
