@@ -617,9 +617,17 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       Path B. Markdown-only (both `.arc/` + package copies); the shipped `start` graduate path and its
       `start-dispatch` coverage exercise the re-pointed flow.
 
-    - `[ ]` **6.6.b `decompose-work-unit` park-exit** → call the teardown legs (`reconcile-branch` /
-      `reconcile-worktree`); the full decompose matrix rewrite is the sibling `decompose-matrix` member's, not
-      this WU's.
+    - `[~]` **6.6.b `decompose-work-unit` park-exit** — deferred to `decompose-matrix`. `decompose` is never a
+      `relocate-artifacts` caller: across all four transform shapes the origin is retired (`git rm`) or kept in
+      place, **never `git mv`-relocated**; the surviving-origin→backlog case is `park@Planning` _composing on_
+      decompose (the relocate owned by `park`), per `draft-decompose-matrix.md` § "The mechanical consequence".
+      Both primitives decompose needs — the teardown legs (`reconcile-branch:delete` / `reconcile-worktree:teardown`)
+      and `park@Planning` — are exposed and shipped here; the `decompose-work-unit.md` rewrite that _consumes_ them
+      into the full `{parent-position} × {transform-shape}` matrix is `decompose-matrix`'s (its draft Purpose +
+      inbound buffer + `Depends On: lifecycle-transition-core`), and _how_ it consumes them (matrix executor vs.
+      markdown over these primitives) is its create-spec open question. Re-pointing a sibling-owned workflow here
+      would be a half-edit it re-does; by the cohort's consistency-on-exit limit test the raw-git post-merge
+      teardown is un-enhanced, not inconsistent. Nothing orphaned: legs + `park` shipped, rewrite scope captured.
 
     - `[ ]` **6.6.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
 
