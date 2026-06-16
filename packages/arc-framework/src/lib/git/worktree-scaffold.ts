@@ -40,7 +40,7 @@ const PLANNING_LIFE_PHASE: WorktreeLifePhase = { branchPrefix: "plan/", initialS
 /** Meta `Next Action` used when the caller supplies none. */
 const DEFAULT_NEXT_ACTION = "Begin planning.";
 
-/** Dependencies for {@link spawnWorktree}. */
+/** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
   /** I/O context carrying the git executor and filesystem ops (also handed to the SESSION-NOTES seed). */
   io: UserIOContext;
@@ -85,8 +85,8 @@ export interface ScaffoldWorktreeParams {
  * Write the meta, seed SESSION-NOTES, and write the conditional ownership
  * marker into an existing worktree root — no `git worktree add`. Factored from
  * worktree creation so the cold-start (use-existing) path can scaffold a
- * worktree it did not create; {@link spawnWorktree} reuses it after creating
- * the worktree.
+ * worktree it did not create; the create-new path reuses it after the
+ * `reconcile-worktree.spawn` leg cuts the worktree.
  *
  * The marker is gated by `createdByArc` (default `true`): a spawn writes it, a
  * cold-start into an externally-created worktree passes `false` and no marker
