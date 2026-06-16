@@ -105,6 +105,7 @@ function buildCtx(opts: {
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
         : { mutation: "spawn", worktreePath: WORKTREE, branch: "x" };
     },
+    writeBranchField: async () => {},
     writeSoftFields: async (path, updates) => {
       softWrites.push({ path, updates: updates as Record<string, string> });
     },

@@ -198,6 +198,9 @@ export interface ExecuteTransitionContext {
     updates: Partial<Record<MetaFieldName, string>>,
   ) => Promise<void>;
 
+  /** Write the meta `Branch` core-table field at `metaPath` (read → rewrite cell → write). */
+  writeBranchField: (metaPath: string, branch: string) => Promise<void>;
+
   /** Caller-supplied guard validators, merged over {@link DEFAULT_GUARD_VALIDATORS}. */
   guardValidators?: Partial<Record<GuardId, GuardValidator>>;
   /** Side-effect handlers, keyed by id — every declared side-effect must be registered. */
@@ -242,6 +245,13 @@ export type TransitionOutcome =
       advisories: string[];
       /** The soft fields written (reset constants + supplied inputs). */
       softFieldsWritten: MetaFieldName[];
+      /**
+       * The meta `Branch` field value the executor projected from the edge's
+       * branch-affecting leg, or `null` when the edge establishes no branch the
+       * field tracks (a worktree-only preserve, e.g. park@Active, whose Branch is
+       * owned by the pointer-record).
+       */
+      branchFieldWritten: string | null;
       /** The ephemeral next-step suggestion, surfaced not persisted. */
       suggestion: string | null;
     }
@@ -390,10 +400,13 @@ export async function executeTransition(
     sideEffectsFired.push(id);
   }
 
-  // 7. Apply the soft-field disposition (reset constants + supplied inputs).
+  // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
+  const branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
+
+  // 8. Apply the soft-field disposition (reset constants + supplied inputs).
   const softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
 
-  // 8. Surface the ephemeral suggestion (advisory; never persisted).
+  // 9. Surface the ephemeral suggestion (advisory; never persisted).
   return {
     status: "ok",
     verb,
@@ -403,6 +416,7 @@ export async function executeTransition(
     sideEffectsFired,
     advisories,
     softFieldsWritten,
+    branchFieldWritten,
     suggestion: inputs.suggestion ?? null,
   };
 }
@@ -533,6 +547,64 @@ async function fireLeg(
 }
 
 /**
+ * The meta path the soft-field / branch-field projections write — the
+ * post-relocation home when the edge relocates, else the pre-relocation path.
+ */
+function effectiveMetaPath(
+  record: TransitionRecord,
+  metaPath: string,
+  inputs: TransitionInputs,
+): string {
+  return record.encodingUpdates.artifacts === "relocate" && inputs.toDir !== undefined
+    ? posix.join(inputs.toDir, posix.basename(metaPath))
+    : metaPath;
+}
+
+/**
+ * The branch the edge establishes, as a projection of its branch-affecting leg —
+ * the value the meta `Branch` field tracks:
+ *
+ * - `reconcile-branch` `rename` → the rotated `toBranch` (`activate` /
+ *   `deactivate`).
+ * - `reconcile-branch` `delete` → the `[none]` sentinel (`park@Planning` /
+ *   `abandon` / `archive` tear the branch down).
+ * - `reconcile-worktree` `spawn` → the spawned/attached branch — graduate cuts
+ *   `plan/<slug>` and resume re-attaches the preserved branch here, since branch
+ *   birth/attach rides the worktree leg (the co-occurring `create` branchOp is a
+ *   no-op carrying no name).
+ * - otherwise (a worktree-only `teardown` / `preserve`, e.g. park@Active) →
+ *   `null`: the edge establishes no branch the field should track. park@Active's
+ *   `Branch` is owned by its pointer-record, not this projection.
+ */
+function establishedBranch(inputs: TransitionInputs): string | null {
+  const branchOp = inputs.branchOp;
+  if (branchOp?.mutation === "rename") return branchOp.toBranch;
+  if (branchOp?.mutation === "delete") return "[none]";
+  if (inputs.worktreeOp?.mutation === "spawn") return inputs.worktreeOp.branch;
+  return null;
+}
+
+/**
+ * Project the meta `Branch` field from the edge's branch-affecting leg, writing
+ * it to the (possibly relocated) meta. Gated identically to the soft-field pass
+ * — skipped for creation / deletion edges (`scaffold` owns its fresh fields; a
+ * removed WU has no meta) — and a no-op when the edge establishes no tracked
+ * branch (returns `null`). Returns the value written, or `null` when none.
+ */
+async function applyBranchField(
+  ctx: ExecuteTransitionContext,
+  record: TransitionRecord,
+  metaPath: string | null,
+  inputs: TransitionInputs,
+): Promise<string | null> {
+  if (!softFieldsApply(record) || metaPath === null) return null;
+  const branch = establishedBranch(inputs);
+  if (branch === null) return null;
+  await ctx.writeBranchField(effectiveMetaPath(record, metaPath, inputs), branch);
+  return branch;
+}
+
+/**
  * Apply the edge's soft-field disposition to the (possibly relocated) meta:
  * write each `reset` constant and each supplied `input` value, leave the rest.
  * Skips entirely for creation / deletion edges (`scaffold` owns its fresh fields;
@@ -547,10 +619,7 @@ async function applySoftFields(
   if (!softFieldsApply(record) || metaPath === null) return [];
 
   // After a relocate, the meta lives under the destination directory.
-  const effectivePath =
-    record.encodingUpdates.artifacts === "relocate" && inputs.toDir !== undefined
-      ? posix.join(inputs.toDir, posix.basename(metaPath))
-      : metaPath;
+  const effectivePath = effectiveMetaPath(record, metaPath, inputs);
 
   const updates: Partial<Record<MetaFieldName, string>> = {};
   for (const key of Object.keys(DISPOSITION_KEY) as (keyof SoftFieldDispositions)[]) {

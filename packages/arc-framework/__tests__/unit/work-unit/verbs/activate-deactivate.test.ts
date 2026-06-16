@@ -103,6 +103,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push(op.mutation === "rename" ? `branch:rename:${op.branch}->${op.toBranch}` : `branch:${op.mutation}`);
     },
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    writeBranchField: async () => {},
     writeSoftFields: async (path, updates) => {
       softFields.push(...Object.keys(updates));
     },

@@ -108,6 +108,7 @@ interface Spies {
   ctx: ExecuteTransitionContext;
   calls: string[];
   softWrites: { path: string; updates: Partial<Record<MetaFieldName, string>> }[];
+  branchWrites: { path: string; branch: string }[];
 }
 
 interface SpyOptions {
@@ -128,6 +129,7 @@ interface SpyOptions {
 function buildSpies(opts: SpyOptions = {}): Spies {
   const calls: string[] = [];
   const softWrites: Spies["softWrites"] = [];
+  const branchWrites: Spies["branchWrites"] = [];
 
   const ALL_SIDE_EFFECTS: SideEffectId[] = [
     "reconcile-roadmap",
@@ -183,11 +185,15 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
       softWrites.push({ path, updates });
     },
+    writeBranchField: async (path, branch) => {
+      calls.push(`branch-field:${branch}`);
+      branchWrites.push({ path, branch });
+    },
     guardValidators: opts.guardValidators,
     sideEffects,
   };
 
-  return { ctx, calls, softWrites };
+  return { ctx, calls, softWrites, branchWrites };
 }
 
 // A standard active-WU teardown target (park@Active, abandon@Active, archive).
@@ -705,5 +711,146 @@ describe("executeTransition — never fabricates judgment values", () => {
     expect(outcome.stage).toBe("inputs");
     expect(outcome.message).toMatch(/delete.*does not match.*rename/i);
     expect(calls).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Branch-field encoding — the executor projects the meta `Branch` field
+//    from the edge's branch-affecting leg on every such edge (Task 6.5.a).
+// ---------------------------------------------------------------------------
+
+describe("executeTransition — Branch-field encoding projection", () => {
+  // `parked` ≡ (Active, planned): State `Active`, physically under `backlog/planned/`.
+  const PARKED_META: MetaSpec = { slug: "demo", tier: "backlog/planned", state: "Active", subdir: "demo" };
+
+  /** A fully-populated fresh-worktree spawn op for a given branch. */
+  const spawnOp = (branch: string): TransitionInputs["worktreeOp"] => ({
+    mutation: "spawn",
+    inPlace: false,
+    branch,
+    base: branch,
+    locationTemplate: "{repo}-{branch}",
+    repo: "repo",
+    wuName: "demo",
+    spawningIdentity: "andrew",
+  });
+
+  it("activate writes the rotated `<type>/<slug>` branch (from branchOp.toBranch)", async () => {
+    const { ctx, branchWrites } = buildSpies({ metas: [PLANNING_ACTIVE_META] });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "activate",
+      slug: "demo",
+      inputs: {
+        branchOp: { mutation: "rename", branch: "plan/demo", toBranch: "feat/demo" },
+        softFields: { nextTask: "Task 1.", nextAction: "Begin." },
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBe("feat/demo");
+    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
+  });
+
+  it("deactivate restores `plan/<slug>` (from branchOp.toBranch)", async () => {
+    const { ctx, branchWrites } = buildSpies({ metas: [ACTIVE_META] });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "deactivate",
+      slug: "demo",
+      inputs: { branchOp: { mutation: "rename", branch: "feat/demo", toBranch: "plan/demo" } },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBe("plan/demo");
+    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "plan/demo" }]);
+  });
+
+  it("start (graduate) writes the spawned `plan/<slug>` at the relocated path (from worktreeOp, not the no-op create)", async () => {
+    // start@planned declares class-resolved (default) + worktree-occupancy (injected).
+    const { ctx, branchWrites } = buildSpies({
+      metas: [PLANNED_META],
+      guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "start",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/active",
+        branchOp: { mutation: "create" },
+        worktreeOp: spawnOp("plan/demo"),
+        class: "Novel",
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBe("plan/demo");
+    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "plan/demo" }]);
+  });
+
+  it("park@Planning clears the field to `[none]` (from branchOp.delete)", async () => {
+    const { ctx, branchWrites } = buildSpies({
+      metas: [PLANNING_ACTIVE_META],
+      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "park",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/backlog/planned/demo",
+        branchOp: { mutation: "delete", branch: "plan/demo" },
+        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBe("[none]");
+    expect(branchWrites).toEqual([{ path: ".arc/backlog/planned/demo/meta-demo.md", branch: "[none]" }]);
+  });
+
+  it("resume restores the preserved branch at the relocated path (from worktreeOp spawn, no branchOp)", async () => {
+    const { ctx, branchWrites } = buildSpies({
+      metas: [PARKED_META],
+      guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "resume",
+      slug: "demo",
+      inputs: { toDir: ".arc/active", worktreeOp: spawnOp("feat/demo") },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBe("feat/demo");
+    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
+  });
+
+  it("park@Active does NOT write the field — the pointer-record owns its Branch (preserve, no branchOp)", async () => {
+    const { ctx, branchWrites, calls } = buildSpies({
+      metas: [ACTIVE_META],
+      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "park",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/backlog/planned/demo",
+        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    if (outcome.status !== "ok") return;
+    expect(outcome.branchFieldWritten).toBeNull();
+    expect(branchWrites).toEqual([]);
+    expect(calls).not.toContain("branch-field:");
   });
 });

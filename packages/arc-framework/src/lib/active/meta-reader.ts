@@ -415,6 +415,39 @@ export function renderMetaFile(
  * @throws When the meta carries no resolvable core-block table (nothing to move).
  */
 export function setMetaState(content: string, state: string): string {
+  return setMetaCoreFields(content, { State: state });
+}
+
+/**
+ * Rewrite the core-block `Branch` cell in place — the branch-axis sibling of
+ * {@link setMetaState}. Used by the lifecycle executor to project the meta
+ * `Branch` field from the branch a transition establishes (`plan/<slug>` on
+ * graduate, `<type>/<slug>` on activate, the preserved branch on resume,
+ * `[none]` on a teardown). Every other core field and the prose below stay
+ * byte-stable (modulo core-table alignment padding).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param branch - The branch value to write into the Branch cell (e.g. `plan/foo` or `[none]`).
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaBranch(content: string, branch: string): string {
+  return setMetaCoreFields(content, { Branch: branch });
+}
+
+/**
+ * Rewrite one or more core-block table cells in place, re-rendering *only* the
+ * three core-table rows so column alignment stays correct and leaving every
+ * bullet, narrative field, and section below byte-identical. The shared engine
+ * behind {@link setMetaState} and {@link setMetaBranch}: an override map supplies
+ * the new values for named core fields; unnamed cells keep their current value.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param overrides - Core field → new value; only named core fields are rewritten.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table.
+ */
+function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): string {
   const lines = content.split("\n");
   const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
   const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
@@ -424,21 +457,20 @@ export function setMetaState(content: string, state: string): string {
   const headerLine = sepIdx > 0 ? lines[sepIdx - 1] : undefined;
   const valueLine = sepIdx === -1 ? undefined : lines[sepIdx + 1];
   if (headerLine === undefined || valueLine === undefined) {
-    throw new Error("Cannot set meta State: no core-block table found.");
+    throw new Error("Cannot set meta core field: no core-block table found.");
   }
   const headers = splitTableRow(headerLine).map(stripHeaderLabel);
   if (!isCoreTableHeader(headers)) {
-    throw new Error("Cannot set meta State: core-block table header not recognized.");
+    throw new Error("Cannot set meta core field: core-block table header not recognized.");
   }
 
   const cells = splitTableRow(valueLine);
   const current = new Map<string, string | null>();
   headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
 
-  const valueOf = (field: MetaFieldDescriptor): string => {
-    if (field.name === "State") return state;
-    return current.get(field.name) ?? field.default;
-  };
+  const overrideMap = new Map<string, string>(Object.entries(overrides));
+  const valueOf = (field: MetaFieldDescriptor): string =>
+    overrideMap.get(field.name) ?? current.get(field.name) ?? field.default;
   lines.splice(sepIdx - 1, 3, ...renderCoreTable(valueOf));
   return lines.join("\n");
 }

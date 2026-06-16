@@ -19,6 +19,7 @@ import {
   readActiveMetaCandidates,
   renderMetaFile,
   setMetaBulletFields,
+  setMetaBranch,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -951,5 +952,51 @@ describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
     expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
       /Next Task.*not found/i,
     );
+  });
+});
+
+describe("setMetaBranch — in-place core-table Branch rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State** | **Owner** | **Branch**     | **Class** | **Priority** |
+|-----------|-----------|----------------|-----------|--------------|
+| \`Active\`  | \`andrew\`  | \`feat/demo-wu\` | \`Novel\`   | \`P1\`         |
+
+- **Cohort:** \`demo-cohort\`
+
+- **Last Completed:** Phase 1 — the transition table.
+- **Next Task:** \`Task 6.5 — the Branch-field encoding (line ~580)\`
+- **Blockers:** [none]
+
+- **Next Action:** Wire the Branch-field encoding next.
+
+---
+`;
+
+  it("rewrites the Branch cell, leaving every other core + bullet field byte-stable on parse", () => {
+    const written = setMetaBranch(META, "plan/demo-wu");
+
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after.Branch).toBe("plan/demo-wu");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Branch") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The prose below the core table is preserved verbatim.
+    const tail = (s: string): string => s.slice(s.indexOf("- **Cohort:**"));
+    expect(tail(written)).toBe(tail(META));
+    // The old branch value is gone from the rewritten table.
+    expect(written).not.toContain("`feat/demo-wu`");
+  });
+
+  it("writes the `[none]` sentinel (branchless WU)", () => {
+    const written = setMetaBranch(META, "[none]");
+    expect(parseMetaRecord(written).Branch).toBe("[none]");
+  });
+
+  it("throws when the meta carries no core-block table", () => {
+    const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
+    expect(() => setMetaBranch(noTable, "plan/demo-wu")).toThrow(/core-block table/i);
   });
 });

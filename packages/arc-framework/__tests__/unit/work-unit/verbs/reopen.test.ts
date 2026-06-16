@@ -96,6 +96,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push(`branch:${op.mutation}`);
     },
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    writeBranchField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
   };

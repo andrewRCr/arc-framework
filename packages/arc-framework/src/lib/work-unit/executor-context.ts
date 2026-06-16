@@ -34,7 +34,7 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
-import { parseMetaRecord, setMetaBulletFields } from "../active/meta-reader.js";
+import { parseMetaRecord, setMetaBulletFields, setMetaBranch } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
@@ -159,6 +159,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaBulletFields(content, updates));
+    },
+
+    writeBranchField: async (metaPath, branch) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaBranch(content, branch));
     },
 
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates }),

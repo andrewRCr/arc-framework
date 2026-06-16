@@ -577,11 +577,13 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   follow-up), which owns the planning sub-stage advancement that fills them. See `cohort-lifecycle-state-machine.md`
   § Shared contracts.
 
-    - `[ ]` **6.5.a `Branch`-field encoding write** — the executor writes the meta `Branch` field from the edge's
-      `branchOp` on every branch-affecting edge (a sibling to `set-phase`'s `State` write), retiring the per-verb
-      asymmetry (`park` renders it; `graduate` / `activate` / `deactivate` don't).
-      Build `test-first`: graduate sets `Branch: plan/<slug>`; activate sets `<type>/<slug>`; deactivate restores
-      `plan/<slug>`; park clears to `[none]`; resume restores the preserved branch.
+    - `[x]` **6.5.a `Branch`-field encoding write** — the executor projects the meta `Branch` field on every
+      branch-affecting edge (`applyBranchField` in `lifecycle-executor.ts`, gated like the soft-field pass, surfaced
+      on `TransitionOutcome.branchFieldWritten`). Sourced from the branch-affecting _leg_, not one `branchOp`:
+      `rename`→`toBranch`, `delete`→`[none]`, worktree `spawn`→`worktreeOp.branch` (graduate / resume carry the
+      branch on the worktree leg, where birth/attach lives); park@Active is a deliberate no-write — its `Branch`
+      stays the pointer-record's. Core-table write via `setMetaBranch` (sibling of `setMetaState`; both delegate to a
+      shared `setMetaCoreFields`), bound as the executor's `writeBranchField` seam.
 
     - `[ ]` **6.5.b Soft-field disposition audit** — audit each edge's `nextTask` / `nextAction` disposition so a
       transition never leaves stale guidance (e.g. entering `Integrating` resets `Next Task`); the machinery exists

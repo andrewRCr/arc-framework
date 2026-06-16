@@ -123,6 +123,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
         : { mutation: "spawn", worktreePath: WORKTREE, branch: "x" };
     },
+    writeBranchField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
   };

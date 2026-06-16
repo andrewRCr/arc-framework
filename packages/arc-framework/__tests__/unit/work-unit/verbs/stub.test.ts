@@ -48,6 +48,7 @@ function buildHarness(): Harness {
     relocateArtifacts: async () => ({ moved: [] }),
     reconcileBranch: async () => {},
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
+    writeBranchField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
   };
