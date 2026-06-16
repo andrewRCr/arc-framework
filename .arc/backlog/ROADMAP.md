@@ -12,9 +12,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State      | Work unit                 | Priority | Owner  | Depends on | Cohort                  |
-|------------|---------------------------|----------|--------|------------|-------------------------|
-| `Active`   | lifecycle-transition-core | P1       | andrew | —          | lifecycle-state-machine |
+| State    | Work unit                 | Priority | Owner  | Depends on | Cohort                  |
+|----------|---------------------------|----------|--------|------------|-------------------------|
+| `Active` | lifecycle-transition-core | P1       | andrew | —          | lifecycle-state-machine |
 
 ## Ready
 
@@ -33,7 +33,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
 | goal-aware-direction         | P2       | andrew | —          | —                           |
 | graduation-cleanup           | P2       | andrew | —          | —                           |
-| planning-pipeline-readiness  | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization  |
 | cli-test-hardening           | P3       | andrew | —          | architecture-remediation    |
@@ -74,6 +73,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | decompose-matrix              | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
 | errand-lattice                | P1       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
 | unit-scoped-review            | P2       | andrew | commit-increments         | approval-flow-refinement   |
+| planning-pipeline-readiness   | P2       | andrew | lifecycle-transition-core | lifecycle-state-machine    |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption    | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization      | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | handoff-optimization      | agent-context-optimization |
@@ -82,10 +82,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on                                                                            | Cohort                  |
-|--------------------|----------|--------|---------------------------------------------------------------------------------------|-------------------------|
-| lifecycle-closeout | P1       | andrew | lifecycle-state-resolver, lifecycle-transition-core, decompose-matrix, errand-lattice | lifecycle-state-machine |
-| wu5-public-release | P3       | andrew | docs-content-sweep                                                                    | release-readiness       |
+| Work unit          | Priority | Owner  | Depends on                                                                                                         | Cohort                  |
+|--------------------|----------|--------|--------------------------------------------------------------------------------------------------------------------|-------------------------|
+| lifecycle-closeout | P1       | andrew | lifecycle-state-resolver, lifecycle-transition-core, decompose-matrix, errand-lattice, planning-pipeline-readiness | lifecycle-state-machine |
+| wu5-public-release | P3       | andrew | docs-content-sweep                                                                                                 | release-readiness       |
 
 ### Depth 3
 

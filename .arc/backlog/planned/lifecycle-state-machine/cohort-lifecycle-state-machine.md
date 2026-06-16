@@ -63,13 +63,15 @@ hand-rolled declarative transition table as code + a thin imperative executor, o
 ```text
 lifecycle-state-resolver        (foundational — read-side state resolution; lands first)
   └─> lifecycle-transition-core (the state machine + executor + mutator bundle; the heavy member)
+        ├─> planning-pipeline-readiness  (planning sub-stage pointer mechanics + readiness; fast follow-up)
         ├─> decompose-matrix    (the decompose transition's full matrix)
         └─> errand-lattice      (the adjacent errand lifecycle + character gate)
               └─> lifecycle-closeout  (cross-cutting doc sweep + final consistency audit)
 ```
 
 Each `Depends On` edge is a **live gate discharged at the depended-on member's activation**, not a hard blocker.
-`decompose-matrix` and `errand-lattice` are parallel-able once `lifecycle-transition-core` lands.
+`planning-pipeline-readiness`, `decompose-matrix`, and `errand-lattice` are parallel-able once
+`lifecycle-transition-core` lands.
 
 ### Shared contracts
 
@@ -96,6 +98,13 @@ consumers, never the design itself:
   `set-phase`, fired together so the three-encoding invariant holds by construction). Owned by
   `lifecycle-transition-core`. `decompose-matrix` consumes only the **teardown legs** (`reconcile-branch` /
   `reconcile-worktree`) — it is _not_ a `relocate-artifacts` caller.
+- **The planning-stage pointer fields** — `Current Workflow` (a code-owned encoding naming the active lifecycle
+  workflow) and `Design` as an **event-driven pointer** (repoint `draft → spec` at create-spec finalization, not at
+  spec existence), plus their advancement through the planning sub-stages. Owned by `planning-pipeline-readiness`.
+  Consumes `lifecycle-transition-core`'s executor encoding pattern (the `Branch`-field encoding write is the worked
+  precedent these fields extend) and requires the planning sub-stages to become CLI-recognized events. The readiness
+  _judgment_ gating the `draft → spec` advance is PPR's `assess-draft-readiness` method; the _pointer write_ is the
+  executor's. Retires session-init's free-form `Next Action` prose-parse for the planning sub-stage.
 
 ### Soft coordination — forward-compat seams (postures, not dependencies)
 
@@ -134,8 +143,6 @@ Open seams whose home is elsewhere, recorded here only for a visible owner:
 
 - **OSD record/projection substrate** (structured-record model, render/reconcile engine, the managed-doc
   migration) — `operational-state-docs`, a different foundational domain.
-- **Planning-pipeline _content_** — `planning-pipeline-readiness` (the draft→spec exit-readiness judgment at the
-  same `arc-plan` seam our entry gate sits on; the two compose).
 - **Decomposition ownership-distribution motivation** (decompose to distribute pieces across single-owner devs) —
   team-scale doctrine owned by `single-owner-wu-model` (a parked `concurrent-work-conventions` member), not the
   state machine. `decompose-matrix` carries a pointer, not the design.
@@ -145,7 +152,7 @@ Open seams whose home is elsewhere, recorded here only for a visible owner:
 
 ### Closeout criteria
 
-The cohort is complete when **all five members ship AND the corpus is consistent** — the latter verified by
+The cohort is complete when **all six members ship AND the corpus is consistent** — the latter verified by
 `lifecycle-closeout`'s final audit (no documented-but-unbuilt or half-migrated lifecycle surface).
 
 **The consistency-on-exit standard (the cohort's governing principle).** When the transformed domain is this
@@ -202,12 +209,28 @@ _Exposes:_ the errand lifecycle modeled as a distinct adjacent lattice + its cro
 
 _Consumes:_ `lifecycle-transition-core`'s crossing-edge firing points (errand → WU promotion, inbox → errand).
 
+### `planning-pipeline-readiness`
+
+_Exposes:_ the planning-pipeline readiness-and-iteration surface made coherent — the shared `assess-draft-readiness`
+formalization-ready method, the `init-work-unit` readiness-pointer fix, the create-spec review/proceed interlock
+split, and the **planning-stage-pointer mechanics**: the code-owned `Current Workflow` encoding field, `Design` as an
+event-driven pointer (repoint at create-spec finalization), the `Next Action` boundary sentinel, and the session-init
+planning-sub-stage resolution that retires the free-form prose-parse.
+
+_Consumes:_ `lifecycle-transition-core`'s executor encoding pattern (the `Branch`-field encoding write is the worked
+precedent the stage-pointer fields extend) and `lifecycle-state-resolver`'s state model. Composes with
+`lifecycle-transition-core`'s planning-entry write-context gate at the shared `arc-plan` seam.
+
+_Scope note:_ the planning-_content_ concerns (iteration-time inbound-buffer ceremony, depth-aware `Class`
+navigation) may split to a separate planning-content WU at PPR's planning, keeping this member spine-focused —
+the spine concerns (readiness method, interlock split, pointer mechanics) stay.
+
 ### `lifecycle-closeout`
 
 _Exposes:_ the cross-cutting verb-rename documentation sweep (strategies, rules, briefs, lifecycle workflows) and
 the final consistency audit that certifies the corpus matches the shipped model.
 
-_Consumes:_ all four prior members — it is the global-consistency tail that runs only once their code + local
+_Consumes:_ all five prior members — it is the global-consistency tail that runs only once their code + local
 docs have landed.
 
 ## ADR anchors
