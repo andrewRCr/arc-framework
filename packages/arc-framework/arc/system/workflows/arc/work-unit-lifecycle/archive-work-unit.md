@@ -31,47 +31,37 @@ grep -E '^\- \*\*State:\*\*' .arc/active/meta-{name}.md
 ```
 
 Halt with surface if `**State:** Integrating` is absent — upstream composition in `integrate-work-unit.md`
-is the prerequisite. State flip below is the only transition archive owns.
+is the prerequisite. The `arc archive` sweep below is the transition archive owns; physical branch/worktree
+teardown is the integration tail's post-merge cleanup, not archive's.
 
-### 2) State flip — `Integrating → Shipped`
+### 2) Run the archive sweep — `arc archive`
 
-Edit `active/meta-{name}.md`: `**State:** Integrating` → `**State:** Shipped`. Single direction; always.
-
-### 3) Sweep — move WU files to `completed/`
+`arc archive` performs the deterministic ship mechanics through the executor: it computes the dated/numbered
+`completed/{dated}/{NN}_{name}/` destination, relocates the WU's artifact set there, flips `**State:**` to
+`Shipped`, clears the meta `**Branch:**` field to `[none]`, resets the orientation soft fields, and — when this WU
+is its cohort's final member — sweeps the coordinating `cohort-<leaf>.md` into a `{NN}a_cohort-<leaf>` closeout
+sidecar.
 
 ```bash
-mkdir -p .arc/completed/{dated}/{NN}_{name}
-git mv .arc/active/meta-{name}.md   .arc/completed/{dated}/{NN}_{name}/
-git mv .arc/active/spec-{name}.md   .arc/completed/{dated}/{NN}_{name}/   # single-form spec
-git mv .arc/active/spec-{name}-prd.md .arc/completed/{dated}/{NN}_{name}/ # layered spec, when present
-git mv .arc/active/spec-{name}-rfc.md .arc/completed/{dated}/{NN}_{name}/ # layered spec, when present
-git mv .arc/active/tasks-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
-git mv .arc/active/notes-{name}.md  .arc/completed/{dated}/{NN}_{name}/   # when present
+arc archive {name}   # or bare `arc archive` — context-defaults to the current worktree's WU
 ```
 
-`{dated}` follows `YYYY-q*` (e.g., `2026-q2`). `{NN}` is a 2-digit completion-order prefix assigned at
-archival — the next index after the highest already present in the `{dated}` subdir (e.g., `10_` when
-`01_`–`09_` exist), reset per quarter — giving a browse-time "by completion order" view. Adjust the file
-list to what exists for the WU, moving both `spec-{name}-prd.md` and `spec-{name}-rfc.md` when the layered
-pair exists — per-worktree isolation means `active/` carries only this WU's artifacts
-(see [Work Organization Strategy][work-org] § Per-Worktree Isolation).
+`{dated}` follows `YYYY-q*` (e.g., `2026-q2`); `{NN}` is the next completion-order index in that quarter,
+reset per quarter — both computed by the command. The relocations are **staged, not committed** (the executor
+never commits); they bundle into the archival commit (Step 5). The command reports the computed destination and
+**whether the cohort doc was swept** — the final-member signal Step 3 reacts to.
 
-### 4) Cohort closeout — final member only
+**Mergeable sweep only.** `arc archive` does **not** delete the working branch or tear down the worktree: that
+physical teardown is non-mergeable (it cannot ride the ship PR) and stays the integration tail's post-merge
+cleanup ([`integrate-work-unit.md`][integrate-work-unit] Step 13). The sweep itself is protection-agnostic — it
+rides the ship PR under `with-integration` (one PR, full or partial protection), or commits standalone post-merge
+under `manual`.
 
-Skip when the archived WU's `**Cohort:**` field is `[none]`, empty, or absent.
+### 3) Cohort closeout content — final member only
 
-Otherwise, resolve the cohort path from the WU's `**Cohort:**` field. The cohort doc's live home remains
-`.arc/backlog/planned/{cohort-path}/cohort-{cohort-name}.md` until this closeout; `{cohort-name}` is the path's
-leaf segment. Determine lifecycle-complete cohort membership by reading WU metas across:
-
-- `.arc/backlog/planned/**/meta-*.md`
-- `.arc/active/**/meta-*.md`
-- `.arc/completed/**/meta-*.md`
-
-If any member with the same `**Cohort:**` field is not under `.arc/completed/`, skip closeout — the cohort is
-still live even if its doc has no co-located backlog members. The WU archived in Step 3 counts as completed.
-
-When every member with the cohort path is under `.arc/completed/`, close the cohort doc:
+Skip unless Step 2 reported a cohort sweep (this WU was its cohort's final member; a standalone WU or one with
+members still in flight reports none). `arc archive` already performed the mechanical `git mv` of
+`cohort-<leaf>.md` into its `{NN}a_cohort-<leaf>` sidecar — author its closeout content at that swept path:
 
 1. Lightly clean the doc for archive: remove transient open coordination, route unresolved follow-up to its
    authoritative home, and keep only historical coordination that helps future readers.
@@ -89,19 +79,10 @@ When every member with the cohort path is under `.arc/completed/`, close the coh
     - **Follow-up:** [none] or <routed destination>
     ```
 
-3. Move the cohort doc into a lettered sidecar of the WU archive entry from Step 3. Use `{NN}a` for the first
-   cohort closed by this final member, `{NN}b` for a parent cohort that closes in the same event, and so on:
-
-    ```bash
-    mkdir -p .arc/completed/{dated}/{NN}a_cohort-{cohort-name}
-    git mv .arc/backlog/planned/{cohort-path}/cohort-{cohort-name}.md \
-      .arc/completed/{dated}/{NN}a_cohort-{cohort-name}/
-    ```
-
 The cohort closeout entry is not a WU archive: it carries no `meta-*`, task list, branch, or release notes entry.
 It preserves completion-order browsing while the cohort doc's `Parent` field preserves nesting context.
 
-### 5) Regenerate ROADMAP · `arc-in-git` only
+### 4) Regenerate ROADMAP · `arc-in-git` only
 
 > **Skip this step** under `pm.mode: none` or `external`.
 
@@ -109,14 +90,15 @@ WU integration is a regen fire-point. Re-render per [Work Organization Strategy 
 the shipped WU drops out of ROADMAP (rendered from `active/**` and `backlog/planned/**`; once swept, no longer
 reachable).
 
-### 6) Fire `post-work-unit-archive` extension
+### 5) Fire `post-work-unit-archive` extension
 
 If `post-work-unit-archive` appears in the active-extensions list (established at session init), load and
 execute its [`.actions`][arc-ext-post-archive]. Otherwise, skip.
 
-### 7) Commit archival
+### 6) Commit archival
 
-Bundle state flip + WU sweep + cohort closeout when applicable + ROADMAP regen.
+Bundle the `arc archive` sweep (state flip + WU relocation + cohort move) + the cohort closeout content when
+applicable + ROADMAP regen.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

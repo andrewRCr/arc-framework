@@ -629,7 +629,7 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       would be a half-edit it re-does; by the cohort's consistency-on-exit limit test the raw-git post-merge
       teardown is un-enhanced, not inconsistent. Nothing orphaned: legs + `park` shipped, rewrite scope captured.
 
-    - `[ ]` **6.6.c `archive-work-unit` re-point + `arc archive` verb correction** — re-point the archive ceremony
+    - `[x]` **6.6.c `archive-work-unit` re-point + `arc archive` verb correction** — re-point the archive ceremony
       to the shipped sweep, correcting the verb's teardown over-reach (6.1) en route. 6.1 bundled branch/worktree
       teardown into the `archive` edge, but teardown is **non-mergeable** (post-merge only — `git branch -D` +
       remote delete would close the open PR), while the sweep must **ride the ship PR** (sweep-in-PR; one PR under
@@ -652,11 +652,12 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           reconcile in place — the record/projection split made explicit at the headline guard. All gates green
           (typecheck · 2788+75 tests · build · lint).
 
-        - `[ ]` **6.6.c.2 Re-point `archive-work-unit.md` + clarify `integrate-work-unit.md`** — replace archive
-          Steps 2–4 (state flip · sweep · cohort move) with the `arc archive` call; keep the cohort Closeout
-          authoring (judgment, reacting to the verb's `cohortSwept` report) + ROADMAP regen as the workflow's. In
-          `integrate-work-unit.md`, clarify Step 11 = sweep (rides the PR) and Step 13 = the unchanged post-merge
-          teardown owner. Sync package copies.
+        - `[x]` **6.6.c.2 Re-point `archive-work-unit.md` + clarify `integrate-work-unit.md`** — collapsed archive
+          Steps 2–4 (state flip · sweep · cohort move) into one `arc archive` call; the cohort Closeout authoring
+          now reacts to the verb's `cohortSwept` report (judgment kept, mechanical `git mv` dropped); ROADMAP regen
+          and commit retained, steps renumbered to 1–6. `integrate-work-unit.md` Step 11 now names the mergeable sweep
+          (rides the PR) and Step 13 the deferred post-merge physical teardown. Both Framework copies synced; lint
+          clean.
 
     - `[ ]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
       (`activate` fires the dep-edge discharge, 4.7). Drop the inline branch rename **and** the inline `Branch`-field
