@@ -573,7 +573,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: PLANNING,
     to: null,
     inverse: null,
-    guards: [],
+    guards: ["worktree-clean"],
     encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,

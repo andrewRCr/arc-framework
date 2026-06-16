@@ -176,6 +176,16 @@ describe("lifecycle transition table — encoding consistency", () => {
       ).toEqual(expectedMutators);
     }
   });
+
+  it("guards every worktree-teardown edge with worktree-clean", () => {
+    for (const edge of TRANSITIONS) {
+      if (edge.encodingUpdates.reconcileWorktree !== "teardown") continue;
+      expect(
+        edge.guards.includes("worktree-clean"),
+        `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) tears down a worktree without the worktree-clean guard`,
+      ).toBe(true);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
