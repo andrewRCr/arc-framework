@@ -707,6 +707,14 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       confirm `arc abandon`'s worktree-identity dispatch (primary vs. linked) covers Case A-delete's two arms before
       dropping the inline blocks. Markdown + wiring. (Surfaced by the 6.6.d re-point, 2026-06-16.)
 
+        - _Audit (2026-06-16):_ `handleAbandon` already resolves the WU's `worktreePath` + `currentLocus` and the
+          executor's teardown leg does the self-teardown locus-hop, so `arc abandon` **already covers both arms**
+          (primary in-place / linked worktree) — the re-point is a clean delegation that drops the manual
+          `decideWorktreeCleanup` / `git branch -D` / `git worktree remove` blocks. **Retain Case A-delete Step 3**
+          (base-branch leftover cleanup): abandon's cascade removes the WU's own artifacts + the ROADMAP row, not the
+          base-side `backlog/{state}/{name}/` source folder left by `init` Path A — keep that cleanup (+ ROADMAP
+          re-render) in the workflow, or confirm at impl time that abandon reaches it.
+
     - `[ ]` **6.6.h Cohort-aware `promote` (nested `provisional → planned`)** — `promote` / `demote` compute a
       **flat** `backlog/{tier}/{name}` path (`tierDir` in `verbs/promote-demote.ts`), so `arc promote` can't relocate
       a cohort-nested stub (`backlog/provisional/{cohort}/{name}/`); `graduate-work-unit.md`'s nested branch stays a
@@ -749,7 +757,8 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
 
     - `[ ]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
       run-context (6.7.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring
-      (not test-first).
+      (not test-first). Author to the established re-point convention (6.6.a–e): call `arc park`; the executor owns
+      the relocate / branch-preserve / pointer-record write; push legs + judgment stay in the workflow.
 
     - `[ ]` **6.7.d `resume-work-unit.md` ceremony (thin v1)** — drives `arc resume` (spawn + `--here`) and the
       re-attach orchestration. Markdown + wiring (not test-first).
