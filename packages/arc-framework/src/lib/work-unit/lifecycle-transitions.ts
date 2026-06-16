@@ -415,7 +415,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: PARKED,
     to: ACTIVE,
     inverse: "park",
-    guards: [],
+    guards: ["worktree-occupancy"],
     encodingUpdates: { artifacts: "relocate", reconcileWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,

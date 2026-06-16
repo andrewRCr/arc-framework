@@ -361,8 +361,17 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   reportOutcome("Parked", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
-/** `arc resume <slug>` — re-attach a parked WU's preserved branch in a fresh worktree. */
-export async function handleResume(slug: string | undefined): Promise<void> {
+/** Options for `arc resume`. */
+export interface ResumeOptions {
+  /** Re-attach in the current worktree instead of spawning a new one. */
+  here?: boolean;
+}
+
+/**
+ * `arc resume <slug>` — re-attach a parked WU's preserved branch. Spawns a fresh
+ * worktree by default; `--here` re-attaches in the current checkout (no spawn).
+ */
+export async function handleResume(slug: string | undefined, opts: ResumeOptions = {}): Promise<void> {
   p.intro("arc resume");
   const base = await resolveVerbBase();
   if (base === null) return;
@@ -371,20 +380,31 @@ export async function handleResume(slug: string | undefined): Promise<void> {
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
+  const ctx = { executor, fs: { writeFile: base.io.writeFile } };
+
+  // In place (`--here`): no fresh worktree, so the spawn config (location
+  // template / repo) isn't needed — the preserved branch is checked out here.
+  if (opts.here) {
+    const result = await runResume(ctx, { name: target, inPlace: true });
+    if (result.status === "rejected") {
+      refuse(result.reason);
+      return;
+    }
+    reportOutcome("Resumed (in place)", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+    return;
+  }
+
   const primaryWorktreePath = await resolvePrimaryWorktreePath(base.io.exec);
   if (primaryWorktreePath === null) {
     refuse("could not resolve the primary worktree path to derive the repository name");
     return;
   }
-  const result = await runResume(
-    { executor, fs: { writeFile: base.io.writeFile } },
-    {
-      name: target,
-      locationTemplate: settings["worktree.location_template"],
-      repo: basename(primaryWorktreePath),
-      spawningIdentity: base.identity,
-    },
-  );
+  const result = await runResume(ctx, {
+    name: target,
+    locationTemplate: settings["worktree.location_template"],
+    repo: basename(primaryWorktreePath),
+    spawningIdentity: base.identity,
+  });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;

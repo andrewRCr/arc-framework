@@ -275,8 +275,40 @@ async function graduate(
   p.outro("Done.");
 }
 
-/** Resume arm — re-attach a parked WU's preserved branch (delegates to the shipped `resume` verb). */
+/**
+ * Resume arm — re-attach a parked WU's preserved branch (delegates to the shipped
+ * `resume` verb). Spawns a fresh worktree by default; `--here` re-attaches in the
+ * current checkout (no spawn).
+ */
 async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Promise<void> {
+  // In place (`--here`): no fresh worktree, so the spawn config isn't needed —
+  // only `team.mode` for the executor's status side-effect.
+  if (opts.here) {
+    const { settings } = await readConfigSettings(ctx.cwd);
+    if (!skipConfirm(opts)) {
+      if (!(await confirmStep(`Resume parked work unit "${wuName}" — re-attach its branch in this worktree (no spawn)?`))) {
+        p.log.info("Resume cancelled.");
+        return;
+      }
+    }
+    const result = await runResume(
+      {
+        executor: buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
+        fs: { writeFile: (path, content) => ctx.io.writeFile(path, content) },
+      },
+      { name: wuName, inPlace: true },
+    );
+    if (result.status === "rejected") {
+      p.log.error(result.reason);
+      process.exitCode = 1;
+      return;
+    }
+    p.note([`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`].join("\n"), "Resumed (in place)");
+    reportAdvisories(result.outcome);
+    p.outro("Done.");
+    return;
+  }
+
   const config = await resolveSpawnConfig(ctx);
   if (config === null) return;
 

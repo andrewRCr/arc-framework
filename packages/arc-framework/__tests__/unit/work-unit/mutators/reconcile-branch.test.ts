@@ -82,19 +82,11 @@ describe("reconcileBranch", () => {
     ]);
   });
 
-  it("stays inert for a spawn-backed create (the worktree-spawn leg owns branch creation)", async () => {
+  it("makes no git invocation for create (reconcile-worktree owns branch creation)", async () => {
     const { ctx, calls } = buildCtx();
 
     await reconcileBranch(ctx, { mutation: "create" });
 
     expect(calls).toEqual([]);
-  });
-
-  it("cuts the branch in the current worktree for an in-place create (git checkout -b)", async () => {
-    const { ctx, calls } = buildCtx();
-
-    await reconcileBranch(ctx, { mutation: "create", inPlace: { branch: "plan/demo-wu" } });
-
-    expect(calls).toEqual([["git", "checkout", "-b", "plan/demo-wu"]]);
   });
 });

@@ -214,6 +214,12 @@ describe("handleResume", () => {
       spawningIdentity: "andrew",
     });
   });
+
+  it("dispatches an in-place runResume under `--here` (no spawn config)", async () => {
+    await handleResume("foo", { here: true });
+    expect(mockRunResume).toHaveBeenCalledTimes(1);
+    expect(mockRunResume.mock.calls[0]?.[1]).toEqual({ name: "foo", inPlace: true });
+  });
 });
 
 describe("handleActivate", () => {

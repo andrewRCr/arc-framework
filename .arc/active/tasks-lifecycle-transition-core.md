@@ -527,37 +527,40 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
   `status <slug>` and adds a bare-`arc status` assertion (no top-level `slug` key — the positional left it
   untouched).
 
-### `[ ]` **6.4 In-place (`--here`) opt-out for `graduate` / `resume`**
+### `[x]` **6.4 In-place (`--here`) opt-out for `graduate` / `resume`**
 
 - _Goal:_ The begin-work transitions accept a `--here` flag to execute in the current checkout without spawning a
   worktree (spawn stays the default), so single-checkout / heavy-toolchain WU development re-points to the executor
   rather than the inline `git mv` Success Criterion 1 forbids.
 
-- _Note:_ Locus-only — branch, `(phase, location)` record, and notes-sync are identical to the spawn path
-  (cross-machine coherence unaffected; in-place sidesteps the `location_template` path-portability wrinkle). The
-  atomic in-place case stays **errands'**; this is WU-grade. Honors the worktree-occupancy guard (refuse a checkout
-  already holding an active WU). Spawn-vs-in-place is orthogonal to protection mode. See
-  `spec-lifecycle-transition-core.md` §5 (in-place opt-out) + §4 (reconcile-branch create realizations). The
-  Materialize cross-machine twin is downstream (captured for `finalize-parallelism`).
+    - `[x]` **6.4.a In-place placement on `reconcile-worktree`** — the `spawn` op gained an `inPlace` variant:
+      `git checkout [-b] <branch>` in the _current_ worktree (no `worktree add`, no ownership marker), with
+      `createBranch` selecting `-b` (graduate/create-new) vs. attach-existing (resume). Branch birth stays
+      `reconcile-worktree`'s in **both** placement modes, so `reconcile-branch.create` remains a pure no-op.
 
-    - `[x]` **6.4.a `reconcile-branch` in-place create** — the `create` op now carries an optional
-      `inPlace: { branch }` operand: present → a current-worktree `git checkout -b <branch>` (off HEAD); absent →
-      inert spawn-backed path (the worktree-spawn `-b` owns the birth), as before. Operand-presence keys the
-      realization, so the edge keeps declaring `reconcileBranch: "create"` on both paths and the executor's
-      mutation-match check is untouched (no executor change). The 6.4.b/c in-place arms supply the `inPlace` branch.
+    - `[x]` **6.4.b `graduate --here`** — `runGraduate`'s params became a spawn/in-place union; the in-place arm
+      builds `worktreeOp {spawn, inPlace, createBranch: true}` (inert `branchOp create`), no spawn config. `handleStart`
+      routes `--here` _through_ dispatch (create-new→cold-start, graduate→in-place) instead of short-circuiting to
+      cold-start (also fixing `--here <existing-name>` previously scaffolding a duplicate meta); `--here` CLI help
+      broadened. The shipped `worktree-occupancy` guard rejects a checkout already holding an active WU, reused
+      unchanged. Integration test cuts `plan/<name>` in the current checkout (HEAD moves, no spawn).
 
-    - `[x]` **6.4.b `graduate --here`** — the executor gained `TransitionInputs.inPlace`, which suppresses the
-      `reconcile-worktree` *spawn* leg and waives its `worktreeOp` (the "reuse the legs minus the spawn" mechanism;
-      reused by 6.4.c). `runGraduate`'s params became a spawn/in-place union — the in-place arm composes relocate +
-      `branchOp.create{inPlace}` + `inPlace`, no `worktreeOp`. `handleStart` now routes `--here` *through* dispatch
-      (create-new→cold-start, graduate→in-place) rather than short-circuiting to cold-start; the `--here` CLI help
-      broadened to match. The shipped `worktree-occupancy` guard already rejects a checkout holding an active WU —
-      reused unchanged. Integration test cuts `plan/<name>` in the current checkout (HEAD moves, no spawn).
+    - `[x]` **6.4.c `resume --here`** — `runResume`'s params became a spawn/in-place union; the in-place arm builds
+      `worktreeOp {spawn, inPlace, createBranch: false}` (attach the preserved branch), no spawn config. `--here`
+      threaded through `arc resume` (`handleResume`) and the `arc start <parked>` resume arm + CLI. Added the
+      `worktree-occupancy` guard to the `resume` edge (it had none) — closing the two-metas-in-`active/` foot-gun for
+      in-place resume and hardening spawn resume too; oracle-safe (guards aren't encoding-checked).
 
-    - `[ ]` **6.4.c `resume --here`** — the resume arm threads the no-spawn variant (re-attach the preserved branch
-      in the current checkout); CLI `--here` flag; same occupancy guard.
-      Build `test-first`: `arc resume <parked> --here` re-attaches in place (no spawn); bare `arc resume <parked>`
-      still spawns.
+- _Outcome:_ All in-place worktree placement (spawn / in-place; create / attach) is owned by **one leg**,
+  `reconcile-worktree`, keyed by an `inPlace` + `createBranch` op modifier; `reconcile-branch` stays purely
+  branch-ref ops and the executor stays oblivious to placement strategy. This is **Option B**, adopted mid-task over
+  the first-pass mechanism (an in-place realization on `reconcile-branch.create` + a `TransitionInputs.inPlace`
+  spawn-suppression flag, shipped in the interim 6.4.a/b commits and reverted here): the transition-table
+  consistency oracle forbids a `reconcile-branch` leg on the `resume` edge (no branch-category change), so that
+  mechanism couldn't extend to resume. Chosen for layering + arc-backend forward-compat — placement strategy
+  (spawn / in-place / future Materialize) is the projection layer's, not the logical executor's, and now lives on a
+  single cohesive axis. Locus-only (branch, `(phase, location)` record, notes-sync identical to spawn); resume's
+  cross-branch relocate correctness stays park's deferred concern.
 
 ### `[ ]` **6.5 Re-point existing workflows to the executor**
 

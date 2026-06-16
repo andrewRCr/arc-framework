@@ -106,7 +106,7 @@ interface Harness {
   writes: { path: string; content: string }[];
 }
 
-function buildCtx(metas: MetaSpec[]): Harness {
+function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const calls: string[] = [];
   const writes: Harness["writes"] = [];
 
@@ -130,7 +130,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
     },
     reconcileWorktree: async (op) => {
-      calls.push(`worktree:${op.mutation}`);
+      calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "teardown"
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
         : { mutation: "spawn", worktreePath: WORKTREE, branch: op.branch };
@@ -139,9 +139,13 @@ function buildCtx(metas: MetaSpec[]): Harness {
       calls.push(`soft:${path}:${Object.keys(updates).join(",")}`);
     },
     sideEffects,
-    // The `worktree-clean` IO guard is an injected seam (the CLI binds the real
-    // worktree read); a clean worktree is the precondition under test here.
-    guardValidators: { "worktree-clean": () => ({ ok: true }) },
+    // The `worktree-clean` / `worktree-occupancy` IO guards are injected seams
+    // (the CLI binds the real worktree reads); both pass by default here.
+    guardValidators: {
+      "worktree-clean": () => ({ ok: true }),
+      "worktree-occupancy": () =>
+        occupancyOk ? { ok: true } : { ok: false, message: "worktree already holds an active work unit `other`." },
+    },
   };
 
   const fs: ParkContext["fs"] = {
@@ -294,5 +298,32 @@ describe("runResume — the inverse", () => {
     // Re-attach: the worktree spawns; the preserved branch is not re-created.
     expect(calls).toContain("worktree:spawn");
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("re-attaches in place (`--here`) — checks out the preserved branch, no spawn", async () => {
+    const { ctx, calls } = buildCtx([PARKED]);
+
+    const result = await runResume(ctx, { name: "foo", inPlace: true });
+
+    expect(result.status).toBe("resumed");
+    if (result.status !== "resumed") return;
+    expect(result.metaPath).toBe(".arc/active/meta-foo.md");
+    expect(calls).toContain("relocate:.arc/backlog/planned/foo->.arc/active");
+    // In-place placement (checkout existing); no fresh worktree, no branch leg.
+    expect(calls).toContain("worktree:spawn:in-place");
+    expect(calls).not.toContain("worktree:spawn");
+    expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+  });
+
+  it("refuses when the checkout already holds an active WU (worktree-occupancy guard)", async () => {
+    const { ctx, calls } = buildCtx([PARKED], /* occupancyOk */ false);
+
+    const result = await runResume(ctx, { name: "foo", inPlace: true });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/already holds an active work unit/i);
+    // Refusal is total — no relocate, no placement.
+    expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
   });
 });

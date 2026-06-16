@@ -106,10 +106,10 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       return { moved: [`meta-${params.slug}.md`] };
     },
     reconcileBranch: async (op) => {
-      calls.push(op.mutation === "create" && op.inPlace ? "branch:create:in-place" : `branch:${op.mutation}`);
+      calls.push(`branch:${op.mutation}`);
     },
     reconcileWorktree: async (op) => {
-      calls.push(`worktree:${op.mutation}`);
+      calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
         ? { mutation: "spawn", worktreePath: "/repo/../wt", branch: op.branch }
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
@@ -177,10 +177,10 @@ describe("runGraduate — backlog stub onto its branch", () => {
     if (result.status !== "graduated") return;
     expect(result.branch).toBe("plan/widget");
     expect(result.metaPath).toBe(".arc/active/meta-widget.md");
-    // Relocate + in-place branch create fire; no worktree is spawned.
+    // Relocate + in-place worktree placement (checkout -b) fire; no fresh worktree is spawned.
     expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
-    expect(calls).toContain("branch:create:in-place");
-    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(calls).toContain("worktree:spawn:in-place");
+    expect(calls).not.toContain("worktree:spawn");
   });
 
   it("refuses an in-place graduate into a checkout that already holds an active WU", async () => {
@@ -194,8 +194,8 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/already holds an active work unit/i);
-    // Refusal is total — no relocate, no branch create.
-    expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("branch:"))).toBe(false);
+    // Refusal is total — no relocate, no worktree placement.
+    expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
   });
 
   it("rejects when the Class is unresolved ([TBD]) — the class-resolved guard", async () => {

@@ -9,10 +9,10 @@
  *
  * It owns the **standalone** branch operations: the `plan/ → <type>/` rotate at
  * `activate`, the preserve at `park@Active`, and the local + remote teardown at
- * `park@Planning` / pre-merge `abandon`. Branch *creation* is realized two ways:
- * **spawn-backed** (the default — the branch rides `reconcile-worktree`'s `git
- * worktree add -b`, so this leg stays inert) and **in-place** (the `--here`
- * no-spawn path — a current-worktree `git checkout -b`, no operand → no-op).
+ * `park@Planning` / pre-merge `abandon`. Branch *creation* is not a standalone op
+ * here — `reconcile-worktree` owns branch birth in both placement modes (spawn via
+ * `git worktree add -b`, in-place via `git checkout -b`); `create` is a no-op in
+ * this leg.
  *
  * Branch deletion targets the *current* branch of the WU's worktree, so the
  * executor sequences a worktree teardown (with locus-hop) ahead of it — this leg
@@ -42,16 +42,14 @@ export interface ReconcileBranchContext {
  * - `delete` — tear down `branch` locally and on `remote` (default `origin`).
  * - `preserve` — leave the branch untouched (`park@Active` keeps the pushed
  *   branch as the durable shelf).
- * - `create` — realize the branch. **Spawn-backed** (`inPlace` absent): a no-op,
- *   the worktree-spawn leg's `-b` creates the branch. **In-place** (`inPlace`
- *   present, the `--here` no-spawn path): `git checkout -b` cuts the branch in the
- *   current worktree, off current HEAD.
+ * - `create` — a no-op here; `reconcile-worktree` creates the branch (spawn via
+ *   `git worktree add -b`, in-place via `git checkout -b`).
  */
 export type ReconcileBranchOp =
   | { mutation: "rename"; branch: string; toBranch: string }
   | { mutation: "delete"; branch: string; remote?: string }
   | { mutation: "preserve" }
-  | { mutation: "create"; inPlace?: { branch: string } };
+  | { mutation: "create" };
 
 /**
  * Reconcile a work unit's branch per `op`.
@@ -59,9 +57,8 @@ export type ReconcileBranchOp =
  * Rotate renames locally (`git branch -m`); teardown force-deletes the local
  * branch (`git branch -D`) then best-effort deletes the remote ref — an unpushed
  * planning branch has no remote to delete, so that failure is swallowed while the
- * authoritative local teardown still lands. Preserve performs no git operation;
- * create performs one only on the in-place path (`git checkout -b`), staying
- * inert when the worktree-spawn leg owns the branch birth.
+ * authoritative local teardown still lands. Preserve and create perform no git
+ * operation.
  *
  * @param ctx - Injected git seam.
  * @param op - The branch mutation and its operands.
@@ -85,14 +82,8 @@ export async function reconcileBranch(
       }
       return;
     }
-    case "create":
-      // In-place (`--here`): cut the branch in the current worktree off HEAD.
-      // Spawn-backed (no `inPlace`): inert — `reconcile-worktree`'s `-b` owns it.
-      if (op.inPlace !== undefined) {
-        await ctx.exec("git", ["checkout", "-b", op.inPlace.branch]);
-      }
-      return;
     case "preserve":
+    case "create":
       return;
   }
 }

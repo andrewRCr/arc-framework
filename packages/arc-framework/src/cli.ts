@@ -36,6 +36,7 @@ import {
   handleArchive,
   type StubOptions,
   type ParkOptions,
+  type ResumeOptions,
   type ActivateOptions,
   type ReopenOptions,
   type AbandonOptions,
@@ -142,8 +143,12 @@ program
 
 program
   .command("resume [slug]")
-  .description("Re-attach a parked work unit's preserved branch in a fresh worktree")
-  .action((slug: string | undefined) => handleResume(slug));
+  .description(
+    "Re-attach a parked work unit's preserved branch. Default spawns a fresh worktree; "
+    + "`--here` re-attaches in the current worktree.",
+  )
+  .option("--here", "Re-attach in the current worktree instead of spawning a new one")
+  .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
 
 program
   .command("activate [slug]")

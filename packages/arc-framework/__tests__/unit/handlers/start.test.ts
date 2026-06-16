@@ -153,6 +153,21 @@ describe("handleStart — dispatch orchestration", () => {
     expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Resumed");
   });
 
+  it("`--here` against a parked WU resumes in place (no spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "resume" });
+    mockRunResume.mockResolvedValue({
+      status: "resumed",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunResume).toHaveBeenCalledTimes(1);
+    expect(mockRunResume.mock.calls[0]?.[1]).toMatchObject({ name: "widget", inPlace: true });
+    expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Resumed (in place)");
+  });
+
   it("surfaces a directed refusal and sets the exit code — no arm runs", async () => {
     mockResolveStartDispatch.mockReturnValue({ arm: "refuse", reason: "`widget` is occupied — already Active." });
 

@@ -4,12 +4,19 @@
  *
  * Two operations:
  *
- * - `spawn` — the decomposition of the shipped `spawnWorktree`: `git worktree
- *   add -b <branch> <base>` at the `location_template`-resolved path, then the
- *   ownership marker. The fresh-meta write and `runUserOpen` are *not* part of
- *   this leg — they are lifted to `scaffold` and the user-workspace side-effect
- *   respectively, so a graduate (which relocates an existing meta in) is not
- *   clobbered by a template-meta write. Branch creation rides this leg's `-b`.
+ * - `spawn` — establish the WU's working tree, in one of two **placement modes**:
+ *     - *fresh worktree* (default): the decomposition of the shipped
+ *       `spawnWorktree` — `git worktree add -b <branch> <base>` at the
+ *       `location_template`-resolved path, then the ownership marker. The
+ *       fresh-meta write and `runUserOpen` are *not* part of this leg — they are
+ *       lifted to `scaffold` and the user-workspace side-effect respectively, so a
+ *       graduate (which relocates an existing meta in) is not clobbered by a
+ *       template-meta write. Branch creation rides this leg's `-b`.
+ *     - *in place* (`--here`): no new worktree — `git checkout [-b] <branch>` in
+ *       the **current** worktree (`-b` to cut a fresh branch for graduate /
+ *       create-new, plain checkout to re-attach an existing branch for resume). No
+ *       ownership marker (ARC did not mint this worktree). This is why branch
+ *       creation is `reconcile-worktree`'s in both modes, not `reconcile-branch`'s.
  * - `teardown` — `git worktree remove` (never `--force`; that stays the
  *   rollback-only path), gated on a clean worktree (`isWorktreeClean`). When the
  *   transition is tearing down the very worktree it executes from
@@ -44,13 +51,18 @@ export interface ReconcileWorktreeContext {
 /**
  * The worktree operation to perform, as a discriminated union:
  *
- * - `spawn` — create the worktree + branch at the templated path and mark it.
+ * - `spawn` (fresh worktree) — create the worktree + branch at the templated path
+ *   and mark it.
+ * - `spawn` (`inPlace`) — place the branch in the current worktree via
+ *   `git checkout [-b]`; no new worktree, no marker.
  * - `teardown` — remove `worktreePath`; `currentLocus` is the directory the
  *   transition executes from, used to detect a self-teardown.
  */
 export type ReconcileWorktreeOp =
   | {
       mutation: "spawn";
+      /** Fresh-worktree placement (the default). */
+      inPlace?: false;
       /** Full branch to create (e.g. `plan/<name>`). */
       branch: string;
       /** Base ref the branch forks from (local ref; no fetch). */
@@ -65,6 +77,15 @@ export type ReconcileWorktreeOp =
       spawningIdentity: string;
       /** Marker timestamp (epoch millis); injectable for tests. */
       now?: number;
+    }
+  | {
+      mutation: "spawn";
+      /** In-place placement: check the branch out in the current worktree, no spawn. */
+      inPlace: true;
+      /** Branch to place in the current worktree. */
+      branch: string;
+      /** `true` cuts a fresh branch (`-b`, graduate / create-new); `false` attaches an existing one (resume). */
+      createBranch: boolean;
     }
   | {
       mutation: "teardown";
@@ -91,9 +112,10 @@ function isSelfTeardown(worktreePath: string, locus: string): boolean {
 /**
  * Spawn or tear down a work unit's worktree per `op`.
  *
- * Spawn creates the worktree + branch and writes the ownership marker; teardown
- * refuses a dirty worktree, hops the locus to the primary checkout when removing
- * the worktree it runs from, and removes without `--force`.
+ * Spawn (fresh) creates the worktree + branch and writes the ownership marker;
+ * spawn (`inPlace`) checks the branch out in the current worktree, no marker;
+ * teardown refuses a dirty worktree, hops the locus to the primary checkout when
+ * removing the worktree it runs from, and removes without `--force`.
  *
  * @param ctx - Injected git seam + locus-hop.
  * @param op - The worktree mutation and its operands.
@@ -104,6 +126,15 @@ export async function reconcileWorktree(
   ctx: ReconcileWorktreeContext,
   op: ReconcileWorktreeOp,
 ): Promise<ReconcileWorktreeResult> {
+  if (op.mutation === "spawn" && op.inPlace) {
+    // In place: cut/attach the branch in the current worktree — no `worktree add`,
+    // no ownership marker (ARC did not mint this checkout).
+    const checkout = op.createBranch ? ["checkout", "-b", op.branch] : ["checkout", op.branch];
+    await ctx.exec("git", checkout);
+    const { stdout } = await ctx.exec("git", ["rev-parse", "--show-toplevel"]);
+    return { mutation: "spawn", worktreePath: stdout.trim(), branch: op.branch };
+  }
+
   if (op.mutation === "spawn") {
     const worktreePath = resolveWorktreeLocation({
       template: op.locationTemplate,

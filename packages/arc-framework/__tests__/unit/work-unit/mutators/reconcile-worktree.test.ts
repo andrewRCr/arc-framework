@@ -27,6 +27,8 @@ interface MockOptions {
   status?: string;
   /** `git worktree list --porcelain` output for the primary-path resolution. */
   worktreeList?: string;
+  /** `git rev-parse --show-toplevel` output for the in-place current-worktree resolution. */
+  toplevel?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
     events.push([cmd, ...args]);
     if (args[0] === "status") return { stdout: opts.status ?? "" };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: opts.worktreeList ?? "" };
+    if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return { stdout: `${opts.toplevel ?? ""}\n` };
     return { stdout: "" };
   };
   const ctx: ReconcileWorktreeContext = {
@@ -99,6 +102,42 @@ describe("reconcileWorktree — spawn", () => {
       kind: "present",
       marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
     });
+  });
+});
+
+describe("reconcileWorktree — spawn in place (--here)", () => {
+  it("creates + checks out the branch in the current worktree (createBranch), no add, no marker", async () => {
+    const { ctx, events } = buildCtx({ toplevel: "/work/primary" });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      inPlace: true,
+      branch: "plan/demo-wu",
+      createBranch: true,
+    });
+
+    expect(result).toEqual({ mutation: "spawn", worktreePath: "/work/primary", branch: "plan/demo-wu" });
+    expect(events).toEqual([
+      ["git", "checkout", "-b", "plan/demo-wu"],
+      ["git", "rev-parse", "--show-toplevel"],
+    ]);
+  });
+
+  it("attaches an existing branch in the current worktree (no -b) for resume", async () => {
+    const { ctx, events } = buildCtx({ toplevel: "/work/primary" });
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      inPlace: true,
+      branch: "feat/demo-wu",
+      createBranch: false,
+    });
+
+    expect(result).toEqual({ mutation: "spawn", worktreePath: "/work/primary", branch: "feat/demo-wu" });
+    expect(events).toEqual([
+      ["git", "checkout", "feat/demo-wu"],
+      ["git", "rev-parse", "--show-toplevel"],
+    ]);
   });
 });
 

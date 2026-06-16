@@ -403,41 +403,6 @@ describe("executeTransition — foot-gun guards", () => {
 });
 
 // ---------------------------------------------------------------------------
-// In-place (`--here`) opt-out — suppress the worktree spawn leg.
-// ---------------------------------------------------------------------------
-
-describe("executeTransition — in-place opt-out", () => {
-  it("suppresses the worktree spawn leg and waives its operand when inputs.inPlace is set", async () => {
-    const pass: GuardValidator = () => ({ ok: true });
-    const { ctx, calls } = buildSpies({
-      metas: [PLANNED_META],
-      guardValidators: { "worktree-occupancy": pass },
-    });
-
-    // start from planned → graduate (relocate + branch create + worktree spawn).
-    // In-place supplies no worktreeOp; the spawn leg is skipped, not a rejection.
-    const outcome = await executeTransition(ctx, {
-      verb: "start",
-      slug: "demo",
-      inputs: {
-        class: "Novel",
-        toDir: ".arc/active",
-        branchOp: { mutation: "create", inPlace: { branch: "plan/demo" } },
-        inPlace: true,
-      },
-    });
-
-    expect(outcome.status).toBe("ok");
-    if (outcome.status !== "ok") return;
-    // Relocate + in-place branch create fire; the worktree spawn does not.
-    expect(calls).toContain("leg:artifacts:relocate:.arc/backlog/planned/demo->.arc/active");
-    expect(calls).toContain("leg:branch:create");
-    expect(calls).not.toContain("leg:worktree:spawn");
-    expect(outcome.legsFired).not.toContain("reconcileWorktree");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // 4. Fire encoding legs in a recoverable order; report a mid-bundle failure.
 // ---------------------------------------------------------------------------
 

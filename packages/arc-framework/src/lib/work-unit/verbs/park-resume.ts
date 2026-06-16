@@ -77,10 +77,12 @@ export interface ParkParams {
   currentLocus: string;
 }
 
-/** The operational inputs a `resume` supplies to re-attach the preserved branch. */
-export interface ResumeParams {
+/** Spawn-path `resume` (the default) — re-attaches the preserved branch in a fresh worktree. */
+export interface ResumeSpawnParams {
   /** Target WU name. */
   name: string;
+  /** In-place opt-out off by default — this is the spawning path. */
+  inPlace?: false;
   /** Resolved `worktree.location_template` — where the re-attached worktree lands. */
   locationTemplate: string;
   /** Main-worktree basename — the `{repo}` expansion. */
@@ -88,6 +90,21 @@ export interface ResumeParams {
   /** Identity re-attaching the WU — the worktree ownership marker. */
   spawningIdentity: string;
 }
+
+/**
+ * In-place `resume` (`--here`) — re-attaches the preserved branch in the current
+ * checkout (`git checkout <branch>`), no worktree spawned. The spawn-only config
+ * (location template / repo / identity) does not apply.
+ */
+export interface ResumeInPlaceParams {
+  /** Target WU name. */
+  name: string;
+  /** Re-attach in the current worktree — no spawn. */
+  inPlace: true;
+}
+
+/** The operational inputs a `resume` supplies to re-attach the preserved branch. */
+export type ResumeParams = ResumeSpawnParams | ResumeInPlaceParams;
 
 /** The outcome of a `park` attempt — a rejection, or the parked meta path (+ pointer-record). */
 export type ParkResult =
@@ -177,15 +194,18 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
 
 /**
  * Run `resume`: relocate the parked WU back to `active/` and re-attach the
- * preserved branch (≈ the Materialize mechanic — spawn a worktree on the existing
- * branch).
+ * preserved branch. By default this spawns a fresh worktree on the existing
+ * branch (≈ the Materialize mechanic); the `--here` opt-out (`inPlace`) instead
+ * checks the preserved branch out in the current worktree, no spawn. The branch
+ * re-attach rides the `reconcile-worktree` spawn leg's in-place placement mode
+ * (`createBranch: false` — the branch already exists).
  *
  * @param ctx - The executor seams (the pointer-record seam is unused on this arm).
- * @param params - The target WU and the worktree-spawn config.
+ * @param params - The target WU and (spawn path only) the worktree-spawn config.
  * @returns A rejection (no parked WU, or executor failure) or the re-attached meta path.
  */
 export async function runResume(ctx: ParkContext, params: ResumeParams): Promise<ResumeResult> {
-  const { name, locationTemplate, repo, spawningIdentity } = params;
+  const { name } = params;
 
   const sourceMetaPath = `${parkedDir(name)}/meta-${name}.md`;
   let record: Record<MetaFieldName, string | null>;
@@ -198,17 +218,19 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   const branch = record.Branch ?? "[none]";
   const inputs: TransitionInputs = {
     toDir: ACTIVE_DIR,
-    worktreeOp: {
-      mutation: "spawn",
-      branch,
-      // Re-attach the preserved branch as its own base (the checkout-existing
-      // refinement of `spawn` is the reconcile-worktree leg's to make).
-      base: branch,
-      locationTemplate,
-      repo,
-      wuName: name,
-      spawningIdentity,
-    },
+    worktreeOp: params.inPlace
+      ? { mutation: "spawn", inPlace: true, branch, createBranch: false }
+      : {
+          mutation: "spawn",
+          branch,
+          // Re-attach the preserved branch as its own base (the checkout-existing
+          // refinement of the fresh-worktree `spawn` is the reconcile-worktree leg's to make).
+          base: branch,
+          locationTemplate: params.locationTemplate,
+          repo: params.repo,
+          wuName: name,
+          spawningIdentity: params.spawningIdentity,
+        },
   };
 
   const outcome = await executeTransition(ctx.executor, { verb: "resume", slug: name, inputs });

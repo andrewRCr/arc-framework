@@ -86,14 +86,6 @@ export interface TransitionInputs {
   /** The ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
   /**
-   * Execute in the current worktree (the `--here` opt-out) — suppress the
-   * `reconcile-worktree` *spawn* leg and waive its `worktreeOp`. The begin-work
-   * transitions (graduate / resume) then run their other legs minus the spawn;
-   * the branch is born in place via `reconcile-branch` `create` (`inPlace`).
-   * Ignored on edges whose worktree leg is not a spawn.
-   */
-  inPlace?: boolean;
-  /**
    * The committed target location, supplied when an edge set shares `(verb,
    * from)` and must be disambiguated by where it lands — e.g. `stub` →
    * `provisional` vs `planned`. Single-edge transitions ignore it.
@@ -373,7 +365,6 @@ export async function executeTransition(
   const legsFired: EncodingLeg[] = [];
   for (const leg of LEG_ORDER) {
     if (!legDeclared(record, leg)) continue;
-    if (leg === "reconcileWorktree" && worktreeSpawnSuppressed(record, inputs)) continue;
     try {
       await fireLeg(ctx, leg, record, slug, metaPath, inputs);
     } catch (err) {
@@ -430,16 +421,6 @@ function lookupRejection(verb: Verb, position: LifecyclePosition | null): string
     : `\`${verb}\` is illegal from \`${where}\`: ${illegal.reason}.`;
 }
 
-/**
- * Whether the in-place opt-out suppresses this edge's worktree spawn leg —
- * `inputs.inPlace` set against an edge whose `reconcileWorktree` is `spawn`. The
- * leg is then neither required nor fired; the branch is born in place via the
- * `reconcile-branch` `create` leg. Teardown legs are never suppressed.
- */
-function worktreeSpawnSuppressed(record: TransitionRecord, inputs: TransitionInputs): boolean {
-  return inputs.inPlace === true && record.encodingUpdates.reconcileWorktree === "spawn";
-}
-
 /** Whether the edge declares the given encoding leg. */
 function legDeclared(record: TransitionRecord, leg: EncodingLeg): boolean {
   const e = record.encodingUpdates;
@@ -478,7 +459,7 @@ function validateInputs(
       return `branchOp mutation \`${inputs.branchOp.mutation}\` does not match the edge's \`${e.reconcileBranch}\`.`;
     }
   }
-  if (e.reconcileWorktree !== undefined && !worktreeSpawnSuppressed(record, inputs)) {
+  if (e.reconcileWorktree !== undefined) {
     if (inputs.worktreeOp === undefined) return "this transition reconciles a worktree but no `worktreeOp` was supplied.";
     if (inputs.worktreeOp.mutation !== e.reconcileWorktree) {
       return `worktreeOp mutation \`${inputs.worktreeOp.mutation}\` does not match the edge's \`${e.reconcileWorktree}\`.`;
