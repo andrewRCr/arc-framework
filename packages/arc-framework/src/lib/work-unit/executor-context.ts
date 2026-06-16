@@ -81,7 +81,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   const at = (p: string): string => (isAbsolute(p) ? p : join(cwd, p));
 
   /** Git executor pinned to the repository root, so cwd-relative `git mv` / worktree ops resolve. */
-  const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { cwd, ...opts });
+  const exec: GitExec = (cmd, args, opts) => io.exec(cmd, args, { ...opts, cwd });
 
   /** The lifecycle-index scan seam — shared by the executor's entry build and the discharge side-effect. */
   const indexFs: LifecycleIndexFs = {

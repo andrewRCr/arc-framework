@@ -234,3 +234,21 @@ describe("buildExecutorContext — user-workspace binding", () => {
     expect(mockRunUserClose).not.toHaveBeenCalled();
   });
 });
+
+describe("buildExecutorContext — git executor cwd pin", () => {
+  it("pins cwd to the repository root, ignoring an opts.cwd override", async () => {
+    const io = fakeIo();
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    await ctx.exec!("git", ["status"], { cwd: "/elsewhere" });
+
+    // The pin wins: a caller-supplied cwd cannot redirect transition git ops.
+    expect(io.exec).toHaveBeenCalledWith("git", ["status"], { cwd: "/repo" });
+  });
+});
