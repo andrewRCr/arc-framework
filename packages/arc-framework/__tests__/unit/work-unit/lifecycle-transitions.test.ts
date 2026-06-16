@@ -59,20 +59,29 @@ function deriveExpectedMutators(
   else if (ef !== null && et === null) spec.artifacts = "remove";
   else if (ef !== null && et !== null && ef.dirTier !== et.dirTier) spec.artifacts = "relocate";
 
-  // Branch — by category transition.
-  const fromBranch = ef?.branch ?? "none";
-  const toBranch = et?.branch ?? "none";
-  if (fromBranch !== toBranch) {
-    if (fromBranch === "none") spec.reconcileBranch = "create";
-    else if (toBranch === "none") spec.reconcileBranch = "delete";
-    else spec.reconcileBranch = "rename";
-  }
+  // A move into `completed/` is the merge-gated `archive` ship: its relocation
+  // rides the PR, so the Branch *field* clears logically here (`clearBranchField`)
+  // while physical branch/worktree teardown is deferred to post-merge cleanup,
+  // outside the transition table. Every other branchless target (`park@Planning`,
+  // `abandon`) is local, so it reconciles the branch + worktree in place below.
+  if (et?.dirTier === "completed") {
+    spec.clearBranchField = true;
+  } else {
+    // Branch — by category transition.
+    const fromBranch = ef?.branch ?? "none";
+    const toBranch = et?.branch ?? "none";
+    if (fromBranch !== toBranch) {
+      if (fromBranch === "none") spec.reconcileBranch = "create";
+      else if (toBranch === "none") spec.reconcileBranch = "delete";
+      else spec.reconcileBranch = "rename";
+    }
 
-  // Worktree — present iff the location is `active`.
-  const fromWorktree = ef?.dirTier === "active";
-  const toWorktree = et?.dirTier === "active";
-  if (!fromWorktree && toWorktree) spec.reconcileWorktree = "spawn";
-  else if (fromWorktree && !toWorktree) spec.reconcileWorktree = "teardown";
+    // Worktree — present iff the location is `active`.
+    const fromWorktree = ef?.dirTier === "active";
+    const toWorktree = et?.dirTier === "active";
+    if (!fromWorktree && toWorktree) spec.reconcileWorktree = "spawn";
+    else if (fromWorktree && !toWorktree) spec.reconcileWorktree = "teardown";
+  }
 
   // Phase — written only between two existing positions whose phase differs
   // (a scaffold establishes the State fresh; a remove deletes it).
@@ -88,6 +97,7 @@ function normalizeMutators(spec: MutatorSpec): MutatorSpec {
   if (spec.reconcileBranch !== undefined) out.reconcileBranch = spec.reconcileBranch;
   if (spec.reconcileWorktree !== undefined) out.reconcileWorktree = spec.reconcileWorktree;
   if (spec.setPhase !== undefined) out.setPhase = spec.setPhase;
+  if (spec.clearBranchField !== undefined) out.clearBranchField = spec.clearBranchField;
   return out;
 }
 
@@ -220,6 +230,7 @@ function synthBranchInputs(edge: TransitionRecord): TransitionInputs {
 function expectedBranchField(edge: TransitionRecord): string | null {
   if (edge.from === null || edge.to === null) return null;
   const e = edge.encodingUpdates;
+  if (e.clearBranchField) return NONE_BRANCH;
   if (e.reconcileBranch === "delete") return NONE_BRANCH;
   if (e.reconcileBranch === "rename") return categoryBranch(branchCategory(edge.to));
   if (e.reconcileWorktree === "spawn") return categoryBranch(branchCategory(edge.to));
@@ -229,8 +240,13 @@ function expectedBranchField(edge: TransitionRecord): string | null {
 describe("lifecycle transition table — branch-field projection", () => {
   it("projects the target's expected Branch field on every edge", () => {
     for (const edge of TRANSITIONS) {
-      // The executor's effective projection: gated exactly like `applyBranchField`.
-      const projected = softFieldsApply(edge) ? establishedBranch(synthBranchInputs(edge)) : null;
+      // The executor's effective projection: gated exactly like `applyBranchField`
+      // — a `clearBranchField` edge clears the field logically, else project the leg.
+      const projected = !softFieldsApply(edge)
+        ? null
+        : edge.encodingUpdates.clearBranchField
+          ? NONE_BRANCH
+          : establishedBranch(synthBranchInputs(edge));
       expect(
         projected,
         `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) Branch field`,

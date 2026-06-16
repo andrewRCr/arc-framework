@@ -6,10 +6,13 @@
  * dated/numbered `completed/{YYYY-qN}/{NN}_{name}/` path comes from an injected
  * clock (the quarter) plus a scan of that quarter (the next completion-order
  * `NN`) — pure deterministic mechanics, no longer hand-run in the workflow. The
- * edge's full encoding fires through the executor: relocate the artifact set,
- * delete the working branch (local + remote), tear down the worktree (with
- * execution-locus relocation when archiving the current WU), flip the meta
- * `State` to `Shipped`, and reset the orientation soft fields.
+ * edge fires the **mergeable** half of the ship through the executor — relocate
+ * the artifact set, flip the meta `State` to `Shipped`, clear the `Branch` field
+ * to `[none]` (logical, no git op), and reset the orientation soft fields — all of
+ * which rides the ship PR. The **physical** branch/worktree teardown is deferred
+ * to post-merge cleanup (the integration tail): the branch can't be reaped until
+ * its PR merges, and the sweep must ride that same PR (one PR, full or partial
+ * protection).
  *
  * Judgment — merge approval, archival timing — stays in the
  * `integrate-work-unit` / `archive` workflow; this verb runs only once that
@@ -64,10 +67,6 @@ export interface ArchiveContext {
 export interface ArchiveParams {
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
   name: string;
-  /** The worktree root to tear down (caller-resolved from the worktree list). */
-  worktreePath: string;
-  /** The directory the transition runs from — drives self-teardown locus relocation. */
-  currentLocus: string;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -90,17 +89,20 @@ export type ArchiveResult =
     };
 
 /**
- * Run `archive`: compute the dated destination, relocate the WU's artifact set
- * there, and tear down its branch + worktree. Rejects when the WU is not a
- * started (`Active` / `Integrating`) WU in `active/`, or when the executor refuses
- * the edge (the table's lookup — every non-`Active`/`Integrating` source).
+ * Run `archive`: compute the dated destination and relocate the WU's artifact set
+ * there as the **mergeable** ship — relocate + `State → Shipped` + logical
+ * `Branch → [none]` + soft-reset, all riding the PR. Physical branch/worktree
+ * teardown is **not** done here; it is the integration tail's post-merge cleanup.
+ * Rejects when the WU is not a started (`Active` / `Integrating`) WU in `active/`,
+ * or when the executor refuses the edge (the table's lookup — every
+ * non-`Active`/`Integrating` source).
  *
  * @param ctx - The executor seams plus the quarter-scan fs and clock.
- * @param params - The target WU and the worktree locators.
+ * @param params - The target WU (and an optional next-step suggestion).
  * @returns A rejection or the completed sweep (with the computed destination).
  */
 export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Promise<ArchiveResult> {
-  const { name, worktreePath, currentLocus, suggestion } = params;
+  const { name, suggestion } = params;
   const { executor, fs, clock } = ctx;
 
   const sourceMetaPath = `${ACTIVE_DIR}/meta-${name}.md`;
@@ -115,8 +117,6 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
 
   const inputs: TransitionInputs = {
     toDir: destination.toDir,
-    branchOp: { mutation: "delete", branch: record.Branch ?? "[none]" },
-    worktreeOp: { mutation: "teardown", worktreePath, currentLocus },
     suggestion,
   };
 

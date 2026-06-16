@@ -573,7 +573,8 @@ function effectiveMetaPath(
  * - `reconcile-branch` `rename` → the rotated `toBranch` (`activate` /
  *   `deactivate`).
  * - `reconcile-branch` `delete` → the `[none]` sentinel (`park@Planning` /
- *   `abandon` / `archive` tear the branch down).
+ *   `abandon` tear the branch down in place). The merge-gated `archive` ship
+ *   clears the field via `clearBranchField` instead (logical-only, no git op).
  * - `reconcile-worktree` `spawn` → the spawned/attached branch — graduate cuts
  *   `plan/<slug>` and resume re-attaches the preserved branch here, since branch
  *   birth/attach rides the worktree leg (the co-occurring `create` branchOp is a
@@ -608,7 +609,10 @@ async function applyBranchField(
   inputs: TransitionInputs,
 ): Promise<string | null> {
   if (!softFieldsApply(record) || metaPath === null) return null;
-  const branch = establishedBranch(inputs);
+  // A `clearBranchField` edge (the merge-gated `archive` ship) clears the field
+  // logically to `[none]` with no git op — its physical branch/worktree teardown
+  // is deferred to post-merge cleanup. Every other edge projects from its leg.
+  const branch = record.encodingUpdates.clearBranchField ? "[none]" : establishedBranch(inputs);
   if (branch === null) return null;
   await ctx.writeBranchField(effectiveMetaPath(record, metaPath, inputs), branch);
   return branch;

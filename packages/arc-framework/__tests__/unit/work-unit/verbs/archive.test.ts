@@ -1,12 +1,14 @@
 /**
- * Unit tests for the `archive` verb — the terminal sweep to `completed/`.
+ * Unit tests for the `archive` verb — the mergeable sweep to `completed/`.
  *
  * `archive` (`Active` / `Integrating → completed`) computes the dated/numbered
  * destination (`completed/{YYYY-qN}/{NN}_{name}/`) from an injected clock + a
  * quarter scan, then relocates the WU's artifact set there via the executor's
- * `relocate` leg, deleting the working branch and tearing down the worktree (the
- * edge's full encoding). The mutators reach the contract as spies, so each
- * behavior is asserted over an in-memory index without touching git or the disk.
+ * `relocate` leg, flips `State → Shipped`, and clears the `Branch` field to
+ * `[none]` (logical, no git op) — the half of the ship that rides the PR. Physical
+ * branch/worktree teardown is deferred to post-merge cleanup, so the verb fires
+ * neither leg. The mutators reach the contract as spies, so each behavior is
+ * asserted over an in-memory index without touching git or the disk.
  */
 
 import { describe, it, expect } from "vitest";
@@ -58,6 +60,7 @@ interface Harness {
   calls: string[];
   relocations: RelocateArtifactsParams[];
   softWrites: { path: string; updates: Record<string, string> }[];
+  branchWrites: string[];
 }
 
 /** A quarter scan returning a fixed set of existing archive entries. */
@@ -75,6 +78,7 @@ function buildCtx(opts: {
   const calls: string[] = [];
   const relocations: RelocateArtifactsParams[] = [];
   const softWrites: { path: string; updates: Record<string, string> }[] = [];
+  const branchWrites: string[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -105,7 +109,9 @@ function buildCtx(opts: {
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
         : { mutation: "spawn", worktreePath: WORKTREE, branch: "x" };
     },
-    writeBranchField: async () => {},
+    writeBranchField: async (_path, branch) => {
+      branchWrites.push(branch);
+    },
     writeSoftFields: async (path, updates) => {
       softWrites.push({ path, updates: updates as Record<string, string> });
     },
@@ -117,10 +123,10 @@ function buildCtx(opts: {
     fs: buildQuarterFs(opts.quarterEntries ?? []),
     clock: () => new Date(2026, 5, 15, 12, 0, 0), // June 2026 → 2026-q2
   };
-  return { ctx, calls, relocations, softWrites };
+  return { ctx, calls, relocations, softWrites, branchWrites };
 }
 
-const BASE = { name: "foo", worktreePath: WORKTREE, currentLocus: CWD };
+const BASE = { name: "foo" };
 
 describe("runArchive — the dated sweep", () => {
   it("relocates the artifact set to the computed completed/ path", async () => {
@@ -139,15 +145,19 @@ describe("runArchive — the dated sweep", () => {
     expect(calls).toContain("relocate:.arc/active->.arc/completed/2026-q2/25_foo");
   });
 
-  it("tears down the working branch and worktree, and resets the soft fields", async () => {
-    const { ctx, calls, softWrites } = buildCtx({ branch: "feat/foo" });
+  it("flips State, clears the Branch field logically, fires no physical teardown, and resets soft fields", async () => {
+    const { ctx, calls, softWrites, branchWrites } = buildCtx({ branch: "feat/foo" });
 
     const result = await runArchive(ctx, BASE);
 
     expect(result.status).toBe("archived");
-    expect(calls).toContain("branch:delete:feat/foo");
-    expect(calls).toContain(`worktree:teardown:${CWD}`);
     expect(calls).toContain("setPhase:Shipped");
+    // The Branch field clears logically to [none] — no git ref op.
+    expect(branchWrites).toContain("[none]");
+    // Physical branch/worktree teardown is the integration tail's post-merge cleanup;
+    // the verb fires neither leg.
+    expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
     expect(calls).toContain("side:user-workspace");
     // Soft fields are written at the relocated meta path; Next Task / Action / Blockers reset, Last Completed left.
     const write = softWrites.find((w) => w.path.includes(".arc/completed/2026-q2/"));

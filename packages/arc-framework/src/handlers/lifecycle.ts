@@ -545,9 +545,11 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
 /**
  * `arc archive [slug]` — sweep a shipped work unit to `completed/` (defaults to the
  * current WU). Computes the dated/numbered `completed/{YYYY-qN}/{NN}_{name}/`
- * destination, relocates the artifact set there, and tears down the working branch
- * and worktree. Judgment — merge approval, archival timing — is the integration
- * ceremony's; this command runs the deterministic sweep once that call is made.
+ * destination and relocates the artifact set there, flipping `State → Shipped` and
+ * clearing the `Branch` field — the mergeable ship that rides the PR. Physical
+ * branch/worktree teardown is the integration tail's post-merge cleanup, not this
+ * command's. Judgment — merge approval, archival timing — is the integration
+ * ceremony's; this runs the deterministic sweep once that call is made.
  */
 export async function handleArchive(slug: string | undefined): Promise<void> {
   p.intro("arc archive");
@@ -557,11 +559,10 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const target = await resolveVerbTargetOrReport("archive", slug, base.cwd);
   if (target === null) return;
 
-  const worktreePath = await resolveWuWorktreePath(base, target);
   const { executor } = await buildExecutor(base);
   const result = await runArchive(
     { executor, fs: { readdir: (path) => readdir(path) }, clock: () => new Date() },
-    { name: target, worktreePath, currentLocus: base.cwd },
+    { name: target },
   );
   if (result.status === "rejected") {
     refuse(result.reason);

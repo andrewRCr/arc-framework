@@ -629,7 +629,34 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       would be a half-edit it re-does; by the cohort's consistency-on-exit limit test the raw-git post-merge
       teardown is un-enhanced, not inconsistent. Nothing orphaned: legs + `park` shipped, rewrite scope captured.
 
-    - `[ ]` **6.6.c `archive-work-unit`** → call the archive sweep (6.1) + cohort sweep (6.2).
+    - `[ ]` **6.6.c `archive-work-unit` re-point + `arc archive` verb correction** — re-point the archive ceremony
+      to the shipped sweep, correcting the verb's teardown over-reach (6.1) en route. 6.1 bundled branch/worktree
+      teardown into the `archive` edge, but teardown is **non-mergeable** (post-merge only — `git branch -D` +
+      remote delete would close the open PR), while the sweep must **ride the ship PR** (sweep-in-PR; one PR under
+      full _and_ partial protection). So the bundle drops into neither cadence. Un-bundle per the
+      mergeable/non-mergeable split (the cohort's record-vs-projection model): `arc archive` owns the **mergeable
+      sweep** (relocate → `completed/` + `State → Shipped` + logical `Branch → [none]` + soft-reset + cohort
+      sweep), all riding the PR; **physical** branch/worktree teardown stays the integration tail's post-merge
+      cleanup (`integrate-work-unit.md` Step 13 — where the markdown already places it; 6.1 was the anomaly). This
+      also dissolves 6.1's deferred self-teardown-of-the-primary-worktree problem (no worktree teardown in the verb
+      → no self-locus-hop). Teardown DRY across integrate + decompose deferred to `composable-workflows`
+      (`USER-INBOX § Backlog`, 2026-06-16). (Re-scoped from a pure re-point after the cadence/teardown analysis,
+      2026-06-16.)
+
+        - `[x]` **6.6.c.1 Correct the `archive` edge + verb** — added `clearBranchField` to `MutatorSpec` (logical
+          `Branch → [none]`, no git op); both `archive` edges are now `{ relocate, clearBranchField, setPhase }` —
+          the physical `reconcileBranch:delete` / `reconcileWorktree:teardown` dropped. `applyBranchField` honors the
+          flag; `runArchive` / `handleArchive` shed the `branchOp` / `worktreeOp` + `worktreePath` / `currentLocus`.
+          The encoding-consistency oracle (`deriveExpectedMutators`) now models `→ completed/` as deferring physical
+          teardown (logical field-clear only), while local branchless targets (`park@Planning` / `abandon`) still
+          reconcile in place — the record/projection split made explicit at the headline guard. All gates green
+          (typecheck · 2788+75 tests · build · lint).
+
+        - `[ ]` **6.6.c.2 Re-point `archive-work-unit.md` + clarify `integrate-work-unit.md`** — replace archive
+          Steps 2–4 (state flip · sweep · cohort move) with the `arc archive` call; keep the cohort Closeout
+          authoring (judgment, reacting to the verb's `cohortSwept` report) + ROADMAP regen as the workflow's. In
+          `integrate-work-unit.md`, clarify Step 11 = sweep (rides the PR) and Step 13 = the unchanged post-merge
+          teardown owner. Sync package copies.
 
     - `[ ]` **6.6.d `activate-work-unit` / `deactivate-work-unit`** → call the activate/deactivate transitions
       (`activate` fires the dep-edge discharge, 4.7). Drop the inline branch rename **and** the inline `Branch`-field

@@ -146,6 +146,16 @@ export interface MutatorSpec {
   reconcileWorktree?: WorktreeMutation;
   /** `set-phase` — write the meta `**State:**` field to `to.phase` (phase-movers only). */
   setPhase?: boolean;
+  /**
+   * Logical-only Branch-field clear — write the meta `Branch` field to `[none]`
+   * with **no** git ref op. The merge-gated `archive` edge uses this: its
+   * relocation rides the ship PR, so the *logical* encoding (`Branch → [none]`)
+   * lands pre-merge, while the *physical* branch/worktree teardown is deferred to
+   * post-merge cleanup outside the table (the integration tail). Distinct from
+   * `reconcileBranch: "delete"`, which force-deletes the ref in place
+   * (`park@Planning` / `abandon` — local, not merge-gated).
+   */
+  clearBranchField?: boolean;
 }
 
 /**
@@ -512,7 +522,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: SHIPPED,
     inverse: null,
     guards: [],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "delete", reconcileWorktree: "teardown", setPhase: true },
+    encodingUpdates: { artifacts: "relocate", clearBranchField: true, setPhase: true },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: { reset: NONE } },
   },
@@ -522,7 +532,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: SHIPPED,
     inverse: null,
     guards: [],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "delete", reconcileWorktree: "teardown", setPhase: true },
+    encodingUpdates: { artifacts: "relocate", clearBranchField: true, setPhase: true },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: { reset: NONE } },
   },
