@@ -76,9 +76,15 @@ export async function reconcileBranch(
       const remote = op.remote ?? DEFAULT_REMOTE;
       try {
         await ctx.exec("git", ["push", remote, "--delete", op.branch]);
-      } catch {
-        // Best-effort: a never-pushed branch has no remote ref to delete; the
-        // local force-delete above is the authoritative teardown.
+      } catch (err) {
+        // Swallow only the benign case: a never-pushed branch has no remote ref
+        // to delete (git reports "remote ref does not exist"), and the local
+        // force-delete above is the authoritative teardown. Actionable failures
+        // (auth, connectivity, wrong remote) must propagate so the executor
+        // reports partial application instead of silently orphaning a remote ref.
+        const detail =
+          (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
+        if (!/remote ref does not exist|unable to delete/i.test(detail)) throw err;
       }
       return;
     }
