@@ -96,7 +96,7 @@ interface Harness {
   rmdirs: string[];
 }
 
-function buildCtx(metas: MetaSpec[]): Harness {
+function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   const calls: string[] = [];
   const removed: string[] = [];
   const rmdirs: string[] = [];
@@ -126,6 +126,16 @@ function buildCtx(metas: MetaSpec[]): Harness {
     writeBranchField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
+    // The `worktree-clean` IO guard is a caller-supplied seam (production binds the
+    // real `git status` read via `buildFootgunGuards`); the started-WU abandon
+    // cells declare it as the fail-fast that keeps a dirty teardown from
+    // half-applying (artifacts removed, branch/worktree intact).
+    guardValidators: {
+      "worktree-clean": () =>
+        worktreeClean
+          ? { ok: true }
+          : { ok: false, message: "refusing to tear down a dirty worktree: /repo/../wt-foo has uncommitted work." },
+    },
   };
 
   // The artifact-removal seam: list the WU's files, delete each, drop the emptied subdir.
@@ -188,6 +198,23 @@ describe("runAbandon — started WU (active)", () => {
     // The user-workspace satellite is closed and the readiness views regen.
     expect(calls).toContain("side:user-workspace");
     expect(calls).toContain("side:reconcile-roadmap");
+  });
+});
+
+describe("runAbandon — dirty started WU (worktree-clean fail-fast)", () => {
+  it("rejects at the guard before any artifact removal when the worktree is dirty", async () => {
+    const { ctx, calls, removed, rmdirs } = buildCtx([ACTIVE], /* worktreeClean */ false);
+
+    const result = await runAbandon(ctx, BASE);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/dirty worktree|uncommitted/i);
+    // Fail-fast: the guard rejects before the remove leg, so no half-apply —
+    // artifacts untouched and no branch / worktree teardown.
+    expect(removed).toEqual([]);
+    expect(rmdirs).toEqual([]);
+    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
 

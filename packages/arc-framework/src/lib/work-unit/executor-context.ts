@@ -90,12 +90,16 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
   };
 
   const userWorkspaceHandler: SideEffectHandler = async ({ slug, to }) => {
+    // No resolved identity ⇒ no user-workspace satellite to open or close. Skip
+    // uniformly on both directions — the prior open path fired with an empty
+    // identity while the close path was already skipped, an inconsistency.
+    if (identity === null) return undefined;
     // Direction rule: a move into an active location opens the workspace; a move
     // out (to backlog / completed / nonexistent) closes it. Start's arms all land
     // in an active location, so they open.
     if (to !== null && to.location === "active") {
-      await runUserOpen({ cwd, io, identity: identity ?? "", wuName: slug, internalTemplateDir });
-    } else if (identity !== null) {
+      await runUserOpen({ cwd, io, identity, wuName: slug, internalTemplateDir });
+    } else {
       await runUserClose({ cwd, identity, wuName: slug });
     }
     return undefined;
@@ -166,7 +170,7 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       await io.writeFile(at(metaPath), setMetaBranch(content, branch));
     },
 
-    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates }),
+    guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {
       "reconcile-roadmap": ({ slug, from, to }) => reconcileRoadmap({ slug, from, to }),

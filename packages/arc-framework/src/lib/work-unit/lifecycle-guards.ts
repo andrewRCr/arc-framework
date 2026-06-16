@@ -28,6 +28,8 @@
 
 import type { MetaFileCandidate } from "../../commands/active/types.js";
 import type { ReaderResult } from "../active/meta-reader.js";
+import type { GitExec } from "../git/exec.js";
+import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import type { GuardValidator } from "./lifecycle-executor.js";
 import type { LifecycleIndex } from "./lifecycle-index.js";
 import { deriveState, resolveSlugState } from "./lifecycle-resolver.js";
@@ -86,10 +88,47 @@ export interface WorktreeOccupancyDeps {
 }
 
 /**
- * Build the `worktree-occupancy` guard — rejects starting a work unit into a
- * worktree that already holds a *different* one in an occupying state backing
- * another branch (the live foot-gun that put two metas in `active/` and broke
- * the release wrapper).
+ * Whether a transition materializes the WU's `active/` presence in the *current*
+ * checkout — the only case the occupancy check is meaningful for. The signals are
+ * `inputs.worktreeOp.{inPlace, createBranch}` (see {@link ReconcileWorktreeOp}):
+ *
+ * - **in-place** (`inPlace === true`, the `--here` arms) — `git checkout [-b]`
+ *   lands the WU in the current checkout. Materializes here.
+ * - **fresh spawn that creates its branch** (`createBranch !== false`, the
+ *   create-new / graduate arms) — the `scaffold` / `relocate` artifacts leg runs
+ *   in the *current* checkout (scaffold-into-`active/` or `git mv backlog →
+ *   active`) *before* the worktree spawns, so a second meta lands in this
+ *   `active/`. Materializes here — the live two-metas foot-gun that broke the
+ *   release wrapper.
+ * - **fresh spawn that re-attaches an existing branch** (`createBranch === false`,
+ *   resume / start@parked) — the authoritative artifacts ride the preserved
+ *   branch; the spawn only `git worktree add`s it elsewhere. Nothing lands in the
+ *   current `active/`, so a current occupant is no collision with the spawn target.
+ *   The **sole exempt case**.
+ *
+ * A non-spawn / absent worktree op enforces (safe default).
+ */
+function materializesInCurrentCheckout(
+  inputs: { worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean } },
+): boolean {
+  const op = inputs.worktreeOp;
+  if (op?.mutation !== "spawn") return true;
+  return !(op.inPlace !== true && op.createBranch === false);
+}
+
+/**
+ * Build the `worktree-occupancy` guard — rejects materializing a work unit into a
+ * checkout that already holds a *different* one in an occupying state backing
+ * another branch (the live foot-gun that put two metas in `active/` and broke the
+ * release wrapper).
+ *
+ * Enforced whenever the transition lands the WU's `active/` in the *current*
+ * checkout ({@link materializesInCurrentCheckout}): the in-place (`--here`) arms,
+ * and the branch-creating fresh spawns (create-new / graduate, whose
+ * `scaffold` / `relocate` leg writes the base `active/` before the worktree
+ * spawns). The **only** exemption is a fresh spawn that re-attaches an existing
+ * branch (resume / start@parked) — its artifacts ride the preserved branch and
+ * never touch the current `active/`, so enforcing there would over-reject.
  *
  * Reads the worktree's active-meta candidates, derives each one's state from its
  * `(phase, location)` (never `git branch` inference), and rejects on the first
@@ -102,6 +141,11 @@ export interface WorktreeOccupancyDeps {
  */
 export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardValidator {
   return async ({ slug, inputs }) => {
+    // A fresh spawn that re-attaches an existing branch lands nothing in this
+    // checkout, so a current occupant is no collision; every other placement
+    // (in-place, or a branch-creating spawn) materializes here and is checked.
+    if (!materializesInCurrentCheckout(inputs)) return { ok: true };
+
     const { candidates } = await deps.readActiveMetaCandidates(deps.cwd);
     const targetBranch =
       inputs.worktreeOp?.mutation === "spawn" ? inputs.worktreeOp.branch : undefined;
@@ -130,19 +174,62 @@ export function makeWorktreeOccupancyGuard(deps: WorktreeOccupancyDeps): GuardVa
   };
 }
 
+/** Dependencies for {@link makeWorktreeCleanGuard}. */
+export interface WorktreeCleanDeps {
+  /** Git executor — runs `git status --porcelain` scoped to the worktree being torn down. */
+  exec: GitExec;
+}
+
 /**
- * Assemble the index-aware / IO guard validators — the foot-gun pair the
+ * Build the `worktree-clean` guard — refuses a worktree-teardown leg (`park`,
+ * `abandon`) when the WU's worktree carries uncommitted work, *before* any
+ * mutation fires. This is the table-level fail-fast that keeps a dirty teardown
+ * from half-applying (e.g. `abandon` removing the artifact set, then throwing on
+ * the dirty-worktree leg with the branch/worktree still intact).
+ *
+ * The worktree to check is the teardown op's target — `inputs.worktreeOp.worktreePath`
+ * (every cell declaring this guard carries a teardown `worktreeOp`). An edge that
+ * declares the guard but supplies no teardown op resolves cleanly (`ok`): there is
+ * no worktree to gate (the verb-orchestrated arms drive their own teardown). The
+ * underlying {@link isWorktreeClean} treats an exec failure as not-clean, so
+ * uncertainty rejects (the safe default).
+ *
+ * @param deps - The git executor the clean check runs through.
+ * @returns An async guard validator.
+ */
+export function makeWorktreeCleanGuard(deps: WorktreeCleanDeps): GuardValidator {
+  return async ({ inputs }) => {
+    const op = inputs.worktreeOp;
+    // No teardown target ⇒ no worktree to gate (the verb drives its own teardown).
+    if (op?.mutation !== "teardown") return { ok: true };
+    if (await isWorktreeClean({ exec: deps.exec, cwd: op.worktreePath })) return { ok: true };
+    return {
+      ok: false,
+      message:
+        `refusing to tear down a dirty worktree: \`${op.worktreePath}\` has uncommitted work — ` +
+        `commit or stash it first (\`--force\` stays the rollback-only path).`,
+    };
+  };
+}
+
+/**
+ * Assemble the index-aware / IO guard validators — the foot-gun guards the
  * executor leaves to its caller — into the map `executeTransition` merges over
  * its pure defaults.
  *
- * @param deps - The worktree-occupancy guard's dependencies.
- * @returns The `name-collision` + `worktree-occupancy` validators.
+ * @param deps - The worktree-occupancy guard's dependencies plus the git executor for `worktree-clean`.
+ * @returns The `name-collision` + `worktree-occupancy` + `worktree-clean` validators.
  */
 export function buildFootgunGuards(
-  deps: WorktreeOccupancyDeps,
-): { "name-collision": GuardValidator; "worktree-occupancy": GuardValidator } {
+  deps: WorktreeOccupancyDeps & WorktreeCleanDeps,
+): {
+  "name-collision": GuardValidator;
+  "worktree-occupancy": GuardValidator;
+  "worktree-clean": GuardValidator;
+} {
   return {
     "name-collision": nameCollisionGuard,
     "worktree-occupancy": makeWorktreeOccupancyGuard(deps),
+    "worktree-clean": makeWorktreeCleanGuard(deps),
   };
 }

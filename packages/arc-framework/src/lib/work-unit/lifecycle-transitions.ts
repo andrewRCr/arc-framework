@@ -601,11 +601,16 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
+    // The started-WU abandon cells gate on `worktree-clean` *before* the artifact
+    // remove leg — the table-level fail-fast that keeps a dirty teardown from
+    // half-applying (artifacts gone, branch/worktree intact when the teardown leg
+    // throws). The branchless PROVISIONAL/PLANNED stubs and the worktree-less
+    // PARKED abandon do not declare it (no worktree to gate).
     verb: "abandon",
     from: PLANNING,
     to: null,
     inverse: null,
-    guards: ["confirmation"],
+    guards: ["confirmation", "worktree-clean"],
     encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
@@ -615,7 +620,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: null,
     inverse: null,
-    guards: ["confirmation"],
+    guards: ["confirmation", "worktree-clean"],
     encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,

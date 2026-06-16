@@ -351,7 +351,17 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
     return { status: "rejected", reason: `\`${name}\` is not a parked WU — nothing to resume.` };
   }
 
+  // A parked record must carry the preserved branch to re-attach. A null / `[none]`
+  // Branch yields an opaque `git worktree add <path> [none]` failure downstream, so
+  // reject cleanly here (mirroring park's branch validation).
   const branch = record.Branch ?? "[none]";
+  if (branch === "[none]") {
+    return {
+      status: "rejected",
+      reason: `\`${name}\` has no preserved branch to re-attach — nothing to resume (parked record's Branch is \`[none]\`).`,
+    };
+  }
+
   const inputs: TransitionInputs = {
     worktreeOp: params.inPlace
       ? { mutation: "spawn", inPlace: true, branch, createBranch: false, deferCheckout: true }

@@ -182,10 +182,34 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(await pathExists(spawnWt)).toBe(false);
   });
 
-  it("worktree-occupancy: graduating into a worktree already holding an active WU is rejected", async () => {
-    // An active WU already occupies the worktree on a different branch.
+  it("worktree-occupancy (in-place): graduating --here into a checkout already holding an active WU is rejected", async () => {
+    // An active WU already occupies the *current* checkout on a different branch.
+    // An in-place graduate would check the new branch out alongside it — the real
+    // foot-gun (two metas in one checkout's `active/`), so it MUST reject.
     await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
     await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+
+    const result = await runGraduate(
+      buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
+      { name: "widget", cls: "Light", inPlace: true },
+    );
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/active work unit|occupanc|one active/i);
+    // No relocation happened — the stub is untouched.
+    expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
+  });
+
+  it("worktree-occupancy (spawn): graduating into a fresh worktree IS rejected by a base-checkout occupant", async () => {
+    // A graduate spawn's `relocate` leg runs `git mv backlog → active` in the BASE
+    // checkout before the worktree spawns — so graduating into an occupied base
+    // checkout would land a second meta in `active/` (the two-metas foot-gun). The
+    // occupancy guard rejects before any mutation; only a re-attach spawn (resume)
+    // lands nothing in the base and is exempt.
+    await commitMeta(h.repo, "active", "incumbent", "Active", "feat/incumbent");
+    await commitMeta(h.repo, "backlog/planned/widget", "widget", "Planning", "[none]");
+    const wt = resolveWorktreeLocation({ template: h.locationTemplate, repo: basename(h.repo), branch: "plan/widget" });
 
     const result = await runGraduate(
       buildExecutorContext({ cwd: h.repo, io: h.io, identity: IDENTITY, teamMode: false, internalTemplateDir: getInternalTemplatePath() }),
@@ -202,8 +226,9 @@ describe("arc start dispatch — against real worktrees", () => {
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/active work unit|occupanc|one active/i);
-    // No relocation happened — the stub is untouched.
+    // The guard fires before any mutation: the stub stays in backlog, no worktree spawned.
     expect(await pathExists(join(h.repo, ".arc", "backlog", "planned", "widget", "meta-widget.md"))).toBe(true);
+    expect(await pathExists(wt)).toBe(false);
   });
 
   it("refuse: an already-Active WU is refused as occupied (no mutation)", async () => {

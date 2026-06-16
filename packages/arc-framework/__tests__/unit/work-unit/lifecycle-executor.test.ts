@@ -20,6 +20,8 @@ import {
   type TransitionInputs,
 } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { MetaFieldName } from "../../../src/lib/active/meta-reader.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+import { buildFootgunGuards } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
 
@@ -297,24 +299,82 @@ describe("executeTransition — guard validation", () => {
   });
 
   it("rejects when a declared guard has no validator wired", async () => {
-    // `start` from provisional declares class-resolved (default) — but if we
-    // override validators to drop it, the wiring check rejects.
+    // park@Planning declares `worktree-clean`, an IO guard with no *default*
+    // validator (production supplies it via `buildFootgunGuards`). Dropping the
+    // caller's validators leaves it unwired, so the wiring check rejects before
+    // any mutation — the executor never runs an edge whose guard is unresolvable.
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
       guardValidators: {},
     });
-    // A guard with no default and no injected validator: `worktree-clean` (park).
     const outcome = await executeTransition(ctx, {
       verb: "park",
       slug: "demo",
       inputs: { toDir: ".arc/backlog/planned/demo" },
     });
 
-    // park@Planning declares worktree-clean, which has no default validator.
     expect(outcome.status).toBe("rejected");
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("guard");
     expect(outcome.message).toMatch(/worktree-clean.*not wired/i);
+    expect(calls).toEqual([]);
+  });
+
+  it("resolves the real worktree-clean validator: park@Planning proceeds on a clean worktree", async () => {
+    // Wire the *production* `worktree-clean` guard over a git exec whose
+    // `status --porcelain` returns empty (clean) — the executor resolves it and
+    // the park bundle proceeds.
+    const cleanExec: GitExec = async () => ({ stdout: "", stderr: "" });
+    const { ctx, calls } = buildSpies({
+      metas: [PLANNING_ACTIVE_META],
+      guardValidators: buildFootgunGuards({
+        cwd: CWD,
+        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
+        exec: cleanExec,
+      }),
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "park",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/backlog/planned/demo",
+        branchOp: { mutation: "delete", branch: "plan/demo" },
+        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    expect(calls).toContain("leg:worktree:teardown");
+  });
+
+  it("resolves the real worktree-clean validator: park@Planning rejects on a dirty worktree", async () => {
+    // The git exec reports an uncommitted change — `isWorktreeClean` reads it as
+    // dirty, so the real guard rejects at the guard stage, before any mutation.
+    const dirtyExec: GitExec = async () => ({ stdout: " M file.ts\n", stderr: "" });
+    const { ctx, calls } = buildSpies({
+      metas: [PLANNING_ACTIVE_META],
+      guardValidators: buildFootgunGuards({
+        cwd: CWD,
+        readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
+        exec: dirtyExec,
+      }),
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "park",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/backlog/planned/demo",
+        branchOp: { mutation: "delete", branch: "plan/demo" },
+        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+      },
+    });
+
+    expect(outcome.status).toBe("rejected");
+    if (outcome.status !== "rejected") return;
+    expect(outcome.stage).toBe("guard");
+    expect(outcome.message).toMatch(/dirty worktree/i);
     expect(calls).toEqual([]);
   });
 

@@ -199,6 +199,14 @@ const PARKED: MetaSpec = {
   state: "Active",
   branch: "feat/foo",
 };
+/** A parked record whose Branch is the `[none]` sentinel — no preserved branch to re-attach. */
+const PARKED_NO_BRANCH: MetaSpec = {
+  slug: "foo",
+  tier: "backlog/planned",
+  subdir: "foo",
+  state: "Active",
+  branch: "[none]",
+};
 
 const BASE_PARK: ParkParams = {
   name: "foo",
@@ -371,6 +379,20 @@ describe("runResume — the inverse", () => {
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
     expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
+  });
+
+  it("rejects cleanly when the parked record has no preserved branch (`[none]`)", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED_NO_BRANCH]);
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/no preserved branch|nothing to resume/i);
+    // Clean rejection before the spawn: no opaque `git worktree add <path> [none]`,
+    // no pointer removal.
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(removals).toEqual([]);
   });
 
   it("refuses when the checkout already holds an active WU (worktree-occupancy guard)", async () => {

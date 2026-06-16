@@ -25,6 +25,16 @@ vi.mock("../../../src/lib/work-unit/side-effects/withdraw-pr.js", () => ({
   withdrawPr: (...args: unknown[]) => mockWithdrawPr(...args),
 }));
 
+const mockRunUserOpen = vi.fn();
+vi.mock("../../../src/commands/user/open.js", () => ({
+  runUserOpen: (...args: unknown[]) => mockRunUserOpen(...args),
+}));
+
+const mockRunUserClose = vi.fn();
+vi.mock("../../../src/commands/user/close.js", () => ({
+  runUserClose: (...args: unknown[]) => mockRunUserClose(...args),
+}));
+
 const { buildExecutorContext } = await import("../../../src/lib/work-unit/executor-context.js");
 
 /** A meta with the given Branch value, for the branch-resolution read. */
@@ -43,6 +53,8 @@ beforeEach(() => {
   mockBuildLifecycleIndex.mockResolvedValue(new Map());
   mockDischargeDepEdges.mockResolvedValue({ discharged: ["dep-a", "dep-b"], live: [] });
   mockWithdrawPr.mockResolvedValue(undefined);
+  mockRunUserOpen.mockResolvedValue(undefined);
+  mockRunUserClose.mockResolvedValue(undefined);
 });
 
 function fakeIo(): UserIOContext {
@@ -57,11 +69,11 @@ function fakeIo(): UserIOContext {
   } as unknown as UserIOContext;
 }
 
-function buildCtx() {
+function buildCtx(identity: string | null = "andrew") {
   return buildExecutorContext({
     cwd: "/repo",
     io: fakeIo(),
-    identity: "andrew",
+    identity,
     teamMode: false,
     internalTemplateDir: "/tpl",
   });
@@ -170,5 +182,55 @@ describe("buildExecutorContext — withdraw-pr binding", () => {
 
     expect(mockWithdrawPr).not.toHaveBeenCalled();
     expect(advisory).toMatch(/branch/i);
+  });
+});
+
+describe("buildExecutorContext — user-workspace binding", () => {
+  const OPEN_CTX = {
+    cwd: "/repo",
+    slug: "foo",
+    from: { phase: "Planning", location: "active" },
+    to: { phase: "Active", location: "active" },
+    inputs: {},
+  } as const;
+  const CLOSE_CTX = {
+    cwd: "/repo",
+    slug: "foo",
+    from: { phase: "Active", location: "active" },
+    to: { phase: "Active", location: "planned" },
+    inputs: {},
+  } as const;
+
+  it("opens the workspace on a move into an active location (identity present)", async () => {
+    const handler = buildCtx("andrew").sideEffects?.["user-workspace"];
+    if (handler === undefined) throw new Error("user-workspace handler was not registered");
+
+    await handler(OPEN_CTX);
+
+    expect(mockRunUserOpen).toHaveBeenCalledWith(expect.objectContaining({ identity: "andrew", wuName: "foo" }));
+    expect(mockRunUserClose).not.toHaveBeenCalled();
+  });
+
+  it("closes the workspace on a move out of an active location (identity present)", async () => {
+    const handler = buildCtx("andrew").sideEffects?.["user-workspace"];
+    if (handler === undefined) throw new Error("user-workspace handler was not registered");
+
+    await handler(CLOSE_CTX);
+
+    expect(mockRunUserClose).toHaveBeenCalledWith(expect.objectContaining({ identity: "andrew", wuName: "foo" }));
+    expect(mockRunUserOpen).not.toHaveBeenCalled();
+  });
+
+  it("skips uniformly on BOTH open and close when identity is null", async () => {
+    const handler = buildCtx(null).sideEffects?.["user-workspace"];
+    if (handler === undefined) throw new Error("user-workspace handler was not registered");
+
+    // Open path: previously fired `runUserOpen` with an empty identity — now skipped.
+    await handler(OPEN_CTX);
+    // Close path: already skipped before — stays skipped.
+    await handler(CLOSE_CTX);
+
+    expect(mockRunUserOpen).not.toHaveBeenCalled();
+    expect(mockRunUserClose).not.toHaveBeenCalled();
   });
 });

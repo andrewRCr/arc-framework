@@ -10,12 +10,14 @@ import { describe, it, expect } from "vitest";
 import {
   buildFootgunGuards,
   hasNameCollision,
+  makeWorktreeCleanGuard,
   makeWorktreeOccupancyGuard,
   nameCollisionGuard,
 } from "../../../src/lib/work-unit/lifecycle-guards.js";
 import type { GuardContext, TransitionInputs } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndexFromMetas, type LifecycleIndex } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { ReaderResult } from "../../../src/lib/active/meta-reader.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { MetaFileCandidate } from "../../../src/commands/active/types.js";
 
 /** A meta body with a given State, for index construction. */
@@ -88,19 +90,73 @@ describe("nameCollisionGuard", () => {
 describe("makeWorktreeOccupancyGuard", () => {
   const index = buildLifecycleIndexFromMetas([]);
 
-  it("rejects when a different work unit occupies the worktree", async () => {
+  /** An in-place re-attach op for `branch` — the placement the occupancy guard enforces over. */
+  function inPlaceInputs(branch: string): TransitionInputs {
+    return { worktreeOp: { mutation: "spawn", inPlace: true, branch, createBranch: false } };
+  }
+
+  it("rejects an in-place re-attach when a different work unit occupies the checkout", async () => {
     const guard = makeWorktreeOccupancyGuard({
       cwd: "/repo",
       readActiveMetaCandidates: fakeReader([candidate({})]),
     });
 
-    const result = await guard(guardCtx(index, "demo"));
+    const result = await guard(guardCtx(index, "demo", inPlaceInputs("feat/demo")));
     expect(result).toMatchObject({ ok: false });
     if (result.ok) return;
     expect(result.message).toMatch(/already holds an active work unit `other`.*Active/i);
   });
 
-  it("passes when the only occupant is the target work unit itself", async () => {
+  it("does NOT reject a fresh re-attach spawn (resume / start@parked) when the base checkout is occupied", async () => {
+    // A re-attach spawn (`createBranch: false`) lands nothing in the base `active/` —
+    // the authoritative artifacts ride the preserved branch — so a base occupant is
+    // no collision with the spawn target.
+    const guard = makeWorktreeOccupancyGuard({
+      cwd: "/repo",
+      readActiveMetaCandidates: fakeReader([candidate({})]),
+    });
+    const reattachSpawn: TransitionInputs = {
+      worktreeOp: {
+        mutation: "spawn",
+        branch: "feat/demo",
+        base: "main",
+        createBranch: false,
+        locationTemplate: "{repo}.{branch}",
+        repo: "repo",
+        wuName: "demo",
+        spawningIdentity: "andrew",
+      },
+    };
+    expect(await guard(guardCtx(index, "demo", reattachSpawn))).toEqual({ ok: true });
+  });
+
+  it("rejects a branch-creating fresh spawn (graduate / create-new) when the base checkout is occupied", async () => {
+    // A branch-creating spawn's `scaffold`/`relocate` leg writes the base `active/`
+    // before the worktree spawns — the two-metas foot-gun — so a base occupant collides
+    // even though the worktree lands elsewhere.
+    const guard = makeWorktreeOccupancyGuard({
+      cwd: "/repo",
+      readActiveMetaCandidates: fakeReader([candidate({})]),
+    });
+    const createSpawn: TransitionInputs = {
+      worktreeOp: {
+        mutation: "spawn",
+        branch: "plan/demo",
+        base: "main",
+        createBranch: true,
+        locationTemplate: "{repo}.{branch}",
+        repo: "repo",
+        wuName: "demo",
+        spawningIdentity: "andrew",
+      },
+    };
+    const result = await guard(guardCtx(index, "demo", createSpawn));
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) return;
+    expect(result.message).toMatch(/already holds an active work unit `other`.*Active/i);
+  });
+
+  it("passes when the only occupant is the target work unit itself (in-place)", async () => {
     const guard = makeWorktreeOccupancyGuard({
       cwd: "/repo",
       readActiveMetaCandidates: fakeReader([
@@ -108,50 +164,82 @@ describe("makeWorktreeOccupancyGuard", () => {
       ]),
     });
 
-    expect(await guard(guardCtx(index, "demo"))).toEqual({ ok: true });
+    expect(await guard(guardCtx(index, "demo", inPlaceInputs("feat/demo")))).toEqual({ ok: true });
   });
 
-  it("passes when the worktree is empty", async () => {
+  it("passes when the checkout is empty (in-place)", async () => {
     const guard = makeWorktreeOccupancyGuard({ cwd: "/repo", readActiveMetaCandidates: fakeReader([]) });
-    expect(await guard(guardCtx(index, "demo"))).toEqual({ ok: true });
+    expect(await guard(guardCtx(index, "demo", inPlaceInputs("feat/demo")))).toEqual({ ok: true });
   });
 
-  it("ignores a candidate whose state does not resolve to an occupying state", async () => {
+  it("ignores a candidate whose state does not resolve to an occupying state (in-place)", async () => {
     // A null/absent State resolves to no position → not occupying → skipped.
     const guard = makeWorktreeOccupancyGuard({
       cwd: "/repo",
       readActiveMetaCandidates: fakeReader([candidate({ state: null })]),
     });
-    expect(await guard(guardCtx(index, "demo"))).toEqual({ ok: true });
+    expect(await guard(guardCtx(index, "demo", inPlaceInputs("feat/demo")))).toEqual({ ok: true });
   });
 
-  it("treats a lite-layout same-branch candidate as the target, not a collision", async () => {
+  it("treats a lite-layout same-branch candidate as the target, not a collision (in-place)", async () => {
     const guard = makeWorktreeOccupancyGuard({
       cwd: "/repo",
       readActiveMetaCandidates: fakeReader([
         candidate({ path: ".arc/active/status.md", filename: "status.md", branch: "plan/demo" }),
       ]),
     });
-    // The start would spawn `plan/demo`; the lite candidate backs the same branch.
-    const inputs: TransitionInputs = {
-      worktreeOp: {
-        mutation: "spawn",
-        branch: "plan/demo",
-        base: "main",
-        locationTemplate: "{repo}.{branch}",
-        repo: "repo",
-        wuName: "demo",
-        spawningIdentity: "andrew",
+    // The re-attach takes `plan/demo`; the lite candidate backs the same branch.
+    expect(await guard(guardCtx(index, "demo", inPlaceInputs("plan/demo")))).toEqual({ ok: true });
+  });
+});
+
+describe("makeWorktreeCleanGuard", () => {
+  /** A git exec whose `status --porcelain` returns `porcelain` (empty ⇒ clean). */
+  function execWithStatus(porcelain: string): GitExec {
+    return async () => ({ stdout: porcelain, stderr: "" });
+  }
+
+  const teardownInputs: TransitionInputs = {
+    worktreeOp: { mutation: "teardown", worktreePath: "/wt-foo", currentLocus: "/repo" },
+  };
+
+  it("passes when the teardown target's worktree is clean", async () => {
+    const guard = makeWorktreeCleanGuard({ exec: execWithStatus("") });
+    expect(await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs))).toEqual({ ok: true });
+  });
+
+  it("rejects when the teardown target's worktree is dirty", async () => {
+    const guard = makeWorktreeCleanGuard({ exec: execWithStatus(" M src/file.ts\n") });
+    const result = await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs));
+    expect(result).toMatchObject({ ok: false });
+    if (result.ok) return;
+    expect(result.message).toMatch(/dirty worktree.*\/wt-foo/i);
+  });
+
+  it("scopes the clean check to the teardown op's worktreePath", async () => {
+    let scopedCwd: string | undefined;
+    const guard = makeWorktreeCleanGuard({
+      exec: async (_cmd, _args, opts) => {
+        scopedCwd = opts?.cwd;
+        return { stdout: "", stderr: "" };
       },
-    };
-    expect(await guard(guardCtx(index, "demo", inputs))).toEqual({ ok: true });
+    });
+    await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", teardownInputs));
+    expect(scopedCwd).toBe("/wt-foo");
+  });
+
+  it("passes (no worktree to gate) when the edge declares no teardown op", async () => {
+    const guard = makeWorktreeCleanGuard({ exec: execWithStatus(" M dirty\n") });
+    expect(await guard(guardCtx(buildLifecycleIndexFromMetas([]), "foo", {}))).toEqual({ ok: true });
   });
 });
 
 describe("buildFootgunGuards", () => {
-  it("assembles both foot-gun validators under their guard ids", () => {
-    const guards = buildFootgunGuards({ cwd: "/repo", readActiveMetaCandidates: fakeReader([]) });
+  it("assembles every foot-gun / IO validator under its guard id", () => {
+    const exec: GitExec = async () => ({ stdout: "", stderr: "" });
+    const guards = buildFootgunGuards({ cwd: "/repo", readActiveMetaCandidates: fakeReader([]), exec });
     expect(guards["name-collision"]).toBe(nameCollisionGuard);
     expect(typeof guards["worktree-occupancy"]).toBe("function");
+    expect(typeof guards["worktree-clean"]).toBe("function");
   });
 });
