@@ -673,10 +673,19 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
           inline teardown is the `abandon` transition, not deactivate — its re-point is surfaced for separate
           triage.
 
-    - `[ ]` **6.6.e `graduate-work-unit` → `promote`** → re-point the `provisional → planned` ceremony's inline
+    - `[x]` **6.6.e `graduate-work-unit` → `promote`** → re-point the `provisional → planned` ceremony's inline
       `git mv` to the `promote` transition (`artifacts: relocate`; shipped in `verbs/promote-demote.ts`). A
       branchless flat relocate — but a hand-rolled relocate while the executor owns `relocate` is the half-migration
       the cohort's consistency-on-exit standard absorbs. (Surfaced by the Phase-6 task audit, 2026-06-16.)
+
+        - _Outcome:_ `graduate-work-unit.md` Step 3 (standalone stub) now calls `arc promote {name}` — the executor
+          relocates `provisional/ → planned/`, enforces the Class ratchet, regenerates `STATUS.USER`, and emits the
+          ROADMAP hand-render advisory. The Class force (Step 2) moved **ahead** of the move since `promote` refuses
+          `[TBD]`; Step 4 now notes `STATUS.USER` is auto-regenerated on the standalone path (ROADMAP stays a
+          hand-render until the renderer ships). The verb is flat-only (`tierDir`), so the **cohort-nested** branch
+          keeps its inline `git mv` — that gap is the new 6.6.h (cohort-aware `promote`; this WU owns the verb +
+          `relocate-artifacts`, decompose-matrix disclaims relocate, closeout is docs-only). Both Framework copies
+          synced.
 
     - `[ ]` **6.6.f Local doc updates** — per-member workflow/strategy edits that ride this code; the cross-cutting
       verb-rename sweep is deferred to `lifecycle-closeout`.
@@ -699,6 +708,19 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       is the half-migration the cohort's consistency-on-exit standard absorbs (same shape as 6.6.e). At task time,
       confirm `arc abandon`'s worktree-identity dispatch (primary vs. linked) covers Case A-delete's two arms before
       dropping the inline blocks. Markdown + wiring. (Surfaced by the 6.6.d re-point, 2026-06-16.)
+
+    - `[ ]` **6.6.h Cohort-aware `promote` (nested `provisional → planned`)** — `promote` / `demote` compute a
+      **flat** `backlog/{tier}/{name}` path (`tierDir` in `verbs/promote-demote.ts`), so `arc promote` can't relocate
+      a cohort-nested stub (`backlog/provisional/{cohort}/{name}/`); `graduate-work-unit.md`'s nested branch stays a
+      hand-rolled `git mv` (6.6.e) until this lands. **Home is here:** this WU owns both `promote`/`demote` and
+      `relocate-artifacts`, and `relocate-artifacts` already takes arbitrary caller-supplied `from`/`to` dirs (and
+      skips the `cohort-*.md`), so the fix is local — derive the cohort segment from the source location / meta
+      `Cohort` field, pass the nested `from`/`to`, and clean up an emptied `provisional/{cohort}/`. Not
+      `decompose-matrix` (it disclaims `relocate-artifacts` — teardown legs only); not `lifecycle-closeout`
+      (docs-only). Closes the nested half of 6.6.e per the cohort's consistency-on-exit standard.
+      Build `test-first` (verb path): flat promote unchanged; a cohort-nested stub relocates with planned-side
+      cohort-dir create + emptied-source cleanup; the Class ratchet still refuses `[TBD]`. (Surfaced by the 6.6.e
+      re-point, 2026-06-16.)
 
 ### `[ ]` **6.7 `park` / `resume` ceremony workflows & end-to-end correctness**
 
