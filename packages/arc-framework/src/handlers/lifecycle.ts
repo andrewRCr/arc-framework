@@ -24,11 +24,16 @@ import { readFile, readdir, rm, rmdir } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
-import { parseMetaRecord, readActiveMetaCandidates } from "../lib/active/meta-reader.js";
+import { parseMetaRecord, readActiveMetaCandidates, type MetaFieldName } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
-import { resolvePrimaryWorktreePath, resolveWorktreePathsByBranch } from "../lib/git/worktree-roster.js";
+import {
+  resolvePrimaryWorktreePath,
+  resolveWorktreePathsByBranch,
+  runWorktreeRoster,
+} from "../lib/git/worktree-roster.js";
+import { resolveWriteContext, type WriteContext } from "../lib/git/write-context.js";
 import { buildExecutorContext } from "../lib/work-unit/executor-context.js";
 import type { ExecuteTransitionContext, TransitionOutcome } from "../lib/work-unit/lifecycle-executor.js";
 import { buildLifecycleIndex, type LifecycleIndexFs } from "../lib/work-unit/lifecycle-index.js";
@@ -47,7 +52,7 @@ import {
   type BacklogMoveContext,
   type BacklogMoveResult,
 } from "../lib/work-unit/verbs/promote-demote.js";
-import { runPark, runResume } from "../lib/work-unit/verbs/park-resume.js";
+import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
@@ -345,6 +350,66 @@ async function resolveWuWorktreePath(base: VerbBase, slug: string): Promise<stri
   return base.cwd;
 }
 
+/** The pointer-record fs seam — `node:fs/promises` ops over `UserIOContext`'s write/mkdir. */
+function parkResumeFsSeam(base: VerbBase): ParkResumeFs {
+  return {
+    writeFile: base.io.writeFile,
+    mkdir: base.io.mkdir,
+    rm: (path) => rm(path),
+    readdir: (path) => readdir(path),
+    rmdir: (path) => rmdir(path),
+  };
+}
+
+/**
+ * Resolve the park source — the WU's meta plus the worktree to tear down.
+ *
+ * Two arms: the meta in the *current* checkout (park@Planning from its worktree,
+ * or a park@Active mistakenly run from its own worktree — the run-context guard
+ * catches that); else a cross-worktree scan for the worktree holding it (the
+ * park@Active run-from-base case, where the WU's `active/` lives on the preserved
+ * branch, not the base tree the pointer lands in).
+ */
+async function resolveParkSource(
+  base: VerbBase,
+  slug: string,
+): Promise<{ worktreePath: string; record: Record<MetaFieldName, string | null> } | null> {
+  try {
+    const record = parseMetaRecord(await base.io.readFile(join(base.cwd, `.arc/active/meta-${slug}.md`)));
+    return { worktreePath: await resolveWuWorktreePath(base, slug), record };
+  } catch {
+    // Not in the current checkout — scan worktrees for the one holding it.
+  }
+  const roster = await runWorktreeRoster({
+    exec: base.io.exec,
+    fs: { readdir: (path) => readdir(path), readFile: base.io.readFile },
+  });
+  const entry = roster.entries.find(
+    (e) => e.metaFilePath !== undefined && basename(e.metaFilePath) === `meta-${slug}.md`,
+  );
+  if (entry?.metaFilePath === undefined) return null;
+  return { worktreePath: entry.worktreePath, record: parseMetaRecord(await base.io.readFile(entry.metaFilePath)) };
+}
+
+/**
+ * Word the park@Active run-context refusal: park@Active renders the pointer-record
+ * on the tracked branch, so it must run from a base-branch checkout — never a WU
+ * branch (where the pointer would land on the wrong branch and tangle its PR).
+ */
+function parkRunContextRefusal(wc: WriteContext): string {
+  if (wc.verdict === "refuse") {
+    return wc.reason === "detached-head"
+      ? "park@Active needs a base-branch checkout, but HEAD is detached — check out the base branch and retry."
+      : "park@Active needs `branch.base` configured to resolve the tracked branch.";
+  }
+  const hop = wc.primaryWorktreePath !== null ? ` (e.g. \`cd ${wc.primaryWorktreePath}\`)` : "";
+  return (
+    `park@Active must run from the base branch (\`${wc.baseBranch}\`), not the WU branch ` +
+    `\`${wc.currentBranch}\` — the pointer-record lands on the tracked branch while the preserved branch ` +
+    `keeps its \`active/\`. Switch to a base checkout${hop} and retry.`
+  );
+}
+
 /** `arc park [slug]` — shelve a started WU off the active set. Refuses without `--reason`. */
 export async function handlePark(slug: string | undefined, opts: ParkOptions): Promise<void> {
   p.intro("arc park");
@@ -354,11 +419,34 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
   const target = await resolveVerbTargetOrReport("park", slug, base.cwd);
   if (target === null) return;
 
-  const worktreePath = await resolveWuWorktreePath(base, target);
-  const { executor } = await buildExecutor(base);
+  const source = await resolveParkSource(base, target);
+  if (source === null) {
+    refuse(`\`${target}\` is not a started WU — nothing to park.`);
+    return;
+  }
+
+  const { executor, settings } = await buildExecutor(base);
+
+  // park@Active is cross-branch: the pointer-record must land on the tracked
+  // branch while the preserved branch keeps its authoritative `active/`. Enforce a
+  // base-branch run-context so the verb never renders the pointer on a WU branch.
+  if (source.record.State === "Active") {
+    const wc = await resolveWriteContext({ exec: base.io.exec, baseBranch: settings["branch.base"] });
+    if (wc.verdict !== "proceed") {
+      refuse(parkRunContextRefusal(wc));
+      return;
+    }
+  }
+
   const result = await runPark(
-    { executor, fs: { writeFile: base.io.writeFile } },
-    { name: target, reason: opts.reason, worktreePath, currentLocus: base.cwd },
+    { executor, fs: parkResumeFsSeam(base) },
+    {
+      name: target,
+      reason: opts.reason,
+      sourceRecord: source.record,
+      worktreePath: source.worktreePath,
+      currentLocus: base.cwd,
+    },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
@@ -386,7 +474,7 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
   if (target === null) return;
 
   const { executor, settings } = await buildExecutor(base);
-  const ctx = { executor, fs: { writeFile: base.io.writeFile } };
+  const ctx = { executor, fs: parkResumeFsSeam(base) };
 
   // In place (`--here`): no fresh worktree, so the spawn config (location
   // template / repo) isn't needed — the preserved branch is checked out here.

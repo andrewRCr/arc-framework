@@ -815,7 +815,7 @@ describe("executeTransition — Branch-field encoding projection", () => {
     expect(branchWrites).toEqual([{ path: ".arc/backlog/planned/demo/meta-demo.md", branch: "[none]" }]);
   });
 
-  it("resume restores the preserved branch at the relocated path (from worktreeOp spawn, no branchOp)", async () => {
+  it("resume projects the preserved branch at the parked path (no relocate; pointer removed verb-side)", async () => {
     const { ctx, branchWrites } = buildSpies({
       metas: [PARKED_META],
       guardValidators: { "worktree-occupancy": () => ({ ok: true }) },
@@ -824,13 +824,16 @@ describe("executeTransition — Branch-field encoding projection", () => {
     const outcome = await executeTransition(ctx, {
       verb: "resume",
       slug: "demo",
-      inputs: { toDir: ".arc/active", worktreeOp: spawnOp("feat/demo") },
+      inputs: { worktreeOp: spawnOp("feat/demo") },
     });
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
+    // The edge no longer relocates (the artifacts ride the re-attached branch back),
+    // so the branch-field projects at the still-parked pointer path — which the
+    // `resume` verb then removes. The projected value is the preserved branch.
     expect(outcome.branchFieldWritten).toBe("feat/demo");
-    expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
+    expect(branchWrites).toEqual([{ path: ".arc/backlog/planned/demo/meta-demo.md", branch: "feat/demo" }]);
   });
 
   it("park@Active does NOT write the field — the pointer-record owns its Branch (preserve, no branchOp)", async () => {

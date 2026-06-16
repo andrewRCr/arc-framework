@@ -32,6 +32,11 @@ function posEqual(a: LifecyclePosition | null, b: LifecyclePosition | null): boo
   return posKey(a) === posKey(b);
 }
 
+/** The `parked` derived position — Active phase physically stored under `backlog/planned/`. */
+function isParked(position: LifecyclePosition | null): boolean {
+  return position !== null && position.phase === "Active" && position.location === "planned";
+}
+
 /** The legal edge for a `(verb, from)` cell, or `undefined` if none. */
 function findLegalEdge(verb: Verb, from: LifecyclePosition | null): TransitionRecord | undefined {
   return TRANSITIONS.find((t) => t.verb === verb && posEqual(t.from, from));
@@ -54,10 +59,18 @@ function deriveExpectedMutators(
   const et = expectedEncoding(to);
   const spec: MutatorSpec = {};
 
+  // `parked` (Active phase physically under `backlog/planned/`) is reached
+  // without a git-mv relocate: park@Active renders a fresh pointer-record on the
+  // tracked branch and resume removes it, while the authoritative artifacts ride
+  // the preserved branch (never moved off `active/`). So an edge with a `parked`
+  // endpoint suppresses the artifact-relocate leg — mirroring the `completed/`
+  // ship, which likewise reaches its tier without firing every physical leg here.
+  const parkedEndpoint = isParked(from) || isParked(to);
+
   // Artifact set.
   if (ef === null && et !== null) spec.artifacts = "scaffold";
   else if (ef !== null && et === null) spec.artifacts = "remove";
-  else if (ef !== null && et !== null && ef.dirTier !== et.dirTier) spec.artifacts = "relocate";
+  else if (!parkedEndpoint && ef !== null && et !== null && ef.dirTier !== et.dirTier) spec.artifacts = "relocate";
 
   // A move into `completed/` is the merge-gated `archive` ship: its relocation
   // rides the PR, so the Branch *field* clears logically here (`clearBranchField`)

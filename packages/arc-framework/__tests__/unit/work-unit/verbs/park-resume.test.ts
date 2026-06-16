@@ -1,20 +1,23 @@
 /**
  * Unit tests for the `park` / `resume` location-axis inverse pair.
  *
- * `park` is phase-polymorphic: from `Planning` it tears the (codeless) branch
- * down and relocates to `backlog/planned/` (resolves `planned`); from `Active`
- * it **preserves** the pushed branch as the durable shelf, tears down only the
- * worktree, relocates, and writes a minimal **pointer-record** opened by a
- * derived-state callout carrying the park `reason` (resolves `parked`). `resume`
- * is the inverse — it relocates back to `active/` and re-attaches the preserved
- * branch. Both require a free-form `reason` is never fabricated; the executor's
- * mutators reach the contract as spies, so each behavior is asserted over an
- * in-memory index.
+ * `park` is phase-polymorphic. From `Planning` it routes through the executor:
+ * tear the (codeless) `plan/` branch down and relocate `active/ → backlog/planned/`
+ * (resolves `planned`). From `Active` it is **verb-orchestrated**: preserve the
+ * pushed branch (the durable shelf), tear down only the worktree, and render a
+ * minimal **pointer-record** *fresh* on the tracked branch — no git-mv relocate,
+ * since the authoritative artifacts ride the preserved branch (resolves `parked`).
+ * `resume` is the inverse — re-attach the preserved branch (spawn or `--here`) and
+ * remove the tracked-branch pointer-record (the artifacts come back on the branch).
+ *
+ * The executor's mutators / side-effects reach the verb as spies and the
+ * pointer-record fs as an in-memory seam, so each behavior is asserted over an
+ * ordered call log and the recorded writes / removals.
  */
 
 import { describe, it, expect } from "vitest";
 
-import { parseMetaRecord } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, type MetaFieldName } from "../../../../src/lib/active/meta-reader.js";
 import type {
   ExecuteTransitionContext,
   SideEffectHandler,
@@ -43,6 +46,24 @@ interface MetaSpec {
   branch?: string;
   cls?: string;
   cohort?: string;
+}
+
+/** The on-disk meta body for a spec — shared by the index fs and {@link recordFor}. */
+function metaContent(meta: MetaSpec): string {
+  return (
+    `# Metadata: ${meta.slug}\n\n` +
+    `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
+    `|-----------|-----------|------------|-----------|--------------|\n` +
+    `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
+    `- **Cohort:** ${meta.cohort ?? "[none]"}\n- **Depends On:** [none]\n\n` +
+    `- **Last Completed:** [none]\n- **Next Task:** Task 4.3 — park.\n- **Blockers:** [none]\n\n` +
+    `- **Next Action:** continue.\n\n---\n`
+  );
+}
+
+/** The parsed source meta the handler passes to `runPark` (read from the WU's own worktree). */
+function recordFor(meta: MetaSpec): Record<MetaFieldName, string | null> {
+  return parseMetaRecord(metaContent(meta));
 }
 
 /** Build an injectable index fs over a fixed set of metas. */
@@ -76,16 +97,7 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
     }
     const filename = `meta-${meta.slug}.md`;
     ensureDir(dirAbs).push({ name: filename, isDirectory: () => false });
-    files.set(
-      `${dirAbs}/${filename}`,
-      `# Metadata: ${meta.slug}\n\n` +
-        `| **State** | **Owner** | **Branch** | **Class** | **Priority** |\n` +
-        `|-----------|-----------|------------|-----------|--------------|\n` +
-        `| \`${meta.state}\` | \`andrew\` | \`${meta.branch ?? "[none]"}\` | \`${meta.cls ?? "Novel"}\` | \`P1\` |\n\n` +
-        `- **Cohort:** ${meta.cohort ?? "[none]"}\n- **Depends On:** [none]\n\n` +
-        `- **Last Completed:** [none]\n- **Next Task:** Task 4.3 — park.\n- **Blockers:** [none]\n\n` +
-        `- **Next Action:** continue.\n\n---\n`,
-    );
+    files.set(`${dirAbs}/${filename}`, metaContent(meta));
   }
 
   return {
@@ -104,11 +116,13 @@ interface Harness {
   ctx: ParkContext;
   calls: string[];
   writes: { path: string; content: string }[];
+  removals: string[];
 }
 
 function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const calls: string[] = [];
   const writes: Harness["writes"] = [];
+  const removals: string[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -153,9 +167,19 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     writeFile: async (path, content) => {
       writes.push({ path: String(path), content });
     },
+    mkdir: async () => undefined,
+    rm: async (path) => {
+      removals.push(String(path));
+    },
+    // The parked dir holds only the pointer-record under the minimal-pointer model,
+    // so after its removal the dir is empty and the prune's `rmdir` fires.
+    readdir: async () => [],
+    rmdir: async (path) => {
+      removals.push(`rmdir:${String(path)}`);
+    },
   };
 
-  return { ctx: { executor, fs }, calls, writes };
+  return { ctx: { executor, fs }, calls, writes, removals };
 }
 
 const ACTIVE: MetaSpec = {
@@ -179,6 +203,7 @@ const PARKED: MetaSpec = {
 const BASE_PARK: ParkParams = {
   name: "foo",
   reason: "pivoting to the upstream dependency first",
+  sourceRecord: recordFor(ACTIVE),
   worktreePath: WORKTREE,
   currentLocus: LOCUS,
 };
@@ -194,7 +219,7 @@ describe("runPark — park@Planning", () => {
   it("tears down the branch and relocates to backlog/planned/ (resolves planned)", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
 
-    const result = await runPark(ctx, BASE_PARK);
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
 
     expect(result.status).toBe("parked");
     if (result.status !== "parked") return;
@@ -213,7 +238,7 @@ describe("runPark — park@Planning", () => {
 });
 
 describe("runPark — park@Active", () => {
-  it("preserves the branch, tears down only the worktree, and relocates (resolves parked)", async () => {
+  it("preserves the branch, tears down only the worktree, and renders a fresh pointer (no relocate)", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
     const result = await runPark(ctx, BASE_PARK);
@@ -223,10 +248,14 @@ describe("runPark — park@Active", () => {
     if (result.outcome.status === "ok") {
       expect(result.outcome.to).toEqual({ phase: "Active", location: "planned" });
     }
-    expect(calls).toContain("relocate:.arc/active->.arc/backlog/planned/foo");
+    // Verb-orchestrated: the worktree is torn down, but the artifacts are NOT
+    // git-mv'd (they ride the preserved branch) and the branch is preserved.
     expect(calls).toContain("worktree:teardown");
-    // The branch is preserved — no branch leg fires (the pushed branch is the shelf).
+    expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+    // The edge's side-effects fire from the verb (it does not route through the executor).
+    expect(calls).toContain("side:user-workspace");
+    expect(calls).toContain("side:reconcile-status-user");
   });
 
   it("writes the pointer-record opened by a derived-state callout carrying the reason", async () => {
@@ -236,7 +265,7 @@ describe("runPark — park@Active", () => {
 
     expect(result.status).toBe("parked");
     if (result.status !== "parked") return;
-    // The pointer-record lands at the relocated meta path and is returned for surfacing.
+    // The pointer-record lands fresh at the parked meta path and is returned for surfacing.
     expect(writes).toHaveLength(1);
     expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/foo/meta-foo.md");
     const pointer = writes[0]!.content;
@@ -252,6 +281,22 @@ describe("runPark — park@Active", () => {
     expect(record.State).toBe("Active");
     expect(record.Branch).toBe("feat/foo");
     expect(record.Cohort).toBe("demo-cohort");
+  });
+
+  it("rejects when the preserved-branch worktree is dirty (teardown gate, nothing written)", async () => {
+    const { ctx, writes } = buildCtx([ACTIVE]);
+    // Override the teardown to refuse a dirty worktree (the mutator's clean-guard).
+    ctx.executor.reconcileWorktree = async () => {
+      throw new Error("refusing to tear down a dirty worktree: /repo/../wt-foo");
+    };
+
+    const result = await runPark(ctx, BASE_PARK);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/dirty|clean/i);
+    // Teardown gates before any write — no pointer-record left behind.
+    expect(writes).toEqual([]);
   });
 });
 
@@ -271,20 +316,21 @@ describe("runPark — the reason is required", () => {
 
 describe("runPark — guards park-from-Integrating", () => {
   it("rejects parking an Integrating WU (withdraw via reopen first)", async () => {
-    const { ctx, writes } = buildCtx([INTEGRATING]);
+    const { ctx, writes, calls } = buildCtx([INTEGRATING]);
 
-    const result = await runPark(ctx, BASE_PARK);
+    const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(INTEGRATING) });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/reopen|integrat/i);
     expect(writes).toEqual([]);
+    expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
 
 describe("runResume — the inverse", () => {
-  it("relocates back to active/ and re-attaches the preserved branch", async () => {
-    const { ctx, calls } = buildCtx([PARKED]);
+  it("re-attaches the preserved branch and removes the pointer-record (no relocate)", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED]);
 
     const result = await runResume(ctx, BASE_RESUME);
 
@@ -295,36 +341,41 @@ describe("runResume — the inverse", () => {
       expect(result.outcome.to).toEqual({ phase: "Active", location: "active" });
     }
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
-    expect(calls).toContain("relocate:.arc/backlog/planned/foo->.arc/active");
-    // Re-attach: the worktree spawns; the preserved branch is not re-created.
+    // Re-attach: the worktree spawns; no relocate, no branch re-creation.
     expect(calls).toContain("worktree:spawn");
+    expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+    // The tracked-branch pointer-record is removed and its emptied dir pruned.
+    expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
+    expect(removals).toContain("rmdir:/repo/.arc/backlog/planned/foo");
   });
 
   it("re-attaches in place (`--here`) — checks out the preserved branch, no spawn", async () => {
-    const { ctx, calls } = buildCtx([PARKED]);
+    const { ctx, calls, removals } = buildCtx([PARKED]);
 
     const result = await runResume(ctx, { name: "foo", inPlace: true });
 
     expect(result.status).toBe("resumed");
     if (result.status !== "resumed") return;
     expect(result.metaPath).toBe(".arc/active/meta-foo.md");
-    expect(calls).toContain("relocate:.arc/backlog/planned/foo->.arc/active");
-    // In-place placement (checkout existing); no fresh worktree, no branch leg.
+    // In-place placement (checkout existing); no fresh worktree, no relocate, no branch leg.
     expect(calls).toContain("worktree:spawn:in-place");
     expect(calls).not.toContain("worktree:spawn");
+    expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
     expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+    expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
   });
 
   it("refuses when the checkout already holds an active WU (worktree-occupancy guard)", async () => {
-    const { ctx, calls } = buildCtx([PARKED], /* occupancyOk */ false);
+    const { ctx, calls, removals } = buildCtx([PARKED], /* occupancyOk */ false);
 
     const result = await runResume(ctx, { name: "foo", inPlace: true });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/already holds an active work unit/i);
-    // Refusal is total — no relocate, no placement.
+    // Refusal is total — no placement, no pointer removal.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+    expect(removals).toEqual([]);
   });
 });

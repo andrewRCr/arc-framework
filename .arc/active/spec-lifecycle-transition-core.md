@@ -200,8 +200,10 @@ branch mutually consistent for the target state.
 ### 4. The relocation primitive — a 1↔1 mutator bundle
 
 Strictly 1↔1; a bundle of phase-aware encoding-mutators fired **together** so the three-encoding invariant holds
-by construction (the `archive` `→ completed/` edge is the one partial exception — its physical teardown legs defer
-to post-merge; § 9):
+by construction, with two exceptions: the `archive` `→ completed/` edge defers its physical teardown legs to
+post-merge (§ 9), and the `parked`-endpoint edges (`park@Active` / `resume` / `start@parked`) drop the
+`relocate-artifacts` leg entirely — the authoritative artifacts ride the preserved branch, so the tracked branch
+carries only a freshly-rendered pointer-record, never a moved artifact set (§ 6):
 
 - **`relocate-artifacts`** — the `git mv` of the WU's artifact set (`meta-*`, `spec-*`, `tasks-*`, `draft-*`,
   companions): `backlog ↔ active`, `active → completed`.
@@ -221,10 +223,12 @@ to post-merge; § 9):
 
 **Caller shapes:**
 
-- **Location-movers** (`park` / `resume` / `promote` / `demote` / `init` Path A) call `relocate-artifacts` +
-  conditioned branch/worktree mutators. The **`archive` sweep** is a location-mover too, but fires
-  `relocate-artifacts` + `clearBranchField` + `set-phase` — its physical branch/worktree teardown defers to
-  post-merge (§ 9).
+- **Location-movers** (`park@Planning` / `promote` / `demote` / `init` Path A) call `relocate-artifacts` +
+  conditioned branch/worktree mutators. The **`parked`-endpoint movers** (`park@Active` / `resume` /
+  `start@parked`) are location-movers that **omit** `relocate-artifacts` — the artifacts ride the preserved branch;
+  only the worktree leg (teardown / spawn) and the verb-side pointer render/removal move (§ 6). The **`archive`
+  sweep** is a location-mover too, but fires `relocate-artifacts` + `clearBranchField` + `set-phase` — its physical
+  branch/worktree teardown defers to post-merge (§ 9).
 - **Phase-movers** (`activate` / `deactivate` / `reopen` / the `integrate` flip) call `reconcile-branch` (only
   when the prefix rotates) + `set-phase`.
 
@@ -296,8 +300,12 @@ cross-machine), not this WU.
 - **park@Planning** — no code exists yet on the branch; tear the branch down, re-cut `plan/<name>` on resume.
   Resolves back to `planned`.
 - **park@Active** — code exists; **preserve the branch** (the pushed branch *is* the durable shelf), tear down
-  only the worktree, relocate artifacts to `backlog/planned/`. Resume re-attaches (≈ the Materialize mechanic).
-  Resolves to `parked`.
+  only the worktree, and render a fresh minimal **pointer-record** on the tracked branch — **no git-mv relocate**:
+  the authoritative artifacts ride the preserved branch and are never moved off `active/` (the tracked branch never
+  held them to move). Resume re-attaches (≈ the Materialize mechanic) and removes the pointer — the artifacts come
+  back on the re-attached branch. Resolves to `parked`. Because the artifacts never move, the `park@Active`,
+  `resume`, and `start@parked` edges drop the `relocate-artifacts` leg (a `parked` endpoint suppresses it — the
+  encoding-consistency oracle models this alongside the `→ completed/` exception, §4).
 
 **The pointer-record (tracked-file resolution).** A parked-Active WU's authoritative artifacts stay on the
 preserved branch; `main` carries only a minimal **render-pointer** — meta `State: Active` (the literal,
@@ -320,20 +328,27 @@ it **ships in this member**.
 **Park guards & inputs:** reject park-from-`Integrating` (close/withdraw the PR via `reopen` first). `park` requires
 two `inputs` (never fabricated): the **commitment** tier and a free-form **`reason`** string — the latter rendered
 in the callout above (and in the relocated meta for park@Planning), supplied via `--reason` (bare invocation errors
-with usage, non-TTY-safe).
+with usage, non-TTY-safe). park-from-`Integrating` is rejected in the verb directly (not only via the table guard),
+since the Active arm is verb-orchestrated and never reaches the executor that would otherwise surface it.
 
 **Park / resume ceremony workflows.** The verbs ship as the *mechanics* half (CLI + executor + pointer-record);
 their *judgment* half is `park-work-unit.md` / `resume-work-unit.md` — thin ceremonies authored **here**. They were
 `arc-plan-conductor` §20's; that WU decomposed and park/resume folded into this cohort (via the retired
 `park-resume-lifecycle`) with no other member claiming the workflows, so authoring them closes a slip, not new
-scope. The load-bearing piece is `park-work-unit`'s **cross-branch run-context**: park@Active's relocate +
-pointer-record must land on the **tracked** branch while the WU branch's `active/` artifacts stay authoritative
-(the executor does pure `git mv` in its cwd and never commits, so *which* worktree the ceremony drives the legs from
-is what makes the pointer-on-main / artifacts-on-branch split hold — settle the run-context at task time: enforced
-in the handler vs. documented run-from-tracked). It reuses `decomposition-machinery`'s single-source `active/ →
-backlog/` + teardown blocks rather than re-authoring them. `resume-work-unit` drives `arc resume` (spawn + `--here`)
-and the re-attach. Authored as **v1**; the composable-fragment factoring is `composable-workflows`'. park@Active and
-resume are proven end-to-end by a park→resume round-trip — the coverage the verbs shipped without.
+scope. The load-bearing piece is park@Active's **cross-branch run-context**, **settled as handler-enforced**: the
+pointer-record must land on the **tracked** branch while the preserved branch's `active/` stays authoritative, so
+`arc park` runs from a base-branch checkout (the handler refuses a WU-branch context via the shared
+`resolveWriteContext` guard — the same primitive housekeep / errand / the planning-entry gate use — offering a hop
+to the base worktree). Because the WU's `active/` is then unresolvable from the base index, park@Active is
+**verb-orchestrated** rather than executor-routed: the handler reads the source meta cross-worktree (the worktree
+holding `active/meta-<name>`), and the verb renders the pointer fresh on the base tree, tears down the preserved
+branch's worktree (the `worktree-clean` guard targets *that* worktree, never the base relocate locus), and fires
+the edge's side-effects. This keeps the branch/tracked-home awareness in the projection layer (handler + verb), not
+the executor's logical core — OSD / arc-backend re-home it cleanly (P5). `resume` routes through the executor (the
+pointer *is* in the base tree, so the WU resolves `parked`) and removes the pointer verb-side. The ceremonies reuse
+`decomposition-machinery`'s single-source `active/ → backlog/` + teardown blocks rather than re-authoring them.
+Authored as **v1**; the composable-fragment factoring is `composable-workflows`'. park@Active and resume are proven
+end-to-end by a park→resume round-trip — the coverage the verbs shipped without.
 
 ### 7. Per-cell mechanics (the open-question resolutions)
 

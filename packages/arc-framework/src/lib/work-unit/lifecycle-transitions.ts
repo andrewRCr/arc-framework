@@ -403,12 +403,16 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
 
   // -- Location axis: park / resume (park is phase-polymorphic), promote / demote --
   {
+    // park@Active preserves the pushed branch as the durable shelf and renders a
+    // fresh pointer-record on the tracked branch (verb-orchestrated, not a git-mv
+    // relocate — the authoritative artifacts ride the preserved branch, never
+    // moved off `active/`). Only the worktree is torn down.
     verb: "park",
     from: ACTIVE,
     to: PARKED,
     inverse: "resume",
     guards: ["worktree-clean"],
-    encodingUpdates: { artifacts: "relocate", reconcileWorktree: "teardown" },
+    encodingUpdates: { reconcileWorktree: "teardown" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -423,12 +427,15 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
+    // resume re-attaches the preserved branch in a fresh worktree (the
+    // authoritative artifacts ride it back); the tracked-branch pointer-record is
+    // removed verb-side, so there is no git-mv relocate to declare here.
     verb: "resume",
     from: PARKED,
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -505,12 +512,15 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
+    // `start <parked>` dispatches to resume — same mechanics: re-attach the
+    // preserved branch in a fresh worktree (artifacts ride it back), the
+    // tracked-branch pointer-record removed verb-side, no git-mv relocate.
     verb: "start",
     from: PARKED,
     to: ACTIVE,
     inverse: "park",
     guards: ["worktree-occupancy"],
-    encodingUpdates: { artifacts: "relocate", reconcileWorktree: "spawn" },
+    encodingUpdates: { reconcileWorktree: "spawn" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

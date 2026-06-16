@@ -757,12 +757,20 @@ cross-cutting verb-rename sweep is `lifecycle-closeout`'s).
       Test-first: added the bare-add re-attach case (still writes the ownership marker); the existing `-b` create
       case is unchanged.
 
-    - `[ ]` **6.7.b park@Active cross-branch run-context** — settle + implement how park@Active lands the relocate +
-      pointer-record on the **tracked** branch while the WU branch's `active/` stays authoritative (handler-enforced
-      run-context vs. documented run-from-tracked — settle at task time); confirm the `worktree-clean` guard targets
-      the torn-down worktree, not the relocate locus. **Forward-compat (run the `strategy-storage-evolution`
-      self-check):** don't bake "the code repo's tracked branch" as the pointer's only home — under the materialized
-      backend the pointer-record is a projection and WU identity stays decoupled from branch (P5).
+    - `[x]` **6.7.b park@Active cross-branch run-context** — settled **handler-enforced**: `arc park` requires a
+      base-branch context for the Active arm (shared `resolveWriteContext` guard; refuse-with-hop on a WU branch),
+      so the pointer-record lands on the tracked branch while the preserved branch keeps its authoritative `active/`.
+      Settling it surfaced that the shipped park@Active/resume edges used a symmetric `git-mv` relocate that can't
+      produce the pointer-on-tracked/artifacts-on-branch split (the tracked branch never holds `active/<wu>` to
+      move) — corrected here: `park@Active` / `resume` / `start@parked` **drop the `relocate-artifacts` leg** (a
+      `parked` endpoint suppresses it in the encoding-consistency oracle, alongside the `→ completed/` exception);
+      park@Active renders a **fresh** minimal pointer (verb-orchestrated, since the WU is unresolvable from the base
+      index), and resume removes it + prunes the emptied parked dir (artifacts ride the re-attached branch back).
+      Confirmed (item 2): the `worktree-clean` guard targets the torn-down worktree, not the base relocate locus.
+      Forward-compat held — the branch/tracked-home awareness stays in the projection layer (handler + verb), never
+      the executor's logical core, so OSD / arc-backend re-home it without reshape (P5). Spec §4/§6 reconciled;
+      `runPark` split into verb-orchestrated `parkActive` + executor-routed `parkPlanning`; new cross-worktree
+      source-meta resolution + pointer-record fs seam in the handler.
 
     - `[ ]` **6.7.c `park-work-unit.md` ceremony (thin v1)** — judgment (`--reason` / commitment) + the cross-branch
       run-context (6.7.b) + teardown, reusing `decomposition-machinery`'s single-source blocks. Markdown + wiring

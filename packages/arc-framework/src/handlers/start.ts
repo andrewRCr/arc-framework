@@ -15,7 +15,7 @@
  * @module
  */
 
-import { readFile, readdir } from "node:fs/promises";
+import { readFile, readdir, rm, rmdir } from "node:fs/promises";
 import { basename, join } from "node:path";
 
 import * as p from "@clack/prompts";
@@ -294,7 +294,13 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
     const result = await runResume(
       {
         executor: buildExecutorContext({ ...ctx, teamMode: settings["team.mode"] === "true", internalTemplateDir: getInternalTemplatePath() }),
-        fs: { writeFile: (path, content) => ctx.io.writeFile(path, content) },
+        fs: {
+          writeFile: (path, content) => ctx.io.writeFile(path, content),
+          mkdir: (path, opts) => ctx.io.mkdir(path, opts),
+          rm: (path) => rm(path),
+          readdir: (path) => readdir(path),
+          rmdir: (path) => rmdir(path),
+        },
       },
       { name: wuName, inPlace: true },
     );
@@ -326,7 +332,13 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
         teamMode: config.teamMode,
         internalTemplateDir: getInternalTemplatePath(),
       }),
-      fs: { writeFile: (path, content) => ctx.io.writeFile(path, content) },
+      fs: {
+        writeFile: (path, content) => ctx.io.writeFile(path, content),
+        mkdir: (path, opts) => ctx.io.mkdir(path, opts),
+        rm: (path) => rm(path),
+        readdir: (path) => readdir(path),
+        rmdir: (path) => rmdir(path),
+      },
     },
     { name: wuName, locationTemplate: config.locationTemplate, repo: config.repo, spawningIdentity: ctx.identity },
   );
