@@ -48,7 +48,7 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
-import { handleSync } from "./handlers/sync.js";
+import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
 import {
@@ -411,7 +411,10 @@ program
   )
   .option("--dry-run", "Print the matrix decision without invoking either leg")
   .option("--json", "Emit the structured result as JSON")
-  .action(handleSync);
+  // Call explicitly with only the parsed options — Commander otherwise passes
+  // the Command instance as a second arg, which would collide with the
+  // injectable `output` parameter.
+  .action((opts: SyncOptions) => handleSync(opts));
 
 // --- Release ---
 

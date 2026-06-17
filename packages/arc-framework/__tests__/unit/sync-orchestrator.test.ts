@@ -16,6 +16,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach, type Mock } from "vite
 import { UserFacingError } from "../../src/lib/errors.js";
 import type { WorktreeSyncState } from "../../src/lib/git/worktree-sync.js";
 import type { AuditEntry } from "../../src/lib/release/types.js";
+import { makeCapturingSyncOutput } from "../helpers/sync-output.js";
 
 const mockIntro = vi.fn();
 const mockOutro = vi.fn();
@@ -219,16 +220,25 @@ function pushedBranchInvocations(): string[][] {
     .filter((args): args is string[] => Array.isArray(args) && args[0] === "push");
 }
 
+/**
+ * Diagnostics captured from the most recent {@link captureSyncJson} run — the
+ * `warn`/`error` lines the injected output would otherwise route to stderr.
+ * Reset per call; read by the tests that assert on JSON-mode diagnostics.
+ */
+let capturedStderr: string[] = [];
+
 async function captureSyncJson(
   opts: { dryRun?: boolean; yes?: boolean } = {},
 ): Promise<Record<string, unknown>> {
+  const cap = makeCapturingSyncOutput();
+  capturedStderr = cap.stderr;
   const stdoutWrite = vi
     .spyOn(process.stdout, "write")
     .mockImplementation(() => true);
   let written: string | undefined;
 
   try {
-    await handleSync({ json: true, ...opts });
+    await handleSync({ json: true, ...opts }, cap.output);
     written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
   } finally {
     stdoutWrite.mockRestore();
@@ -603,17 +613,8 @@ describe("handleSync orchestrator matrix dispatch", () => {
       return { stdout: "", stderr: "" };
     });
 
-    const stderrWrite = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-    let outcome: Record<string, unknown>;
-    let stderrText: string;
-    try {
-      outcome = await captureSyncJson();
-      stderrText = stderrWrite.mock.calls.map((c) => String(c[0])).join("");
-    } finally {
-      stderrWrite.mockRestore();
-    }
+    const outcome = await captureSyncJson();
+    const stderrText = capturedStderr.join("");
 
     expect(mockRunUserSave).not.toHaveBeenCalled();
     expect(mockPushWithRecovery).not.toHaveBeenCalled();
@@ -926,17 +927,8 @@ describe("--json stdout-purity contract", () => {
       warnings: [],
     });
 
-    const stderrWrite = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
-    let outcome: Record<string, unknown>;
-    let stderrText: string;
-    try {
-      outcome = await captureSyncJson();
-      stderrText = stderrWrite.mock.calls.map((c) => String(c[0])).join("");
-    } finally {
-      stderrWrite.mockRestore();
-    }
+    const outcome = await captureSyncJson();
+    const stderrText = capturedStderr.join("");
 
     expect(mockConfirm).not.toHaveBeenCalled();
     expect(outcome.cell).toBe("save-only");
@@ -1086,12 +1078,13 @@ describe("error-path envelope coverage", () => {
   it("identity-absent + --json → emits parseable envelope on stdout; sets exit code", async () => {
     mockResolveUserIdentity.mockRejectedValueOnce(buildIdentityMissingError());
 
+    const cap = makeCapturingSyncOutput();
     const stdoutWrite = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true });
+      await handleSync({ json: true }, cap.output);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1102,6 +1095,7 @@ describe("error-path envelope coverage", () => {
       cell: "none",
       reason: "identity-absent",
     });
+    expect(cap.stderr.join("")).toContain("IDENTITY_MISSING");
     expect(process.exitCode).toBe(1);
     expect(mockResolveAllSettings).not.toHaveBeenCalled();
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
@@ -1130,12 +1124,13 @@ describe("error-path envelope coverage", () => {
   it("no-arc-project + --json → emits parseable envelope on stdout; sets exit code", async () => {
     mockResolveArcRoot.mockReturnValueOnce(null);
 
+    const cap = makeCapturingSyncOutput();
     const stdoutWrite = vi
       .spyOn(process.stdout, "write")
       .mockImplementation(() => true);
     let writes: string[];
     try {
-      await handleSync({ json: true });
+      await handleSync({ json: true }, cap.output);
       writes = stdoutWrite.mock.calls.map((c) => String(c[0]));
     } finally {
       stdoutWrite.mockRestore();
@@ -1146,6 +1141,7 @@ describe("error-path envelope coverage", () => {
       cell: "none",
       reason: "no-arc-project",
     });
+    expect(cap.stderr.join("")).toContain("Not inside an ARC project");
     expect(process.exitCode).toBe(1);
     expect(mockResolveAllSettings).not.toHaveBeenCalled();
     expect(mockRunWorktreeSyncStatus).not.toHaveBeenCalled();
