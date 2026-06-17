@@ -22,12 +22,11 @@ export const CLI_PATH = resolve(
 /**
  * Throw a clear error if `dist/cli.js` is missing.
  *
- * E2E suites build the CLI automatically via the e2e config's `globalSetup`.
- * This guard catches the off-config invocation case (single-file vitest run
- * without `-c vitest.e2e.config.ts`, manually deleted `dist/`, or a future
- * subprocess test added under a non-e2e tier) so the failure surfaces as a
- * "build the CLI first" message instead of a confusing `MODULE_NOT_FOUND`
- * from the spawned `node`.
+ * E2E suites build the CLI automatically via the e2e project's `globalSetup`.
+ * This guard catches the off-project invocation case (running outside the
+ * `e2e` project, manually deleted `dist/`, or a future subprocess test added
+ * under a non-e2e tier) so the failure surfaces as a "build the CLI first"
+ * message instead of a confusing `MODULE_NOT_FOUND` from the spawned `node`.
  */
 export function assertCliBuilt(): void {
   if (!existsSync(CLI_PATH)) {
