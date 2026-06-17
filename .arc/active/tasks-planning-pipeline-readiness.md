@@ -158,23 +158,29 @@ CLI-mutate-for-writes. Code-tier, test-first.
   (`identifier` / `identifier-list`), so a write stays byte-faithful to the meta convention (`[none]` bare,
   filenames backticked) — verified live (an idempotent repoint produces no diff).
 
-### `[ ]` **4.4 `init-work-unit` writes `Current Workflow`, drops the `Next Action` workflow pointer**
+### `[x]` **4.4 `init-work-unit` writes `Current Workflow`, drops the `Next Action` workflow pointer**
 
 - _Goal:_ Init writes `Current Workflow` via the executor and stops writing a `Next Action` workflow pointer, so the
   readiness pre-judgment disappears and the consuming session evaluates against the real draft state.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **4.4.a Scaffold writes `Current Workflow` at init; no `Next Action` workflow pointer**
-        - In `lib/git/worktree-scaffold.ts` (`scaffoldIntoWorktree`), write the initial `Current Workflow` (the
-          entry planning stage) and stop emitting the static `Next Action` workflow pointer (`DEFAULT_NEXT_ACTION`).
-        - Build `test-first` (one behavior at a time):
-            - the scaffold writes `Current Workflow`
-            - `Next Action` carries no workflow pointer after scaffold
+    - `[x]` **4.4.a Scaffold writes `Current Workflow` at init; no `Next Action` workflow pointer**
+        - `scaffoldIntoWorktree` (`lib/git/worktree-scaffold.ts`) now writes `Current Workflow` — the entry stage
+          (`PLANNING_WORKFLOWS[0]`) under a Planning scaffold, `[none]` otherwise, keeping it State-consistent by
+          construction. The default `Next Action` seed changed from the `"Begin planning."` workflow pointer to the
+          `[begin current workflow]` sentinel (no pointer). Covers both `arc start` create-new and cold-start (neither
+          passes `nextAction`).
 
-    - `[ ]` **4.4.b `init-work-unit.md` reflects the field model**
-        - Update the `init-work-unit.md` workflow so it no longer pre-judges spec-readiness — it writes
-          `Current Workflow` (via the executor) and leaves the readiness call to the consuming session
-          (`arc-plan` → `draft-design`).
+    - `[x]` **4.4.b `init-work-unit.md` reflects the field model**
+        - Updated Step 4 Path A (graduated) and Path B (fresh manual) to set `Current Workflow` to the entry stage and
+          to seed `Next Action` with no workflow pointer (the sentinel), retiring the "Run `create-spec.md`"
+          pre-judgment; fixed stale `Spec` → `Design` field references. Both framework copies.
+
+- _Outcome:_ Init now hands the spec-readiness call to the consuming session (`arc-plan` → `draft-design`) instead of
+  pre-judging it. The executor/scaffold path writes `Current Workflow` automatically; the manual fallback sets it by
+  hand. `template-meta.md` (the `Current Workflow` bullet + `Next Action` convention) is left to Phase 5.2's
+  template/convention scope — safe because the encoding-consistency validator is defined-only (not yet hook-enforced),
+  so the manual-path field gap is latent, not a live failure.
 
 ## **Phase 5:** session-init read-path + `Next Action` semantics (§ C read-side)
 

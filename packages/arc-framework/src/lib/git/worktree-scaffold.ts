@@ -23,6 +23,7 @@ import { join } from "node:path";
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
+import { PLANNING_WORKFLOWS } from "../active/current-workflow-consistency.js";
 import { ensureDir } from "../template/files.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
@@ -37,8 +38,18 @@ export interface WorktreeLifePhase {
 /** Default life phase: a planning branch (`plan/`) and `Planning` state. */
 const PLANNING_LIFE_PHASE: WorktreeLifePhase = { branchPrefix: "plan/", initialState: "Planning" };
 
-/** Meta `Next Action` used when the caller supplies none. */
-const DEFAULT_NEXT_ACTION = "Begin planning.";
+/** The planning sub-stage a fresh planning WU enters at — the first authoring stage. */
+const PLANNING_ENTRY_STAGE = PLANNING_WORKFLOWS[0];
+
+/** The `[none]` sentinel for `Current Workflow` outside a planning state. */
+const NO_CURRENT_WORKFLOW = "[none]";
+
+/**
+ * Meta `Next Action` seed when the caller supplies none. Names no workflow — the
+ * live planning stage lives in `Current Workflow`, so `Next Action` carries the
+ * stage-boundary sentinel rather than a (duplicating) workflow pointer.
+ */
+const DEFAULT_NEXT_ACTION = "[begin current workflow]";
 
 /** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
@@ -65,7 +76,7 @@ export interface ScaffoldWorktreeParams {
   spawningIdentity: string;
   /** Initial meta `State`; defaults to `Planning`. */
   initialState?: string;
-  /** Meta `Next Action` seed; defaults to a generic planning kickoff. */
+  /** Meta `Next Action` seed; defaults to the begin-current-workflow sentinel (no workflow pointer). */
   nextAction?: string;
   /** Parsed external reference (issue / URL) → meta `Origin`. Cold-start spec-input. */
   origin?: string;
@@ -104,10 +115,15 @@ export async function scaffoldIntoWorktree(
   const activeDir = join(params.worktreePath, ".arc", "active");
   await ensureDir(activeDir, ctx.io.mkdir);
 
+  const state = params.initialState ?? PLANNING_LIFE_PHASE.initialState;
   const overrides: MetaFieldOverrides = {
-    State: params.initialState ?? PLANNING_LIFE_PHASE.initialState,
+    State: state,
     Owner: params.spawningIdentity,
     Branch: params.branch,
+    // The executor owns `Current Workflow`: a planning scaffold enters at the
+    // first authoring stage; a non-planning scaffold carries the `[none]`
+    // sentinel, keeping the field consistent with State by construction.
+    "Current Workflow": state === PLANNING_LIFE_PHASE.initialState ? PLANNING_ENTRY_STAGE : NO_CURRENT_WORKFLOW,
     "Next Action": params.nextAction ?? DEFAULT_NEXT_ACTION,
   };
   if (params.origin !== undefined) overrides.Origin = params.origin;

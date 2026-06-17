@@ -164,8 +164,8 @@ committed (the executor never commits) — it bundles into the init commit below
 `arc start` surfaces an interim ROADMAP-regen advisory; Step 5 is where the hand-render lands.
 
 The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
-`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Design` and `Next Action` without
-overwriting these fields.
+`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Design`, `Current Workflow`, and
+`Next Action` without overwriting these fields.
 
 See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
 
@@ -179,7 +179,11 @@ Two paths depending on Step 3's outcome:
 remaining planning-state fields:
 
 1. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
-2. **Next Action** → freeform planning-session prompt
+2. **Current Workflow** → `draft-design`, the entry planning stage (the executor writes this on the
+   `arc start` path; set it by hand only when reconciling a meta that predates the field)
+3. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
+   workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),
+   which assesses against the actual draft state.
 
 **Class** was resolved before graduation (Step 3); confirm it still holds, or ratchet up to any realized
 floor via [`classify-work-unit`][classify-work-unit].
@@ -195,17 +199,20 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 1. **State** → `Planning`
 2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
 3. **Branch** → current planning branch (e.g., `plan/{name}`)
-4. **Spec** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
-5. **Next Action** → freeform planning-session prompt (e.g., "Run `create-spec.md`" or "Continue
-   `draft-*` exploration")
-6. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
+4. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
+5. **Current Workflow** → `draft-design`, the entry planning stage (the executor writes this on the
+   `arc start` / spawn path; the manual fallback sets it here)
+6. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
+   workflow pointer. The consuming session (`arc-plan` → `draft-design`) assesses spec-readiness against
+   the actual draft state; init no longer pre-judges it.
+7. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
    best estimate against the boundary tests. Freely revisable; the ratchet protects only realized work, so
    an early estimate costs nothing.
 
 Remaining fields take their `template-meta.md` defaults.
 
 **Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
-prior session, not from backlog graduation), do not recreate it. Reconcile **Branch** and **Spec**
+prior session, not from backlog graduation), do not recreate it. Reconcile **Branch** and **Design**
 as in Path B; preserve other field values.
 
 > [!CAUTION]
