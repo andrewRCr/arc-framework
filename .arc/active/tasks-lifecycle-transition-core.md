@@ -191,9 +191,8 @@ supplies its `inputs`; the executor and bundle do the work.
 
 _Design decisions:_ Verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
 candidate list, never a clack `select`) and the destructive-cascade safety gate (`abandon`: impact plan + `--yes`)
-are cross-cutting across this phase — see `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invocation,
-§ Abandon safety gate. The only net-new PR/gh write mechanic is `reopen`'s PR withdrawal (no existing wrapper; the
-`gh`-read pattern in `session-init/work-unit-pr-source.ts` is the model), hand-rolled now per the spec's
+are cross-cutting across this phase. The only net-new PR/gh write mechanic is `reopen`'s PR withdrawal (no existing
+wrapper; the `gh`-read pattern in `session-init/work-unit-pr-source.ts` is the model), hand-rolled now per the spec's
 CSA-forward-compat note — there is **no merged-corner cell** to revert (ADR-026 amendment: post-merge rework is a
 new origin-linked WU, so `deactivate` stays narrow and `abandon` is pre-merge only). Each verb supplies its
 `softFields` `input` values (§14 — e.g. `activate` → the first task; `park` → the frozen pointer) and emits an
@@ -320,8 +319,7 @@ share `resolveWriteContext`.
   guards gate the spawning arms (name-collision routes an existing stub to graduate; worktree-occupancy rejects a
   second active WU). `reconcile-status-user` ships an interim advisory (real local render deferred to 5.4 — the
   renderer is shipped, so it must build for real before ship). Covered by unit (dispatch, graduate, recomposition),
-  handler, and a real-worktree integration suite. See `notes-lifecycle-transition-core.md` § `start` arm wiring for
-  the executor-vs-direct-recompose split.
+  handler, and a real-worktree integration suite.
 
 ### `[~]` **5.2 `start --from <draft>` adopt edge** — retired
 
@@ -383,9 +381,8 @@ ceremonies onto these commands, so they must exist first.
 
 _Design decisions:_ The verb CLI shape (context-defaulting vs. slug-required; bare invocation = a **non-interactive**
 candidate list, never a clack `select`) and the `abandon` destructive-cascade gate (impact plan + `--yes`) are
-specified in `notes-lifecycle-transition-core.md` § Verb CLI shape & bare invocation and § Abandon safety gate. Verbs
-land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13). Final verb naming coordinates with
-`idiomatic-alignment`.
+settled for this phase. Verbs land **top-level** (peers of `arc start`), no `arc lifecycle` namespace (§13).
+Final verb naming coordinates with `idiomatic-alignment`.
 
 ### `[x]` **5.R.1 Installation-handler rename**
 
