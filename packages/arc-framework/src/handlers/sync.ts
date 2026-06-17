@@ -325,8 +325,10 @@ interface SyncOutcome {
  */
 type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "recommendedSummaryLine" | "mode">;
 
-export async function handleSync(opts: SyncOptions = {}): Promise<void> {
-  const output = createSyncOutput(opts.json === true);
+export async function handleSync(
+  opts: SyncOptions = {},
+  output: SyncOutput = createSyncOutput(opts.json === true),
+): Promise<void> {
   output.intro("arc sync");
 
   let identity: string;
