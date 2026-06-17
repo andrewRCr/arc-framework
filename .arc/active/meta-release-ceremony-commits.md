@@ -8,14 +8,13 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** spec-release-ceremony-commits.md
 - **Task List:** [none]
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run create-spec to formalize the spec from the approved determinacy-confirm (Option A —
-  accept-on-zero-candidates; scope bounded to the no-active-WU precondition + audit provenance).
+- **Next Action:** Run generate-tasks to decompose `spec-release-ceremony-commits.md` into a task list.
 
 ---
