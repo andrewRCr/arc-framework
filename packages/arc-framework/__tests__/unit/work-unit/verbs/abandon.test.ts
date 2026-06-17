@@ -125,6 +125,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
     },
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
     // The `worktree-clean` IO guard is a caller-supplied seam (production binds the

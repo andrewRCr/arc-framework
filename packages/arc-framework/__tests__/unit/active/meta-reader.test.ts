@@ -21,6 +21,7 @@ import {
   setMetaBulletFields,
   setMetaBranch,
   setMetaCurrentWorkflow,
+  setMetaDesign,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -1079,14 +1080,16 @@ describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", 
 ---
 `;
 
-  it("writes Current Workflow to the given target stage", () => {
+  it("writes Current Workflow to the given target stage, backticked per the identifier render", () => {
     const written = setMetaCurrentWorkflow(META, "create-spec");
     expect(parseMetaRecord(written)["Current Workflow"]).toBe("create-spec");
+    expect(written).toContain("- **Current Workflow:** `create-spec`");
   });
 
-  it("writes the `[none]` sentinel when clearing", () => {
+  it("writes the `[none]` sentinel bare when clearing", () => {
     const written = setMetaCurrentWorkflow(META, "[none]");
     expect(parseMetaRecord(written)["Current Workflow"]).toBe("[none]");
+    expect(written).toContain("- **Current Workflow:** [none]");
   });
 
   it("leaves every other field and the prose below byte-stable", () => {
@@ -1108,5 +1111,59 @@ describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", 
   it("throws when the meta carries no Current Workflow bullet (fail-loud)", () => {
     const noField = META.replace("- **Current Workflow:** `draft-design`\n", "");
     expect(() => setMetaCurrentWorkflow(noField, "create-spec")).toThrow(/Current Workflow.*not found/i);
+  });
+});
+
+describe("setMetaDesign — in-place Design bullet rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State**  | **Owner** | **Branch**     | **Class** | **Priority** |
+|------------|-----------|----------------|-----------|--------------|
+| \`Planning\` | \`andrew\`  | \`plan/demo-wu\` | \`Heavy\`   | \`P1\`         |
+
+- **Design:** \`draft-demo-wu.md\`
+- **Current Workflow:** \`create-spec\`
+- **Task List:** [none]
+
+- **Next Action:** Finalize the spec.
+
+---
+`;
+
+  it("writes a single design filename, backticked per the identifier-list render", () => {
+    const written = setMetaDesign(META, "spec-demo-wu.md");
+    expect(parseMetaRecord(written)["Design"]).toBe("spec-demo-wu.md");
+    expect(written).toContain("- **Design:** `spec-demo-wu.md`");
+  });
+
+  it("writes a layered list with each element individually backticked", () => {
+    const written = setMetaDesign(META, "spec-demo-wu.md, spec-shared-foundation.md");
+    expect(parseMetaRecord(written)["Design"]).toBe("spec-demo-wu.md, spec-shared-foundation.md");
+    expect(written).toContain("- **Design:** `spec-demo-wu.md`, `spec-shared-foundation.md`");
+  });
+
+  it("writes the `[none]` sentinel bare", () => {
+    const written = setMetaDesign(META, "[none]");
+    expect(parseMetaRecord(written)["Design"]).toBe("[none]");
+    expect(written).toContain("- **Design:** [none]");
+  });
+
+  it("leaves every other field and the prose below byte-stable", () => {
+    const written = setMetaDesign(META, "spec-demo-wu.md");
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after["Design"]).toBe("spec-demo-wu.md");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Design") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    expect(written).toContain("| `Planning` | `andrew`  | `plan/demo-wu` | `Heavy`   | `P1`         |");
+    const tail = (s: string): string => s.slice(s.indexOf("- **Next Action:**"));
+    expect(tail(written)).toBe(tail(META));
+  });
+
+  it("throws when the meta carries no Design bullet (fail-loud)", () => {
+    const noField = META.replace("- **Design:** `draft-demo-wu.md`\n", "");
+    expect(() => setMetaDesign(noField, "spec-demo-wu.md")).toThrow(/Design.*not found/i);
   });
 });

@@ -39,6 +39,7 @@ import {
   setMetaBulletFields,
   setMetaBranch,
   setMetaCurrentWorkflow,
+  setMetaDesign,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
@@ -179,6 +180,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeCurrentWorkflowField: async (metaPath, stage) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
+    },
+
+    writeDesignField: async (metaPath, value) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaDesign(content, value));
     },
 
     // Stage the content legs' meta rewrite through the same git seam

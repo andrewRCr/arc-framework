@@ -210,6 +210,16 @@ export interface ExecuteTransitionContext {
   writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
 
   /**
+   * Write the meta `Design` bullet field at `metaPath` (read → rewrite → write).
+   * The identifier-list sibling of {@link writeCurrentWorkflowField}: `value` is
+   * the fully composed field value the event-driven repoint resolved — a single
+   * `draft-<name>.md` / `spec-<name>.md` filename, or a comma-joined layered
+   * list. The caller (the repoint verb) owns the list transform; this seam is a
+   * blind write.
+   */
+  writeDesignField: (metaPath: string, value: string) => Promise<void>;
+
+  /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
    * the branch-field clear, and the soft-field reset all write through the fs
    * seam unstaged; without staging, a meta that `relocate-artifacts` git-mv'd

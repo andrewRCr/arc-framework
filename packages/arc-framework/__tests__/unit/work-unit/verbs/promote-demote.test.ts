@@ -131,6 +131,7 @@ function buildCtx(metas: MetaSpec[], pruneDirs: Record<string, string[]> = {}): 
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${path}:${Object.keys(updates).join(",")}`);
     },

@@ -194,6 +194,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     writeCurrentWorkflowField: async (path, stage) => {
       calls.push(`current-workflow:${stage}`);
     },
+    writeDesignField: async (path, value) => {
+      calls.push(`design:${value}`);
+    },
     stageMeta: async (metaPath) => {
       calls.push(`stage:${metaPath}`);
     },

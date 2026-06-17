@@ -50,6 +50,7 @@ function buildHarness(): Harness {
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async () => {},
     sideEffects,
   };

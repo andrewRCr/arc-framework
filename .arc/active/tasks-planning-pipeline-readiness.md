@@ -134,27 +134,29 @@ CLI-mutate-for-writes. Code-tier, test-first.
           One-directional by design — `deactivate` doesn't restore the pointer; re-entering a planning workflow
           re-sets it via `set-stage`.
 
-### `[ ]` **4.3 `Design` event-driven repoints — draft-create + create-spec-finalize**
+### `[x]` **4.3 `Design` event-driven repoints — draft-create + create-spec-finalize**
 
 - _Goal:_ `Design` repoints by event, never by presence-scan — so a half-written spec never prematurely repoints
   while the draft is still authoritative.
-- _Note:_ Each repoint is a `Design` bullet-field write fired at a workflow moment (draft-create, create-spec
-  finalize), invoked the same way 4.2.a wires the stage entries — not a presence scan over the artifact set.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **4.3.a `[none] → draft-<name>` at draft creation**
-        - Repoint `Design` when a first draft is created/adopted — conditional, only when a draft is produced. No
-          forced draft-first: a `Light` WU may go `[none] → spec-<name>` directly.
-        - Build `test-first` (one behavior at a time):
-            - draft creation repoints `Design` to the `draft-*`
-            - the no-draft path leaves `Design` for a later direct spec repoint
+    - `[x]` **4.3.a `[none] → draft-<name>` at draft creation**
+        - `draft-created` event repoints `Design: [none] → draft-<name>.md` (idempotent when the draft already
+          points; additive, never clobbering, if a list is present). Wired into `draft-design`'s draft-capture
+          ceremony on the `medium` / `high` (draft-producing) paths — both copies; the `low` path skips.
 
-    - `[ ]` **4.3.b `draft-<name> → spec-<name>` at create-spec finalization**
-        - Repoint `Design` at `create-spec` finalization (not at spec existence), riding the draft-retire edge. The
-          mandatory draft-delete + repoint is the mechanical part; the optional `notes-*` content migration is
-          orthogonal — `Design` never points at `notes-*`.
-        - Build `test-first` (one behavior at a time):
-            - finalization repoints `Design` from the `draft-*` to the `spec-*`
+    - `[x]` **4.3.b `draft-<name> → spec-<name>` at create-spec finalization**
+        - `spec-finalized` event swaps the `draft-<name>.md` member for `spec-<name>.md` through
+          `parseIdentifierList` (layered siblings preserved, order kept); the direct no-draft path repoints
+          `[none] → spec-<name>.md`. Wired into `create-spec`'s Finalize meta-update step — both copies.
+
+- _Outcome:_ Added `arc repoint-design <event>` (`runRepointDesign` in `verbs/repoint-design.ts`, `handleRepointDesign`,
+  cli registration) firing a new `writeDesignField` executor seam over the `setMetaDesign` primitive — the
+  identifier-list sibling of `set-stage` / `writeCurrentWorkflowField` / `setMetaCurrentWorkflow`. Repoints transform
+  the parsed list (member-swap), never a blind overwrite. Fixed a latent backtick-stripping defect in the sibling
+  `setMetaCurrentWorkflow` (4.1): both stage-pointer primitives now render through `formatValue`
+  (`identifier` / `identifier-list`), so a write stays byte-faithful to the meta convention (`[none]` bare,
+  filenames backticked) — verified live (an idempotent repoint produces no diff).
 
 ### `[ ]` **4.4 `init-work-unit` writes `Current Workflow`, drops the `Next Action` workflow pointer**
 

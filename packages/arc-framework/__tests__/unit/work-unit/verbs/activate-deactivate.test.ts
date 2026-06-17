@@ -109,6 +109,7 @@ function buildCtx(metas: MetaSpec[]): Harness {
     writeCurrentWorkflowField: async (_path, stage) => {
       currentWorkflow.push(stage);
     },
+    writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       softFields.push(...Object.keys(updates));
     },

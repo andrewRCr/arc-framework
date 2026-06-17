@@ -164,9 +164,14 @@ On approval, capture what the level produced and persist the resolved `Class` to
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
 at the draft-capture ceremony commit.
 
-What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class`
-write; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):` commit
-(see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
+On a draft-producing path (`medium` / `high`) with an active planning meta, repoint `Design` to the new draft:
+`arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
+draft — `Design` repoints straight to the spec at create-spec finalization), or when drafting pre-WU on the base
+with no meta yet (the eventual `init` scaffold sets it).
+
+What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
+`Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
+commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:

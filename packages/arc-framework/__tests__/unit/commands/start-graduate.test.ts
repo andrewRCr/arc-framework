@@ -116,6 +116,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     },
     writeBranchField: async () => {},
     writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
     },

@@ -230,9 +230,11 @@ Documents).
    they have independent archival value — e.g., research files may belong in
    `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
-   Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read) and
-   advance its `**Next Action:**` to the post-spec step (e.g., "Run `generate-tasks.md`"). Skip otherwise (no
-   meta file exists pre-init under non-planning-branch flows).
+   Planning` (planning-branch sessions), repoint `Design` to the finalized spec — `arc repoint-design
+   spec-finalized` rewrites `Design: draft-{name}.md → spec-{name}.md` (the no-draft path repoints `[none] →
+   spec-{name}.md`). Then persist the resolved `**Class:**` (live from the entry read) and advance its
+   `**Next Action:**` to the post-spec step (e.g., "Run `generate-tasks.md`"). Skip otherwise (no meta file
+   exists pre-init under non-planning-branch flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.

@@ -35,6 +35,7 @@ import {
   handleAbandon,
   handleArchive,
   handleSetStage,
+  handleRepointDesign,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -188,6 +189,14 @@ program
     + "draft-design | create-spec | generate-tasks",
   )
   .action((stage: string) => handleSetStage(stage));
+
+program
+  .command("repoint-design <event>")
+  .description(
+    "Advance the current work unit's design pointer (meta `Design`) at a planning event: "
+    + "draft-created | spec-finalized",
+  )
+  .action((event: string) => handleRepointDesign(event));
 
 const errand = program
   .command("errand")
