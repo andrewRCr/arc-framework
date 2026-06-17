@@ -79,24 +79,18 @@ test-first.
   `[none]` sentinel); a legacy meta lacking the bullet parses to `null` per the marker-absent contract — distinct from
   the rendered `[none]` default rather than coalesced to it.
 
-### `[ ]` **3.2 Encoding-consistency validator over `(State, Current Workflow, Design)`**
+### `[x]` **3.2 Encoding-consistency validator over `(State, Current Workflow, Design)`**
 
 - _Goal:_ A pure validator asserts `Current Workflow` agrees with the rest of the meta state, failing on an
   injected mismatch — the write-side drift guard.
-- _Note:_ The single-owner executor write plus this unit test is the floor. The pre-commit-hook wiring that would
-  also catch hand-edits is forward-compat, routed to `quality-gate-hooks` (the meta-layout hook infra isn't shipped yet).
 - **Strategies:** strategy-testing-methodology.md
-
-    - Implement as a pure function over the parsed `(State, Current Workflow, Design)` tuple in `lib` (no fs/git side
-      effects). Under `State: Planning`, `Current Workflow ∈ {draft-design, create-spec, generate-tasks}` and is
-      consistent with the `Design` pointer (e.g. `Current Workflow = generate-tasks` ⟹ `Design` points at a
-      `spec-*`); under any non-`Planning` state, `Current Workflow = [none]`.
-    - Build `test-first` (one behavior at a time):
-        - valid planning tuples pass (each stage with its consistent `Design` pointer)
-        - a non-`Planning` state with a non-`[none]` `Current Workflow` fails
-        - `Current Workflow = generate-tasks` with `Design` pointing at a `draft-*` fails
-        - a `Current Workflow` outside the planning enum under `State: Planning` fails
-        - an injected mismatch fails (the drift case named in Success Criteria)
+- _Outcome:_ Added `checkCurrentWorkflowConsistency` (`lib/active/current-workflow-consistency.ts`) — a pure
+  `string[]`-diagnostics validator (mirroring `checkCohortConsistency`'s contract) over the
+  `(State, Current Workflow, Design)` tuple. Under `State: Planning` it asserts
+  `Current Workflow ∈ {draft-design, create-spec, generate-tasks}` and Design agreement per the event-driven repoint
+  model (`draft-design` / `create-spec` ⟹ Design is `[none]` or `draft-*`; `generate-tasks` ⟹ `spec-*`); outside
+  planning it requires `[none]` / absent. Single-owner executor write + this unit test is the floor — the
+  hand-edit-catching pre-commit hook stays forward-compat (routed to `quality-gate-hooks`).
 
 ## **Phase 4:** Executor stage-pointer writes + event wiring + `init-work-unit` fold-in (§ C write-side)
 
