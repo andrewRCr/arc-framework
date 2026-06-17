@@ -252,6 +252,7 @@ export const META_FIELDS = [
   { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
   { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
+  { name: "Current Workflow", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },

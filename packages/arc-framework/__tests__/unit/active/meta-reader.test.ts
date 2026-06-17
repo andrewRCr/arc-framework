@@ -707,6 +707,7 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       Class: "Heavy",
       Origin: "tracker-123",
       Design: "draft-foo.md",
+      "Current Workflow": "draft-design",
       "Depends On": "alpha",
       Cohort: "gamma",
       Priority: "P1",
@@ -781,6 +782,66 @@ describe("Class field — value-set semantics", () => {
       "",
     ].join("\n");
     expect(parseMetaRecord(content).Class).toBeNull();
+  });
+});
+
+describe("Current Workflow field — planning-stage pointer", () => {
+  it("round-trips each planning-stage value verbatim through render and parse", () => {
+    for (const value of ["draft-design", "create-spec", "generate-tasks"] as const) {
+      const record = parseMetaRecord(renderMetaFile("foo", { "Current Workflow": value }));
+      expect(record["Current Workflow"]).toBe(value);
+    }
+  });
+
+  it("preserves the `[none]` out-of-planning sentinel verbatim through render and parse", () => {
+    expect(
+      parseMetaRecord(renderMetaFile("foo", { "Current Workflow": "[none]" }))["Current Workflow"],
+    ).toBe("[none]");
+  });
+
+  it("emits the `[none]` default when no Current Workflow override is supplied", () => {
+    expect(parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES))["Current Workflow"]).toBe("[none]");
+  });
+
+  it("parses an absent Current Workflow to null in a legacy flat-bullet meta", () => {
+    const content = ["# Metadata: foo", "", "- **State:** Active", "- **Owner:** andrew", ""].join("\n");
+    expect(parseMetaRecord(content)["Current Workflow"]).toBeNull();
+  });
+
+  it("updates Current Workflow in place via setMetaBulletFields, preserving narrative sections", () => {
+    const META = [
+      "# Metadata: demo-wu",
+      "",
+      "| **State**  | **Owner** | **Branch**     | **Class** | **Priority** |",
+      "|------------|-----------|----------------|-----------|--------------|",
+      "| `Planning` | `andrew`  | `plan/demo-wu` | `Heavy`   | `P1`         |",
+      "",
+      "- **Design:** `draft-demo-wu.md`",
+      "- **Current Workflow:** `draft-design`",
+      "- **Task List:** [none]",
+      "",
+      "- **Next Action:** Draft the design, then advance to the spec.",
+      "",
+      "---",
+      "",
+      "## Additional Context",
+      "",
+      "Free-form narrative the rewrite must leave byte-stable.",
+      "",
+    ].join("\n");
+
+    const written = setMetaBulletFields(META, { "Current Workflow": "create-spec" });
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+
+    expect(after["Current Workflow"]).toBe("create-spec");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Current Workflow") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The narrative section below the field block is untouched.
+    const tail = (s: string): string => s.slice(s.indexOf("## Additional Context"));
+    expect(tail(written)).toBe(tail(META));
   });
 });
 

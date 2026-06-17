@@ -68,22 +68,16 @@ _Purpose:_ Land the pure data + pure validation layer — the new meta field in 
 satisfy — with no fs/git seam, mirroring how the lifecycle table + guards landed before the executor. Code-tier,
 test-first.
 
-### `[ ]` **3.1 Add the `Current Workflow` field to the meta model**
+### `[x]` **3.1 Add the `Current Workflow` field to the meta model**
 
 - _Goal:_ The meta carries a machine-written `Current Workflow` field naming the active planning workflow as a bare
   basename, round-tripping cleanly through parse/render so one deterministic field is available to read.
 - **Strategies:** strategy-testing-methodology.md
-
-    - Add a `Current Workflow` descriptor to `META_FIELDS` in `lib/active/meta-reader.ts` — `[none]` default, bullet
-      render in the reference group (alongside `Design` / `Task List`), `identifier` value class. The `MetaRecord`
-      type derives automatically.
-    - Encoding (C1): bare workflow basename — `draft-design` / `create-spec` / `generate-tasks`, and `[none]`
-      outside planning. Single-owner: written only by the executor (Phase 4), never hand-edited; session-init reads
-      it (Phase 5).
-    - Build `test-first` (one behavior at a time):
-        - field round-trips through `renderMetaFile` → `parseMetaRecord` (value preserved verbatim)
-        - an absent field parses to its `[none]` default (legacy metas)
-        - `setMetaBulletFields` updates `Current Workflow` in place, preserving narrative sections
+- _Outcome:_ Added the `Current Workflow` descriptor to `META_FIELDS` (`lib/active/meta-reader.ts`) — `[none]` default,
+  `identifier` value class, placed between `Design` and `Task List` in the reference group so the existing
+  `Task List → Last Completed` group-boundary render stays intact. Round-trips verbatim (planning basenames and the
+  `[none]` sentinel); a legacy meta lacking the bullet parses to `null` per the marker-absent contract — distinct from
+  the rendered `[none]` default rather than coalesced to it.
 
 ### `[ ]` **3.2 Encoding-consistency validator over `(State, Current Workflow, Design)`**
 
