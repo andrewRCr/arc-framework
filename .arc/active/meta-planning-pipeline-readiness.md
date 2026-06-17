@@ -8,20 +8,20 @@
 - **Depends On:** `lifecycle-transition-core`
 
 - **Origin:** [internal]
-- **Design:** `draft-planning-pipeline-readiness.md`
+- **Design:** `spec-planning-pipeline-readiness.md`
 - **Task List:** [none]
 
-- **Last Completed:** Draft reached formalization-ready — integrated the four spine concerns into three coherent
-  sections (`assess-draft-readiness` method, `create-spec` interlock split, planning-stage-pointer mechanics with
-  the `init-work-unit` pointer fix folded in). Settled the buffer-drain seam (readiness checks only; drain stays at
-  the `create-spec` floor — no hard dependency), homed the overlay-recommendation convention as a `DEV-RULES.ARC`
-  behavioral norm, and pinned the six-event planning-stage set.
+- **Last Completed:** Spec created — `detailed` · RFC at `spec-planning-pipeline-readiness.md`, crystallizing the
+  three-section spine: the shared `assess-draft-readiness` method (one formalization-ready bar, two fire points,
+  checks-only on the buffer), the `create-spec` review/proceed interlock split + an overlay-recommendation norm in
+  `DEV-RULES.ARC`, and the planning-stage-pointer mechanics (`Current Workflow` as a bare-basename encoding field,
+  event-driven `Design`, `init-work-unit` folded in, six-event set pinned). Settled the encoding format
+  (bare basename over a state token) and recorded leans on all three remaining implementation opens. Draft retired.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `create-spec.md` — crystallize as a `detailed` · RFC (pointer-mechanics + event model is the
-  dominant derivation; confirm the subtype at create-spec's own derivation read). Open items to sharpen there: the
-  `assess-draft-readiness` method file + fire-point invocation shapes, and § C's CLI verb shape, `Current Workflow`
-  encoding format, consistency-test, and session-init read path.
+- **Next Action:** Run `generate-tasks.md` — consume `spec-planning-pipeline-readiness.md`. Cohort gate: § C's
+  CLI/executor tasks build on `lifecycle-transition-core`'s executor + `lifecycle-state-resolver`, discharged at
+  transition-core's activation; sections A and B carry no such dependency and can land independently.
 
 ---
