@@ -201,6 +201,15 @@ export interface ExecuteTransitionContext {
   /** Write the meta `Branch` core-table field at `metaPath` (read → rewrite cell → write). */
   writeBranchField: (metaPath: string, branch: string) => Promise<void>;
 
+  /**
+   * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
+   * the branch-field clear, and the soft-field reset all write through the fs
+   * seam unstaged; without staging, a meta that `relocate-artifacts` git-mv'd
+   * keeps its pre-rewrite content in the index, so a commit ships stale state.
+   * Optional — unit contexts that don't assert staging may omit it.
+   */
+  stageMeta?: (metaPath: string) => Promise<void>;
+
   /** Caller-supplied guard validators, merged over {@link DEFAULT_GUARD_VALIDATORS}. */
   guardValidators?: Partial<Record<GuardId, GuardValidator>>;
   /** Side-effect handlers, keyed by id — every declared side-effect must be registered. */
@@ -411,6 +420,16 @@ export async function executeTransition(
 
   // 8. Apply the soft-field disposition (reset constants + supplied inputs).
   const softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
+
+  // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
+  //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
+  //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
+  //     content and a commit ships the pre-rewrite state.
+  const wroteMeta =
+    legsFired.includes("setPhase") || branchFieldWritten !== null || softFieldsWritten.length > 0;
+  if (wroteMeta && metaPath !== null) {
+    await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+  }
 
   // 9. Surface the ephemeral suggestion (advisory; never persisted).
   return {
