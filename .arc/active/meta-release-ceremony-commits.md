@@ -1,8 +1,8 @@
 # Metadata: release-ceremony-commits
 
-| **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
-|------------|-----------|---------------------------------|-----------|--------------|
-| `Planning` | `andrew`  | `plan/release-ceremony-commits` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
+| --------- | --------- | ------------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/release-ceremony-commits` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,9 +12,9 @@
 - **Task List:** tasks-release-ceremony-commits.md
 
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Distinguish zero-candidate from multi-candidate in the WU resolver
 - **Blockers:** [none]
 
-- **Next Action:** Run activate-work-unit to flip State to Active and rename `plan/release-ceremony-commits`.
+- **Next Action:** Begin Task 1.1 via process-task-loop — split the WU resolver outcome (test-first)
 
 ---
