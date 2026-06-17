@@ -9,7 +9,7 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-planning-pipeline-readiness.md`
-- **Task List:** [none]
+- **Task List:** `tasks-planning-pipeline-readiness.md`
 
 - **Last Completed:** Spec created — `detailed` · RFC at `spec-planning-pipeline-readiness.md`, crystallizing the
   three-section spine: the shared `assess-draft-readiness` method (one formalization-ready bar, two fire points,
@@ -20,8 +20,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run `generate-tasks.md` — consume `spec-planning-pipeline-readiness.md`. Cohort gate: § C's
-  CLI/executor tasks build on `lifecycle-transition-core`'s executor + `lifecycle-state-resolver`, discharged at
-  transition-core's activation; sections A and B carry no such dependency and can land independently.
+- **Next Action:** Run `activate-work-unit.md` — flip `State` to `Active` and rename the branch when implementation
+  is about to begin. Cohort dependencies (`lifecycle-transition-core`, `lifecycle-state-resolver`) are shipped, so
+  § C carries no remaining phasing block — all three sections can land.
 
 ---
