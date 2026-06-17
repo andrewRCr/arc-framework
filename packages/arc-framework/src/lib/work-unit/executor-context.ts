@@ -158,7 +158,8 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
-    reconcileWorktree: (op) => reconcileWorktree({ exec, chdir: (dir) => { process.chdir(dir); } }, op),
+    reconcileWorktree: (op) =>
+      reconcileWorktree({ exec, chdir: (dir) => { process.chdir(at(dir)); } }, op),
 
     writeSoftFields: async (metaPath, updates) => {
       const content = await io.readFile(at(metaPath));
