@@ -156,6 +156,14 @@ export interface MutatorSpec {
    * (`park@Planning` / `abandon` — local, not merge-gated).
    */
   clearBranchField?: boolean;
+  /**
+   * Clear the meta `Current Workflow` field to `[none]`. The `activate` edge sets
+   * this: planning exits as `State: Active` takes over, so the planning-stage
+   * pointer no longer names a live sub-stage. A logical-only field write (no git
+   * op), mirroring {@link clearBranchField}; the inverse re-entry into planning
+   * re-sets the pointer via the stage-entry write.
+   */
+  clearCurrentWorkflowField?: boolean;
 }
 
 /**
@@ -364,7 +372,7 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: ACTIVE,
     inverse: "deactivate",
     guards: [],
-    encodingUpdates: { reconcileBranch: "rename", setPhase: true },
+    encodingUpdates: { reconcileBranch: "rename", setPhase: true, clearCurrentWorkflowField: true },
     sideEffects: withRender("discharge-dep-edges", "user-workspace"),
     softFields: { nextTask: "input", nextAction: "input", lastCompleted: "leave", blockers: "leave" },
   },

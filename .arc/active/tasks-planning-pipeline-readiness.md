@@ -113,7 +113,7 @@ CLI-mutate-for-writes. Code-tier, test-first.
   (activate-exit leg) reuse; user-facing verb spelling stays deferred to `idiomatic-alignment`. Updated the nine
   hand-rolled executor-context test fakes to carry the new seam.
 
-### `[ ]` **4.2 Stage-entry command + activate-exit clear**
+### `[x]` **4.2 Stage-entry command + activate-exit clear**
 
 - _Goal:_ Entering each planning stage writes its `Current Workflow` and activation clears it, so the field always
   names the live stage — the core that retires the prose-parse.
@@ -127,12 +127,12 @@ CLI-mutate-for-writes. Code-tier, test-first.
           package source — generate-tasks via its `.template.md`) to invoke it. Exported `isPlanningWorkflow` from the
           consistency module for reuse. Final verb spelling stays deferred to `idiomatic-alignment`.
 
-    - `[ ]` **4.2.b Activate-exit clears `Current Workflow → [none]`**
-        - Add a `clearCurrentWorkflowField` flag to the `activate` edge's `encodingUpdates` and an
-          `applyCurrentWorkflowField` executor leg mirroring `applyBranchField` — firing the 4.1 primitive with
-          `[none]` as `State: Active` takes over.
-        - Build `test-first` (one behavior at a time):
-            - the `activate` edge clears `Current Workflow` to `[none]`
+    - `[x]` **4.2.b Activate-exit clears `Current Workflow → [none]`**
+        - Added `clearCurrentWorkflowField` to `MutatorSpec` and the `activate` edge, plus the
+          `applyCurrentWorkflowField` executor leg (mirroring `applyBranchField`, gated on the flag) that fires the
+          `writeCurrentWorkflowField` seam with `[none]`; folded into the meta-staging gate. Logical-only (no git op).
+          One-directional by design — `deactivate` doesn't restore the pointer; re-entering a planning workflow
+          re-sets it via `set-stage`.
 
 ### `[ ]` **4.3 `Design` event-driven repoints — draft-create + create-spec-finalize**
 

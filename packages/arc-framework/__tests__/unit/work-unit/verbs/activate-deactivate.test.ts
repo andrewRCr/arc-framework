@@ -66,11 +66,13 @@ interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
   softFields: string[];
+  currentWorkflow: string[];
 }
 
 function buildCtx(metas: MetaSpec[]): Harness {
   const calls: string[] = [];
   const softFields: string[] = [];
+  const currentWorkflow: string[] = [];
 
   // Register every side-effect the activate / deactivate edges declare; only the
   // edge's own declared set fires per transition.
@@ -104,14 +106,16 @@ function buildCtx(metas: MetaSpec[]): Harness {
     },
     reconcileWorktree: async () => ({ mutation: "spawn", worktreePath: "/wt", branch: "x" }),
     writeBranchField: async () => {},
-    writeCurrentWorkflowField: async () => {},
+    writeCurrentWorkflowField: async (_path, stage) => {
+      currentWorkflow.push(stage);
+    },
     writeSoftFields: async (path, updates) => {
       softFields.push(...Object.keys(updates));
     },
     sideEffects,
   };
 
-  return { ctx, calls, softFields };
+  return { ctx, calls, softFields, currentWorkflow };
 }
 
 const ACTIVE: MetaSpec = { slug: "foo", state: "Active", branch: "feat/foo" };
@@ -155,6 +159,14 @@ describe("runActivate — raise a planning WU to Active", () => {
     expect(calls).toContain("side:discharge-dep-edges");
   });
 
+  it("clears Current Workflow to [none] as State: Active takes over", async () => {
+    const { ctx, currentWorkflow } = buildCtx([PLANNING]);
+
+    await runActivate(ctx, params);
+
+    expect(currentWorkflow).toEqual(["[none]"]);
+  });
+
   it("rejects activating a WU that is not a planning WU on its branch", async () => {
     const { ctx, calls } = buildCtx([ACTIVE]);
 
@@ -191,6 +203,14 @@ describe("runDeactivate — the narrow undo", () => {
     // cleared (the activation is undone — neither pointer survives the drop to Planning).
     expect(softFields).toContain("Next Task");
     expect(softFields).toContain("Next Action");
+  });
+
+  it("does not touch Current Workflow (the activate clear is one-directional)", async () => {
+    const { ctx, currentWorkflow } = buildCtx([ACTIVE]);
+
+    await runDeactivate(ctx, BASE);
+
+    expect(currentWorkflow).toEqual([]);
   });
 });
 
