@@ -42,13 +42,16 @@ atomic companion and the personal atomic inbox.
   and accept them; validate the alternate provenance instead of an active WU rather than refusing. The doc-only
   alternative (codifying these fire-sites as raw-routed) was set aside in favor of wrapper support. CLI change to
   the release wrapper's precondition check.
-- *Extracted as a standalone errand (2026-06-17):* this whole entry — the wrapper-precondition fix accepting
+- *Extracted as a standalone work unit (2026-06-17):* this whole entry — the wrapper-precondition fix accepting
   no-active-WU ceremony commits/pushes (archival, errand, decomposition, standalone) — is **carved out of this WU
-  and run as its own errand**, ahead of the cohort, to stop recurring friction (it bit the 2026-06-17 housekeep
-  drain itself; hit 4× draining errands earlier). The resolution above is fully settled, the surface is localized
-  (`lib/release/wu-resolution.ts` + the two `handlers/release/{commit,push}.ts` refusal sites + tests), so it fits
-  one review increment with errand→WU promotion as the escape hatch if it grows. The dependent facets below
-  (archival-ceremony tooling, errand approval-collapse) stay here and build on the shipped wrapper change.
+  and built as its own Light WU**, ahead of the cohort, to stop recurring friction (it bit the 2026-06-17 housekeep
+  drain itself; hit 4× draining errands earlier). Sized as a WU, not an errand: grounding in the code surfaced a
+  live design call — **acceptance strictness**, blanket-accept-on-zero-candidates vs. positively-validate-ceremony-
+  provenance (the commit leg can read the `Context: standalone (…)` / archival footer, but the push leg has no
+  message and must key off branch shape) — plus a two-handler + resolver + test-matrix surface over the granularity
+  line. The fix must also **keep refusing the multi-candidate ambiguity** case (today both collapse to code 10).
+  The dependent facets below (archival-ceremony tooling, errand approval-collapse) stay here and build on the
+  shipped wrapper change.
 - *Coordination:* dedups with the archival-ceremony-tooling concern now folded in directly below (its remaining
   facets), routed here when `BACKLOG-INBOX` was retired (2026-06-01).
 
