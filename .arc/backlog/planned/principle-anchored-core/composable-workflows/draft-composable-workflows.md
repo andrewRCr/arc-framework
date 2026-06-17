@@ -139,6 +139,23 @@
   `private+overridable` cell; "method" would overload — needs a qualifier (pairs with the `path`/`lane`
   reservation item above).
 
+### `[ ]` **Consider a thin CLI surface for the shared post-merge teardown block**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` Task 6.6.c (2026-06-17).
+- *Concern:* the post-merge teardown block — reap the merged branch + remove the worktree, worktree-kind
+  dispatched, presence-guarded — appears single-source in `integrate-work-unit.md` Step 13 and
+  `decompose-work-unit.md`'s park-exit. When hoisting it, weigh factoring it as a **thin CLI surface**, not only a
+  markdown fragment.
+- *Proposed:* a command reusing `lifecycle-transition-core`'s executor `reconcile-worktree:teardown` leg plus a
+  **new merged-safe (`git branch -d`) branch-delete variant** — distinct from the existing force
+  `reconcile-branch:delete` (`-D`) that park / abandon use — DRYing both workflows' teardown to one mutator-tier
+  invocation.
+- *Context:* Task 6.6.c deliberately un-bundled teardown from the `arc archive` verb (archive = the mergeable sweep
+  riding the ship PR, incl. logical `Branch → [none]`; physical teardown stays the integration tail's post-merge
+  cleanup). Option 1a was chosen then (keep teardown markdown; defer the DRY factoring here); this records the
+  CLI-surface option (1b) explicitly.
+
 ---
 
 ## Problem / Motivation

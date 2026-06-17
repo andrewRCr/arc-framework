@@ -14,6 +14,35 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Evaluate a thin `arc errand` verb surface (open/close + crossing edges)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: errand-lattice`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` close-out (2026-06-17).
+- *Concern:* after `lifecycle-transition-core`, the WU lattice has a full CLI verb set while errands have only
+  `arc errand check`. The errand mechanics (`run-errand` Launch / Complete) are hand-run markdown — cut
+  `chore/<slug>` off base (+ optional ephemeral worktree), on complete reap branch / worktree + prune + drop the
+  slug-matched inbox entry — exactly the "markdown ceremony restating mechanics" the cohort retires for WUs. Live
+  drift: the release wrapper refuses errands (`no-active-wu`) so commits / pushes hand-fell-back to raw git.
+- *Proposed:* a **thin** surface — `arc errand open` (Launch locus setup) + `arc errand close` (Complete teardown),
+  plus the crossing edges this WU already scopes (inbox→errand, errand→WU promotion). Scoped **smaller** than the WU
+  verbs: errands carry no meta record / no `(phase, location)` / no relocation (state derived from branch + PR), so
+  no record-mutation or git-mv staging surface — the relocate+rewrite staging bug can't exist here. Resolve errand
+  state from branch + PR, never a stored record.
+- *Coordination:* the wrapper's no-active-WU acceptance (errand commits / pushes) is **extracted as a standalone
+  errand** (carved out of `interlock-release-refinement` entry #1, 2026-06-17) — recurring friction worth fixing
+  ahead of this WU rather than gating on it. `errand-lattice` assumes that fix has shipped; **no `Depends On`
+  edge.** The coupled facets (archival-ceremony tooling, errand approval-collapse) stay in
+  `interlock-release-refinement`.
+- *Scope guard:* keep this scoped to the errand lattice — do **not** generalize into a "supporting lifecycles"
+  catch-all (cohort-doc lifecycle and inbox / housekeep already have owners).
+
+---
+
 ## Problem / Motivation
 
 Errands cross the WU lattice unmodeled, and the gate that admits them is wrong. The old implicit gate

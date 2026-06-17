@@ -10,6 +10,47 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Worktree dependency provisioning — always-invoked post-create setup command**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-17); captured
+  during the `unit-scoped-review` planning errand (2026-06-15).
+- *Concern:* `arc start` create-new and the worktree-spawn primitives create a worktree but don't provision
+  dependencies. `node_modules` is gitignored, so a fresh worktree has none; git / shell hooks survive, but every
+  node-backed quality gate fails there (`typecheck` / `test` / `build` / `lint:ts` / `lint:md`). A doc-only WU in a
+  worktree is fine; a code WU is non-functional for its mandatory per-task quality-gate checkpoint until deps are
+  provisioned. Confirmed live 2026-06-15 (`markdownlint-cli2: Permission denied` in a worktree). Un-exercised to
+  date — no parallel code WU has actually run in a worktree yet.
+- *Proposed:* an **always-invoked** post-worktree-create setup command (e.g. `worktree.post_create`) the scaffold
+  runs on every worktree create — not optional, not a doc-only note. Sane default when unconfigured: emit a
+  help / notice (deps must be provisioned), not a silent no-op. The project supplies its command (`npm install`
+  here). Coordinate with the verify-and-configure workflow so it's configured as an agent-led part of initial ARC
+  setup. ARC owns the seam + invocation point + default; the command stays project-specific.
+- *Alt home:* the worktree-scaffold owner, if preferred over the parallelism closeout.
+
+### `[ ]` **Mirror the in-place (`--here`) opt-out onto Materialize for cross-machine WU pickup**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` Task 6.4 design discussion (2026-06-15).
+- *Concern:* `lifecycle-transition-core` adds a `--here` in-place opt-out to the begin-work transitions
+  (`graduate` / `resume`) so a stub can graduate or a parked WU resume in the current checkout without spawning a
+  worktree. **Materialize** — cross-machine pickup of a remote-only in-flight WU — is the cross-machine twin of the
+  same spawn-vs-in-place question, and is currently **spawn-only** (`git worktree add origin/<branch>`). A
+  single-checkout / heavy-toolchain dev picking up a remote WU on a second machine hits the same worktree +
+  dependency-provisioning tax the in-place hatch relieves locally.
+- *Proposed:* mirror the opt-out — an in-place Materialize (`git fetch` + checkout the remote WU branch in the
+  current checkout, honoring the worktree-occupancy guard) alongside the default spawn. Locus-only, exactly like
+  the local hatch: coherence still rests on the pushed branch + notes-sync. Reuse the hatch's no-spawn
+  reconcile-branch legs where applicable.
+- *Home note:* `in-flight-awareness` shipped Materialize but is itself shipped; landed here at drain (alt:
+  `cross-machine-coherence`).
+
+---
+
 ## Problem / Motivation
 
 Parallelism is delivered piecemeal: worktree-default, multi-in-flight WUs/errands, and cross-machine coherence

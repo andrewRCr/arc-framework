@@ -13,6 +13,65 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Own the lifecycle verb/term-register check (re-homed from `idiomatic-alignment`)**
+
+- *Routed from:* `USER-INBOX § Backlog` — consolidates three captures (`Active`-phase-vs-`active`-location
+  collision; `graduate → promote` verb-vs-concept; "register check has no real owner"), housekeep drain
+  (2026-06-17); captured during `lifecycle-transition-core` Tasks 6.4 / task-gen (2026-06-14 → 06-16).
+- *Concern:* the cohort doc, this draft, and inbox entries all routed verb / term-register work to
+  `idiomatic-alignment`, but that WU's draft is about knowledge-format norms and **explicitly excludes** "renaming
+  ARC's internal vocabulary" (§ Scope boundary) — so the register check was **ownerless**. It lands here because
+  closeout already owns the cross-cutting verb sweep + final consistency audit. Three sub-items:
+    - **Verb naming** — `start` / `park` / `promote` / `demote` / `reopen` / `abandon` register coherence.
+    - **`graduate → promote` verb-vs-concept** — the verb shipped as `promote` (+ `demote`), and there is **no
+      `graduate` verb** in the transition table, but "graduation" / "the readiness ladder" also names a *concept* in
+      `strategy-work-planning` (×7), `strategy-planning-module` (×5), `strategy-work-organization` (×11). At
+      create-spec, **settle explicitly whether "graduation" survives as the ladder concept or is fully replaced**
+      *before* the sweep, so it isn't a blanket find-replace that silently kills the concept.
+    - **`Active` phase vs `active` location collision** — the phase value `Active` (`WorkUnitState`) and the
+      location `active/` reuse one word for two axes (maturity vs. engagement); sharpest in the parked case
+      (`State: Active` while in `backlog/planned/`). A cascade (enum + dirs shipped), not a local rename.
+- *Also:* correct the phantom `idiomatic-alignment` references in the cohort doc + this draft, and confirm this
+  re-home (alt: a dedicated register WU — decided *here* at drain, 2026-06-17).
+
+### `[ ]` **Reconcile the "no meta-less draft" position across all public-facing surfaces**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: lifecycle-closeout`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` (2026-06-15).
+- *Mandate:* audit & reconcile the "no meta-less draft" position across **all** public-facing surfaces — shipped
+  docs, strategies, templates, lifecycle / planning workflows, code comments — so ARC holds one consistent position.
+  Rides closeout's existing cross-cutting doc sweep + final consistency audit, not a separate hand-pass.
+- *Known starting hit:* `draft-design.md` (the "under partial protection… no meta file may exist yet" clause)
+  directly contradicts the position and must be revised. Not exhaustive — the audit is the discovery mechanism.
+- *Boundary:* governs **drafts / WU artifacts**, not **errands** (legitimately meta-less `chore/<slug>`;
+  `errand-lattice` owns that contrast) — don't over-correct errand-no-meta language while fixing draft-no-meta.
+- *Position to enforce* ("Branchless ≠ recordless", authored into `spec-lifecycle-transition-core.md` §12): a draft
+  is always meta-bearing — accompanied by a meta from inception (a provisional / planned stub or an active Planning
+  WU), never free-floating. Protection mode shapes only the ship layer (branch / PR), never the record; partial
+  skips the branch, never the meta. A recordless artifact has no derivable lifecycle state.
+
+### `[ ]` **Author a standalone `reopen-work-unit.md` ceremony + audit ceremony-corpus coherence**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: lifecycle-closeout`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` Task 6.7.c (2026-06-16).
+- *Concern:* `reopen` ships a verb (`Integrating → Active`, withdraw the PR) but has **no judgment-half ceremony
+  workflow**; every other lifecycle verb has one. A verb↔ceremony coverage gap — but the verb is shipped + tested,
+  so only the ceremony prose is missing (closeout's doc-consistency tail).
+- *Proposed:* author a thin standalone `reopen-work-unit.md` (its own file — `reopen` is the inverse of
+  `integrate-work-unit.md`, **not** a path inside `activate-work-unit.md`; own-file precedent is
+  `deactivate-work-unit.md`). Drives `arc reopen [--keep-pr]`; judgment = the withdraw-vs-stay-integrating call; the
+  verb owns the `set-phase`-only flip + PR close / draft.
+- *Broader mandate:* while there, audit the whole ceremony corpus for coherence — verb↔ceremony coverage (any other
+  shipped verb missing a ceremony, or a ceremony naming a retired / renamed verb), inverse-pair symmetry, and
+  cross-reference integrity. Rides closeout's cross-cutting doc sweep + final consistency audit.
+
+---
+
 ## Problem / Motivation
 
 This cohort renames and reshapes verbs (`graduate → promote` + `demote`, `abandon` split out of `deactivate`,

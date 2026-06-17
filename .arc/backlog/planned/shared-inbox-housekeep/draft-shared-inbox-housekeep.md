@@ -8,6 +8,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Evaluate whether `arc housekeep` warrants verbs beyond `check`**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: shared-inbox-housekeep`), housekeep drain (2026-06-17);
+  captured during `lifecycle-transition-core` close-out (2026-06-17).
+- *Concern:* the same WU-vs-adjacent CLI asymmetry the errand note raises — `arc housekeep` exposes only `check`
+  (the write-context / baseBranch probe), no mutators, while the WU lattice now has a full verb set.
+- *Proposed:* likely a **weaker** candidate than errands — the housekeep drain is judgment-heavy (where does each
+  inbox entry route?), and its deterministic mechanics largely reuse existing primitives (`arc stub` for new stubs,
+  the inbox capture). Apply the cohort's mechanics-vs-judgment test: lift only genuinely-deterministic,
+  currently-hand-run steps (e.g. executing a decided routing / flushing homeless atomics to the shared inbox) if any
+  clear the bar; the routing decision stays judgment in the drain workflow.
+- *Home note:* closest planned home; re-route if `shared-inbox-housekeep` isn't the exact owner of the housekeep CLI.
+
+---
+
 ## Problem / Motivation
 
 The core invariant — *no item with a known home may rest in a capture surface* — is enforced at **write-time**

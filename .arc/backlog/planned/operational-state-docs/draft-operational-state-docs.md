@@ -266,6 +266,27 @@
 - _Note:_ ties together the Dependency-edge lifecycle entry (the dep-edge half) and the corpus-wide conformance gate
   entry (the enforcement vehicle) — it is the _framing_ that unifies them, not a separate build.
 
+### `[ ]` **Re-home three cohort-shipped behaviors onto records (dep-edge discharge, slug resolver, cohort-membership/archival)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-17);
+  consolidates two captures — `lifecycle-transition-core` Task 4.7 (2026-06-15) and session-init forward-compat
+  (2026-06-16).
+- _Concern:_ the `lifecycle-state-machine` cohort has now **delivered as behaviors** (against the markdown
+  substrate) three items this buffer still frames as OSD "build" work — see the existing entries **Dependency-edge
+  lifecycle semantics (gate vs. lineage)**, **CLI primitive: resolve a WU's lifecycle state by slug**, and
+  **Lifecycle-complete cohort membership — validator fix + cohort-doc archival loop**. Specifically: the slug→state
+  resolver shipped in `lifecycle-state-resolver`; the cohort-membership / archival trigger + archive & cohort-doc
+  sweep in `lifecycle-transition-core` Task 6.1/6.2; dep-edge discharge-at-activate in Task 4.7
+  (`src/lib/work-unit/side-effects/discharge-dep-edges.ts`, already preserving the identifier-list backtick
+  round-trip — treats `Depends On` as the live gate, resolves satisfied edges `shipped ∨ integrating`, no mirrored
+  lineage field).
+- _Approach:_ at OSD's next planning iteration, **reframe those three buffer entries from build-tasks to "re-home
+  onto records"** so OSD doesn't double-plan. For the dep-edge discharge specifically the list mutation maps 1:1
+  onto a structured `dependsOn` record — a **zero-reshape lift**, keeping the shipped readiness policy (`shipped ∨
+  integrating`) and the gate-only treatment; OSD's slice is the record / projection substrate, not the discharge
+  logic. The **validator-fix** and **corpus-conformance-gate** portions stay genuinely OSD's (unbuilt). The
+  2026-06-16 write-path-enforcement entry already reframed only the consistency-hook framing — not these three.
+
 ---
 
 ## Purpose

@@ -38,9 +38,15 @@
   execution. Distinct from the shallow-clone git-notes timeout entry above: this is a save-verification /
   notes-push concurrency flake.
 - _Approach:_ Re-verify the candidate tests in
-  `packages/arc-framework/__tests__/integration/{user,multi-clone,status}.test.ts`, then isolate each test's
-  save/sync git state (unique tmp repos / refs), or serialize the save/sync integration group so they do not
-  contend on shared git state.
+  `packages/arc-framework/__tests__/integration/{user,multi-clone,status}.test.ts` **and the e2e layer
+  `packages/arc-framework/__tests__/e2e/{user,session-init,sync-purity}.e2e.test.ts`** — the same race reproduces
+  there: a raw full `npx vitest run` (which globs unit + e2e together at high concurrency, unlike the sanctioned
+  `npm test` that runs them under separate configs) showed 12 e2e failures with the identical `Save failed` /
+  `Worktree push skipped` / `Notes push skipped` warnings; all pass in isolation and under `npm test`. Then isolate
+  each test's save/sync git state (unique tmp repos / refs), or serialize the save/sync group so they do not
+  contend on shared git state — covering **both the integration and e2e layers**, not just integration.
+- _Update (housekeep drain, 2026-06-17):_ broadened the candidate scope to the e2e layer per a follow-up capture
+  from `lifecycle-transition-core` Task 6.7.b.
 - _Scope:_ test-reliability hardening; likely integration-test harness isolation rather than product behavior.
 
 ---

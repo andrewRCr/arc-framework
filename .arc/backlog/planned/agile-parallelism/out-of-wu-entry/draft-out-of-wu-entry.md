@@ -50,6 +50,24 @@ capture-side and ergonomics gaps that surfaced alongside it.
   ergonomic; size accordingly.
 - *Scope:* signal-set extension on this WU's own dispatch realignment.
 
+### `[ ]` **First-class in-place planning iteration on backlog stubs (no activation round-trip)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: out-of-wu-entry`), housekeep drain (2026-06-17); captured
+  during `lifecycle-transition-core` create-spec handoff discussion (2026-06-14).
+- *Concern:* there is no first-class way to run a dedicated planning-iteration session against a backlog stub *in
+  place*. Iterating a stub's draft today forces `init-work-unit` (graduate to `active/`, cut a `plan/` branch) →
+  draft → park back, which records a **false state** (`parked`, excluded from parallel-capacity math) for what is
+  grooming-lane work, and churns a branch + trips the worktree-occupancy guard.
+- *Proposed:* two sub-cases. (1) Exploratory→capture largely closes once the first-class `stub` verb + Orient +
+  `arc-inbox` ship. (2) In-place planning iteration — the real gap — needs three things: an **entry signal** (a
+  `--plan <stub>` sibling of `--errand` / `--housekeep`, this WU's explicit-intent family); a **run-and-stop
+  planning affordance** (`arc-plan` / `draft-design` on a backlog-located draft, deliberately stopping at the draft
+  stage — cross-ref `planning-pipeline-readiness`); and **state-stays-put** semantics (grooming a `planned` stub is
+  *not* `park` — cross-ref `lifecycle-state-machine`).
+- *Open question:* how far should in-place planning proceed (draft? spec? task list?) — a spec / task list authored
+  with no intent to activate drifts harder than a draft. Possible backstop: a "time since last planning" staleness
+  signal surfaced at session-init / `arc-plan` re-entry, advisory not blocking.
+
 ---
 
 ## Problem / Motivation
