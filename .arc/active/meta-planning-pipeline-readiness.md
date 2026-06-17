@@ -11,13 +11,12 @@
 - **Design:** `spec-planning-pipeline-readiness.md`
 - **Task List:** `tasks-planning-pipeline-readiness.md`
 
-- **Last Completed:** Task list generated + WU activated — `tasks-planning-pipeline-readiness.md` (`high` depth,
-  `Heavy`: 5 phases + verification across §§ A/B/C). Activated to `State: Active`, branch rotated `plan/` → `feat/`,
-  cohort deps discharged (`lifecycle-transition-core` + `lifecycle-state-resolver` both shipped) — §§ A/B (docs) and
-  C (code) all unblocked.
-- **Next Task:** Begin Task 1.1 — Author the assess-draft-readiness method (+ package mirror)
+- **Last Completed:** Phases 1–2 complete (§§ A/B, docs-tier) — shared `assess-draft-readiness` method authored +
+  both fire points (`draft-design` loop-exit, `create-spec` entry) routed through it; `create-spec` Finalize split
+  into review/iterate + proceed-to-finalize gates; advisory-fork recommendation norm added to `DEV-RULES.ARC`.
+- **Next Task:** Task 3.1 — Add the `Current Workflow` field to the meta model (`lib/active/meta-reader.ts`)
 - **Blockers:** [none]
 
-- **Next Action:** Run process-task-loop.md — begin Task 1.1 (assess-draft-readiness method)
+- **Next Action:** Run process-task-loop.md — begin Task 3.1 (Phase 3 / § C, code-tier, test-first)
 
 ---
