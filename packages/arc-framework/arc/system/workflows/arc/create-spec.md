@@ -35,6 +35,9 @@ is a derivation signal — step back to draft-design rather than re-opening shap
 verify you are on one before proceeding (created via [init-work-unit][init-work-unit]). Under partial protection
 (the default), specs may be created directly on the base branch.
 
+**Mark the stage** on entry: `arc set-stage create-spec` records the live planning sub-stage in the meta
+`Current Workflow` so session-init resolves it without prose-parsing.
+
 ---
 
 ## Resolve depth & Class

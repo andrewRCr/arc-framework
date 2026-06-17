@@ -119,14 +119,13 @@ CLI-mutate-for-writes. Code-tier, test-first.
   names the live stage — the core that retires the prose-parse.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **4.2.a Stage-pointer command + planning-workflow wiring**
-        - The planning sub-stages are agent-run markdown with no CLI invocation today (the executor has no
-          intra-`planning` transitions). Add a lightweight CLI entry point that fires the 4.1 primitive with the
-          target stage, and wire `draft-design.md` / `create-spec.md` / `generate-tasks.md` to invoke it at their
-          entry step — the existing workflow moment, no new ceremony. Verb spelling deferred to `idiomatic-alignment`;
-          the invocation point is pinned.
-        - Build `test-first` (one behavior at a time):
-            - the command writes the matching basename for each of the three stages
+    - `[x]` **4.2.a Stage-pointer command + planning-workflow wiring**
+        - Added `arc set-stage <stage>` (provisional spelling). `runSetStage` (`lib/work-unit/verbs/set-stage.ts`)
+          validates the stage against the planning enum and fires the 4.1 `writeCurrentWorkflowField` seam;
+          `handleSetStage` (`handlers/lifecycle.ts`) resolves the single active WU and reports; registered in `cli.ts`.
+          Wired the entry step of `draft-design` / `create-spec` / `generate-tasks` (both the `.arc/` instance and the
+          package source — generate-tasks via its `.template.md`) to invoke it. Exported `isPlanningWorkflow` from the
+          consistency module for reuse. Final verb spelling stays deferred to `idiomatic-alignment`.
 
     - `[ ]` **4.2.b Activate-exit clears `Current Workflow → [none]`**
         - Add a `clearCurrentWorkflowField` flag to the `activate` edge's `encodingUpdates` and an

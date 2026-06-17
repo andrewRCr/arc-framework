@@ -34,6 +34,7 @@ import {
   handleReopen,
   handleAbandon,
   handleArchive,
+  handleSetStage,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -179,6 +180,14 @@ program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
   .action((slug: string | undefined) => handleArchive(slug));
+
+program
+  .command("set-stage <stage>")
+  .description(
+    "Set the current work unit's planning-stage pointer (meta `Current Workflow`): "
+    + "draft-design | create-spec | generate-tasks",
+  )
+  .action((stage: string) => handleSetStage(stage));
 
 const errand = program
   .command("errand")

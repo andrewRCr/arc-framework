@@ -45,6 +45,10 @@ idea. Act on the emitted `route`:
       backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
+On `proceed` with an active WU meta, mark the stage before drafting: `arc set-stage draft-design` records the live
+sub-stage in the meta `Current Workflow` so session-init resolves it without prose-parsing. Skip when drafting
+pre-WU on the base (no meta yet) — the eventual `init` scaffold sets it.
+
 ## Resolve depth & Class
 
 Make **one derivation-axis read** — the problem framing / origin plus a quick compose-vs-invent scan — then run

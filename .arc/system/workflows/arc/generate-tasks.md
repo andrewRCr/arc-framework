@@ -27,6 +27,9 @@ confirm with the user before proceeding — generating tasks against unresolved 
 can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
 leave the fields in place during task generation.
 
+**Mark the stage** on entry: `arc set-stage generate-tasks` records the live planning sub-stage in the meta
+`Current Workflow` so session-init resolves it without prose-parsing.
+
 ---
 
 ## Resolve depth & Class

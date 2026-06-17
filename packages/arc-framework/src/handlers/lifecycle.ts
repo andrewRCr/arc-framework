@@ -57,6 +57,7 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
+import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
@@ -675,4 +676,47 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   reportOutcome("Archived", lines, result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Planning-stage pointer — `set-stage`
+// ---------------------------------------------------------------------------
+
+/**
+ * `arc set-stage <stage>` — write the current work unit's `Current Workflow` to
+ * the named planning sub-stage (`draft-design` / `create-spec` / `generate-tasks`),
+ * fired by the planning workflows at their entry step so the meta carries one
+ * deterministic field naming the live sub-stage. Not a lifecycle transition — just
+ * the stage-pointer write. Refuses without a single resolvable active WU, and (via
+ * `runSetStage`) on a non-planning stage. Verb spelling is provisional, pending
+ * idiomatic-alignment.
+ */
+export async function handleSetStage(stage: string | undefined): Promise<void> {
+  p.intro("arc set-stage");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const stageArg = stage?.trim();
+  if (!stageArg) {
+    refuse("`arc set-stage <stage>` requires a planning stage (`draft-design` | `create-spec` | `generate-tasks`).");
+    return;
+  }
+
+  const slug = await resolveCurrentWuSlug(base.cwd);
+  if (slug === null) {
+    refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runSetStage(executor, { name: slug, stage: stageArg });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  p.note(
+    [`Work unit:        ${slug}`, `Current Workflow: ${result.stage}`, `Meta:             ${result.metaPath}`].join("\n"),
+    "Stage set",
+  );
+  p.outro("Done.");
 }

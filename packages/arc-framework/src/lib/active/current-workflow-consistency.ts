@@ -53,7 +53,8 @@ export interface CurrentWorkflowConsistencyInput {
   design: string | null;
 }
 
-function isPlanningWorkflow(value: string | null): value is PlanningWorkflow {
+/** Whether `value` is one of the three planning-stage workflow basenames. */
+export function isPlanningWorkflow(value: string | null): value is PlanningWorkflow {
   return value !== null && (PLANNING_WORKFLOWS as readonly string[]).includes(value);
 }
 
