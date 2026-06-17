@@ -18,6 +18,8 @@ import {
   parseMetaRecord,
   readActiveMetaCandidates,
   renderMetaFile,
+  setMetaBulletFields,
+  setMetaBranch,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -875,5 +877,126 @@ describe("renderMetaFile — multi-line narrative", () => {
     expect(parseMetaRecord(renderMetaFile("foo", { "Next Action": value }))["Next Action"]).toBe(
       value,
     );
+  });
+});
+
+describe("setMetaBulletFields — in-place narrative-bullet rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State** | **Owner** | **Branch**     | **Class** | **Priority** |
+|-----------|-----------|----------------|-----------|--------------|
+| \`Active\`  | \`andrew\`  | \`feat/demo-wu\` | \`Novel\`   | \`P1\`         |
+
+- **Cohort:** \`demo-cohort\`
+
+- **Last Completed:** Phase 1 — the transition table.
+- **Next Task:** \`Task 3.1 — the executor (line ~150)\`
+- **Blockers:** [none]
+
+- **Next Action:** Wire the executor next.
+
+---
+`;
+
+  it("rewrites a single field's value, leaving every other field byte-stable on parse", () => {
+    const written = setMetaBulletFields(META, { "Next Task": "[none]" });
+
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after["Next Task"]).toBe("[none]");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Next Task") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+  });
+
+  it("rewrites multiple fields in one pass", () => {
+    const written = setMetaBulletFields(META, {
+      "Last Completed": "Phase 3 — the executor.",
+      Blockers: "[none]",
+      "Next Action": "Begin Phase 4.",
+    });
+
+    const after = parseMetaRecord(written);
+    expect(after["Last Completed"]).toBe("Phase 3 — the executor.");
+    expect(after.Blockers).toBe("[none]");
+    expect(after["Next Action"]).toBe("Begin Phase 4.");
+    // An untouched field is unchanged (narrative field — backticks preserved verbatim).
+    expect(after["Next Task"]).toBe("`Task 3.1 — the executor (line ~150)`");
+  });
+
+  it("re-wraps a multi-line value as indented continuations the parser recovers", () => {
+    const value = "First line of the note,\nthen a wrapped continuation.";
+    const written = setMetaBulletFields(META, { "Next Action": value });
+
+    expect(written).toContain("- **Next Action:** First line of the note,\n  then a wrapped continuation.");
+    expect(parseMetaRecord(written)["Next Action"]).toBe(value);
+  });
+
+  it("collapses a prior multi-line value down to a single line", () => {
+    const multi = setMetaBulletFields(META, { "Next Action": "Line A,\nthen line B,\nthen line C." });
+    const collapsed = setMetaBulletFields(multi, { "Next Action": "Just one line now." });
+
+    expect(parseMetaRecord(collapsed)["Next Action"]).toBe("Just one line now.");
+    // The old continuation lines are gone — the document below is intact.
+    expect(collapsed).toContain("\n---\n");
+    expect(collapsed).not.toContain("then line B");
+  });
+
+  it("leaves the document untouched when the update map is empty", () => {
+    expect(setMetaBulletFields(META, {})).toBe(META);
+  });
+
+  it("throws when a targeted field's bullet is absent (fail-loud, not silent)", () => {
+    const noNextTask = META.replace("- **Next Task:** `Task 3.1 — the executor (line ~150)`\n", "");
+    expect(() => setMetaBulletFields(noNextTask, { "Next Task": "[none]" })).toThrow(
+      /Next Task.*not found/i,
+    );
+  });
+});
+
+describe("setMetaBranch — in-place core-table Branch rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State** | **Owner** | **Branch**     | **Class** | **Priority** |
+|-----------|-----------|----------------|-----------|--------------|
+| \`Active\`  | \`andrew\`  | \`feat/demo-wu\` | \`Novel\`   | \`P1\`         |
+
+- **Cohort:** \`demo-cohort\`
+
+- **Last Completed:** Phase 1 — the transition table.
+- **Next Task:** \`Task 6.5 — the Branch-field encoding (line ~580)\`
+- **Blockers:** [none]
+
+- **Next Action:** Wire the Branch-field encoding next.
+
+---
+`;
+
+  it("rewrites the Branch cell, leaving every other core + bullet field byte-stable on parse", () => {
+    const written = setMetaBranch(META, "plan/demo-wu");
+
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after.Branch).toBe("plan/demo-wu");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Branch") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The prose below the core table is preserved verbatim.
+    const tail = (s: string): string => s.slice(s.indexOf("- **Cohort:**"));
+    expect(tail(written)).toBe(tail(META));
+    // The old branch value is gone from the rewritten table.
+    expect(written).not.toContain("`feat/demo-wu`");
+  });
+
+  it("writes the `[none]` sentinel (branchless WU)", () => {
+    const written = setMetaBranch(META, "[none]");
+    expect(parseMetaRecord(written).Branch).toBe("[none]");
+  });
+
+  it("throws when the meta carries no core-block table", () => {
+    const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
+    expect(() => setMetaBranch(noTable, "plan/demo-wu")).toThrow(/core-block table/i);
   });
 });

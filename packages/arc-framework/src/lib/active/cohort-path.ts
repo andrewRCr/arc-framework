@@ -56,6 +56,28 @@ export function validateCohortPath(value: string): string | null {
 }
 
 /**
+ * Reject a cohort path that could escape its grouping directory once
+ * interpolated into a filesystem path. A safe value has only relative,
+ * single-name segments: no `..` traversal, no leading `/` (absolute escape), no
+ * backslash (Windows separator), and no Windows drive letter (`C:`). The
+ * `[none]` sentinel and the empty string are safe (they carry no path).
+ *
+ * This guards every callsite that builds a path from the field (e.g. the
+ * archival cohort-doc sweep) — shape validation ({@link validateCohortPath})
+ * caps depth but does not forbid traversal sequences.
+ *
+ * @param value - The raw `**Cohort:**` value (backticks already stripped).
+ * @returns `true` when the value is safe to interpolate into a path.
+ */
+export function isSafeCohortPath(value: string): boolean {
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === NONE_SENTINEL) return true;
+  if (trimmed.startsWith("/") || trimmed.includes("\\")) return false;
+  if (/^[A-Za-z]:/.test(trimmed)) return false;
+  return cohortSegments(value).every((segment) => segment !== "..");
+}
+
+/**
  * Derive the leaf (most specific) segment of a cohort path — the subcohort for
  * a nested path, the cohort itself for a single segment. Values with no path
  * (`[none]`, empty) return trimmed unchanged: there is no leaf to derive.

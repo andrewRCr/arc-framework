@@ -376,7 +376,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
     return join(primaryRoot, "..", "{repo}.{branch}");
   }
 
-  it("spawns a worktree on a new `plan/<name>` branch via spawnWorktree", async () => {
+  it("spawns a worktree on a new `plan/<name>` branch via the reconcile-worktree spawn leg", async () => {
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     const rec = recordingExecWithPrimary(primaryRoot);
     const io: UserIOContext = { ...createUserIOContext(), exec: rec.exec };
@@ -505,7 +505,7 @@ describe("runCreateNew — create-new worktree spawn", () => {
   it("returns a refusal (no throw) when the worktree spawn fails", async () => {
     await writeArcConfig(primaryRoot, { "worktree.location_template": siblingTemplate() });
     // The primary-path probe answers, but `git worktree add` rejects (e.g. the
-    // branch already exists). spawnWorktree propagates — runCreateNew must
+    // branch already exists). The spawn leg propagates — runCreateNew must
     // convert it to a refusal rather than throw, honoring the no-throw contract.
     const exec: GitExec = async (cmd, args) => {
       if (args[0] === "worktree" && args[1] === "list") {

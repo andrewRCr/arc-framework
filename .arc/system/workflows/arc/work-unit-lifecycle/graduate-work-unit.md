@@ -8,10 +8,11 @@ arc:
 
 # Workflow: Graduate Work Unit
 
-Promotes a work unit one rung up the readiness ladder — a `git mv` from `backlog/provisional/<name>/` to
-`backlog/planned/<name>/`, forcing a resolved `Class` via the [`classify-work-unit`][classify-work-unit]
-method, then re-rendering the readiness views. A flat backlog-internal move: no branch, no worktree, none of
-the `active/`-graduation machinery — that belongs to [`init-work-unit`][init-work-unit].
+Promotes a work unit one rung up the readiness ladder — relocating `backlog/provisional/<name>/` to
+`backlog/planned/<name>/` via the `promote` transition, forcing a resolved `Class` via the
+[`classify-work-unit`][classify-work-unit] method, then re-rendering the readiness views. A flat
+backlog-internal move: no branch, no worktree, none of the `active/`-graduation machinery — that belongs to
+[`init-work-unit`][init-work-unit].
 
 **When to use:** A provisional work unit has firmed up into a startable candidate — its thesis is one the
 project commits to, and it is ready to appear on the ready list a start decision is read from. Promotion to
@@ -47,19 +48,9 @@ Verify the graduation context is well-formed:
 If the work unit is already under `backlog/planned/`, it has already graduated — stop. If it lives in
 `active/` or `completed/`, graduation does not apply.
 
-### 2) Move provisional → planned
+### 2) Force the Class estimate · `classify-work-unit`
 
-```bash
-git mv .arc/backlog/provisional/{name}/ .arc/backlog/planned/{name}/
-```
-
-When the work unit is cohort-nested, move `.arc/backlog/provisional/{cohort}/{name}/` to
-`.arc/backlog/planned/{cohort}/{name}/`, creating the planned-side cohort directory first
-(`mkdir -p`) when this is its first graduated member. Remove an emptied
-`provisional/{cohort}/` directory only when no other provisional members remain.
-
-### 3) Force the Class estimate · `classify-work-unit`
-
+`arc promote` refuses to raise a stub whose `**Class:**` is still `[TBD]`, so resolve it **before** the move.
 Load the [`classify-work-unit`][classify-work-unit] method and apply it as a **confirm-or-ratchet** over the
 work unit's `**Class:**` field:
 
@@ -67,8 +58,23 @@ work unit's `**Class:**` field:
   planning has not yet substantiated a floor.
 - An existing estimate is confirmed, or ratcheted per the method's estimate-vs-realized rule.
 
-A graduated work unit never leaves `planned/` carrying `[TBD]`. Edit `meta-{name}.md`'s `**Class:**` to the
-resolved value and stage it together with the Step 2 move.
+A graduated work unit never leaves `provisional/` carrying `[TBD]`. Edit `meta-{name}.md`'s `**Class:**` to the
+resolved value in its current `provisional/` location.
+
+### 3) Promote provisional → planned
+
+Fire the transition:
+
+```bash
+arc promote {name}
+```
+
+It relocates the stub from `provisional/` to `planned/` (refusing if `**Class:**` is still `[TBD]`), regenerates
+`STATUS.USER`, and emits a ROADMAP hand-render advisory naming the move. It is cohort-aware: a nested stub
+(`backlog/provisional/{cohort}/{name}/`) relocates within its cohort segment — creating the planned-side cohort
+directory and pruning the emptied `provisional/{cohort}/` when no other members remain.
+
+Stage the move together with the Step 2 `**Class:**` edit.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -84,13 +90,13 @@ Context: meta-{name}.md (graduation)
 
 ### 4) Regen readiness views · `arc-in-git` only
 
-Re-render the readiness views so the graduated work unit appears as startable:
+Refresh the readiness views so the graduated work unit appears as startable:
 
-- **ROADMAP** — re-render per [Work Organization Strategy § ROADMAP][work-org-roadmap]; the work unit joins
-  the **Ready** tier (or **Blocked**, when it carries unsatisfied dependencies).
-- **STATUS.USER** — refresh per [§ STATUS.USER][work-org-statususer] for the owning identity; the work unit
-  enters the ready slice. STATUS.USER is a gitignored per-machine cache — regenerate it locally; it is not
-  part of the commit.
+- **ROADMAP** — hand-render per [Work Organization Strategy § ROADMAP][work-org-roadmap]; the work unit joins
+  the **Ready** tier (or **Blocked**, when it carries unsatisfied dependencies). `arc promote` emits the regen
+  advisory but mints no ROADMAP — the renderer is downstream.
+- **STATUS.USER** — `arc promote` regenerates it automatically (per [§ STATUS.USER][work-org-statususer]). It is a
+  gitignored per-machine cache — not part of the commit.
 
 Default: dedicated `chore(arc):` commit for the ROADMAP re-render. It may ride the graduation commit (Step 3)
 only when the render delta is trivial — see [DEV-RULES.ARC § Atomicity][dev-rules-atomicity].

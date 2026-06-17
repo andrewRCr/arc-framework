@@ -110,3 +110,39 @@ time before committing the cut.
 - *Note:* this was the conductor's depth-aware-navigation design; with the monolithic conductor retired, its natural
   home is whatever owns planning-depth selection (`resolve-planning-depth` + `draft-design`). Carried here as the
   nearest planning-pipeline home — confirm the fit at iteration.
+
+### `[ ]` **Planning-stage-pointer mechanics: a code-owned `Current Workflow` field + event-driven `Design`**
+
+- *Routed from:* `lifecycle-transition-core` determinism/judgment-boundary review (2026-06-16). This is the
+  **mechanics** half of #2 (the `init-work-unit` Next-Action pointer) — folded in when the boundary review found that
+  PPR's "point `Next Action` at the readiness owner" is a *workaround* for the absence of a code-owned stage pointer.
+  PPR owns the readiness *judgment* (#1 `assess-draft-readiness`); this entry adds the *pointer mechanics* it gates.
+- *Concern:* session-init resolves the lifecycle workflow deterministically *between* phases (`State` → coarse
+  bucket: `execution` → `process-task-loop`, `integration` → `integrate-work-unit`) but **prose-parses the planning
+  sub-stage**: at `sessionType: planning` it reads the free-form meta `**Next Action:**` to pick
+  `draft-design` / `create-spec` / `generate-tasks`, with an artifact-existence guess as fallback. The probe computes
+  no sub-stage. The fallback is lossy (a draft + no spec can't distinguish "still drafting" from "drafting done,
+  starting spec") — exactly why `Next Action` ends up overloaded as a workflow pointer and "lies about where the work
+  is" (#2).
+- *Approach (the field model):* split the **operational substrate pointer** from free-form judgment:
+    - **`Current Workflow`** — a new code-owned **encoding** field naming the active lifecycle workflow, written by
+      the executor at every transition (single-owner; never hand-edited). session-init then reads one deterministic
+      field, no prose-parse. Redundant-but-machine-verified beats derived-but-fragile: the encoding-consistency test
+      asserts it matches `(State, sub-stage)`.
+    - **`Next Action`** drops the pointer and becomes pure within-stage judgment, or a bracketed sentinel at a clean
+      boundary — `[begin current workflow]` (semantically correct, unlike `[none]` which reads as parked; the
+      workflow *name* lives in `Current Workflow`, so no duplication; a disposition `reset` constant).
+    - **`Design`** becomes an **event-driven pointer** (not a presence-scan): `[none] → draft-<name>` at draft
+      creation; `draft-<name> → spec-<name>` **at create-spec finalization** (not spec existence — a spec can exist
+      half-written while the draft is authoritative). The optional `notes-*` content migration is orthogonal (Design
+      never points at `notes-*`); the mandatory draft-delete + repoint is mechanical at the finalization edge. No
+      forced draft-first — a Light WU may go `[none] → spec` directly.
+- *Enabling dependency:* requires the planning sub-stages (`draft-design` / `create-spec` / `generate-tasks`,
+  incl. create-spec finalization) to become **CLI-recognized events** so the executor can advance the pointers —
+  they are markdown-only today. Builds on `lifecycle-transition-core`'s executor encoding pattern (the `Branch`-field
+  encoding write is the worked precedent) + the resolver. **Principle:** resolve-don't-store for reads (drift
+  impossible — nothing stored), CLI-mutate + consistency-hook for writes (drift caught at commit). Interim until this
+  lands: session-init reads `Current Workflow` for coarse buckets and keeps the Next-Action/artifact fallback **only**
+  for the planning sub-stage (a narrowed surface, not the whole pointer).
+- *Note:* this is a **spine** concern (consistency-on-exit: the lifecycle isn't coherent while the planning sub-stage
+  is prose-parsed) — it stays even if the planning-*content* concerns (#3, #5) split off.

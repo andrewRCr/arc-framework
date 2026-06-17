@@ -401,6 +401,158 @@ export function renderMetaFile(
   return `${lines.join("\n")}\n`;
 }
 
+/**
+ * Rewrite the core-block `State` cell in place, re-rendering *only* the three
+ * core-table rows so column alignment stays correct, and leaving every bullet,
+ * narrative field, and section below byte-identical. The other core fields keep
+ * their values (only their machine-alignment padding may shift). The caller
+ * validates `state` against {@link WorkUnitState} first — this is a
+ * projection-level rewrite, not a phase validator.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param state - The canonical target phase to write into the State cell.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaState(content: string, state: string): string {
+  return setMetaCoreFields(content, { State: state });
+}
+
+/**
+ * Rewrite the core-block `Branch` cell in place — the branch-axis sibling of
+ * {@link setMetaState}. Used by the lifecycle executor to project the meta
+ * `Branch` field from the branch a transition establishes (`plan/<slug>` on
+ * graduate, `<type>/<slug>` on activate, the preserved branch on resume,
+ * `[none]` on a teardown). Every other core field and the prose below stay
+ * byte-stable (modulo core-table alignment padding).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param branch - The branch value to write into the Branch cell (e.g. `plan/foo` or `[none]`).
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaBranch(content: string, branch: string): string {
+  return setMetaCoreFields(content, { Branch: branch });
+}
+
+/**
+ * Rewrite one or more core-block table cells in place, re-rendering *only* the
+ * three core-table rows so column alignment stays correct and leaving every
+ * bullet, narrative field, and section below byte-identical. The shared engine
+ * behind {@link setMetaState} and {@link setMetaBranch}: an override map supplies
+ * the new values for named core fields; unnamed cells keep their current value.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param overrides - Core field → new value; only named core fields are rewritten.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table.
+ */
+function setMetaCoreFields(content: string, overrides: MetaFieldOverrides): string {
+  const lines = content.split("\n");
+  const firstFieldIdx = lines.findIndex((line) => FIELD_MARKER_RE.test(line));
+  const scanLimit = firstFieldIdx === -1 ? lines.length : firstFieldIdx;
+  const sepIdx = lines.findIndex(
+    (line, i) => i < scanLimit && TABLE_SEPARATOR_RE.test(line.trim()),
+  );
+  const headerLine = sepIdx > 0 ? lines[sepIdx - 1] : undefined;
+  const valueLine = sepIdx === -1 ? undefined : lines[sepIdx + 1];
+  if (headerLine === undefined || valueLine === undefined) {
+    throw new Error("Cannot set meta core field: no core-block table found.");
+  }
+  const headers = splitTableRow(headerLine).map(stripHeaderLabel);
+  if (!isCoreTableHeader(headers)) {
+    throw new Error("Cannot set meta core field: core-block table header not recognized.");
+  }
+
+  const separatorLine = lines[sepIdx];
+  const separators = separatorLine === undefined ? [] : splitTableRow(separatorLine);
+  const cells = splitTableRow(valueLine);
+  if (headers.length !== separators.length || headers.length !== cells.length) {
+    throw new Error(
+      `Cannot set meta core field: malformed core-block table column-count mismatch ` +
+        `(header ${headers.length}, separator ${separators.length}, value ${cells.length}).`,
+    );
+  }
+  const current = new Map<string, string | null>();
+  headers.forEach((header, i) => current.set(header, normalizeValue(cells[i] ?? "")));
+
+  const overrideMap = new Map<string, string>(Object.entries(overrides));
+  const valueOf = (field: MetaFieldDescriptor): string =>
+    overrideMap.get(field.name) ?? current.get(field.name) ?? field.default;
+  lines.splice(sepIdx - 1, 3, ...renderCoreTable(valueOf));
+  return lines.join("\n");
+}
+
+/**
+ * Rewrite one or more **narrative bullet** fields (`Last Completed` /
+ * `Next Task` / `Blockers` / `Next Action` and their peers) in place, replacing
+ * each named field's value — and any indented continuation lines wrapping the
+ * same bullet — while leaving every other line byte-stable.
+ *
+ * The complement of {@link setMetaState} (which rewrites the core-block table):
+ * together they let a caller touch any managed field without the full-file
+ * re-render of {@link renderMetaFile}, which would drop narrative, ordering, and
+ * hand-edits. Each update value is written verbatim (narrative fields bypass the
+ * `valueClass` backtick formatting); a multi-line value renders its first line
+ * after the label and indents each continuation two spaces, matching
+ * {@link renderBullets} so {@link parseMetaRecord} recovers it unchanged.
+ *
+ * The field-value boundary mirrors {@link extractField}: continuations run until
+ * a blank line, the next field marker, a heading, a `---` rule, or
+ * end-of-section. A targeted field whose marker is absent throws — a managed
+ * meta always carries the bullet, so a miss is structural drift, not a silent
+ * no-op (matching {@link setMetaState}'s fail-loud contract).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param updates - Field→new-value map; only the named fields are rewritten.
+ * @returns The rewritten markdown.
+ * @throws When a targeted field's bullet marker is not found.
+ */
+export function setMetaBulletFields(
+  content: string,
+  updates: Partial<Record<MetaFieldName, string>>,
+): string {
+  let lines = content.split("\n");
+  for (const [name, value] of Object.entries(updates)) {
+    lines = replaceBulletField(lines, name, value);
+  }
+  return lines.join("\n");
+}
+
+/**
+ * Replace the `- **<name>:**` bullet's value (plus its continuation lines) with
+ * `value`, returning the rewritten line array. Preserves the line's exact label
+ * prefix (indent + `**name:**`) and re-wraps a multi-line value as indented
+ * continuations.
+ */
+function replaceBulletField(lines: string[], name: string, value: string): string[] {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const labelRe = new RegExp(`^([ \\t>*+-]*\\*\\*${escaped}:\\*\\*)[ \\t]*(.*)$`);
+
+  const start = lines.findIndex((line) => labelRe.test(line));
+  if (start === -1) {
+    throw new Error(`Cannot set meta field: \`${name}\` bullet not found.`);
+  }
+  const prefix = labelRe.exec(lines[start] ?? "")?.[1] ?? "";
+
+  // Continuation span: indented, non-boundary lines wrapping the same bullet.
+  let end = start + 1;
+  for (; end < lines.length; end++) {
+    const line = lines[end] ?? "";
+    if (line.trim() === "") break; // blank → field / group boundary
+    if (FIELD_MARKER_RE.test(line)) break; // next field bullet
+    if (/^#{1,6} /.test(line)) break; // heading
+    if (line.trim() === "---") break; // trailing rule
+    if (!/^\s/.test(line)) break; // continuations are indented under the bullet
+  }
+
+  const [first = "", ...rest] = value.split("\n");
+  const replacement = [first === "" ? prefix : `${prefix} ${first}`];
+  for (const continuation of rest) replacement.push(`  ${continuation}`);
+
+  return [...lines.slice(0, start), ...replacement, ...lines.slice(end)];
+}
+
 /** A core-block separator row, e.g. `| ---- | --- | ------ |`. */
 const TABLE_SEPARATOR_RE = /^\|(?:\s*:?-+:?\s*\|)+$/;
 

@@ -21,7 +21,26 @@ import {
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
-import { handleUpdate, handleHealth, handleDiff } from "./handlers/lifecycle.js";
+import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
+import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
+import {
+  handleStub,
+  handlePromote,
+  handleDemote,
+  handlePark,
+  handleResume,
+  handleActivate,
+  handleDeactivate,
+  handleReopen,
+  handleAbandon,
+  handleArchive,
+  type StubOptions,
+  type ParkOptions,
+  type ResumeOptions,
+  type ActivateOptions,
+  type ReopenOptions,
+  type AbandonOptions,
+} from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
@@ -80,15 +99,86 @@ program
   .command("start [name]")
   .description(
     "Start a work unit. Default spawns an isolated worktree on a new `plan/<name>` "
-    + "branch; `--here` cold-starts into the current worktree instead.",
+    + "branch; `--here` works in the current worktree instead.",
   )
-  .option("--here", "Cold-start in place: scaffold into the current worktree instead of spawning a new one")
+  .option(
+    "--here",
+    "Work in the current worktree, no spawn: cold-start a fresh WU, or graduate a backlog stub in place",
+  )
   .option(
     "--from <pointer-or-blurb>",
     "Spec input — issue ref → Origin, spec/draft artifact → Design, else passed through for assessment",
   )
   .option("-y, --yes", "Skip the confirm prompt")
   .action((name: string | undefined, opts: StartOptions) => handleStart(name, opts));
+
+// --- Lifecycle verbs (top-level peers of `arc start`) ---
+// Each takes an optional positional so a bare invocation reaches the handler's
+// candidate-list surface; slug-required verbs refuse a missing target there.
+
+program
+  .command("stub [name]")
+  .description("Create a new backlog work unit at a committed tier (provisional | planned)")
+  .option("--commitment <tier>", "Committed backlog tier: `provisional` or `planned` (required)")
+  .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
+  .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
+  .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
+  .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
+
+program
+  .command("promote [slug]")
+  .description("Raise a provisional stub to planned (requires a resolved `Class`)")
+  .action((slug: string | undefined) => handlePromote(slug));
+
+program
+  .command("demote [slug]")
+  .description("Lower a planned stub back to provisional")
+  .action((slug: string | undefined) => handleDemote(slug));
+
+program
+  .command("park [slug]")
+  .description("Shelve a started work unit off the active set (defaults to the current WU)")
+  .option("--reason <text>", "Why the work unit is being parked (required)")
+  .action((slug: string | undefined, opts: ParkOptions) => handlePark(slug, opts));
+
+program
+  .command("resume [slug]")
+  .description(
+    "Re-attach a parked work unit's preserved branch. Default spawns a fresh worktree; "
+    + "`--here` re-attaches in the current worktree.",
+  )
+  .option("--here", "Re-attach in the current worktree instead of spawning a new one")
+  .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
+
+program
+  .command("activate [slug]")
+  .description("Raise a planning work unit to Active (defaults to the current WU)")
+  .option("--type <type>", "Working-branch type, e.g. `feat` — composes `<type>/<slug>` (required)")
+  .option("--task <task>", "First task to orient on → meta `Next Task` (required)")
+  .option("--action <action>", "Next action pointer → meta `Next Action` (required)")
+  .action((slug: string | undefined, opts: ActivateOptions) => handleActivate(slug, opts));
+
+program
+  .command("deactivate [slug]")
+  .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
+  .action((slug: string | undefined) => handleDeactivate(slug));
+
+program
+  .command("reopen [slug]")
+  .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
+  .option("--keep-pr", "Convert the PR to a draft instead of closing it")
+  .action((slug: string | undefined, opts: ReopenOptions) => handleReopen(slug, opts));
+
+program
+  .command("abandon [slug]")
+  .description("Destroy a pre-merge work unit (artifacts, branch, worktree) — prints the impact plan; requires --yes")
+  .option("-y, --yes", "Confirm the destructive cascade (required to proceed)")
+  .action((slug: string | undefined, opts: AbandonOptions) => handleAbandon(slug, opts));
+
+program
+  .command("archive [slug]")
+  .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
+  .action((slug: string | undefined) => handleArchive(slug));
 
 const errand = program
   .command("errand")
@@ -115,6 +205,20 @@ housekeep
   .description("Classify the write context — base-branch (proceed), WU branch (relocate), or degenerate (refuse)")
   .option("--json", "Emit the write-context classification as JSON (for skill consumption)")
   .action((opts: HousekeepCheckOptions) => handleHousekeepCheck(opts));
+
+const plan = program
+  .command("plan")
+  .description(
+    "Planning-entry operations. `check` classifies the write context before drafting (committable "
+    + "→ proceed, else redirect to start / stub / errand) so a draft never lands where it can't commit.",
+  );
+
+plan
+  .command("check")
+  .description("Classify the planning-entry route — committable (proceed) or not (redirect to start / stub / errand)")
+  .option("--name <slug>", "The design's WU-name slug — gates the draft-presence check")
+  .option("--json", "Emit the planning-entry route as JSON (for skill consumption)")
+  .action((opts: PlanCheckOptions) => handlePlanCheck(opts));
 
 // --- Lifecycle ---
 
@@ -265,6 +369,10 @@ activeCmd
 program
   .command("status")
   .description("Composite probe: identity + user-sync + extensions + config + active state")
+  .argument(
+    "[slug]",
+    "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
+  )
   .addOption(
     new Option(
       "--session-init",
@@ -282,12 +390,6 @@ program
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
     ).conflicts(["session-init", "session-handoff"]),
-  )
-  .addOption(
-    new Option(
-      "--lifecycle <slug>",
-      "Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, and dep-edge states",
-    ).conflicts(["session-init", "session-handoff", "user"]),
   )
   .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user: skip the network read; render from local refs")

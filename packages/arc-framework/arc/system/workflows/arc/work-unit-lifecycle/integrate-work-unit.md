@@ -227,10 +227,11 @@ See [DEV-RULES.ARC][dev-rules-arc] § Commit format and the [`commit-footer` met
 
 Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
-- **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. archive handles
-  state flip `Integrating → Shipped`, sweep commits (`active/meta-{name}.md` →
-  `completed/<dated>/{NN}_{name}/meta-{name}.md`), and ROADMAP regen per its cadence-invariant body. Returns; resume at
-  Step 12.
+- **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. Its `arc archive`
+  sweep handles state flip `Integrating → Shipped`, the relocation `active/meta-{name}.md` →
+  `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, and ROADMAP regen per its
+  cadence-invariant body — the **mergeable** ship, which rides this PR. Physical branch/worktree teardown is
+  **not** archive's: it is Step 13's post-merge cleanup below. Returns; resume at Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
   invocation. Step 12's push covers completion content only under this cadence.
 
@@ -276,7 +277,9 @@ the owning caller of `arc user close` — a merge that landed while no session a
 ### 13) Post-merge worktree cleanup
 
 After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
-second prompt fires. Dispatch by current worktree identity. Every teardown action below is **presence-guarded**:
+second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred:
+it runs post-merge, since a merged branch can only be reaped once its PR has landed. Dispatch by current worktree
+identity. Every teardown action below is **presence-guarded**:
 it no-ops when its target is already gone (worktree already removed, branch already deleted), so a resume that
 re-enters here after a partial teardown skips what's done rather than erroring.
 

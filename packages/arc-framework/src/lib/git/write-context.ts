@@ -151,6 +151,133 @@ export function classifyWriteContext(input: WriteContextInput): WriteContext {
   return { ...dimensions, verdict: "relocate", currentBranch, baseBranch, primaryWorktreePath };
 }
 
+/**
+ * Branch-protection mode resolved from `branch.protection`. Unknown / unset
+ * values degrade to `partial` (the fail-safe floor) at the resolution boundary,
+ * so the classifier only ever sees the two real modes.
+ */
+export type ProtectionMode = "full" | "partial";
+
+/**
+ * Why a planning-entry context is not committable — the discriminant the
+ * `arc-plan` workflow words the redirect surface from.
+ *
+ * - `protected-base` — full protection, HEAD on the base branch: a draft cannot
+ *   commit to a protected base; begin a planning branch or stub instead.
+ * - `work-unit-branch` — HEAD on another work unit's branch: drafting a new
+ *   design here would tangle that unit's PR.
+ * - `detached-head` / `no-base` — degenerate contexts propagated from the
+ *   branch-vs-base core ({@link WriteContext} `refuse`).
+ */
+export type PlanningRedirectReason =
+  | "protected-base"
+  | "work-unit-branch"
+  | "detached-head"
+  | "no-base";
+
+/**
+ * Resolved facts {@link classifyPlanningEntry} decides against — the planning
+ * routing layer over the branch-vs-base {@link WriteContext} core.
+ */
+export interface PlanningEntryInput {
+  /** The branch-vs-base core verdict from {@link classifyWriteContext}. */
+  writeContext: WriteContext;
+  /** Resolved `branch.protection` (unknown/unset already degraded to `partial`). */
+  protection: ProtectionMode;
+  /**
+   * Full-mode committability signal: this worktree holds an active
+   * `Planning`-state work unit and HEAD is on its planning branch — the one
+   * place a draft commits under full protection. Always `false` under partial,
+   * where committability keys on the base branch instead.
+   */
+  onPlanningBranch: boolean;
+  /** A `draft-*` for the intended design already exists — parameterizes the stub leg's fold-in. */
+  draftPresent: boolean;
+  /** An active work unit occupies this worktree — a surfaced fact for the redirect choice. */
+  activeWorkUnit: boolean;
+}
+
+/**
+ * The planning-entry route — the two-layer gate's verdict.
+ *
+ * - `proceed` (layer 1) — the context is committable for a draft; author here.
+ * - `redirect` (layer 2) — not committable. The `arc-plan` workflow surfaces
+ *   start / stub / errand by WU-worthiness; `draftPresent` parameterizes the
+ *   stub leg's fold-in. The CLI resolves committability mechanically and never
+ *   fabricates the WU-worthiness judgment — it only carries the facts the
+ *   workflow words the choice from.
+ */
+export type PlanningEntryRoute =
+  | {
+      route: "proceed";
+      protection: ProtectionMode;
+      currentBranch: string;
+    }
+  | {
+      route: "redirect";
+      protection: ProtectionMode;
+      reason: PlanningRedirectReason;
+      draftPresent: boolean;
+      activeWorkUnit: boolean;
+      currentBranch: string | null;
+      baseBranch: string | null;
+      primaryWorktreePath: string | null;
+    };
+
+/**
+ * Classify the planning-entry route — the mechanical preflight `arc-plan` runs
+ * before `draft-design`, layered over the branch-vs-base {@link WriteContext}
+ * core. Committability (layer 1) is mode-shaped: under `partial` a draft commits
+ * on the base branch; under `full` it commits on an active `Planning` work
+ * unit's planning branch. A non-committable context yields a `redirect` carrying
+ * the facts the workflow surfaces start / stub / errand from — the leg choice is
+ * WU-worthiness judgment, never decided here.
+ *
+ * @param input - The branch-vs-base verdict plus the resolved planning facts.
+ * @returns The two-layer planning-entry route.
+ */
+export function classifyPlanningEntry(input: PlanningEntryInput): PlanningEntryRoute {
+  const { writeContext, protection, onPlanningBranch, draftPresent, activeWorkUnit } = input;
+
+  // A degenerate branch-vs-base context (detached / no base) is non-committable
+  // in either mode — propagate its reason straight to a redirect.
+  if (writeContext.verdict === "refuse") {
+    return {
+      route: "redirect",
+      protection,
+      reason: writeContext.reason,
+      draftPresent,
+      activeWorkUnit,
+      currentBranch: writeContext.currentBranch,
+      baseBranch: writeContext.baseBranch,
+      primaryWorktreePath: writeContext.primaryWorktreePath,
+    };
+  }
+
+  // Layer 1 — committable for a draft, given protection mode.
+  const committable =
+    protection === "partial" ? writeContext.verdict === "proceed" : onPlanningBranch;
+  if (committable) {
+    return { route: "proceed", protection, currentBranch: writeContext.currentBranch };
+  }
+
+  // Layer 2 — not committable. Word why; the workflow surfaces the leg choice.
+  const reason: PlanningRedirectReason =
+    protection === "full" && writeContext.verdict === "proceed"
+      ? "protected-base"
+      : "work-unit-branch";
+  return {
+    route: "redirect",
+    protection,
+    reason,
+    draftPresent,
+    activeWorkUnit,
+    currentBranch: writeContext.currentBranch,
+    baseBranch: writeContext.baseBranch,
+    primaryWorktreePath: writeContext.primaryWorktreePath,
+  };
+}
+
 /** Git reads {@link resolveWriteContext} needs, plus the resolved base branch. */
 export interface ResolveWriteContextOptions {
   exec: GitExec;

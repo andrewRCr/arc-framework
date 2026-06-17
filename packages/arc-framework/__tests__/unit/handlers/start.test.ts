@@ -1,20 +1,18 @@
 /**
- * Unit tests for `handleStart`'s create-new dispatch branch — the default
- * (bare `arc start <name>`) path that spawns an isolated worktree via
- * {@link runCreateNew}. The command core is unit-tested separately; these
- * cover the handler-level orchestration the core can't: the name-required
- * guard, the confirm-prompt gate (skipped under `--yes` / non-interactive),
- * refusal reporting, and the success `note`.
+ * Unit tests for `handleStart`'s dispatch + reporting orchestration. The routing
+ * core ({@link resolveStartDispatch}) and the per-arm cores are unit-tested
+ * separately; these cover the handler-level glue the cores can't: the name-
+ * required guard, the `--here` cold-start branch, routing each resolved arm to
+ * its core, the directed refusal, confirm gating, and refusal reporting.
  *
- * `@clack/prompts`, the command core, and the shared helpers are mocked at the
- * module seam, matching the sibling user-handler tests.
+ * `@clack/prompts`, the command module, the lifecycle index / executor binder,
+ * the resume verb, and the shared helpers are mocked at the module seam.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 
 // --- Mocks ---
 
-const mockIntro = vi.fn();
 const mockOutro = vi.fn();
 const mockLog = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const mockNote = vi.fn();
@@ -22,7 +20,7 @@ const mockConfirm = vi.fn();
 const mockIsCancel = vi.fn(() => false) as Mock<(val: unknown) => boolean>;
 
 vi.mock("@clack/prompts", () => ({
-  intro: (...args: unknown[]) => mockIntro(...args),
+  intro: vi.fn(),
   outro: (...args: unknown[]) => mockOutro(...args),
   log: mockLog,
   note: (...args: unknown[]) => mockNote(...args),
@@ -30,21 +28,50 @@ vi.mock("@clack/prompts", () => ({
   isCancel: (val: unknown) => mockIsCancel(val),
 }));
 
+const mockResolveStartDispatch = vi.fn();
 const mockRunCreateNew = vi.fn();
 const mockRunColdStart = vi.fn();
-const mockDeriveColdStartWuName = vi.fn(() => "widget");
+const mockRunGraduate = vi.fn();
 
 vi.mock("../../../src/commands/start.js", () => ({
+  resolveStartDispatch: (...args: unknown[]) => mockResolveStartDispatch(...args),
   runCreateNew: (...args: unknown[]) => mockRunCreateNew(...args),
   runColdStart: (...args: unknown[]) => mockRunColdStart(...args),
-  deriveColdStartWuName: () => mockDeriveColdStartWuName(),
+  runGraduate: (...args: unknown[]) => mockRunGraduate(...args),
+  deriveColdStartWuName: () => "widget",
 }));
 
-const mockResolveUserIdentity = vi.fn(async () => "andrew");
-const mockIsNonInteractive = vi.fn(() => false);
+const mockRunResume = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
+  runResume: (...args: unknown[]) => mockRunResume(...args),
+}));
+
+vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({
+  buildLifecycleIndex: async () => new Map([["widget", { path: ".arc/backlog/planned/widget/meta-widget.md" }]]),
+}));
+
+vi.mock("../../../src/lib/work-unit/executor-context.js", () => ({
+  buildExecutorContext: () => ({}),
+}));
+
+vi.mock("../../../src/lib/active/meta-reader.js", () => ({
+  parseMetaRecord: () => ({ Class: "Light" }),
+}));
+
+vi.mock("../../../src/lib/config/status-reader.js", () => ({
+  readConfigSettings: async () => ({
+    settings: { "branch.base": "main", "worktree.location_template": "../{repo}-{branch}" },
+  }),
+}));
+
+vi.mock("../../../src/lib/git/worktree-roster.js", () => ({
+  resolvePrimaryWorktreePath: async () => "/repos/myrepo",
+}));
+
+const mockIsNonInteractive = vi.fn(() => true);
 
 vi.mock("../../../src/handlers/shared.js", () => ({
-  resolveUserIdentity: () => mockResolveUserIdentity(),
+  resolveUserIdentity: async () => "andrew",
   isHandledError: () => false,
   isNonInteractiveEnvironment: () => mockIsNonInteractive(),
   requireArcProjectRoot: () => "/repo",
@@ -52,30 +79,19 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 }));
 
 vi.mock("../../../src/lib/io-context.js", () => ({
-  createUserIOContext: () => ({}),
+  createUserIOContext: () => ({ exec: vi.fn(), readFile: vi.fn(async () => ""), writeFile: vi.fn() }),
 }));
 
-vi.mock("../../../src/lib/paths.js", () => ({
-  getInternalTemplatePath: () => "/tmpl",
-}));
+vi.mock("../../../src/lib/paths.js", () => ({ getInternalTemplatePath: () => "/tmpl" }));
 
 const { handleStart } = await import("../../../src/handlers/start.js");
 
-/** A successful create-new outcome with the spawned worktree detail. */
-function spawned() {
-  return {
-    ok: true as const,
-    value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
-  };
-}
-
-describe("handleStart — create-new dispatch", () => {
+describe("handleStart — dispatch orchestration", () => {
   let savedExitCode: typeof process.exitCode;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockIsNonInteractive.mockReturnValue(false);
+    mockIsNonInteractive.mockReturnValue(true); // skip confirm by default
     mockIsCancel.mockReturnValue(false);
     savedExitCode = process.exitCode;
     process.exitCode = undefined;
@@ -85,87 +101,159 @@ describe("handleStart — create-new dispatch", () => {
     process.exitCode = savedExitCode;
   });
 
-  it("refuses without a name — errors, sets exit code, never confirms or spawns", async () => {
+  it("refuses the default path without a name — never dispatches", async () => {
     await handleStart(undefined, {});
 
     expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/requires a work-unit name/i));
     expect(process.exitCode).toBe(1);
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunCreateNew).not.toHaveBeenCalled();
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
   });
 
-  it("treats a whitespace-only name as no name", async () => {
-    await handleStart("   ", {});
-
-    expect(process.exitCode).toBe(1);
-    expect(mockRunCreateNew).not.toHaveBeenCalled();
-  });
-
-  it("spawns on confirm-accept, passing the resolved context, then notes the result", async () => {
-    mockConfirm.mockResolvedValue(true);
-    mockRunCreateNew.mockResolvedValue(spawned());
+  it("routes a nonexistent name to create-new and notes the spawn", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunCreateNew.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repos/myrepo.plan-widget", branch: "plan/widget", wuName: "widget" },
+    });
 
     await handleStart("widget", {});
 
-    expect(mockConfirm).toHaveBeenCalledTimes(1);
-    expect(mockRunCreateNew).toHaveBeenCalledWith(
-      { io: {}, internalTemplateDir: "/tmpl" },
-      { worktreePath: "/repo", identity: "andrew", name: "widget" },
-    );
-    // Success reporting: the spawned branch + worktree land in the note.
-    const noteArg = mockNote.mock.calls[0]?.[0] as string;
-    expect(noteArg).toContain("plan/widget");
-    expect(noteArg).toContain("/repos/myrepo.plan-widget");
-    expect(mockOutro).toHaveBeenCalled();
+    expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
+    expect((mockNote.mock.calls[0]?.[0] as string)).toContain("plan/widget");
     expect(process.exitCode).toBeUndefined();
   });
 
-  it("aborts on confirm-decline — no spawn, no error code", async () => {
+  it("routes a backlog stub to graduate, supplying the resolved Class", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", {});
+
+    expect(mockRunGraduate).toHaveBeenCalledTimes(1);
+    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", baseBranch: "main" });
+    expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Graduated");
+  });
+
+  it("routes a parked WU to resume", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "resume" });
+    mockRunResume.mockResolvedValue({
+      status: "resumed",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", {});
+
+    expect(mockRunResume).toHaveBeenCalledTimes(1);
+    expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Resumed");
+  });
+
+  it("`--here` against a parked WU resumes in place (no spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "resume" });
+    mockRunResume.mockResolvedValue({
+      status: "resumed",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunResume).toHaveBeenCalledTimes(1);
+    expect(mockRunResume.mock.calls[0]?.[1]).toMatchObject({ name: "widget", inPlace: true });
+    expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Resumed (in place)");
+  });
+
+  it("surfaces a directed refusal and sets the exit code — no arm runs", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "refuse", reason: "`widget` is occupied — already Active." });
+
+    await handleStart("widget", {});
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/occupied/));
+    expect(process.exitCode).toBe(1);
+    expect(mockRunCreateNew).not.toHaveBeenCalled();
+    expect(mockRunGraduate).not.toHaveBeenCalled();
+    expect(mockRunResume).not.toHaveBeenCalled();
+  });
+
+  it("reports an arm refusal — surfaces the reason, sets the exit code, writes no note", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({ status: "rejected", reason: "requires a resolved `Class`" });
+
+    await handleStart("widget", {});
+
+    expect(mockLog.error).toHaveBeenCalledWith(expect.stringMatching(/class/i));
+    expect(process.exitCode).toBe(1);
+    expect(mockNote).not.toHaveBeenCalled();
+  });
+
+  it("`--here` with no name cold-starts in place, bypassing dispatch", async () => {
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart(undefined, { here: true });
+
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+    expect((mockNote.mock.calls[0]?.[1] as string)).toBe("Cold-started");
+  });
+
+  it("`--here` with a whitespace-only name treats it as omitted and cold-starts in place", async () => {
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart("   ", { here: true });
+
+    expect(mockResolveStartDispatch).not.toHaveBeenCalled();
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+  });
+
+  it("`--here` against a nonexistent name cold-starts in place (not create-new spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
+    mockRunColdStart.mockResolvedValue({
+      ok: true,
+      value: { worktreePath: "/repo", branch: "feat/widget", wuName: "widget" },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunColdStart).toHaveBeenCalledTimes(1);
+    expect(mockRunCreateNew).not.toHaveBeenCalled();
+  });
+
+  it("`--here` against a backlog stub graduates in place (no spawn)", async () => {
+    mockResolveStartDispatch.mockReturnValue({ arm: "graduate" });
+    mockRunGraduate.mockResolvedValue({
+      status: "graduated",
+      branch: "plan/widget",
+      metaPath: ".arc/active/meta-widget.md",
+      outcome: { status: "ok", advisories: [] },
+    });
+
+    await handleStart("widget", { here: true });
+
+    expect(mockRunGraduate).toHaveBeenCalledTimes(1);
+    expect(mockRunGraduate.mock.calls[0]?.[1]).toMatchObject({ name: "widget", cls: "Light", inPlace: true });
+    expect(mockRunGraduate.mock.calls[0]?.[1]).not.toHaveProperty("baseBranch");
+  });
+
+  it("aborts on confirm-decline — routes nothing", async () => {
+    mockIsNonInteractive.mockReturnValue(false);
     mockConfirm.mockResolvedValue(false);
+    mockResolveStartDispatch.mockReturnValue({ arm: "create-new" });
 
     await handleStart("widget", {});
 
     expect(mockRunCreateNew).not.toHaveBeenCalled();
     expect(mockLog.info).toHaveBeenCalledWith(expect.stringMatching(/cancelled/i));
     expect(process.exitCode).toBeUndefined();
-  });
-
-  it("aborts on confirm-cancel (Ctrl-C) — no spawn", async () => {
-    mockConfirm.mockResolvedValue(Symbol("cancel"));
-    mockIsCancel.mockReturnValue(true);
-
-    await handleStart("widget", {});
-
-    expect(mockRunCreateNew).not.toHaveBeenCalled();
-  });
-
-  it("skips the confirm prompt under --yes", async () => {
-    mockRunCreateNew.mockResolvedValue(spawned());
-
-    await handleStart("widget", { yes: true });
-
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
-  });
-
-  it("skips the confirm prompt in a non-interactive environment", async () => {
-    mockIsNonInteractive.mockReturnValue(true);
-    mockRunCreateNew.mockResolvedValue(spawned());
-
-    await handleStart("widget", {});
-
-    expect(mockConfirm).not.toHaveBeenCalled();
-    expect(mockRunCreateNew).toHaveBeenCalledTimes(1);
-  });
-
-  it("reports a spawn refusal — surfaces the reason, sets exit code, writes no note", async () => {
-    mockRunCreateNew.mockResolvedValue({ ok: false, reason: "could not resolve the primary worktree" });
-
-    await handleStart("widget", { yes: true });
-
-    expect(mockLog.error).toHaveBeenCalledWith("could not resolve the primary worktree");
-    expect(process.exitCode).toBe(1);
-    expect(mockNote).not.toHaveBeenCalled();
-    expect(mockOutro).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,7 @@
  */
 
 import { access, readdir, readFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { join } from "node:path";
 
 import * as p from "@clack/prompts";
 
@@ -52,7 +52,6 @@ import {
   filterRosterByIdentity,
   gitConfigGet,
   runWorktreeRoster,
-  type WorktreeRosterEntry,
 } from "../lib/git/index.js";
 import { runRecentRemoteBranches } from "../lib/git/recent-remote-branches.js";
 import { resolveInFlightBranchSet } from "../lib/git/remote-ref-reader.js";
@@ -89,8 +88,7 @@ import {
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { runStatusUserView } from "../lib/status/user-view.js";
-import { loadReadyMineSlice } from "../lib/status/ready-mine-source.js";
+import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -99,8 +97,6 @@ export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
   user?: boolean;
-  /** `--lifecycle <slug>`: resolve one work unit's lifecycle state as a slug→state query. */
-  lifecycle?: string;
   /** `--local`: render the user view from local refs without a network read. */
   local?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
@@ -180,16 +176,16 @@ async function resolveNudgeState(
   };
 }
 
-export async function handleStatus(opts: StatusCliOptions): Promise<void> {
+export async function handleStatus(slug: string | undefined, opts: StatusCliOptions): Promise<void> {
   const modeCount = [
+    slug !== undefined,
     opts.sessionInit,
     opts.sessionHandoff,
     opts.user,
-    opts.lifecycle,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: --session-init, --session-handoff, --user, and --lifecycle are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, and --user are mutually exclusive.\n",
     );
     process.exitCode = 1;
     return;
@@ -199,7 +195,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
   if (!cwd) return;
   const json = Boolean(opts.json);
 
-  if (opts.lifecycle !== undefined) {
+  if (slug !== undefined) {
     // Slug→state query: a subject-keyed read over the lifecycle-complete index,
     // independent of session identity / settings. The index walk binds real I/O;
     // the resolution stays a pure lib projection.
@@ -210,7 +206,7 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
         readFile: (path) => readFile(path, "utf8"),
       },
     });
-    const query = resolveSlugQuery(index, opts.lifecycle);
+    const query = resolveSlugQuery(index, slug);
     if (json) {
       process.stdout.write(`${JSON.stringify(query)}\n`);
       return;
@@ -464,28 +460,14 @@ export async function handleStatus(opts: StatusCliOptions): Promise<void> {
     const resolved = await resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const teamMode = resolved.settings["team.mode"] === "true";
     const localOnly = Boolean(opts.local) || opts.fetch === false;
-    const statusUserPath =
-      identity === null ? null : join(cwd, ".arc", "user", identity, "STATUS.USER.md");
-    const view = await runStatusUserView({
+    const view = await assembleStatusUserView({
+      cwd,
       exec: gitExec,
       identity,
       teamMode,
       localOnly,
-      readLastRendered: () =>
-        statusUserPath === null
-          ? Promise.resolve(null)
-          : io.readFile(statusUserPath).then((content) => content, () => null),
-      readLocalInFlight: async () => {
-        const roster = filterRosterByIdentity(
-          await runWorktreeRoster({
-            exec: gitExec,
-            fs: { readdir, readFile: (path) => readFile(path, "utf8") },
-          }),
-          { identity, teamMode },
-        );
-        return roster.entries.flatMap(localRosterEntryToInFlight);
-      },
-      readReadyMine: () => loadReadyMineSlice({ cwd, identity }),
+      readFile: io.readFile,
+      readdir: (path) => readdir(path),
     });
     if (json) {
       process.stdout.write(`${JSON.stringify(view)}\n`);
@@ -531,31 +513,4 @@ function formatSlugStateQuery(query: SlugStateQuery): string {
     }
   }
   return lines.join("\n");
-}
-
-const META_FILE_RE = /^meta-(.+)\.md$/;
-
-function workUnitNameFromMetaPath(metaFilePath: string, branch: string): string {
-  const match = META_FILE_RE.exec(basename(metaFilePath));
-  if (match?.[1] !== undefined) return match[1];
-  return branch.replace(/^(feat|fix|chore|plan)\//u, "");
-}
-
-function localRosterEntryToInFlight(entry: WorktreeRosterEntry): InFlightEntry[] {
-  if (entry.metaFilePath === undefined) return [];
-  return [
-    {
-      kind: "work-unit",
-      name: workUnitNameFromMetaPath(entry.metaFilePath, entry.branch),
-      state: entry.state === "Planning" ? "Planning" : "Active",
-      branch: entry.branch,
-      worktreePath: entry.worktreePath,
-      remoteOnly: false,
-      ...(entry.identity !== undefined ? { owner: entry.identity } : {}),
-      ...(entry.cohort !== undefined ? { cohort: entry.cohort } : {}),
-      ...(entry.class !== undefined ? { class: entry.class } : {}),
-      ...(entry.priority !== undefined ? { priority: entry.priority } : {}),
-      dependsOn: entry.dependsOn ?? [],
-    },
-  ];
 }

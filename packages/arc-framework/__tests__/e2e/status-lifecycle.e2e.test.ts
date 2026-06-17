@@ -2,7 +2,8 @@
  * E2E coverage for the lifecycle status query.
  *
  * Exercises the built CLI entrypoint rather than only the pure resolver modules,
- * so the `status --lifecycle --json` command branch stays wired.
+ * so the `status <slug> --json` command branch stays wired — and so bare
+ * `arc status` keeps its session/active view, unchanged by the positional.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -10,15 +11,14 @@ import { join } from "node:path";
 import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
-describe("status --lifecycle", () => {
+describe("status <slug>", () => {
   let tmpDir: string;
 
   afterEach(async () => {
     await cleanupTempDir(tmpDir);
   });
 
-  it("emits the resolved lifecycle query as JSON", async () => {
-    tmpDir = await createTempRepo("arc-status-lifecycle-");
+  async function seedRepo(): Promise<void> {
     const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
     expect(init.exitCode).toBe(0);
 
@@ -46,8 +46,13 @@ describe("status --lifecycle", () => {
         "",
       ].join("\n"),
     );
+  }
 
-    const result = await runArc(["status", "--lifecycle", "live", "--json"], tmpDir);
+  it("emits the resolved lifecycle query as JSON for a slug positional", async () => {
+    tmpDir = await createTempRepo("arc-status-lifecycle-");
+    await seedRepo();
+
+    const result = await runArc(["status", "live", "--json"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
@@ -58,5 +63,21 @@ describe("status --lifecycle", () => {
       shipped: false,
       dependsOn: [{ slug: "shipped-dep", landed: true }],
     });
+  });
+
+  it("leaves bare `arc status` as the session/active view, not a slug query", async () => {
+    tmpDir = await createTempRepo("arc-status-bare-");
+    await seedRepo();
+
+    const result = await runArc(["status", "--json"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // The composite probe result carries no top-level `slug` key — the
+    // positional branch did not capture the bare invocation — and is a
+    // non-empty object (the session/active view actually rendered).
+    const payload = JSON.parse(result.stdout);
+    expect(payload).not.toHaveProperty("slug");
+    expect(typeof payload).toBe("object");
+    expect(payload).not.toEqual({});
   });
 });

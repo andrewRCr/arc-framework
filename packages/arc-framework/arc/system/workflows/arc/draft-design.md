@@ -20,11 +20,29 @@ all. The `arc-plan` skill dispatches into this workflow.
 This stage reads the **derivation** axis: how much design must be authored before a competent engineer can
 start.
 
-**Branch context:** Under full protection (`branch.protection: full`), drafting runs on a planning branch with a
-Planning-state `meta-{name}.md` present. Under partial protection (the default), it may run on the base branch,
-and no meta file may exist yet.
-
 ---
+
+## Planning-entry gate
+
+Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
+context and routes so a draft never lands where it can't be committed:
+
+```bash
+arc plan check --name <slug> --json
+```
+
+Include `--name` when the design has a working slug (it gates the draft-presence check); omit it for an unnamed
+idea. Act on the emitted `route`:
+
+- **`proceed`** — committable: the base branch under partial protection, or an active planning branch (a
+  `Planning`-state `meta-{name}.md` on its branch) under full. Continue to **Resolve depth & Class** below.
+- **`redirect`** — not committable; `reason` words why (on the protected base, on another work unit's branch, or
+  a degenerate context). Don't draft here. Surface the route by WU-worthiness and **confirm with the developer**
+  before acting — the mechanic resolved the context, but the leg is judgment:
+    - **start now** — WU-worthy → `arc start <name>`, then draft on its branch.
+    - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
+      backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
+    - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 ## Resolve depth & Class
 

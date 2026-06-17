@@ -63,9 +63,10 @@ forcing in-place; the `--here` cold-start path is the one explicit in-place over
 - **Partial protection** — no planning branch: new work proceeds directly from the base checkout (the documented
   no-ceremony default), so these numbered steps don't run.
 
-Both modes share the rest of the workflow. Graduating a backlog stub (Step 3), reconciling an existing meta
-file (Step 4, Path A), and the idempotent-resume case stay part of the workflow in either mode — they
-reconcile files that already exist, whereas fresh scaffolding mints new ones.
+Both modes share the rest of the workflow. Graduating a backlog stub (Step 3) dispatches through
+`arc start`, which honors the same placement-mode selection (spawn by default, `--here` in-place);
+reconciling the graduated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
+already exist, whereas fresh scaffolding mints new ones.
 
 Promoting an errand is a separate entry path: it starts from an existing `chore/<slug>` branch and uses
 [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path), not the numbered new-WU steps below.
@@ -113,10 +114,12 @@ zero pending captures. If the user pauses to drain, run housekeep from this base
 re-check clean/parity before proceeding to Step 2. If identity is absent, `inboxState` is omitted, or the slot
 failed, surface the degraded state only when useful and continue.
 
-### 2) Create Planning Branch
+### 2) Create Planning Branch — fresh WU
 
-_Worktree-creating mode delegates this step and Step 4 (Path B) to the spawn entry point — see
-[§ Execution Modes](#execution-modes). The commands below are the in-place path._
+_This step scaffolds a **fresh** work unit's branch. Graduating an existing backlog stub instead brings up
+the branch (and opens the workspace) via `arc start` in Step 3 — skip this step on that path. Worktree-creating
+mode delegates this step and Step 4 (Path B) to the spawn entry point — see [§ Execution Modes](#execution-modes);
+the commands below are the in-place path._
 
 ```bash
 git checkout -b plan/{name}
@@ -135,26 +138,33 @@ arc user open {name}
 ### 3) Graduate Backlog Subdir to Active · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external`. Skip also if no backlog subdir exists
-> at `backlog/{planned,provisional}/{name}/`.
+> at `backlog/{planned,provisional}/{name}/` — that is the fresh-WU path (Step 2 + Step 4 Path B).
 
-When resuming from a backlog stub, graduate the per-WU subdir contents into the active workspace.
-On the normal readiness-ladder path, this is the `planned → active` rung;
-[graduate-work-unit][graduate-work-unit] has already performed `provisional → planned` and forced a resolved
-`Class` before the stub became startable. Direct `provisional/` reconciliation is tolerated only as a legacy /
-manual fallback; Path A resolves any remaining `[TBD]` immediately.
-Under the per-WU subdir model, every backlog WU carries `meta-{name}.md` (always) plus any
-draft-doc and companions:
+When resuming from a backlog stub, run the `start` transition to bring the work unit up. It relocates the
+per-WU subdir's artifact set (`meta-{name}.md` always, plus any `draft-*` / `notes-*` / companions) from
+`backlog/{state}/{name}/` into `active/`, births the `plan/{name}` branch, writes the meta `Branch` field, and
+opens the per-WU user workspace — one executor-dispatched transition, replacing the hand-run relocation. On the
+normal readiness-ladder path this is the `planned → active` rung; [graduate-work-unit][graduate-work-unit] has
+already performed `provisional → planned`.
+
+**Resolve `Class` first.** The transition's `class-resolved` guard refuses a stub whose `Class` is still
+`[TBD]`. A `planned/` graduate arrives with a resolved estimate; resolve a `provisional/` stub's `[TBD]` to a
+best estimate (per [`classify-work-unit`][classify-work-unit]) in its backlog meta before running the
+transition. Direct `provisional/` graduation is otherwise tolerated only as a legacy / manual fallback.
 
 ```bash
-git mv .arc/backlog/{state}/{name}/meta-{name}.md .arc/active/
-git mv .arc/backlog/{state}/{name}/draft-{name}.md .arc/active/   # when present
-git mv .arc/backlog/{state}/{name}/notes-{name}.md .arc/active/  # when present
-# Move other companions present in the subdir
-rmdir .arc/backlog/{state}/{name}
+arc start {name}          # spawn a dedicated worktree (default under full protection)
+arc start {name} --here   # in-place: cut the branch in the current checkout, no spawn
 ```
 
+The placement mode follows [§ Execution Modes](#execution-modes) — worktree-creating by default, `--here` when
+spawning is unavailable or single-checkout development is wanted. The `worktree-occupancy` guard refuses an
+in-place graduate into a checkout already holding an active WU. The relocation `git mv` is staged but **not**
+committed (the executor never commits) — it bundles into the init commit below with Step 4's reconcile edits.
+`arc start` surfaces an interim ROADMAP-regen advisory; Step 5 is where the hand-render lands.
+
 The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
-`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Branch` and `Design` without
+`Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Design` and `Next Action` without
 overwriting these fields.
 
 See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
@@ -165,17 +175,17 @@ Two paths depending on Step 3's outcome:
 
 **Path A — Graduated from backlog** (`active/meta-{name}.md` exists from Step 3):
 
-Reconcile the existing meta-file to reflect the now-active planning state:
+`arc start` (Step 3) already moved the meta into `active/` and wrote the `Branch` field. Reconcile the
+remaining planning-state fields:
 
-1. **Branch** → current planning branch (e.g., `plan/{name}`)
-2. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
-3. **Next Action** → freeform planning-session prompt
-4. **Class** → confirm-or-ratchet via [`classify-work-unit`][classify-work-unit]. A `planned/` graduate
-   arrives with a resolved estimate — confirm it still holds, or ratchet up to any realized floor. A
-   `provisional/` stub may still read `[TBD]` — resolve it to a best estimate now.
+1. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
+2. **Next Action** → freeform planning-session prompt
 
-**Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other
-backfilled fields. The backlog stub's intentional metadata survives graduation.
+**Class** was resolved before graduation (Step 3); confirm it still holds, or ratchet up to any realized
+floor via [`classify-work-unit`][classify-work-unit].
+
+**Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other backfilled
+fields — `arc start` left them untouched. The backlog stub's intentional metadata survives graduation.
 
 **Path B — Fresh WU** (no backlog meta-file):
 
@@ -196,11 +206,11 @@ Remaining fields take their `template-meta.md` defaults.
 
 **Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
 prior session, not from backlog graduation), do not recreate it. Reconcile **Branch** and **Spec**
-as in Path A; preserve other field values.
+as in Path B; preserve other field values.
 
 > [!CAUTION]
-> `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the backlog-subdir
-> file moves (meta + draft-doc + companions) together with the meta-file reconcile edits as a
+> `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the relocation moves
+> `arc start` performed (meta + draft-doc + companions) together with the meta-file reconcile edits as a
 > bundled init commit. Under Path B, stage the new meta file as a dedicated init commit. Subject
 > per [`commit-format`][commit-format]; meta-file commit shape per [DEV-RULES.ARC][dev-rules-arc]
 > § Commit Discipline.
