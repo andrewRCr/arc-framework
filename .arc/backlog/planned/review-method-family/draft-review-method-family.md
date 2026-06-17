@@ -42,6 +42,27 @@
   gating belongs in the extension contract, the fire-site, or a review-method abstraction. Coordinate with
   `rules-restructure`'s extension-definition breadth and the auto-merge-lane "no human review" classification.
 
+### `[ ]` **`arc-design-audit` — a standalone design-validation audit (efficacy + fit)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: review-method-family`), housekeep drain (2026-06-17);
+  captured during `release-ceremony-commits` session-init — fresh-eyes design re-check before impl (2026-06-17).
+- _Concern:_ nothing validates the **design itself** against the problem it solves. `spec-review` (in
+  `create-spec`) reviews the written artifact and disclaims design re-litigation, routing any design-reopening
+  finding back to the draft/spec with no destination; `arc-task-audit` checks grounding + executability, taking
+  the design as given. Two **verification** passes (build it right), zero **validation** (build the right thing).
+- _Proposed shape:_ a read-only audit (surfaces findings, doesn't fix — parallel to `arc-task-audit`), two slices:
+  **(1) Efficacy** — given the goal, does the design solve it? **(2) Fit** — is it optimal + compatible with
+  surrounding goals / forward-compat constraints (storage-evolution, release-wrapper, interlock models)? Fit is
+  core: `spec-review`'s alignment checks test does-it-conflict, not is-it-optimal-given-direction.
+- _Invocation:_ **standalone + optional**, deliberately NOT wired inline like `arc-task-audit`. Same-session
+  self-review can't give fresh eyes (why `spec-review` disclaims design re-litigation) — suggest a fresh session /
+  subagent. Floor = a finished draft; point-agnostic above (draft, spec, post-task-gen, mid-impl re-entry). Reads
+  whatever is authoritative (draft if no spec, spec if present).
+- _Composition / home:_ the missing **destination** for `spec-review`'s "this reopens design" pointer, one rung
+  above `arc-task-audit` (intent → artifact → tasks → code). Primary `review-method-family` (sibling to
+  `task-audit` / `spec-review` / `code-review`); secondary `planning-pipeline-readiness` (narrower draft→spec
+  gate). Standalone new WU only if both reject.
+
 ## Problem / Motivation
 
 Two issues are entwined in the current review-related surface, both surfaced during interlock-foundation

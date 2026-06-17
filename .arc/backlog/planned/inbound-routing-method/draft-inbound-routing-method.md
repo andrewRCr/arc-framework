@@ -35,6 +35,26 @@
   explicit express-lane the rule names). Confirm the design-vs-consequence test is the intended line, or
   supersede it.
 
+### `[ ]` **`assess-wu-target` — a codified procedure for resolving a capture's backlog home**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: inbound-routing-method`), housekeep drain (2026-06-17);
+  captured during `release-ceremony-commits` session-init — raised while hand-resolving the `arc-design-audit`
+  capture's own `WU_Target` (live dogfood: index-scan, then 2-candidate validate) (2026-06-17).
+- *Concern:* "capture with a backlog `WU_Target`" recurs constantly, and resolving the target — which existing
+  stub, or a new one — requires reading backlog drafts, costly and context-polluting. No codified procedure; it
+  gets re-improvised at every drain (and `WU_Target: TBD` defers it there) and ad-hoc at capture.
+- *Gap in the method family:* `inbound-routing-method` codifies how to write a concern into a **chosen** stub
+  (assumes you know which); `assess-parallel-fit` matches a candidate against the in-flight set for a *concurrency*
+  verdict. Missing: **which** stub does this belong to (homing/discovery). Family: **homing** (`assess-wu-target`)
+  → **integration** (`inbound-routing`), with **concurrency** (`assess-parallel-fit`) the cousin.
+- *Proposed shape:* a **method**, not a skill. **Two tiers:** (1) **Cheap** — match against a lightweight index
+  (slug + one-line purpose; ROADMAP carries much of it), no subagents; resolves the obvious-home majority. (2)
+  **Scout** — on ambiguity (2–4) or no clean match, fan out Explore subagents over candidate drafts, each
+  returning `{slug, fit, body-vs-buffer, confidence, rationale}`; the caller validates + picks, never seeing draft
+  bodies. Optimizes calling-agent context load.
+- *Home note:* primary `inbound-routing-method` (find-the-home + write-it-in belong together); could stand alone
+  as a sibling method if that WU stays narrow.
+
 ---
 
 ## Problem / Motivation
