@@ -171,6 +171,13 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       await io.writeFile(at(metaPath), setMetaBranch(content, branch));
     },
 
+    // Stage the content legs' meta rewrite through the same git seam
+    // `relocate-artifacts` stages its `git mv` with, so the rewrite rides the
+    // same commit instead of lingering unstaged over a git-mv'd (stale) index.
+    stageMeta: async (metaPath) => {
+      await exec("git", ["add", at(metaPath)]);
+    },
+
     guardValidators: buildFootgunGuards({ cwd, readActiveMetaCandidates, exec }),
 
     sideEffects: {

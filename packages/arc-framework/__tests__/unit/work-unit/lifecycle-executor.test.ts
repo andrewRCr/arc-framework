@@ -191,6 +191,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       calls.push(`branch-field:${branch}`);
       branchWrites.push({ path, branch });
     },
+    stageMeta: async (metaPath) => {
+      calls.push(`stage:${metaPath}`);
+    },
     guardValidators: opts.guardValidators,
     sideEffects,
   };
@@ -231,6 +234,24 @@ describe("executeTransition — state resolution", () => {
     expect(outcome.from).toEqual({ phase: "Active", location: "active" });
     expect(outcome.to).toEqual({ phase: "Integrating", location: "active" });
     expect(calls).toContain("leg:setPhase:Integrating");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. Stage the meta the content legs rewrite — `relocate-artifacts` git-mv's it
+//     (staging stale content); set-phase / branch-field / soft-field writes go
+//     through the fs seam unstaged, so the executor must re-stage it.
+// ---------------------------------------------------------------------------
+
+describe("executeTransition — stages the rewritten meta", () => {
+  it("stages the relocated meta at its post-relocate path (archive: relocate + setPhase + clear-branch)", async () => {
+    const { ctx, calls } = buildSpies({ metas: [INTEGRATING_META] });
+    const toDir = ".arc/completed/2026-q2/01_demo";
+
+    const outcome = await executeTransition(ctx, { verb: "archive", slug: "demo", inputs: { toDir } });
+
+    expect(outcome.status).toBe("ok");
+    expect(calls).toContain(`stage:${toDir}/meta-demo.md`);
   });
 });
 
