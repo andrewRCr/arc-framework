@@ -1,8 +1,8 @@
 # Metadata: release-ceremony-commits
 
-| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
-| --------- | --------- | ------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/release-ceremony-commits` | `Light`   | `P3`         |
+| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/release-ceremony-commits` | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
