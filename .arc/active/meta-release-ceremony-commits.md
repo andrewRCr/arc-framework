@@ -11,10 +11,10 @@
 - **Design:** spec-release-ceremony-commits.md
 - **Task List:** tasks-release-ceremony-commits.md
 
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Distinguish zero-candidate from multi-candidate in the WU resolver
+- **Last Completed:** Phase 1 (Tasks 1.1–1.2) — accept no-active-WU ceremony commits in the release wrappers
+- **Next Task:** Task 2.1 — Complete verification (line ~46)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 via process-task-loop — split the WU resolver outcome (test-first)
+- **Next Action:** Begin Task 2.1 via process-task-loop — load and follow `verify-work-unit.md`
 
 ---
