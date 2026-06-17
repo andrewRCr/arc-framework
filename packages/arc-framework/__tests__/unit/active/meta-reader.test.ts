@@ -20,6 +20,7 @@ import {
   renderMetaFile,
   setMetaBulletFields,
   setMetaBranch,
+  setMetaCurrentWorkflow,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -1059,5 +1060,53 @@ describe("setMetaBranch — in-place core-table Branch rewrite", () => {
   it("throws when the meta carries no core-block table", () => {
     const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
     expect(() => setMetaBranch(noTable, "plan/demo-wu")).toThrow(/core-block table/i);
+  });
+});
+
+describe("setMetaCurrentWorkflow — in-place Current Workflow bullet rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State**  | **Owner** | **Branch**     | **Class** | **Priority** |
+|------------|-----------|----------------|-----------|--------------|
+| \`Planning\` | \`andrew\`  | \`plan/demo-wu\` | \`Heavy\`   | \`P1\`         |
+
+- **Design:** \`draft-demo-wu.md\`
+- **Current Workflow:** \`draft-design\`
+- **Task List:** [none]
+
+- **Next Action:** Draft the design.
+
+---
+`;
+
+  it("writes Current Workflow to the given target stage", () => {
+    const written = setMetaCurrentWorkflow(META, "create-spec");
+    expect(parseMetaRecord(written)["Current Workflow"]).toBe("create-spec");
+  });
+
+  it("writes the `[none]` sentinel when clearing", () => {
+    const written = setMetaCurrentWorkflow(META, "[none]");
+    expect(parseMetaRecord(written)["Current Workflow"]).toBe("[none]");
+  });
+
+  it("leaves every other field and the prose below byte-stable", () => {
+    const written = setMetaCurrentWorkflow(META, "generate-tasks");
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after["Current Workflow"]).toBe("generate-tasks");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Current Workflow") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The core-block table is untouched (only the bullet value changed).
+    expect(written).toContain("| `Planning` | `andrew`  | `plan/demo-wu` | `Heavy`   | `P1`         |");
+    // The narrative tail below the field is preserved verbatim.
+    const tail = (s: string): string => s.slice(s.indexOf("- **Next Action:**"));
+    expect(tail(written)).toBe(tail(META));
+  });
+
+  it("throws when the meta carries no Current Workflow bullet (fail-loud)", () => {
+    const noField = META.replace("- **Current Workflow:** `draft-design`\n", "");
+    expect(() => setMetaCurrentWorkflow(noField, "create-spec")).toThrow(/Current Workflow.*not found/i);
   });
 });

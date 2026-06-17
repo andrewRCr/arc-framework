@@ -99,24 +99,19 @@ _Purpose:_ Make the planning sub-stages CLI-recognized events and write the two 
 entries, the `activate` encoding leg for the exit clear — the write half of resolve-for-reads /
 CLI-mutate-for-writes. Code-tier, test-first.
 
-### `[ ]` **4.1 Parameterized stage-pointer write primitive**
+### `[x]` **4.1 Parameterized stage-pointer write primitive**
 
 - _Goal:_ One parameterized primitive writes `Current Workflow` to a target stage (or `[none]`) while preserving the
   rest of the meta — the single write both the stage-entry command (4.2.a) and the activate-exit encoding leg
   (4.2.b) reuse.
-- _Note:_ Open question (lean settled): a single parameterized stage-pointer mutator keyed by the target stage — not
-  bespoke per-stage top-level verbs. The user-facing verb spelling waits on `idiomatic-alignment`; the mechanism
-  (a bullet-field write over the 3.1 setter) is settled here.
 - **Strategies:** strategy-testing-methodology.md
-
-    - Add the write seam over `setMetaBulletFields` (the same bullet-field writer the executor's `writeSoftFields`
-      seam uses), keyed by the target stage value (`draft-design` / `create-spec` / `generate-tasks` / `[none]`).
-      Mirror the injected-seam shape of `writeBranchField` in `executor-context.ts`.
-    - Reads resolve from state; writes are CLI-mutated (the drift-control principle).
-    - Build `test-first` (one behavior at a time):
-        - the primitive writes `Current Workflow` for a given target stage
-        - it writes `[none]` when clearing
-        - the rest of the meta (core table, narratives) stays byte-stable
+- _Outcome:_ Added the pure `setMetaCurrentWorkflow(content, stage)` primitive (`lib/active/meta-reader.ts`, a thin
+  named wrapper over `setMetaBulletFields`, mirroring `setMetaBranch`) plus the injected `writeCurrentWorkflowField`
+  executor seam (the `ExecutorContext` interface in `lifecycle-executor.ts` + the `executor-context.ts` builder,
+  mirroring `writeBranchField`). Writes a target stage or `[none]` while leaving the rest of the meta byte-stable,
+  fail-loud when the bullet is absent. The seam is the single write 4.2.a (stage-entry command) and 4.2.b
+  (activate-exit leg) reuse; user-facing verb spelling stays deferred to `idiomatic-alignment`. Updated the nine
+  hand-rolled executor-context test fakes to carry the new seam.
 
 ### `[ ]` **4.2 Stage-entry command + activate-exit clear**
 

@@ -437,6 +437,29 @@ export function setMetaBranch(content: string, branch: string): string {
 }
 
 /**
+ * Rewrite the `Current Workflow` bullet field in place — the planning-stage
+ * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
+ * (which rewrites the core-table Branch cell): the lifecycle executor projects
+ * the meta `Current Workflow` from the planning sub-stage a transition enters
+ * (`draft-design` / `create-spec` / `generate-tasks`), or `[none]` when planning
+ * exits at activation. Every other field and the prose below stay byte-stable.
+ *
+ * A thin wrapper over {@link setMetaBulletFields} fixing the field to
+ * `Current Workflow` — the named primitive the executor's stage-pointer writes
+ * route through, so the stage-entry command and the activate-exit clear share
+ * one write. Inherits {@link setMetaBulletFields}'s fail-loud contract: a meta
+ * without the `Current Workflow` bullet throws (structural drift, not a no-op).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param stage - The planning-stage basename to write (e.g. `create-spec`), or `[none]` to clear.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no `Current Workflow` bullet.
+ */
+export function setMetaCurrentWorkflow(content: string, stage: string): string {
+  return setMetaBulletFields(content, { "Current Workflow": stage });
+}
+
+/**
  * Rewrite one or more core-block table cells in place, re-rendering *only* the
  * three core-table rows so column alignment stays correct and leaving every
  * bullet, narrative field, and section below byte-identical. The shared engine

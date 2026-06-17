@@ -202,6 +202,14 @@ export interface ExecuteTransitionContext {
   writeBranchField: (metaPath: string, branch: string) => Promise<void>;
 
   /**
+   * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
+   * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
+   * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
+   * `generate-tasks`) at a sub-stage entry, or `[none]` when planning exits.
+   */
+  writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
+
+  /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
    * the branch-field clear, and the soft-field reset all write through the fs
    * seam unstaged; without staging, a meta that `relocate-artifacts` git-mv'd
