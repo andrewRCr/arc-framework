@@ -52,6 +52,7 @@ import {
 } from "../lifecycle-executor.js";
 import type { SideEffectId } from "../lifecycle-transitions.js";
 import { composePointerRecord } from "../pointer-record.js";
+import { isSlugSafe } from "../slug.js";
 
 /** The flat `active/` tier — where a started WU's artifacts live. */
 const ACTIVE_DIR = ".arc/active";
@@ -210,6 +211,15 @@ const PARK_ACTIVE_SIDE_EFFECTS: readonly SideEffectId[] = [
 export async function runPark(ctx: ParkContext, params: ParkParams): Promise<ParkResult> {
   const { name, reason, sourceRecord, worktreePath, currentLocus } = params;
 
+  // `name` is interpolated into the parked-dir and meta paths below; reject a
+  // non-slug before it can escape the artifact root via separators or dot-segments.
+  if (!isSlugSafe(name)) {
+    return {
+      status: "rejected",
+      reason: "`park` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
+    };
+  }
+
   // The reason is required before anything mutates — pure, so the non-TTY case is
   // the same rejection a missing flag is.
   if (reason === undefined || reason.trim() === "") {
@@ -298,8 +308,18 @@ async function parkActive(
     reason,
     renderFields: renderFieldsFrom(sourceRecord),
   });
-  await ctx.fs.mkdir(join(ctx.executor.cwd, toDir), { recursive: true });
-  await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), pointerRecord);
+  // The worktree is already torn down; a pointer-write failure here leaves a
+  // half-applied park, so report it as such rather than throwing past the caller.
+  try {
+    await ctx.fs.mkdir(join(ctx.executor.cwd, toDir), { recursive: true });
+    await ctx.fs.writeFile(join(ctx.executor.cwd, metaPath), pointerRecord);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return {
+      status: "rejected",
+      reason: `park partially applied: worktree torn down, but the pointer-record write failed — ${detail}`,
+    };
+  }
 
   const advisories: string[] = [];
   const sideEffectsFired: SideEffectId[] = [];
@@ -361,6 +381,15 @@ async function parkActive(
 export async function runResume(ctx: ParkContext, params: ResumeParams): Promise<ResumeResult> {
   const { name } = params;
 
+  // `name` is interpolated into the parked-dir and meta paths below; reject a
+  // non-slug before it can escape the artifact root via separators or dot-segments.
+  if (!isSlugSafe(name)) {
+    return {
+      status: "rejected",
+      reason: "`resume` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
+    };
+  }
+
   const parkedSubdir = parkedDir(name);
   const sourceMetaPath = `${parkedSubdir}/meta-${name}.md`;
   let record: Record<MetaFieldName, string | null>;
@@ -406,7 +435,17 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
   // the artifacts are already back; in place the checkout is deferred (below), so
   // the removal lands on the tracked branch for the caller to commit before
   // switching — a checkout first would discard it, orphaning the pointer.
-  await ctx.fs.rm(join(ctx.executor.cwd, sourceMetaPath));
+  // The branch is already re-attached via the transition; a removal failure here
+  // leaves a half-applied resume (a stale pointer-record), so report it as such.
+  try {
+    await ctx.fs.rm(join(ctx.executor.cwd, sourceMetaPath));
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    return {
+      status: "rejected",
+      reason: `resume partially applied: branch re-attached, but the pointer-record removal failed — ${detail}`,
+    };
+  }
   const parkedAbs = join(ctx.executor.cwd, parkedSubdir);
   try {
     if ((await ctx.fs.readdir(parkedAbs)).length === 0) await ctx.fs.rmdir(parkedAbs);

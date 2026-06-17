@@ -30,6 +30,7 @@ import {
   type ExecuteTransitionContext,
   type TransitionOutcome,
 } from "../lifecycle-executor.js";
+import { isSlugSafe } from "../slug.js";
 
 /** The backlog tier a stub commits to — both live physically under `backlog/`. */
 export type StubCommitment = "provisional" | "planned";
@@ -83,9 +84,9 @@ export type StubResult =
  */
 export async function runStub(ctx: StubContext, params: StubParams): Promise<StubResult> {
   // `name` flows straight into directory/file path composition below, so reject
-  // anything but a slug before it can escape `.arc/backlog/` via separators or
+  // anything but a slug before it can escape the artifact root via separators or
   // dot-segments and write an arbitrary repo path.
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(params.name)) {
+  if (!isSlugSafe(params.name)) {
     return {
       status: "rejected",
       reason: "`stub` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",

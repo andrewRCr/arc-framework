@@ -319,6 +319,21 @@ describe("runPark — park@Active", () => {
     expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
     expect(writes).toEqual([]);
   });
+
+  it("reports partial application when the pointer write fails after teardown", async () => {
+    const { ctx, calls } = buildCtx([ACTIVE]);
+    ctx.fs.writeFile = async () => {
+      throw new Error("EACCES: permission denied");
+    };
+
+    const result = await runPark(ctx, BASE_PARK);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/partially applied/i);
+    // Teardown already ran — the failure is post-mutation, not a clean refusal.
+    expect(calls).toContain("worktree:teardown");
+  });
 });
 
 describe("runPark — the reason is required", () => {
@@ -418,6 +433,47 @@ describe("runResume — the inverse", () => {
     expect(result.reason).toMatch(/already holds an active work unit/i);
     // Refusal is total — no placement, no pointer removal.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+    expect(removals).toEqual([]);
+  });
+
+  it("reports partial application when the pointer removal fails after re-attach", async () => {
+    const { ctx, calls } = buildCtx([PARKED]);
+    ctx.fs.rm = async () => {
+      throw new Error("EACCES: permission denied");
+    };
+
+    const result = await runResume(ctx, BASE_RESUME);
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/partially applied/i);
+    // The branch re-attach (spawn) already ran — the failure is post-mutation.
+    expect(calls).toContain("worktree:spawn");
+  });
+});
+
+describe("park / resume reject a non-slug name", () => {
+  it("rejects park when the name is not a path-safe slug", async () => {
+    const { ctx, calls, writes } = buildCtx([ACTIVE]);
+
+    const result = await runPark(ctx, { ...BASE_PARK, name: "../escape" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/slug-safe/i);
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
+    expect(writes).toEqual([]);
+  });
+
+  it("rejects resume when the name is not a path-safe slug", async () => {
+    const { ctx, calls, removals } = buildCtx([PARKED]);
+
+    const result = await runResume(ctx, { ...BASE_RESUME, name: "../escape" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/slug-safe/i);
+    expect(calls.some((c) => c.startsWith("worktree:"))).toBe(false);
     expect(removals).toEqual([]);
   });
 });
