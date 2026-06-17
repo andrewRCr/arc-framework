@@ -15,6 +15,6 @@
 - **Next Task:** Task 2.1 — Complete verification (line ~46)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 via process-task-loop — load and follow `verify-work-unit.md`
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---

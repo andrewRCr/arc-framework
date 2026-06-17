@@ -43,17 +43,21 @@ the audit — while still refusing genuine ambiguity. This phase delivers the sp
 
 ## **Phase 2:** Verification
 
-### `[ ]` **2.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **2.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck:all`,
+  `npm test`, and `npm run build` passed.
+- _Success criteria:_ 5 criteria met; ready for integration.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc release commit` and `arc release push` proceed on a no-active-WU context, writing an audit entry
+- `[x]` `arc release commit` and `arc release push` proceed on a no-active-WU context, writing an audit entry
   with a null work unit
-- `[ ]` Both wrappers still refuse with code 10 when two or more active metas resolve
-- `[ ]` Single-active-WU behavior is unchanged
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` Both wrappers still refuse with code 10 when two or more active metas resolve
+- `[x]` Single-active-WU behavior is unchanged
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
