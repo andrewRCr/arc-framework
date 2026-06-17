@@ -11,17 +11,15 @@
 - **Design:** `draft-planning-pipeline-readiness.md`
 - **Task List:** [none]
 
-- **Last Completed:** Initialized into active planning — graduated from `backlog/planned/`, `Class` resolved to
-  `Heavy`, `plan/` branch cut and pushed. Draft iteration not yet begun.
+- **Last Completed:** Scope-split settled — spun the iteration-content concerns into `planning-iteration-mechanics`
+  and the cold-start-init cleanup into `cold-start-init-polish` (both `planned`, on errand PR #110), and trimmed the
+  draft to its four-concern readiness / stage-pointer spine.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft toward spec readiness via `arc-plan` → `draft-design` — integrate-or-reject
-  the draft's eight `## Inbound Buffer` concerns into a coherent cut. First planning move: settle the scope split —
-  whether the planning-*content* concerns (#3 inbound-buffer ceremony, #5 depth-aware navigation) split to a
-  separate planning-content WU so this member stays spine-focused (the `assess-draft-readiness` method, the
-  `create-spec` review/proceed interlock split, the planning-stage-pointer mechanics) — alongside the
-  `create-spec` / `draft-design` readiness-ownership seam, before committing scope. Gate discharged:
-  `lifecycle-transition-core` shipped, so its executor encoding pattern is available for the stage-pointer fields.
+- **Next Action:** Continue `draft-design` iteration — integrate the four spine concerns into a coherent draft body
+  toward formalization-ready, and settle the buffer-drain seam contract with `planning-iteration-mechanics` (PPR
+  owns the readiness criterion; that WU owns the drain ceremony). Gate discharged: `lifecycle-transition-core`
+  shipped — its executor encoding pattern backs the stage-pointer fields.
 
 ---
