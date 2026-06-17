@@ -54,11 +54,13 @@ _None in flight._
 | arc-modes                    | P3       | andrew | —          | —                           |
 | arc-reinforce                | P3       | andrew | —          | —                           |
 | cohort-cut-coherence         | P3       | andrew | —          | —                           |
+| cold-start-init-polish       | P3       | andrew | —          | —                           |
 | contributor-path             | P3       | andrew | —          | —                           |
 | idiomatic-alignment          | P3       | andrew | —          | —                           |
 | inbound-routing-method       | P3       | andrew | —          | —                           |
 | knowledge-lint               | P3       | andrew | —          | —                           |
 | markdown-formatting          | P3       | andrew | —          | —                           |
+| planning-iteration-mechanics | P3       | andrew | —          | —                           |
 | quality-gate-hooks           | P3       | andrew | —          | —                           |
 | review-method-family         | P3       | andrew | —          | —                           |
 | rules-restructure            | P3       | andrew | —          | —                           |
