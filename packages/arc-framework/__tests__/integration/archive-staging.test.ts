@@ -20,6 +20,7 @@ import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
+import { parseMetaRecord } from "../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
@@ -81,9 +82,12 @@ describe("executor staging — relocate + content rewrite leaves the meta fully 
     const { stdout: unstaged } = await execFileAsync("git", ["diff", "--name-only"], { cwd: repo });
     expect(unstaged.trim()).toBe("");
 
-    // And what is staged is the flip, not the pre-flip snapshot.
+    // And what is staged is the flip, not the pre-flip snapshot — assert the
+    // specific cells (the fixture carries other `[none]` values, so a substring
+    // check on the Branch value would pass without the cell having changed).
     const { stdout: staged } = await execFileAsync("git", ["show", `:${completedRel}`], { cwd: repo });
-    expect(staged).toContain("`Shipped`");
-    expect(staged).toContain("[none]");
+    const stagedRecord = parseMetaRecord(staged);
+    expect(stagedRecord.State).toBe("Shipped");
+    expect(stagedRecord.Branch).toBe("[none]");
   });
 });
