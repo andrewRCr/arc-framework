@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `8b1d058e`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `8d4ae853`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -29,6 +29,7 @@ _None in flight._
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement    |
 | single-owner-wu-model        | P2       | andrew | —          | concurrent-work-conventions |
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
+| lifecycle-mechanics-tail     | P2       | andrew | —          | lifecycle-state-machine     |
 | planning-pipeline-readiness  | P2       | andrew | —          | lifecycle-state-machine     |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |

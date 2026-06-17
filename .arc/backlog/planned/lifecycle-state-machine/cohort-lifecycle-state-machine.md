@@ -129,6 +129,12 @@ naturally consume, so the posture is "design toward / hand-roll now / build v1,"
 - **`graduation-cleanup`** — a companion history-rewrite ceremony riding the `activate` / `park` edges; those
   edges are **correct without it** (additive, not a consistency gap). `lifecycle-transition-core` names the hook
   point; the ceremony stays downstream.
+- **`lifecycle-mechanics-tail`** — a companion owning the deterministic-CLI-mechanic _second_ migration step past
+  this cohort's B1 first stop (the post-merge teardown verb, the `arc archive` finalize-fact flags, plus an audit
+  for further judgment-free mechanics still in markdown). **Un-enhanced / further-migration**, not a consistency
+  gap (the substrate transitions correctly today), so — by the consistency-on-exit standard — it stays **out of**
+  `lifecycle-closeout`'s scope and `lifecycle-closeout` does **not** depend on it (same treatment as
+  `graduation-cleanup`). Fast-follow off `lifecycle-transition-core`; sequences independently.
 - **`idiomatic-alignment`** — names the verbs (`start` / `park` / `promote` / `demote` / `reopen` / `abandon`);
   the final register check coordinates with it.
 - **`out-of-wu-entry`** (member of `agile-parallelism`, **not** this cohort) — shares the `session-init` entry

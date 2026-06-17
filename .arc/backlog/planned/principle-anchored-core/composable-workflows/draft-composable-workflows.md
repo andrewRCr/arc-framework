@@ -155,6 +155,11 @@
   riding the ship PR, incl. logical `Branch → [none]`; physical teardown stays the integration tail's post-merge
   cleanup). Option 1a was chosen then (keep teardown markdown; defer the DRY factoring here); this records the
   CLI-surface option (1b) explicitly.
+- *Dogfood note (2026-06-17, PR #106):* attended integration still required a deterministic shell tail after merge:
+  `gh pr merge`, `arc user close`, switch/pull base, `git branch -d`, and `git fetch --prune`. The workflow was
+  clear, but the branch/user/worktree cleanup portion is mechanical and presence-guarded. Preserve the archive
+  boundary (no physical teardown in `arc archive`), but evaluate a thin post-merge finalize/teardown command that
+  consumes the already-settled merge result and runs the safe cleanup legs.
 
 ---
 

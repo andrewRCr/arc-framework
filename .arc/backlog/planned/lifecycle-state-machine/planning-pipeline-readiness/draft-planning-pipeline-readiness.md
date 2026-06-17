@@ -169,3 +169,24 @@ time before committing the cut.
 - *Home note:* landed here at drain as the nearest live owner of the grounding / planning seam; the capture flagged
   this sits "one seam over" at the spec→tasks scale-detection seam, so a dedicated stub stays a reasonable
   alternative if PPR's scope tightens.
+
+### `[ ]` **Smooth the no-draft cold-start WU init flow (commit footer, entrypoints, `arc start` UX)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: planning-pipeline-readiness`), housekeep drain (2026-06-17);
+  captured during `release-ceremony-commits` planning — first live cold-start / no-draft WU init (2026-06-17).
+- *Concern:* the cold-start → `low`-path (no-draft) → active-WU init flow works but is underspecified at several
+  seams. (1) **commit-footer / commit-format + `commit-msg` hook** have no valid footer for a draft-design low-path
+  / meta-only planning capture (parentheticals are lifecycle transitions + `maintenance`, no `(planning)`; the
+  draft-design template's `draft-{name}.md (planning)` is unusable with no draft — fell back to `meta-*.md
+  (maintenance)`, semantically wrong). (2) `arc start --here` refuses on a protected base without auto-cutting or
+  offering the `plan/<name>` branch (hand `git checkout -b` first). (3) the `arc start` CLI ↔ `init-work-unit` ↔
+  `arc-plan` relationship is uncodified for cold-start — nothing routes "mint a WU" to a workflow. (4) ROADMAP
+  regen hand-rendered for the newly-active WU (the roadmap-tooling gap).
+- *Entrypoint facet:* the `drain-inbox` → `run-errand` execution-transition has no re-classify checkpoint before
+  handing off (assumes a `§ Atomic` capture is errand-sized); and once "it's a WU" is decided, no codified
+  classify-then-**mint** path — `run-errand`'s promote-to-WU only fires after launch, so a pre-launch "this is
+  WU-sized" call drops into hand-rolled minting.
+- *Home note:* primary `planning-pipeline-readiness` (owns planning-pipeline coherence / the draft→spec seam).
+  Facets that may split at PPR planning: the commit-footer/hook grammar gap (own small fix, or a
+  `naming-conventions` / rules home) and the entrypoint routing (lifecycle cohort — `errand-lattice` owns errand→WU
+  promotion, `out-of-wu-entry` owns entry signals).

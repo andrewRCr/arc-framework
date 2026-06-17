@@ -68,6 +68,12 @@ atomic companion and the personal atomic inbox.
   sweep had already moved it to `completed/`; make the check `completed/`-aware for `(archival)` footers. The
   concrete hook fix is already captured as the subdir-loop migration entry in `ATOMIC-INBOX` — so the net-new
   work here is the workflow finalize step; the hook facet is cross-referenced, not duplicated.
+- *Dogfood note (2026-06-17, `release-ceremony-commits`):* the missing finalize step is more deterministic than
+  workflow prose alone. `arc archive` already owns the final archive meta mutation (state flip, branch clear,
+  soft-field reset, relocation), so it should likely accept the remaining final-form facts as inputs — e.g.
+  `--pr-url <url>` and `--completed <YYYY-MM-DD>` (defaulting to today but overrideable for resume/backfill) — and
+  write the PR URL / Completed block plus final soft-field reconciliation itself. Keep the command
+  platform-light and explicit first; GitHub inference can layer on later from the integration wrapper.
 - *Scope:* Quick-tier — a workflow step plus a hook tweak that rides the wrapper-archival work above.
 
 ### `[ ]` **Errand approval-collapse: one increment-approval releases the full tail (commit → push → merge → delete)**

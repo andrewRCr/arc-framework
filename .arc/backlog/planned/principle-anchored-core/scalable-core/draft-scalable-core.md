@@ -10,6 +10,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Remove the dead Lite-layout (`status.md` / `ActiveLayout`) active-meta residue**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: scalable-core`), housekeep drain (2026-06-17); captured
+  during `release-ceremony-commits` design audit — surfaced as the source of the audit null-collision (2026-06-17).
+- *Concern:* the active-meta reader still carries a two-layout model — `lite` (`.arc/active/status.md`, a single
+  nameless WU) vs `full` (`.arc/active/meta-{name}.md`). Lite is **dead code**: a remnant of the ditched "Lite
+  mode" design (superseded by ADR-020's principle-anchored scalable core, which scales by depth/footprint). No
+  `status-*` file exists anymore (it became `meta-*`); nothing produces the lite layout, so the branch is
+  unreachable.
+- *Blast radius:* ~29 references across 8 source files (`lib/active/meta-reader.ts`,
+  `lib/work-unit/lifecycle-guards.ts`, `lib/release/audit-log.ts`, `lib/release/wu-resolution.ts`,
+  `lib/release/types.ts`, `commands/active/types.ts`, `commands/active.ts`, `commands/active/status.ts`) + ~6 test
+  files; `ActiveLayout` threads through the active-meta subsystem (session-init, `arc active status`, release
+  wrappers). A careful removal with full test re-run, not a one-liner.
+- *Approach:* drop `LITE_FILENAME` / lite detection in `meta-reader.ts`, collapse `ActiveLayout` to the single
+  full layout (or remove the type), simplify `parseNameFromPath` (every candidate is `meta-{name}.md`), and let
+  `toAuditWorkUnit` return null only for the genuine zero-candidate case. Confirm against this WU's validated seam
+  inventory — may already be enumerated there; if so, this capture just confirms it.
+- *Downstream:* resolves `release-ceremony-commits`'s audit null-collision (zero-candidate accept currently shares
+  `wu: null` with a nameless lite WU) — once lite is gone, null unambiguously means "no active WU."
+
+---
+
 ## Problem / Motivation
 
 ARC accumulated a mode/config surface — `pm.mode` (none / arc-in-git / external), Lite/Full, Local,
