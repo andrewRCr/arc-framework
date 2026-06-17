@@ -16,12 +16,17 @@ the audit — while still refusing genuine ambiguity. This phase delivers the sp
   handlers can accept the former and refuse the latter.
 - _Approach:_ replace the single `{status: "refused"}` outcome in `wu-resolution.ts` with two — a zero-candidate
   result and a multi-candidate (ambiguous) result carrying the existing disambiguation hint; the `resolved`
-  outcome is unchanged. Keep this change at the type + resolver level; handler consumption is task 1.2.
+  outcome is unchanged. Keep this change at the type + resolver level; handler consumption is task 1.2. Also at the
+  type level: rename refusal code 10's identifier `no-active-wu` → `ambiguous-active-wu` in `release/types.ts`
+  (`RefusalIdentifier` union, `REFUSAL_IDENTIFIERS` map, the `AuthorizationDecision` code-10 arm) and `formatRefusal`
+  in `interlock-validation.ts` — code 10 now fires only for the multi-candidate case, so the label tracks intent;
+  the numeric code is unchanged.
 
     Build `test-first` (one behavior at a time):
     - 0 candidates → the zero-candidate outcome (no hint)
     - 2+ candidates → the ambiguous outcome, carrying the multi-candidate hint
     - 1 candidate → `resolved` with parsed `path` and `name` (unchanged)
+    - code 10 resolves to identifier `ambiguous-active-wu` (map + `formatRefusal` output)
 
 ### `[ ]` **1.2 Accept the zero-candidate case in the commit and push handlers**
 
@@ -32,18 +37,22 @@ the audit — while still refusing genuine ambiguity. This phase delivers the sp
   is `AuditWorkUnit | null`, so the accept path records null provenance with no audit-shape change.
 
     - `[ ]` **1.2.a Wire the resolver outcomes through `commit.ts`**
-        - On the ambiguous outcome, refuse code 10 (`no-active-wu`) as today; on the zero-candidate outcome,
-          proceed with a null audit work unit into the existing branch-protection → interlock → `spawnGit` →
-          audit cascade.
-        - Build `test-first` (one behavior at a time): zero-candidate → proceeds (interlock validated, audit
-          written with a null work unit, git exit code bubbled); multi-candidate → refuses code 10; single
-          resolved → unchanged.
+        - On the ambiguous outcome, refuse code 10 (`ambiguous-active-wu`) as today; on the zero-candidate
+          outcome, proceed with a null audit work unit into the existing branch-protection → interlock →
+          `spawnGit` → audit cascade. The zero-candidate accept clears gate 10 but the cascade still runs:
+          branch-protection (13) refuses on the protected base, so the accept path is reachable only off-base.
+        - Build `test-first` (one behavior at a time): zero-candidate off-base → proceeds (interlock validated,
+          audit written with a null work unit, git exit code bubbled); zero-candidate on the protected base →
+          branch-protection refusal (code 13), `spawnGit` never called; multi-candidate → refuses code 10
+          (`ambiguous-active-wu`); single resolved → unchanged.
 
     - `[ ]` **1.2.b Mirror the change in `push.ts`**
         - Apply the same outcome-branching at the push refusal site; the push leg keys off the resolver outcome
-          only (it has no commit message), so the accept path is symmetric with commit.
-        - Build `test-first` (one behavior at a time): zero-candidate → proceeds; multi-candidate → refuses
-          code 10; single resolved → unchanged.
+          only (it has no commit message), so the accept path is symmetric with commit. Same cascade caveat: the
+          zero-candidate accept still passes through branch-protection (13) → pushability (14) → interlock (11).
+        - Build `test-first` (one behavior at a time): zero-candidate off-base → proceeds; zero-candidate on the
+          protected base → branch-protection refusal (code 13), `spawnPush` never called; multi-candidate →
+          refuses code 10 (`ambiguous-active-wu`); single resolved → unchanged.
 
 ## **Phase 2:** Verification
 
