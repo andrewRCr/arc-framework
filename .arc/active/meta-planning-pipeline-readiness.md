@@ -11,8 +11,8 @@
 - **Design:** `draft-planning-pipeline-readiness.md`
 - **Task List:** [none]
 
-- **Last Completed:** Stub created at the `arc-plan-conductor` decomposition (2026-06-12) — consolidates the
-  planning-pipeline readiness-and-iteration concerns the retired conductor and two USER-INBOX captures shared.
+- **Last Completed:** Initialized into active planning — graduated from `backlog/planned/`, `Class` resolved to
+  `Heavy`, `plan/` branch cut and pushed. Draft iteration not yet begun.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
