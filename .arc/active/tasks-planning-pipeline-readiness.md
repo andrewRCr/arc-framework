@@ -43,21 +43,15 @@ method, and route both live fire points through it so no second implementation c
 _Purpose:_ Give spec finalization a clean review gate before any irreversible action, and make every advisory
 fork in the pipeline carry a recommendation. Documentation-tier (workflow body + always-loaded rule).
 
-### `[ ]` **2.1 Split `create-spec` Finalize into review/iterate then proceed-to-finalize gates**
+### `[x]` **2.1 Split `create-spec` Finalize into review/iterate then proceed-to-finalize gates**
 
 - _Goal:_ Spec finalization stops first for a full read, feedback, and iteration, and only a separate second
   approval authorizes the irreversible Finalize actions — so answering an advisory overlay never reads as
   authorization to finish.
-- **Strategies:** strategy-workflow-authoring.md
-
-    - Replace the single Finalize `workflow-interlock` with two sequential gates. Gate 1 (review/iterate): after the
-      spec is saved and self-reviewed (`spec-review`), stop and surface the spec location + self-review findings for
-      a full read, feedback, and iteration; iteration loops here against the saved spec; approval means "the spec is
-      right," not "finish Finalize."
-    - Gate 2 (proceed-to-finalize): only after gate 1 clears, proceed to the irreversible actions — draft retirement
-      (`notes-*` migration + draft delete), meta update, and the `workflowCommit`; this approval authorizes those.
-    - Keep the split in the workflow body — an interlock is control flow; a method carrying the two-gate structure
-      would be less reusable.
+- _Outcome:_ The single Finalize `workflow-interlock` is now two sequential gates in the `create-spec.md` body —
+  Gate 1 (review/iterate, loops against the saved spec; approval = "the spec is right") and Gate 2
+  (proceed-to-finalize, authorizing draft retirement + meta update + the `workflowCommit`, which fires under that
+  approval). Split kept in the workflow body, not a method (control flow). Both copies.
 
 ### `[ ]` **2.2 Add the overlay-recommendation norm to `DEV-RULES.ARC` (+ package mirror)**
 

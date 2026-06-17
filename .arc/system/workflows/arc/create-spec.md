@@ -200,8 +200,19 @@ re-entry (route it to the design, never patch it into the spec).
   self-review. Otherwise, skip.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the spec is saved and self-reviewed. Surface the spec location and the
-> self-review findings for review; await approval before proceeding to draft retirement + meta update + commit.
+> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
+> spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
+> spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
+> authorize the irreversible finalize actions below.
+
+Once the spec is approved as correct, finalize the work unit. The remaining steps are irreversible, so they take
+a second, separate approval:
+
+> [!IMPORTANT]
+> `workflow-interlock` — Gate 2 (proceed-to-finalize): Only after Gate 1 clears. The steps below are
+> irreversible — draft retirement (`notes-*` migration + draft deletion) and the meta update — and close with the
+> commit. State that finalize is about to run and await explicit approval; this approval authorizes the
+> retirement, the meta update, and the commit.
 
 If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemeral — they serve exploration and
 are deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft
