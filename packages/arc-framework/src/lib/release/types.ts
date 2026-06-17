@@ -39,7 +39,7 @@ export type RefusalCode = 10 | 11 | 12 | 13 | 14 | 15;
 
 /** Stable string identifier for each refusal code. Pairs 1-to-1 with `RefusalCode`. */
 export type RefusalIdentifier =
-  | "no-active-wu"
+  | "ambiguous-active-wu"
   | "interlock-not-authorized"
   | "destructive-flag"
   | "branch-protection-violation"
@@ -52,7 +52,7 @@ export type RefusalIdentifier =
  * rather than hardcoding pairs at each call site.
  */
 export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier>> = {
-  10: "no-active-wu",
+  10: "ambiguous-active-wu",
   11: "interlock-not-authorized",
   12: "destructive-flag",
   13: "branch-protection-violation",
@@ -74,7 +74,7 @@ export const REFUSAL_IDENTIFIERS: Readonly<Record<RefusalCode, RefusalIdentifier
  */
 export type AuthorizationDecision =
   | { kind: "authorize" }
-  | { kind: "refuse"; code: 10; identifier: "no-active-wu"; hint?: string }
+  | { kind: "refuse"; code: 10; identifier: "ambiguous-active-wu"; hint?: string }
   | {
       kind: "refuse";
       code: 11;

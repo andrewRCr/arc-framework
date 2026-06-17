@@ -259,24 +259,24 @@ describe("isProtectedBranch", () => {
 // --- formatRefusal three-line shape ---
 
 describe("formatRefusal — three-line shape", () => {
-  it("code 10 (no-active-wu, no hint): identifier + what-happened + remediation", () => {
+  it("code 10 (ambiguous-active-wu, no hint): identifier + what-happened + remediation", () => {
     const decision: AuthorizationDecision = {
       kind: "refuse",
       code: 10,
-      identifier: "no-active-wu",
+      identifier: "ambiguous-active-wu",
     };
     const lines = formatRefusal(decision).split("\n");
     expect(lines).toHaveLength(3);
-    expect(lines[0]).toBe("Refused: no-active-wu (code 10)");
+    expect(lines[0]).toBe("Refused: ambiguous-active-wu (code 10)");
     expect(lines[1]).toContain("active");
-    expect(lines[2]).toMatch(/activate/i);
+    expect(lines[2]).toMatch(/disambiguat/i);
   });
 
   it("code 10 with hint surfaces the hint in the what-happened line", () => {
     const decision: AuthorizationDecision = {
       kind: "refuse",
       code: 10,
-      identifier: "no-active-wu",
+      identifier: "ambiguous-active-wu",
       hint: "Multiple status files resolved.",
     };
     const lines = formatRefusal(decision).split("\n");

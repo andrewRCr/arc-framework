@@ -158,10 +158,10 @@ function composeBody(
 ): [string, string] {
   switch (decision.code) {
     case 10: {
-      const what = decision.hint ?? "No active work unit resolved in `.arc/active/`.";
+      const what = decision.hint ?? "Multiple active work units resolved in `.arc/active/`.";
       return [
         what,
-        "Activate a work unit before retrying, or run session-init to disambiguate.",
+        "Run session-init to disambiguate which work unit is active.",
       ];
     }
     case 11: {

@@ -128,11 +128,14 @@ export async function runReleaseCommit(
     );
   }
 
-  // Step 2 (fs probe): resolve active WU.
+  // Step 2 (fs probe): resolve active WU. A zero-candidate (`none`) result is
+  // accepted — ceremony invocations legitimately run with no active WU, and the
+  // remaining gates (branch-protection, interlock) bound the real risks — so only
+  // multi-candidate ambiguity refuses (code 10).
   const wu = await resolveActiveWu({ cwd: deps.cwd });
-  if (wu.status === "refused") {
+  if (wu.status === "ambiguous") {
     return refuse(
-      { kind: "refuse", code: 10, identifier: "no-active-wu", hint: wu.hint },
+      { kind: "refuse", code: 10, identifier: "ambiguous-active-wu", hint: wu.hint },
       { wu: null, deps, writeStderr, appendAudit },
     );
   }
@@ -145,7 +148,8 @@ export async function runReleaseCommit(
     currentBranch: deps.currentBranch,
   });
 
-  const wuAudit = toAuditWorkUnit(wu);
+  // `none` (zero-candidate) records a null work unit; `resolved` carries its name.
+  const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
 
   if (decision.kind === "refuse") {
     return refuse(decision, { wu: wuAudit, deps, writeStderr, appendAudit });

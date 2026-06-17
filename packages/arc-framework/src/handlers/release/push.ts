@@ -208,15 +208,16 @@ export async function runReleasePush(
   }
   const spawnArgs = normalized.args;
 
-  // Step 2 (fs probe): resolve active WU.
+  // Step 2 (fs probe): resolve active WU. Zero-candidate (`none`) is accepted —
+  // symmetric with commit — so only multi-candidate ambiguity refuses (code 10).
   const wu = await resolveActiveWu({ cwd: deps.cwd });
-  if (wu.status === "refused") {
+  if (wu.status === "ambiguous") {
     return refuse(
-      { kind: "refuse", code: 10, identifier: "no-active-wu", hint: wu.hint },
+      { kind: "refuse", code: 10, identifier: "ambiguous-active-wu", hint: wu.hint },
       { wu: null, deps, writeStderr, appendAudit },
     );
   }
-  const wuAudit = toAuditWorkUnit(wu);
+  const wuAudit = wu.status === "resolved" ? toAuditWorkUnit(wu) : null;
 
   // Step 3 (config + git): branch-protection (13).
   const branchDecision = checkBranchProtection({

@@ -4,10 +4,10 @@
  *
  * Composes {@link readActiveMetaCandidates} from the active-meta
  * reader. Accepts any `**State:**` value — Planning, In Progress,
- * Paused, etc. — and refuses only on no-candidate or multi-candidate
- * ambiguity. Both refusal shapes map to refusal code 10
- * (`no-active-wu`); the multi-candidate path carries a disambiguation
- * hint that surfaces in the refusal message.
+ * Paused, etc. — and distinguishes three outcomes: a single resolved
+ * WU, a zero-candidate `none` result (no active WU — handlers accept it
+ * and record a null work unit), and multi-candidate `ambiguous`
+ * (refused code 10, carrying a disambiguation hint).
  *
  * @module
  */
@@ -46,14 +46,16 @@ export interface ResolvedWu {
 
 export type WuResolution =
   | ({ status: "resolved" } & ResolvedWu)
-  | { status: "refused"; hint?: string };
+  | { status: "none" }
+  | { status: "ambiguous"; hint: string };
 
 /**
  * Resolve the unambiguous active WU under the configured active root.
  *
- * - 0 candidates → refused (no hint; the wrapper formats a default
- *   "no active work unit" message at refusal-code 10).
- * - 2+ candidates → refused with disambiguation hint.
+ * - 0 candidates → `none` (no active WU; handlers proceed and record a
+ *   null work unit).
+ * - 2+ candidates → `ambiguous` with disambiguation hint (handlers
+ *   refuse code 10).
  * - 1 candidate → resolved with parsed `path` and `name`.
  *
  * Any `**State:**` value resolves — release wrappers operate on the
@@ -68,14 +70,14 @@ export async function resolveActiveWu(
   });
 
   if (reader.candidates.length === 0) {
-    return { status: "refused" };
+    return { status: "none" };
   }
   if (reader.candidates.length > 1) {
-    return { status: "refused", hint: MULTI_CANDIDATE_HINT };
+    return { status: "ambiguous", hint: MULTI_CANDIDATE_HINT };
   }
 
   const candidate = reader.candidates[0];
-  if (!candidate) return { status: "refused" };
+  if (!candidate) return { status: "none" };
   const name = parseNameFromPath(candidate.path);
   return { status: "resolved", path: candidate.path, name };
 }
