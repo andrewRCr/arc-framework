@@ -1,8 +1,8 @@
 # Metadata: release-ceremony-commits
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/release-ceremony-commits` | `Light`   | `P3`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,11 +11,14 @@
 - **Design:** spec-release-ceremony-commits.md
 - **Task List:** tasks-release-ceremony-commits.md
 
-- **Last Completed:** Phase 1 (Tasks 1.1–1.2) — accept no-active-WU ceremony commits in the release wrappers
-- **Next Task:** Task 2.1 — Complete verification (line ~46)
+- **Last Completed:** Task 2.1 — Complete verification (Tier 3 gates green; all success criteria met)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** [none]
+
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/106>
+- **Completed:** 2026-06-17
 
 ---
 
