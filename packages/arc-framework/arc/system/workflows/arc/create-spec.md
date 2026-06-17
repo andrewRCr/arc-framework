@@ -8,6 +8,7 @@ arc:
     - resolve-planning-depth
     - classify-work-unit
     - assess-cohort-fit
+    - assess-draft-readiness
     - spec-review
   extensions:
     - pre-spec-finalization-review
@@ -57,9 +58,9 @@ directly, narrowing to a **brief-vs-outline** disambiguation.
 
 If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
 draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
-feeds the spec, never carried forward as-is. Then assess readiness: unresolved design decisions, open unknowns,
-or missing concrete detail the spec would need to specify. If the draft is not ready, surface the gaps and
-resolve them (or return to drafting) before investing in spec writing.
+feeds the spec, never carried forward as-is. Then assess formalization-readiness via the
+[assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
+them inline (or return to drafting) before investing in spec writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but
@@ -246,6 +247,7 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
 [pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md

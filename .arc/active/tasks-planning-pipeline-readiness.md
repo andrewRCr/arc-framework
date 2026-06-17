@@ -10,47 +10,33 @@ _Purpose:_ Extract the one "is this draft formalization-ready?" judgment into a 
 method, and route both live fire points through it so no second implementation can drift. Documentation-tier
 (method + workflow edits; markdown lint + reference-integrity).
 
-### `[ ]` **1.1 Author the `assess-draft-readiness` method (+ package mirror)**
+### `[x]` **1.1 Author the `assess-draft-readiness` method (+ package mirror)**
 
 - _Goal:_ One conductor-independent method defines the formalization-ready bar and its `{ ready, gaps }` contract
   in a single home, so both fire points share one criterion set with no second implementation to drift.
-- _Note:_ Criterion 3 is checks-only — the method reads whether the buffer section is present and un-integrated;
-  it never performs the drain at either fire point. No drain machinery is built or moved here; the existing
-  `create-spec` inline hook stays the drain floor (no hard dependency edge in either direction).
-- **Strategies:** strategy-workflow-authoring.md (method shape); strategy-package-project-sync.md (two-copy authoring)
+- _Outcome:_ `assess-draft-readiness.md` authored in the package source and byte-identically mirrored to
+  `.arc/system/methods/` — standard method shape (frontmatter + `.override`/`.default`), the three-criterion bar,
+  the checks-only buffer seam, and the `{ ready, gaps }` contract. No README Index / Method-Dependencies entry:
+  followed the `resolve-planning-depth` precedent (curated index) and A3's no-hard-coupling seam. Workflow
+  rewiring (the two fire points) is Task 1.2's; no `draft-design` / `create-spec` edits here.
 
-    - Create the method in the package source (`packages/arc-framework/arc/system/methods/assess-draft-readiness.md`)
-      and mirror it to the project instance (`.arc/system/methods/`), following the standard method shape:
-      frontmatter (`name` / `description` / `override-active: false`), an `## assess-draft-readiness.override` slot
-      (`[No override configured]`), and an `## assess-draft-readiness.default` body. Match `resolve-planning-depth.md`
-      / `classify-work-unit.md`.
-    - State the three-criterion bar in the `.default` body: (1) all settle-able design settled (an open
-      implementation detail is fine; a masked design decision is not); (2) a stateable success signal exists;
-      (3) the inbound buffer is drained — no un-integrated `## Inbound Buffer — Pending Integration` section. The
-      bar is depth-relative in distance only, never height.
-    - Specify the contract: given the draft (or `[none]`) plus WU context, return `{ ready: boolean, gaps: [...] }`.
-      The caller owns the routing; the method owns the criterion.
-
-### `[ ]` **1.2 Route both fire points through the method**
+### `[x]` **1.2 Route both fire points through the method**
 
 - _Goal:_ Both fire points evaluate readiness by calling `assess-draft-readiness`, with no inline readiness bar
   surviving in either workflow.
-- **Strategies:** strategy-workflow-authoring.md
 
-    - `[ ]` **1.2.a `draft-design.md` loop-exit calls the method**
-        - Replace the inline formalization-ready bar (the readiness-states block) with a call to
-          `assess-draft-readiness` at loop-exit; on not-ready, keep iterating (re-synthesize against the gaps).
-        - Keep the `fresh / rough / maturing / formalization-ready` ladder labels as continuity vocabulary — only
-          the bar moves to the method.
-        - Declare `assess-draft-readiness` in the `arc.methods` frontmatter.
+    - `[x]` **1.2.a `draft-design.md` loop-exit calls the method**
+        - Replaced the inline formalization-ready bar with a loop-exit call to `assess-draft-readiness`; the
+          `fresh / rough / maturing / formalization-ready` ladder labels stay as continuity vocabulary. Method
+          declared in `arc.methods` frontmatter; reference link added.
 
-    - `[ ]` **1.2.b `create-spec.md` entry calls the method**
-        - Replace the inline entry backstop (the "unresolved design decisions, open unknowns, missing concrete
-          detail" sentence) with a call to `assess-draft-readiness` at entry; on not-ready, surface the gaps —
-          resolve inline or return to drafting. That sentence shares its paragraph with the buffer-drain hook —
-          swap only the readiness sentence, leaving the drain sentence in place.
-        - Keep the inline buffer-drain hook (the drain floor); only the readiness check over it delegates to the method.
-        - Declare `assess-draft-readiness` in the `arc.methods` frontmatter.
+    - `[x]` **1.2.b `create-spec.md` entry calls the method**
+        - Replaced the inline entry readiness sentence with a call to `assess-draft-readiness`, leaving the
+          buffer-drain hook (the drain floor) in place in the same paragraph. Method declared in `arc.methods`
+          frontmatter; reference link added.
+
+- _Outcome:_ Both fire points now share the one criterion home; verified no inline readiness bar survives in
+  either workflow. Edited package source and synced byte-identical to the `.arc/` instance (Framework two-copy).
 
 ## **Phase 2:** `create-spec` interlock split + overlay-recommendation norm (§ B)
 
