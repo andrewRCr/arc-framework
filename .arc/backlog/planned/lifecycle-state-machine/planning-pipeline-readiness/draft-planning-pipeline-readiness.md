@@ -146,3 +146,26 @@ time before committing the cut.
   for the planning sub-stage (a narrowed surface, not the whole pointer).
 - *Note:* this is a **spine** concern (consistency-on-exit: the lifecycle isn't coherent while the planning sub-stage
   is prose-parsed) — it stays even if the planning-*content* concerns (#3, #5) split off.
+
+### `[ ]` **Add a grounded "oversized increment" granularity category to `arc-task-audit`**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD` → `planning-pipeline-readiness` at drain, 2026-06-17);
+  captured during `lifecycle-transition-core` session-init reviewing how Task 5.1 was under-decomposed (2026-06-15).
+- *Concern:* the DEV-RULES.ARC § Task granularity thresholds (>3 files / >50 lines core logic / interdependent /
+  complex) have **no detector** pointed at them at the one moment a too-big leaf becomes visible — once grounded in
+  the code. Root cause of Task 5.1 slipping through under-decomposed: the first production executor binder (reused
+  across a whole phase) hid behind a "`start` dispatch" headline and read as one atomic leaf. The gap is a hole in
+  the audit's lens set, not in the standard.
+- *Approach:* add a grounded "oversized increment / decomposition pressure" category to `arc-task-audit`, tied to
+  § Task granularity. It must be **grounding-derived** (magnitude only shows in code → leans on the audit's step 2)
+  and **survive `grounding-only` depth** (the `low` default + never-dropped floor, exactly where a small-looking
+  leaf hides — likely fold a lightweight magnitude check into step 2, not only step 3). On a hit, **route into
+  existing machinery**: gen-time → split in structural-decomposition or escalate via `resolve-planning-depth`;
+  impl-time → `process-task-loop`'s agent-proposed-batch or a split. The audit's only new job is to *surface* the
+  leaf-magnitude signal.
+- *Why existing mechanisms miss it:* `generate-tasks` Structural-decomposition "Asymmetry" lens runs pre-grounding
+  and keys off subtask-count (a no-subtask leaf draws no signal); `arc-task-audit` step 3's categories carry no
+  magnitude axis; `resolve-planning-depth` responds at stage / list granularity, not leaf.
+- *Home note:* landed here at drain as the nearest live owner of the grounding / planning seam; the capture flagged
+  this sits "one seam over" at the spec→tasks scale-detection seam, so a dedicated stub stays a reasonable
+  alternative if PPR's scope tightens.

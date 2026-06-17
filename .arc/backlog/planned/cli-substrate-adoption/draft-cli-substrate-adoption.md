@@ -88,6 +88,20 @@ post-trio architecture-remediation plans consume.
   `strategy-work-organization`.
 - *Scope:* multi-step — the non-TTY prompting substrate plus CLI / workflow surfaces (two-copy).
 
+### `[ ]` **Swap reconcile-branch's hand-rolled remote-delete classification onto structured git errors**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-17);
+  captured during `lifecycle-transition-core` integration — PR #103 CodeRabbit review (2026-06-16).
+- *Concern:* `reconcile-branch.ts`'s `delete` mutator distinguishes a benign remote-delete failure (a never-pushed
+  branch — git's "remote ref does not exist") from actionable ones (auth / connectivity / wrong remote) by
+  **substring-matching `err.stderr`**. That is the robust shape available against today's bare `execFile`-wrapping
+  git seam, but it is locale-fragile and has no structured home in the executor.
+- *Proposed:* when this WU lands its execa / neverthrow git layer, replace the stderr-substring match with
+  structured `Result` error variants (typed exit-code + error kind), and apply the same posture to any other
+  hand-rolled git-error string-matching the executor's mutators picked up in `lifecycle-transition-core`.
+- *Status:* the correctness fix (propagate actionable failures) already landed via exit-code / stderr
+  classification; this is the follow-up refactor to the structured layer only.
+
 ---
 
 ## Problem / Motivation
