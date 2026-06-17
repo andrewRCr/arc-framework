@@ -53,18 +53,14 @@ fork in the pipeline carry a recommendation. Documentation-tier (workflow body +
   (proceed-to-finalize, authorizing draft retirement + meta update + the `workflowCommit`, which fires under that
   approval). Split kept in the workflow body, not a method (control flow). Both copies.
 
-### `[ ]` **2.2 Add the overlay-recommendation norm to `DEV-RULES.ARC` (+ package mirror)**
+### `[x]` **2.2 Add the overlay-recommendation norm to `DEV-RULES.ARC` (+ package mirror)**
 
 - _Goal:_ One always-loaded rule requires every advisory accept/decline (or either-or) fork in the pipeline to
   state a recommended option with rationale, covering the four scattered overlay sites at once.
-- _Note:_ The rule is policy; a future `composable-workflows` present-overlay fragment would implement it (different
-  tier — author the norm, not the mechanism). Placement within `DEV-RULES.ARC` resolved at authoring.
-
-    - Add a short always-on rule to `DEV-RULES.ARC` (package source + `.arc/` mirror). Candidate phrasing (final
-      wording at authoring): "Recommend on advisory forks. When surfacing an advisory accept/decline (or either-or)
-      fork — not a mandatory approval gate — state the recommended option with a one-line rationale; never a bare fork."
-    - Authoring constraints: the phrasing must generalize to every advisory fork (not Novel- or planning-specific)
-      and stay token-tight, since the rule is always loaded.
+- _Outcome:_ Added a `### Recommend on advisory forks` subsection under `DEV-RULES.ARC` § Verification and
+  Discovery (placed beside the clarifying-questions guidance, its nearest kin) — one token-tight sentence plus a
+  "the user still decides" guard so recommend never reads as decide. Generalizes to every advisory fork; both
+  copies.
 
 ## **Phase 3:** `Current Workflow` field model + encoding-consistency validator (§ C foundation)
 
