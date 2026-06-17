@@ -221,52 +221,29 @@ describe("runReleaseCommit — code 12 (destructive-flag)", () => {
   });
 });
 
-// --- Code 10: no-active-wu (fs probe) ---
+// --- Code 10: ambiguous-active-wu (fs probe) ---
 
-describe("runReleaseCommit — code 10 (no-active-wu)", () => {
+describe("runReleaseCommit — code 10 (ambiguous-active-wu)", () => {
   let fixture: Fixture;
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("refuses with code 10 when .arc/active/ has no candidates", async () => {
-    const { deps, spawnGit } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
+  it("refuses with code 10 + disambiguation hint on multi-candidate, never spawning git", async () => {
+    await writeStatus(fixture.root, "alpha");
+    await writeStatus(fixture.root, "beta");
+    const { deps, stderr, spawnGit } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
 
     const result = await runReleaseCommit(deps);
 
     expect(result.exitCode).toBe(10);
     expect(spawnGit).not.toHaveBeenCalled();
-
-    const entries = await readAuditEntries(fixture.root);
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
-      command: "release-commit",
-      decision: "refused",
-      refusalCode: 10,
-      wu: null,
-    });
-  });
-
-  it("refuses with code 10 + disambiguation hint on multi-candidate", async () => {
-    await writeStatus(fixture.root, "alpha");
-    await writeStatus(fixture.root, "beta");
-    const { deps, stderr } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
-
-    const result = await runReleaseCommit(deps);
-
-    expect(result.exitCode).toBe(10);
     const composed = stderr.join("");
-    expect(composed).toContain("Refused: no-active-wu (code 10)");
+    expect(composed).toContain("Refused: ambiguous-active-wu (code 10)");
     expect(composed).toMatch(/multiple/i);
 
     const [entry] = await readAuditEntries(fixture.root);
     expect(entry?.wu).toBeNull();
     expect(entry?.refusalCode).toBe(10);
-  });
-
-  it("never spawns git commit on either no-active-wu path", async () => {
-    const { deps, spawnGit } = buildDeps(fixture.root, { argv: ["-m", "subject"] });
-    await runReleaseCommit(deps);
-    expect(spawnGit).not.toHaveBeenCalled();
   });
 });
 
@@ -393,27 +370,30 @@ describe("runReleaseCommit — short-circuit order", () => {
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("12 fires before 10 (destructive flag wins over no-active-wu)", async () => {
-    // No active WU AND destructive flag — 12 wins.
+  it("12 fires before WU resolution (destructive flag wins)", async () => {
+    // No active WU AND destructive flag — 12 fires at the argv step, ahead of
+    // the fs probe.
     const { deps } = buildDeps(fixture.root, { argv: ["--amend"] });
     const result = await runReleaseCommit(deps);
     expect(result.exitCode).toBe(12);
   });
 
-  it("10 fires before 13 (no-active-wu wins over branch-protection)", async () => {
-    // No active WU AND on protected branch — 10 wins.
+  it("zero-candidate on the protected base refuses 13 (accept reachable only off-base)", async () => {
+    // No active WU AND on the protected base — the accept clears gate 10 but
+    // branch-protection (13) still refuses, so acceptance is off-base only.
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
       commitInterlock: "on-workflow",
     });
-    const { deps } = buildDeps(fixture.root, {
+    const { deps, spawnGit } = buildDeps(fixture.root, {
       argv: ["-m", "subject"],
       settings,
       currentBranch: "main",
     });
     const result = await runReleaseCommit(deps);
-    expect(result.exitCode).toBe(10);
+    expect(result.exitCode).toBe(13);
+    expect(spawnGit).not.toHaveBeenCalled();
   });
 
   it("13 fires before 11 (branch-protection wins over interlock)", async () => {
@@ -465,6 +445,38 @@ describe("runReleaseCommit — success path", () => {
     expect(spawnGit).toHaveBeenCalledTimes(1);
     expect(spawnGit).toHaveBeenCalledWith({ args: argv, cwd: fixture.root });
     expect(result.exitCode).toBe(0);
+  });
+
+  it("proceeds with a null work unit on a zero-candidate context off-base", async () => {
+    // No status file written → resolver returns `none`; off the protected base
+    // under full protection + authorizing interlock, the cascade proceeds and
+    // records a null work unit (the ceremony-invocation accept path).
+    const settings = buildSettings({
+      branchProtection: "full",
+      branchBase: "main",
+      commitInterlock: "on-workflow",
+    });
+    const { deps, spawnGit } = buildDeps(fixture.root, {
+      argv: ["-m", "subject"],
+      settings,
+      currentBranch: "chore/errand",
+      spawnGit: () => Promise.resolve({ exitCode: 0, stdout: "", stderr: "" }),
+      resolveHead: () => Promise.resolve(FULL_HASH),
+    });
+
+    const result = await runReleaseCommit(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawnGit).toHaveBeenCalledTimes(1);
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-commit",
+      decision: "proceeded",
+      refusalCode: null,
+      outcome: { kind: "commit", hash: FULL_HASH },
+      wu: null,
+    });
   });
 
   it("writes a proceeded audit entry with kind: commit and the resolved hash", async () => {

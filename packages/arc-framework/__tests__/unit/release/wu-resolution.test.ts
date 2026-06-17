@@ -3,10 +3,9 @@
  * and push handlers.
  *
  * Composes `readActiveMetaCandidates` from the active-meta reader;
- * accepts any `**State:**` value and refuses only on no-candidate or
- * multi-candidate ambiguity. Both refusal shapes map to refusal code 10
- * (`no-active-wu`); the multi-candidate path carries a disambiguation
- * hint that surfaces in the refusal message.
+ * accepts any `**State:**` value and distinguishes a single resolved WU,
+ * a zero-candidate `none` result (no active WU), and multi-candidate
+ * `ambiguous` (carrying a disambiguation hint).
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -79,37 +78,33 @@ describe("resolveActiveWu — single full-layout candidate", () => {
   });
 });
 
-describe("resolveActiveWu — refusal on ambiguity", () => {
+describe("resolveActiveWu — zero-candidate and ambiguous outcomes", () => {
   let fixture: Fixture;
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("refuses when .arc/active/ exists but holds no candidates", async () => {
+  it("reports `none` (no hint) when .arc/active/ exists but holds no candidates", async () => {
     const result = await resolveActiveWu({ cwd: fixture.root });
 
-    expect(result.status).toBe("refused");
-    if (result.status === "refused") {
-      expect(result.hint).toBeUndefined();
-    }
+    expect(result).toEqual({ status: "none" });
   });
 
-  it("refuses when .arc/active/ does not exist at all", async () => {
+  it("reports `none` when .arc/active/ does not exist at all", async () => {
     await rm(fixture.activeDir, { recursive: true, force: true });
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
-    expect(result.status).toBe("refused");
+    expect(result.status).toBe("none");
   });
 
-  it("refuses with a disambiguation hint when multiple candidates resolve", async () => {
+  it("reports `ambiguous` with a disambiguation hint when multiple candidates resolve", async () => {
     await writeMetaCandidate(fixture.activeDir, "foo", "Active");
     await writeMetaCandidate(fixture.activeDir, "bar", "Planning");
 
     const result = await resolveActiveWu({ cwd: fixture.root });
 
-    expect(result.status).toBe("refused");
-    if (result.status === "refused") {
-      expect(result.hint).toBeDefined();
+    expect(result.status).toBe("ambiguous");
+    if (result.status === "ambiguous") {
       expect(result.hint).toMatch(/disambiguat/i);
     }
   });

@@ -33,10 +33,10 @@
   verbs: errands carry no meta record / no `(phase, location)` / no relocation (state derived from branch + PR), so
   no record-mutation or git-mv staging surface — the relocate+rewrite staging bug can't exist here. Resolve errand
   state from branch + PR, never a stored record.
-- *Coordination:* the wrapper's no-active-WU acceptance (errand commits / pushes) is **extracted as a standalone
-  errand** (carved out of `interlock-release-refinement` entry #1, 2026-06-17) — recurring friction worth fixing
-  ahead of this WU rather than gating on it. `errand-lattice` assumes that fix has shipped; **no `Depends On`
-  edge.** The coupled facets (archival-ceremony tooling, errand approval-collapse) stay in
+- *Coordination:* the wrapper's no-active-WU acceptance (errand commits / pushes) is **extracted as its own
+  standalone work unit** (carved out of `interlock-release-refinement` entry #1, 2026-06-17) — recurring friction
+  worth fixing ahead of this WU rather than gating on it. `errand-lattice` assumes that fix has shipped; **no
+  `Depends On` edge.** The coupled facets (archival-ceremony tooling, errand approval-collapse) stay in
   `interlock-release-refinement`.
 - *Scope guard:* keep this scoped to the errand lattice — do **not** generalize into a "supporting lifecycles"
   catch-all (cohort-doc lifecycle and inbox / housekeep already have owners).

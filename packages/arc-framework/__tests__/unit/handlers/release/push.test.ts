@@ -313,15 +313,17 @@ describe("runReleasePush — code 15 (arg-grammar-fallthrough)", () => {
   });
 });
 
-// --- Code 10: no-active-wu (fs probe) ---
+// --- Code 10: ambiguous-active-wu (fs probe) ---
 
-describe("runReleasePush — code 10 (no-active-wu)", () => {
+describe("runReleasePush — code 10 (ambiguous-active-wu)", () => {
   let fixture: Fixture;
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("refuses with code 10 when .arc/active/ has no candidates", async () => {
-    const { deps, spawnPush, runPushability } = buildDeps(fixture.root);
+  it("refuses with code 10 + disambiguation hint on multi-candidate, never probing pushability", async () => {
+    await writeStatus(fixture.root, "alpha");
+    await writeStatus(fixture.root, "beta");
+    const { deps, stderr, spawnPush, runPushability } = buildDeps(fixture.root);
 
     const result = await runReleasePush(deps);
 
@@ -329,27 +331,8 @@ describe("runReleasePush — code 10 (no-active-wu)", () => {
     expect(spawnPush).not.toHaveBeenCalled();
     // Pushability matrix is downstream of WU resolution — must not fire.
     expect(runPushability).not.toHaveBeenCalled();
-
-    const entries = await readAuditEntries(fixture.root);
-    expect(entries).toHaveLength(1);
-    expect(entries[0]).toMatchObject({
-      command: "release-push",
-      decision: "refused",
-      refusalCode: 10,
-      wu: null,
-    });
-  });
-
-  it("refuses with code 10 + disambiguation hint on multi-candidate", async () => {
-    await writeStatus(fixture.root, "alpha");
-    await writeStatus(fixture.root, "beta");
-    const { deps, stderr } = buildDeps(fixture.root);
-
-    const result = await runReleasePush(deps);
-
-    expect(result.exitCode).toBe(10);
     const composed = stderr.join("");
-    expect(composed).toContain("Refused: no-active-wu (code 10)");
+    expect(composed).toContain("Refused: ambiguous-active-wu (code 10)");
     expect(composed).toMatch(/multiple/i);
 
     const [entry] = await readAuditEntries(fixture.root);
@@ -666,7 +649,7 @@ describe("runReleasePush — short-circuit order", () => {
   beforeEach(async () => { fixture = await createFixture(); });
   afterEach(async () => { await rm(fixture.root, { recursive: true, force: true }); });
 
-  it("12 fires before 10 (destructive flag wins over no-active-wu)", async () => {
+  it("12 fires before WU resolution (destructive flag wins)", async () => {
     const { deps } = buildDeps(fixture.root, { argv: ["--force"] });
     const result = await runReleasePush(deps);
     expect(result.exitCode).toBe(12);
@@ -683,9 +666,9 @@ describe("runReleasePush — short-circuit order", () => {
     expect(result.exitCode).toBe(12);
   });
 
-  it("15 fires before 10 (arg-grammar wins over no-active-wu)", async () => {
-    // No status file written — code 10 would normally fire. Argv-only checks
-    // (15) must short-circuit ahead of the fs probe (10).
+  it("15 fires before WU resolution (arg-grammar short-circuits the fs probe)", async () => {
+    // Argv-only checks (15) must short-circuit ahead of the fs probe — a
+    // positional mismatch refuses before WU resolution runs at all.
     const { deps } = buildDeps(fixture.root, {
       argv: ["origin", "other-branch"],
       currentBranch: "feature/x",
@@ -694,18 +677,22 @@ describe("runReleasePush — short-circuit order", () => {
     expect(result.exitCode).toBe(15);
   });
 
-  it("10 fires before 13 (no-active-wu wins over branch-protection)", async () => {
+  it("zero-candidate on the protected base refuses 13 (accept reachable only off-base)", async () => {
+    // No active WU AND on the protected base — the accept clears gate 10 but
+    // branch-protection (13) still refuses, so acceptance is off-base only.
     const settings = buildSettings({
       branchProtection: "full",
       branchBase: "main",
       pushInterlock: "on-workflow",
     });
-    const { deps } = buildDeps(fixture.root, {
+    const { deps, spawnPush, runPushability } = buildDeps(fixture.root, {
       settings,
       currentBranch: "main",
     });
     const result = await runReleasePush(deps);
-    expect(result.exitCode).toBe(10);
+    expect(result.exitCode).toBe(13);
+    expect(spawnPush).not.toHaveBeenCalled();
+    expect(runPushability).not.toHaveBeenCalled();
   });
 
   it("13 fires before 14 (branch-protection wins over pushability)", async () => {
@@ -776,6 +763,36 @@ describe("runReleasePush — success path", () => {
       cwd: fixture.root,
     });
     expect(result.exitCode).toBe(0);
+  });
+
+  it("proceeds with a null work unit on a zero-candidate context off-base", async () => {
+    // No status file written → resolver returns `none`; off the protected base
+    // under full protection + authorizing interlock + clean pushability, the
+    // cascade proceeds and records a null work unit.
+    const settings = buildSettings({
+      branchProtection: "full",
+      branchBase: "main",
+      pushInterlock: "on-workflow",
+    });
+    const { deps, spawnPush } = buildDeps(fixture.root, {
+      argv: [],
+      settings,
+      currentBranch: "chore/errand",
+      spawnPush: () => Promise.resolve({ status: "success", stdout: "", stderr: "" }),
+    });
+
+    const result = await runReleasePush(deps);
+
+    expect(result.exitCode).toBe(0);
+    expect(spawnPush).toHaveBeenCalledTimes(1);
+    const entries = await readAuditEntries(fixture.root);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({
+      command: "release-push",
+      decision: "proceeded",
+      refusalCode: null,
+      wu: null,
+    });
   });
 
   it("strips a matching positional `<remote> <branch>` pair before spawnPush", async () => {
