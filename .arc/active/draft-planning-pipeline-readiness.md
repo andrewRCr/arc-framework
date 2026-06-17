@@ -1,13 +1,16 @@
 # Draft: Planning-Pipeline Readiness
 
 - **Origin:** [internal]
-- **Purpose:** Consolidate the cluster of concerns that all sit on the **planning-pipeline readiness-and-iteration
-  surface** — the `draft-design` → `create-spec` entry gates and the iteration mechanics between them. Five
-  concerns, routed here from the retired `arc-plan-conductor` draft and two USER-INBOX captures, share one logical
-  seam: *when is a draft formalization-ready, who decides, and how does iteration drain a draft's pending inputs
-  before it feeds a spec?* The unifying thesis to settle: a single formalization-ready judgment, consumed at the
-  workflow that owns each fire point, with the readiness call landing in the consuming session against the draft's
-  actual state — never pre-judged by a mechanical upstream step.
+- **Purpose:** Make the **planning-pipeline readiness surface** coherent — the `draft-design` → `create-spec`
+  entry gates and the stage-pointer machinery that tracks where a WU sits in the planning progression. After the
+  2026-06-17 scope-split, the spine is four coupled concerns: a single shared formalization-ready judgment
+  (`assess-draft-readiness`), the `init-work-unit` readiness-pointer fix, the `create-spec` review/proceed
+  interlock split, and the planning-stage-pointer mechanics (a code-owned `Current Workflow` field + event-driven
+  `Design`). They share one seam — *when is a draft formalization-ready, who decides, and where does the stage
+  pointer live?* — with the readiness call landing in the consuming session against the draft's actual state,
+  never pre-judged by a mechanical upstream step. The iteration-*content* concerns (buffer-drain ceremony,
+  depth-aware navigation, oversized-increment audit) split to `planning-iteration-mechanics`; the cold-start init
+  cleanup to `cold-start-init-polish`.
 
 ---
 
@@ -22,16 +25,23 @@ and under-gated** across the planning pipeline:
   work actually is.
 - `create-spec` Finalize collapses spec-review and proceed-to-finalize into a single interlock, leaving no clean
   gate for a full spec read or iteration.
+- session-init **prose-parses** the planning sub-stage from the free-form `Next Action` (there is no code-owned
+  stage pointer), so the pointer is overloaded and the sub-stage isn't deterministically resolved.
 
-These were separate captures until the conductor decomposition surfaced that they are one concern. This stub
-holds them together so a single iteration can cut them coherently rather than patching each in isolation.
+These were separate captures; the 2026-06-17 scope-split narrowed this WU to the readiness / stage-pointer
+**spine** — routing the iteration-content concerns to `planning-iteration-mechanics` and the cold-start-init
+cleanup to `cold-start-init-polish` — so a single iteration can cut the spine coherently rather than patching
+each in isolation.
 
 ## Scope Estimate
 
-Medium (days-week) — load-bearing planning-workflow design touching `draft-design.md`, `create-spec.md`, and
-`init-work-unit.md` across both the package source and the `.arc/` copy, plus a likely new shared method. Settle
-the arm interactions (where the formalization-ready judgment lives; where the inbound-buffer drain fires) at spec
-time before committing the cut.
+Large (week+) — load-bearing planning-workflow design touching `draft-design.md`, `create-spec.md`, and
+`init-work-unit.md` across both the package source and the `.arc/` copy, plus a new shared `assess-draft-readiness`
+method and the planning-stage-pointer mechanics (a code-owned `Current Workflow` field, event-driven `Design`,
+CLI-recognized planning-stage events, and session-init sub-stage resolution) building on
+`lifecycle-transition-core`'s executor encoding pattern. Settle the arm interactions at spec time before
+committing the cut — chiefly where the formalization-ready judgment lives, and the buffer-drain seam where this
+WU's readiness *criterion* meets `planning-iteration-mechanics`' drain *ceremony*.
 
 ---
 
@@ -39,6 +49,10 @@ time before committing the cut.
 
 > *Routed-in concerns pending holistic integration into the body at this WU's first planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+>
+> *Scope-split (2026-06-17): the iteration-content concerns (buffer-drain ceremony, depth-aware navigation,*
+> *oversized-increment audit) routed to `planning-iteration-mechanics`; the cold-start init cleanup to*
+> *`cold-start-init-polish`. The four spine concerns below remain, pending integration into the body.*
 
 ### `[ ]` **Extract `assess-draft-readiness` as a shared formalization-ready method**
 
@@ -70,19 +84,6 @@ time before committing the cut.
 - *Note:* coupled-but-separable from the `assess-draft-readiness` item above (that is the shared method; this is
   just the pointer wording). Touches `.arc/system/**` — single-concern but load-bearing.
 
-### `[ ]` **Iteration-time `Inbound Buffer` integration ceremony (drain integration-mode ceiling)**
-
-- *Routed from:* `arc-plan-conductor` draft Inbound Buffer (origin: work-routing-discipline Phase 6.R, 2026-06-01),
-  re-homed here at the conductor decomposition (2026-06-12).
-- *Concern:* work-routing-discipline landed the **floor** — the two-mode routing rule, the `## Inbound Buffer —
-  Pending Integration` convention, and a minimal forcing hook in `create-spec.md` § Resolve depth & Class
-  (integrate the buffer before the plan feeds the spec). The **ceiling**: a first-class buffer-drain step in the
-  draft-design / iteration moment that mandatorily integrates a draft's `Inbound Buffer` into the body and
-  **supersedes** the minimal create-spec hook.
-- *Also:* placement/visibility refinement (the buffer is an interstitial after Origin/Purpose, set off by `---`)
-  and any structured-buffer schema belong here. (Was homed in the conductor as "the planning-iteration owner";
-  that owner is now the `draft-design` / `arc-plan` iteration surface this stub consolidates.)
-
 ### `[ ]` **Split `create-spec` review/proceed interlocks + recommend on overlay prompts**
 
 - *Routed from:* `arc-plan-conductor` draft Inbound Buffer (origin: `USER-INBOX § Atomic`, 2026-06-10, during the
@@ -96,20 +97,6 @@ time before committing the cut.
   recommendation plus brief rationale instead of presenting a fork without judgment.
 - *Scope:* the likely outcome is two gates — review / iterate, then proceed-to-finalize. Decide whether this lands
   in `create-spec` or in overlay-bearing methods (`spec-review`, `resolve-planning-depth`).
-
-### `[ ]` **Depth-aware navigation as the correction mechanism for `Class` lane mis-calls**
-
-- *Routed from:* `arc-plan-conductor` draft Inbound Buffer (origin: `USER-INBOX § Backlog`, captured during
-  `agile-wu-lifecycle` planning 2026-06-04), re-homed here at the conductor decomposition (2026-06-12). The
-  vocabulary-realignment half of the original capture was already integrated into the conductor body and is
-  **dismissed as done**; only the depth-aware-navigation design below survives.
-- *Concern:* depth-aware planning navigation can serve as the correction mechanism when a WU's `Class` is mis-called
-  against the two decorrelating axes (derivation / scale) — a too-light or too-heavy lane surfaces during
-  facilitation, and planning depth ratchets (routing a `Class` re-read) accordingly. The boundary-test thresholds
-  themselves are `class-model-foundation`'s (shipped); this is only the planning-side navigation that consumes them.
-- *Note:* this was the conductor's depth-aware-navigation design; with the monolithic conductor retired, its natural
-  home is whatever owns planning-depth selection (`resolve-planning-depth` + `draft-design`). Carried here as the
-  nearest planning-pipeline home — confirm the fit at iteration.
 
 ### `[ ]` **Planning-stage-pointer mechanics: a code-owned `Current Workflow` field + event-driven `Design`**
 
@@ -145,48 +132,5 @@ time before committing the cut.
   lands: session-init reads `Current Workflow` for coarse buckets and keeps the Next-Action/artifact fallback **only**
   for the planning sub-stage (a narrowed surface, not the whole pointer).
 - *Note:* this is a **spine** concern (consistency-on-exit: the lifecycle isn't coherent while the planning sub-stage
-  is prose-parsed) — it stays even if the planning-*content* concerns (#3, #5) split off.
-
-### `[ ]` **Add a grounded "oversized increment" granularity category to `arc-task-audit`**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD` → `planning-pipeline-readiness` at drain, 2026-06-17);
-  captured during `lifecycle-transition-core` session-init reviewing how Task 5.1 was under-decomposed (2026-06-15).
-- *Concern:* the DEV-RULES.ARC § Task granularity thresholds (>3 files / >50 lines core logic / interdependent /
-  complex) have **no detector** pointed at them at the one moment a too-big leaf becomes visible — once grounded in
-  the code. Root cause of Task 5.1 slipping through under-decomposed: the first production executor binder (reused
-  across a whole phase) hid behind a "`start` dispatch" headline and read as one atomic leaf. The gap is a hole in
-  the audit's lens set, not in the standard.
-- *Approach:* add a grounded "oversized increment / decomposition pressure" category to `arc-task-audit`, tied to
-  § Task granularity. It must be **grounding-derived** (magnitude only shows in code → leans on the audit's step 2)
-  and **survive `grounding-only` depth** (the `low` default + never-dropped floor, exactly where a small-looking
-  leaf hides — likely fold a lightweight magnitude check into step 2, not only step 3). On a hit, **route into
-  existing machinery**: gen-time → split in structural-decomposition or escalate via `resolve-planning-depth`;
-  impl-time → `process-task-loop`'s agent-proposed-batch or a split. The audit's only new job is to *surface* the
-  leaf-magnitude signal.
-- *Why existing mechanisms miss it:* `generate-tasks` Structural-decomposition "Asymmetry" lens runs pre-grounding
-  and keys off subtask-count (a no-subtask leaf draws no signal); `arc-task-audit` step 3's categories carry no
-  magnitude axis; `resolve-planning-depth` responds at stage / list granularity, not leaf.
-- *Home note:* landed here at drain as the nearest live owner of the grounding / planning seam; the capture flagged
-  this sits "one seam over" at the spec→tasks scale-detection seam, so a dedicated stub stays a reasonable
-  alternative if PPR's scope tightens.
-
-### `[ ]` **Smooth the no-draft cold-start WU init flow (commit footer, entrypoints, `arc start` UX)**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: planning-pipeline-readiness`), housekeep drain (2026-06-17);
-  captured during `release-ceremony-commits` planning — first live cold-start / no-draft WU init (2026-06-17).
-- *Concern:* the cold-start → `low`-path (no-draft) → active-WU init flow works but is underspecified at several
-  seams. (1) **commit-footer / commit-format + `commit-msg` hook** have no valid footer for a draft-design low-path
-  / meta-only planning capture (parentheticals are lifecycle transitions + `maintenance`, no `(planning)`; the
-  draft-design template's `draft-{name}.md (planning)` is unusable with no draft — fell back to `meta-*.md
-  (maintenance)`, semantically wrong). (2) `arc start --here` refuses on a protected base without auto-cutting or
-  offering the `plan/<name>` branch (hand `git checkout -b` first). (3) the `arc start` CLI ↔ `init-work-unit` ↔
-  `arc-plan` relationship is uncodified for cold-start — nothing routes "mint a WU" to a workflow. (4) ROADMAP
-  regen hand-rendered for the newly-active WU (the roadmap-tooling gap).
-- *Entrypoint facet:* the `drain-inbox` → `run-errand` execution-transition has no re-classify checkpoint before
-  handing off (assumes a `§ Atomic` capture is errand-sized); and once "it's a WU" is decided, no codified
-  classify-then-**mint** path — `run-errand`'s promote-to-WU only fires after launch, so a pre-launch "this is
-  WU-sized" call drops into hand-rolled minting.
-- *Home note:* primary `planning-pipeline-readiness` (owns planning-pipeline coherence / the draft→spec seam).
-  Facets that may split at PPR planning: the commit-footer/hook grammar gap (own small fix, or a
-  `naming-conventions` / rules home) and the entrypoint routing (lifecycle cohort — `errand-lattice` owns errand→WU
-  promotion, `out-of-wu-entry` owns entry signals).
+  is prose-parsed) — it stays. The planning-*content* concerns (the buffer-drain ceremony, depth-aware navigation)
+  split to `planning-iteration-mechanics` at the 2026-06-17 scope-split.
