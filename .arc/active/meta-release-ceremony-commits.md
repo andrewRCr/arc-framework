@@ -9,12 +9,12 @@
 
 - **Origin:** [internal]
 - **Design:** spec-release-ceremony-commits.md
-- **Task List:** [none]
+- **Task List:** tasks-release-ceremony-commits.md
 
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Run generate-tasks to decompose `spec-release-ceremony-commits.md` into a task list.
+- **Next Action:** Run activate-work-unit to flip State to Active and rename `plan/release-ceremony-commits`.
 
 ---
