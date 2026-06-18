@@ -238,28 +238,34 @@ judgment. Code-tier, test-first.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **6.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (0 errors), TS lint, shell lint, typecheck (source + tests), 2954 tests
+  (1 skipped), and build — full Tier 3 suite passed.
+- _Success criteria:_ 10 spec criteria, all met (12 task-list rows including quality-gates + integration-ready);
+  none superseded or unmet. § A method extraction, § B interlock split + overlay rule, and § C stage-pointer
+  mechanics verified against the spec and the shipped `Current Workflow` / `Design` event model.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `assess-draft-readiness.md` exists (+ mirror) with the three-criterion bar and `{ ready, gaps }` contract,
+- `[x]` `assess-draft-readiness.md` exists (+ mirror) with the three-criterion bar and `{ ready, gaps }` contract,
   declared in `draft-design.md` and `create-spec.md` frontmatter
-- `[ ]` Both fire points call the method; neither retains a second inline readiness implementation
-- `[ ]` The buffer criterion is checks-only — no drain act added or moved; the `create-spec` inline hook remains
-- `[ ]` `create-spec` Finalize presents two sequential gates; approving review does not authorize retirement/commit
-- `[ ]` A general overlay-recommendation rule is in `DEV-RULES.ARC` (+ mirror), generalized and token-tight
-- `[ ]` `Current Workflow` is advanced at each stage's finalization (plus the draft-gated `create-spec` entry
+- `[x]` Both fire points call the method; neither retains a second inline readiness implementation
+- `[x]` The buffer criterion is checks-only — no drain act added or moved; the `create-spec` inline hook remains
+- `[x]` `create-spec` Finalize presents two sequential gates; approving review does not authorize retirement/commit
+- `[x]` A general overlay-recommendation rule is in `DEV-RULES.ARC` (+ mirror), generalized and token-tight
+- `[x]` `Current Workflow` is advanced at each stage's finalization (plus the draft-gated `create-spec` entry
   correction) and read by session-init; `Next Action` no longer carries a workflow pointer (within-stage judgment
   or the `[begin current workflow]` sentinel)
-- `[ ]` `Design` repoints event-drivenly (`[none] → draft` at creation; `draft → spec` at finalization)
-- `[ ]` `init-work-unit` writes `Current Workflow` and no longer writes a `Next Action` workflow pointer
-- `[ ]` The encoding-consistency test passes and fails correctly on an injected mismatch
-- `[ ]` session-init resolves the sub-stage from `Current Workflow` with no prose-parse on a current-format meta,
+- `[x]` `Design` repoints event-drivenly (`[none] → draft` at creation; `draft → spec` at finalization)
+- `[x]` `init-work-unit` writes `Current Workflow` and no longer writes a `Next Action` workflow pointer
+- `[x]` The encoding-consistency test passes and fails correctly on an injected mismatch
+- `[x]` session-init resolves the sub-stage from `Current Workflow` with no prose-parse on a current-format meta,
   defaulting to the `draft-design` entry stage when the field is absent
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---
 

@@ -11,12 +11,11 @@
 - **Design:** `spec-planning-pipeline-readiness.md`
 - **Task List:** `tasks-planning-pipeline-readiness.md`
 
-- **Last Completed:** Phase 5 (§ C read-side + `Next Action` semantics) complete — Tasks 5.1–5.2: session-init
-  reads `Current Workflow` (draft-design default when absent); the pointer advances at stage finalization via
-  `set-stage --advance` (sentinel set in code); planning workflows + spec § C5 reconciled.
-- **Next Task:** Task 6.1 — Complete verification, load and follow `verify-work-unit.md` (line ~241)
+- **Last Completed:** Phase 6 (Verification) complete — Task 6.1: full Tier 3 suite passed (md/TS/shell lint,
+  typecheck, 2954 tests, build); all 10 spec success criteria met across § A/B/C; meta pre-aligned for integration.
+- **Next Task:** [none] — task list complete; ready for integration
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md` (Phase 6 verification, the WU's final task)
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 ---
