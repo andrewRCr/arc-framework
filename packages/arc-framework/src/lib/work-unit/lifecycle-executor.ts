@@ -220,6 +220,19 @@ export interface ExecuteTransitionContext {
   writeDesignField: (metaPath: string, value: string) => Promise<void>;
 
   /**
+   * Write the archive finalize facts (`PR URL` / `Completed`) to the meta at
+   * `metaPath` (read → rewrite → write), update-or-insert per
+   * `setMetaFinalizeFields`. The terminal sibling of {@link writeSoftFields}: not a
+   * transition leg (no edge declares it), it is the `archive` verb's post-relocate
+   * finalize write, so it reaches the executor as an optional seam the verb invokes
+   * directly. Absent in contexts that never archive.
+   */
+  writeFinalizeFields?: (
+    metaPath: string,
+    facts: { prUrl?: string; completed?: string },
+  ) => Promise<void>;
+
+  /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
    * the branch-field clear, and the soft-field reset all write through the fs
    * seam unstaged; without staging, a meta that `relocate-artifacts` git-mv'd

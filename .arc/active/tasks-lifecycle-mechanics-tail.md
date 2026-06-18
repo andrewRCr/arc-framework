@@ -160,14 +160,14 @@ forward-reconcile audits a meta against the full field set. `arc integrate` is a
           backticked" convention — `Origin` URLs were dead code-spans; both URL fields are now clickable.
           `template-meta` comment updated (both copies).
 
-    - `[ ]` **3.2.b `--pr-url` / `--completed` flags + the field write**
-        - Extend `ArchiveParams` / `runArchive`; write via the field-model seam (`setMetaBulletFields`),
-          not a raw prose append; warn + placeholder on absent `--pr-url`; default `--completed` to the
-          injected clock.
-        - Build `test-first` (one behavior at a time):
-            - Writes both fields as managed fields in one archive call
-            - Absent `--pr-url` warns and writes a placeholder (backfill path)
-            - `--completed` honors an explicit date and defaults to the injected clock otherwise
+    - `[x]` **3.2.b `--pr-url` / `--completed` flags + the field write**
+        - `runArchive` writes the finalize facts to the relocated meta via a new `writeFinalizeFields` executor
+          seam (bound to `setMetaFinalizeFields`), then re-stages it. `setMetaFinalizeFields` is **update-or-insert**:
+          it rewrites the group in place when present, or inserts it before the field block's `---` when a
+          pre-finalize meta lacks it (a localized forward-reconcile — needed so archiving any current in-flight WU
+          doesn't throw). Absent `--pr-url` → `[none]` placeholder + a backfill warning; `--completed` defaults to
+          the injected clock's day (local components, matching the quarter label). `--pr-url` / `--completed` flags
+          on `arc archive`; warnings surfaced via `p.log.warn`.
 
     - `[ ]` **3.2.c Pass `--pr-url` / `--completed` from the archive ceremony invocation**
         - `archive-work-unit.md` Step 2 (and the inline `with-integration` path from

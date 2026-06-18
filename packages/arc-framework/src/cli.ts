@@ -45,6 +45,7 @@ import {
   type IntegrateOptions,
   type ReopenOptions,
   type AbandonOptions,
+  type ArchiveOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -190,7 +191,9 @@ program
 program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
-  .action((slug: string | undefined) => handleArchive(slug));
+  .option("--pr-url <url>", "Integration PR URL → meta `PR URL` (absent writes a placeholder + warns)")
+  .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
+  .action((slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts));
 
 program
   .command("teardown [name]")

@@ -22,6 +22,7 @@ import {
   setMetaBranch,
   setMetaCurrentWorkflow,
   setMetaDesign,
+  setMetaFinalizeFields,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -624,6 +625,66 @@ describe("`url` value class — clickable locators (`Origin` / `PR URL`)", () =>
     expect(urlRecord.Origin).toBe("https://tracker.example/issue/42"); // angle brackets stripped
     const refRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "tracker-123" }));
     expect(refRecord.Origin).toBe("tracker-123"); // backticks stripped
+  });
+});
+
+describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
+  it("updates the finalize fields in place when the meta already carries the group", () => {
+    const before = renderMetaFile("foo", SPAWN_OVERRIDES); // already has PR URL / Completed at [none]
+    const after = setMetaFinalizeFields(before, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+    expect(after).toContain("- **PR URL:** <https://github.com/x/y/pull/9>");
+    expect(after).toContain("- **Completed:** 2026-06-18");
+    // No duplicate group — updated, not appended.
+    expect(after.match(/- \*\*PR URL:\*\*/g)).toHaveLength(1);
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("inserts the finalize group before the rule when an older meta lacks it", () => {
+    // A meta minted before the finalize fields existed — no PR URL / Completed bullets.
+    const legacy = [
+      "# Metadata: foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |",
+      "",
+      "- **Next Action:** [none]",
+      "",
+      "---",
+      "",
+      "## Completion Notes",
+      "",
+      "Shipped.",
+      "",
+    ].join("\n");
+    const after = setMetaFinalizeFields(legacy, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+    // Inserted as its own group after Next Action, before the field block's `---`.
+    expect(after).toContain(
+      "- **Next Action:** [none]\n\n- **PR URL:** <https://github.com/x/y/pull/9>\n- **Completed:** 2026-06-18\n\n---",
+    );
+    // The archive-phase H2 below the rule is untouched.
+    expect(after).toContain("## Completion Notes\n\nShipped.");
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("writes the `[none]` placeholder bare (the absent-PR-URL backfill path)", () => {
+    const after = setMetaFinalizeFields(renderMetaFile("foo", SPAWN_OVERRIDES), {
+      prUrl: "[none]",
+      completed: "2026-06-18",
+    });
+    expect(after).toContain("- **PR URL:** [none]");
+    expect(after).not.toContain("<[none]>");
+    expect(after).not.toContain("`[none]`");
   });
 });
 

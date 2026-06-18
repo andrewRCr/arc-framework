@@ -700,16 +700,26 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
 // Terminal — `archive`
 // ---------------------------------------------------------------------------
 
+/** Options for `arc archive`. */
+export interface ArchiveOptions {
+  /** Integration PR URL → meta `PR URL`; absent writes a `[none]` placeholder + warns (backfill). */
+  prUrl?: string;
+  /** Completion date (`YYYY-MM-DD`) → meta `Completed`; defaults to today. */
+  completed?: string;
+}
+
 /**
  * `arc archive [slug]` — sweep a shipped work unit to `completed/` (defaults to the
  * current WU). Computes the dated/numbered `completed/{YYYY-qN}/{NN}_{name}/`
- * destination and relocates the artifact set there, flipping `State → Shipped` and
- * clearing the `Branch` field — the mergeable ship that rides the PR. Physical
+ * destination and relocates the artifact set there, flipping `State → Shipped`,
+ * clearing the `Branch` field, and writing the `PR URL` / `Completed` finalize facts
+ * as managed fields — the mergeable ship that rides the PR. `--pr-url` is optional:
+ * absent writes a `[none]` placeholder and warns (backfill). Physical
  * branch/worktree teardown is the integration tail's post-merge cleanup, not this
  * command's. Judgment — merge approval, archival timing — is the integration
  * ceremony's; this runs the deterministic sweep once that call is made.
  */
-export async function handleArchive(slug: string | undefined): Promise<void> {
+export async function handleArchive(slug: string | undefined, opts: ArchiveOptions = {}): Promise<void> {
   p.intro("arc archive");
   const base = await resolveVerbBase();
   if (base === null) return;
@@ -720,12 +730,13 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const { executor } = await buildExecutor(base);
   const result = await runArchive(
     { executor, fs: { readdir: (path) => readdir(path) }, clock: () => new Date() },
-    { name: target },
+    { name: target, prUrl: opts.prUrl?.trim() || undefined, completed: opts.completed?.trim() || undefined },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
+  for (const warning of result.warnings) p.log.warn(warning);
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   reportOutcome("Archived", lines, result.outcome);

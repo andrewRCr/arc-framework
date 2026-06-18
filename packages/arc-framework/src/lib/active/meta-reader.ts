@@ -503,6 +503,63 @@ export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
 }
 
+/** The finalize-group fields, in render order — written together at archive. */
+const FINALIZE_FIELDS = ["PR URL", "Completed"] as const satisfies readonly MetaFieldName[];
+
+/** The bare value an absent finalize fact resolves to (a sentinel — renders bare). */
+const FINALIZE_DEFAULT = "[none]";
+
+/**
+ * Write the archive finalize facts (`PR URL` / `Completed`) to the meta as managed
+ * fields — the structured replacement for the hand-appended post-integration prose
+ * block. Each fact renders per its value class (`PR URL` as a clickable autolink or
+ * the `[none]` placeholder; `Completed` as a bare date), and an absent fact resolves
+ * to the `[none]` sentinel.
+ *
+ * Update-or-insert (a localized forward-reconcile): when the meta already carries
+ * the finalize group it rewrites both bullets in place; when it lacks them — a meta
+ * minted before the finalize fields existed — it inserts the group as its own
+ * blank-line-separated block immediately before the field block's closing `---`,
+ * leaving the core table, every prior bullet, and any archive-phase H2 sections
+ * below the rule byte-stable. Unlike the single-field setters this never throws on
+ * an absent bullet — healing the older shape is the point.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param facts - The finalize facts; an omitted fact resolves to `[none]`.
+ * @returns The rewritten markdown.
+ */
+export function setMetaFinalizeFields(
+  content: string,
+  facts: { prUrl?: string; completed?: string },
+): string {
+  const valueOf = (name: (typeof FINALIZE_FIELDS)[number], raw: string | undefined): string => {
+    const field = META_FIELDS.find((f) => f.name === name);
+    return raw === undefined ? FINALIZE_DEFAULT : formatValue(raw, field?.valueClass ?? "narrative");
+  };
+  const rendered: Record<(typeof FINALIZE_FIELDS)[number], string> = {
+    "PR URL": valueOf("PR URL", facts.prUrl),
+    Completed: valueOf("Completed", facts.completed),
+  };
+
+  // Already present → rewrite both bullets in place. Absent (a pre-finalize meta)
+  // → insert the group before the field block's `---`.
+  const lines = content.split("\n");
+  const hasGroup = lines.some((line) => /^[ \t>*+-]*\*\*PR URL:\*\*/.test(line));
+  if (hasGroup) {
+    return setMetaBulletFields(content, rendered);
+  }
+
+  const h1Idx = lines.findIndex((line) => /^# /.test(line));
+  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
+  if (h1Idx === -1 || ruleIdx === -1) {
+    // No field-block rule to anchor against — fall back to the fail-loud update.
+    return setMetaBulletFields(content, rendered);
+  }
+  const group = FINALIZE_FIELDS.map((name) => `- **${name}:** ${rendered[name]}`);
+  lines.splice(ruleIdx, 0, ...group, "");
+  return lines.join("\n");
+}
+
 /**
  * Rewrite one or more core-block table cells in place, re-rendering *only* the
  * three core-table rows so column alignment stays correct and leaving every
