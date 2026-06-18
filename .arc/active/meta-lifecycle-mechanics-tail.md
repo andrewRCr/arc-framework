@@ -11,13 +11,11 @@
 - **Design:** `draft-lifecycle-mechanics-tail.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Audit first pass — scope boundary settled
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Settle the remaining open questions — teardown timing (with `concurrent-work-conventions`), the
-  post-side-effect-write distinct-status fork (Inbound #2), and the archive-finalize inference locus — then
-  confirm the one-`Heavy`-WU (no-decompose) read; the draft is otherwise spec-ready.
+- **Next Action:** [begin current workflow]
 
 ---
