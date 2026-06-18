@@ -8,10 +8,10 @@
 - **Depends On:** `lifecycle-transition-core`
 
 - **Origin:** [internal]
-- **Design:** `draft-lifecycle-mechanics-tail.md`
+- **Design:** `spec-lifecycle-mechanics-tail.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design complete — draft captured (formalization-ready); audit + forward-compat done
 - **Next Task:** [none]
 - **Blockers:** [none]
