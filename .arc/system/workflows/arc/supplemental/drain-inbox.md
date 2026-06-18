@@ -154,8 +154,15 @@ removal rides the same write.
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane
-  off that branch (chunked per § 4 if large). A write touching a **foreign owner's** artifact is reviewed-lane
+  off that branch (chunked per § 4 if large). Open it with a **lean grooming-PR body** — a one-line Summary
+  plus the § 3 routing plan (what routed where); no Spec / Out-of-Scope / Follow-Up sections, mirroring
+  [run-errand][run-errand] § Ship step 3. A write touching a **foreign owner's** artifact is reviewed-lane
   and ships on its own.
+
+  > [!IMPORTANT]
+  > `integration-interlock`: Stop before arming auto-merge or merging the grooming PR. Surface PR status
+  > (checks, resolved lane) and await explicit integration approval — never infer it from the § 3 routing
+  > confirmation, which approved the _routing_, not the merge.
 - **Partially protected** — every routing write is a **direct base-branch commit** with no PR or merge-wait;
   keep coherent commit boundaries (the § 4 chunk shape). No lanes, no review-chunking.
 
