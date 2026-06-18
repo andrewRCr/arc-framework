@@ -12,10 +12,10 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks + activate — task list finalized (6 phases); WU activated to feat/
-- **Next Task:** Begin Task 1.1 — Distinct post-side-effect executor status
+- **Last Completed:** Phase 2 — `arc teardown` verb + integrate/handoff ceremony wiring (Tasks 2.1–2.2)
+- **Next Task:** Task 3.1 — `arc integrate` command binding (line ~117)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 (Phase 1) — implement via process-task-loop
+- **Next Action:** Begin Task 3.1 (Phase 3) — implement via process-task-loop
 
 ---
