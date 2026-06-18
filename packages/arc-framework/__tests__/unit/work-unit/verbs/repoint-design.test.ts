@@ -69,9 +69,27 @@ describe("runRepointDesign — event-driven Design repoint", () => {
     expect(calls).toEqual([{ metaPath: ".arc/active/meta-demo-wu.md", value: "spec-demo-wu.md" }]);
   });
 
+  it("spec-finalized dedups a Design that already carries both the draft and the spec", async () => {
+    const { ctx, calls } = buildCtx();
+    const result = await runRepointDesign(ctx, {
+      name: "demo-wu",
+      event: "spec-finalized",
+      currentDesign: ["draft-demo-wu.md", "spec-demo-wu.md"],
+    });
+    expect(result).toEqual({ status: "ok", metaPath: ".arc/active/meta-demo-wu.md", design: "spec-demo-wu.md" });
+    expect(calls).toEqual([{ metaPath: ".arc/active/meta-demo-wu.md", value: "spec-demo-wu.md" }]);
+  });
+
   it("rejects an empty work-unit name and performs no write", async () => {
     const { ctx, calls } = buildCtx();
     const result = await runRepointDesign(ctx, { name: "  ", event: "draft-created", currentDesign: [] });
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual([]);
+  });
+
+  it("rejects a non-slug-safe work-unit name and performs no write", async () => {
+    const { ctx, calls } = buildCtx();
+    const result = await runRepointDesign(ctx, { name: "../evil", event: "draft-created", currentDesign: [] });
     expect(result.status).toBe("rejected");
     expect(calls).toEqual([]);
   });

@@ -25,6 +25,7 @@
  * @module
  */
 
+import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /** The executor capability the design repoint needs — nothing more. */
@@ -56,28 +57,27 @@ export async function runRepointDesign(
   if (name === "") {
     return { status: "rejected", reason: "A work-unit name is required to repoint `Design`." };
   }
+  // `name` flows straight into the meta path and the draft/spec refs below, so
+  // reject anything but a slug before it can escape `.arc/active/`.
+  if (!isSlugSafe(name)) {
+    return {
+      status: "rejected",
+      reason: "`repoint-design` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
+    };
+  }
 
   const draftRef = `draft-${name}.md`;
   const specRef = `spec-${name}.md`;
   const current = params.currentDesign;
 
-  let next: string[];
-  if (params.event === "draft-created") {
-    // `[none] → draft-<name>.md`. Idempotent when the draft already points;
-    // additive (never clobbering) if a list is somehow already present.
-    next = current.includes(draftRef) ? current : [...current, draftRef];
-  } else {
-    // create-spec finalization: swap the draft member for the spec, preserving
-    // order and any layered siblings; the direct (no-draft) path just adds the
-    // spec. Idempotent when the spec already points.
-    if (current.includes(draftRef)) {
-      next = current.map((entry) => (entry === draftRef ? specRef : entry));
-    } else if (current.includes(specRef)) {
-      next = current;
-    } else {
-      next = [...current, specRef];
-    }
-  }
+  // Repoint swaps the WU's own draft↔spec member for the event's target, preserving
+  // order and any layered siblings, then dedups so the field stays authoritative —
+  // never both the draft and the spec for this WU, never a doubled target.
+  const targetRef = params.event === "draft-created" ? draftRef : specRef;
+  const supersededRef = params.event === "draft-created" ? specRef : draftRef;
+  const swapped = current.map((entry) => (entry === supersededRef ? targetRef : entry));
+  const withTarget = swapped.includes(targetRef) ? swapped : [...swapped, targetRef];
+  const next = withTarget.filter((entry, index) => withTarget.indexOf(entry) === index);
 
   const design = next.length === 0 ? "[none]" : next.join(", ");
   const metaPath = `.arc/active/meta-${name}.md`;

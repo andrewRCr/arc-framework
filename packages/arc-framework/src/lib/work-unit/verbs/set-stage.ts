@@ -30,6 +30,7 @@ import {
   PLANNING_WORKFLOWS,
   BEGIN_CURRENT_WORKFLOW_SENTINEL,
 } from "../../active/current-workflow-consistency.js";
+import { isSlugSafe } from "../slug.js";
 import type { ExecuteTransitionContext } from "../lifecycle-executor.js";
 
 /**
@@ -69,6 +70,14 @@ export async function runSetStage(
   const name = params.name.trim();
   if (name === "") {
     return { status: "rejected", reason: "A work-unit name is required to set the planning stage." };
+  }
+  // `name` flows straight into the meta path below, so reject anything but a slug
+  // before it can escape `.arc/active/` via separators or dot-segments.
+  if (!isSlugSafe(name)) {
+    return {
+      status: "rejected",
+      reason: "`set-stage` requires a slug-safe name (`[a-z0-9-]`, no path separators or dot segments).",
+    };
   }
   const { stage, advance = false } = params;
   if (!isPlanningWorkflow(stage)) {

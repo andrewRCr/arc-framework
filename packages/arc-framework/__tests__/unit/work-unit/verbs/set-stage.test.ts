@@ -88,4 +88,12 @@ describe("runSetStage — planning-stage-pointer write", () => {
     expect(calls).toEqual([]);
     expect(softWrites).toEqual([]);
   });
+
+  it("rejects a non-slug-safe work-unit name and performs no write", async () => {
+    const { ctx, calls, softWrites } = buildCtx();
+    const result = await runSetStage(ctx, { name: "../evil", stage: "draft-design" });
+    expect(result.status).toBe("rejected");
+    expect(calls).toEqual([]);
+    expect(softWrites).toEqual([]);
+  });
 });
