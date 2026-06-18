@@ -89,6 +89,7 @@ describe("validFromStates — read off the transition table", () => {
     expect(validFromStates("demote")).toEqual(["planned"]);
     expect(validFromStates("activate")).toEqual(["planning"]);
     expect(validFromStates("deactivate")).toEqual(["active"]);
+    expect(validFromStates("integrate")).toEqual(["active"]);
     expect(validFromStates("reopen")).toEqual(["integrating"]);
     expect(validFromStates("park")).toEqual(["active", "planning"]);
     expect(validFromStates("archive")).toEqual(["active", "integrating"]);

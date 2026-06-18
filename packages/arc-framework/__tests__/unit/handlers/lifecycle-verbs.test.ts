@@ -86,6 +86,11 @@ vi.mock("../../../src/lib/work-unit/verbs/abandon.js", () => ({
   planAbandon: (...a: unknown[]) => mockPlanAbandon(...a),
 }));
 
+const mockRunIntegrate = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/integrate.js", () => ({
+  runIntegrate: (...a: unknown[]) => mockRunIntegrate(...a),
+}));
+
 const mockRunReopen = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/reopen.js", () => ({
   runReopen: (...a: unknown[]) => mockRunReopen(...a),
@@ -116,6 +121,7 @@ const {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleIntegrate,
   handleAbandon,
   handleReopen,
 } = await import("../../../src/handlers/lifecycle.js");
@@ -135,6 +141,7 @@ beforeEach(() => {
   mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
   mockResolveSlugState.mockReturnValue("active");
   mockPlanAbandon.mockReturnValue({ legal: true, lines: ["Artifacts: remove the work unit's artifact set"] });
+  mockRunIntegrate.mockResolvedValue({ status: "integrated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
@@ -282,6 +289,31 @@ describe("handleAbandon", () => {
     expect(mockRunAbandon).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleIntegrate", () => {
+  it("dispatches runIntegrate, forwarding the orientation inputs", async () => {
+    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
+    expect(mockRunIntegrate.mock.calls[0]?.[1]).toEqual({
+      name: "foo",
+      lastCompleted: "Phase 7 — verification",
+      nextAction: "open the PR",
+    });
+  });
+
+  it("refuses without the orientation inputs and never dispatches", async () => {
+    await handleIntegrate("foo", { lastCompleted: "Phase 7 — verification" });
+    expect(mockRunIntegrate).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("defaults a bare invocation to the current worktree's WU", async () => {
+    await handleIntegrate(undefined, { lastCompleted: "Phase 7 — verification", action: "open the PR" });
+    expect(mockRunIntegrate).toHaveBeenCalledTimes(1);
+    expect(mockRunIntegrate.mock.calls[0]?.[1]).toMatchObject({ name: "foo" });
   });
 });
 

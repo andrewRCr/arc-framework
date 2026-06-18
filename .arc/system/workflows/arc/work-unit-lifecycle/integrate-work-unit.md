@@ -49,13 +49,22 @@ Verify the integration context:
 - Currently on the WU branch (per [`branch-format`][branch-format])
 - `active/meta-{name}.md` exists and shows `**State:** Active`
 
-Edit `active/meta-{name}.md`: `**State:** Active` → `**State:** Integrating`. The `Integrating` state covers PR
-open through review-response.
+Compose the integration inputs (judgment — never fabricated):
 
-Regenerate `backlog/ROADMAP.md` in the same commit so the In Flight table's rendered `State` column reflects
-`Integrating`.
+- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
+- next action — the integration pointer (`open the PR`)
 
-Stage the meta and ROADMAP edits.
+```bash
+arc integrate {name} --last-completed "{last completed}" --action "{next action}"
+```
+
+The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
+/ `**Next Action:**`, resets `**Next Task:** [none]`, and stages the meta. `{name}` defaults to the current
+worktree's WU. The `Integrating` state covers PR open through review-response.
+
+Hand-render `backlog/ROADMAP.md` into the same commit per the command's interim ROADMAP advisory, so the In Flight
+table's rendered `State` column reflects `Integrating` (interim until `roadmap-tooling` ships the renderer). Stage
+the ROADMAP edit alongside the meta.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit

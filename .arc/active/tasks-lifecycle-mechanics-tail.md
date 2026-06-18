@@ -114,25 +114,25 @@ _Design decisions:_ The new `META_FIELDS` entries land **here**, before Phase 4'
 forward-reconcile audits a meta against the full field set. `arc integrate` is a transition verb (not a
 `set-*` setter); its description marks phase entry, not the merge.
 
-### `[ ]` **3.1 `arc integrate` command binding**
+### `[x]` **3.1 `arc integrate` command binding**
 
 - _Goal:_ `arc integrate [slug]` flips Active → Integrating through the executor (firing the edge's
   render + soft-field side-effects) so `integrate-work-unit` no longer hand-edits `State`.
 
-- _Context:_ The edge already exists in `TRANSITIONS` (inverse `reopen`); only the thin verb + handler +
-  CLI registration are missing — mirror `reopen.ts` / `runReopen`. ROADMAP regen rides the existing
-  `readiness-regen` side-effect. The description must mark phase entry, not the merge (the
-  integration-interlock owns merge approval) — exactly as `arc reopen` disambiguates its effect.
+    - `[x]` **3.1.a Thin `runIntegrate` verb + CLI/handler wiring**
+        - `verbs/integrate.ts` dispatches `executeTransition` forwarding the `Last Completed` / `Next Action`
+          input soft fields; `handlers/lifecycle.ts` `handleIntegrate` (refuses without `--last-completed` /
+          `--action`); `cli.ts` `arc integrate [slug]`; `integrate` added to `dispatch.ts`
+          `CONTEXT_DEFAULTING_VERBS` so a bare invocation defaults to the current WU.
 
-    - `[ ]` **3.1.a Thin `runIntegrate` verb + CLI/handler wiring**
-        - `verbs/integrate.ts` dispatching `executeTransition`; `cli.ts` `arc integrate [slug]`;
-          `handlers/lifecycle.ts` `handleIntegrate`; phase-explicit description.
-        - Build `test-first` (one behavior at a time):
-            - Dispatches the `integrate` edge from `Active` (phase flips to `Integrating`)
-            - Rejects from a non-`Active` source (the table's illegal-edge lookup)
+    - `[x]` **3.1.b Replace the hand-edited State flip in `integrate-work-unit.md`**
+        - The fresh-entry step invokes `arc integrate`; the manual State edit is gone. ROADMAP regen now rides
+          the command's interim advisory (a one-line hand-render pointer) rather than standalone prose.
 
-    - `[ ]` **3.1.b Replace the hand-edited State flip in `integrate-work-unit.md`**
-        - The ceremony invokes `arc integrate`; the manual State edit + ROADMAP-regen prose are removed.
+- _Outcome:_ `arc integrate` binds the pre-tabled `integrate` edge (inverse `reopen`) — verb + handler + CLI +
+  dispatch registry — mirroring `reopen.ts`. The description is phase-explicit (marks review entry, not the
+  merge). Both ceremony copies (`.arc/` + package source) delegate the State flip; the interim ROADMAP
+  hand-render stays, now driven by the command's `reconcile-roadmap` advisory until `roadmap-tooling` ships.
 
 ### `[ ]` **3.2 `PR URL` / `Completed` `META_FIELDS` + `arc archive --pr-url --completed`**
 

@@ -31,6 +31,7 @@ import {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleIntegrate,
   handleReopen,
   handleAbandon,
   handleArchive,
@@ -41,6 +42,7 @@ import {
   type ParkOptions,
   type ResumeOptions,
   type ActivateOptions,
+  type IntegrateOptions,
   type ReopenOptions,
   type AbandonOptions,
 } from "./handlers/lifecycle.js";
@@ -165,6 +167,13 @@ program
   .command("deactivate [slug]")
   .description("Undo a premature activation: Active → Planning (defaults to the current WU)")
   .action((slug: string | undefined) => handleDeactivate(slug));
+
+program
+  .command("integrate [slug]")
+  .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
+  .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
+  .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .action((slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts));
 
 program
   .command("reopen [slug]")

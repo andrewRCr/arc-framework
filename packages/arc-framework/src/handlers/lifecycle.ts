@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
- * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` / `reopen` /
- * `abandon`).
+ * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
+ * `integrate` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -61,6 +61,7 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
+import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import { runTeardown } from "../lib/work-unit/verbs/teardown.js";
@@ -523,6 +524,50 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
     return;
   }
   reportOutcome("Resumed", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Phase move (review entry) — `integrate`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc integrate`. */
+export interface IntegrateOptions {
+  lastCompleted?: string;
+  action?: string;
+}
+
+/**
+ * `arc integrate [slug]` — open review on an `Active` WU (Active → Integrating),
+ * defaulting to the current WU. Marks phase entry, not the merge — the
+ * integration-interlock owns merge approval. Refuses without the orientation inputs
+ * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
+ * are never fabricated. A non-`Active` source falls to the table's illegal-edge
+ * rejection.
+ */
+export async function handleIntegrate(slug: string | undefined, opts: IntegrateOptions): Promise<void> {
+  p.intro("arc integrate");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("integrate", slug, base.cwd);
+  if (target === null) return;
+
+  const lastCompleted = opts.lastCompleted?.trim();
+  const action = opts.action?.trim();
+  if (!lastCompleted || !action) {
+    refuse(
+      "`arc integrate` requires `--last-completed <work>` and `--action <next action>` — refusing to fabricate orientation.",
+    );
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runIntegrate(executor, { name: target, lastCompleted, nextAction: action });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
 }
 
 // ---------------------------------------------------------------------------
