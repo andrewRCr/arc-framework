@@ -309,8 +309,10 @@ Validated at completion by running each lifecycle ceremony end to end:
    the safety gate authorizes and protects correctly across squash, rebase, and merge-commit ship paths — no merged
    branch lingers (the squash/rebase bug is gone). (The `decompose` park-exit teardown is `decompose-matrix`'s to
    migrate.)
-2. `arc archive --pr-url --completed` writes `PR URL` + `Completed` as `META_FIELDS` and forward-reconciles in one
-   call; no hand-added block remains in `archive-work-unit.md`.
+2. `arc archive --pr-url [--completed]` writes `PR URL` + `Completed` as `META_FIELDS` and forward-reconciles in one
+   call, invoked with the PR URL by the archive ceremony (`archive-work-unit.md` Step 2 / the inline
+   `with-integration` path); the `template-meta.md` finalize-field mandate that drove the hand-add is retired (§5b),
+   so no facts are hand-added.
 3. `arc integrate` performs the Active → Integrating flip + ROADMAP regen; `integrate-work-unit` no longer hand-edits
    `State`.
 4. A graduated meta carries every `META_FIELDS` field (warn-and-backfill notice emitted); `template-meta.md` is

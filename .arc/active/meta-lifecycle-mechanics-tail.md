@@ -9,13 +9,13 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-lifecycle-mechanics-tail.md`
-- **Task List:** [none]
+- **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** create-spec complete — spec finalized (detailed RFC); draft retired, notes migrated
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 ---
