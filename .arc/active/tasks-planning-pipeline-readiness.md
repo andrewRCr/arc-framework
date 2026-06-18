@@ -250,13 +250,14 @@ judgment. Code-tier, test-first.
 - `[ ]` The buffer criterion is checks-only — no drain act added or moved; the `create-spec` inline hook remains
 - `[ ]` `create-spec` Finalize presents two sequential gates; approving review does not authorize retirement/commit
 - `[ ]` A general overlay-recommendation rule is in `DEV-RULES.ARC` (+ mirror), generalized and token-tight
-- `[ ]` `Current Workflow` is written by the executor at each of the six pinned events and read by session-init;
-  `Next Action` no longer carries a workflow pointer
+- `[ ]` `Current Workflow` is advanced at each stage's finalization (plus the draft-gated `create-spec` entry
+  correction) and read by session-init; `Next Action` no longer carries a workflow pointer (within-stage judgment
+  or the `[begin current workflow]` sentinel)
 - `[ ]` `Design` repoints event-drivenly (`[none] → draft` at creation; `draft → spec` at finalization)
 - `[ ]` `init-work-unit` writes `Current Workflow` and no longer writes a `Next Action` workflow pointer
 - `[ ]` The encoding-consistency test passes and fails correctly on an injected mismatch
 - `[ ]` session-init resolves the sub-stage from `Current Workflow` with no prose-parse on a current-format meta,
-  falling back to artifact-existence only when the field is absent
+  defaulting to the `draft-design` entry stage when the field is absent
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
 
