@@ -184,25 +184,19 @@ and not a heavier meta-shape lint (which coordinates with `quality-gate-hooks`).
 minted stubs from drifting; the graduate reconcile heals existing ones — the two halves are
 complementary.
 
-### `[ ]` **4.1 Graduate forward-reconcile against `META_FIELDS` (warn-and-backfill)**
+### `[x]` **4.1 Graduate forward-reconcile against `META_FIELDS` (warn-and-backfill)**
 
 - _Goal:_ The graduate transition reconciles the relocated `active/` meta against `META_FIELDS`,
   backfilling any missing field with its transition-appropriate value and emitting a one-line
   "backfilled N field(s)" notice in ceremony output.
 
-- _Context:_ Transition-appropriate value, not the template default — e.g. `Current Workflow` on a
-  planning-entry graduate is `draft-design` (which `applyCurrentWorkflowField` already knows), not
-  `[none]`. Posture is warn-and-backfill: silently migrating a tracked doc's shape should be visible. The
-  "graduate transition" is the `arc start` collision-dispatch arm (`init-work-unit` Step 3 / Step 4 Path A
-  reconcile), not a standalone `graduate` verb — enacted via the executor's relocate + worktree-spawn legs.
-
-    - Detect fields present in `META_FIELDS` but absent from the relocated meta; backfill via the
-      field-model write seam; compose the count notice.
-
-    - Build `test-first` (one behavior at a time):
-        - A meta missing a field is backfilled with the transition-appropriate value
-        - A complete meta is a no-op — no write, no notice
-        - The notice reports the backfilled count
+- _Outcome:_ New `reconcileMetaFields` in `meta-reader.ts` generalizes `setMetaFinalizeFields`'s
+  update-or-insert from the finalize group to the full bullet set — inserts any managed bullet whose
+  marker is absent, re-rendering only the bullet region (core table / H1 / below-`---` byte-stable) and
+  no-op when complete. Wired as an optional `reconcileMeta` executor seam (read → reconcile → write →
+  stage) the `runGraduate` arm invokes post-relocation; `Current Workflow` backfills to the planning-entry
+  `PLANNING_WORKFLOWS[0]` (`draft-design`), every other absent field to its declared default. The count
+  surfaces through the handler as a ceremony notice.
 
 ### `[ ]` **4.2 Retire `template-meta.md`; route scaffolds through `renderMetaFile`**
 

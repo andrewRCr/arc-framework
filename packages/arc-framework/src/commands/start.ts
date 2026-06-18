@@ -29,6 +29,8 @@
 import { basename } from "node:path";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
+import type { MetaFieldName } from "../lib/active/meta-reader.js";
+import { PLANNING_WORKFLOWS } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
@@ -146,7 +148,16 @@ export type GraduateParams = GraduateSpawnParams | GraduateInPlaceParams;
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
   | { status: "rejected"; reason: string }
-  | { status: "graduated"; outcome: TransitionOutcome; metaPath: string; branch: string };
+  | {
+      status: "graduated";
+      outcome: TransitionOutcome;
+      metaPath: string;
+      branch: string;
+      /** Fields the post-relocate forward-reconcile backfilled; empty when the meta was complete. */
+      backfilled: MetaFieldName[];
+      /** The one-line "backfilled N field(s)" ceremony notice, or `null` on a no-op reconcile. */
+      notice: string | null;
+    };
 
 /**
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
@@ -189,7 +200,19 @@ export async function runGraduate(
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "graduated", outcome, metaPath: `${ACTIVE_DIR}/meta-${params.name}.md`, branch };
+
+  // Heal the relocated meta against the code field model — a stub minted before a
+  // field existed graduates missing it. `Current Workflow` takes the planning-entry
+  // stage (not the template's `[none]`); every other absent field its declared
+  // default. Warn-and-backfill: the count surfaces as a ceremony notice.
+  const metaPath = `${ACTIVE_DIR}/meta-${params.name}.md`;
+  const backfilled =
+    (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
+  const notice =
+    backfilled.length > 0
+      ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`
+      : null;
+  return { status: "graduated", outcome, metaPath, branch, backfilled, notice };
 }
 
 /** Inputs for {@link runColdStart} — the ambient context the handler resolves. */

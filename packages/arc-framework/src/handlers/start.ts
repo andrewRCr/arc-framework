@@ -236,6 +236,7 @@ async function graduate(
       "Graduated (in place)",
     );
     reportAdvisories(result.outcome);
+    if (result.notice) p.log.info(result.notice);
     p.outro("Done.");
     return;
   }
@@ -272,6 +273,7 @@ async function graduate(
     "Graduated",
   );
   reportAdvisories(result.outcome);
+  if (result.notice) p.log.info(result.notice);
   p.outro("Done.");
 }
 

@@ -41,6 +41,7 @@ import {
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
+  reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
@@ -191,6 +192,18 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeFinalizeFields: async (metaPath, facts) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaFinalizeFields(content, facts));
+    },
+
+    // Forward-reconcile the relocated meta against the field model, then stage the
+    // rewrite through the same git seam the executor's content legs stage with — a
+    // no-op (no write, no stage) when every managed bullet is already present.
+    reconcileMeta: async (metaPath, overrides) => {
+      const before = await io.readFile(at(metaPath));
+      const { content, backfilled } = reconcileMetaFields(before, overrides);
+      if (backfilled.length === 0) return [];
+      await io.writeFile(at(metaPath), content);
+      await exec("git", ["add", at(metaPath)]);
+      return backfilled;
     },
 
     // Stage the content legs' meta rewrite through the same git seam

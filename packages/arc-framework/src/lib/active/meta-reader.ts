@@ -560,6 +560,76 @@ export function setMetaFinalizeFields(
   return lines.join("\n");
 }
 
+/** The result of a {@link reconcileMetaFields} forward-reconcile pass. */
+export interface ReconcileMetaResult {
+  /** The reconciled markdown — byte-identical to the input on a no-op. */
+  content: string;
+  /** The bullet fields backfilled (absent marker → inserted), in render order; empty on a no-op. */
+  backfilled: MetaFieldName[];
+}
+
+/** Build the bullet-marker regex for a field label — the `- **<name>:**` line test. */
+function bulletMarkerRe(name: string): RegExp {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*`);
+}
+
+/**
+ * Forward-reconcile a meta's bullet fields against {@link META_FIELDS}: insert any
+ * managed bullet field whose marker is absent, backfilling its value from
+ * `overrides` (the transition-appropriate value) or the field's declared default.
+ * The generalization of {@link setMetaFinalizeFields}'s update-or-insert from the
+ * finalize group to the whole bullet set — the healing half of "code is the single
+ * source of meta shape": a stub minted before a field existed (or from the retired
+ * `template-meta.md`) graduates missing that bullet, and this restores it.
+ *
+ * Re-renders only the bullet region (between the core-block table and the field
+ * block's closing `---`) from the canonical field order, preserving each present
+ * field's value through the {@link parseMetaRecord} ↔ {@link renderMetaFile}
+ * round-trip; the core table, the H1, and any section below the rule stay
+ * byte-stable. A no-op when every managed bullet is already present (or the field
+ * block can't be anchored) — returns the input unchanged with an empty `backfilled`,
+ * so a caller gates its write and its notice on a non-empty result.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param overrides - Transition-appropriate backfill values; an absent field falls to its `META_FIELDS` default.
+ * @returns The reconciled content and the backfilled field names (empty on a no-op).
+ */
+export function reconcileMetaFields(
+  content: string,
+  overrides: MetaFieldOverrides = {},
+): ReconcileMetaResult {
+  const lines = content.split("\n");
+  const h1Idx = lines.findIndex((line) => /^# /.test(line));
+  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
+  if (h1Idx === -1 || ruleIdx === -1) return { content, backfilled: [] };
+
+  const inFieldBlock = (i: number): boolean => i > h1Idx && i < ruleIdx;
+  const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
+  const absent = new Set<MetaFieldName>(
+    bulletFields
+      .filter((f) => !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
+      .map((f) => f.name as MetaFieldName),
+  );
+  if (absent.size === 0) return { content, backfilled: [] };
+
+  // Re-render the bullet region from the canonical order: present fields keep their
+  // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
+  // override or the declared default. The core table / H1 / below-`---` are untouched.
+  const record = parseMetaRecord(content);
+  const valueOf = (field: MetaFieldDescriptor): string => {
+    const name = field.name as MetaFieldName;
+    if (absent.has(name)) return overrides[name] ?? field.default;
+    return record[name] ?? field.default;
+  };
+  const firstBulletIdx = lines.findIndex((line, i) => inFieldBlock(i) && FIELD_MARKER_RE.test(line));
+  const start = firstBulletIdx === -1 ? ruleIdx : firstBulletIdx;
+  lines.splice(start, ruleIdx - start, ...renderBullets(valueOf), "");
+
+  const backfilled = bulletFields.filter((f) => absent.has(f.name as MetaFieldName)).map((f) => f.name);
+  return { content: lines.join("\n"), backfilled };
+}
+
 /**
  * Rewrite one or more core-block table cells in place, re-rendering *only* the
  * three core-table rows so column alignment stays correct and leaving every

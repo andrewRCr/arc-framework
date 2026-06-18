@@ -27,7 +27,7 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName } from "../active/meta-reader.js";
+import type { MetaFieldName, MetaFieldOverrides } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -231,6 +231,21 @@ export interface ExecuteTransitionContext {
     metaPath: string,
     facts: { prUrl?: string; completed?: string },
   ) => Promise<void>;
+
+  /**
+   * Forward-reconcile the meta at `metaPath` against `META_FIELDS` (read → reconcile
+   * → write → stage), backfilling any absent managed bullet with the supplied
+   * transition-appropriate `overrides` value (or the field default) and returning
+   * the backfilled field names — empty on a no-op (no write, no stage). The graduate
+   * arm's healing seam, generalizing {@link writeFinalizeFields}'s update-or-insert
+   * to the whole field set. Not a transition leg (no edge declares it), so it reaches
+   * the executor as an optional seam the arm invokes after the transition lands;
+   * absent in contexts that never graduate.
+   */
+  reconcileMeta?: (
+    metaPath: string,
+    overrides: MetaFieldOverrides,
+  ) => Promise<MetaFieldName[]>;
 
   /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,

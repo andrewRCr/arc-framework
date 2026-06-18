@@ -23,6 +23,7 @@ import {
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
+  reconcileMetaFields,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -685,6 +686,88 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
     expect(after).toContain("- **PR URL:** [none]");
     expect(after).not.toContain("<[none]>");
     expect(after).not.toContain("`[none]`");
+  });
+});
+
+describe("reconcileMetaFields — forward-reconcile against the field model", () => {
+  // A stub minted before later fields existed (or from the retired template): the
+  // core table + a partial bullet set, missing the reference / finalize groups and
+  // the `Current Workflow` pointer. Mirrors the graduate harness's relocated meta.
+  const partial = [
+    "# Metadata: foo",
+    "",
+    "| **State**  | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| ---------- | --------- | ---------- | --------- | ------------ |",
+    "| `Planning` | `andrew`  | `plan/foo` | `Heavy`   | `P1`         |",
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "- **Last Completed:** [none]",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** Begin planning.",
+    "",
+    "---",
+    "",
+  ].join("\n");
+
+  it("backfills an absent bullet with the transition-appropriate override value", () => {
+    const { content, backfilled } = reconcileMetaFields(partial, { "Current Workflow": "draft-design" });
+
+    // The override wins for `Current Workflow`; the other absent bullets take their
+    // declared `META_FIELDS` defaults.
+    expect(content).toContain("- **Current Workflow:** `draft-design`");
+    expect(content).toContain("- **Origin:** [internal]");
+    expect(content).toContain("- **Design:** [none]");
+    expect(content).toContain("- **Task List:** [none]");
+    expect(content).toContain("- **PR URL:** [none]");
+    expect(content).toContain("- **Completed:** [none]");
+
+    expect(backfilled).toEqual([
+      "Origin",
+      "Design",
+      "Task List",
+      "Current Workflow",
+      "PR URL",
+      "Completed",
+    ]);
+
+    // Inserted at canonical positions: the reference group lands between the cohort
+    // group and the progress group; `Current Workflow` opens the progress group.
+    expect(content).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
+    expect(content).toContain("- **Current Workflow:** `draft-design`\n- **Last Completed:** [none]");
+
+    // Round-trips: the backfilled pointer reads back bare.
+    expect(parseMetaRecord(content)["Current Workflow"]).toBe("draft-design");
+  });
+
+  it("preserves present fields and the core table byte-stable across the reconcile", () => {
+    const { content } = reconcileMetaFields(partial, { "Current Workflow": "draft-design" });
+    // Present bullets keep their values; the core table and the H1 are untouched.
+    expect(content).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
+    expect(content).toContain("- **Next Action:** Begin planning.");
+    expect(content).toContain("| `Planning` | `andrew`  | `plan/foo` | `Heavy`   | `P1`         |");
+    expect(content.startsWith("# Metadata: foo\n")).toBe(true);
+  });
+
+  it("is a no-op on a complete meta — input returned unchanged, nothing backfilled", () => {
+    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const { content, backfilled } = reconcileMetaFields(complete, { "Current Workflow": "draft-design" });
+    expect(content).toBe(complete);
+    expect(backfilled).toEqual([]);
+  });
+
+  it("reports the backfilled count — one absent field backfills as one", () => {
+    // Strip just the `Current Workflow` bullet from an otherwise-complete meta.
+    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const missingOne = complete
+      .split("\n")
+      .filter((line) => !/^- \*\*Current Workflow:\*\*/.test(line))
+      .join("\n");
+    const { backfilled } = reconcileMetaFields(missingOne, { "Current Workflow": "draft-design" });
+    expect(backfilled).toEqual(["Current Workflow"]);
   });
 });
 
