@@ -690,14 +690,19 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
 
 /**
  * `arc set-stage <stage>` — write the current work unit's `Current Workflow` to
- * the named planning sub-stage (`draft-design` / `create-spec` / `generate-tasks`),
- * fired by the planning workflows at their entry step so the meta carries one
- * deterministic field naming the live sub-stage. Not a lifecycle transition — just
- * the stage-pointer write. Refuses without a single resolvable active WU, and (via
- * `runSetStage`) on a non-planning stage. Verb spelling is provisional, pending
- * idiomatic-alignment.
+ * the named planning sub-stage (`draft-design` / `create-spec` / `generate-tasks`)
+ * so the meta carries one deterministic field naming the live sub-stage. Not a
+ * lifecycle transition — just the stage-pointer write. With `--advance` (the
+ * finalization shape), additionally resets `Next Action` to the
+ * `[begin current workflow]` sentinel; without it (the create-spec entry-correction
+ * shape) `Next Action` is left alone. Refuses without a single resolvable active WU,
+ * and (via `runSetStage`) on a non-planning stage. Verb spelling is provisional,
+ * pending idiomatic-alignment.
  */
-export async function handleSetStage(stage: string | undefined): Promise<void> {
+export async function handleSetStage(
+  stage: string | undefined,
+  opts?: { advance?: boolean },
+): Promise<void> {
   p.intro("arc set-stage");
   const base = await resolveVerbBase();
   if (base === null) return;
@@ -715,15 +720,18 @@ export async function handleSetStage(stage: string | undefined): Promise<void> {
   }
 
   const { executor } = await buildExecutor(base);
-  const result = await runSetStage(executor, { name: slug, stage: stageArg });
+  const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: opts?.advance ?? false });
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
-  p.note(
-    [`Work unit:        ${slug}`, `Current Workflow: ${result.stage}`, `Meta:             ${result.metaPath}`].join("\n"),
-    "Stage set",
-  );
+  const lines = [
+    `Work unit:        ${slug}`,
+    `Current Workflow: ${result.stage}`,
+  ];
+  if (result.advanced) lines.push("Next Action:      [begin current workflow]");
+  lines.push(`Meta:             ${result.metaPath}`);
+  p.note(lines.join("\n"), result.advanced ? "Stage advanced" : "Stage set");
   p.outro("Done.");
 }
 

@@ -27,8 +27,8 @@ confirm with the user before proceeding — generating tasks against unresolved 
 can't execute. Pre-activation metadata is removed at activation (see `activate-work-unit.md` Step 4), not here —
 leave the fields in place during task generation.
 
-**Mark the stage** on entry: `arc set-stage generate-tasks` records the live planning sub-stage in the meta
-`Current Workflow` so session-init resolves it without prose-parsing.
+**Stage pointer** — no entry write: reaching generate-tasks always passes through `create-spec`, whose finalization
+already advanced `Current Workflow` here.
 
 ---
 
@@ -390,8 +390,9 @@ Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-moderniz
 
 **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
 Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read), set `**Task
-List:**` to the bare `tasks-{name}.md` filename, and advance `**Next Action:**` to the post-generation step
-(e.g., "Run `activate-work-unit.md`"). The write rides this ceremony commit. Skip otherwise (no meta file exists
+List:**` to the bare `tasks-{name}.md` filename, and set `**Next Action:**` to `Task list finalized — ready to
+activate` (within-stage judgment — generate-tasks is the planning terminus, so no stage advance or boundary
+sentinel; `activate` clears `Current Workflow`). The write rides this ceremony commit. Skip otherwise (no meta file exists
 pre-init under non-planning-branch flows).
 
 > [!IMPORTANT]

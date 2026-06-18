@@ -214,15 +214,27 @@ judgment. Code-tier, test-first.
   an artifact pointer). `currentWorkflow` / `planningStage` are required on the shared `MetaFileCandidate` /
   `ActiveSessionInitResult` types, so a few test fixtures gained defaults.
 
-### `[ ]` **5.2 `Next Action` loses the workflow pointer**
+### `[x]` **5.2 `Next Action` loses the workflow pointer**
 
 - _Goal:_ `Next Action` becomes pure within-stage judgment, or the bracketed `[begin current workflow]` sentinel at
   a clean stage boundary — distinct from `[none]` (parked), with no workflow name duplicated.
 
-    - Define the `[begin current workflow]` sentinel (the workflow name lives in `Current Workflow`, so the pointer
-      is not duplicated) and distinguish it from `[none]`.
-    - Update the meta template / convention docs so `Next Action` no longer carries a workflow pointer; confirm no
-      writer emits one (the init writer is handled in 4.4).
+    - Defined the `[begin current workflow]` sentinel as a shared constant (`BEGIN_CURRENT_WORKFLOW_SENTINEL` in
+      `current-workflow-consistency.ts`, de-duped from `worktree-scaffold`); documented it in the `template-meta`
+      legend (and the `Current Workflow` field) + spec § C. A _relative_ pointer ("begin whatever `Current Workflow`
+      names"), distinct from `[none]`.
+    - Retired the `Next Action` workflow pointers from the planning workflows — `create-spec` / `generate-tasks` no
+      longer write "Run X.md". The "confirm no writer emits one" check surfaced these two beyond the 4.4 init writer.
+
+- _Outcome:_ The check surfaced a model defect in § C5: `Current Workflow` was wired to advance at each stage's
+  _entry_, but the typical flow finalizes a stage → hands off → runs the next in a fresh session, so the field must
+  advance at the _preceding_ stage's finalization (else session-init loads the just-finished workflow). Corrected
+  (spec § C5 rewritten): a new `set-stage <next> --advance` fires at each finalization, writing `Current Workflow` +
+  the `Next Action` sentinel atomically (sentinel never hand-written); the lone surviving entry write is
+  `create-spec`'s, gated on draft-absence (the only skip-into-cold-stage case). Added the `--advance` flag to the
+  `set-stage` verb/CLI/handler; rewired all three planning workflows (both copies), with `generate-tasks` as the
+  terminus (within-stage `Next Action`, no advance). Also reconciled spec § C7 + acceptance with the
+  `draft-design`-default read-path shipped in 5.1.
 
 ## **Phase 6:** Verification
 

@@ -188,7 +188,11 @@ program
     "Set the current work unit's planning-stage pointer (meta `Current Workflow`): "
     + "draft-design | create-spec | generate-tasks",
   )
-  .action((stage: string) => handleSetStage(stage));
+  .option(
+    "--advance",
+    "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
+  )
+  .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
 
 program
   .command("repoint-design <event>")

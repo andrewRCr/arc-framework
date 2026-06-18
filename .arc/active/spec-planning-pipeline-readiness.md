@@ -210,24 +210,48 @@ state. "Stop pre-judging spec-readiness" falls out for free. (The rejected alter
 judgment block *inside* `init-work-unit` — is the wrong altitude; see Alternatives.)
 
 **C5 — Planning sub-stages become CLI-recognized events.** For the executor to advance the pointers, the planning
-sub-stages (`draft-design` / `create-spec` / `generate-tasks`, including create-spec finalization) must be
-**CLI-recognized events** — they are markdown-only today. This is **in scope**: deferring it would leave session-init
-prose-parsing the sub-stage *behind* the new field — the very defect § C exists to kill, shipped half-dressed. The
-executor writes two field-families across the planning stages, each riding an existing workflow moment (no new
-ceremony):
+sub-stages (`draft-design` / `create-spec` / `generate-tasks`) must be **CLI-recognized events** — they are
+markdown-only today. This is **in scope**: deferring it would leave session-init prose-parsing the sub-stage
+*behind* the new field — the very defect § C exists to kill, shipped half-dressed. The executor writes two
+field-families across the planning stages — `Current Workflow` (via `set-stage`) and `Design` (via
+`repoint-design`) — each riding an existing workflow moment (no new ceremony); `Next Action` is hand-set by the
+workflow alongside them.
 
-| Event (CLI-recognized)              | Writes                               | Notes                                       |
-|-------------------------------------|--------------------------------------|---------------------------------------------|
-| Enter `draft-design`                | `Current Workflow = draft-design`    | stage-entry write                           |
-| Draft created/adopted (first draft) | `Design: [none] → draft-<name>`      | conditional — only when a draft is produced |
-| Enter `create-spec`                 | `Current Workflow = create-spec`     | stage-entry write                           |
-| create-spec finalization            | `Design: draft-<name> → spec-<name>` | event-driven repoint; rides draft-retire    |
-| Enter `generate-tasks`              | `Current Workflow = generate-tasks`  | stage-entry write                           |
-| Planning exit (activate)            | `Current Workflow → [none]`          | `State: Active` takes over; rides activate  |
+**`Current Workflow` advances at the preceding stage's finalization, not at each stage's entry.** The advance fires
+at a stage's *finalization* (`set-stage <next>`), because the typical flow finalizes a stage, hands off, then runs
+the next stage in a fresh session — so the field must point at the next stage *at handoff*, not only once it is
+entered. Advancing at entry would strand `Current Workflow` on the just-finished stage across that gap,
+mis-resolving the read. At a finalization that advances, `Next Action` is set to the `[begin current workflow]`
+boundary sentinel; the `generate-tasks` terminus has no next planning stage (activation clears the field), so its
+finalization sets a within-stage `Next Action` instead.
 
-The three `Current Workflow` stage-entry writes are the core that kills the prose-parse defect (what session-init
-reads to resolve the sub-stage); the two `Design` repoints are the presence-scan → event improvement. All ride
-`lifecycle-transition-core`'s `Branch`-field executor precedent — a write bolted to each existing edge.
+**Exactly one entry write survives: `create-spec`, gated on draft-absence.** `draft-design` is the only skippable
+stage, so `create-spec` is the only stage reachable "cold" — entered without its predecessor having advanced the
+pointer. The tell is a missing draft (`draft-{name}.md` absent): draft-design was skipped, so `Current Workflow`
+still reads the scaffold default `draft-design`. `create-spec`'s entry corrects it (`set-stage create-spec`) so a
+mid-stage handoff resolves correctly. When a draft exists, draft-design's finalization already advanced the pointer
+here, so the entry write is skipped. The other two stages need no entry write — `draft-design` is set by the init
+scaffold, and `generate-tasks` is only ever reached through create-spec's finalization-advance.
+
+Event writes (each rides an existing workflow moment — no new ceremony):
+
+- **Init scaffold** → `Current Workflow = draft-design` (the entry default; written at scaffold, not by the
+  draft-design workflow).
+- **Draft created** (first draft) → `Design: [none] → draft-<name>` (conditional — only when a draft is produced).
+- **`draft-design` finalization** (draft crosses into create-spec) → `Current Workflow = create-spec`;
+  `Next Action → [begin current workflow]`.
+- **Enter `create-spec` without a draft** → `Current Workflow = create-spec` (skip-draft correction; idempotent on
+  the no-draft `low` path).
+- **`create-spec` finalization** → `Design: draft-<name> → spec-<name>`; `Current Workflow = generate-tasks`;
+  `Next Action → [begin current workflow]`.
+- **`generate-tasks` finalization** → `Next Action = Task list finalized — ready to activate` (terminus — no next
+  planning stage; `activate` clears the field).
+- **Planning exit (`activate`)** → `Current Workflow → [none]` (`State: Active` takes over; rides activate).
+
+The `Current Workflow` writes (finalization-advance plus the one create-spec entry correction) are the core that
+kills the prose-parse defect (what session-init reads to resolve the sub-stage); the two `Design` repoints are the
+presence-scan → event improvement. All ride `lifecycle-transition-core`'s `Branch`-field executor precedent — a
+write bolted to each existing edge.
 
 **C6 — The drift-control principle.** *Resolve-don't-store for reads, CLI-mutate + consistency-hook for writes.*
 session-init resolves the sub-stage by reading `Current Workflow` directly (no derived scan to go stale). The write
@@ -238,8 +262,10 @@ any non-`Planning` state, `Current Workflow = [none]`. Redundant-but-machine-ver
 
 **C7 — session-init read-path.** session-init's lifecycle-workflow resolution (the planning-branch arm of its
 context-load step) reads `Current Workflow` to select the workflow directly, replacing the `Next Action`
-prose-parse. The artifact-existence guess survives only as a **degraded fallback** for legacy metas that predate the
-field (field absent → fall back to the existing draft/spec-presence heuristic).
+prose-parse. A meta with no usable field value (a legacy meta predating the field, or a fresh in-place scaffold)
+resolves to the `draft-design` entry stage — the conservative default. No artifact-existence scan is attempted:
+presence is too ambiguous to refine the stage (a draft coexists with a spec mid-`create-spec`), and a fresh init
+genuinely starts at `draft-design`; the encoding-consistency guard (C6) catches a stale field on the write side.
 
 ## Alternatives & Rationale
 
@@ -339,14 +365,15 @@ derivation is the technical pointer-mechanics design.
    first does not authorize draft retirement or commit.
 5. A general overlay-recommendation rule is present in `DEV-RULES.ARC` (+ package mirror), phrased to generalize to
    every advisory fork and token-tight.
-6. The meta `Current Workflow` field is written by the executor at each of the six pinned events and read by
-   session-init to resolve the planning sub-stage; `Next Action` no longer carries a workflow pointer.
+6. The meta `Current Workflow` field is written by the executor at stage entry and advanced at the preceding stage's
+   finalization, and read by session-init to resolve the planning sub-stage; `Next Action` no longer carries a
+   workflow pointer (it carries within-stage judgment or the `[begin current workflow]` boundary sentinel).
 7. `Design` repoints event-drivenly (`[none] → draft` at draft creation; `draft → spec` at create-spec
    finalization), never by presence-scan.
 8. `init-work-unit` writes `Current Workflow` and no longer writes a `Next Action` workflow pointer.
 9. The encoding-consistency test passes and fails correctly on an injected mismatch.
 10. session-init resolves the planning sub-stage from `Current Workflow` with no prose-parse on a current-format
-    meta, and falls back to artifact-existence only when the field is absent.
+    meta, and defaults to the `draft-design` entry stage when the field is absent.
 
 ## Open Questions
 

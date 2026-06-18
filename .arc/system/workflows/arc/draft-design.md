@@ -45,9 +45,8 @@ idea. Act on the emitted `route`:
       backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
-On `proceed` with an active WU meta, mark the stage before drafting: `arc set-stage draft-design` records the live
-sub-stage in the meta `Current Workflow` so session-init resolves it without prose-parsing. Skip when drafting
-pre-WU on the base (no meta yet) — the eventual `init` scaffold sets it.
+**Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this
+workflow opens. (Pre-WU drafting on the base has no meta yet — the eventual `init` scaffold sets it.)
 
 ## Resolve depth & Class
 
@@ -168,6 +167,11 @@ On a draft-producing path (`medium` / `high`) with an active planning meta, repo
 `arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
 draft — `Design` repoints straight to the spec at create-spec finalization), or when drafting pre-WU on the base
 with no meta yet (the eventual `init` scaffold sets it).
+
+When the draft is formalization-ready and crosses into create-spec (the forward path — not the re-entry
+back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:
+draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel,
+bundled into this capture commit — so a fresh session after handoff resumes in create-spec.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`

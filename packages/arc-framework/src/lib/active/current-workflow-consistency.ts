@@ -36,6 +36,14 @@ const NONE_SENTINEL = "[none]";
 /** The closed set of planning-stage `Current Workflow` values, in stage order. */
 export const PLANNING_WORKFLOWS = ["draft-design", "create-spec", "generate-tasks"] as const;
 
+/**
+ * The `Next Action` boundary sentinel — "begin the workflow named in `Current Workflow`". A *relative* pointer: it
+ * resolves against whatever `Current Workflow` currently names, so it stays correct as the stage advances and is
+ * never a duplicated workflow filename. Written at a clean stage boundary (the scaffold seed and each
+ * finalization-advance); within a stage `Next Action` carries free-form within-stage judgment instead.
+ */
+export const BEGIN_CURRENT_WORKFLOW_SENTINEL = "[begin current workflow]";
+
 /** A single planning-stage workflow basename. */
 export type PlanningWorkflow = (typeof PLANNING_WORKFLOWS)[number];
 

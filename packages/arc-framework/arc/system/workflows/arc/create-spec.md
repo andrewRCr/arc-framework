@@ -35,8 +35,10 @@ is a derivation signal — step back to draft-design rather than re-opening shap
 verify you are on one before proceeding (created via [init-work-unit][init-work-unit]). Under partial protection
 (the default), specs may be created directly on the base branch.
 
-**Mark the stage** on entry: `arc set-stage create-spec` records the live planning sub-stage in the meta
-`Current Workflow` so session-init resolves it without prose-parsing.
+**Mark the stage** on entry _only when entering without a draft_ (`draft-{name}.md` absent — `draft-design` was
+skipped or produced no draft): `arc set-stage create-spec` corrects the stale `draft-design` pointer so a mid-stage
+handoff resolves correctly. When a draft exists, `draft-design`'s finalization already advanced the pointer here —
+skip the write.
 
 ---
 
@@ -232,9 +234,11 @@ Documents).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
    Planning` (planning-branch sessions), repoint `Design` to the finalized spec — `arc repoint-design
    spec-finalized` rewrites `Design: draft-{name}.md → spec-{name}.md` (the no-draft path repoints `[none] →
-   spec-{name}.md`). Then persist the resolved `**Class:**` (live from the entry read) and advance its
-   `**Next Action:**` to the post-spec step (e.g., "Run `generate-tasks.md`"). Skip otherwise (no meta file
-   exists pre-init under non-planning-branch flows).
+   spec-{name}.md`). Then persist the resolved `**Class:**` (live from the entry read) and advance the stage
+   pointer to the next sub-stage: `arc set-stage generate-tasks --advance` rewrites `Current Workflow: create-spec →
+   generate-tasks` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step,
+   so a fresh session after handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under
+   non-planning-branch flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.

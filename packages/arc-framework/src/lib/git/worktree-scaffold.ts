@@ -23,7 +23,10 @@ import { join } from "node:path";
 import { runUserOpen } from "../../commands/user/open.js";
 import type { UserIOContext } from "../../commands/user/types.js";
 import { renderMetaFile, type MetaFieldOverrides } from "../active/meta-reader.js";
-import { PLANNING_WORKFLOWS } from "../active/current-workflow-consistency.js";
+import {
+  PLANNING_WORKFLOWS,
+  BEGIN_CURRENT_WORKFLOW_SENTINEL,
+} from "../active/current-workflow-consistency.js";
 import { ensureDir } from "../template/files.js";
 import { writeWorktreeOwnershipMarker } from "./worktree-marker.js";
 
@@ -45,11 +48,10 @@ const PLANNING_ENTRY_STAGE = PLANNING_WORKFLOWS[0];
 const NO_CURRENT_WORKFLOW = "[none]";
 
 /**
- * Meta `Next Action` seed when the caller supplies none. Names no workflow — the
- * live planning stage lives in `Current Workflow`, so `Next Action` carries the
- * stage-boundary sentinel rather than a (duplicating) workflow pointer.
+ * Meta `Next Action` seed when the caller supplies none — the stage-boundary
+ * sentinel, not a workflow pointer (the live stage lives in `Current Workflow`).
  */
-const DEFAULT_NEXT_ACTION = "[begin current workflow]";
+const DEFAULT_NEXT_ACTION = BEGIN_CURRENT_WORKFLOW_SENTINEL;
 
 /** Dependencies for {@link scaffoldIntoWorktree}. */
 export interface SpawnWorktreeContext {
