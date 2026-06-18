@@ -128,12 +128,18 @@ stays with its owner. That boundary is the coherence guarantee, not an arbitrary
 | `arc archive --pr-url --completed` → write the finalize block + forward-field reconcile                                                                              | `archive-work-unit` gap (sweep done, finalize hand-run)                                                   | Migrate (seed) + extract the finalize-write half from `interlock-release-refinement` (its approval-collapse stays)                                   |
 | Relocate leg `rmdir`s the emptied cohort parent subdir                                                                                                               | transition-core mutator bundle (left one empty this session)                                              | Migrate — small                                                                                                                                      |
 | `arc stub --cohort <slug>` — place dir + write `Cohort` field under the stub-contract guards                                                                         | missing affordance (hand dir-move today)                                                                  | Migrate, or repoint to the stub-contract owner                                                                                                       |
-| `arc start --here` auto-cuts/offers `plan/<name>` on a protected base instead of refusing                                                                            | cold-start fresh/no-draft path (`cold-start-init-polish` facet 2)                                         | Migrate — verify still-live at spec; pairs with the two rows above on the `start`/stub surface                                                       |
+| `arc start --here` auto-cuts/offers `plan/<name>` on a protected base instead of refusing                                                                            | cold-start fresh/no-draft path (`cold-start-init-polish` facet 2)                                         | Migrate — confirmed live 2026-06-18 (deliberate refuse, not auto-cut); pairs with the two rows above                                                 |
 
 **Executor-hardening rider (Inbound Buffer #2).** Guard the post-side-effect meta writes
 (`applyBranchField` / `applyCurrentWorkflowField` / `applySoftFields`) in the encoding-failure surface — not a
 markdown-mechanic migration, but executor-infra robustness on the same surface the teardown verb extends. Carry
 as in-scope hardening; settle the distinct-status fork at `create-spec`.
+
+**J verified live (2026-06-18).** `runColdStart` (`start.ts`) refuses on a protected base under
+`branch.protection: full` ("cannot cold-start onto protected base … switch to a feature branch") with no
+auto-cut or offer of `plan/<name>` — a deliberate guard mirroring the release-wrapper protected-base rule, not a
+bug. J upgrades that bare refuse-with-direction into the guided auto-cut/offer the hand `git checkout -b`
+workaround stood in for. Confirmed against current code; the candidate stands (did not drop out at verification).
 
 ### Out of scope — leave with owner
 
