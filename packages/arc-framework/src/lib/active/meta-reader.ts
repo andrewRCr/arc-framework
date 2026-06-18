@@ -181,7 +181,8 @@ export interface ParsedMetaFields {
  * consumer routes through — selecting the subset the probe runners need. Core
  * fields (`State`, `Branch`) come from the core-block table when present and the
  * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
- * fields (`State`, `Branch`, `Task List`) come back bare (backticks stripped);
+ * fields (`State`, `Branch`, `Task List`, `Current Workflow`) come back bare
+ * (backticks stripped);
  * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
  * spans and all. Bracket sentinels are preserved; a field whose marker is
  * absent comes back `null`.

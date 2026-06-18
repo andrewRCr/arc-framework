@@ -111,6 +111,7 @@ interface Spies {
   calls: string[];
   softWrites: { path: string; updates: Partial<Record<MetaFieldName, string>> }[];
   branchWrites: { path: string; branch: string }[];
+  currentWorkflowWrites: { path: string; stage: string }[];
 }
 
 interface SpyOptions {
@@ -132,6 +133,7 @@ function buildSpies(opts: SpyOptions = {}): Spies {
   const calls: string[] = [];
   const softWrites: Spies["softWrites"] = [];
   const branchWrites: Spies["branchWrites"] = [];
+  const currentWorkflowWrites: Spies["currentWorkflowWrites"] = [];
 
   const ALL_SIDE_EFFECTS: SideEffectId[] = [
     "reconcile-roadmap",
@@ -193,6 +195,7 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     },
     writeCurrentWorkflowField: async (path, stage) => {
       calls.push(`current-workflow:${stage}`);
+      currentWorkflowWrites.push({ path, stage });
     },
     writeDesignField: async (path, value) => {
       calls.push(`design:${value}`);
@@ -204,7 +207,7 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     sideEffects,
   };
 
-  return { ctx, calls, softWrites, branchWrites };
+  return { ctx, calls, softWrites, branchWrites, currentWorkflowWrites };
 }
 
 // A standard active-WU teardown target (park@Active, abandon@Active, archive).
@@ -839,6 +842,22 @@ describe("executeTransition — Branch-field encoding projection", () => {
     if (outcome.status !== "ok") return;
     expect(outcome.branchFieldWritten).toBe("feat/demo");
     expect(branchWrites).toEqual([{ path: ".arc/active/meta-demo.md", branch: "feat/demo" }]);
+  });
+
+  it("activate clears `Current Workflow` to `[none]` (planning exits)", async () => {
+    const { ctx, currentWorkflowWrites } = buildSpies({ metas: [PLANNING_ACTIVE_META] });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "activate",
+      slug: "demo",
+      inputs: {
+        branchOp: { mutation: "rename", branch: "plan/demo", toBranch: "feat/demo" },
+        softFields: { nextTask: "Task 1.", nextAction: "Begin." },
+      },
+    });
+
+    expect(outcome.status).toBe("ok");
+    expect(currentWorkflowWrites).toEqual([{ path: ".arc/active/meta-demo.md", stage: "[none]" }]);
   });
 
   it("deactivate restores `plan/<slug>` (from branchOp.toBranch)", async () => {

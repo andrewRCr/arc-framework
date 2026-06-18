@@ -43,12 +43,14 @@ function metaFileBody(fields: {
   branch?: string;
   nextTask?: string;
   taskList?: string;
+  currentWorkflow?: string;
   extra?: string;
 }): string {
   const lines: string[] = ["# Metadata: fixture", ""];
   if (fields.state !== undefined) lines.push(`- **State:** ${fields.state}`);
   if (fields.branch !== undefined) lines.push(`- **Branch:** ${fields.branch}`);
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
+  if (fields.currentWorkflow !== undefined) lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.extra !== undefined) lines.push(fields.extra);
   return lines.join("\n");
@@ -112,17 +114,19 @@ describe("identifier-list fields — per-element backtick render", () => {
 });
 
 describe("parseMetaFile — happy path", () => {
-  it("extracts all four session-init-relevant fields from a typical status file", () => {
+  it("extracts the session-init-relevant fields from a typical status file", () => {
     const content = metaFileBody({
       state: "Active",
       branch: "technical/foo",
       taskList: "`tasks-foo.md`",
+      currentWorkflow: "`create-spec`",
       nextTask: "Task 3.2 — implement widget (line ~1234)",
     });
     const parsed = parseMetaFile(content);
     expect(parsed.state).toBe("Active");
     expect(parsed.branch).toBe("technical/foo");
     expect(parsed.taskList).toBe("tasks-foo.md");
+    expect(parsed.currentWorkflow).toBe("create-spec");
     expect(parsed.nextTask).toBe("Task 3.2 — implement widget (line ~1234)");
   });
 
@@ -148,6 +152,7 @@ describe("parseMetaFile — missing fields", () => {
     expect(parsed.branch).toBeNull();
     expect(parsed.nextTask).toBeNull();
     expect(parsed.taskList).toBeNull();
+    expect(parsed.currentWorkflow).toBeNull();
   });
 
   it("returns null for a field whose value is empty after the marker", () => {
