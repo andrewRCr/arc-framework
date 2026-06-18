@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design complete — draft captured (formalization-ready); audit + forward-compat done
+- **Last Completed:** create-spec complete — spec finalized (detailed RFC); draft retired, notes migrated
 - **Next Task:** [none]
 - **Blockers:** [none]
 
