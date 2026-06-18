@@ -341,10 +341,10 @@ is introduced.
 
 ### Migration / rollout
 
-- **Legacy metas** (no `Current Workflow` field) — session-init's artifact-existence fallback (C7) handles them;
-  no forced backfill. New transitions write the field going forward.
-- **`Next Action` semantics shift** — existing metas with a workflow pointer in `Next Action` still parse under the
-  fallback; the field model takes over as transitions re-write the metas.
+- **Legacy metas** (no `Current Workflow` field) — session-init defaults them to the `draft-design` entry stage
+  (C7), with no artifact scan and no forced backfill. New transitions write the field going forward.
+- **`Next Action` semantics shift** — existing metas with a workflow pointer in `Next Action` resolve to the
+  `draft-design` default (C7) until a transition writes `Current Workflow`; the field model then takes over.
 
 ### User-facing process impact
 
