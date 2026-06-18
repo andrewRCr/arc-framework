@@ -189,18 +189,22 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 
 ### 8) Compose Release Notes Entry — uncommitted
 
-Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
-[`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope. Omit the section entirely when
-nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
+Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase `## Release Notes Entry` section,
+reflecting final reviewed scope: a one-paragraph user-facing summary plus categorized lines per the Keep a
+Changelog set — **Added**, **Changed**, **Removed**, **Fixed**, **Infrastructure**, **Deprecated**, **Security**
+(omit any empty category; keep that order), with an optional **Breaking Changes** callout flagging
+stability-contract breaks. Neutral voice, no internal work-unit names or roadmap pointers. Omit the section
+entirely when nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
 
 Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
 
 ### 9) Compose Completion Notes — uncommitted
 
-Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-[`template-meta.md`][template-meta]'s schema, sized to what there is to say. Always present — not omittable,
-unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
+Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section — a
+synthesis of design intent, what actually shipped, key deviations / supersessions from plan, and verification
+outcome; it complements, never repeats, the task list's verbatim record and git history. Sized to what there is
+to say. Always present — not omittable, unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
 
 ### 10) Commit completion content
 
@@ -330,7 +334,6 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
-[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass

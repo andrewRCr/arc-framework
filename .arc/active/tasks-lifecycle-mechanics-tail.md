@@ -198,19 +198,27 @@ complementary.
   `PLANNING_WORKFLOWS[0]` (`draft-design`), every other absent field to its declared default. The count
   surfaces through the handler as a ceremony notice.
 
-### `[ ]` **4.2 Retire `template-meta.md`; route scaffolds through `renderMetaFile`**
+### `[x]` **4.2 Retire `template-meta.md`; route scaffolds through `renderMetaFile`**
 
 - _Goal:_ `init-work-unit` Path B and the Promote-Errand meta creation scaffold through `renderMetaFile`,
   and `template-meta.md` is deleted in both copies — code is the single source of meta shape.
 
-    - `[ ]` **4.2.a Route Path B + Promote-Errand meta creation through `renderMetaFile`**
-        - The CLI already scaffolds fresh-WU entries through `renderMetaFile`; converge these two paths.
-        - Build `test-first` (one behavior at a time):
-            - A Path B scaffold produces a `renderMetaFile`-shaped meta (every `META_FIELDS` field present)
+    - `[x]` **4.2.a Route Path B + Promote-Errand meta creation through `renderMetaFile`**
+        - `scaffoldIntoWorktree` (the CLI's renderMetaFile-backed in-place scaffold) is the convergence
+          point for both paths; gained an optional `lastCompleted` override so an Active promotion meta
+          seeds its fields fully via the field model. `init-work-unit` Path B now routes through `arc start`;
+          the Promote-Errand ceremony renders the meta in the `renderMetaFile` shape (Active), no template.
 
-    - `[ ]` **4.2.b Delete `template-meta.md` (both copies) + drop references**
-        - Remove the `.arc/` copy and the package source; confirm no scaffold path references it.
-          Forward-only and self-contained; covered by the falsifiable sweep (no dedicated test).
+    - `[x]` **4.2.b Delete `template-meta.md` (both copies) + drop references**
+        - Both copies `git rm`'d; dropped from the `init-recipe.json` install manifest. References swept:
+          `init-work-unit` / `integrate-work-unit` / `decompose-work-unit` workflows, `strategy-session-operations`
+          (the stale "template is canonical" claim → single rendered shape), `templates/arc/README`, and two code
+          comments. The archive-phase Release Notes / Completion Notes skeleton the template carried inlined into
+          `integrate-work-unit` Steps 8–9. e2e / validate-meta-spec fixtures repointed to `template-draft.md`.
+
+- _Outcome:_ Code (`renderMetaFile` over `META_FIELDS`) is the sole source of meta shape — the second,
+  drift-prone source is gone. The minimal ref-drop in `decompose-work-unit.md` (otherwise `decompose-matrix`'s
+  file) avoided a dangling link to the deleted target.
 
 ### `[ ]` **4.3 Relocate-leg `rmdir` of the emptied cohort-parent subdir**
 

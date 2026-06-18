@@ -20,7 +20,6 @@
     "reference/templates/arc/work-unit/spec/template-spec-outline.md",
     "reference/templates/arc/work-unit/spec/template-spec-detailed-prd.md",
     "reference/templates/arc/work-unit/spec/template-spec-detailed-rfc.md",
-    "reference/templates/arc/work-unit/template-meta.md",
     "reference/templates/project/README.md",
     "reference/strategies/arc/strategy-adr-methodology.md",
     "reference/strategies/arc/strategy-configurability-architecture.md",

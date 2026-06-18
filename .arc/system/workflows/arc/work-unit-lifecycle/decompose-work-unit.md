@@ -78,8 +78,8 @@ at-cap arm this parent doc already exists (the origin was a member of it); backf
 ### 4) Scaffold the member stubs
 
 For each member in the cut-map, scaffold a per-member subdir under
-`backlog/planned/<cohort>[/<subcohort>]/<member>/` carrying `meta-<member>.md` (from
-[`template-meta.md`][template-meta]) and `draft-<member>.md`. Members land uniformly in `backlog/planned/`; each
+`backlog/planned/<cohort>[/<subcohort>]/<member>/` carrying `meta-<member>.md` and `draft-<member>.md`.
+Members land uniformly in `backlog/planned/`; each
 activates later as a separate, deliberate act via [`init-work-unit`][init-work-unit] Path A, in dependency order.
 
 **Field inheritance.** Set each stub's meta fields from the cut-map and the origin:
@@ -348,6 +348,5 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
 [template-cohort]: ../../../../reference/templates/arc/work-unit/template-cohort.md
-[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [work-org-decomp]: ../../../../reference/strategies/arc/strategy-work-organization.md#decomposition--three-arms-by-parent-position
 [work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap

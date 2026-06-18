@@ -14,7 +14,7 @@ import { tmpdir } from "node:os";
 
 import { scaffoldIntoWorktree } from "../../../src/lib/git/worktree-scaffold.js";
 import { readWorktreeMarker } from "../../../src/lib/git/worktree-marker.js";
-import { parseMetaRecord } from "../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, META_FIELDS } from "../../../src/lib/active/meta-reader.js";
 import { createUserIOContext } from "../../../src/lib/io-context.js";
 import { getInternalTemplatePath } from "../../../src/lib/paths.js";
 import type { GitExec } from "../../../src/lib/git/index.js";
@@ -176,6 +176,68 @@ describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
     );
     expect(record.State).toBe("Active");
     expect(record["Current Workflow"]).toBe("[none]");
+  });
+});
+
+describe("scaffoldIntoWorktree — renderMetaFile-shaped scaffold (single source of meta shape)", () => {
+  let worktree: string;
+  let io: UserIOContext;
+
+  beforeEach(async () => {
+    worktree = await mkdtemp(join(tmpdir(), "arc-scaffold-shape-"));
+    io = { ...createUserIOContext(), exec: recordingExec().exec };
+  });
+
+  afterEach(async () => {
+    await rm(worktree, { recursive: true, force: true });
+  });
+
+  it("produces a meta carrying every META_FIELDS field (the fresh-WU / Path B shape)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "plan/fresh-wu",
+        wuName: "fresh-wu",
+        spawningIdentity: "andrew",
+        createdByArc: false,
+      },
+    );
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
+    );
+    // The renderMetaFile projection emits the whole field set — no field is absent
+    // (a marker-absent field parses back `null`), the drift `template-meta.md` could carry.
+    for (const field of META_FIELDS) {
+      expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+    }
+  });
+
+  it("seeds an Active promotion meta via the lastCompleted override (the Promote-Errand shape)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/promoted",
+        wuName: "promoted",
+        spawningIdentity: "andrew",
+        initialState: "Active",
+        lastCompleted: "Errand promoted to work unit",
+        nextAction: "Backfill the design / task artifacts before further implementation",
+        createdByArc: false,
+      },
+    );
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-promoted.md")),
+    );
+    expect(record.State).toBe("Active");
+    expect(record["Last Completed"]).toBe("Errand promoted to work unit");
+    expect(record["Next Action"]).toBe("Backfill the design / task artifacts before further implementation");
+    // Non-planning state ⇒ Current Workflow stays the [none] sentinel (consistency by construction).
+    expect(record["Current Workflow"]).toBe("[none]");
+    for (const field of META_FIELDS) {
+      expect(record[field.name], `field ${field.name} present`).not.toBeNull();
+    }
   });
 });
 

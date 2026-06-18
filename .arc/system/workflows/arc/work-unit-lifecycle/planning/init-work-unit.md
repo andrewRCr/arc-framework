@@ -11,8 +11,8 @@ arc:
 
 # Workflow: Initialize Work Unit
 
-Creates a work unit on a `plan/<name>` planning branch with a `meta-{name}.md` file in `active/` populated
-from `template-meta.md`. Also carries the promotion path for an in-flight errand that has crossed the
+Creates a work unit on a `plan/<name>` planning branch with a `meta-{name}.md` file in `active/` scaffolded
+from the code field model (`renderMetaFile`). Also carries the promotion path for an in-flight errand that has crossed the
 work-unit threshold after launch.
 
 **When to use:** Starting a new work unit, or promoting a current `chore/<slug>` errand into a tracked work
@@ -193,23 +193,24 @@ fields — `arc start` left them untouched. The backlog stub's intentional metad
 
 **Path B — Fresh WU** (no backlog meta-file):
 
-Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 title
-(`# Metadata: {wu-name}`) with the actual work unit name, then apply these substitutions and overrides:
+`arc start` scaffolds `.arc/active/meta-{name}.md` from the code field model (`renderMetaFile`) — every
+managed field present, no template to drift. The scaffold sets the fresh-WU values:
 
 1. **State** → `Planning`
-2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
-3. **Branch** → current planning branch (e.g., `plan/{name}`)
-4. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise `[none]`
-5. **Current Workflow** → `draft-design`, the entry planning stage (the executor writes this on the
-   `arc start` / spawn path; the manual fallback sets it here)
-6. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
-   workflow pointer. The consuming session (`arc-plan` → `draft-design`) assesses spec-readiness against
-   the actual draft state; init no longer pre-judges it.
-7. **Class** → resolve the template's `[TBD]` default via [`classify-work-unit`][classify-work-unit] — a
-   best estimate against the boundary tests. Freely revisable; the ratchet protects only realized work, so
-   an early estimate costs nothing.
+2. **Owner** → the resolved `arc.identity`
+3. **Branch** → the planning branch (`plan/{name}`)
+4. **Current Workflow** → `draft-design`, the entry planning stage
+5. **Next Action** → the `[begin current workflow]` sentinel — never a workflow pointer. The consuming
+   session (`arc-plan` → `draft-design`) assesses spec-readiness against the actual draft state.
 
-Remaining fields take their `template-meta.md` defaults.
+Then reconcile the judgment fields the scaffold seeds at defaults:
+
+- **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave `[none]`
+- **Class** → resolve the `[TBD]` seed via [`classify-work-unit`][classify-work-unit] — a best estimate
+  against the boundary tests. Freely revisable; the ratchet protects only realized work, so an early
+  estimate costs nothing.
+
+Remaining fields take their field-model defaults.
 
 **Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
 prior session, not from backlog graduation), do not recreate it. Reconcile **Branch**, **Design**,
@@ -283,19 +284,21 @@ spec or notes.
    git branch -m chore/<slug> {type}/{name}
    ```
 
-5. **Create the backing meta file** — create `.arc/active/meta-{name}.md` from
-   [template-meta][template-meta]. This promoted WU starts as **Active** because implementation commits already
-   exist and the branch has its execution-phase prefix. Apply these substitutions and overrides:
+5. **Create the backing meta file** — create `.arc/active/meta-{name}.md` in the `renderMetaFile` shape
+   (Active state) — the canonical single-source field set `arc start` produces, no template. This promoted WU
+   starts as **Active** because implementation commits already exist and the branch carries its
+   execution-phase prefix. Set:
 
    1. **State** → `Active`
-   2. **Owner** → substitute the `{arc.identity}` placeholder with the resolved `arc.identity` value
-   3. **Branch** → current renamed branch (`{type}/{name}`)
-   4. **Design** → `[none]` unless a `spec-{name}.md` already exists
-   5. **Task List** → `[none]` unless a `tasks-{name}.md` already exists
-   6. **Last Completed** → `Errand promoted to work unit`
-   7. **Next Action** → backfill the design/task artifacts needed before further implementation
+   2. **Owner** → the resolved `arc.identity`
+   3. **Branch** → the renamed branch (`{type}/{name}`)
+   4. **Current Workflow** → `[none]` (the non-planning sentinel)
+   5. **Last Completed** → `Errand promoted to work unit`
+   6. **Next Action** → backfill the design / task artifacts needed before further implementation
 
-   Seed the per-WU user workspace:
+   Then reconcile **Design** → a `spec-{name}.md` filename when one already exists (else `[none]`), and
+   **Task List** → a `tasks-{name}.md` filename when one already exists (else `[none]`). Seed the per-WU
+   user workspace:
 
    ```bash
    arc user open {name}
@@ -351,7 +354,6 @@ spec or notes.
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
 [classify-work-unit]: ../../../../methods/classify-work-unit.md
-[template-meta]: ../../../../../reference/templates/arc/work-unit/template-meta.md
 [dev-rules-arc]: ../../../../../system/rules/DEV-RULES.ARC.md
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes

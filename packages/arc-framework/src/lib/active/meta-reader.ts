@@ -580,8 +580,8 @@ function bulletMarkerRe(name: string): RegExp {
  * `overrides` (the transition-appropriate value) or the field's declared default.
  * The generalization of {@link setMetaFinalizeFields}'s update-or-insert from the
  * finalize group to the whole bullet set — the healing half of "code is the single
- * source of meta shape": a stub minted before a field existed (or from the retired
- * `template-meta.md`) graduates missing that bullet, and this restores it.
+ * source of meta shape": a stub minted before a field was added graduates missing
+ * that bullet, and this restores it.
  *
  * Re-renders only the bullet region (between the core-block table and the field
  * block's closing `---`) from the canonical field order, preserving each present
