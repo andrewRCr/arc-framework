@@ -12,7 +12,7 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec complete — spec finalized (detailed RFC); draft retired, notes migrated
+- **Last Completed:** generate-tasks + activate — task list finalized (6 phases); WU activated to feat/
 - **Next Task:** Begin Task 1.1 — Distinct post-side-effect executor status
 - **Blockers:** [none]
 
