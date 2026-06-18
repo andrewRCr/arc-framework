@@ -11,12 +11,12 @@
 - **Design:** `spec-planning-pipeline-readiness.md`
 - **Task List:** `tasks-planning-pipeline-readiness.md`
 
-- **Last Completed:** Phase 4 (§ C write-side) complete — `Design` event-driven repoints (`arc repoint-design`)
-  at draft-create / create-spec-finalize; `Current Workflow` written at the init scaffold with the `Next Action`
-  workflow-pointer dropped; `init-work-unit` field-model fold-in (both copies).
-- **Next Task:** Task 5.1 — session-init resolves the planning sub-stage from `Current Workflow` (line ~185)
+- **Last Completed:** Phase 5 (§ C read-side + `Next Action` semantics) complete — Tasks 5.1–5.2: session-init
+  reads `Current Workflow` (draft-design default when absent); the pointer advances at stage finalization via
+  `set-stage --advance` (sentinel set in code); planning workflows + spec § C5 reconciled.
+- **Next Task:** Task 6.1 — Complete verification, load and follow `verify-work-unit.md` (line ~241)
 - **Blockers:** [none]
 
-- **Next Action:** Run process-task-loop.md — begin Task 5.1 (Phase 5 / § C read-side, test-first)
+- **Next Action:** Begin Task 6.1 — load and follow `verify-work-unit.md` (Phase 6 verification, the WU's final task)
 
 ---
