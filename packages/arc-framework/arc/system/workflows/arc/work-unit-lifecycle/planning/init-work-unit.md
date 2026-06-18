@@ -212,8 +212,8 @@ Create `.arc/active/meta-{name}.md` from `template-meta.md`. Replace the H1 titl
 Remaining fields take their `template-meta.md` defaults.
 
 **Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
-prior session, not from backlog graduation), do not recreate it. Reconcile **Branch** and **Design**
-as in Path B; preserve other field values.
+prior session, not from backlog graduation), do not recreate it. Reconcile **Branch**, **Design**,
+**Current Workflow**, and **Next Action** as in Path B; preserve other field values.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`. Under Path A, stage the relocation moves
