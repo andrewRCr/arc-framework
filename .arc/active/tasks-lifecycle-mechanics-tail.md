@@ -61,42 +61,33 @@ _Design decisions:_ Merged-safe only — **no** `--force` mode (no in-WU caller)
 edit `decompose-work-unit.md` (the park-exit teardown is `decompose-matrix`'s to migrate via the shared
 legs). Call sites scoped to `integrate-work-unit` + `session-handoff`.
 
-### `[ ]` **2.1 `arc teardown` verb + arc-state authority gate**
+### `[x]` **2.1 `arc teardown` verb + arc-state authority gate**
 
 - _Goal:_ `arc teardown <name>` reaps the merged branch, removes the worktree, and prunes the stale
   remote ref — but only when the WU is shipped (`completed/` presence) **and** the branch tip is durably
   pushed (the Task 1.2 gate) — across squash, rebase, and merge-commit ship paths.
 
-- _Context:_ Composes the Task 1.2 merged-safe delete + `reconcile-worktree:teardown` + the Task 1.3
-  prune. Arc-state authority resolves from meta location (`completed/`), never `git branch` / `git log`
-  inference. Worktree-kind dispatched (primary in-place / linked spawned), presence-guarded; bare
-  `git worktree remove` (no `--force`). Timing preserved from `async-merge-lifecycle` — eager-in-ceremony
-  plus a lazy sweep/finalize backstop, symmetric across both worktree arms.
-
-- _Note:_ Teardown is **not** a state transition (the branch/worktree are projections, not lifecycle
-  state); it fires after merge, distinct from the pre-merge `arc archive` mergeable sweep.
-
 - **Strategies:** strategy-work-organization.md, strategy-concurrent-work.md
 
-    - `[ ]` **2.1.a Arc-state authority gate**
-        - Resolve `completed/` presence from the lifecycle index/resolver; refuse a WU not yet shipped.
-        - Build `test-first` (one behavior at a time):
-            - Authorizes a `completed/` WU; refuses an `active/` or `planned/` WU (location, not git)
+    - `[x]` **2.1.a Arc-state authority gate**
+        - Gates on `isShipped` (location-derived `completed/` presence), never `git branch` / `git log`.
 
-    - `[ ]` **2.1.b Compose the teardown legs with worktree-kind dispatch + presence guard**
-        - Sequence: merged-safe branch delete → worktree teardown → prune; dispatch primary/in-place vs
-          linked/spawned; guard on worktree presence and cleanliness.
-        - Build `test-first` (one behavior at a time):
-            - Primary (in-place) worktree path completes the cleanup
-            - Linked (spawned) worktree path completes the cleanup
-            - An already-absent worktree is a no-op (presence guard), not an error
-            - A dirty worktree refuses teardown (no `--force` escape)
+    - `[x]` **2.1.b Compose the teardown legs with worktree-kind dispatch + presence guard**
+        - Worktree teardown (linked arm only; in-place / absent is a presence-guarded no-op) → merged-safe
+          branch delete → prune. Dirty linked worktree refuses (no `--force`).
 
-    - `[ ]` **2.1.c CLI registration + handler + end-to-end ship-path coverage**
-        - `cli.ts` `arc teardown [name]`; `handlers/lifecycle.ts` handler; ephemeral suggestion.
-        - Build `test-first` (one behavior at a time):
-            - Squash, rebase, and merge-commit ship paths each leave **no** lingering branch (the
-              squash/rebase false-negative `git branch -d` produced is gone — the priority safety surface)
+    - `[x]` **2.1.c CLI registration + handler + end-to-end ship-path coverage**
+        - `arc teardown [name]` in `cli.ts` + `handleTeardown`; integration coverage proves squash / rebase /
+          merge-commit each leave no lingering branch; e2e smoke covers the CLI refusal surface.
+
+- _Outcome:_ New `verbs/teardown.ts` + `handleTeardown` + `arc teardown` command. Teardown is not a
+  transition, so it composes the legs directly. Two design points settled at implementation: (1) the branch
+  is resolved by enumerating `refs/heads` and matching `branchToWorkUnitSlug` (type-prefix agnostic) — the
+  meta `Branch` is `[none]` post-archive; (2) the constraint-correct leg order is **worktree teardown →
+  branch delete → prune** (not the listed order): `-D` refuses a checked-out branch, and the merged-safe
+  delete must read the *stale* `origin/<branch>` tracking ref before prune removes it — so prune runs last.
+  The handler's exec lets `opts.cwd` win (the cleanliness check targets the linked worktree, not the cwd),
+  inverting the transition-executor's repo-root pin.
 
 ### `[ ]` **2.2 Wire `arc teardown` into the integrate + handoff ceremonies**
 

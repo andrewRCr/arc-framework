@@ -31,6 +31,7 @@ import {
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
@@ -62,6 +63,7 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
+import { runTeardown } from "../lib/work-unit/verbs/teardown.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
@@ -682,6 +684,53 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   reportOutcome("Archived", lines, result.outcome);
+}
+
+/**
+ * `arc teardown <name>` — post-merge physical cleanup of a shipped work unit:
+ * reap the merged branch, remove the linked worktree (in-place is a no-op), and
+ * prune the stale tracking ref. Gated on `completed/` arc-state + the merged-safe
+ * push-state durability check. Requires an explicit name — a shipped WU has no
+ * `active/` meta to default from.
+ */
+export async function handleTeardown(name: string | undefined): Promise<void> {
+  p.intro("arc teardown");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const wuName = name?.trim();
+  if (!wuName) {
+    refuse("`arc teardown <name>` requires the shipped work-unit name to clean up.");
+    return;
+  }
+
+  // Default to the repo root, but let an explicit `opts.cwd` win — the worktree
+  // cleanliness check targets the *linked* worktree being torn down, not the cwd
+  // (unlike a transition executor, teardown operates on a worktree it isn't in).
+  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
+  const result = await runTeardown(
+    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
+    { name: wuName },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+
+  const branchLine =
+    result.branch === null
+      ? "(already reaped)"
+      : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+  const lines = [
+    `Work unit: ${wuName}`,
+    `Branch:    ${branchLine}`,
+    `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
+    `Prune:     ${result.pruned ? "done" : "skipped"}`,
+  ];
+  p.note(lines.join("\n"), "Torn down");
+  for (const notice of result.notices) p.log.warn(notice);
+  if (result.suggestion !== null) p.log.info(result.suggestion);
+  p.outro("Done.");
 }
 
 // ---------------------------------------------------------------------------

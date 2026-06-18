@@ -34,6 +34,7 @@ import {
   handleReopen,
   handleAbandon,
   handleArchive,
+  handleTeardown,
   handleSetStage,
   handleRepointDesign,
   type StubOptions,
@@ -181,6 +182,11 @@ program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
   .action((slug: string | undefined) => handleArchive(slug));
+
+program
+  .command("teardown [name]")
+  .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .action((name: string | undefined) => handleTeardown(name));
 
 program
   .command("set-stage <stage>")
