@@ -54,6 +54,27 @@
   already fired at this point, so a post-side-effect write failure may warrant a distinct status from the
   pre-side-effect `encoding-failed`, rather than reusing it.
 
+### `[ ]` **Forward-reconcile a graduated meta against the code field model — backfill fields the stub predates**
+
+- *Routed from:* live session friction at this WU's own init (2026-06-18). Graduating the stub left the `active/`
+  meta without the `Current Workflow` field — the stub predated `planning-pipeline-readiness` adding that field —
+  and it had to be hand-added during the Path A reconcile. The `arc start` executor relocated the meta and wrote
+  `Branch`, but did not reconcile the rest of the field set against the current code model.
+- *Concern:* the graduate transition does not heal field drift between a stub's meta and the code's field model
+  (`META_FIELDS`). A stub minted before a field was added graduates missing that field — a deterministic,
+  judgment-free gap the executor could close. Complementary to (not a duplicate of) the template-retirement entry
+  above: that stops *newly minted* stubs from drifting; this reconciles *already-existing* metas forward at the
+  graduate edge. Even with single-source-from-code scaffolding, a stub minted last month still lacks a field added
+  yesterday until something backfills it on the way into `active/`.
+- *Proposed:* teach the graduate transition to reconcile the relocated meta against `META_FIELDS`, backfilling any
+  missing field with its **transition-appropriate** value, not the bare template default — e.g. `Current Workflow`
+  on a planning-entry graduate is `draft-design` (which the executor already knows: `applyCurrentWorkflowField`
+  exists), not the template's `[none]`. Settle the backstop posture in the audit: silent backfill vs.
+  warn-and-backfill (a one-line "backfilled N field(s)" notice) vs. a meta-shape lint (coordinates with
+  `quality-gate-hooks` and entry #2's meta-write guarding). Lean warn-and-backfill — silently migrating a tracked
+  doc's shape should still be visible in ceremony output. OSD-aligned; sits on `lifecycle-transition-core`'s
+  executor surface this WU already extends.
+
 ---
 
 ## The audit (planning step one — not a task)
@@ -84,6 +105,62 @@ dir — the relocate leg should `rmdir` the emptied parent. Surfaced graduating 
 an empty `backlog/planned/lifecycle-state-machine/planning-pipeline-readiness/`). Impact is local-cosmetic only
 (git doesn't track empty dirs, so it self-heals on clone), but it is the same class as (1) — a deterministic,
 no-judgment placement/teardown mechanic. Both recorded as the audit's first concrete data points.
+
+## Audit inventory (first pass)
+
+First collaborative audit pass (2026-06-18), run per § The audit over the lifecycle + adjacent workflow corpus
+(`work-unit-lifecycle/**`, `process-task-loop`, `create-spec`, `generate-tasks`, `run-errand`, session-lifecycle)
+plus the WORKING-MEMORY mechanic index, triaged against § Cross-cohort reconciliation map. This is the scope spine
+`create-spec` formalizes — refine, don't re-derive, at spec time.
+
+**Scope thesis (the in/out boundary).** This WU owns the *judgment-free deterministic-mechanic* migration on the
+lifecycle/transition CLI surface — and only that. A mechanic whose firing needs a human/agent decision stays in
+its workflow; a gap that is really a *different domain* (a render engine, a prompting substrate, commit grammar)
+stays with its owner. That boundary is the coherence guarantee, not an arbitrary cut.
+
+### In scope — migrate / extract here
+
+| Mechanic                                                                                                                                                             | Where it lives today                                                                                      | Disposition                                                                                                                                          |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Post-merge teardown: branch reap (merged-safe `git branch -d`) + presence-guarded `git worktree remove`, worktree-kind dispatched                                    | `integrate-work-unit`, `session-handoff` finalize-pass, `decompose-work-unit` (force `-D` variant)        | Migrate — the core verb (seed deliverable below)                                                                                                     |
+| Errand teardown leg (`arc errand close`), shares the legs above                                                                                                      | planned in `errand-lattice`; today via handoff finalize + session-init sweep                              | Extract — **one verb, owned here**: this WU is `P1` and lands first, so `errand-lattice` consumes the shared leg; the close *decision* stays with it |
+| Forward-reconcile a graduated meta against the code field model (backfill transition-appropriate values), plus retire `template-meta.md` as a second scaffold source | `init-work-unit` Path A "set by hand"; dual-source template vs. `renderMetaFile` (Inbound Buffer #1 + #3) | Migrate — the meta-shape cluster                                                                                                                     |
+| `arc archive --pr-url --completed` → write the finalize block + forward-field reconcile                                                                              | `archive-work-unit` gap (sweep done, finalize hand-run)                                                   | Migrate (seed) + extract the finalize-write half from `interlock-release-refinement` (its approval-collapse stays)                                   |
+| Relocate leg `rmdir`s the emptied cohort parent subdir                                                                                                               | transition-core mutator bundle (left one empty this session)                                              | Migrate — small                                                                                                                                      |
+| `arc stub --cohort <slug>` — place dir + write `Cohort` field under the stub-contract guards                                                                         | missing affordance (hand dir-move today)                                                                  | Migrate, or repoint to the stub-contract owner                                                                                                       |
+| `arc start --here` auto-cuts/offers `plan/<name>` on a protected base instead of refusing                                                                            | cold-start fresh/no-draft path (`cold-start-init-polish` facet 2)                                         | Migrate — verify still-live at spec; pairs with the two rows above on the `start`/stub surface                                                       |
+
+**Executor-hardening rider (Inbound Buffer #2).** Guard the post-side-effect meta writes
+(`applyBranchField` / `applyCurrentWorkflowField` / `applySoftFields`) in the encoding-failure surface — not a
+markdown-mechanic migration, but executor-infra robustness on the same surface the teardown verb extends. Carry
+as in-scope hardening; settle the distinct-status fork at `create-spec`.
+
+### Out of scope — leave with owner
+
+| Mechanic                                               | Owner                                    | Why it stays                                                                                                                                                              |
+|--------------------------------------------------------|------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| ROADMAP hand-render on every lifecycle state change    | `roadmap-tooling`                        | Extracting it = building a renderer — a different foundational domain (cf. OSD). This surface emits the derived-state predicates + Parked bucket it consumes; RT renders. |
+| Promote-errand branch rename (`git branch -m`)         | `init-work-unit` / `errand-lattice` edge | Tangled with the promotion judgment; low payoff                                                                                                                           |
+| Workspace seed + `arc user open` non-TTY hang          | `cli-substrate-adoption`                 | The prompting substrate, not a lifecycle mechanic                                                                                                                         |
+| `out-of-wu-entry` (entire)                             | self (`agile-parallelism`)               | Entry-dispatch orchestration is judgment; the relocation it needs is shipped `run-errand`                                                                                 |
+| `cold-start-init-polish` facets 1 / 3 / 4 / entrypoint | self                                     | Commit grammar / init-routing sequence / classify — a UX + grammar + judgment cluster, kept whole                                                                         |
+
+### Coordination seams (pointers, not scope)
+
+- **`errand-lattice`** — consumes the teardown leg (the resolved "one verb", owned here). Build it anticipating
+  `arc errand close` as a caller.
+- **`out-of-wu-entry`** — shares `run-errand`'s relocation locus and the `resolveWriteContext` primitive; whoever
+  touches it second rebases (per cohort doc).
+- **`cold-start-init-polish`** — facet 2 pulled here; the rest stays. It consumes the fixed `arc start` behavior —
+  no gate, since this WU is `P1` and lands first.
+- **`roadmap-tooling`** — receives the derived-state predicates / Parked bucket this surface emits.
+- **`interlock-release-refinement`** — the archive finalize-write half is pulled here; its approval-collapse stays.
+
+### Class / decompose read
+
+The reach is cohesive — one mechanic class on one surface — so it reads as **one `Heavy` WU, phased**
+(teardown-verb / archive-finalize / meta-stub-reconcile + `start` mechanics), not a decompose, unless the
+teardown-verb de-dup with `errand-lattice` forces a coordination split. Confirm at `create-spec`.
 
 ## Seed deliverables (the two known mechanics)
 
