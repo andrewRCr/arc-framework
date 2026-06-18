@@ -28,14 +28,23 @@ against the already-captured fragments below before it becomes net-new scope.
 Audit output per candidate: _the mechanic · where it lives today (workflow + step) · is it genuinely judgment-free ·
 does an existing capture already own it (→ consolidate / repoint) · migrate-now / leave-downstream / reject._
 
-**Audit seed (live dogfood, 2026-06-17).** Minting _this_ WU surfaced one instance directly: `arc stub` has no
-`--cohort` affordance, so placing the new member into the `lifecycle-state-machine` cohort took a hand-run dir
-move (`backlog/planned/<name>/` → `backlog/planned/<cohort>/<name>/`) plus a manual `Cohort:` field write — a
-deterministic placement op the CLI could own (`arc stub --cohort <slug>` placing the dir + writing the field, with
-the same collision/validation guards the stub contract already runs). The friction is **not** markdown-tail this
-time but a missing CLI affordance on a shipped verb, so the audit routes it rather than pre-claiming it: own here,
-or repoint to the `stub`-primitive owner (`lifecycle-transition-core`'s stub contract, with `planning-pipeline-
-readiness` as the planning-entry-mechanics neighbor). Recorded as the audit's first concrete data point.
+**Audit seed (live dogfood, 2026-06-17).** Grooming around _this_ WU surfaced two instances directly, both of the
+same deterministic-placement/teardown-mechanic class.
+
+**(1) `arc stub` has no `--cohort` affordance**, so placing the new member into the `lifecycle-state-machine`
+cohort took a hand-run dir move (`backlog/planned/<name>/` → `backlog/planned/<cohort>/<name>/`) plus a manual
+`Cohort:` field write — a deterministic placement op the CLI could own (`arc stub --cohort <slug>` placing the dir
+and writing the field, with the same collision/validation guards the stub contract already runs). The friction is
+**not** markdown-tail this time but a missing CLI affordance on a shipped verb, so the audit routes it rather than
+pre-claiming it: own here, or repoint to the `stub`-primitive owner (`lifecycle-transition-core`'s stub contract,
+with `planning-pipeline-readiness` as the planning-entry-mechanics neighbor).
+
+**(2) The graduate/relocate mutator leaves an empty cohort subdir behind**: when a member graduates from
+`backlog/planned/<cohort>/<wu>/` to the flat `active/`, the now-emptied `<wu>/` subdir lingers under the cohort
+dir — the relocate leg should `rmdir` the emptied parent. Surfaced graduating `planning-pipeline-readiness` (left
+an empty `backlog/planned/lifecycle-state-machine/planning-pipeline-readiness/`). Impact is local-cosmetic only
+(git doesn't track empty dirs, so it self-heals on clone), but it is the same class as (1) — a deterministic,
+no-judgment placement/teardown mechanic. Both recorded as the audit's first concrete data points.
 
 ## Seed deliverables (the two known mechanics)
 
