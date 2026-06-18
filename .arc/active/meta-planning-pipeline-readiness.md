@@ -1,8 +1,8 @@
 # Metadata: Planning-Pipeline Readiness
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/planning-pipeline-readiness` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+|---------------|-----------|------------------------------------|-----------|--------------|
+| `Integrating` | `andrew`  | `feat/planning-pipeline-readiness` | `Heavy`   | `P2`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
