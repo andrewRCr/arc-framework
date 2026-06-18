@@ -66,7 +66,11 @@ export async function runSetStage(
   ctx: SetStageContext,
   params: { name: string; stage: string; advance?: boolean },
 ): Promise<SetStageResult> {
-  const { name, stage, advance = false } = params;
+  const name = params.name.trim();
+  if (name === "") {
+    return { status: "rejected", reason: "A work-unit name is required to set the planning stage." };
+  }
+  const { stage, advance = false } = params;
   if (!isPlanningWorkflow(stage)) {
     return {
       status: "rejected",
