@@ -161,6 +161,7 @@ async function parseCandidate(
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
     nextAction: parsed.nextAction,
+    currentWorkflow: parsed.currentWorkflow,
   };
 }
 
@@ -170,16 +171,18 @@ export interface ParsedMetaFields {
   nextTask: string | null;
   taskList: string | null;
   nextAction: string | null;
+  currentWorkflow: string | null;
 }
 
 /**
- * Parse the five session-init-relevant fields from a meta-file body.
+ * Parse the six session-init-relevant fields from a meta-file body.
  *
  * Thin projection over {@link parseMetaRecord} — the single reader every meta
  * consumer routes through — selecting the subset the probe runners need. Core
  * fields (`State`, `Branch`) come from the core-block table when present and the
  * legacy flat-bullet scan otherwise; the rest come from their bullets. Token
- * fields (`State`, `Branch`, `Task List`) come back bare (backticks stripped);
+ * fields (`State`, `Branch`, `Task List`, `Current Workflow`) come back bare
+ * (backticks stripped);
  * narrative fields (`Next Task`, `Next Action`) are preserved verbatim, code
  * spans and all. Bracket sentinels are preserved; a field whose marker is
  * absent comes back `null`.
@@ -196,6 +199,7 @@ export function parseMetaFile(content: string): ParsedMetaFields {
     nextTask: record["Next Task"],
     taskList: record["Task List"],
     nextAction: record["Next Action"],
+    currentWorkflow: record["Current Workflow"],
   };
 }
 
@@ -253,6 +257,7 @@ export const META_FIELDS = [
   { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
@@ -433,6 +438,57 @@ export function setMetaState(content: string, state: string): string {
  */
 export function setMetaBranch(content: string, branch: string): string {
   return setMetaCoreFields(content, { Branch: branch });
+}
+
+/**
+ * Rewrite the `Current Workflow` bullet field in place — the planning-stage
+ * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
+ * (which rewrites the core-table Branch cell): the lifecycle executor projects
+ * the meta `Current Workflow` from the planning sub-stage a transition enters
+ * (`draft-design` / `create-spec` / `generate-tasks`), or `[none]` when planning
+ * exits at activation. Every other field and the prose below stay byte-stable.
+ *
+ * A thin wrapper over {@link setMetaBulletFields} fixing the field to
+ * `Current Workflow` — the named primitive the executor's stage-pointer writes
+ * route through, so the stage-entry command and the activate-exit clear share
+ * one write. The `stage` is rendered per the `identifier` value class (backticked,
+ * `[none]` left bare) so the written form matches {@link renderMetaFile}. Inherits
+ * {@link setMetaBulletFields}'s fail-loud contract: a meta without the
+ * `Current Workflow` bullet throws (structural drift, not a no-op).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param stage - The planning-stage basename to write (e.g. `create-spec`), or `[none]` to clear.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no `Current Workflow` bullet.
+ */
+export function setMetaCurrentWorkflow(content: string, stage: string): string {
+  return setMetaBulletFields(content, { "Current Workflow": formatValue(stage, "identifier") });
+}
+
+/**
+ * Rewrite the `Design` bullet field in place — the event-driven design-pointer
+ * write. The identifier-list sibling of {@link setMetaCurrentWorkflow}: the
+ * lifecycle executor projects the meta `Design` from the planning moment a
+ * repoint fires (`draft-<name>.md` at draft creation, `spec-<name>.md` at
+ * create-spec finalization), or `[none]` before any artifact exists. Every other
+ * field and the prose below stay byte-stable.
+ *
+ * A thin wrapper over {@link setMetaBulletFields} fixing the field to `Design` —
+ * the named primitive the executor's design repoints route through. The caller
+ * composes the bare field value (a single filename, or a comma-joined layered
+ * list); this primitive renders it per the `identifier-list` value class (each
+ * element backticked, `[none]` left bare) so the written form matches
+ * {@link renderMetaFile}, and does not otherwise parse or merge. Inherits
+ * {@link setMetaBulletFields}'s fail-loud contract: a meta without the `Design`
+ * bullet throws (structural drift, not a no-op).
+ *
+ * @param content - The meta file's raw markdown.
+ * @param value - The composed `Design` value (e.g. `spec-demo.md`, `spec-a.md, spec-b.md`), or `[none]`.
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no `Design` bullet.
+ */
+export function setMetaDesign(content: string, value: string): string {
+  return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
 }
 
 /**

@@ -24,7 +24,12 @@ import { readFile, readdir, rm, rmdir } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
 
-import { parseMetaRecord, readActiveMetaCandidates, type MetaFieldName } from "../lib/active/meta-reader.js";
+import {
+  parseIdentifierList,
+  parseMetaRecord,
+  readActiveMetaCandidates,
+  type MetaFieldName,
+} from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
@@ -57,6 +62,8 @@ import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
+import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
+import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
 
@@ -675,4 +682,107 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   reportOutcome("Archived", lines, result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Planning-stage pointer — `set-stage`
+// ---------------------------------------------------------------------------
+
+/**
+ * `arc set-stage <stage>` — write the current work unit's `Current Workflow` to
+ * the named planning sub-stage (`draft-design` / `create-spec` / `generate-tasks`)
+ * so the meta carries one deterministic field naming the live sub-stage. Not a
+ * lifecycle transition — just the stage-pointer write. With `--advance` (the
+ * finalization shape), additionally resets `Next Action` to the
+ * `[begin current workflow]` sentinel; without it (the create-spec entry-correction
+ * shape) `Next Action` is left alone. Refuses without a single resolvable active WU,
+ * and (via `runSetStage`) on a non-planning stage. Verb spelling is provisional,
+ * pending idiomatic-alignment.
+ */
+export async function handleSetStage(
+  stage: string | undefined,
+  opts?: { advance?: boolean },
+): Promise<void> {
+  p.intro("arc set-stage");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const stageArg = stage?.trim();
+  if (!stageArg) {
+    refuse("`arc set-stage <stage>` requires a planning stage (`draft-design` | `create-spec` | `generate-tasks`).");
+    return;
+  }
+
+  const slug = await resolveCurrentWuSlug(base.cwd);
+  if (slug === null) {
+    refuse("`arc set-stage` needs exactly one active work unit to target — none resolved in this worktree.");
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runSetStage(executor, { name: slug, stage: stageArg, advance: opts?.advance ?? false });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [
+    `Work unit:        ${slug}`,
+    `Current Workflow: ${result.stage}`,
+  ];
+  if (result.advanced) lines.push("Next Action:      [begin current workflow]");
+  lines.push(`Meta:             ${result.metaPath}`);
+  p.note(lines.join("\n"), result.advanced ? "Stage advanced" : "Stage set");
+  p.outro("Done.");
+}
+
+// ---------------------------------------------------------------------------
+// Planning design-pointer — `repoint-design`
+// ---------------------------------------------------------------------------
+
+/**
+ * `arc repoint-design <event>` — advance the current work unit's `Design`
+ * pointer at a planning moment: `draft-created` (`[none] → draft-<name>.md`) or
+ * `spec-finalized` (`draft-<name>.md → spec-<name>.md`), fired by the
+ * `draft-design` / `create-spec` workflows so the field tracks the authoritative
+ * artifact by event rather than a presence-scan. Reads the current `Design` to
+ * resolve the repoint against the parsed identifier-list (layered siblings
+ * preserved). Refuses without a single resolvable active WU and (via
+ * `runRepointDesign`) on an unrecognized event. Verb spelling is provisional,
+ * pending idiomatic-alignment.
+ */
+export async function handleRepointDesign(event: string | undefined): Promise<void> {
+  p.intro("arc repoint-design");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const eventArg = event?.trim();
+  if (eventArg !== "draft-created" && eventArg !== "spec-finalized") {
+    refuse("`arc repoint-design <event>` requires an event (`draft-created` | `spec-finalized`).");
+    return;
+  }
+
+  const slug = await resolveCurrentWuSlug(base.cwd);
+  if (slug === null) {
+    refuse("`arc repoint-design` needs exactly one active work unit to target — none resolved in this worktree.");
+    return;
+  }
+
+  const metaPath = join(base.cwd, ".arc/active", `meta-${slug}.md`);
+  const currentDesign = parseIdentifierList(parseMetaRecord(await readFile(metaPath, "utf8"))["Design"]);
+
+  const { executor } = await buildExecutor(base);
+  const result = await runRepointDesign(executor, {
+    name: slug,
+    event: eventArg satisfies RepointDesignEvent,
+    currentDesign,
+  });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  p.note(
+    [`Work unit: ${slug}`, `Design:    ${result.design}`, `Meta:      ${result.metaPath}`].join("\n"),
+    "Design repointed",
+  );
+  p.outro("Done.");
 }

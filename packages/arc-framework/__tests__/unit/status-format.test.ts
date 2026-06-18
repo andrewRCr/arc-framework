@@ -212,6 +212,7 @@ function makeSessionInitResult(
         path: ".arc/active/technical/meta-foo.md",
         candidates: [],
         sessionType: "execution",
+        planningStage: null,
         warnings: [],
       },
     },

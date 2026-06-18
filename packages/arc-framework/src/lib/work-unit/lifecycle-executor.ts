@@ -202,6 +202,24 @@ export interface ExecuteTransitionContext {
   writeBranchField: (metaPath: string, branch: string) => Promise<void>;
 
   /**
+   * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
+   * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
+   * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
+   * `generate-tasks`) at a sub-stage entry, or `[none]` when planning exits.
+   */
+  writeCurrentWorkflowField: (metaPath: string, stage: string) => Promise<void>;
+
+  /**
+   * Write the meta `Design` bullet field at `metaPath` (read → rewrite → write).
+   * The identifier-list sibling of {@link writeCurrentWorkflowField}: `value` is
+   * the fully composed field value the event-driven repoint resolved — a single
+   * `draft-<name>.md` / `spec-<name>.md` filename, or a comma-joined layered
+   * list. The caller (the repoint verb) owns the list transform; this seam is a
+   * blind write.
+   */
+  writeDesignField: (metaPath: string, value: string) => Promise<void>;
+
+  /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
    * the branch-field clear, and the soft-field reset all write through the fs
    * seam unstaged; without staging, a meta that `relocate-artifacts` git-mv'd
@@ -418,6 +436,9 @@ export async function executeTransition(
   // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
   const branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
 
+  // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
+  const currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
+
   // 8. Apply the soft-field disposition (reset constants + supplied inputs).
   const softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
 
@@ -426,7 +447,10 @@ export async function executeTransition(
   //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
   //     content and a commit ships the pre-rewrite state.
   const wroteMeta =
-    legsFired.includes("setPhase") || branchFieldWritten !== null || softFieldsWritten.length > 0;
+    legsFired.includes("setPhase") ||
+    branchFieldWritten !== null ||
+    currentWorkflowCleared !== null ||
+    softFieldsWritten.length > 0;
   if (wroteMeta && metaPath !== null) {
     await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
   }
@@ -635,6 +659,26 @@ async function applyBranchField(
   if (branch === null) return null;
   await ctx.writeBranchField(effectiveMetaPath(record, metaPath, inputs), branch);
   return branch;
+}
+
+/**
+ * Clear the meta `Current Workflow` field to `[none]` when the edge declares
+ * `clearCurrentWorkflowField` — the `activate` exit, as `State: Active` takes
+ * over and the planning-stage pointer no longer names a live sub-stage. Gated
+ * identically to the soft-field pass (skipped for creation / deletion edges) and
+ * a no-op on any edge that does not declare the clear. Returns `"[none]"` when
+ * the clear fired, else `null`.
+ */
+async function applyCurrentWorkflowField(
+  ctx: ExecuteTransitionContext,
+  record: TransitionRecord,
+  metaPath: string | null,
+  inputs: TransitionInputs,
+): Promise<string | null> {
+  if (!softFieldsApply(record) || metaPath === null) return null;
+  if (record.encodingUpdates.clearCurrentWorkflowField !== true) return null;
+  await ctx.writeCurrentWorkflowField(effectiveMetaPath(record, metaPath, inputs), "[none]");
+  return "[none]";
 }
 
 /**

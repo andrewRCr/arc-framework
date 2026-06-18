@@ -8,6 +8,7 @@ arc:
     - resolve-planning-depth
     - classify-work-unit
     - assess-cohort-fit
+    - assess-draft-readiness
     - spec-review
   extensions:
     - pre-spec-finalization-review
@@ -34,6 +35,11 @@ is a derivation signal — step back to draft-design rather than re-opening shap
 verify you are on one before proceeding (created via [init-work-unit][init-work-unit]). Under partial protection
 (the default), specs may be created directly on the base branch.
 
+**Mark the stage** on entry _only when entering without a draft_ (`draft-{name}.md` absent — `draft-design` was
+skipped or produced no draft): `arc set-stage create-spec` corrects the stale `draft-design` pointer so a mid-stage
+handoff resolves correctly. When a draft exists, `draft-design`'s finalization already advanced the pointer here —
+skip the write.
+
 ---
 
 ## Resolve depth & Class
@@ -57,9 +63,9 @@ directly, narrowing to a **brief-vs-outline** disambiguation.
 
 If a draft carries an `## Inbound Buffer — Pending Integration` section, **integrate those routed notes into the
 draft body first** (or consciously reject each) — the buffer is a transit zone that must drain before the draft
-feeds the spec, never carried forward as-is. Then assess readiness: unresolved design decisions, open unknowns,
-or missing concrete detail the spec would need to specify. If the draft is not ready, surface the gaps and
-resolve them (or return to drafting) before investing in spec writing.
+feeds the spec, never carried forward as-is. Then assess formalization-readiness via the
+[assess-draft-readiness][assess-draft-readiness] method; on **not-ready**, surface the returned gaps and resolve
+them inline (or return to drafting) before investing in spec writing.
 
 The resolved form is this stage's default — re-selectable, never below the derivation floor; it selects the
 discovery pass below and the template at Write and save. The `**Class:**` decision is live from this read but
@@ -199,8 +205,19 @@ re-entry (route it to the design, never patch it into the spec).
   self-review. Otherwise, skip.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop after the spec is saved and self-reviewed. Surface the spec location and the
-> self-review findings for review; await approval before proceeding to draft retirement + meta update + commit.
+> `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
+> spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
+> spec — amend and re-surface until the spec is right. This approval means the spec is correct; it does **not**
+> authorize the irreversible finalize actions below.
+
+Once the spec is approved as correct, finalize the work unit. The remaining steps are irreversible, so they take
+a second, separate approval:
+
+> [!IMPORTANT]
+> `workflow-interlock` — Gate 2 (proceed-to-finalize): Only after Gate 1 clears. The steps below are
+> irreversible — draft retirement (`notes-*` migration + draft deletion) and the meta update — and close with the
+> commit. State that finalize is about to run and await explicit approval; this approval authorizes the
+> retirement, the meta update, and the commit.
 
 If a `draft-*.md` document fed into this spec, retire it now. Drafts are ephemeral — they serve exploration and
 are deleted once the spec captures the conclusions (see [Work Planning Strategy][work-planning] § Draft
@@ -215,9 +232,13 @@ Documents).
    they have independent archival value — e.g., research files may belong in
    `reference/supplemental/research/`).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
-   Planning` (planning-branch sessions), persist the resolved `**Class:**` (live from the entry read) and
-   advance its `**Next Action:**` to the post-spec step (e.g., "Run `generate-tasks.md`"). Skip otherwise (no
-   meta file exists pre-init under non-planning-branch flows).
+   Planning` (planning-branch sessions), repoint `Design` to the finalized spec — `arc repoint-design
+   spec-finalized` rewrites `Design: draft-{name}.md → spec-{name}.md` (the no-draft path repoints `[none] →
+   spec-{name}.md`). Then persist the resolved `**Class:**` (live from the entry read) and advance the stage
+   pointer to the next sub-stage: `arc set-stage generate-tasks --advance` rewrites `Current Workflow: create-spec →
+   generate-tasks` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step,
+   so a fresh session after handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under
+   non-planning-branch flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.
@@ -246,6 +267,7 @@ Run [generate-tasks.md](generate-tasks.md) when ready — it consumes this spec 
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [spec-review]: ../../methods/spec-review.md
 [pre-spec-finalization-review]: ../../extensions/pre-spec-finalization-review.md
 [template-spec-brief]: ../../../reference/templates/arc/work-unit/spec/template-spec-brief.md

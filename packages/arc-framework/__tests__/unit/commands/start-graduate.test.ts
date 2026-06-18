@@ -115,6 +115,8 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     writeBranchField: async () => {},
+    writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
     },

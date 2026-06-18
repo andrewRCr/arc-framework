@@ -8,6 +8,7 @@ arc:
     - resolve-planning-depth
     - classify-work-unit
     - assess-cohort-fit
+    - assess-draft-readiness
 ---
 
 # Workflow: Draft Design
@@ -43,6 +44,9 @@ idea. Act on the emitted `route`:
     - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
       backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
+
+**Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this
+workflow opens. (Pre-WU drafting on the base has no meta yet — the eventual `init` scaffold sets it.)
 
 ## Resolve depth & Class
 
@@ -122,9 +126,10 @@ formalization-ready gate:
 - **formalization-ready** — exploration is stable and every settle-able decision is settled; a suitable input
   for create-spec.
 
-The formalization-ready bar is the same at every level — _is all settle-able design settled, and can I state how
-I'll know it worked?_ — reached faster at `low` / `medium`, crossed over more passes at `high`. It always means
-ready _at the depth this design demanded_, never a lower bar.
+At loop-exit, assess the draft's formalization-readiness with the
+[assess-draft-readiness][assess-draft-readiness] method. On **ready**, the draft crosses into create-spec; on
+**not-ready**, re-synthesize against the returned gaps and keep iterating. These readiness states describe a
+draft's maturity for cross-session continuity; a draft is `formalization-ready` when the method returns `ready`.
 
 **Coherence-consolidation (`high`-only, suggest-not-enforce).** A draft that iterates across many sessions
 accretes superseded sketch beside current design — the design can be settled while the document is not yet a
@@ -158,9 +163,19 @@ On approval, capture what the level produced and persist the resolved `Class` to
 is live from the entry read — it drove this stage's depth immediately — but its `**Class:**` write lands here,
 at the draft-capture ceremony commit.
 
-What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class`
-write; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):` commit
-(see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
+On a draft-producing path (`medium` / `high`) with an active planning meta, repoint `Design` to the new draft:
+`arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
+draft — `Design` repoints straight to the spec at create-spec finalization), or when drafting pre-WU on the base
+with no meta yet (the eventual `init` scaffold sets it).
+
+When the draft is formalization-ready and crosses into create-spec (the forward path — not the re-entry
+back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:
+draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel,
+bundled into this capture commit — so a fresh session after handoff resumes in create-spec.
+
+What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
+`Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
+commit (see [DEV-RULES.ARC][dev-rules-arc] § Meta-file commit shape).
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -184,5 +199,6 @@ planning-depth level is never recorded.
 [resolve-planning-depth]: ../../methods/resolve-planning-depth.md
 [classify-work-unit]: ../../methods/classify-work-unit.md
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
+[assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md

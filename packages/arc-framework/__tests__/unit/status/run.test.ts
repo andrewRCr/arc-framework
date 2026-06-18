@@ -247,6 +247,7 @@ function activeSessionInit(
     path: null,
     candidates: [],
     sessionType: "planning",
+    planningStage: null,
     warnings: [],
     ...overrides,
   };

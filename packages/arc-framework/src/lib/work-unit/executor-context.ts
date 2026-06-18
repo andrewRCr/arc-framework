@@ -34,7 +34,13 @@
 import { readdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
-import { parseMetaRecord, setMetaBulletFields, setMetaBranch } from "../active/meta-reader.js";
+import {
+  parseMetaRecord,
+  setMetaBulletFields,
+  setMetaBranch,
+  setMetaCurrentWorkflow,
+  setMetaDesign,
+} from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import { assembleStatusUserView } from "../status/assemble-user-view.js";
@@ -169,6 +175,16 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeBranchField: async (metaPath, branch) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaBranch(content, branch));
+    },
+
+    writeCurrentWorkflowField: async (metaPath, stage) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
+    },
+
+    writeDesignField: async (metaPath, value) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaDesign(content, value));
     },
 
     // Stage the content legs' meta rewrite through the same git seam

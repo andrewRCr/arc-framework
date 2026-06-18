@@ -37,6 +37,8 @@ async function createFixture(): Promise<Fixture> {
 function statusBody(fields: {
   state: string;
   branch: string;
+  currentWorkflow?: string;
+  design?: string;
   nextTask?: string;
   taskList?: string;
   nextAction?: string;
@@ -47,6 +49,10 @@ function statusBody(fields: {
     `- **State:** ${fields.state}`,
     `- **Branch:** ${fields.branch}`,
   ];
+  if (fields.design !== undefined) lines.push(`- **Design:** ${fields.design}`);
+  if (fields.currentWorkflow !== undefined) {
+    lines.push(`- **Current Workflow:** ${fields.currentWorkflow}`);
+  }
   if (fields.taskList !== undefined) lines.push(`- **Task List:** ${fields.taskList}`);
   if (fields.nextTask !== undefined) lines.push(`- **Next Task:** ${fields.nextTask}`);
   if (fields.nextAction !== undefined) lines.push(`- **Next Action:** ${fields.nextAction}`);
@@ -721,5 +727,97 @@ describe("runActiveSessionInitStatus — sessionType inference", () => {
     });
     expect(result.resolution).toBe("single");
     expect(result.sessionType).toBe("planning");
+  });
+});
+
+describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("surfaces the sub-stage directly from the `Current Workflow` field", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Planning",
+        branch: "plan/foo",
+        currentWorkflow: "create-spec",
+        taskList: "[none]",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.sessionType).toBe("planning");
+    expect(result.planningStage).toBe("create-spec");
+  });
+
+  it("defaults to draft-design when the meta carries no `Current Workflow` field", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({ state: "Planning", branch: "plan/foo", taskList: "[none]" }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.planningStage).toBe("draft-design");
+  });
+
+  it("defaults to draft-design regardless of on-disk artifacts — no artifact scan", async () => {
+    // A spec on disk must NOT shift the resolution: the field is the only signal,
+    // and artifact presence is a deliberately-retired heuristic. Guards against a
+    // scan creeping back in.
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({ state: "Planning", branch: "plan/foo", taskList: "[none]" }),
+    );
+    await writeFile(join(fixture.activeDir, "draft-foo.md"), "# draft\n");
+    await writeFile(join(fixture.activeDir, "spec-foo.md"), "# spec\n");
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.planningStage).toBe("draft-design");
+  });
+
+  it("treats a `[none]` field value as field-absent and defaults to draft-design", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Planning",
+        branch: "plan/foo",
+        currentWorkflow: "[none]",
+        taskList: "[none]",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.planningStage).toBe("draft-design");
+  });
+
+  it("emits planningStage=null for a non-planning (execution) session", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "feature/foo",
+        taskList: "`.arc/active/tasks-foo.md`",
+        nextAction: "Start Task 4.2 — write unit tests",
+      }),
+    );
+
+    const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.sessionType).toBe("execution");
+    expect(result.planningStage).toBeNull();
+  });
+
+  it("emits planningStage=null when resolution is none (orphan planning branch, no meta to scan)", async () => {
+    const result = await runActiveSessionInitStatus({
+      cwd: fixture.root,
+      exec: stubGitExec("plan/foo"),
+    });
+    expect(result.resolution).toBe("none");
+    expect(result.sessionType).toBe("planning");
+    expect(result.planningStage).toBeNull();
   });
 });

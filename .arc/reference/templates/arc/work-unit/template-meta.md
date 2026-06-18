@@ -63,6 +63,11 @@
     co-located by convention).
 
   Progress:
+  - **Current Workflow** — `[none]` outside planning; the active
+    planning-stage workflow basename during planning (`draft-design` /
+    `create-spec` / `generate-tasks`). Code-owned — written only by the
+    lifecycle executor at each stage transition, never hand-edited;
+    session-init reads it to load the planning sub-stage.
   - **Last Completed** — Task ID + title | ceremony marker (e.g.,
     `Work unit activated`) | `[none]` at planning start.
   - **Next Task** — triple-anchor `Task X.Y — title (line ~N)` | `[none]`
@@ -70,7 +75,10 @@
   - **Blockers** — `[none]` | freeform description of what's gating progress.
 
   Directive:
-  - **Next Action** — imperative description of what to do next.
+  - **Next Action** — within-stage judgment: what to do next *inside* the
+    current stage. At a clean stage boundary, the `[begin current workflow]`
+    sentinel — the workflow name lives in `Current Workflow`, never duplicated
+    here. Distinct from `[none]` (parked). Never names a workflow directly.
 
   Appended at integration ceremony (post-integration block within H1 body):
   - **PR URL** — link to integration PR.
@@ -121,6 +129,7 @@
 - **Design:** [none]
 - **Task List:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]

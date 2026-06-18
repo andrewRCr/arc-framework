@@ -112,6 +112,8 @@ function buildCtx(opts: {
     writeBranchField: async (_path, branch) => {
       branchWrites.push(branch);
     },
+    writeCurrentWorkflowField: async () => {},
+    writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       softWrites.push({ path, updates: updates as Record<string, string> });
     },

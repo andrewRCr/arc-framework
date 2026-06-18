@@ -34,6 +34,8 @@ import {
   handleReopen,
   handleAbandon,
   handleArchive,
+  handleSetStage,
+  handleRepointDesign,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
@@ -179,6 +181,26 @@ program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
   .action((slug: string | undefined) => handleArchive(slug));
+
+program
+  .command("set-stage <stage>")
+  .description(
+    "Set the current work unit's planning-stage pointer (meta `Current Workflow`): "
+    + "draft-design | create-spec | generate-tasks",
+  )
+  .option(
+    "--advance",
+    "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
+  )
+  .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
+
+program
+  .command("repoint-design <event>")
+  .description(
+    "Advance the current work unit's design pointer (meta `Design`) at a planning event: "
+    + "draft-created | spec-finalized",
+  )
+  .action((event: string) => handleRepointDesign(event));
 
 const errand = program
   .command("errand")

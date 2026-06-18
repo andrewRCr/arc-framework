@@ -388,6 +388,11 @@ handoff.
 **Clarifying questions improve outcomes.** When you mostly understand a request but see
 ambiguities, edge cases, or design alternatives that need decisions — ask.
 
+### Recommend on advisory forks
+
+When surfacing an advisory accept/decline (or either-or) fork — not a mandatory approval gate — state the
+recommended option with a one-line rationale; never a bare fork. The user still decides.
+
 ### Consult strategy guidance
 
 Before implementing work in codified domains, consult the relevant strategy document.

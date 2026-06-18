@@ -78,6 +78,8 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
     expect(record.Owner).toBe("andrew");
     expect(record.Branch).toBe("feat/manual-tool");
     expect(record["Next Action"]).toBe("Begin planning");
+    // A Planning scaffold names the entry planning stage in Current Workflow.
+    expect(record["Current Workflow"]).toBe("draft-design");
 
     expect(
       await pathExists(join(worktree, ".arc", "user", "andrew", "manual-tool", "SESSION-NOTES.md")),
@@ -106,6 +108,74 @@ describe("scaffoldIntoWorktree — cold-start (use-existing)", () => {
     );
     expect(record.Origin).toBe("https://github.com/acme/widget/issues/42");
     expect(record.Design).toBe("spec-manual-tool.md");
+  });
+});
+
+describe("scaffoldIntoWorktree — planning-stage pointer at init", () => {
+  let worktree: string;
+  let io: UserIOContext;
+
+  beforeEach(async () => {
+    worktree = await mkdtemp(join(tmpdir(), "arc-scaffold-stage-"));
+    io = { ...createUserIOContext(), exec: recordingExec().exec };
+  });
+
+  afterEach(async () => {
+    await rm(worktree, { recursive: true, force: true });
+  });
+
+  it("writes Current Workflow at the entry planning stage for a Planning scaffold", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "plan/fresh-wu",
+        wuName: "fresh-wu",
+        spawningIdentity: "andrew",
+        createdByArc: false,
+      },
+    );
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
+    );
+    expect(record.State).toBe("Planning");
+    expect(record["Current Workflow"]).toBe("draft-design");
+  });
+
+  it("seeds Next Action with no workflow pointer (the begin-current-workflow sentinel)", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "plan/fresh-wu",
+        wuName: "fresh-wu",
+        spawningIdentity: "andrew",
+        createdByArc: false,
+      },
+    );
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-fresh-wu.md")),
+    );
+    expect(record["Next Action"]).toBe("[begin current workflow]");
+  });
+
+  it("clears Current Workflow to [none] when scaffolding a non-Planning state", async () => {
+    await scaffoldIntoWorktree(
+      { io, internalTemplateDir: getInternalTemplatePath() },
+      {
+        worktreePath: worktree,
+        branch: "feat/promoted",
+        wuName: "promoted",
+        spawningIdentity: "andrew",
+        initialState: "Active",
+        createdByArc: false,
+      },
+    );
+    const record = parseMetaRecord(
+      await io.readFile(join(worktree, ".arc", "active", "meta-promoted.md")),
+    );
+    expect(record.State).toBe("Active");
+    expect(record["Current Workflow"]).toBe("[none]");
   });
 });
 
