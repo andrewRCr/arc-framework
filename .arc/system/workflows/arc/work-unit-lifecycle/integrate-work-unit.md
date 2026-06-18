@@ -238,7 +238,8 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. Its `arc archive`
   sweep handles state flip `Integrating → Shipped`, the relocation `active/meta-{name}.md` →
-  `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, and ROADMAP regen per its
+  `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, the `PR URL` / `Completed`
+  finalize-fact write (sourcing the PR URL from this ceremony's open PR), and ROADMAP regen per its
   cadence-invariant body — the **mergeable** ship, which rides this PR. Physical branch/worktree teardown is
   **not** archive's: it is Step 13's post-merge cleanup below. Returns; resume at Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`

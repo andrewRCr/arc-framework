@@ -134,19 +134,10 @@ forward-reconcile audits a meta against the full field set. `arc integrate` is a
   merge). Both ceremony copies (`.arc/` + package source) delegate the State flip; the interim ROADMAP
   hand-render stays, now driven by the command's `reconcile-roadmap` advisory until `roadmap-tooling` ships.
 
-### `[ ]` **3.2 `PR URL` / `Completed` `META_FIELDS` + `arc archive --pr-url --completed`**
+### `[x]` **3.2 `PR URL` / `Completed` `META_FIELDS` + `arc archive --pr-url --completed`**
 
 - _Goal:_ `arc archive --pr-url <url> --completed <date>` writes `PR URL` and `Completed` as managed
   `META_FIELDS` and forward-reconciles in one call — eliminating the hand-added finalize prose block.
-
-- _Context:_ New `META_FIELDS` entries are storage-agnostic (no per-artifact tracking boolean, no
-  tracked-tree assumption); modeled as fields, not an appended block (ADR-022 §4). `--pr-url` optional =
-  graceful placeholder + warn for backfill / offline / resume, **not** "never passed": the archive ceremony
-  normally passes it (3.2.c is the trigger). `--completed` defaults to today — archive runs **pre-merge**
-  (the mergeable sweep riding the ship PR), so the git merge timestamp isn't available at archive time and
-  "today" (the ship day) is the correct default, overrideable only for backfill. The finalize-**write** half
-  is pulled from `interlock-release-refinement` (its approval-collapse stays there); coordinate the
-  `archive-work-unit.md` surface with `scalable-core`'s `archive.preserve`.
 
 - **Strategies:** strategy-work-organization.md
 
@@ -169,13 +160,18 @@ forward-reconcile audits a meta against the full field set. `arc integrate` is a
           the injected clock's day (local components, matching the quarter label). `--pr-url` / `--completed` flags
           on `arc archive`; warnings surfaced via `p.log.warn`.
 
-    - `[ ]` **3.2.c Pass `--pr-url` / `--completed` from the archive ceremony invocation**
-        - `archive-work-unit.md` Step 2 (and the inline `with-integration` path from
-          `integrate-work-unit.md`) invokes `arc archive … --pr-url <url>`, the agent sourcing `<url>` from
-          the integration PR (created at `integrate-work-unit` Step 5; `gh pr view --json url` — no
-          auto-inference in v1). `--completed` defaults to today. This invocation is the trigger; the
-          hand-add it replaces was the `template-meta.md` field mandate, retired in Phase 4 (Task 4.2.b) — so
-          no facts are hand-added anywhere.
+    - `[x]` **3.2.c Pass `--pr-url` / `--completed` from the archive ceremony invocation**
+        - `archive-work-unit.md` Step 2 invokes `arc archive {name} --pr-url "$(gh pr view {type}/{name} --json
+          url --jq .url)"`, sourcing the URL from the integration PR; the inline `with-integration` path in
+          `integrate-work-unit.md` delegates to it (description updated to name the finalize-fact write). Both
+          copies of each ceremony updated. Omitting `--pr-url` (offline / pre-PR / standalone) writes the `[none]`
+          placeholder + warns; `--completed` defaults to today. No facts are hand-added anywhere.
+
+- _Outcome:_ `arc archive --pr-url <url>` writes the `PR URL` / `Completed` finalize facts as managed fields,
+  invoked from the archive ceremony with the URL sourced via `gh pr view` — retiring the hand-appended
+  post-integration block. The fields are modeled per ADR-022 §4 (managed fields, not a prose block) and ride the
+  same field-model render/parse as every other meta field; `Origin` + `PR URL` both render as clickable autolinks.
+  The `template-meta.md` finalize-field mandate that drove the old hand-add is retired in Phase 4 (Task 4.2.b).
 
 ## **Phase 4:** Meta-shape single source of truth
 
