@@ -85,24 +85,24 @@ legs). Call sites scoped to `integrate-work-unit` + `session-handoff`.
   is resolved by enumerating `refs/heads` and matching `branchToWorkUnitSlug` (type-prefix agnostic) — the
   meta `Branch` is `[none]` post-archive; (2) the constraint-correct leg order is **worktree teardown →
   branch delete → prune** (not the listed order): `-D` refuses a checked-out branch, and the merged-safe
-  delete must read the *stale* `origin/<branch>` tracking ref before prune removes it — so prune runs last.
+  delete must read the _stale_ `origin/<branch>` tracking ref before prune removes it — so prune runs last.
   The handler's exec lets `opts.cwd` win (the cleanliness check targets the linked worktree, not the cwd),
   inverting the transition-executor's repo-root pin.
 
-### `[ ]` **2.2 Wire `arc teardown` into the integrate + handoff ceremonies**
+### `[x]` **2.2 Wire `arc teardown` into the integrate + handoff ceremonies**
 
 - _Goal:_ `integrate-work-unit` Step 13 and the `session-handoff` Same-session finalize pass invoke
   `arc teardown` in place of the hand-run `git branch -d` cleanup — the carry-and-skip teardown prose is
   gone from both.
 
-- _Note:_ Scope is these two ceremonies only — this WU does not touch `decompose-work-unit.md`. The
-  `session-handoff` § Same-session finalize pass tears down **both** WU and `chore/<slug>` candidates in one
-  spot, so the `arc teardown` wiring there covers both. Doc change; verified by the falsifiable sweep at
-  verification (no unit test).
-
-    - Replace the inline cleanup in `integrate-work-unit.md` Step 13 with the `arc teardown` invocation.
-    - Replace the hand-run teardown (`git branch -d` + `git worktree remove`) in `session-handoff.md`
-      § Same-session finalize pass.
+- _Outcome:_ Both ceremonies' WU teardown is now `arc teardown <wu-name>` (Step 13 loses its primary/linked
+  `git branch -d` + `git worktree remove` bash; the finalize pass's WU candidate routes through the verb).
+  **Errand handling diverges from the original Note:** `arc teardown` is WU-gated (`isShipped` / `completed/`
+  presence) and errands carry no meta, so the finalize pass's `chore/<slug>` candidate keeps its hand-run
+  teardown — errand teardown is `errand-lattice`'s `arc errand close` (confirmed owned in its draft). The
+  shipped doc states the errand path neutrally (no forward-pointer, per the adopter audience boundary).
+  Synced to both package copies (`integrate-work-unit.md` direct, `session-handoff.template.md`); no unit
+  test (doc change, verified by the verification-phase sweep).
 
 ## **Phase 3:** Integration-tail commands — `arc integrate` & archive finalize facts
 

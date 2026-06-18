@@ -276,57 +276,26 @@ the owning caller of `arc user close` — a merge that landed while no session a
 
 ### 13) Post-merge worktree cleanup
 
-After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
-second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred:
-it runs post-merge, since a merged branch can only be reaped once its PR has landed. Dispatch by current worktree
-identity. Every teardown action below is **presence-guarded**:
-it no-ops when its target is already gone (worktree already removed, branch already deleted), so a resume that
-re-enters here after a partial teardown skips what's done rather than erroring.
+After `arc user close`, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no
+second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred: it
+runs post-merge, since a merged branch can only be reaped once its PR has landed. The verb resolves the shipped
+WU's branch and composes the cleanup deterministically, presence-guarded throughout — a resume that re-enters
+after a partial teardown skips what is already done:
 
-**Primary worktree (in-place WU):** the WU branch lived directly in the main worktree — no distinct worktree
-exists to remove, but the merged branch still needs reaping, symmetric with the linked arm and
-`decompose-work-unit.md`'s park-exit block. Switch off the merged branch, then delete it locally and prune the
-stale remote-tracking ref:
+- reaps the merged branch with a **merged-safe** delete, containment-checked against the upstream — so squash and
+  rebase ships are handled where a reachability-from-base delete would refuse, and never a force delete;
+- removes the WU's worktree when one is distinct from the primary (the in-place arm has none to remove),
+  clean-checked and never `--force`;
+- prunes the stale remote-tracking ref the delete-on-merge left behind.
 
-```bash
-git switch <base-branch>
-git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
-git fetch --prune origin   # remote branch removed by delete-on-merge — prune its stale tracking ref
-```
-
-Lowercase `-d` keeps the delete merged-only-safe and the presence guard makes it re-runnable; there is no
-`push --delete` — delete-on-merge typically removed the remote branch already, so prune the local tracking ref
-rather than re-deleting it.
+A dirty worktree is refused (no `--force` escape): surface the state and resolve it before re-running. When the
+teardown removed the linked worktree the session occupied, the agent's prior cwd no longer exists — **the session
+terminates here**: start a fresh session in another worktree (typically the primary), where `## Next step` does
+not apply on this arm.
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one
 on the auto-merge lane). The workflow continues to `## Next step` normally.
-
-**Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
-on the resolved state:
-
-- **`removable`** — the worktree is ARC-marked, clean, and merged. Execute the cascade from another worktree
-  (typically main), each step guarded on presence so a re-run after a partial teardown is safe:
-
-    ```bash
-    cd <main-worktree-path>
-    git worktree list --porcelain | grep -q '<wu-worktree-path>' && git worktree remove <wu-worktree-path>
-    git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
-    ```
-
-    Lowercase `-d` keeps the branch delete merged-only-safe — the presence guard suppresses it only when the
-    branch is already gone, never when it is unmerged, so the safety check stays intact.
-
-    **Session terminates here.** The WU shipped, the worktree is removed, and the agent's prior cwd no longer
-    exists. Start a fresh session in another worktree (typically main). `## Next step` does not apply on this
-    arm.
-
-- **`blocked`** — uncommitted edits or unmerged work in the worktree. Surface the state; do not auto-remove.
-  The next time a session opens in the main worktree, the stale-worktree check surfaces the lingering
-  worktree with an interlock-gated removal offer.
-
-- **`external`** — the worktree carries no ARC ownership marker (externally-spawned). Note the
-  externally-managed status; the operator's tool handles cleanup.
 
 ---
 

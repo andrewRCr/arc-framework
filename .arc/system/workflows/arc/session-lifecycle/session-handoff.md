@@ -612,15 +612,13 @@ Poll each candidate once — a single `gh pr view <branch> --json state,mergedAt
 on CI) — then dispatch:
 
 - **merged-clean** → eager teardown. Each step is presence-guarded (safe to re-run):
-    - switch off the merged branch when checked out: `git switch <base-branch>`;
-    - delete the local branch, merged-only-safe: `git show-ref --quiet refs/heads/<branch> && git branch -d
-      <branch>`;
-    - prune the stale remote-tracking ref: `git fetch --prune origin` (delete-on-merge typically removed the
-      remote branch already);
-    - remove any ephemeral worktree: `git worktree list --porcelain | grep -q '<path>' && git worktree remove
-      <path>`;
-    - for a `chore/<slug>` errand candidate, drop the slug-matched `USER-INBOX` line (idempotent — a no-op when
-      the errand's own completion already removed it);
+    - **work-unit candidate** → `arc teardown <wu-name>`: reaps the merged branch (merged-safe), removes any
+      distinct worktree (clean-checked, never `--force`), and prunes the stale remote-tracking ref;
+    - **`chore/<slug>` errand candidate** → switch off the merged branch when checked out (`git switch
+      <base-branch>`); delete it merged-only-safe (`git show-ref --quiet refs/heads/<branch> && git branch -d
+      <branch>`); prune the stale remote-tracking ref (`git fetch --prune origin`); remove any ephemeral worktree
+      (`git worktree list --porcelain | grep -q '<path>' && git worktree remove <path>`); then drop the
+      slug-matched `USER-INBOX` line (idempotent — a no-op when the errand's own completion already removed it);
     - run the [Notes-sync leg](#notes-sync-leg) to re-anchor the saved user note onto the merged HEAD.
 - **failed / blocked** → surface loudly, for both the manual- and auto-merge lanes.
 - **still-pending** → hand to the session-init completion sweep; no action this session.
