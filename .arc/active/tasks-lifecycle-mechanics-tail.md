@@ -150,11 +150,15 @@ forward-reconcile audits a meta against the full field set. `arc integrate` is a
 
 - **Strategies:** strategy-work-organization.md
 
-    - `[ ]` **3.2.a Add `PR URL` / `Completed` to `META_FIELDS`**
-        - `meta-reader.ts` `META_FIELDS` (group, `valueClass`, default); `renderMetaFile` /
-          `parseMetaRecord` pick them up by construction.
-        - Build `test-first` (one behavior at a time):
-            - `renderMetaFile` emits both fields at their defaults; `parseMetaRecord` round-trips them
+    - `[x]` **3.2.a Add `PR URL` / `Completed` to `META_FIELDS` (+ clickable-URL standardization)**
+        - `meta-reader.ts` `META_FIELDS` gains a trailing `finalize` group after `Next Action`: `PR URL` and
+          `Completed` (`narrative` bare date), both default `[none]`. `renderMetaFile` / `parseMetaRecord` pick
+          them up by construction; the fields now render on every scaffolded meta.
+        - New `url` valueClass (applied to `PR URL` **and** `Origin`): an `http(s)` value renders as a clickable
+          `<…>` autolink (lint-safe), falling back to a backticked identifier for a non-URL ref (`Origin`'s issue
+          refs); parse unwraps `<…>` / backticks for a clean round-trip. Replaces the prior "URLs render
+          backticked" convention — `Origin` URLs were dead code-spans; both URL fields are now clickable.
+          `template-meta` comment updated (both copies).
 
     - `[ ]` **3.2.b `--pr-url` / `--completed` flags + the field write**
         - Extend `ArchiveParams` / `runArchive`; write via the field-model seam (`setMetaBulletFields`),

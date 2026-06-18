@@ -211,12 +211,15 @@ export type MetaRenderMode = "core-table" | "bullet";
  * is the proto-schema axis a later code-owned schema maps directly: `enum` →
  * a closed Capitalized token set, `identifier` → a single slug / filename /
  * branch, `identifier-list` → one or more comma-separated identifiers rendered
- * with each element individually backticked (`` `a`, `b` ``), `narrative` →
- * free prose. Bracket sentinels (`[none]` / `[internal]` / `[TBD]`) are a
- * cross-cutting form detected at render/parse time and are orthogonal to this
- * class — a field permits a sentinel when its `default` is one.
+ * with each element individually backticked (`` `a`, `b` ``), `url` → a
+ * navigable locator rendered as a clickable `<…>` autolink when it is an
+ * `http(s)` URL, falling back to a backticked identifier for a non-URL reference
+ * (an issue ref in `Origin`), `narrative` → free prose. Bracket sentinels
+ * (`[none]` / `[internal]` / `[TBD]`) are a cross-cutting form detected at
+ * render/parse time and are orthogonal to this class — a field permits a
+ * sentinel when its `default` is one.
  */
-export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "narrative";
+export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" | "narrative";
 
 /**
  * A managed-meta field descriptor: the bold-marker label, the value rendered
@@ -254,7 +257,7 @@ export const META_FIELDS = [
   { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
   { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
   { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
@@ -262,6 +265,8 @@ export const META_FIELDS = [
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
+  { name: "PR URL", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
+  { name: "Completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
 
 const CORE_FIELD_NAMES = META_FIELDS
@@ -315,6 +320,9 @@ function capitalizeFirst(value: string): string {
   return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
+/** Whether a value is an `http(s)` URL — the `url` value class's autolink test. */
+const HTTP_URL_RE = /^https?:\/\//i;
+
 /**
  * Format a field value for the markdown projection per its value class. Bracket
  * sentinels and the em-dash placeholder render bare (the bracket is itself the
@@ -334,6 +342,10 @@ function formatValue(value: string, valueClass: MetaValueClass): string {
       return parseIdentifierList(value)
         .map((item) => `\`${item}\``)
         .join(", ");
+    case "url":
+      // A navigable locator: clickable `<…>` autolink for a real URL (lint-safe,
+      // no bare-URL MD034), backticked identifier for a non-URL ref (an issue ref).
+      return HTTP_URL_RE.test(value) ? `<${value}>` : `\`${value}\``;
     case "narrative":
       return value;
   }
@@ -709,13 +721,22 @@ export function parseMetaRecord(content: string): MetaRecord {
   for (const field of META_FIELDS) {
     const fromTable = table && field.name in table ? table[field.name] : undefined;
     const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
-    // Token fields strip to a bare value; narrative keeps its code spans. (Core
-    // table values arrive pre-stripped and are all non-narrative, so the strip
-    // is a no-op there.)
+    // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
+    // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
+    // keeps its code spans. (Core table values arrive pre-stripped and are all
+    // non-narrative, so the strip is a no-op there.)
     record[field.name] =
-      raw !== null && field.valueClass !== "narrative" ? stripInlineCode(raw) : raw;
+      raw === null || field.valueClass === "narrative"
+        ? raw
+        : stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
   }
   return record;
+}
+
+/** Strip a surrounding `<…>` autolink to its bare target, leaving other forms intact. */
+function stripAutolink(value: string): string {
+  const m = /^<(.+)>$/.exec(value.trim());
+  return m ? (m[1] ?? value) : value;
 }
 
 /**

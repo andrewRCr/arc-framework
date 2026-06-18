@@ -556,6 +556,77 @@ describe("renderMetaFile — bullet groups", () => {
   });
 });
 
+describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Completed`)", () => {
+  it("emits the finalize group at its defaults, after Next Action and before the trailing rule", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    // A trailing bullet group of its own — blank-line separated from the directive group.
+    expect(md).toContain(
+      "- **Next Action:** Begin planning — draft the spec\n\n- **PR URL:** [none]\n- **Completed:** [none]",
+    );
+    // Defaults render bare (sentinels bypass the value-class formatting).
+    expect(md).not.toContain("`[none]`");
+    // Still the last visible block before the rule.
+    expect(md).toContain("- **Completed:** [none]\n\n---\n");
+  });
+
+  it("formats a real PR URL as a clickable autolink and the date bare", () => {
+    const md = renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "PR URL": "https://github.com/x/y/pull/1",
+      Completed: "2026-06-18",
+    });
+    expect(md).toContain("- **PR URL:** <https://github.com/x/y/pull/1>");
+    expect(md).not.toContain("`https://github.com/x/y/pull/1`"); // not a code span
+    expect(md).toContain("- **Completed:** 2026-06-18");
+  });
+
+  it("round-trips both finalize fields through render and parse", () => {
+    const record = parseMetaRecord(
+      renderMetaFile("foo", {
+        ...SPAWN_OVERRIDES,
+        "PR URL": "https://github.com/x/y/pull/1",
+        Completed: "2026-06-18",
+      }),
+    );
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/1"); // backticks stripped
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("recovers the defaults as the `[none]` sentinel", () => {
+    const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(record["PR URL"]).toBe("[none]");
+    expect(record.Completed).toBe("[none]");
+  });
+});
+
+describe("`url` value class — clickable locators (`Origin` / `PR URL`)", () => {
+  it("renders an http(s) URL as a clickable autolink, not a code span", () => {
+    const md = renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" });
+    expect(md).toContain("- **Origin:** <https://tracker.example/issue/42>");
+    expect(md).not.toContain("`https://tracker.example/issue/42`");
+  });
+
+  it("falls back to a backticked identifier for a non-URL reference", () => {
+    const md = renderMetaFile("foo", { Origin: "tracker-123" });
+    expect(md).toContain("- **Origin:** `tracker-123`");
+  });
+
+  it("renders the `[internal]` / `[none]` sentinels bare — no autolink, no backticks", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES); // Origin / PR URL at sentinel defaults
+    expect(md).toContain("- **Origin:** [internal]");
+    expect(md).toContain("- **PR URL:** [none]");
+    expect(md).not.toContain("<[internal]>");
+    expect(md).not.toContain("`[internal]`");
+  });
+
+  it("round-trips both the autolink and the backtick fallback through the parser", () => {
+    const urlRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" }));
+    expect(urlRecord.Origin).toBe("https://tracker.example/issue/42"); // angle brackets stripped
+    const refRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "tracker-123" }));
+    expect(refRecord.Origin).toBe("tracker-123"); // backticks stripped
+  });
+});
+
 describe("renderMetaFile — projection shape", () => {
   it("opens with the `# Metadata: {wu-name}` H1", () => {
     const md = renderMetaFile("foo", SPAWN_OVERRIDES);
@@ -723,6 +794,8 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       "Next Task": "Task 1.2 — next up (line ~20)",
       Blockers: "waiting on review",
       "Next Action": "Begin planning",
+      "PR URL": "https://github.com/x/y/pull/1",
+      Completed: "2026-06-18",
     };
     const record = parseMetaRecord(renderMetaFile("foo", overrides));
     for (const field of META_FIELDS) {

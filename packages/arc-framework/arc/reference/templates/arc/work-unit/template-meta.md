@@ -5,8 +5,10 @@
   render as a single-row table; the remaining fields as ordered bullet groups.
   Value-format convention: enum tokens render Capitalized and backticked
   (`Active`, `Heavy`, `P3`); identifier values — slugs, `.md` filenames,
-  branches, URLs — render backticked; bracket sentinels (`[none]`,
-  `[internal]`, `[TBD]`) render bare; narrative fields render as plain prose.
+  branches — render backticked; URL values (`Origin`, `PR URL`) render as a
+  clickable `<…>` autolink, falling back to a backticked identifier for a
+  non-URL reference; bracket sentinels (`[none]`, `[internal]`, `[TBD]`) render
+  bare; narrative fields render as plain prose.
 
   Placeholder conventions used in this template:
     `{wu-name}`      — interpolation token; replaced with the work-unit name at
