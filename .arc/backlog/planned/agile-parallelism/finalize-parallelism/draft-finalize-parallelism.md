@@ -49,6 +49,27 @@
 - *Home note:* `in-flight-awareness` shipped Materialize but is itself shipped; landed here at drain (alt:
   `cross-machine-coherence`).
 
+### `[ ]` **Wire a behind-base reconcile gate into `integrate-work-unit`**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-18);
+  captured during `planning-pipeline-readiness` verification (Task 6.1) — surfaced live on
+  `feat/planning-pipeline-readiness` (2 behind `main`, overlapping `.arc/backlog/ROADMAP.md`).
+- *Concern:* `integrate-work-unit.md` has no in-ceremony behind-base check — it never detects that the WU branch
+  is behind `origin/<base>` nor prompts to reconcile (merge the base in) before the Step 12 merge. The
+  merge-safety cluster all shipped (`merge-safety-mechanism`'s base-distance primitive + session-init probe slot;
+  `concurrent-work-doctrine`'s behind-base-at-integration / first-in-wins reconcile convention;
+  `async-merge-lifecycle`), but the primitive's only reuse was the between-WU completion sweep (the
+  `mergeable but behindBase` awareness classification) — never wired as an in-ceremony gate in the active
+  integration flow. So a solo integrator running the workflow start-to-finish gets no reconcile prompt; they hit
+  it only at GitHub merge-time (conflict) or by recalling the doctrine independently. Touches a load-bearing
+  lifecycle workflow (`.arc/system/**`) — infra smell; sized small (one workflow step), but the holistic home is
+  this WU's end-to-end seam audit.
+- *Proposed:* add one step to `integrate-work-unit.md` (entry pre-condition, or pre-merge before Step 12) —
+  compute `origin/<base>` distance (reuse the shipped base-distance primitive, or plain `git rev-list --count`);
+  if behind, surface + prompt reconcile (merge the base in, append-only per the doctrine) before the merge. No
+  new code or design — the primitive and the reconcile doctrine both shipped; this is pure wiring. *Micro-fork to
+  settle at authoring:* placement (entry vs. pre-merge) and strength (advisory surface vs. hard interlock).
+
 ---
 
 ## Problem / Motivation
