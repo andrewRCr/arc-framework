@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Audit first pass — scope boundary settled
+- **Last Completed:** draft-design complete — draft captured (formalization-ready); audit + forward-compat done
 - **Next Task:** [none]
 - **Blockers:** [none]
 
