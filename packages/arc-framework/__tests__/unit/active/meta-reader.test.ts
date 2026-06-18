@@ -546,7 +546,7 @@ describe("renderMetaFile — bullet groups", () => {
     expect(md).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
     // ...blank line between groups, in order
     expect(md).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
-    expect(md).toContain("- **Task List:** [none]\n\n- **Last Completed:** [none]");
+    expect(md).toContain("- **Task List:** [none]\n\n- **Current Workflow:** [none]\n- **Last Completed:** [none]");
     expect(md).toContain("- **Blockers:** [none]\n\n- **Next Action:** Begin planning — draft the spec");
   });
 });

@@ -27,6 +27,7 @@ function candidate(overrides: Partial<MetaFileCandidate> = {}): MetaFileCandidat
     nextTask: "Task 1.1 — do thing (line ~10)",
     taskList: ".arc/active/technical/tasks-foo.md",
     nextAction: "Start Task 1.1 — do thing",
+    currentWorkflow: null,
     ...overrides,
   };
 }
@@ -51,6 +52,7 @@ function sessionInitResult(
     path: null,
     candidates: [],
     sessionType: "planning",
+    planningStage: null,
     warnings: [],
     ...overrides,
   };

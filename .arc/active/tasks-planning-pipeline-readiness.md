@@ -188,24 +188,31 @@ _Purpose:_ Resolve the planning sub-stage deterministically from `Current Workfl
 artifact-existence heuristic surviving only as a legacy-meta fallback; reduce `Next Action` to within-stage
 judgment. Code-tier, test-first.
 
-### `[ ]` **5.1 session-init resolves the planning sub-stage from `Current Workflow`**
+### `[x]` **5.1 session-init resolves the planning sub-stage from `Current Workflow`**
 
 - _Goal:_ session-init selects the planning-stage workflow by reading `Current Workflow` directly, with the
   artifact-existence heuristic surviving only as a fallback for legacy metas that predate the field.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **5.1.a Probe surfaces `Current Workflow` (with legacy fallback)**
-        - The probe (`commands/active/status.ts`) resolves only the coarse `sessionType` today; the planning
-          sub-stage is selected downstream. Surface the meta's `Current Workflow` value in the probe envelope; when
-          the field is absent (legacy meta), resolve a fallback from the existing draft/spec-presence heuristic.
-        - Build `test-first` (one behavior at a time):
-            - a current-format meta surfaces the sub-stage from the field with no prose-parse
-            - a field-absent meta falls back to artifact-existence
+    - `[x]` **5.1.a Probe surfaces `Current Workflow`**
+        - `meta-reader.ts` now parses `Current Workflow` into the candidate; the session-init probe
+          (`commands/active/status.ts` / `types.ts`) surfaces a `planningStage: PlanningWorkflow | null` on the
+          envelope, resolved only for a single-candidate planning session. It reads the `Current Workflow` field
+          directly; a meta with no usable value (absent / `[none]`) resolves to the `draft-design` entry stage —
+          no artifact-existence scan (presence is too ambiguous to refine, and a fresh init starts at
+          `draft-design`). Reuses Phase 3's `PLANNING_WORKFLOWS` / `isPlanningWorkflow`.
 
-    - `[ ]` **5.1.b `session-init.md` planning arm reads the field**
-        - Update the session-init workflow's item-10 planning-branch lifecycle-workflow resolution to select the
-          workflow from the probe-surfaced `Current Workflow`, replacing the `Next Action` prose-parse; document the
-          artifact-existence guess as the degraded legacy fallback.
+    - `[x]` **5.1.b `session-init.md` planning arm reads the field**
+        - Item-10's planning branch now loads `.arc/system/workflows/arc/<active.value.planningStage>.md`,
+          retiring the `Next Action` prose-parse. Edited in both the `.arc/` instance and the package-source
+          `.template.md`.
+
+- _Outcome:_ The planning sub-stage resolves from one code-owned field, defaulting to the `draft-design` entry
+  stage when absent — no scan, no degraded-source ceremony (an earlier `{stage, source}` + artifact-presence
+  design was simplified out after establishing presence is an unreliable stage proxy). The `Current Workflow`
+  field also moved from the `reference` group to the head of the `progress` block (live operational position, not
+  an artifact pointer). `currentWorkflow` / `planningStage` are required on the shared `MetaFileCandidate` /
+  `ActiveSessionInitResult` types, so a few test fixtures gained defaults.
 
 ### `[ ]` **5.2 `Next Action` loses the workflow pointer**
 

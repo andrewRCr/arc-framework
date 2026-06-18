@@ -161,6 +161,7 @@ async function parseCandidate(
     nextTask: parsed.nextTask,
     taskList: parsed.taskList,
     nextAction: parsed.nextAction,
+    currentWorkflow: parsed.currentWorkflow,
   };
 }
 
@@ -170,10 +171,11 @@ export interface ParsedMetaFields {
   nextTask: string | null;
   taskList: string | null;
   nextAction: string | null;
+  currentWorkflow: string | null;
 }
 
 /**
- * Parse the five session-init-relevant fields from a meta-file body.
+ * Parse the six session-init-relevant fields from a meta-file body.
  *
  * Thin projection over {@link parseMetaRecord} — the single reader every meta
  * consumer routes through — selecting the subset the probe runners need. Core
@@ -196,6 +198,7 @@ export function parseMetaFile(content: string): ParsedMetaFields {
     nextTask: record["Next Task"],
     taskList: record["Task List"],
     nextAction: record["Next Action"],
+    currentWorkflow: record["Current Workflow"],
   };
 }
 
@@ -252,8 +255,8 @@ export const META_FIELDS = [
   { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
   { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
-  { name: "Current Workflow", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
   { name: "Last Completed", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },

@@ -8,6 +8,7 @@
  */
 
 import type { GitExec } from "../../lib/git/index.js";
+import type { PlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
 
 /**
  * Directory layout discovered on disk.
@@ -162,6 +163,12 @@ export interface MetaFileCandidate {
   taskList: string | null;
   /** Raw `**Next Action:**` value — freeform action description; carries lifecycle workflow step pointers. */
   nextAction: string | null;
+  /**
+   * Bare `**Current Workflow:**` value — the planning-stage basename
+   * (`draft-design` / `create-spec` / `generate-tasks`), `[none]` outside
+   * planning, or `null` on a legacy meta predating the field.
+   */
+  currentWorkflow: string | null;
 }
 
 /** Full enumeration — default rendering. */
@@ -209,6 +216,16 @@ export interface ActiveSessionInitResult {
    * and the caller must disambiguate before computing type.
    */
   sessionType: SessionType | null;
+  /**
+   * Resolved planning sub-stage workflow basename (`draft-design` / `create-spec`
+   * / `generate-tasks`) — what session-init's planning arm loads as `<stage>.md`,
+   * replacing the old `Next Action` prose-parse. Read from the meta's
+   * `Current Workflow` field; a meta missing it (a fresh in-place scaffold, or a
+   * legacy meta) resolves to the `draft-design` entry stage. Populated only when
+   * `sessionType === "planning"` and `resolution === "single"`; `null` everywhere
+   * else (non-planning sessions, multi-WU disambiguation, orphan no-meta branch).
+   */
+  planningStage: PlanningWorkflow | null;
   warnings: string[];
 }
 

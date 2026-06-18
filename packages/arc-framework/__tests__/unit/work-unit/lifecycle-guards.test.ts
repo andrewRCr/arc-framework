@@ -52,6 +52,7 @@ function candidate(over: Partial<MetaFileCandidate>): MetaFileCandidate {
     nextTask: null,
     taskList: null,
     nextAction: null,
+    currentWorkflow: null,
     ...over,
   };
 }
