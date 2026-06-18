@@ -28,25 +28,18 @@ is the teardown verb's precondition (Phase 2). The settled safety model lives in
   verbs already map any non-`ok` outcome to a refusal via `outcome.message`, so the new variant surfaces
   with no consumer changes.
 
-### `[ ]` **1.2 Merged-safe `reconcile-branch` delete variant**
+### `[x]` **1.2 Merged-safe `reconcile-branch` delete variant**
 
 - _Goal:_ `reconcile-branch` offers a merged-safe delete that removes a branch only when its tip is
   contained in its upstream — a merge-strategy-independent data-loss guard, distinct from the force
   `-D` path park/abandon use.
 
-- _Note:_ Open Question resolved here — the precise containment invocation (e.g. `git rev-list <branch>
-  ^origin/<branch>` empty) and the no-upstream / never-pushed handling. This is a git-ref data-loss
-  check, **not** lifecycle-state resolution.
-
-    - Extend `ReconcileBranchOp` with the merged-safe mutation (alongside `rename` / `delete` /
-      `preserve` / `create`); run the containment check before the delete, bail without deleting when
-      the branch is ahead of (or has no) upstream.
-
-    - Build `test-first` (one behavior at a time):
-        - Deletes when the tip is contained in `origin/<branch>` (the merged case, any merge strategy)
-        - Refuses (no delete) when the branch is ahead of its upstream (unpushed commits would be lost)
-        - No-upstream / never-pushed branch resolves to the safe outcome (refuse — the WU-lifecycle
-          caller only tears down shipped, pushed branches)
+- _Outcome:_ Open Question resolved — new `delete-merged` mutation on `ReconcileBranchOp`, a **local-only**
+  delete (the work is preserved on the remote, so the remote ref is never touched). Containment proven via
+  `git rev-parse --verify --quiet <remote>/<branch>` (no upstream → refuse) then `git rev-list <branch>
+  ^<remote>/<branch>` (empty → contained → `git branch -D`; non-empty → ahead → refuse). Uses `-D` after
+  its own containment proof because `-d`'s base-reachability check false-negatives under squash/rebase —
+  the exact bug this guards. Edge wiring in the teardown verb lands in Phase 2.
 
 ### `[ ]` **1.3 `git fetch --prune` teardown leg**
 
