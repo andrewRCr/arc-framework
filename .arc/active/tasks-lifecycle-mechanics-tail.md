@@ -15,25 +15,18 @@ variant (the leg enacts it), distinct from lifecycle-state resolution; the arc-s
 is the teardown verb's precondition (Phase 2). The settled safety model lives in the spec's Alternatives
 & Rationale.
 
-### `[ ]` **1.1 Distinct post-side-effect executor status**
+### `[x]` **1.1 Distinct post-side-effect executor status**
 
 - _Goal:_ A failure in `executeTransition`'s post-side-effect write block reports a status distinct
   from `encoding-failed`, carrying which side-effects already landed — so a recovery handler can tell
   retry-whole (nothing fired) from forward-only finish-the-write (side-effects landed).
 
-- _Note:_ Open Question resolved here — the status identifier and the applied-side-effect payload shape.
-  The pre-side-effect `encoding-failed` path stays untouched; this adds the symmetric post-side-effect arm.
-
-    - Wrap the step-7→8.5 writes (`applyBranchField` / `applyCurrentWorkflowField` / `applySoftFields` /
-      `stageMeta`) in a guarded block in `lifecycle-executor.ts`; today they run outside the leg try/catch.
-    - Add a `TransitionOutcome` variant carrying `legsFired` + `sideEffectsFired` + the failed write.
-
-    - Build `test-first` (one behavior at a time):
-        - A throw in a post-side-effect write (`applySoftFields` / `writeBranchField` / `stageMeta`)
-          reports the new status, not `encoding-failed`
-        - The payload names the side-effects that already landed (the forward-only recovery context)
-        - A pre-side-effect leg throw still reports `encoding-failed` (the existing arm is unchanged)
-        - The `ok` path is byte-identical to today (no behavioral drift)
+- _Outcome:_ Open Question resolved — new status `finalize-failed` (peer to `encoding-failed`) carrying
+  `legsFired` + `sideEffectsFired` + `failedWrite: FinalizeWrite` (`"branchField" | "currentWorkflowField"
+  | "softFields" | "stageMeta"`) + `message`. The step-7→8.5 writes in `lifecycle-executor.ts` are now a
+  guarded block tracking the in-flight write; the pre-side-effect `encoding-failed` arm is unchanged. All
+  verbs already map any non-`ok` outcome to a refusal via `outcome.message`, so the new variant surfaces
+  with no consumer changes.
 
 ### `[ ]` **1.2 Merged-safe `reconcile-branch` delete variant**
 

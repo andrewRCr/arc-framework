@@ -15,6 +15,7 @@ import {
   executeTransition,
   type EncodingLeg,
   type ExecuteTransitionContext,
+  type FinalizeWrite,
   type GuardValidator,
   type SideEffectHandler,
   type TransitionInputs,
@@ -118,6 +119,8 @@ interface SpyOptions {
   metas?: MetaSpec[];
   /** Make a named leg throw, to exercise the recoverable-failure path. */
   throwOnLeg?: EncodingLeg;
+  /** Make a named post-side-effect write throw, to exercise the forward-only finalize-failure path. */
+  throwOnWrite?: FinalizeWrite;
   guardValidators?: ExecuteTransitionContext["guardValidators"];
   sideEffects?: Partial<Record<SideEffectId, SideEffectHandler>>;
   /** Register the scaffold/remove artifact runner. */
@@ -154,6 +157,9 @@ function buildSpies(opts: SpyOptions = {}): Spies {
   const guardThrow = (leg: EncodingLeg): void => {
     if (opts.throwOnLeg === leg) throw new Error(`boom:${leg}`);
   };
+  const writeThrow = (write: FinalizeWrite): void => {
+    if (opts.throwOnWrite === write) throw new Error(`boom:${write}`);
+  };
 
   const ctx: ExecuteTransitionContext = {
     cwd: CWD,
@@ -187,14 +193,17 @@ function buildSpies(opts: SpyOptions = {}): Spies {
       : undefined,
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
+      writeThrow("softFields");
       softWrites.push({ path, updates });
     },
     writeBranchField: async (path, branch) => {
       calls.push(`branch-field:${branch}`);
+      writeThrow("branchField");
       branchWrites.push({ path, branch });
     },
     writeCurrentWorkflowField: async (path, stage) => {
       calls.push(`current-workflow:${stage}`);
+      writeThrow("currentWorkflowField");
       currentWorkflowWrites.push({ path, stage });
     },
     writeDesignField: async (path, value) => {
@@ -202,6 +211,7 @@ function buildSpies(opts: SpyOptions = {}): Spies {
     },
     stageMeta: async (metaPath) => {
       calls.push(`stage:${metaPath}`);
+      writeThrow("stageMeta");
     },
     guardValidators: opts.guardValidators,
     sideEffects,
@@ -572,6 +582,109 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     if (outcome.status !== "rejected") return;
     expect(outcome.stage).toBe("inputs");
     expect(calls).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 4b. A post-side-effect meta write throws — reported as `finalize-failed`
+//     (forward-only recovery), distinct from the pre-side-effect `encoding-failed`.
+// ---------------------------------------------------------------------------
+
+describe("executeTransition — post-side-effect finalize failure", () => {
+  it("reports `finalize-failed` (not `encoding-failed`) when a soft-field write throws", async () => {
+    // integrate fires its side-effects, then writes soft fields; force the soft
+    // write to throw — after the side-effects already landed.
+    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "integrate",
+      slug: "demo",
+      inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
+    });
+
+    expect(outcome.status).toBe("finalize-failed");
+    if (outcome.status !== "finalize-failed") return;
+    expect(outcome.failedWrite).toBe("softFields");
+    expect(outcome.legsFired).toContain("setPhase");
+    expect(outcome.message).toMatch(/boom:softFields/);
+  });
+
+  it("payload names the side-effects that already landed (forward-only recovery context)", async () => {
+    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "softFields" });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "integrate",
+      slug: "demo",
+      inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
+    });
+
+    expect(outcome.status).toBe("finalize-failed");
+    if (outcome.status !== "finalize-failed") return;
+    // integrate's declared side-effects all fired before the failing write.
+    expect(outcome.sideEffectsFired).toEqual([
+      "reconcile-roadmap",
+      "reconcile-status-user",
+      "user-workspace",
+    ]);
+  });
+
+  it("names the failing write when the branch-field write throws (activate)", async () => {
+    const { ctx, branchWrites } = buildSpies({
+      metas: [PLANNING_ACTIVE_META],
+      throwOnWrite: "branchField",
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "activate",
+      slug: "demo",
+      inputs: {
+        branchOp: { mutation: "rename", branch: "plan/demo", toBranch: "feat/demo" },
+        softFields: { nextTask: "Task 1.", nextAction: "Begin." },
+      },
+    });
+
+    expect(outcome.status).toBe("finalize-failed");
+    if (outcome.status !== "finalize-failed") return;
+    expect(outcome.failedWrite).toBe("branchField");
+    // The throw fires before the spy records the write — nothing landed past it.
+    expect(branchWrites).toEqual([]);
+  });
+
+  it("names the failing write when the meta staging throws (last write)", async () => {
+    const { ctx } = buildSpies({ metas: [ACTIVE_META], throwOnWrite: "stageMeta" });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "integrate",
+      slug: "demo",
+      inputs: { softFields: { nextAction: "Open the PR.", lastCompleted: "Phase 7." } },
+    });
+
+    expect(outcome.status).toBe("finalize-failed");
+    if (outcome.status !== "finalize-failed") return;
+    expect(outcome.failedWrite).toBe("stageMeta");
+  });
+
+  it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {
+    const { ctx, calls } = buildSpies({
+      metas: [PLANNING_ACTIVE_META],
+      guardValidators: { "worktree-clean": () => ({ ok: true }) },
+      throwOnLeg: "reconcileWorktree",
+    });
+
+    const outcome = await executeTransition(ctx, {
+      verb: "park",
+      slug: "demo",
+      inputs: {
+        toDir: ".arc/backlog/planned/demo",
+        branchOp: { mutation: "delete", branch: "plan/demo" },
+        worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
+      },
+    });
+
+    // The existing arm is unchanged: a leg throw is `encoding-failed`, not the new
+    // post-side-effect status, and no side-effect ran (retry-whole, not forward-only).
+    expect(outcome.status).toBe("encoding-failed");
+    expect(calls.some((c) => c.startsWith("side:"))).toBe(false);
   });
 });
 

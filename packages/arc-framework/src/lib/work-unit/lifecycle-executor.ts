@@ -245,6 +245,15 @@ export interface ExecuteTransitionContext {
 export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
 
 /**
+ * The post-side-effect meta writes, in their fire order — the finalize block that
+ * projects the meta `Branch` / `Current Workflow` fields, applies the soft-field
+ * disposition, and stages the rewritten meta. These run *after* the encoding legs
+ * and the declared side-effects have landed; a throw among them is forward-only
+ * recoverable (finish the write), distinct from a pre-side-effect leg throw.
+ */
+export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields" | "stageMeta";
+
+/**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
  * its pre-relocation path; `reconcileWorktree` precedes `reconcileBranch` so a
  * worktree teardown (with its locus-hop) runs before a `git branch -D` that
@@ -293,10 +302,26 @@ export type TransitionOutcome =
        * An encoding leg threw mid-bundle. The legs in `legsFired` landed; the
        * transition is recoverable from this report and was **not** silently
        * half-applied — no side-effects fired and no soft fields were written.
+       * Recovery is retry-whole: nothing downstream of the legs ran.
        */
       status: "encoding-failed";
       legsFired: EncodingLeg[];
       failedLeg: EncodingLeg;
+      message: string;
+    }
+  | {
+      /**
+       * A post-side-effect meta write threw — after the encoding legs *and* the
+       * declared side-effects already landed. Distinct from `encoding-failed`:
+       * recovery is forward-only (finish the failed write), not retry-whole, since
+       * re-running the transition would re-fire the side-effects in `sideEffectsFired`.
+       * `legsFired` and `sideEffectsFired` are the recovery context — what landed
+       * before `failedWrite` threw.
+       */
+      status: "finalize-failed";
+      legsFired: EncodingLeg[];
+      sideEffectsFired: SideEffectId[];
+      failedWrite: FinalizeWrite;
       message: string;
     };
 
@@ -362,8 +387,10 @@ export function softFieldsApply(record: TransitionRecord): boolean {
  * Execute one lifecycle transition: resolve, look up the legal edge, validate
  * guards + required inputs, fire the encoding legs, fire side-effects, apply the
  * soft-field disposition, and return the outcome (carrying the ephemeral
- * suggestion). Rejections and a mid-bundle encoding failure are reported as
- * discriminated outcomes rather than thrown, so the CLI surfaces them uniformly.
+ * suggestion). Rejections, a mid-bundle encoding failure (`encoding-failed`,
+ * retry-whole), and a post-side-effect finalize-write failure (`finalize-failed`,
+ * forward-only) are reported as discriminated outcomes rather than thrown, so the
+ * CLI surfaces them uniformly.
  *
  * @param ctx - The injected seams (pre-bound mutators, guard validators, side-effect handlers).
  * @param params - The verb, the target slug, and the caller-supplied inputs.
@@ -433,26 +460,48 @@ export async function executeTransition(
     sideEffectsFired.push(id);
   }
 
-  // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
-  const branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
+  // 7–8.5 Post-side-effect meta writes. These run only after the encoding legs
+  //   and the declared side-effects have landed, so a throw here is forward-only
+  //   recoverable (finish the failed write) — reported as `finalize-failed`,
+  //   distinct from the pre-side-effect `encoding-failed`. `failedWrite` tracks
+  //   the in-flight write so the report names which one threw.
+  let branchFieldWritten: string | null;
+  let currentWorkflowCleared: string | null;
+  let softFieldsWritten: MetaFieldName[];
+  let failedWrite: FinalizeWrite = "branchField";
+  try {
+    // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
+    branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
 
-  // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
-  const currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
+    // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
+    failedWrite = "currentWorkflowField";
+    currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
 
-  // 8. Apply the soft-field disposition (reset constants + supplied inputs).
-  const softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
+    // 8. Apply the soft-field disposition (reset constants + supplied inputs).
+    failedWrite = "softFields";
+    softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
 
-  // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
-  //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
-  //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
-  //     content and a commit ships the pre-rewrite state.
-  const wroteMeta =
-    legsFired.includes("setPhase") ||
-    branchFieldWritten !== null ||
-    currentWorkflowCleared !== null ||
-    softFieldsWritten.length > 0;
-  if (wroteMeta && metaPath !== null) {
-    await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
+    //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
+    //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
+    //     content and a commit ships the pre-rewrite state.
+    failedWrite = "stageMeta";
+    const wroteMeta =
+      legsFired.includes("setPhase") ||
+      branchFieldWritten !== null ||
+      currentWorkflowCleared !== null ||
+      softFieldsWritten.length > 0;
+    if (wroteMeta && metaPath !== null) {
+      await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    }
+  } catch (err) {
+    return {
+      status: "finalize-failed",
+      legsFired,
+      sideEffectsFired,
+      failedWrite,
+      message: err instanceof Error ? err.message : String(err),
+    };
   }
 
   // 9. Surface the ephemeral suggestion (advisory; never persisted).
