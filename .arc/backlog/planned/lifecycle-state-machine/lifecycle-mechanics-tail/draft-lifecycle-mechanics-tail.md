@@ -17,6 +17,45 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Retire `template-meta.md` as a scaffold source — single-source meta shape from code**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: lifecycle-mechanics-tail`), housekeep drain (2026-06-18);
+  captured during `planning-pipeline-readiness` Task 5.1 — simplifying the session-init planning read-path
+  surfaced the dual-source drift.
+- *Concern:* the markdown `template-meta.md` (`reference/templates/arc/work-unit/`, both copies — confirmed
+  present at drain) and the code renderer (`renderMetaFile` over `META_FIELDS`) are a dual source of truth for
+  meta shape that drifts — hit live during `planning-pipeline-readiness`, where `template-meta.md` lacked the
+  `Current Workflow` field bullet that `META_FIELDS` carries. The CLI already scaffolds every fresh-WU entry
+  through `renderMetaFile` (`arc start` create-new spawn, `arc start --here` cold-start, graduate via the
+  executor), so the two remaining markdown hand-fills are redundant migration leftovers.
+- *Proposed:* route `init-work-unit` Path B (fresh in-place WU) and the Promote-Errand meta creation through
+  `arc start` / `renderMetaFile`, then delete `template-meta.md` (both copies). OSD-aligned — a managed doc's
+  shape lives in code, not a loose template. Fits this WU's charter (audit/migrate judgment-free mechanics still
+  in markdown); `lifecycle-transition-core` has shipped, so it can't route there.
+
+### `[ ]` **Guard all post-side-effect meta writes in the encoding-failure surface**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: lifecycle-mechanics-tail`), housekeep drain (2026-06-18);
+  deferred CodeRabbit finding (major) on `planning-pipeline-readiness` PR #111.
+- *Concern:* in `lifecycle-executor.ts`, the post-side-effect meta field-writes — `applyBranchField`,
+  `applyCurrentWorkflowField`, `applySoftFields` — run after side-effects fire and outside the encoding-leg
+  `try/catch` that returns `{status: "encoding-failed"}`. If any throws, `executeTransition` throws instead of
+  returning a `TransitionOutcome`, after side-effects already landed — a partially-applied transition with no
+  recoverable signal. Pre-existing — applies equally to the established `applyBranchField` write; CodeRabbit
+  flagged it on the `Current Workflow` clear specifically. Architecture-wide transaction-boundary concern, not a
+  single-field fix; touches load-bearing executor infra.
+- *Proposed:* wrap all three post-side-effect writes in the encoding-failure surface (not just one field), so a
+  write failure reports as an outcome rather than an unhandled throw. *Design fork to settle:* side-effects have
+  already fired at this point, so a post-side-effect write failure may warrant a distinct status from the
+  pre-side-effect `encoding-failed`, rather than reusing it.
+
+---
+
 ## The audit (planning step one — not a task)
 
 Before any task decomposition, sweep the **errand + WU lifecycle** for deterministic, no-judgment mechanics still
@@ -25,10 +64,10 @@ inventory that scopes this WU. The audit is the design front-end; it runs at pla
 may split this WU if the surface is large. It must **reconcile**, not duplicate — every candidate is checked
 against the already-captured fragments below before it becomes net-new scope.
 
-Audit output per candidate: _the mechanic · where it lives today (workflow + step) · is it genuinely judgment-free ·
-does an existing capture already own it (→ consolidate / repoint) · migrate-now / leave-downstream / reject._
+Audit output per candidate: *the mechanic · where it lives today (workflow + step) · is it genuinely judgment-free ·
+does an existing capture already own it (→ consolidate / repoint) · migrate-now / leave-downstream / reject.*
 
-**Audit seed (live dogfood, 2026-06-17).** Grooming around _this_ WU surfaced two instances directly, both of the
+**Audit seed (live dogfood, 2026-06-17).** Grooming around *this* WU surfaced two instances directly, both of the
 same deterministic-placement/teardown-mechanic class.
 
 **(1) `arc stub` has no `--cohort` affordance**, so placing the new member into the `lifecycle-state-machine`

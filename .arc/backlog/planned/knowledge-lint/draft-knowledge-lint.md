@@ -8,6 +8,25 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Refresh the methods README Index to exhaustive directory coverage**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: knowledge-lint`), housekeep drain (2026-06-18); captured
+  during `planning-pipeline-readiness` Task 1.1 — authoring `assess-draft-readiness` surfaced the gap.
+- *Concern:* `system/methods/README.md` (package source and `.arc/` copy both) carries a stale `## Index` — it
+  omits several existing methods (`resolve-planning-depth`, `branch-format`, `spec-review`, `assess-parallel-fit`,
+  `assess-draft-readiness`; re-confirmed stale at drain, 2026-06-18). Not curated-by-design as first assumed; just
+  lagging the directory.
+- *Proposed:* restore Index ↔ `system/methods/*.md` parity as a one-time fix, then prefer a lint/consistency check
+  that enforces it mechanically over hand-maintenance — a README-index↔directory parity check fits this WU's
+  mechanical-lint remit directly.
+
+---
+
 ## Problem / Motivation
 
 Karpathy's LLM-wiki and Google's OKF both name three operations over a markdown knowledge base: ingest, query, and

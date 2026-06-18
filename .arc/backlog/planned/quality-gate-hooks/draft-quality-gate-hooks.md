@@ -113,6 +113,19 @@
   default, not a change to ADR-025's default advisory stance. Touch points include the canonical and package hook
   copies, config schema/defaults/validation, tests, and docs.
 
+### `[ ]` **Enforce the exported-surface TSDoc policy with a scoped lint rule**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-06-18);
+  captured during `planning-pipeline-readiness` PR #111 review — CodeRabbit docstring-coverage warning.
+- *Concern:* `DEV-RULES.PROJECT` already requires TSDoc on the exported API surface (`@param`/`@returns` on
+  exports + a file-level module doc), but nothing enforces it mechanically. CodeRabbit's repo-wide "Docstring
+  Coverage 59.46% < 80%" warning measures all functions (including trivial internal helpers) against its own bar
+  — over-reaching vs. the policy, and noisy if chased directly.
+- *Proposed:* add a Tier-1 lint rule scoped to the exported surface (e.g. `eslint-plugin-jsdoc`'s `require-jsdoc`
+  with `publicOnly`) so the existing policy is enforced at the right altitude, rather than adopting CodeRabbit's
+  blanket all-functions threshold. Settle the exact rule set + severity at authoring. Sibling of this WU's
+  existing forbidden-pattern / link-validation commit-gate checks.
+
 ---
 
 ## Problem / Motivation
