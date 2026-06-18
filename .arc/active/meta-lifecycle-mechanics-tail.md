@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                      | **Class** | **Priority** |
 | ---------- | --------- | ------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/lifecycle-mechanics-tail` | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | `plan/lifecycle-mechanics-tail` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** `lifecycle-transition-core`
