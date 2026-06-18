@@ -41,15 +41,15 @@ is the teardown verb's precondition (Phase 2). The settled safety model lives in
   its own containment proof because `-d`'s base-reachability check false-negatives under squash/rebase —
   the exact bug this guards. Edge wiring in the teardown verb lands in Phase 2.
 
-### `[ ]` **1.3 `git fetch --prune` teardown leg**
+### `[x]` **1.3 `git fetch --prune` teardown leg**
 
 - _Goal:_ A `git fetch --prune` leg removes the stale `origin/<branch>` remote-tracking ref left behind
   after a delete-on-merge, so the pruned branch doesn't linger in the ref namespace.
 
-    - Thin git-seam wrapper composed by the teardown verb after the branch delete; injected `exec` per
-      the three-layer mutator architecture.
-    - Behavior is exercised by the `arc teardown` integration coverage (Task 2.1) rather than a
-      dedicated unit — a thin pass-through with no branching logic.
+- _Outcome:_ New `mutators/fetch-prune.ts` — a thin injected-`exec` leg running `git fetch --prune
+  <remote>` (default `origin`), with no branching logic so its error policy is the composing verb's.
+  No dedicated unit (integration-covered at the teardown verb, Task 2.1); composition into `arc teardown`
+  lands in Phase 2.
 
 ## **Phase 2:** `arc teardown` verb & merge-strategy-independent post-merge cleanup
 
