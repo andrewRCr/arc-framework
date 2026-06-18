@@ -220,21 +220,18 @@ complementary.
   drift-prone source is gone. The minimal ref-drop in `decompose-work-unit.md` (otherwise `decompose-matrix`'s
   file) avoided a dangling link to the deleted target.
 
-### `[ ]` **4.3 Relocate-leg `rmdir` of the emptied cohort-parent subdir**
+### `[x]` **4.3 Relocate-leg `rmdir` of the emptied cohort-parent subdir**
 
 - _Goal:_ The `relocate-artifacts` leg removes the emptied `backlog/planned/<cohort>/` parent on the
   graduate-to-`active/` leg (`promote` / `resume` already prune their own).
 
-- _Note:_ The `rmdir` lands in the `relocate-artifacts` **mutator** (shared by any relocate caller), not the
-  graduate arm — `promote` / `demote` and `abandon` prune at the **verb** level via their own `rmdir` seams,
-  but the graduate path runs through `relocate-artifacts`, which has none (the relocate-mutator gap).
-
-    - Local-cosmetic (git doesn't track empty dirs) but the same deterministic-placement class as the
-      mutator work; folds onto the relocate leg.
-
-    - Build `test-first` (one behavior at a time):
-        - Graduating the last member out of a cohort subdir `rmdir`s the emptied parent
-        - A still-occupied parent dir is left in place
+- _Outcome:_ Added `pruneEmptyBacklogSource` to the `relocate-artifacts` mutator (new `rmdir` fs seam, bound to
+  `node:fs/promises` `rmdir` in `executor-context`): after the `git mv`, it walks up from the source dir
+  removing each emptied level while strictly below a backlog tier (`PRUNE_BOUNDARY_PREFIXES`), stopping at the
+  first occupied dir or the tier root. Bounded to the backlog tree, so an `active/` source (the archive sweep)
+  is a no-op; best-effort (local-cosmetic — git doesn't track empty dirs). The `promote` / `demote` verb-level
+  `pruneEmptySource` is now redundant for backlog-source relocations but left in place (harmless; its removal is
+  out of scope).
 
 ## **Phase 5:** Planning-stage meta-field writes
 

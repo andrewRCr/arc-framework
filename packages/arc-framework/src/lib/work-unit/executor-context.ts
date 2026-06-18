@@ -31,7 +31,7 @@
  * @module
  */
 
-import { readdir } from "node:fs/promises";
+import { readdir, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
@@ -162,7 +162,14 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       ),
     relocateArtifacts: (params) =>
       relocateArtifacts(
-        { exec, fs: { readdir: (p) => readdir(at(p)), mkdir: (p, o) => io.mkdir(at(p), o) } },
+        {
+          exec,
+          fs: {
+            readdir: (p) => readdir(at(p)),
+            mkdir: (p, o) => io.mkdir(at(p), o),
+            rmdir: (p) => rmdir(at(p)),
+          },
+        },
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
