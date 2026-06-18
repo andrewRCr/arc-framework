@@ -1,8 +1,8 @@
 # Metadata: Planning-Pipeline Readiness
 
-| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
-|---------------|-----------|------------------------------------|-----------|--------------|
-| `Integrating` | `andrew`  | `feat/planning-pipeline-readiness` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
@@ -13,10 +13,13 @@
 
 - **Last Completed:** Phase 6 (Verification) complete — Task 6.1: full Tier 3 suite passed (md/TS/shell lint,
   typecheck, 2954 tests, build); all 10 spec success criteria met across § A/B/C; meta pre-aligned for integration.
-- **Next Task:** [none] — task list complete; ready for integration
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** [none]
+
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/111>
+- **Completed:** 2026-06-17
 
 ---
 
