@@ -1,12 +1,17 @@
 /**
- * Errand domain — the errand record model and the orphan state-ref read/write
- * primitives backing the errand lifecycle.
+ * Errand domain — the errand record model, the orphan state-ref read/write
+ * primitives, and the per-slug tree-merge backing the errand lifecycle.
  *
  * @module
  */
 
 export {
   errandsRef,
+  type ErrandRecordIO,
+  type GitExecInput,
+} from "./ref-tree.js";
+
+export {
   serializeErrandRecord,
   deserializeErrandRecord,
   readErrandRecord,
@@ -15,6 +20,12 @@ export {
   removeErrandRecord,
   type ErrandRecord,
   type ErrandOrigin,
-  type ErrandRecordIO,
-  type GitExecInput,
 } from "./record.js";
+
+export {
+  mergeErrandTrees,
+  reconcileErrandPush,
+  incomingErrandRef,
+  type ErrandTreeMerge,
+  type ErrandPushOutcome,
+} from "./merge.js";

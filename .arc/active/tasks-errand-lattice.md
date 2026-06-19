@@ -134,24 +134,17 @@ merge algorithm and its observable semantics are settled in the spec.
   user-notes `writeNote` spawn pattern) — the seam Task 2.2's tree-merge and Task 2.3's sync leg build on;
   `makeGitExecInput` added to the integration helpers.
 
-### `[ ]` **2.2 Implement the per-slug tree-merge (distinct-slug union / same-slug reject under non-fast-forward)**
+### `[x]` **2.2 Implement the per-slug tree-merge (distinct-slug union / same-slug reject under non-fast-forward)**
 
 - _Goal:_ On push/sync the ref fetches the remote, merges the per-slug tree, writes the merged tree as a new
   commit, and retries-with-refetch on non-fast-forward.
-- _Rationale:_ An orphan state-ref does not inherit `git notes merge`'s built-in union, so ARC realizes the
-  union/reject explicitly — distinct slugs union in; a same-slug entry must be byte-identical (idempotent) else
-  surface a collision.
-- _Note:_ The git plumbing (`read-tree` / `write-tree` vs. a library) is implementation latitude; only the
-  observable union/reject semantics are fixed.
 - **Strategies:** strategy-testing-methodology.md, strategy-storage-evolution.md
-
-    Build `test-first` (one behavior at a time):
-
-    - a first write against an absent remote ref creates it (no merge needed)
-    - two distinct slugs created on different sides union into one merged tree
-    - the same slug, byte-identical on both sides, merges idempotently (no conflict)
-    - the same slug with divergent content surfaces a same-slug collision (reject)
-    - a non-fast-forward push refetches, re-merges, and retries
+- _Outcome:_ Split into a pure `mergeErrandTrees` — the blob sha _is_ the byte-identity check, so distinct slugs
+  union, a same-slug equal-sha entry is idempotent, and differing-sha entries surface as a sorted collision (all
+  or nothing, never a partial merge) — and `reconcileErrandPush`, which on a non-fast-forward fetches the remote,
+  merges, and commits the union onto _both_ tips so the retry fast-forwards; a collision pushes nothing and leaves
+  the local ref intact. Extracted the shared blob/tree plumbing into `ref-tree.ts` (the record primitives consume
+  it too) and reused the user-sync non-fast-forward / remote-unavailable error classifiers.
 
 ### `[ ]` **2.3 Extend the user-state sync machinery to carry the errand ref as a second leg**
 
