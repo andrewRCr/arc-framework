@@ -355,17 +355,18 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
   scaffold stays `decompose-matrix`'s. Covered by `stub.test.ts` (placement, nested path, guards retained,
   planned-tier requirement, unsafe-path rejection).
 
-### `[ ]` **6.4 `arc start --here` protected-base auto-cut**
+### `[x]` **6.4 `arc start --here` protected-base auto-cut**
 
 - _Goal:_ On a protected base under `branch.protection: full`, `arc start --here` offers / auto-cuts
   `plan/<name>` instead of bare-refusing — the hand `git checkout -b` workaround made the on-label path.
 
-- _Context:_ Upgrade `runColdStart`'s `isProtectedBranch` refusal (`commands/start.ts`) into a guided
-  auto-cut / offer; candidate J, verified live against current code 2026-06-18.
-
-    - Build `test-first` (one behavior at a time):
-        - A protected base yields a `plan/<name>` cut + scaffold (or an offer), not a bare refusal
-        - The non-protected / feature-branch path is unchanged
+- _Outcome:_ `runColdStart`'s bare protected-base refusal became an in-place auto-cut: it brings up
+  `plan/<name>` via `git switch -c` and scaffolds onto it, returning the new branch + a `cutFromBase` marker;
+  a scaffold failure rolls the cut back (switch to base + delete branch) so no dangling branch is left. The
+  side effect runs only after the pure refusals (name-derivation, active-WU). The handler words the human
+  confirm as a cut-offer and surfaces "(cut off protected base …)"; the agent (non-TTY) auto-cuts. The
+  non-protected / feature-branch path is unchanged. Covered by `start.test.ts` (cut + scaffold, feature-branch
+  no-cut, rollback-on-failure) and verified live against real git.
 
 ## **Phase 7:** Verification
 
