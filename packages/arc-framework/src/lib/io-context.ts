@@ -15,7 +15,7 @@ import { promisify } from "node:util";
 
 import type { IOContext } from "../commands/init.js";
 import type { UserIOContext } from "../commands/user.js";
-import type { GitExec, DirEntry } from "../lib/git/index.js";
+import type { GitExec, GitExecInput, DirEntry } from "../lib/git/index.js";
 
 export const execFileAsync = promisify(execFile);
 
@@ -120,10 +120,35 @@ async function readUserDir(dirPath: string): Promise<DirEntry[]> {
   return entries;
 }
 
+/** Real stdin-fed git executor — the {@link GitExecInput} adapter for errand
+ * orphan-state-ref plumbing (`hash-object --stdin`, `mktree`). Mirrors
+ * {@link writeGitNote}'s spawn-with-stdin shape. */
+export const gitExecInput: GitExecInput = (args, input) => {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("git", args);
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+    proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+    proc.on("close", (code) => {
+      if (code === 0) resolve(stdout);
+      else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
+    });
+    proc.on("error", reject);
+    proc.stdin.on("error", (err) => {
+      reject(new Error(`git ${args.join(" ")} stdin write failed: ${err.message}`));
+    });
+    const ok = proc.stdin.write(input);
+    if (!ok) proc.stdin.once("drain", () => proc.stdin.end());
+    else proc.stdin.end();
+  });
+};
+
 /** Real UserIOContext for user sync operations. */
 export function createUserIOContext(): UserIOContext {
   return {
     exec: gitExec,
+    execInput: gitExecInput,
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),

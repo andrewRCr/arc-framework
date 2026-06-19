@@ -19,6 +19,7 @@ this WU's integration (the integrate ceremony does not auto-advance ADR status).
 - _Goal:_ The method's first boundary test admits a self-evident multi-increment single-concern sweep as an
   errand and decides the wrapper floor on the two intrinsic `Class` axes (derivation + scale), not increment-count.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+
 - _Outcome:_ Rewrote test #1 from the increment-count question onto the two-axis spec-worthiness floor (below
   _both_ axes → errand, atomic or multi-increment; clears _either_ → WU), framing the errand as the shared
   sub-floor of the same derivation/scale spectrum tests #2–#3 read. Dropped the `chore/<slug>` + PR branch aside
@@ -139,6 +140,7 @@ merge algorithm and its observable semantics are settled in the spec.
 - _Goal:_ On push/sync the ref fetches the remote, merges the per-slug tree, writes the merged tree as a new
   commit, and retries-with-refetch on non-fast-forward.
 - **Strategies:** strategy-testing-methodology.md, strategy-storage-evolution.md
+
 - _Outcome:_ Split into a pure `mergeErrandTrees` — the blob sha _is_ the byte-identity check, so distinct slugs
   union, a same-slug equal-sha entry is idempotent, and differing-sha entries surface as a sorted collision (all
   or nothing, never a partial merge) — and `reconcileErrandPush`, which on a non-fast-forward fetches the remote,
@@ -146,24 +148,22 @@ merge algorithm and its observable semantics are settled in the spec.
   the local ref intact. Extracted the shared blob/tree plumbing into `ref-tree.ts` (the record primitives consume
   it too) and reused the user-sync non-fast-forward / remote-unavailable error classifiers.
 
-### `[ ]` **2.3 Extend the user-state sync machinery to carry the errand ref as a second leg**
+### `[x]` **2.3 Extend the user-state sync machinery to carry the errand ref as a second leg**
 
 - _Goal:_ The errand ref rides the existing paired-push + partial-push-marker path — pushed immediately at
   `open`, removal pushed at `close`, reconciled periodically by `arc sync` — so a sibling clone sees the record
   within the same window as the pushed branch.
-- _Approach:_ Extend `runPairedPush` (`commands/user/paired-push.ts`) and `handleUserSync`
-  (`handlers/user-sync.ts`) to push the errand ref as an added leg, reusing the partial-push-marker shape
-  (`recordPartialPushMarker` / `clearPartialPushMarker`, `sync-state.ts`). Routing through the existing
-  machinery is the design guard that lets `cross-machine-sync-coherence`'s eventual remote-marker mechanism
-  cover the ref with zero rework.
 - **Strategies:** strategy-testing-methodology.md, strategy-storage-evolution.md
 
-    Build `test-first` (one behavior at a time):
-
-    - a paired push pushes the worktree, the notes ref, and the errand ref
-    - an errand-ref push failure after worktree success records a partial-push marker (mirrors the notes leg)
-    - an unavailable remote degrades gracefully without corrupting local state (mirrors the notes leg)
-    - `arc sync` reconciles the errand ref (fetch + tree-merge + push)
+- _Outcome:_ `arc sync` reconciles the errand ref as a **cross-cutting** step on every invocation — fetch the
+  remote, tree-merge, push — cell-independent (it runs even on blocked worktree cells) and non-fatal (a failure
+  records the errand partial-push marker for recovery but does not flip the sync exit code), surfaced as the sync
+  envelope's `errand` field. Modeled as a cross-cutting reconcile rather than a leg of `runPairedPush` because the
+  errand ref is identity-scoped, not WU/worktree-scoped — bundling it into the WU paired push would gate it on
+  worktree success (wrong: the errand ref is independent) and mix scopes. This refines the approach's "second leg"
+  framing (see the spec's § 5 alignment note). Added a parallel `partialPushErrand` marker in `sync-state.ts`
+  (independent of the notes marker; carried across saves and the notes-marker clear), promoted `GitExecInput` to
+  `lib/git` as a general stdin-fed seam, and wired the production `gitExecInput` onto `UserIOContext`.
 
 ## **Phase 3:** The `arc errand open` / `close` verb surface
 

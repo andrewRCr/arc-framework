@@ -50,6 +50,8 @@ import { access } from "node:fs/promises";
 
 import {
   buildSaveSummary,
+  clearErrandPartialPushMarker,
+  recordErrandPartialPushMarker,
   runPairedPush,
   runUserSave,
   UserSaveError,
@@ -58,6 +60,7 @@ import {
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
+import { reconcileErrandPush } from "../lib/errand/index.js";
 import {
   resolveAllSettings,
   type NotesPushPolicy,
@@ -304,6 +307,14 @@ interface SyncOutcome {
   exitCode: number;
   reconcile?: { ahead: number; behind: number; branch: string };
   /**
+   * Errand orphan-state-ref reconcile outcome — a cross-cutting leg that runs
+   * on every runtime sync, independent of the worktree/notes cell (the errand
+   * ref is identity-scoped, not worktree-scoped). Non-fatal: a failure records
+   * the errand partial-push marker for recovery but does not flip `exitCode`.
+   * Omitted on dry-run and when the stdin git seam is unavailable.
+   */
+  errand?: LegOutcomeRecord;
+  /**
    * State-aware top-of-Confirm-Handoff line composed from the probed worktree
    * state. Non-null for the diverged cell (`**Reconcile required:** ...`);
    * null otherwise. Workflow renders verbatim above `**Sync:**`.
@@ -323,7 +334,10 @@ interface SyncOutcome {
  * attached once at the `handleSync` boundary so per-cell builders stay focused
  * on leg outcomes.
  */
-type ExecutedOutcome = Omit<SyncOutcome, "interlockState" | "recommendedSummaryLine" | "mode">;
+type ExecutedOutcome = Omit<
+  SyncOutcome,
+  "interlockState" | "recommendedSummaryLine" | "mode" | "errand"
+>;
 
 export async function handleSync(
   opts: SyncOptions = {},
@@ -432,10 +446,13 @@ export async function handleSync(
     yes: opts.yes === true,
   });
 
+  const errand = await reconcileErrandLeg(io, identity, cwd);
+
   const outcome: SyncOutcome = {
     ...executed,
     interlockState,
     recommendedSummaryLine,
+    ...(errand ? { errand } : {}),
   };
 
   await writeSyncAuditEntry({ cwd, identity, outcome, interlockState });
@@ -447,6 +464,47 @@ export async function handleSync(
   }
   if (outcome.exitCode !== 0) {
     process.exitCode = outcome.exitCode;
+  }
+}
+
+/**
+ * Cross-cutting errand-ref reconcile — runs on every runtime sync, independent
+ * of the worktree/notes cell, since the errand orphan-state-ref is
+ * identity-scoped rather than worktree-scoped. Non-fatal: a push failure
+ * records the errand partial-push marker for later recovery but does not affect
+ * the sync exit code (the primary worktree/notes sync owns that). Returns
+ * `undefined` when the stdin git seam is unavailable.
+ */
+async function reconcileErrandLeg(
+  io: UserIOContext,
+  identity: string,
+  cwd: string,
+): Promise<LegOutcomeRecord | undefined> {
+  if (!io.execInput) return undefined;
+
+  try {
+    const outcome = await reconcileErrandPush({
+      exec: io.exec,
+      execInput: io.execInput,
+      identity,
+    });
+    switch (outcome.kind) {
+      case "pushed":
+      case "reconciled":
+        await clearErrandPartialPushMarker(cwd, io, identity);
+        return { action: "reconcile", result: "success" };
+      case "noop":
+        await clearErrandPartialPushMarker(cwd, io, identity);
+        return { action: "reconcile", result: "noop" };
+      case "no-remote":
+      case "conflict":
+      case "failed":
+        await recordErrandPartialPushMarker(cwd, io, identity);
+        return { action: "reconcile", result: "failed", detail: outcome.kind };
+    }
+  } catch {
+    await recordErrandPartialPushMarker(cwd, io, identity);
+    return { action: "reconcile", result: "failed", detail: "error" };
   }
 }
 

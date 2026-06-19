@@ -40,6 +40,15 @@ export interface LocalSyncState {
   /** This worktree's partial-push recovery marker. The `.sync-state.json` file is per-worktree. */
   partialPush?: PartialPushMarker;
   /**
+   * This worktree's errand-ref partial-push recovery marker — the errand leg's
+   * independent mirror of {@link partialPush}. Recorded when the errand-ref push
+   * leg fails after a worktree push succeeds; cleared on a successful errand
+   * push. Kept separate from the notes marker so the two refs recover
+   * independently. Optional and additive — pre-existing records hydrate without
+   * it (see the reserved-field convention above).
+   */
+  partialPushErrand?: PartialPushMarker;
+  /**
    * Reserved extension point for the downstream drift tier — the file list
    * captured at last sync. Not written here; carried forward round-trip so a
    * later writer can populate it without a further version bump.
@@ -97,6 +106,7 @@ export async function readLocalSyncState(
         && (record.sourceOperation === "save" || record.sourceOperation === "load")
       ) {
         const partialPush = parsePartialPushMarker(record.partialPush);
+        const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
         return {
           version: 4,
           materializedManifestHash: record.materializedManifestHash,
@@ -109,6 +119,7 @@ export async function readLocalSyncState(
             ? { verifiedAt: record.verifiedAt }
             : {}),
           ...(partialPush ? { partialPush } : {}),
+          ...(partialPushErrand ? { partialPushErrand } : {}),
           ...(isPriorFileList(record.priorFileList) ? { priorFileList: record.priorFileList } : {}),
           ...(isProvenanceMap(record.remoteMarkerProvenance)
             ? { remoteMarkerProvenance: record.remoteMarkerProvenance }
@@ -162,7 +173,8 @@ export async function writeLocalSyncState(
   // A save/load writes a fresh record but must not drop reserved fields a
   // downstream writer may have populated — carry them forward from the prior
   // record. partialPush is intentionally not carried (a successful save/load
-  // resolves the partial-push condition).
+  // resolves the notes partial-push condition); partialPushErrand IS carried,
+  // since a notes-directory save does not resolve an errand-ref push failure.
   const prior = await readLocalSyncState(cwd, io, identity);
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
@@ -174,6 +186,7 @@ export async function writeLocalSyncState(
     sourceOperation,
     savedAt: new Date().toISOString(),
     ...(verifiedAt ? { verifiedAt } : {}),
+    ...(prior?.partialPushErrand ? { partialPushErrand: prior.partialPushErrand } : {}),
     ...(prior?.priorFileList ? { priorFileList: prior.priorFileList } : {}),
     ...(prior?.remoteMarkerProvenance ? { remoteMarkerProvenance: prior.remoteMarkerProvenance } : {}),
   };
@@ -225,6 +238,53 @@ export async function clearPartialPushMarker(
     sourceOperation: state.sourceOperation,
     ...(state.savedAt ? { savedAt: state.savedAt } : {}),
     ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
+    ...(state.partialPushErrand ? { partialPushErrand: state.partialPushErrand } : {}),
+    ...(state.priorFileList ? { priorFileList: state.priorFileList } : {}),
+    ...(state.remoteMarkerProvenance ? { remoteMarkerProvenance: state.remoteMarkerProvenance } : {}),
+  });
+}
+
+/**
+ * Record the errand-ref partial-push marker — the errand leg's mirror of
+ * {@link recordPartialPushMarker}. Captures the local errand ref hash so a
+ * later coherence probe can surface the unpushed errand records. Returns
+ * `false` when no sync-state record or no local errand ref exists.
+ */
+export async function recordErrandPartialPushMarker(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<boolean> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state) return false;
+
+  const refHash = await readLocalErrandRefHash(io, identity);
+  if (!refHash) return false;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    ...state,
+    partialPushErrand: { localRefHash: refHash, sourceCommit: refHash },
+  });
+  return true;
+}
+
+/** Clear the errand-ref partial-push marker, preserving every other field (incl. the notes marker). */
+export async function clearErrandPartialPushMarker(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<void> {
+  const state = await readLocalSyncState(cwd, io, identity);
+  if (!state?.partialPushErrand) return;
+
+  await writeLocalSyncStateRecord(cwd, io, identity, {
+    version: state.version,
+    materializedManifestHash: state.materializedManifestHash,
+    sourceCommit: state.sourceCommit,
+    sourceOperation: state.sourceOperation,
+    ...(state.savedAt ? { savedAt: state.savedAt } : {}),
+    ...(state.verifiedAt ? { verifiedAt: state.verifiedAt } : {}),
+    ...(state.partialPush ? { partialPush: state.partialPush } : {}),
     ...(state.priorFileList ? { priorFileList: state.priorFileList } : {}),
     ...(state.remoteMarkerProvenance ? { remoteMarkerProvenance: state.remoteMarkerProvenance } : {}),
   });
@@ -234,12 +294,24 @@ async function readLocalNotesRefHash(
   io: CoreIO,
   identity: string,
 ): Promise<string | null> {
+  return readLocalRefHash(io, `${USER_NOTES_REF}/${identity}`);
+}
+
+/** The errand orphan state-ref for an identity; mirrors the notes-ref prefix convention. */
+function errandStateRef(identity: string): string {
+  return `refs/arc/user/${identity}/errands`;
+}
+
+async function readLocalErrandRefHash(
+  io: CoreIO,
+  identity: string,
+): Promise<string | null> {
+  return readLocalRefHash(io, errandStateRef(identity));
+}
+
+async function readLocalRefHash(io: CoreIO, ref: string): Promise<string | null> {
   try {
-    const { stdout } = await io.exec("git", [
-      "rev-parse",
-      "--verify",
-      `${USER_NOTES_REF}/${identity}`,
-    ]);
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", ref]);
     return stdout.trim() || null;
   } catch {
     return null;

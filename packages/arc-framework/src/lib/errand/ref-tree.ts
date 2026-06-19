@@ -11,7 +11,9 @@
  * @module
  */
 
-import type { GitExec } from "../git/exec.js";
+import type { GitExec, GitExecInput } from "../git/exec.js";
+
+export type { GitExecInput };
 
 /** Orphan state-ref namespace for errand records; `{identity}` is appended. */
 const ERRAND_REF_PREFIX = "refs/arc/user";
@@ -20,13 +22,6 @@ const ERRAND_REF_PREFIX = "refs/arc/user";
 export function errandsRef(identity: string): string {
   return `${ERRAND_REF_PREFIX}/${identity}/errands`;
 }
-
-/**
- * A git invocation that pipes `input` to the subprocess stdin and resolves with
- * its stdout. The stdin-fed counterpart to {@link GitExec}, for the plumbing
- * (`hash-object --stdin`, `mktree`) that builds blobs and trees.
- */
-export type GitExecInput = (args: string[], input: string) => Promise<string>;
 
 /** The injected git seams an errand-ref operation runs over. */
 export interface ErrandRecordIO {

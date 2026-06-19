@@ -199,11 +199,15 @@ keeps its execution-only, **no-`active/`-artifact** property (ADR-021's re-pivot
   working-tree directory; the record is projected through the `arc errand` verbs and session-init's `errandState`,
   never read as a file. Materializing it would re-introduce the `errand-*` file ADR-021's re-pivot removed.
 - **Sync (the design guard for cross-machine composition):** the record rides the **existing user-state sync
-  machinery** — the same paired-push + partial-push-marker path that carries `refs/notes/arc/user/{identity}` —
-  *extended* to carry the orphan state-ref as a second leg. `open` pushes the record immediately (so a sibling sees
-  it within the same window the pushed branch is visible); `close` pushes the removal; both also ride `arc sync` as
-  the periodic reconcile. Routing through the existing machinery (rather than a bespoke push) is what lets
-  `cross-machine-sync-coherence`'s eventual remote-marker mechanism cover the errand ref with zero rework.
+  machinery** — the same partial-push-marker discipline that carries `refs/notes/arc/user/{identity}`, with a
+  dedicated `partialPushErrand` marker parallel to the notes one. The errand ref is **identity-scoped** (not
+  WU/worktree-scoped), so `arc sync` reconciles it as a **cross-cutting** step that runs on every sync independent
+  of the worktree/notes cell (even on blocked cells) and is non-fatal to the sync exit — *not* as a leg bundled
+  into the WU paired push, which would wrongly gate it on worktree success and mix scopes. `open` pushes the record
+  immediately (so a sibling sees it within the same window the pushed branch is visible); `close` pushes the
+  removal; both also ride `arc sync` as the periodic reconcile. Routing through the existing marker machinery
+  (rather than a bespoke push) is what lets `cross-machine-sync-coherence`'s eventual remote-marker mechanism cover
+  the errand ref with zero rework.
 - **Conflict semantics + the merge algorithm:** because the tree holds independent per-slug blobs, concurrent
   creation across machines **union-merges** and a same-slug collision **rejects** (storage-evolution Principle 3 —
   version-checked writes). An orphan state-ref does not inherit `git notes merge`'s built-in union, so ARC realizes

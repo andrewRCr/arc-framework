@@ -405,6 +405,7 @@ export async function readUserDir(dirPath: string): Promise<DirEntry[]> {
 export function makeUserIO(cwd: string): UserIOContext {
   return {
     exec: makeGitExec(cwd),
+    execInput: makeGitExecInput(cwd),
     readFile: (path) => readFile(path, "utf-8"),
     writeFile: (path, content) => writeFile(path, content, "utf-8"),
     mkdir: (path, opts) => mkdir(path, opts).then(() => undefined),
