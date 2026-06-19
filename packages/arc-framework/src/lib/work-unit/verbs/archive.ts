@@ -146,11 +146,27 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   if (prUrl === undefined) {
     warnings.push(
       `No \`--pr-url\` supplied — wrote a \`${PR_URL_PLACEHOLDER}\` placeholder; ` +
-        `backfill with \`arc archive ${name} --pr-url <url>\` once the PR exists.`,
+        `set the \`PR URL\` field in the archived meta once the PR exists (archive can't retarget a shipped WU).`,
     );
   }
-  await executor.writeFinalizeFields?.(metaPath, { prUrl: resolvedPrUrl, completed: completed ?? today(clock) });
-  await executor.stageMeta?.(metaPath);
+  // The finalize-write seams are core archive side effects — never silently skipped
+  // (the `?.` no-op would lose the facts) and never escaping as an uncaught throw
+  // (every other archive failure returns a rejection). The relocation already
+  // landed, so a write failure surfaces as a rejection that names the partial state.
+  if (executor.writeFinalizeFields === undefined || executor.stageMeta === undefined) {
+    return { status: "rejected", reason: "`archive` finalize-write seams are not wired (internal error)." };
+  }
+  try {
+    await executor.writeFinalizeFields(metaPath, { prUrl: resolvedPrUrl, completed: completed ?? today(clock) });
+    await executor.stageMeta(metaPath);
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason:
+        `archive relocated \`${name}\` but could not persist its finalize fields ` +
+        `(${err instanceof Error ? err.message : String(err)}) — set \`PR URL\` / \`Completed\` in the archived meta.`,
+    };
+  }
 
   // The member is now under `completed/`. Rebuild the index so the cohort-sweep
   // predicate reads the post-move state, then sweep the cohort doc if this was the
