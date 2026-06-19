@@ -325,10 +325,12 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
   branch (the durable identity record is `errand-lattice`'s). Call sites: `run-errand` Launch,
   `session-init` errand cold-entry, `drain-inbox`.
 
-    - `[ ]` **6.2.a Branch-cut mechanic (`chore/<slug>` off `branch.base`)**
-        - Build `test-first` (one behavior at a time):
-            - Cuts `chore/<slug>` off the configured base; slug → branch via `ERRAND_BRANCH_PREFIX`
-            - Handles an already-existing branch of that name safely (no clobber)
+    - `[x]` **6.2.a Branch-cut mechanic (`chore/<slug>` off `branch.base`)**
+        - `cutErrandBranch` (`session-init/errand-branch-cut.ts`) creates `chore/<slug>` off a resolved base
+          and reports a `created` flag — slug → branch via `ERRAND_BRANCH_PREFIX` (consumed as logical identity,
+          never recovered by parsing the branch). No-clobber: an existing branch of that name is left untouched
+          (a force-create would move the ref and drop its commits). Creation only — occupying the branch
+          (worktree vs. in-place switch) stays the caller's protection-mode dispatch. Git seam injected.
 
     - `[ ]` **6.2.b Wire into the three launch sites**
 
