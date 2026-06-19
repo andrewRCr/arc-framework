@@ -396,13 +396,13 @@ pre-save checklist and bundles the commit.
 
 Name matches the spec (e.g., `spec-api-modernization.md` → `tasks-api-modernization.md`).
 
-**Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
-Planning` (planning-branch sessions), persist the deterministic finalize facts — `arc finalize generate-tasks
+**Update planning-state meta file** — only when `.arc/active/meta-{name}.md` exists with `**State:**
+Planning` (planning-branch sessions); skip otherwise (no meta exists pre-init under non-planning-branch
+flows). When it applies, persist the deterministic finalize facts — `arc finalize generate-tasks
 --class <Class>` writes the resolved `**Class:**` (live from the entry read), the derived `**Task List:**`
 (`tasks-{name}.md`), and the terminal `**Next Action:**` (`Task list finalized — ready to activate`) through the
 field model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel;
-`activate` clears `Current Workflow`. The write rides this ceremony commit. Skip otherwise (no meta file exists
-pre-init under non-planning-branch flows).
+`activate` clears `Current Workflow`. The write rides this ceremony commit.
 
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
