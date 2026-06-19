@@ -25,6 +25,7 @@ import { createHash } from "node:crypto";
 import { runInit } from "../../src/commands/init.js";
 import type { IOContext } from "../../src/commands/init.js";
 import type { GitExec } from "../../src/lib/git/index.js";
+import type { GitExecInput } from "../../src/lib/errand/index.js";
 import type { Recipe, Manifest, FileEntry, Classification, Layer } from "../../src/lib/types.js";
 import type { InitPromptResult } from "../../src/prompts/init-prompts.js";
 import { getArcTemplatePath, getInternalTemplatePath } from "../../src/lib/paths.js";
@@ -38,6 +39,29 @@ export function makeGitExec(cwd: string): GitExec {
     const { stdout, stderr } = await execFileAsync(cmd, args, { cwd });
     return { stdout: stdout.trimEnd(), stderr };
   };
+}
+
+/**
+ * Create a real stdin-fed git executor bound to a cwd — the {@link GitExecInput}
+ * counterpart to {@link makeGitExec}, for plumbing (`hash-object --stdin`,
+ * `mktree`) that reads its payload from stdin.
+ */
+export function makeGitExecInput(cwd: string): GitExecInput {
+  return (args, input) =>
+    new Promise((resolve, reject) => {
+      const proc = spawn("git", args, { cwd });
+      let stdout = "";
+      let stderr = "";
+      proc.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
+      proc.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+      proc.on("close", (code) => {
+        if (code === 0) resolve(stdout);
+        else reject(new Error(`git ${args.join(" ")} failed (code ${code}): ${stderr}`));
+      });
+      proc.on("error", reject);
+      proc.stdin.write(input);
+      proc.stdin.end();
+    });
 }
 
 /**
@@ -414,4 +438,4 @@ export async function addBareRemote(cwd: string): Promise<string> {
 export { readFile, writeFile, mkdir, rm, readdir, stat, join, dirname };
 export { execFileAsync };
 export { getArcTemplatePath, getInternalTemplatePath };
-export type { IOContext, GitExec, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };
+export type { IOContext, GitExec, GitExecInput, Recipe, InitPromptResult, Manifest, DirEntry, UserIOContext };

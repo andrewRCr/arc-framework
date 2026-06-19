@@ -110,36 +110,29 @@ records-only (no working-tree `errands/` directory); rides the existing paired-p
 as a second leg. The git plumbing (`read-tree` / `write-tree` vs. a library) is implementation latitude; the
 merge algorithm and its observable semantics are settled in the spec.
 
-### `[ ]` **2.1 Define the errand record model and the orphan state-ref read/write primitives**
+### `[x]` **2.1 Define the errand record model and the orphan state-ref read/write primitives**
 
 - _Goal:_ A typed errand record round-trips through a per-slug blob in `refs/arc/user/{identity}/errands`, read
   and written without materializing any working-tree file.
-- _Approach:_ Mirror the user-notes-ref reader shape (`lib/user-sync/notes-ref.ts`) over the injectable git exec
-  seam (`lib/git/exec.ts`); the blob is JSON consistent with the existing `.sync-state.json` record shape and
-  carries `{slug, intent/origin, launch metadata, originating-inbox-entry pointer when present}`, uniform
-  whether inbox-originated or free-description.
-- _Shape:_ Expose four primitives consumed downstream — `readErrandRecord(slug)`, `writeErrandRecord(record)`,
-  `removeErrandRecord(slug)`, `listErrandRecords()`. `removeErrandRecord` is deliberately separable: `close`
-  (Phase 3) reaps the branch around it, while promotion (Task 6.1) removes the record while _keeping_ the
-  renamed branch.
 - **Strategies:** strategy-testing-methodology.md, strategy-storage-evolution.md
 
-    - `[ ]` **2.1.a The errand record type + (de)serialization**
+    - `[x]` **2.1.a The errand record type + (de)serialization**
+        - Built `ErrandRecord` (`{version, slug, origin, intent, branch, createdAt, originEntry?}`) with a
+          byte-stable serializer and a tolerant deserializer (returns null on a malformed blob, never throws —
+          mirrors the sync-state reader). `branch` carries the projection since the nature-typed prefix isn't
+          slug-derivable; `originEntry` is present only for inbox-originated records, so origin reads uniformly.
 
-        Build `test-first` (one behavior at a time):
+    - `[x]` **2.1.b The orphan-ref per-slug tree read/write primitives**
+        - Built `readErrandRecord` / `writeErrandRecord` / `removeErrandRecord` / `listErrandRecords` over the ref
+          as a tree of per-slug blobs — reads on `GitExec` (`cat-file` / `ls-tree`), writes via `hash-object` /
+          `mktree` / `commit-tree` / `update-ref`; an absent slug or ref reads back null, removal is surgical
+          (no-op when absent), and nothing is materialized into the working tree.
 
-        - a record serializes and deserializes round-trip with no field loss
-        - the origin field is present uniformly (inbox-originated _and_ free-description records)
-
-    - `[ ]` **2.1.b The orphan-ref per-slug tree read/write primitives**
-
-        Build `test-first` (one behavior at a time):
-
-        - write a record keyed by `<slug>` into the ref's tree, then read it back by slug
-        - an absent slug reads back as null
-        - `removeErrandRecord` deletes one slug's blob and leaves the rest of the tree intact
-        - `listErrandRecords` returns every slug present in the tree
-        - no `.arc/user/{identity}/errands/` working-tree directory is created (records-only)
+- _Outcome:_ The errand record substrate lands as `lib/errand/` — model plus the four orphan-state-ref primitives,
+  records-only (verified: clean `git status` and no `errands/` directory after a write). Tree/blob writes need a
+  stdin-fed git seam the execFile-based `GitExec` can't provide, so added a `GitExecInput` seam (mirrors the
+  user-notes `writeNote` spawn pattern) — the seam Task 2.2's tree-merge and Task 2.3's sync leg build on;
+  `makeGitExecInput` added to the integration helpers.
 
 ### `[ ]` **2.2 Implement the per-slug tree-merge (distinct-slug union / same-slug reject under non-fast-forward)**
 
