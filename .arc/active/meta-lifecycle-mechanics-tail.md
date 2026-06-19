@@ -1,8 +1,8 @@
 # Metadata: lifecycle-mechanics-tail
 
-| **State** | **Owner** | **Branch**                      | **Class** | **Priority** |
-| --------- | --------- | ------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/lifecycle-mechanics-tail` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                      | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/lifecycle-mechanics-tail` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
@@ -12,10 +12,10 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 6 — errand legs & lifecycle affordances (Tasks 6.1–6.4)
-- **Next Task:** Task 7.1 — Complete verification (line ~361)
+- **Last Completed:** Phase 7 (Task 7.1) — verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 ---
