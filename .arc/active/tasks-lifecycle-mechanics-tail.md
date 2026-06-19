@@ -246,7 +246,7 @@ string-poking. Extends the `set-stage --advance` finalize precedent (which alrea
 to the begin-sentinel). The here-vs-PPR boundary: this WU owns the `Class` / `Task List` / `Next Action`
 writes; PPR shipped `Current Workflow` / `Design`.
 
-### `[ ]` **5.1 Code-write `Class` / `Task List` / `Next Action` at the planning finalize fire-points**
+### `[x]` **5.1 Code-write `Class` / `Task List` / `Next Action` at the planning finalize fire-points**
 
 - _Goal:_ `Class`, `Task List`, and the terminal `Next Action` strings are written by code at the
   create-spec / generate-tasks / verify-work-unit finalize fire-points — no hand-fill — with core-table
@@ -254,27 +254,30 @@ writes; PPR shipped `Current Workflow` / `Design`.
 
 - **Strategies:** strategy-task-list-formatting.md
 
-    - `[ ]` **5.1.a `Class` write at the create-spec / generate-tasks finalize fire-points**
-        - `setMetaCoreFields` re-renders the three core rows; alignment is `max(header, cell)`-derived.
-        - Confirm create-spec's current `Class` hand-fill at impl — `generate-tasks` Finalize hand-fills all
-          three fields and `verify` hand-fills `Next Action` (both confirmed); create-spec's `Class` write is
-          named by the design but unverified in the current ceremony.
-        - Build `test-first` (one behavior at a time):
-            - `Class` is written; core-table alignment stays MD060-passing; other core cells untouched
+    - `[x]` **5.1.a `Class` write at the create-spec / generate-tasks finalize fire-points**
+        - `setMetaClass` (new wrapper over `setMetaCoreFields`) re-renders the three core rows, alignment
+          `max(header, cell)`-derived and MD060-passing; reached via the executor's new optional
+          `writeClassField` seam. Confirmed create-spec hand-filled `Class` (now via `arc finalize`).
 
-    - `[ ]` **5.1.b `Task List` filename-derivation write at generate-tasks finalize**
-        - Pure `tasks-<name>.md` derivation through `setMetaBulletFields`.
-        - Build `test-first` (one behavior at a time):
-            - `Task List` is set to the bare derived filename
+    - `[x]` **5.1.b `Task List` filename-derivation write at generate-tasks finalize**
+        - `tasks-<name>.md` derived in the verb, rendered through the now-exported `formatValue`
+          (`identifier`) and written via `writeSoftFields` — bundled with the terminal `Next Action`.
 
-    - `[ ]` **5.1.c Terminal `Next Action` strings at create-spec / generate-tasks / verify finalize**
-        - The fixed terminal strings (distinct from `set-stage --advance`'s begin-sentinel reset).
-        - Build `test-first` (one behavior at a time):
-            - Each fire-point writes its fixed terminal `Next Action`
+    - `[x]` **5.1.c Terminal `Next Action` strings at create-spec / generate-tasks / verify finalize**
+        - Fixed strings code-owned in the verb, keyed by fire-point: generate-tasks and verify carry terminal
+          strings; create-spec keeps PPR's begin-sentinel, so this WU writes no terminal `Next Action` there
+          (the here-vs-PPR cut, confirmed — not re-owned).
 
-    - `[ ]` **5.1.d Remove the hand-fill from the three workflow finalize fire-points**
-        - `create-spec.md`, `generate-tasks.md`, `verify-work-unit.md` invoke the code writes instead of
-          prescribing hand-fills.
+    - `[x]` **5.1.d Remove the hand-fill from the three workflow finalize fire-points**
+        - `create-spec.md`, `generate-tasks.md`, `verify-work-unit.md` (both package + `.arc/` copies) invoke
+          `arc finalize <fire-point> [--class]` instead of prescribing hand-fills.
+
+- _Outcome:_ New `arc finalize <create-spec|generate-tasks|verify>` verb (`runFinalizeStage` +
+  `handleFinalizeStage`) owns the planning-ceremony finalize **facts** (`Class` / `Task List` / terminal
+  `Next Action`), complementing PPR's pointer writes (`set-stage` / `repoint-design`). The here-vs-PPR cut
+  resolved as pointer-vs-finalize-fact: create-spec's `Next Action` stays PPR's begin-sentinel, so only
+  `Class` is written there. Field/record-seam throughout — `Class` via `setMetaClass` / `writeClassField`,
+  bullets via `writeSoftFields`.
 
 ## **Phase 6:** Errand legs & lifecycle affordances
 

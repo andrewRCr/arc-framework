@@ -38,6 +38,7 @@ import {
   parseMetaRecord,
   setMetaBulletFields,
   setMetaBranch,
+  setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
@@ -184,6 +185,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeBranchField: async (metaPath, branch) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaBranch(content, branch));
+    },
+
+    writeClassField: async (metaPath, value) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaClass(content, value));
     },
 
     writeCurrentWorkflowField: async (metaPath, stage) => {

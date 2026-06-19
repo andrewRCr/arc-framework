@@ -20,6 +20,7 @@ import {
   renderMetaFile,
   setMetaBulletFields,
   setMetaBranch,
+  setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
   setMetaFinalizeFields,
@@ -1283,6 +1284,57 @@ describe("setMetaBranch — in-place core-table Branch rewrite", () => {
   it("throws when the meta carries no core-block table", () => {
     const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
     expect(() => setMetaBranch(noTable, "plan/demo-wu")).toThrow(/core-block table/i);
+  });
+});
+
+describe("setMetaClass — in-place core-table Class rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State**  | **Owner** | **Branch**     | **Class** | **Priority** |
+|------------|-----------|----------------|-----------|--------------|
+| \`Planning\` | \`andrew\`  | \`plan/demo-wu\` | \`[TBD]\`   | \`P1\`         |
+
+- **Cohort:** \`demo-cohort\`
+
+- **Next Action:** Resolve the design.
+
+---
+`;
+
+  it("rewrites the Class cell, leaving every other core + bullet field byte-stable on parse", () => {
+    const written = setMetaClass(META, "Heavy");
+
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after.Class).toBe("Heavy");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Class") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The prose below the core table is preserved verbatim.
+    const tail = (s: string): string => s.slice(s.indexOf("- **Cohort:**"));
+    expect(tail(written)).toBe(tail(META));
+    // The pre-classification sentinel is gone from the rewritten table.
+    expect(written).not.toContain("`[TBD]`");
+  });
+
+  it("keeps the core-table column alignment canonical (max(header, cell) widths)", () => {
+    // `Heavy` (7 chars backticked) is narrower than the `**Priority**` header, so
+    // every column stays header-driven; the rendered rows must remain pipe-aligned.
+    const written = setMetaClass(META, "Heavy");
+    const tableLines = written
+      .split("\n")
+      .filter((line) => line.startsWith("|"));
+    expect(tableLines).toHaveLength(3);
+    const widths = tableLines.map((line) => line.length);
+    // Header / separator / value rows are all the same rendered width when aligned.
+    expect(new Set(widths).size).toBe(1);
+    expect(written).toContain("| `Heavy`");
+  });
+
+  it("throws when the meta carries no core-block table", () => {
+    const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
+    expect(() => setMetaClass(noTable, "Heavy")).toThrow(/core-block table/i);
   });
 });
 

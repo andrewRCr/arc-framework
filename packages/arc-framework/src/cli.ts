@@ -37,6 +37,7 @@ import {
   handleArchive,
   handleTeardown,
   handleSetStage,
+  handleFinalizeStage,
   handleRepointDesign,
   type StubOptions,
   type ParkOptions,
@@ -211,6 +212,15 @@ program
     "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
   )
   .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
+
+program
+  .command("finalize <fire-point>")
+  .description(
+    "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
+    + "at its fire-point: create-spec | generate-tasks | verify",
+  )
+  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
+  .action((firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts));
 
 program
   .command("repoint-design <event>")

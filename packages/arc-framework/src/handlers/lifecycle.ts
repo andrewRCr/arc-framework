@@ -66,6 +66,10 @@ import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
 import { runTeardown } from "../lib/work-unit/verbs/teardown.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
+import {
+  runFinalizeStage,
+  type FinalizeFirePoint,
+} from "../lib/work-unit/verbs/finalize-stage.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
@@ -837,6 +841,70 @@ export async function handleSetStage(
   if (result.advanced) lines.push("Next Action:      [begin current workflow]");
   lines.push(`Meta:             ${result.metaPath}`);
   p.note(lines.join("\n"), result.advanced ? "Stage advanced" : "Stage set");
+  p.outro("Done.");
+}
+
+// ---------------------------------------------------------------------------
+// Planning-ceremony finalize facts — `finalize`
+// ---------------------------------------------------------------------------
+
+/** The closed set of finalize fire-points, surfaced in the handler's refusals. */
+const FINALIZE_FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks", "verify"];
+
+/**
+ * `arc finalize <fire-point>` — persist a planning / verification ceremony's
+ * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
+ * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
+ * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action;
+ * `verify` → Next Action). The complement of `set-stage` / `repoint-design` (which
+ * own the planning pointers): not a lifecycle transition. `--class` carries the
+ * resolved weight, required at create-spec / generate-tasks and refused (via
+ * `runFinalizeStage`) at verify. Refuses without a single resolvable active WU. Verb
+ * spelling is provisional, pending idiomatic-alignment.
+ */
+export async function handleFinalizeStage(
+  firePoint: string | undefined,
+  opts?: { class?: string },
+): Promise<void> {
+  p.intro("arc finalize");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const firePointArg = firePoint?.trim();
+  if (!firePointArg) {
+    refuse(`\`arc finalize <fire-point>\` requires a fire-point (${FINALIZE_FIRE_POINTS.join(" | ")}).`);
+    return;
+  }
+
+  const slug = await resolveCurrentWuSlug(base.cwd);
+  if (slug === null) {
+    refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  // `writeClassField` is an optional direct-invoke seam on the executor (like the
+  // archive / reconcile seams); the production binder always provides it, so a miss
+  // is an internal wiring error, not an operator-facing condition.
+  const { writeClassField, writeSoftFields } = executor;
+  if (writeClassField === undefined) {
+    refuse("`arc finalize` requires the executor's Class-write seam (internal wiring error).");
+    return;
+  }
+  const result = await runFinalizeStage(
+    { writeClassField, writeSoftFields },
+    { name: slug, firePoint: firePointArg as FinalizeFirePoint, workClass: opts?.class },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [`Work unit:   ${slug}`, `Fire-point:  ${result.firePoint}`];
+  if (result.workClass !== null) lines.push(`Class:       ${result.workClass}`);
+  if (result.taskList !== null) lines.push(`Task List:   ${result.taskList}`);
+  if (result.nextAction !== null) lines.push(`Next Action: ${result.nextAction}`);
+  lines.push(`Meta:        ${result.metaPath}`);
+  p.note(lines.join("\n"), "Finalize facts written");
   p.outro("Done.");
 }
 

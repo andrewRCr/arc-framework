@@ -331,7 +331,7 @@ const HTTP_URL_RE = /^https?:\/\//i;
  * individually backticked (`` `a`, `b` `` — two discrete tokens, not one
  * compound span), narrative fields as plain prose.
  */
-function formatValue(value: string, valueClass: MetaValueClass): string {
+export function formatValue(value: string, valueClass: MetaValueClass): string {
   if (value === PLACEHOLDER || isSentinel(value)) return value;
   switch (valueClass) {
     case "enum":
@@ -450,6 +450,26 @@ export function setMetaState(content: string, state: string): string {
  */
 export function setMetaBranch(content: string, branch: string): string {
   return setMetaCoreFields(content, { Branch: branch });
+}
+
+/**
+ * Rewrite the core-block `Class` cell in place — the weight-axis sibling of
+ * {@link setMetaState} / {@link setMetaBranch}. The planning ceremonies persist
+ * the resolved `Class` (`Light` / `Heavy` / `Novel`) at their finalize
+ * fire-points through this writer; the core-table re-render keeps the three
+ * rows pipe-aligned by construction (`max(header, cell)` widths), so the table
+ * stays MD060-passing. Every other core field and the prose below stay
+ * byte-stable (modulo alignment padding). The caller validates `value` against
+ * the `WorkClass` set first — this is a projection-level rewrite, not a
+ * classifier.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param value - The resolved Class token to write into the Class cell (e.g. `Heavy`).
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaClass(content: string, value: string): string {
+  return setMetaCoreFields(content, { Class: value });
 }
 
 /**

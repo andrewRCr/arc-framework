@@ -202,6 +202,16 @@ export interface ExecuteTransitionContext {
   writeBranchField: (metaPath: string, branch: string) => Promise<void>;
 
   /**
+   * Write the meta `Class` core-table field at `metaPath` (read → rewrite cell →
+   * write). The weight-axis sibling of {@link writeBranchField}: the planning
+   * ceremonies persist the resolved `Class` (`Light` / `Heavy` / `Novel`) at their
+   * finalize fire-points through this seam. Not a transition leg (no edge declares
+   * it) — the planning-finalize verb invokes it directly — so it reaches the executor
+   * as an optional seam; absent in contexts that never finalize planning.
+   */
+  writeClassField?: (metaPath: string, value: string) => Promise<void>;
+
+  /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
    * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
    * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
