@@ -43,9 +43,10 @@ get checked when the implementer steps back and validates outcomes against the P
 
 ## Step 3 — Pre-align Meta File for Integration Handoff
 
-Before marking the verification task `[x]`, update the active meta file's `**Next Action:**`
-to `integrate-work-unit Step 1 — verify completion` per the workflow-step-pointer convention
-([session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
+Before marking the verification task `[x]`, run `arc finalize verify` — it writes the
+integration-handoff pointer `integrate-work-unit Step 1 — verify completion` to the active meta
+file's `**Next Action:**` through the field model (the workflow-step-pointer convention,
+[session-handoff][session-handoff] § _Workflow step pointer_). This closes the inference gap
 between verification close and integrate-entry — the session-init probe relies on this prefix
 to set `sessionType: integration`. Stage with the verification commit.
 

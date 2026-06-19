@@ -61,6 +61,8 @@ interface Harness {
   relocations: RelocateArtifactsParams[];
   softWrites: { path: string; updates: Record<string, string> }[];
   branchWrites: string[];
+  finalizeWrites: { path: string; facts: { prUrl?: string; completed?: string } }[];
+  staged: string[];
 }
 
 /** A quarter scan returning a fixed set of existing archive entries. */
@@ -79,6 +81,8 @@ function buildCtx(opts: {
   const relocations: RelocateArtifactsParams[] = [];
   const softWrites: { path: string; updates: Record<string, string> }[] = [];
   const branchWrites: string[] = [];
+  const finalizeWrites: Harness["finalizeWrites"] = [];
+  const staged: string[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -117,6 +121,12 @@ function buildCtx(opts: {
     writeSoftFields: async (path, updates) => {
       softWrites.push({ path, updates: updates as Record<string, string> });
     },
+    writeFinalizeFields: async (path, facts) => {
+      finalizeWrites.push({ path, facts });
+    },
+    stageMeta: async (path) => {
+      staged.push(path);
+    },
     sideEffects,
   };
 
@@ -125,7 +135,7 @@ function buildCtx(opts: {
     fs: buildQuarterFs(opts.quarterEntries ?? []),
     clock: () => new Date(2026, 5, 15, 12, 0, 0), // June 2026 → 2026-q2
   };
-  return { ctx, calls, relocations, softWrites, branchWrites };
+  return { ctx, calls, relocations, softWrites, branchWrites, finalizeWrites, staged };
 }
 
 const BASE = { name: "foo" };
@@ -186,6 +196,48 @@ describe("runArchive — the dated sweep", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/archive|active/i);
     expect(calls.some((c) => c.startsWith("relocate:"))).toBe(false);
+  });
+
+  it("writes both finalize facts to the relocated meta and re-stages it in one call", async () => {
+    const { ctx, finalizeWrites, staged } = buildCtx({});
+
+    const result = await runArchive(ctx, {
+      ...BASE,
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+
+    expect(result.status).toBe("archived");
+    expect(finalizeWrites).toEqual([
+      {
+        path: ".arc/completed/2026-q2/01_foo/meta-foo.md",
+        facts: { prUrl: "https://github.com/x/y/pull/9", completed: "2026-06-18" },
+      },
+    ]);
+    // The finalize write rewrote the relocated meta, so it re-stages.
+    expect(staged).toContain(".arc/completed/2026-q2/01_foo/meta-foo.md");
+  });
+
+  it("warns and writes the `[none]` placeholder when no --pr-url is supplied (backfill path)", async () => {
+    const { ctx, finalizeWrites } = buildCtx({});
+
+    const result = await runArchive(ctx, { ...BASE, completed: "2026-06-18" });
+
+    expect(result.status).toBe("archived");
+    if (result.status !== "archived") return;
+    expect(finalizeWrites[0]?.facts.prUrl).toBe("[none]");
+    expect(result.warnings.some((w) => /pr.?url|backfill/i.test(w))).toBe(true);
+  });
+
+  it("defaults --completed to the injected clock, and honors an explicit date", async () => {
+    const dflt = buildCtx({});
+    const r1 = await runArchive(dflt.ctx, { ...BASE, prUrl: "https://x/pull/1" });
+    expect(r1.status).toBe("archived");
+    expect(dflt.finalizeWrites[0]?.facts.completed).toBe("2026-06-15"); // the injected June-15 clock
+
+    const explicit = buildCtx({});
+    await runArchive(explicit.ctx, { ...BASE, prUrl: "https://x/pull/1", completed: "2025-01-02" });
+    expect(explicit.finalizeWrites[0]?.facts.completed).toBe("2025-01-02");
   });
 
   it("reports no cohort sweep for a standalone WU (no Cohort field)", async () => {

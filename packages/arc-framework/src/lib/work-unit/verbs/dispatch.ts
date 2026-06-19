@@ -35,7 +35,7 @@ import { TRANSITIONS, type Verb } from "../lifecycle-transitions.js";
  * worktree's WU — a slug only names a *different* target. None is destructive,
  * and each has a safe current-WU reading.
  */
-export const CONTEXT_DEFAULTING_VERBS = ["park", "reopen", "archive", "activate", "deactivate"] as const;
+export const CONTEXT_DEFAULTING_VERBS = ["park", "integrate", "reopen", "archive", "activate", "deactivate"] as const;
 
 /**
  * The transition-targeting verbs that always require an explicit slug — either no
@@ -55,6 +55,7 @@ export type DispatchMode = "context-defaulting" | "slug-required";
 /** The per-verb dispatch mode — the bare-invocation default policy. */
 export const DISPATCH_MODE: Record<TransitionVerb, DispatchMode> = {
   park: "context-defaulting",
+  integrate: "context-defaulting",
   reopen: "context-defaulting",
   archive: "context-defaulting",
   activate: "context-defaulting",

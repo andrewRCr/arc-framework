@@ -1,7 +1,7 @@
 /**
  * The work-unit lifecycle verb handlers — the top-level CLI commands (`stub` /
- * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` / `reopen` /
- * `abandon`).
+ * `promote` / `demote` / `park` / `resume` / `activate` / `deactivate` /
+ * `integrate` / `reopen` / `abandon`).
  *
  * Each handler is a thin, consistent binding: resolve the ambient context
  * (identity, cwd, I/O), resolve *which* work unit the verb acts on through the
@@ -31,6 +31,7 @@ import {
   type MetaFieldName,
 } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import type { GitExec } from "../lib/git/exec.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import {
@@ -60,9 +61,15 @@ import {
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
+import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
+import { runTeardown } from "../lib/work-unit/verbs/teardown.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
+import {
+  runFinalizeStage,
+  type FinalizeFirePoint,
+} from "../lib/work-unit/verbs/finalize-stage.js";
 import { runRepointDesign, type RepointDesignEvent } from "../lib/work-unit/verbs/repoint-design.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { isHandledError, requireArcProjectRoot, resolveUserIdentity } from "./shared.js";
@@ -186,6 +193,7 @@ export interface StubOptions {
   priority?: string;
   origin?: string;
   design?: string;
+  cohort?: string;
 }
 
 /**
@@ -211,7 +219,10 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
   const { executor } = await buildExecutor(base);
   const result = await runStub(
     { executor, fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile } },
-    { name: wuName, commitment, priority: opts.priority, owner: base.identity, origin: opts.origin, design: opts.design },
+    {
+      name: wuName, commitment, priority: opts.priority, owner: base.identity,
+      origin: opts.origin, design: opts.design, cohort: opts.cohort,
+    },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
@@ -524,6 +535,50 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
 }
 
 // ---------------------------------------------------------------------------
+// Phase move (review entry) — `integrate`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc integrate`. */
+export interface IntegrateOptions {
+  lastCompleted?: string;
+  action?: string;
+}
+
+/**
+ * `arc integrate [slug]` — open review on an `Active` WU (Active → Integrating),
+ * defaulting to the current WU. Marks phase entry, not the merge — the
+ * integration-interlock owns merge approval. Refuses without the orientation inputs
+ * (`--last-completed` / `--action`); both feed the edge's `input` soft fields and
+ * are never fabricated. A non-`Active` source falls to the table's illegal-edge
+ * rejection.
+ */
+export async function handleIntegrate(slug: string | undefined, opts: IntegrateOptions): Promise<void> {
+  p.intro("arc integrate");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const target = await resolveVerbTargetOrReport("integrate", slug, base.cwd);
+  if (target === null) return;
+
+  const lastCompleted = opts.lastCompleted?.trim();
+  const action = opts.action?.trim();
+  if (!lastCompleted || !action) {
+    refuse(
+      "`arc integrate` requires `--last-completed <work>` and `--action <next action>` — refusing to fabricate orientation.",
+    );
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runIntegrate(executor, { name: target, lastCompleted, nextAction: action });
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  reportOutcome("Integrating", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
 // Phase move (withdrawal) — `reopen`
 // ---------------------------------------------------------------------------
 
@@ -653,16 +708,26 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
 // Terminal — `archive`
 // ---------------------------------------------------------------------------
 
+/** Options for `arc archive`. */
+export interface ArchiveOptions {
+  /** Integration PR URL → meta `PR URL`; absent writes a `[none]` placeholder + warns (backfill). */
+  prUrl?: string;
+  /** Completion date (`YYYY-MM-DD`) → meta `Completed`; defaults to today. */
+  completed?: string;
+}
+
 /**
  * `arc archive [slug]` — sweep a shipped work unit to `completed/` (defaults to the
  * current WU). Computes the dated/numbered `completed/{YYYY-qN}/{NN}_{name}/`
- * destination and relocates the artifact set there, flipping `State → Shipped` and
- * clearing the `Branch` field — the mergeable ship that rides the PR. Physical
+ * destination and relocates the artifact set there, flipping `State → Shipped`,
+ * clearing the `Branch` field, and writing the `PR URL` / `Completed` finalize facts
+ * as managed fields — the mergeable ship that rides the PR. `--pr-url` is optional:
+ * absent writes a `[none]` placeholder and warns (backfill). Physical
  * branch/worktree teardown is the integration tail's post-merge cleanup, not this
  * command's. Judgment — merge approval, archival timing — is the integration
  * ceremony's; this runs the deterministic sweep once that call is made.
  */
-export async function handleArchive(slug: string | undefined): Promise<void> {
+export async function handleArchive(slug: string | undefined, opts: ArchiveOptions = {}): Promise<void> {
   p.intro("arc archive");
   const base = await resolveVerbBase();
   if (base === null) return;
@@ -673,15 +738,63 @@ export async function handleArchive(slug: string | undefined): Promise<void> {
   const { executor } = await buildExecutor(base);
   const result = await runArchive(
     { executor, fs: { readdir: (path) => readdir(path) }, clock: () => new Date() },
-    { name: target },
+    { name: target, prUrl: opts.prUrl?.trim() || undefined, completed: opts.completed?.trim() || undefined },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
+  for (const warning of result.warnings) p.log.warn(warning);
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
   reportOutcome("Archived", lines, result.outcome);
+}
+
+/**
+ * `arc teardown <name>` — post-merge physical cleanup of a shipped work unit:
+ * reap the merged branch, remove the linked worktree (in-place is a no-op), and
+ * prune the stale tracking ref. Gated on `completed/` arc-state + the merged-safe
+ * push-state durability check. Requires an explicit name — a shipped WU has no
+ * `active/` meta to default from.
+ */
+export async function handleTeardown(name: string | undefined): Promise<void> {
+  p.intro("arc teardown");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const wuName = name?.trim();
+  if (!wuName) {
+    refuse("`arc teardown <name>` requires the shipped work-unit name to clean up.");
+    return;
+  }
+
+  // Default to the repo root, but let an explicit `opts.cwd` win — the worktree
+  // cleanliness check targets the *linked* worktree being torn down, not the cwd
+  // (unlike a transition executor, teardown operates on a worktree it isn't in).
+  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
+  const result = await runTeardown(
+    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
+    { name: wuName },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+
+  const branchLine =
+    result.branch === null
+      ? "(already reaped)"
+      : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+  const lines = [
+    `Work unit: ${wuName}`,
+    `Branch:    ${branchLine}`,
+    `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
+    `Prune:     ${result.pruned ? "done" : "skipped"}`,
+  ];
+  p.note(lines.join("\n"), "Torn down");
+  for (const notice of result.notices) p.log.warn(notice);
+  if (result.suggestion !== null) p.log.info(result.suggestion);
+  p.outro("Done.");
 }
 
 // ---------------------------------------------------------------------------
@@ -732,6 +845,70 @@ export async function handleSetStage(
   if (result.advanced) lines.push("Next Action:      [begin current workflow]");
   lines.push(`Meta:             ${result.metaPath}`);
   p.note(lines.join("\n"), result.advanced ? "Stage advanced" : "Stage set");
+  p.outro("Done.");
+}
+
+// ---------------------------------------------------------------------------
+// Planning-ceremony finalize facts — `finalize`
+// ---------------------------------------------------------------------------
+
+/** The closed set of finalize fire-points, surfaced in the handler's refusals. */
+const FINALIZE_FIRE_POINTS: readonly FinalizeFirePoint[] = ["create-spec", "generate-tasks", "verify"];
+
+/**
+ * `arc finalize <fire-point>` — persist a planning / verification ceremony's
+ * deterministic finalize facts at its fire-point: the resolved `Class`, the derived
+ * `Task List`, and the fixed terminal `Next Action`, per the fire-point's contract
+ * (`create-spec` → Class; `generate-tasks` → Class + Task List + Next Action;
+ * `verify` → Next Action). The complement of `set-stage` / `repoint-design` (which
+ * own the planning pointers): not a lifecycle transition. `--class` carries the
+ * resolved weight, required at create-spec / generate-tasks and refused (via
+ * `runFinalizeStage`) at verify. Refuses without a single resolvable active WU. Verb
+ * spelling is provisional, pending idiomatic-alignment.
+ */
+export async function handleFinalizeStage(
+  firePoint: string | undefined,
+  opts?: { class?: string },
+): Promise<void> {
+  p.intro("arc finalize");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const firePointArg = firePoint?.trim();
+  if (!firePointArg) {
+    refuse(`\`arc finalize <fire-point>\` requires a fire-point (${FINALIZE_FIRE_POINTS.join(" | ")}).`);
+    return;
+  }
+
+  const slug = await resolveCurrentWuSlug(base.cwd);
+  if (slug === null) {
+    refuse("`arc finalize` needs exactly one active work unit to target — none resolved in this worktree.");
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  // `writeClassField` is an optional direct-invoke seam on the executor (like the
+  // archive / reconcile seams); the production binder always provides it, so a miss
+  // is an internal wiring error, not an operator-facing condition.
+  const { writeClassField, writeSoftFields } = executor;
+  if (writeClassField === undefined) {
+    refuse("`arc finalize` requires the executor's Class-write seam (internal wiring error).");
+    return;
+  }
+  const result = await runFinalizeStage(
+    { writeClassField, writeSoftFields },
+    { name: slug, firePoint: firePointArg as FinalizeFirePoint, workClass: opts?.class },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+  const lines = [`Work unit:   ${slug}`, `Fire-point:  ${result.firePoint}`];
+  if (result.workClass !== null) lines.push(`Class:       ${result.workClass}`);
+  if (result.taskList !== null) lines.push(`Task List:   ${result.taskList}`);
+  if (result.nextAction !== null) lines.push(`Next Action: ${result.nextAction}`);
+  lines.push(`Meta:        ${result.metaPath}`);
+  p.note(lines.join("\n"), "Finalize facts written");
   p.outro("Done.");
 }
 

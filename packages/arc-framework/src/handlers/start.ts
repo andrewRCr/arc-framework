@@ -29,6 +29,7 @@ import {
 } from "../commands/start.js";
 import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
@@ -236,6 +237,7 @@ async function graduate(
       "Graduated (in place)",
     );
     reportAdvisories(result.outcome);
+    if (result.notice) p.log.info(result.notice);
     p.outro("Done.");
     return;
   }
@@ -272,6 +274,7 @@ async function graduate(
     "Graduated",
   );
   reportAdvisories(result.outcome);
+  if (result.notice) p.log.info(result.notice);
   p.outro("Done.");
 }
 
@@ -368,11 +371,19 @@ async function coldStart(
     return;
   }
 
+  // On a protected base, cold-start cuts `plan/<name>` rather than scaffolding
+  // onto the base — word the offer for it.
+  const { settings } = await readConfigSettings(ctx.cwd);
+  const onProtectedBase = isProtectedBranch(settings, branch);
+
   // The arc-session skill confirms the gathered context before invoking, so its
   // non-interactive (no-TTY) call skips this prompt; a direct human run still gets it.
   if (!skipConfirm(opts)) {
     const previewName = deriveColdStartWuName(name, branch) ?? "(name from branch)";
-    if (!(await confirmStep(`Cold-start work unit "${previewName}" on branch ${branch} in this worktree?`))) {
+    const prompt = onProtectedBase
+      ? `Protected base '${branch}' — cut plan/${previewName} and cold-start "${previewName}" onto it?`
+      : `Cold-start work unit "${previewName}" on branch ${branch} in this worktree?`;
+    if (!(await confirmStep(prompt))) {
       p.log.info("Cold-start cancelled.");
       return;
     }
@@ -391,7 +402,7 @@ async function coldStart(
   const r = outcome.value;
   const lines = [
     `Work unit: ${r.wuName}`,
-    `Branch:    ${r.branch}`,
+    `Branch:    ${r.branch}${r.cutFromBase ? ` (cut off protected base ${r.cutFromBase})` : ""}`,
     `Meta:      .arc/active/meta-${r.wuName}.md`,
   ];
   if (r.origin) lines.push(`Origin:    ${r.origin}`);

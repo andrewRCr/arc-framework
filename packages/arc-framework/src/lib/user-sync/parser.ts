@@ -27,6 +27,16 @@ const H3_KEY = /^###\s+(?:`?\[[ xX]\]`?\s+)?\*\*(.+?)\*\*/;
 /** HTML comment block — guidance and shape examples that are not entries. */
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
 
+/**
+ * Extract the bold title of a `USER-INBOX` H3 managed-entry heading line, or
+ * `null` when the line is not such a heading. The single source for the H3
+ * entry-title shape — the targeted entry remover keys on it.
+ */
+export function matchInboxEntryTitle(line: string): string | null {
+  const match = line.match(H3_KEY);
+  return match ? (match[1] ?? "").trim() : null;
+}
+
 /** Resolve a filename to its registered parser shape, or `null` when unknown. */
 export function shapeForFile(filename: string): CrossWuShape | null {
   const base = filename.split("/").pop() ?? filename;

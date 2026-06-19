@@ -234,11 +234,12 @@ Documents).
 3. **Update planning-state meta file** (when present): If `.arc/active/meta-{name}.md` exists with `**State:**
    Planning` (planning-branch sessions), repoint `Design` to the finalized spec — `arc repoint-design
    spec-finalized` rewrites `Design: draft-{name}.md → spec-{name}.md` (the no-draft path repoints `[none] →
-   spec-{name}.md`). Then persist the resolved `**Class:**` (live from the entry read) and advance the stage
-   pointer to the next sub-stage: `arc set-stage generate-tasks --advance` rewrites `Current Workflow: create-spec →
-   generate-tasks` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step,
-   so a fresh session after handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under
-   non-planning-branch flows).
+   spec-{name}.md`). Persist the resolved `**Class:**` (live from the entry read) — `arc finalize create-spec
+   --class <Class>` writes it through the field model. Then advance the stage pointer to the next sub-stage:
+   `arc set-stage generate-tasks --advance` rewrites `Current Workflow: create-spec → generate-tasks` and resets
+   `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step, so a fresh session after
+   handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under non-planning-branch
+   flows).
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.

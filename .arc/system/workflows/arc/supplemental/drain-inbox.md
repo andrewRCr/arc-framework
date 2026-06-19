@@ -115,8 +115,9 @@ boundaries (there are no routing PRs to chunk). Surface the chunk plan at the in
 
 ### 5. Route — write to homes
 
-Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies); the
-removal rides the same write.
+Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies):
+`arc user inbox-remove <slug>` drops it (matched on the entry title in v1; idempotent), paired with each routing
+write.
 
 - **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
   into that stub's `draft-*` / `notes-*` in one of **two integration modes**:
@@ -148,8 +149,9 @@ removal rides the same write.
 [§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
 
 - **Fully protected** — **relocate first, then write.** Before any routing write, cut the short-lived
-  grooming branch `chore/<slug>` off the configured base branch, using the same write-context primitive
-  run-errand's Launch relocation uses — `arc housekeep check --json` resolves `baseBranch` +
+  grooming branch `chore/<slug>` off the configured base branch with `arc errand cut <slug>` (no-clobber),
+  resolving the write target with the same write-context primitive run-errand's Launch relocation uses —
+  `arc housekeep check --json` resolves `baseBranch` +
   `primaryWorktreePath` (see [run-errand][run-errand] § Launch step 3). The base context the precondition
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the

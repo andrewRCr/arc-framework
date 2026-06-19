@@ -58,9 +58,10 @@ base-derived branch — so the errand never executes from an unrelated work unit
    `primaryWorktreePath` (the `verdict` is the housekeep guard's concern, not the errand's). Then relocate per
    protection mode ([§ Branch Protection Modes][branch-modes]):
 
-   - **Full protection** — cut `chore/<slug>` off the configured base branch. Where worktree spawning is
-     available, spawn an **ephemeral worktree** for the branch so the errand runs isolated from the launching
-     worktree; otherwise cut the branch in the primary worktree's base checkout. `<slug>` is branch-safe
+   - **Full protection** — cut `chore/<slug>` off the configured base branch with `arc errand cut <slug>`
+     (idempotent — no-clobber if it already exists). Then occupy it: where worktree spawning is available,
+     spawn an **ephemeral worktree** on the branch so the errand runs isolated from the launching worktree;
+     otherwise switch to it in the primary worktree's base checkout. `<slug>` is branch-safe
      (lowercase, digits, hyphens) and doubles as the merge key.
    - **Partial protection** — no branch: target the primary worktree's base checkout directly. The errand
      lands as a direct base-branch commit (a documented off-work-unit maintenance exception).
@@ -174,9 +175,10 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
   merged-and-deleted `origin/chore/<slug>` ref doesn't linger and surface as phantom in-flight. Targeted here
   because the slug is known in-session; session-init's errand sweep carries the broad backstop for errands
   whose PR merged out-of-session.
-- **Remove the slug-matched originating `USER-INBOX` entry** — this is the single point where that removal is
-  ensured. An errand that started but never completed keeps its entry, so the intent is never lost;
-  session-init's in-flight sweep backstops an abandoned branch.
+- **Drop the originating `USER-INBOX` entry** — `arc user inbox-remove <slug>` (matched on the entry title in
+  v1; idempotent — a no-op when already gone). This is the single point where that removal is ensured. An errand
+  that started but never completed keeps its entry, so the intent is never lost; session-init's in-flight sweep
+  backstops an abandoned branch.
 
 **Unattended completion (auto-merge lane).** When the merge lands unattended — after the session has moved on or
 ended — these steps do not fire here in-session. They are replayed from base context by the

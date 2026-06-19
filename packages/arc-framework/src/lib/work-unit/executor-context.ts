@@ -31,15 +31,18 @@
  * @module
  */
 
-import { readdir } from "node:fs/promises";
+import { readdir, rmdir } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 
 import {
   parseMetaRecord,
   setMetaBulletFields,
   setMetaBranch,
+  setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
+  setMetaFinalizeFields,
+  reconcileMetaFields,
 } from "../active/meta-reader.js";
 import { readActiveMetaCandidates } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
@@ -160,7 +163,14 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       ),
     relocateArtifacts: (params) =>
       relocateArtifacts(
-        { exec, fs: { readdir: (p) => readdir(at(p)), mkdir: (p, o) => io.mkdir(at(p), o) } },
+        {
+          exec,
+          fs: {
+            readdir: (p) => readdir(at(p)),
+            mkdir: (p, o) => io.mkdir(at(p), o),
+            rmdir: (p) => rmdir(at(p)),
+          },
+        },
         params,
       ),
     reconcileBranch: (op) => reconcileBranch({ exec }, op),
@@ -177,6 +187,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
       await io.writeFile(at(metaPath), setMetaBranch(content, branch));
     },
 
+    writeClassField: async (metaPath, value) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaClass(content, value));
+    },
+
     writeCurrentWorkflowField: async (metaPath, stage) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaCurrentWorkflow(content, stage));
@@ -185,6 +200,23 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
     writeDesignField: async (metaPath, value) => {
       const content = await io.readFile(at(metaPath));
       await io.writeFile(at(metaPath), setMetaDesign(content, value));
+    },
+
+    writeFinalizeFields: async (metaPath, facts) => {
+      const content = await io.readFile(at(metaPath));
+      await io.writeFile(at(metaPath), setMetaFinalizeFields(content, facts));
+    },
+
+    // Forward-reconcile the relocated meta against the field model, then stage the
+    // rewrite through the same git seam the executor's content legs stage with — a
+    // no-op (no write, no stage) when every managed bullet is already present.
+    reconcileMeta: async (metaPath, overrides) => {
+      const before = await io.readFile(at(metaPath));
+      const { content, backfilled } = reconcileMetaFields(before, overrides);
+      if (backfilled.length === 0) return [];
+      await io.writeFile(at(metaPath), content);
+      await exec("git", ["add", at(metaPath)]);
+      return backfilled;
     },
 
     // Stage the content legs' meta rewrite through the same git seam

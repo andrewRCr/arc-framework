@@ -80,6 +80,12 @@ export interface ScaffoldWorktreeParams {
   initialState?: string;
   /** Meta `Next Action` seed; defaults to the begin-current-workflow sentinel (no workflow pointer). */
   nextAction?: string;
+  /**
+   * Meta `Last Completed` seed; defaults to the `[none]` sentinel. Supplied by a
+   * non-fresh scaffold (the errand→WU promotion ceremony seeds
+   * `Errand promoted to work unit`); a fresh planning scaffold leaves it `[none]`.
+   */
+  lastCompleted?: string;
   /** Parsed external reference (issue / URL) → meta `Origin`. Cold-start spec-input. */
   origin?: string;
   /** Parsed ARC-owned artifact (spec / plan-doc) → meta `Design`. Cold-start spec-input. */
@@ -128,6 +134,7 @@ export async function scaffoldIntoWorktree(
     "Current Workflow": state === PLANNING_LIFE_PHASE.initialState ? PLANNING_ENTRY_STAGE : NO_CURRENT_WORKFLOW,
     "Next Action": params.nextAction ?? DEFAULT_NEXT_ACTION,
   };
+  if (params.lastCompleted !== undefined) overrides["Last Completed"] = params.lastCompleted;
   if (params.origin !== undefined) overrides.Origin = params.origin;
   if (params.design !== undefined) overrides.Design = params.design;
 

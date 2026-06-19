@@ -49,13 +49,22 @@ Verify the integration context:
 - Currently on the WU branch (per [`branch-format`][branch-format])
 - `active/meta-{name}.md` exists and shows `**State:** Active`
 
-Edit `active/meta-{name}.md`: `**State:** Active` → `**State:** Integrating`. The `Integrating` state covers PR
-open through review-response.
+Compose the integration inputs (judgment — never fabricated):
 
-Regenerate `backlog/ROADMAP.md` in the same commit so the In Flight table's rendered `State` column reflects
-`Integrating`.
+- last completed — the WU's final completed work (the last `[x]` task / phase in `tasks-{name}.md`)
+- next action — the integration pointer (`open the PR`)
 
-Stage the meta and ROADMAP edits.
+```bash
+arc integrate {name} --last-completed "{last completed}" --action "{next action}"
+```
+
+The executor fires the full `integrate` edge: flips `**State:** Active → Integrating`, writes `**Last Completed:**`
+/ `**Next Action:**`, resets `**Next Task:** [none]`, and stages the meta. `{name}` defaults to the current
+worktree's WU. The `Integrating` state covers PR open through review-response.
+
+Hand-render `backlog/ROADMAP.md` into the same commit per the command's interim ROADMAP advisory, so the In Flight
+table's rendered `State` column reflects `Integrating` (interim until `roadmap-tooling` ships the renderer). Stage
+the ROADMAP edit alongside the meta.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit` (subject `chore(arc):` per § Commit
@@ -180,18 +189,22 @@ infrastructure). Independent of the PROJECT-PRD check — scope distinction is t
 
 ### 8) Compose Release Notes Entry — uncommitted
 
-Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase Release Notes section per
-[`template-meta.md`][template-meta]'s schema, reflecting final reviewed scope. Omit the section entirely when
-nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
+Compose a user-facing entry into `active/meta-{name}.md`'s archive-phase `## Release Notes Entry` section,
+reflecting final reviewed scope: a one-paragraph user-facing summary plus categorized lines per the Keep a
+Changelog set — **Added**, **Changed**, **Removed**, **Fixed**, **Infrastructure**, **Deprecated**, **Security**
+(omit any empty category; keep that order), with an optional **Breaking Changes** callout flagging
+stability-contract breaks. Neutral voice, no internal work-unit names or roadmap pointers. Omit the section
+entirely when nothing user-facing ships (a mechanical or internal-only change); otherwise size it to what shipped.
 
 Leave the edit uncommitted — Step 10's interlock surfaces it alongside the rest of the composition for review
 before the commit fires.
 
 ### 9) Compose Completion Notes — uncommitted
 
-Compose narrative Completion Notes into the meta file's archive-phase Completion Notes section per
-[`template-meta.md`][template-meta]'s schema, sized to what there is to say. Always present — not omittable,
-unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
+Compose narrative Completion Notes into the meta file's archive-phase `## Completion Notes` section — a
+synthesis of design intent, what actually shipped, key deviations / supersessions from plan, and verification
+outcome; it complements, never repeats, the task list's verbatim record and git history. Sized to what there is
+to say. Always present — not omittable, unlike Step 8's Release Notes. Same uncommitted-surfacing pattern as Step 8.
 
 ### 10) Commit completion content
 
@@ -229,7 +242,8 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
 
 - **`with-integration`** (default): Invoke [`archive-work-unit.md`][archive-work-unit] inline. Its `arc archive`
   sweep handles state flip `Integrating → Shipped`, the relocation `active/meta-{name}.md` →
-  `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, and ROADMAP regen per its
+  `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, the `PR URL` / `Completed`
+  finalize-fact write (sourcing the PR URL from this ceremony's open PR), and ROADMAP regen per its
   cadence-invariant body — the **mergeable** ship, which rides this PR. Physical branch/worktree teardown is
   **not** archive's: it is Step 13's post-merge cleanup below. Returns; resume at Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
@@ -276,57 +290,26 @@ the owning caller of `arc user close` — a merge that landed while no session a
 
 ### 13) Post-merge worktree cleanup
 
-After `arc user close`, clean up the WU's worktree under the pre-merge `integration-interlock` approval — no
-second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred:
-it runs post-merge, since a merged branch can only be reaped once its PR has landed. Dispatch by current worktree
-identity. Every teardown action below is **presence-guarded**:
-it no-ops when its target is already gone (worktree already removed, branch already deleted), so a resume that
-re-enters here after a partial teardown skips what's done rather than erroring.
+After `arc user close`, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no
+second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred: it
+runs post-merge, since a merged branch can only be reaped once its PR has landed. The verb resolves the shipped
+WU's branch and composes the cleanup deterministically, presence-guarded throughout — a resume that re-enters
+after a partial teardown skips what is already done:
 
-**Primary worktree (in-place WU):** the WU branch lived directly in the main worktree — no distinct worktree
-exists to remove, but the merged branch still needs reaping, symmetric with the linked arm and
-`decompose-work-unit.md`'s park-exit block. Switch off the merged branch, then delete it locally and prune the
-stale remote-tracking ref:
+- reaps the merged branch with a **merged-safe** delete, containment-checked against the upstream — so squash and
+  rebase ships are handled where a reachability-from-base delete would refuse, and never a force delete;
+- removes the WU's worktree when one is distinct from the primary (the in-place arm has none to remove),
+  clean-checked and never `--force`;
+- prunes the stale remote-tracking ref the delete-on-merge left behind.
 
-```bash
-git switch <base-branch>
-git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
-git fetch --prune origin   # remote branch removed by delete-on-merge — prune its stale tracking ref
-```
-
-Lowercase `-d` keeps the delete merged-only-safe and the presence guard makes it re-runnable; there is no
-`push --delete` — delete-on-merge typically removed the remote branch already, so prune the local tracking ref
-rather than re-deleting it.
+A dirty worktree is refused (no `--force` escape): surface the state and resolve it before re-running. When the
+teardown removed the linked worktree the session occupied, the agent's prior cwd no longer exists — **the session
+terminates here**: start a fresh session in another worktree (typically the primary), where `## Next step` does
+not apply on this arm.
 
 Then run the [same-session finalize pass][session-handoff-finalize] as an opportunistic early catch — a no-op
 unless this session opened another PR that has merged outside an attended ceremony (a concurrent WU, or this one
 on the auto-merge lane). The workflow continues to `## Next step` normally.
-
-**Linked worktree (spawned WU):** consult `decideWorktreeCleanup` against the current worktree, then dispatch
-on the resolved state:
-
-- **`removable`** — the worktree is ARC-marked, clean, and merged. Execute the cascade from another worktree
-  (typically main), each step guarded on presence so a re-run after a partial teardown is safe:
-
-    ```bash
-    cd <main-worktree-path>
-    git worktree list --porcelain | grep -q '<wu-worktree-path>' && git worktree remove <wu-worktree-path>
-    git show-ref --quiet refs/heads/<wu-branch> && git branch -d <wu-branch>
-    ```
-
-    Lowercase `-d` keeps the branch delete merged-only-safe — the presence guard suppresses it only when the
-    branch is already gone, never when it is unmerged, so the safety check stays intact.
-
-    **Session terminates here.** The WU shipped, the worktree is removed, and the agent's prior cwd no longer
-    exists. Start a fresh session in another worktree (typically main). `## Next step` does not apply on this
-    arm.
-
-- **`blocked`** — uncommitted edits or unmerged work in the worktree. Surface the state; do not auto-remove.
-  The next time a session opens in the main worktree, the stale-worktree check surfaces the lingering
-  worktree with an interlock-gated removal offer.
-
-- **`external`** — the worktree carries no ARC ownership marker (externally-spawned). Note the
-  externally-managed status; the operator's tool handles cleanup.
 
 ---
 
@@ -351,7 +334,6 @@ on the resolved state:
 [review-triage]: ../../../methods/review-triage.md
 [commit-footer]: ../../../methods/commit-footer.md
 [template-pull-request]: ../../../../reference/templates/arc/work-unit/template-pull-request.md
-[template-meta]: ../../../../reference/templates/arc/work-unit/template-meta.md
 [archive-work-unit]: archive-work-unit.md
 [clean]: ../supplemental/clean-work-unit.md
 [session-handoff-finalize]: ../session-lifecycle/session-handoff.md#same-session-finalize-pass

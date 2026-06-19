@@ -18,6 +18,7 @@ import * as p from "@clack/prompts";
 import { runActiveInFlight } from "../commands/active.js";
 import { detectForeignArtifactOverlap, projectInFlightToOverlapRoster } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
+import { cutErrandBranch } from "../lib/session-init/errand-branch-cut.js";
 import { gitExec } from "../lib/io-context.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
@@ -86,6 +87,42 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   if (!reachable && !localOnly) {
     p.log.warn("Remote unreachable — checked local refs only; work in flight on another machine may be missed.");
   }
+  p.outro("Done.");
+}
+
+/**
+ * Cut the `chore/<slug>` errand branch off the configured `branch.base`.
+ *
+ * The create-side launch mechanic — the workflows (run-errand Launch, the
+ * session-init errand cold-entry, drain-inbox's grooming-branch relocation)
+ * invoke it instead of hand-running `git branch`. Idempotent: an existing
+ * branch of that name is left as-is (no-clobber). Occupying the branch (a
+ * worktree or an in-place switch) stays the caller's protection-mode dispatch.
+ */
+export async function handleErrandCut(slug: string): Promise<void> {
+  p.intro("arc errand cut");
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const { settings } = await readConfigSettings(cwd);
+  const base = settings["branch.base"].trim();
+  if (base === "") {
+    p.log.error("No branch.base configured — cannot resolve the base to cut from.");
+    process.exitCode = 1;
+    return;
+  }
+
+  try {
+    const result = await cutErrandBranch({ exec: gitExec }, { slug, base });
+    if (result.created) p.log.success(`Cut ${result.branch} off ${base}.`);
+    else p.log.info(`${result.branch} already exists; left as-is (no-clobber).`);
+  } catch (err) {
+    p.log.error(`Could not cut the errand branch: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
+
   p.outro("Done.");
 }
 

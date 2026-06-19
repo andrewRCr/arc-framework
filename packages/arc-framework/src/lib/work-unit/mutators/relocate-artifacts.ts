@@ -20,7 +20,7 @@
  * @module
  */
 
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import type { GitExec } from "../../git/exec.js";
 import { ensureDir, type MkdirFn } from "../../template/files.js";
@@ -31,7 +31,19 @@ export interface RelocateArtifactsFs {
   readdir(path: string): Promise<string[]>;
   /** Create a directory and any parents (matches `fs.mkdir(p, { recursive })`). */
   mkdir: MkdirFn;
+  /** Remove an emptied directory (matches `fs.rmdir(p)`); best-effort. */
+  rmdir(path: string): Promise<void>;
 }
+
+/**
+ * The backlog tiers whose member / cohort subdirs a relocate prunes when emptied.
+ * A `git mv` of the last member out of `backlog/planned/<cohort>/<member>/` leaves
+ * the subdir (and, when it was the last, its cohort parent) empty; the prune walks
+ * up removing each empty level while it stays *strictly below* one of these roots,
+ * so the tier root itself — and any source outside the backlog tree (`active/` on
+ * the archive sweep) — is never removed.
+ */
+const PRUNE_BOUNDARY_PREFIXES = [".arc/backlog/planned/", ".arc/backlog/provisional/"] as const;
 
 /** Dependencies for {@link relocateArtifacts}. */
 export interface RelocateArtifactsContext {
@@ -96,5 +108,38 @@ export async function relocateArtifacts(
   for (const name of names) {
     await ctx.exec("git", ["mv", join(fromDir, name), join(toDir, name)]);
   }
+
+  await pruneEmptyBacklogSource(ctx, fromDir);
   return { moved: names };
+}
+
+/**
+ * Prune the now-emptied backlog source subdir(s) after the move — the
+ * relocate-mutator counterpart to the `promote` / `demote` / `abandon` verb-level
+ * prune, so the graduate path (which runs through this mutator, not a verb) no
+ * longer leaves an orphaned member / cohort subdir behind. Walks up from `fromDir`
+ * removing each empty level while it stays strictly below a {@link
+ * PRUNE_BOUNDARY_PREFIXES} root, stopping at the first occupied dir (a sibling
+ * member, the `cohort-*.md` doc) or the tier root. Best-effort and bounded to the
+ * backlog tree: an `active/` source (the archive sweep) matches no prefix, so the
+ * prune is a no-op there. Git does not track empty dirs, so this is a local-cosmetic
+ * cleanup, never a staged change.
+ */
+async function pruneEmptyBacklogSource(ctx: RelocateArtifactsContext, fromDir: string): Promise<void> {
+  let dir = fromDir.split("\\").join("/");
+  while (PRUNE_BOUNDARY_PREFIXES.some((prefix) => dir.startsWith(prefix))) {
+    let remaining: string[];
+    try {
+      remaining = await ctx.fs.readdir(dir);
+    } catch {
+      break; // already gone — nothing to prune above it.
+    }
+    if (remaining.length > 0) break; // a sibling member / the cohort doc remains.
+    try {
+      await ctx.fs.rmdir(dir);
+    } catch {
+      break; // best-effort — leave the rest to the operator.
+    }
+    dir = posix.dirname(dir);
+  }
 }

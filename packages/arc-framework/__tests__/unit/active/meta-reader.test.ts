@@ -20,8 +20,11 @@ import {
   renderMetaFile,
   setMetaBulletFields,
   setMetaBranch,
+  setMetaClass,
   setMetaCurrentWorkflow,
   setMetaDesign,
+  setMetaFinalizeFields,
+  reconcileMetaFields,
   META_FIELDS,
   type MetaFieldOverrides,
 } from "../../../src/lib/active/meta-reader.js";
@@ -556,6 +559,243 @@ describe("renderMetaFile — bullet groups", () => {
   });
 });
 
+describe("renderMetaFile / parseMetaRecord — finalize fields (`PR URL` / `Completed`)", () => {
+  it("emits the finalize group at its defaults, after Next Action and before the trailing rule", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES);
+    // A trailing bullet group of its own — blank-line separated from the directive group.
+    expect(md).toContain(
+      "- **Next Action:** Begin planning — draft the spec\n\n- **PR URL:** [none]\n- **Completed:** [none]",
+    );
+    // Defaults render bare (sentinels bypass the value-class formatting).
+    expect(md).not.toContain("`[none]`");
+    // Still the last visible block before the rule.
+    expect(md).toContain("- **Completed:** [none]\n\n---\n");
+  });
+
+  it("formats a real PR URL as a clickable autolink and the date bare", () => {
+    const md = renderMetaFile("foo", {
+      ...SPAWN_OVERRIDES,
+      "PR URL": "https://github.com/x/y/pull/1",
+      Completed: "2026-06-18",
+    });
+    expect(md).toContain("- **PR URL:** <https://github.com/x/y/pull/1>");
+    expect(md).not.toContain("`https://github.com/x/y/pull/1`"); // not a code span
+    expect(md).toContain("- **Completed:** 2026-06-18");
+  });
+
+  it("round-trips both finalize fields through render and parse", () => {
+    const record = parseMetaRecord(
+      renderMetaFile("foo", {
+        ...SPAWN_OVERRIDES,
+        "PR URL": "https://github.com/x/y/pull/1",
+        Completed: "2026-06-18",
+      }),
+    );
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/1"); // backticks stripped
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("recovers the defaults as the `[none]` sentinel", () => {
+    const record = parseMetaRecord(renderMetaFile("foo", SPAWN_OVERRIDES));
+    expect(record["PR URL"]).toBe("[none]");
+    expect(record.Completed).toBe("[none]");
+  });
+});
+
+describe("`url` value class — clickable locators (`Origin` / `PR URL`)", () => {
+  it("renders an http(s) URL as a clickable autolink, not a code span", () => {
+    const md = renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" });
+    expect(md).toContain("- **Origin:** <https://tracker.example/issue/42>");
+    expect(md).not.toContain("`https://tracker.example/issue/42`");
+  });
+
+  it("falls back to a backticked identifier for a non-URL reference", () => {
+    const md = renderMetaFile("foo", { Origin: "tracker-123" });
+    expect(md).toContain("- **Origin:** `tracker-123`");
+  });
+
+  it("renders the `[internal]` / `[none]` sentinels bare — no autolink, no backticks", () => {
+    const md = renderMetaFile("foo", SPAWN_OVERRIDES); // Origin / PR URL at sentinel defaults
+    expect(md).toContain("- **Origin:** [internal]");
+    expect(md).toContain("- **PR URL:** [none]");
+    expect(md).not.toContain("<[internal]>");
+    expect(md).not.toContain("`[internal]`");
+  });
+
+  it("round-trips both the autolink and the backtick fallback through the parser", () => {
+    const urlRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "https://tracker.example/issue/42" }));
+    expect(urlRecord.Origin).toBe("https://tracker.example/issue/42"); // angle brackets stripped
+    const refRecord = parseMetaRecord(renderMetaFile("foo", { Origin: "tracker-123" }));
+    expect(refRecord.Origin).toBe("tracker-123"); // backticks stripped
+  });
+});
+
+describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
+  it("updates the finalize fields in place when the meta already carries the group", () => {
+    const before = renderMetaFile("foo", SPAWN_OVERRIDES); // already has PR URL / Completed at [none]
+    const after = setMetaFinalizeFields(before, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+    expect(after).toContain("- **PR URL:** <https://github.com/x/y/pull/9>");
+    expect(after).toContain("- **Completed:** 2026-06-18");
+    // No duplicate group — updated, not appended.
+    expect(after.match(/- \*\*PR URL:\*\*/g)).toHaveLength(1);
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("inserts the finalize group before the rule when an older meta lacks it", () => {
+    // A meta minted before the finalize fields existed — no PR URL / Completed bullets.
+    const legacy = [
+      "# Metadata: foo",
+      "",
+      "| **State** | **Owner** | **Branch** | **Class** | **Priority** |",
+      "| --------- | --------- | ---------- | --------- | ------------ |",
+      "| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |",
+      "",
+      "- **Next Action:** [none]",
+      "",
+      "---",
+      "",
+      "## Completion Notes",
+      "",
+      "Shipped.",
+      "",
+    ].join("\n");
+    const after = setMetaFinalizeFields(legacy, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+    // Inserted as its own group after Next Action, before the field block's `---`.
+    expect(after).toContain(
+      "- **Next Action:** [none]\n\n- **PR URL:** <https://github.com/x/y/pull/9>\n- **Completed:** 2026-06-18\n\n---",
+    );
+    // The archive-phase H2 below the rule is untouched.
+    expect(after).toContain("## Completion Notes\n\nShipped.");
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+  });
+
+  it("writes the `[none]` placeholder bare (the absent-PR-URL backfill path)", () => {
+    const after = setMetaFinalizeFields(renderMetaFile("foo", SPAWN_OVERRIDES), {
+      prUrl: "[none]",
+      completed: "2026-06-18",
+    });
+    expect(after).toContain("- **PR URL:** [none]");
+    expect(after).not.toContain("<[none]>");
+    expect(after).not.toContain("`[none]`");
+  });
+
+  it("normalizes a partial finalize group (one bullet present) instead of throwing", () => {
+    // A hand-edited meta where `Completed` was deleted but `PR URL` survived. The
+    // in-place rewrite would throw on the missing bullet; the write reconciles the
+    // absent bullet back in first, then updates both.
+    const full = renderMetaFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
+    const partial = full
+      .split("\n")
+      .filter((line) => !/^\s*- \*\*Completed:\*\*/.test(line))
+      .join("\n");
+    expect(partial).not.toContain("- **Completed:**");
+
+    const after = setMetaFinalizeFields(partial, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+    // Exactly one of each bullet — reconciled, not duplicated.
+    expect(after.match(/- \*\*PR URL:\*\*/g)).toHaveLength(1);
+    expect(after.match(/- \*\*Completed:\*\*/g)).toHaveLength(1);
+  });
+});
+
+describe("reconcileMetaFields — forward-reconcile against the field model", () => {
+  // A stub minted before later fields existed (or from the retired template): the
+  // core table + a partial bullet set, missing the reference / finalize groups and
+  // the `Current Workflow` pointer. Mirrors the graduate harness's relocated meta.
+  const partial = [
+    "# Metadata: foo",
+    "",
+    "| **State**  | **Owner** | **Branch** | **Class** | **Priority** |",
+    "| ---------- | --------- | ---------- | --------- | ------------ |",
+    "| `Planning` | `andrew`  | `plan/foo` | `Heavy`   | `P1`         |",
+    "",
+    "- **Cohort:** [none]",
+    "- **Depends On:** [none]",
+    "",
+    "- **Last Completed:** [none]",
+    "- **Next Task:** [none]",
+    "- **Blockers:** [none]",
+    "",
+    "- **Next Action:** Begin planning.",
+    "",
+    "---",
+    "",
+  ].join("\n");
+
+  it("backfills an absent bullet with the transition-appropriate override value", () => {
+    const { content, backfilled } = reconcileMetaFields(partial, { "Current Workflow": "draft-design" });
+
+    // The override wins for `Current Workflow`; the other absent bullets take their
+    // declared `META_FIELDS` defaults.
+    expect(content).toContain("- **Current Workflow:** `draft-design`");
+    expect(content).toContain("- **Origin:** [internal]");
+    expect(content).toContain("- **Design:** [none]");
+    expect(content).toContain("- **Task List:** [none]");
+    expect(content).toContain("- **PR URL:** [none]");
+    expect(content).toContain("- **Completed:** [none]");
+
+    expect(backfilled).toEqual([
+      "Origin",
+      "Design",
+      "Task List",
+      "Current Workflow",
+      "PR URL",
+      "Completed",
+    ]);
+
+    // Inserted at canonical positions: the reference group lands between the cohort
+    // group and the progress group; `Current Workflow` opens the progress group.
+    expect(content).toContain("- **Depends On:** [none]\n\n- **Origin:** [internal]");
+    expect(content).toContain("- **Current Workflow:** `draft-design`\n- **Last Completed:** [none]");
+
+    // Round-trips: the backfilled pointer reads back bare.
+    expect(parseMetaRecord(content)["Current Workflow"]).toBe("draft-design");
+  });
+
+  it("preserves present fields and the core table byte-stable across the reconcile", () => {
+    const { content } = reconcileMetaFields(partial, { "Current Workflow": "draft-design" });
+    // Present bullets keep their values; the core table and the H1 are untouched.
+    expect(content).toContain("- **Cohort:** [none]\n- **Depends On:** [none]");
+    expect(content).toContain("- **Next Action:** Begin planning.");
+    expect(content).toContain("| `Planning` | `andrew`  | `plan/foo` | `Heavy`   | `P1`         |");
+    expect(content.startsWith("# Metadata: foo\n")).toBe(true);
+  });
+
+  it("is a no-op on a complete meta — input returned unchanged, nothing backfilled", () => {
+    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const { content, backfilled } = reconcileMetaFields(complete, { "Current Workflow": "draft-design" });
+    expect(content).toBe(complete);
+    expect(backfilled).toEqual([]);
+  });
+
+  it("reports the backfilled count — one absent field backfills as one", () => {
+    // Strip just the `Current Workflow` bullet from an otherwise-complete meta.
+    const complete = renderMetaFile("foo", SPAWN_OVERRIDES);
+    const missingOne = complete
+      .split("\n")
+      .filter((line) => !/^- \*\*Current Workflow:\*\*/.test(line))
+      .join("\n");
+    const { backfilled } = reconcileMetaFields(missingOne, { "Current Workflow": "draft-design" });
+    expect(backfilled).toEqual(["Current Workflow"]);
+  });
+});
+
 describe("renderMetaFile — projection shape", () => {
   it("opens with the `# Metadata: {wu-name}` H1", () => {
     const md = renderMetaFile("foo", SPAWN_OVERRIDES);
@@ -723,6 +963,8 @@ describe("renderMetaFile ↔ parseMetaRecord — round-trip", () => {
       "Next Task": "Task 1.2 — next up (line ~20)",
       Blockers: "waiting on review",
       "Next Action": "Begin planning",
+      "PR URL": "https://github.com/x/y/pull/1",
+      Completed: "2026-06-18",
     };
     const record = parseMetaRecord(renderMetaFile("foo", overrides));
     for (const field of META_FIELDS) {
@@ -1066,6 +1308,57 @@ describe("setMetaBranch — in-place core-table Branch rewrite", () => {
   it("throws when the meta carries no core-block table", () => {
     const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
     expect(() => setMetaBranch(noTable, "plan/demo-wu")).toThrow(/core-block table/i);
+  });
+});
+
+describe("setMetaClass — in-place core-table Class rewrite", () => {
+  const META = `# Metadata: demo-wu
+
+| **State**  | **Owner** | **Branch**     | **Class** | **Priority** |
+|------------|-----------|----------------|-----------|--------------|
+| \`Planning\` | \`andrew\`  | \`plan/demo-wu\` | \`[TBD]\`   | \`P1\`         |
+
+- **Cohort:** \`demo-cohort\`
+
+- **Next Action:** Resolve the design.
+
+---
+`;
+
+  it("rewrites the Class cell, leaving every other core + bullet field byte-stable on parse", () => {
+    const written = setMetaClass(META, "Heavy");
+
+    const after = parseMetaRecord(written);
+    const before = parseMetaRecord(META);
+    expect(after.Class).toBe("Heavy");
+    for (const field of Object.keys(before) as (keyof typeof before)[]) {
+      if (field === "Class") continue;
+      expect(after[field]).toBe(before[field]);
+    }
+    // The prose below the core table is preserved verbatim.
+    const tail = (s: string): string => s.slice(s.indexOf("- **Cohort:**"));
+    expect(tail(written)).toBe(tail(META));
+    // The pre-classification sentinel is gone from the rewritten table.
+    expect(written).not.toContain("`[TBD]`");
+  });
+
+  it("keeps the core-table column alignment canonical (max(header, cell) widths)", () => {
+    // `Heavy` (7 chars backticked) is narrower than the `**Priority**` header, so
+    // every column stays header-driven; the rendered rows must remain pipe-aligned.
+    const written = setMetaClass(META, "Heavy");
+    const tableLines = written
+      .split("\n")
+      .filter((line) => line.startsWith("|"));
+    expect(tableLines).toHaveLength(3);
+    const widths = tableLines.map((line) => line.length);
+    // Header / separator / value rows are all the same rendered width when aligned.
+    expect(new Set(widths).size).toBe(1);
+    expect(written).toContain("| `Heavy`");
+  });
+
+  it("throws when the meta carries no core-block table", () => {
+    const noTable = "# Metadata: demo-wu\n\n- **Owner:** `andrew`\n\n---\n";
+    expect(() => setMetaClass(noTable, "Heavy")).toThrow(/core-block table/i);
   });
 });
 

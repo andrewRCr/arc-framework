@@ -27,7 +27,7 @@
 
 import { posix } from "node:path";
 
-import type { MetaFieldName } from "../active/meta-reader.js";
+import type { MetaFieldName, MetaFieldOverrides } from "../active/meta-reader.js";
 import type { GitExec } from "../git/exec.js";
 import {
   buildLifecycleIndex,
@@ -202,6 +202,16 @@ export interface ExecuteTransitionContext {
   writeBranchField: (metaPath: string, branch: string) => Promise<void>;
 
   /**
+   * Write the meta `Class` core-table field at `metaPath` (read → rewrite cell →
+   * write). The weight-axis sibling of {@link writeBranchField}: the planning
+   * ceremonies persist the resolved `Class` (`Light` / `Heavy` / `Novel`) at their
+   * finalize fire-points through this seam. Not a transition leg (no edge declares
+   * it) — the planning-finalize verb invokes it directly — so it reaches the executor
+   * as an optional seam; absent in contexts that never finalize planning.
+   */
+  writeClassField?: (metaPath: string, value: string) => Promise<void>;
+
+  /**
    * Write the meta `Current Workflow` bullet field at `metaPath` (read → rewrite
    * → write). The planning-stage-pointer sibling of {@link writeBranchField}:
    * `stage` is a planning-stage basename (`draft-design` / `create-spec` /
@@ -218,6 +228,34 @@ export interface ExecuteTransitionContext {
    * blind write.
    */
   writeDesignField: (metaPath: string, value: string) => Promise<void>;
+
+  /**
+   * Write the archive finalize facts (`PR URL` / `Completed`) to the meta at
+   * `metaPath` (read → rewrite → write), update-or-insert per
+   * `setMetaFinalizeFields`. The terminal sibling of {@link writeSoftFields}: not a
+   * transition leg (no edge declares it), it is the `archive` verb's post-relocate
+   * finalize write, so it reaches the executor as an optional seam the verb invokes
+   * directly. Absent in contexts that never archive.
+   */
+  writeFinalizeFields?: (
+    metaPath: string,
+    facts: { prUrl?: string; completed?: string },
+  ) => Promise<void>;
+
+  /**
+   * Forward-reconcile the meta at `metaPath` against `META_FIELDS` (read → reconcile
+   * → write → stage), backfilling any absent managed bullet with the supplied
+   * transition-appropriate `overrides` value (or the field default) and returning
+   * the backfilled field names — empty on a no-op (no write, no stage). The graduate
+   * arm's healing seam, generalizing {@link writeFinalizeFields}'s update-or-insert
+   * to the whole field set. Not a transition leg (no edge declares it), so it reaches
+   * the executor as an optional seam the arm invokes after the transition lands;
+   * absent in contexts that never graduate.
+   */
+  reconcileMeta?: (
+    metaPath: string,
+    overrides: MetaFieldOverrides,
+  ) => Promise<MetaFieldName[]>;
 
   /**
    * Stage the meta at `metaPath` after the content legs rewrite it. `set-phase`,
@@ -243,6 +281,15 @@ export interface ExecuteTransitionContext {
 
 /** The encoding legs, in their canonical fire order. */
 export type EncodingLeg = "setPhase" | "artifacts" | "reconcileWorktree" | "reconcileBranch";
+
+/**
+ * The post-side-effect meta writes, in their fire order — the finalize block that
+ * projects the meta `Branch` / `Current Workflow` fields, applies the soft-field
+ * disposition, and stages the rewritten meta. These run *after* the encoding legs
+ * and the declared side-effects have landed; a throw among them is forward-only
+ * recoverable (finish the write), distinct from a pre-side-effect leg throw.
+ */
+export type FinalizeWrite = "branchField" | "currentWorkflowField" | "softFields" | "stageMeta";
 
 /**
  * Canonical leg order. `setPhase` precedes `artifacts` so the meta is edited at
@@ -293,10 +340,26 @@ export type TransitionOutcome =
        * An encoding leg threw mid-bundle. The legs in `legsFired` landed; the
        * transition is recoverable from this report and was **not** silently
        * half-applied — no side-effects fired and no soft fields were written.
+       * Recovery is retry-whole: nothing downstream of the legs ran.
        */
       status: "encoding-failed";
       legsFired: EncodingLeg[];
       failedLeg: EncodingLeg;
+      message: string;
+    }
+  | {
+      /**
+       * A post-side-effect meta write threw — after the encoding legs *and* the
+       * declared side-effects already landed. Distinct from `encoding-failed`:
+       * recovery is forward-only (finish the failed write), not retry-whole, since
+       * re-running the transition would re-fire the side-effects in `sideEffectsFired`.
+       * `legsFired` and `sideEffectsFired` are the recovery context — what landed
+       * before `failedWrite` threw.
+       */
+      status: "finalize-failed";
+      legsFired: EncodingLeg[];
+      sideEffectsFired: SideEffectId[];
+      failedWrite: FinalizeWrite;
       message: string;
     };
 
@@ -362,8 +425,10 @@ export function softFieldsApply(record: TransitionRecord): boolean {
  * Execute one lifecycle transition: resolve, look up the legal edge, validate
  * guards + required inputs, fire the encoding legs, fire side-effects, apply the
  * soft-field disposition, and return the outcome (carrying the ephemeral
- * suggestion). Rejections and a mid-bundle encoding failure are reported as
- * discriminated outcomes rather than thrown, so the CLI surfaces them uniformly.
+ * suggestion). Rejections, a mid-bundle encoding failure (`encoding-failed`,
+ * retry-whole), and a post-side-effect finalize-write failure (`finalize-failed`,
+ * forward-only) are reported as discriminated outcomes rather than thrown, so the
+ * CLI surfaces them uniformly.
  *
  * @param ctx - The injected seams (pre-bound mutators, guard validators, side-effect handlers).
  * @param params - The verb, the target slug, and the caller-supplied inputs.
@@ -433,26 +498,48 @@ export async function executeTransition(
     sideEffectsFired.push(id);
   }
 
-  // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
-  const branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
+  // 7–8.5 Post-side-effect meta writes. These run only after the encoding legs
+  //   and the declared side-effects have landed, so a throw here is forward-only
+  //   recoverable (finish the failed write) — reported as `finalize-failed`,
+  //   distinct from the pre-side-effect `encoding-failed`. `failedWrite` tracks
+  //   the in-flight write so the report names which one threw.
+  let branchFieldWritten: string | null;
+  let currentWorkflowCleared: string | null;
+  let softFieldsWritten: MetaFieldName[];
+  let failedWrite: FinalizeWrite = "branchField";
+  try {
+    // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
+    branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
 
-  // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
-  const currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
+    // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
+    failedWrite = "currentWorkflowField";
+    currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
 
-  // 8. Apply the soft-field disposition (reset constants + supplied inputs).
-  const softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
+    // 8. Apply the soft-field disposition (reset constants + supplied inputs).
+    failedWrite = "softFields";
+    softFieldsWritten = await applySoftFields(ctx, record, metaPath, inputs);
 
-  // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
-  //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
-  //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
-  //     content and a commit ships the pre-rewrite state.
-  const wroteMeta =
-    legsFired.includes("setPhase") ||
-    branchFieldWritten !== null ||
-    currentWorkflowCleared !== null ||
-    softFieldsWritten.length > 0;
-  if (wroteMeta && metaPath !== null) {
-    await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    // 8.5 Stage the meta the content legs rewrote. `relocate-artifacts` stages its
+    //     `git mv`, but `set-phase` / branch-field / soft-field writes go through
+    //     the fs seam unstaged — without this a git-mv'd meta keeps stale indexed
+    //     content and a commit ships the pre-rewrite state.
+    failedWrite = "stageMeta";
+    const wroteMeta =
+      legsFired.includes("setPhase") ||
+      branchFieldWritten !== null ||
+      currentWorkflowCleared !== null ||
+      softFieldsWritten.length > 0;
+    if (wroteMeta && metaPath !== null) {
+      await ctx.stageMeta?.(effectiveMetaPath(record, metaPath, inputs));
+    }
+  } catch (err) {
+    return {
+      status: "finalize-failed",
+      legsFired,
+      sideEffectsFired,
+      failedWrite,
+      message: err instanceof Error ? err.message : String(err),
+    };
   }
 
   // 9. Surface the ephemeral suggestion (advisory; never persisted).

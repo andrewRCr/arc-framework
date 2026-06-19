@@ -140,6 +140,66 @@ describe("runStub — scaffolds the selected tier", () => {
   });
 });
 
+describe("runStub — cohort placement", () => {
+  it("places the member under the cohort tree and writes the Cohort field", async () => {
+    const { ctx, writes, mkdirs } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cohort: "lifecycle-state-machine" });
+
+    expect(result.status).toBe("scaffolded");
+    if (result.status !== "scaffolded") return;
+    expect(result.metaPath).toBe(".arc/backlog/planned/lifecycle-state-machine/foo/meta-foo.md");
+    expect(mkdirs).toContain("/repo/.arc/backlog/planned/lifecycle-state-machine/foo");
+    expect(writes[0]!.path).toBe("/repo/.arc/backlog/planned/lifecycle-state-machine/foo/meta-foo.md");
+    expect(writes[0]!.content).toContain("lifecycle-state-machine");
+  });
+
+  it("supports a nested cohort path within the segment cap", async () => {
+    const { ctx } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cohort: "parent/child" });
+
+    expect(result.status).toBe("scaffolded");
+    if (result.status !== "scaffolded") return;
+    expect(result.metaPath).toBe(".arc/backlog/planned/parent/child/foo/meta-foo.md");
+  });
+
+  it("still enforces the stub guards under --cohort (priority required)", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, cohort: "lifecycle-state-machine", priority: undefined });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/priority/i);
+    expect(writes).toEqual([]);
+  });
+
+  it("requires a planned commitment — a provisional cohort member is invisible to the resolver", async () => {
+    const { ctx, writes } = buildHarness();
+
+    const result = await runStub(ctx, { ...BASE, commitment: "provisional", cohort: "lifecycle-state-machine" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/cohort/i);
+    expect(writes).toEqual([]);
+  });
+
+  it("rejects an unsafe cohort path without scaffolding", async () => {
+    for (const cohort of ["../escape", "/abs"]) {
+      const { ctx, writes } = buildHarness();
+
+      const result = await runStub(ctx, { ...BASE, cohort });
+
+      expect(result.status).toBe("rejected");
+      if (result.status !== "rejected") continue;
+      expect(result.reason).toMatch(/cohort/i);
+      expect(writes).toEqual([]);
+    }
+  });
+});
+
 describe("runStub — never defaults (non-interactive safety)", () => {
   it("refuses rather than scaffolding a default provisional/P3 stub when judgment is absent", async () => {
     const { ctx, writes } = buildHarness();

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { join } from "node:path";
+import { join, posix } from "node:path";
 
 import {
   relocateArtifacts,
@@ -21,9 +21,10 @@ interface MoveCall {
 function buildCtx(
   fromDir: string,
   names: string[],
-): { ctx: RelocateArtifactsContext; mkdirs: string[]; moves: MoveCall[] } {
+): { ctx: RelocateArtifactsContext; mkdirs: string[]; moves: MoveCall[]; rmdirs: string[] } {
   const mkdirs: string[] = [];
   const moves: MoveCall[] = [];
+  const rmdirs: string[] = [];
   const ctx: RelocateArtifactsContext = {
     exec: async (cmd, args) => {
       if (cmd !== "git" || args[0] !== "mv") {
@@ -38,9 +39,56 @@ function buildCtx(
         mkdirs.push(path);
         return undefined;
       },
+      rmdir: async (path) => {
+        rmdirs.push(path);
+        return undefined;
+      },
     },
   };
-  return { ctx, mkdirs, moves };
+  return { ctx, mkdirs, moves, rmdirs };
+}
+
+/**
+ * A stateful {@link RelocateArtifactsContext} over an in-memory directory tree —
+ * `git mv` moves an entry between dirs and `rmdir` deletes a dir (and drops its
+ * name from the parent), so a `readdir` after the move reflects the emptied
+ * source. Records the dirs pruned, in prune order.
+ */
+function buildStatefulCtx(initial: Record<string, string[]>): {
+  ctx: RelocateArtifactsContext;
+  rmdirs: string[];
+} {
+  const dirs = new Map<string, Set<string>>(
+    Object.entries(initial).map(([d, names]) => [d, new Set(names)]),
+  );
+  const rmdirs: string[] = [];
+  const ctx: RelocateArtifactsContext = {
+    exec: async (cmd, args) => {
+      if (cmd !== "git" || args[0] !== "mv") throw new Error(`unexpected exec: ${cmd}`);
+      const from = args[1]!;
+      const to = args[2]!;
+      dirs.get(posix.dirname(from))?.delete(posix.basename(from));
+      const toDir = posix.dirname(to);
+      if (!dirs.has(toDir)) dirs.set(toDir, new Set());
+      dirs.get(toDir)!.add(posix.basename(to));
+      return { stdout: "" };
+    },
+    fs: {
+      readdir: async (dir) => {
+        const set = dirs.get(dir);
+        if (set === undefined) throw new Error(`ENOENT: ${dir}`);
+        return [...set];
+      },
+      mkdir: async () => undefined,
+      rmdir: async (dir) => {
+        dirs.delete(dir);
+        dirs.get(posix.dirname(dir))?.delete(posix.basename(dir));
+        rmdirs.push(dir);
+        return undefined;
+      },
+    },
+  };
+  return { ctx, rmdirs };
 }
 
 const SLUG = "demo-wu";
@@ -140,5 +188,63 @@ describe("relocateArtifacts", () => {
     expect(result.moved).toEqual([]);
     expect(mkdirs).toEqual([]);
     expect(moves).toEqual([]);
+  });
+});
+
+const COHORT_DIR = ".arc/backlog/planned/demo-cohort";
+const MEMBER_DIR = ".arc/backlog/planned/demo-cohort/demo-wu";
+
+describe("relocateArtifacts — emptied-source prune", () => {
+  it("rmdirs the emptied member subdir and the cohort parent when the last member graduates", async () => {
+    const { ctx, rmdirs } = buildStatefulCtx({
+      [MEMBER_DIR]: [`meta-${SLUG}.md`, `draft-${SLUG}.md`],
+      [COHORT_DIR]: ["demo-wu"], // only this member remains under the cohort
+      [ACTIVE_DIR]: [],
+    });
+
+    await relocateArtifacts(ctx, { slug: SLUG, fromDir: MEMBER_DIR, toDir: ACTIVE_DIR });
+
+    // Member subdir empties, then its cohort parent — pruned bottom-up; the tier
+    // root `.arc/backlog/planned/` is never removed.
+    expect(rmdirs).toEqual([MEMBER_DIR, COHORT_DIR]);
+  });
+
+  it("leaves a still-occupied cohort parent in place (prunes only the emptied member subdir)", async () => {
+    const { ctx, rmdirs } = buildStatefulCtx({
+      [MEMBER_DIR]: [`meta-${SLUG}.md`, `draft-${SLUG}.md`],
+      [COHORT_DIR]: ["demo-wu", "cohort-demo-cohort.md", "sibling-member"],
+      [ACTIVE_DIR]: [],
+    });
+
+    await relocateArtifacts(ctx, { slug: SLUG, fromDir: MEMBER_DIR, toDir: ACTIVE_DIR });
+
+    // The cohort doc + a sibling member keep the parent occupied — only the
+    // emptied member subdir is pruned.
+    expect(rmdirs).toEqual([MEMBER_DIR]);
+  });
+
+  it("prunes the WU subdir but never the `backlog/planned/` tier root (standalone WU)", async () => {
+    const STANDALONE = ".arc/backlog/planned/demo-wu";
+    const { ctx, rmdirs } = buildStatefulCtx({
+      [STANDALONE]: [`meta-${SLUG}.md`],
+      ".arc/backlog/planned": ["demo-wu"],
+      [ACTIVE_DIR]: [],
+    });
+
+    await relocateArtifacts(ctx, { slug: SLUG, fromDir: STANDALONE, toDir: ACTIVE_DIR });
+
+    expect(rmdirs).toEqual([STANDALONE]);
+  });
+
+  it("never prunes the source on an active → completed relocation (archive sweep)", async () => {
+    const { ctx, rmdirs } = buildStatefulCtx({
+      [ACTIVE_DIR]: [`meta-${SLUG}.md`, `meta-other-wu.md`],
+      [COMPLETED_DIR]: [],
+    });
+
+    await relocateArtifacts(ctx, { slug: SLUG, fromDir: ACTIVE_DIR, toDir: COMPLETED_DIR });
+
+    // `active/` is a tier root outside the backlog tree — the prune never fires.
+    expect(rmdirs).toEqual([]);
   });
 });

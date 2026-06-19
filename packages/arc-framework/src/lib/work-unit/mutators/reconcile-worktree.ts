@@ -14,7 +14,7 @@
  *       fresh-meta write and `runUserOpen` are *not* part of this leg — they are
  *       lifted to `scaffold` and the user-workspace side-effect respectively, so a
  *       graduate (which relocates an existing meta in) is not clobbered by a
- *       template-meta write. Branch creation rides this leg's `-b`.
+ *       fresh-meta scaffold write. Branch creation rides this leg's `-b`.
  *     - *in place* (`--here`): no new worktree — `git checkout [-b] <branch>` in
  *       the **current** worktree (`-b` to cut a fresh branch for graduate /
  *       create-new, plain checkout to re-attach an existing branch for resume). No

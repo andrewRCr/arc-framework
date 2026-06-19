@@ -181,6 +181,108 @@ describe("runColdStart — use-existing scaffolding", () => {
   });
 });
 
+describe("runColdStart — protected-base auto-cut (candidate J)", () => {
+  let worktree: string;
+  let calls: string[][];
+  let io: UserIOContext;
+
+  beforeEach(async () => {
+    worktree = await mkdtemp(join(tmpdir(), "arc-coldstart-protected-"));
+    const rec = recordingExec();
+    calls = rec.calls;
+    io = { ...createUserIOContext(), exec: rec.exec };
+  });
+
+  afterEach(async () => {
+    await rm(worktree, { recursive: true, force: true });
+  });
+
+  it("cuts plan/<name> off a protected base and scaffolds onto it, not refusing", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.branch).toBe("plan/widget");
+    expect(outcome.value.cutFromBase).toBe("main");
+    // The branch was cut in place off the protected base.
+    expect(calls).toContainEqual(["git", "switch", "-c", "plan/widget"]);
+    // The scaffolded meta records the new plan branch, not the protected base.
+    const record = parseMetaRecord(await io.readFile(join(worktree, ".arc", "active", "meta-widget.md")));
+    expect(record.Branch).toBe("plan/widget");
+  });
+
+  it("leaves a feature branch under full protection unchanged (no cut)", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+
+    const outcome = await runColdStart(ctx(io), {
+      worktreePath: worktree,
+      branch: "feat/widget",
+      identity: "andrew",
+    });
+
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.value.branch).toBe("feat/widget");
+    expect(outcome.value.cutFromBase).toBeUndefined();
+    expect(calls.some((c) => c[1] === "switch" && c[2] === "-c")).toBe(false);
+  });
+
+  it("rolls the auto-cut back when scaffolding fails, leaving no dangling plan branch", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+    const failIo: UserIOContext = { ...io, writeFile: async () => { throw new Error("EACCES: denied"); } };
+
+    const outcome = await runColdStart(ctx(failIo), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toMatch(/could not scaffold/i);
+    // Rollback: switch back to the base and delete the half-cut branch.
+    expect(calls).toContainEqual(["git", "switch", "main"]);
+    expect(calls).toContainEqual(["git", "branch", "-D", "plan/widget"]);
+  });
+
+  it("removes the orphaned meta when scaffolding fails after the meta is written", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+    // The meta write lands (call 1); the SESSION-NOTES seed write (call 2) throws —
+    // so a partial scaffold leaves an orphan `.arc/active/meta-widget.md` behind.
+    const realWrite = io.writeFile;
+    let writes = 0;
+    const failAfterMeta: UserIOContext = {
+      ...io,
+      writeFile: async (path, data) => {
+        writes += 1;
+        if (writes === 1) return realWrite(path, data);
+        throw new Error("EACCES: denied");
+      },
+    };
+
+    const outcome = await runColdStart(ctx(failAfterMeta), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    // git switch leaves untracked files, so the rollback scrubs the orphaned meta
+    // with a scoped pathspec — the next `arc start` won't see a phantom active WU.
+    expect(calls).toContainEqual(["git", "clean", "-f", "--", ".arc/active/meta-widget.md"]);
+  });
+});
+
 describe("runColdStart — spec-input classification (--from)", () => {
   let worktree: string;
   let io: UserIOContext;
@@ -309,22 +411,8 @@ describe("runColdStart — guards", () => {
     expect(calls.some((c) => c[0] === "git" && c[1] === "worktree" && c[2] === "add")).toBe(false);
   });
 
-  it("refuses to scaffold onto the protected base under full protection (reason names the branch)", async () => {
-    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
-
-    const outcome = await runColdStart(ctx(io), {
-      worktreePath: worktree,
-      branch: "main",
-      identity: "andrew",
-    });
-
-    expect(outcome.ok).toBe(false);
-    if (outcome.ok) return;
-    expect(outcome.reason).toMatch(/main/);
-    expect(outcome.reason).toMatch(/protect/i);
-    // The trunk stays clean — no meta minted.
-    expect(await pathExists(join(worktree, ".arc", "active", "meta-main.md"))).toBe(false);
-  });
+  // The protected base no longer bare-refuses — it auto-cuts `plan/<name>` (see
+  // "runColdStart — protected-base auto-cut (candidate J)" below).
 
   it("allows cold-start on the base branch under partial protection", async () => {
     await writeArcConfig(worktree, { "branch.protection": "partial", "branch.base": "main" });

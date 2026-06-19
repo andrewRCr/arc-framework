@@ -67,6 +67,14 @@ export interface ArchiveContext {
 export interface ArchiveParams {
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
   name: string;
+  /**
+   * The integration PR URL → meta `PR URL`. Optional: absent writes a `[none]`
+   * placeholder and surfaces a backfill warning (offline / resume / pre-PR), so
+   * the sweep never blocks on a URL it can't resolve.
+   */
+  prUrl?: string;
+  /** Completion date (`YYYY-MM-DD`) → meta `Completed`; defaults to the injected clock's day. */
+  completed?: string;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -86,6 +94,8 @@ export type ArchiveResult =
        * member, or `null` when the WU is standalone or members remain in flight.
        */
       cohortSwept: string | null;
+      /** Non-fatal advisories (e.g. the absent-`--pr-url` backfill notice). */
+      warnings: string[];
     };
 
 /**
@@ -102,7 +112,7 @@ export type ArchiveResult =
  * @returns A rejection or the completed sweep (with the computed destination).
  */
 export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Promise<ArchiveResult> {
-  const { name, suggestion } = params;
+  const { name, prUrl, completed, suggestion } = params;
   const { executor, fs, clock } = ctx;
 
   const sourceMetaPath = `${ACTIVE_DIR}/meta-${name}.md`;
@@ -123,6 +133,41 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   const outcome = await executeTransition(executor, { verb: "archive", slug: name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
+  const metaPath = `${destination.toDir}/meta-${name}.md`;
+
+  // Write the finalize facts to the relocated meta as managed fields (the
+  // structured replacement for the hand-appended post-integration prose block).
+  // `--pr-url` is optional: an absent URL writes a `[none]` placeholder and warns,
+  // so an offline / pre-PR / resumed ship still completes (backfill later). The
+  // completion date defaults to the clock's day — archive runs pre-merge, so the
+  // git merge timestamp isn't available and the ship day is the right default.
+  const warnings: string[] = [];
+  const resolvedPrUrl = prUrl ?? PR_URL_PLACEHOLDER;
+  if (prUrl === undefined) {
+    warnings.push(
+      `No \`--pr-url\` supplied — wrote a \`${PR_URL_PLACEHOLDER}\` placeholder; ` +
+        `set the \`PR URL\` field in the archived meta once the PR exists (archive can't retarget a shipped WU).`,
+    );
+  }
+  // The finalize-write seams are core archive side effects — never silently skipped
+  // (the `?.` no-op would lose the facts) and never escaping as an uncaught throw
+  // (every other archive failure returns a rejection). The relocation already
+  // landed, so a write failure surfaces as a rejection that names the partial state.
+  if (executor.writeFinalizeFields === undefined || executor.stageMeta === undefined) {
+    return { status: "rejected", reason: "`archive` finalize-write seams are not wired (internal error)." };
+  }
+  try {
+    await executor.writeFinalizeFields(metaPath, { prUrl: resolvedPrUrl, completed: completed ?? today(clock) });
+    await executor.stageMeta(metaPath);
+  } catch (err) {
+    return {
+      status: "rejected",
+      reason:
+        `archive relocated \`${name}\` but could not persist its finalize fields ` +
+        `(${err instanceof Error ? err.message : String(err)}) — set \`PR URL\` / \`Completed\` in the archived meta.`,
+    };
+  }
+
   // The member is now under `completed/`. Rebuild the index so the cohort-sweep
   // predicate reads the post-move state, then sweep the cohort doc if this was the
   // last member to ship.
@@ -133,7 +178,17 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
     sequence: destination.sequence,
   });
 
-  return { status: "archived", outcome, metaPath: `${destination.toDir}/meta-${name}.md`, destination, cohortSwept };
+  return { status: "archived", outcome, metaPath, destination, cohortSwept, warnings };
+}
+
+/** The placeholder `PR URL` written when `--pr-url` is absent — a bare sentinel, backfilled later. */
+const PR_URL_PLACEHOLDER = "[none]";
+
+/** The clock's day as a `YYYY-MM-DD` stamp, in local components (matching the quarter label). */
+function today(clock: Clock): string {
+  const d = clock();
+  const pad = (n: number): string => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /**

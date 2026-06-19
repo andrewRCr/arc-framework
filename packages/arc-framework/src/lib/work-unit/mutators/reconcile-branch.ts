@@ -8,9 +8,10 @@
  * leg keys on direction alone, never the protection mode.
  *
  * It owns the **standalone** branch operations: the `plan/ → <type>/` rotate at
- * `activate`, the preserve at `park@Active`, and the local + remote teardown at
- * `park@Planning` / pre-merge `abandon`. Branch *creation* is not a standalone op
- * here — `reconcile-worktree` owns branch birth in both placement modes (spawn via
+ * `activate`, the preserve at `park@Active`, the local + remote teardown at
+ * `park@Planning` / pre-merge `abandon`, and the merged-safe local delete the
+ * post-merge teardown verb uses. Branch *creation* is not a standalone op here —
+ * `reconcile-worktree` owns branch birth in both placement modes (spawn via
  * `git worktree add -b`, in-place via `git checkout -b`); `create` is a no-op in
  * this leg.
  *
@@ -39,7 +40,12 @@ export interface ReconcileBranchContext {
  * carries exactly the operands it needs:
  *
  * - `rename` — rotate `branch` → `toBranch` (the `plan/ → <type>/` activate flip).
- * - `delete` — tear down `branch` locally and on `remote` (default `origin`).
+ * - `delete` — force-tear down `branch` locally and on `remote` (default `origin`);
+ *   the park / pre-merge `abandon` path, where the branch is discarded outright.
+ * - `delete-merged` — a **local-only** merged-safe delete: remove `branch` only
+ *   when its tip is contained in its upstream (`remote`/`branch`), so the commits
+ *   are provably preserved on the remote. The post-merge teardown path; never
+ *   touches the remote ref (that is where the work is kept).
  * - `preserve` — leave the branch untouched (`park@Active` keeps the pushed
  *   branch as the durable shelf).
  * - `create` — a no-op here; `reconcile-worktree` creates the branch (spawn via
@@ -48,6 +54,7 @@ export interface ReconcileBranchContext {
 export type ReconcileBranchOp =
   | { mutation: "rename"; branch: string; toBranch: string }
   | { mutation: "delete"; branch: string; remote?: string }
+  | { mutation: "delete-merged"; branch: string; remote?: string }
   | { mutation: "preserve" }
   | { mutation: "create" };
 
@@ -57,8 +64,9 @@ export type ReconcileBranchOp =
  * Rotate renames locally (`git branch -m`); teardown force-deletes the local
  * branch (`git branch -D`) then best-effort deletes the remote ref — an unpushed
  * planning branch has no remote to delete, so that failure is swallowed while the
- * authoritative local teardown still lands. Preserve and create perform no git
- * operation.
+ * authoritative local teardown still lands. Merged-safe delete removes only the
+ * local branch, and only when its tip is contained in its upstream. Preserve and
+ * create perform no git operation.
  *
  * @param ctx - Injected git seam.
  * @param op - The branch mutation and its operands.
@@ -86,6 +94,29 @@ export async function reconcileBranch(
           (err as { stderr?: string }).stderr ?? (err instanceof Error ? err.message : String(err));
         if (!/remote ref does not exist|unable to delete/i.test(detail)) throw err;
       }
+      return;
+    }
+    case "delete-merged": {
+      const remote = op.remote ?? DEFAULT_REMOTE;
+      const upstream = `${remote}/${op.branch}`;
+      // Prove the upstream exists. A never-pushed branch has no upstream to
+      // contain it, so it can't be shown safe — refuse (no delete). The
+      // WU-lifecycle caller only tears down shipped, pushed branches.
+      try {
+        await ctx.exec("git", ["rev-parse", "--verify", "--quiet", upstream]);
+      } catch {
+        return;
+      }
+      // Containment check: commits on `branch` not reachable from its upstream.
+      // Empty output → the tip is fully contained → safe to delete regardless of
+      // merge strategy (squash / rebase / merge-commit all land the commits in
+      // the upstream). Non-empty → the branch is ahead; deleting would drop
+      // unpushed work, so refuse.
+      const { stdout } = await ctx.exec("git", ["rev-list", op.branch, `^${upstream}`]);
+      if (stdout.trim() !== "") return;
+      // Containment is proven, so force-delete: `-d` re-checks base-reachability,
+      // which false-negatives under squash / rebase merges (the bug this guards).
+      await ctx.exec("git", ["branch", "-D", op.branch]);
       return;
     }
     case "preserve":

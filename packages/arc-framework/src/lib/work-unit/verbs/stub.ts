@@ -23,6 +23,7 @@
 
 import { join } from "node:path";
 
+import { isSafeCohortPath, validateCohortPath } from "../../active/cohort-path.js";
 import { renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
 import {
@@ -67,6 +68,12 @@ export interface StubParams {
   design?: string;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
+  /**
+   * Cohort path to enrol the new member under → meta `Cohort` + a cohort-tree
+   * placement (`backlog/planned/<cohort>/<name>/`). Single member only; the
+   * batch cohort-tree scaffold is `decompose-matrix`'s.
+   */
+  cohort?: string;
 }
 
 /** The outcome of a `stub` attempt — a rejection reason, or the scaffolded meta path. */
@@ -107,8 +114,38 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
 
   const commitment = params.commitment;
   const priority = params.priority;
-  // Logical tier → physical destination: a per-WU subdir under the committed tier.
-  const toDir = `.arc/backlog/${commitment}/${params.name}`;
+
+  // `--cohort` enrols the member in a cohort tree. Cohorts live exclusively
+  // under `backlog/planned/` (the membership resolver scans only there), so a
+  // provisional cohort member would be invisible — require `planned` rather than
+  // silently override the supplied commitment. The path guard mirrors every
+  // other callsite that interpolates the field into a directory.
+  const cohort = params.cohort?.trim();
+  const hasCohort = cohort !== undefined && cohort !== "";
+  if (hasCohort) {
+    if (commitment !== "planned") {
+      return {
+        status: "rejected",
+        reason: "`stub --cohort` requires `--commitment planned` — cohort members are planned-tier.",
+      };
+    }
+    if (!isSafeCohortPath(cohort)) {
+      return {
+        status: "rejected",
+        reason: `\`stub --cohort\` rejects an unsafe cohort path "${cohort}" (no \`..\`, leading \`/\`, or backslash).`,
+      };
+    }
+    const shapeError = validateCohortPath(cohort);
+    if (shapeError !== null) {
+      return { status: "rejected", reason: `\`stub --cohort\`: ${shapeError}.` };
+    }
+  }
+
+  // Logical tier → physical destination: a per-WU subdir under the committed
+  // tier, nested in the cohort tree when `--cohort` enrols it.
+  const toDir = hasCohort
+    ? `.arc/backlog/${commitment}/${cohort}/${params.name}`
+    : `.arc/backlog/${commitment}/${params.name}`;
   const metaPath = `${toDir}/meta-${params.name}.md`;
 
   const scaffoldOrRemove: ExecuteTransitionContext["scaffoldOrRemove"] = async ({ disposition, slug }) => {
@@ -123,6 +160,7 @@ export async function runStub(ctx: StubContext, params: StubParams): Promise<Stu
     };
     if (params.origin !== undefined) overrides.Origin = params.origin;
     if (params.design !== undefined) overrides.Design = params.design;
+    if (hasCohort) overrides.Cohort = cohort;
 
     await ensureDir(join(ctx.executor.cwd, toDir), ctx.fs.mkdir);
     await ctx.fs.writeFile(join(ctx.executor.cwd, toDir, `meta-${slug}.md`), renderMetaFile(slug, overrides));

@@ -29,6 +29,8 @@
 import { basename } from "node:path";
 
 import { parseSpecInput } from "../lib/active/spec-input-parser.js";
+import type { MetaFieldName } from "../lib/active/meta-reader.js";
+import { PLANNING_WORKFLOWS } from "../lib/active/current-workflow-consistency.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
@@ -146,7 +148,16 @@ export type GraduateParams = GraduateSpawnParams | GraduateInPlaceParams;
 /** The outcome of a `graduate` attempt — a rejection, or the relocated meta path + branch. */
 export type GraduateResult =
   | { status: "rejected"; reason: string }
-  | { status: "graduated"; outcome: TransitionOutcome; metaPath: string; branch: string };
+  | {
+      status: "graduated";
+      outcome: TransitionOutcome;
+      metaPath: string;
+      branch: string;
+      /** Fields the post-relocate forward-reconcile backfilled; empty when the meta was complete. */
+      backfilled: MetaFieldName[];
+      /** The one-line "backfilled N field(s)" ceremony notice, or `null` on a no-op reconcile. */
+      notice: string | null;
+    };
 
 /**
  * Run the `graduate` arm of `start` (`init` Path A): relocate a backlog stub's
@@ -189,7 +200,19 @@ export async function runGraduate(
 
   const outcome = await executeTransition(ctx, { verb: "start", slug: params.name, inputs });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
-  return { status: "graduated", outcome, metaPath: `${ACTIVE_DIR}/meta-${params.name}.md`, branch };
+
+  // Heal the relocated meta against the code field model — a stub minted before a
+  // field existed graduates missing it. `Current Workflow` takes the planning-entry
+  // stage (not the template's `[none]`); every other absent field its declared
+  // default. Warn-and-backfill: the count surfaces as a ceremony notice.
+  const metaPath = `${ACTIVE_DIR}/meta-${params.name}.md`;
+  const backfilled =
+    (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
+  const notice =
+    backfilled.length > 0
+      ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`
+      : null;
+  return { status: "graduated", outcome, metaPath, branch, backfilled, notice };
 }
 
 /** Inputs for {@link runColdStart} — the ambient context the handler resolves. */
@@ -226,6 +249,12 @@ export interface ColdStartResult {
   design?: string;
   /** Spec input the parser left for assessment (no meta field set). */
   passthrough?: ColdStartPassthrough;
+  /**
+   * The protected base `plan/<name>` was auto-cut from, when the cold-start
+   * landed on `branch.base` under full protection. Absent on the ordinary
+   * feature-branch path. The caller surfaces it so the cut is visible.
+   */
+  cutFromBase?: string;
 }
 
 /** No-throw outcome — a refusal carries a reason instead of throwing. */
@@ -277,19 +306,14 @@ export async function runColdStart(
     };
   }
 
-  // Guard: never scaffold onto the protected base. Under `branch.protection:
-  // full`, direct work on the configured `branch.base` is refused — the same
-  // rule the release wrappers apply. Config-only, so it runs ahead of the
-  // active-WU scan; `partial` (the default) protects nothing.
+  // On a protected base under `branch.protection: full`, scaffolding directly
+  // onto `branch.base` is disallowed — but rather than bare-refusing, cut
+  // `plan/<name>` in place and scaffold onto it (the hand `git checkout -b`
+  // workaround made the on-label path). `partial` (the default) protects
+  // nothing. The cut is a side effect, so it is deferred until after the pure
+  // refusals below — a refusal must never leave a half-cut branch.
   const { settings } = await readConfigSettings(params.worktreePath);
-  if (isProtectedBranch(settings, params.branch)) {
-    return {
-      ok: false,
-      reason:
-        `cannot cold-start onto protected base '${params.branch}' under `
-        + "`branch.protection: full`; switch to a feature branch",
-    };
-  }
+  const protectedBase = isProtectedBranch(settings, params.branch);
 
   // Guard: cold-start is for a worktree with no ARC work unit. Refuse rather
   // than clobber an existing meta — the agent's dispatch decides resume vs.
@@ -329,10 +353,27 @@ export async function runColdStart(
     }
   }
 
+  // Protected-base auto-cut: bring up `plan/<name>` in place, then scaffold onto
+  // it. A scaffold failure below rolls this back so the worktree returns to its
+  // pre-call state (no dangling branch, base re-checked-out).
+  let branch = params.branch;
+  let cutFromBase: string | undefined;
+  if (protectedBase) {
+    const planBranch = `plan/${wuName}`;
+    try {
+      await ctx.io.exec("git", ["switch", "-c", planBranch], { cwd: params.worktreePath });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      return { ok: false, reason: `could not cut '${planBranch}' off protected base '${params.branch}': ${message}` };
+    }
+    branch = planBranch;
+    cutFromBase = params.branch;
+  }
+
   try {
     await scaffoldIntoWorktree(ctx, {
       worktreePath: params.worktreePath,
-      branch: params.branch,
+      branch,
       wuName,
       spawningIdentity: params.identity,
       createdByArc: false,
@@ -340,13 +381,32 @@ export async function runColdStart(
       design,
     });
   } catch (err) {
+    // Roll an auto-cut back so a scaffold failure leaves no dangling state — return
+    // the worktree to the protected base, delete the half-cut branch, and remove the
+    // meta the scaffold may have written before it threw. `git switch` leaves
+    // untracked files in place, so a lingering `.arc/active/meta-<name>.md` would
+    // read as a phantom active WU on the next `arc start`. Best-effort: the
+    // scaffold-failure refusal is the primary signal.
+    if (cutFromBase !== undefined) {
+      // Scoped pathspec — removes only the orphaned meta, never other untracked
+      // work. The SESSION-NOTES seed is gitignored (per-WU subdir) and benign: it
+      // doesn't drive active-WU detection and reconciles on the next user load.
+      const orphanMeta = `.arc/active/meta-${wuName}.md`;
+      try {
+        await ctx.io.exec("git", ["switch", cutFromBase], { cwd: params.worktreePath });
+        await ctx.io.exec("git", ["branch", "-D", branch], { cwd: params.worktreePath });
+        await ctx.io.exec("git", ["clean", "-f", "--", orphanMeta], { cwd: params.worktreePath });
+      } catch {
+        // Leave the partial state; the refusal below tells the caller to inspect.
+      }
+    }
     // Surface a scaffolding failure as a refusal so the no-throw contract holds
     // end to end (symmetric with runCreateNew's spawn guard).
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
-  return { ok: true, value: { worktreePath: params.worktreePath, branch: params.branch, wuName, origin, design, passthrough } };
+  return { ok: true, value: { worktreePath: params.worktreePath, branch, wuName, origin, design, passthrough, cutFromBase } };
 }
 
 /** Inputs for {@link runCreateNew} — the ambient context the handler resolves. */

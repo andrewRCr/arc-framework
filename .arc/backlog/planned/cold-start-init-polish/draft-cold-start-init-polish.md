@@ -30,8 +30,11 @@ WU init), so they stay together.
    the live run fell back to `meta-*.md (maintenance)`, which is semantically wrong. (If this facet's grammar fix
    is ever extracted, its home is the `commit-format` / `commit-footer` methods — **not** `naming-conventions`,
    which governs artifact naming, not footer grammar.)
-2. **`arc start --here` protected-base behavior.** It refuses on a protected base without auto-cutting or offering
-   the `plan/<name>` branch — the live workaround was a hand `git checkout -b` first.
+2. **`arc start --here` protected-base behavior → relocated to `lifecycle-mechanics-tail`** (its audit-inventory
+   candidate, 2026-06-18). The deterministic `start`-dispatch mechanic — auto-cut/offer the `plan/<name>` branch on
+   a protected base instead of refusing — is judgment-free and lands on the transition CLI surface that WU owns, so
+   it moved there rather than staying in this UX cluster. Not retained here; the cold-start path consumes the fixed
+   behavior.
 3. **`arc start` CLI ↔ `init-work-unit` ↔ `arc-plan` relationship, uncodified for cold-start.** Nothing routes
    "mint a WU" to a workflow; the cold-start entry is undefined as a sequence.
 4. **ROADMAP regen hand-rendered for the newly-active WU** (the `roadmap-tooling` gap — interim hand-render
@@ -44,8 +47,9 @@ codified classify-then-**mint** path — `run-errand`'s promote-to-WU only fires
 
 ## Positioning — cohort-adjacent companion, kept whole
 
-The facets brush several owners — the `arc start` / init-routing facets (2, 3) are `lifecycle-state-machine`
-territory (`lifecycle-transition-core`'s `start` dispatch, already shipped); the entrypoint facet touches
+The facets brush several owners — the init-routing facet (3) is `lifecycle-state-machine` territory
+(`lifecycle-transition-core`'s `start` dispatch, already shipped) and facet 2 has been relocated outright to
+`lifecycle-mechanics-tail`; the entrypoint facet touches
 `errand-lattice` (errand→WU promotion) and `out-of-wu-entry` (entry signals, a different cohort); facet 1 is
 commit-grammar; facet 4 is `roadmap-tooling`. The scope-split decision was to **not** splinter them across those
 homes — the cluster is incidental cold-start-init cleanup that reads as one coherent unit, and fanning it out

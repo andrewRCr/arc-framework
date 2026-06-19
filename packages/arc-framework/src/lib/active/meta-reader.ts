@@ -211,12 +211,15 @@ export type MetaRenderMode = "core-table" | "bullet";
  * is the proto-schema axis a later code-owned schema maps directly: `enum` →
  * a closed Capitalized token set, `identifier` → a single slug / filename /
  * branch, `identifier-list` → one or more comma-separated identifiers rendered
- * with each element individually backticked (`` `a`, `b` ``), `narrative` →
- * free prose. Bracket sentinels (`[none]` / `[internal]` / `[TBD]`) are a
- * cross-cutting form detected at render/parse time and are orthogonal to this
- * class — a field permits a sentinel when its `default` is one.
+ * with each element individually backticked (`` `a`, `b` ``), `url` → a
+ * navigable locator rendered as a clickable `<…>` autolink when it is an
+ * `http(s)` URL, falling back to a backticked identifier for a non-URL reference
+ * (an issue ref in `Origin`), `narrative` → free prose. Bracket sentinels
+ * (`[none]` / `[internal]` / `[TBD]`) are a cross-cutting form detected at
+ * render/parse time and are orthogonal to this class — a field permits a
+ * sentinel when its `default` is one.
  */
-export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "narrative";
+export type MetaValueClass = "enum" | "identifier" | "identifier-list" | "url" | "narrative";
 
 /**
  * A managed-meta field descriptor: the bold-marker label, the value rendered
@@ -254,7 +257,7 @@ export const META_FIELDS = [
   { name: "Priority", default: "P3", group: "core", render: "core-table", valueClass: "enum" },
   { name: "Cohort", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier" },
   { name: "Depends On", default: "[none]", group: "cohort", render: "bullet", valueClass: "identifier-list" },
-  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "identifier" },
+  { name: "Origin", default: "[internal]", group: "reference", render: "bullet", valueClass: "url" },
   { name: "Design", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier-list" },
   { name: "Task List", default: "[none]", group: "reference", render: "bullet", valueClass: "identifier" },
   { name: "Current Workflow", default: "[none]", group: "progress", render: "bullet", valueClass: "identifier" },
@@ -262,6 +265,8 @@ export const META_FIELDS = [
   { name: "Next Task", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Blockers", default: "[none]", group: "progress", render: "bullet", valueClass: "narrative" },
   { name: "Next Action", default: "—", group: "directive", render: "bullet", valueClass: "narrative" },
+  { name: "PR URL", default: "[none]", group: "finalize", render: "bullet", valueClass: "url" },
+  { name: "Completed", default: "[none]", group: "finalize", render: "bullet", valueClass: "narrative" },
 ] as const satisfies readonly MetaFieldDescriptor[];
 
 const CORE_FIELD_NAMES = META_FIELDS
@@ -315,6 +320,9 @@ function capitalizeFirst(value: string): string {
   return value.length === 0 ? value : `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
 }
 
+/** Whether a value is an `http(s)` URL — the `url` value class's autolink test. */
+const HTTP_URL_RE = /^https?:\/\//i;
+
 /**
  * Format a field value for the markdown projection per its value class. Bracket
  * sentinels and the em-dash placeholder render bare (the bracket is itself the
@@ -323,7 +331,7 @@ function capitalizeFirst(value: string): string {
  * individually backticked (`` `a`, `b` `` — two discrete tokens, not one
  * compound span), narrative fields as plain prose.
  */
-function formatValue(value: string, valueClass: MetaValueClass): string {
+export function formatValue(value: string, valueClass: MetaValueClass): string {
   if (value === PLACEHOLDER || isSentinel(value)) return value;
   switch (valueClass) {
     case "enum":
@@ -334,6 +342,10 @@ function formatValue(value: string, valueClass: MetaValueClass): string {
       return parseIdentifierList(value)
         .map((item) => `\`${item}\``)
         .join(", ");
+    case "url":
+      // A navigable locator: clickable `<…>` autolink for a real URL (lint-safe,
+      // no bare-URL MD034), backticked identifier for a non-URL ref (an issue ref).
+      return HTTP_URL_RE.test(value) ? `<${value}>` : `\`${value}\``;
     case "narrative":
       return value;
   }
@@ -441,6 +453,26 @@ export function setMetaBranch(content: string, branch: string): string {
 }
 
 /**
+ * Rewrite the core-block `Class` cell in place — the weight-axis sibling of
+ * {@link setMetaState} / {@link setMetaBranch}. The planning ceremonies persist
+ * the resolved `Class` (`Light` / `Heavy` / `Novel`) at their finalize
+ * fire-points through this writer; the core-table re-render keeps the three
+ * rows pipe-aligned by construction (`max(header, cell)` widths), so the table
+ * stays MD060-passing. Every other core field and the prose below stay
+ * byte-stable (modulo alignment padding). The caller validates `value` against
+ * the `WorkClass` set first — this is a projection-level rewrite, not a
+ * classifier.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param value - The resolved Class token to write into the Class cell (e.g. `Heavy`).
+ * @returns The rewritten markdown.
+ * @throws When the meta carries no resolvable core-block table (nothing to move).
+ */
+export function setMetaClass(content: string, value: string): string {
+  return setMetaCoreFields(content, { Class: value });
+}
+
+/**
  * Rewrite the `Current Workflow` bullet field in place — the planning-stage
  * pointer's single-field write. The bullet-field sibling of {@link setMetaBranch}
  * (which rewrites the core-table Branch cell): the lifecycle executor projects
@@ -489,6 +521,141 @@ export function setMetaCurrentWorkflow(content: string, stage: string): string {
  */
 export function setMetaDesign(content: string, value: string): string {
   return setMetaBulletFields(content, { Design: formatValue(value, "identifier-list") });
+}
+
+/** The finalize-group fields, in render order — written together at archive. */
+const FINALIZE_FIELDS = ["PR URL", "Completed"] as const satisfies readonly MetaFieldName[];
+
+/** The bare value an absent finalize fact resolves to (a sentinel — renders bare). */
+const FINALIZE_DEFAULT = "[none]";
+
+/**
+ * Write the archive finalize facts (`PR URL` / `Completed`) to the meta as managed
+ * fields — the structured replacement for the hand-appended post-integration prose
+ * block. Each fact renders per its value class (`PR URL` as a clickable autolink or
+ * the `[none]` placeholder; `Completed` as a bare date), and an absent fact resolves
+ * to the `[none]` sentinel.
+ *
+ * Update-or-insert (a localized forward-reconcile): when the meta already carries
+ * the finalize group it rewrites both bullets in place; when it lacks them — a meta
+ * minted before the finalize fields existed — it inserts the group as its own
+ * blank-line-separated block immediately before the field block's closing `---`,
+ * leaving the core table, every prior bullet, and any archive-phase H2 sections
+ * below the rule byte-stable. Unlike the single-field setters this never throws on
+ * an absent bullet — healing the older shape is the point.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param facts - The finalize facts; an omitted fact resolves to `[none]`.
+ * @returns The rewritten markdown.
+ */
+export function setMetaFinalizeFields(
+  content: string,
+  facts: { prUrl?: string; completed?: string },
+): string {
+  const valueOf = (name: (typeof FINALIZE_FIELDS)[number], raw: string | undefined): string => {
+    const field = META_FIELDS.find((f) => f.name === name);
+    return raw === undefined ? FINALIZE_DEFAULT : formatValue(raw, field?.valueClass ?? "narrative");
+  };
+  const rendered: Record<(typeof FINALIZE_FIELDS)[number], string> = {
+    "PR URL": valueOf("PR URL", facts.prUrl),
+    Completed: valueOf("Completed", facts.completed),
+  };
+
+  // Both bullets present → rewrite in place. Absent (a pre-finalize meta) → insert
+  // the group before the field block's `---`. A *partial* group (one bullet present,
+  // the other hand-deleted) would make the in-place rewrite throw on the missing
+  // bullet, so normalize it first via the forward-reconcile (which inserts the absent
+  // bullet at its canonical slot) before the in-place update.
+  const lines = content.split("\n");
+  const hasPrUrl = lines.some((line) => bulletMarkerRe("PR URL").test(line));
+  const hasCompleted = lines.some((line) => bulletMarkerRe("Completed").test(line));
+  if (hasPrUrl && hasCompleted) {
+    return setMetaBulletFields(content, rendered);
+  }
+  if (hasPrUrl || hasCompleted) {
+    const { content: normalized } = reconcileMetaFields(content);
+    return setMetaBulletFields(normalized, rendered);
+  }
+
+  const h1Idx = lines.findIndex((line) => /^# /.test(line));
+  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
+  if (h1Idx === -1 || ruleIdx === -1) {
+    // No field-block rule to anchor against — fall back to the fail-loud update.
+    return setMetaBulletFields(content, rendered);
+  }
+  const group = FINALIZE_FIELDS.map((name) => `- **${name}:** ${rendered[name]}`);
+  lines.splice(ruleIdx, 0, ...group, "");
+  return lines.join("\n");
+}
+
+/** The result of a {@link reconcileMetaFields} forward-reconcile pass. */
+export interface ReconcileMetaResult {
+  /** The reconciled markdown — byte-identical to the input on a no-op. */
+  content: string;
+  /** The bullet fields backfilled (absent marker → inserted), in render order; empty on a no-op. */
+  backfilled: MetaFieldName[];
+}
+
+/** Build the bullet-marker regex for a field label — the `- **<name>:**` line test. */
+function bulletMarkerRe(name: string): RegExp {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`^[ \\t>*+-]*\\*\\*${escaped}:\\*\\*`);
+}
+
+/**
+ * Forward-reconcile a meta's bullet fields against {@link META_FIELDS}: insert any
+ * managed bullet field whose marker is absent, backfilling its value from
+ * `overrides` (the transition-appropriate value) or the field's declared default.
+ * The generalization of {@link setMetaFinalizeFields}'s update-or-insert from the
+ * finalize group to the whole bullet set — the healing half of "code is the single
+ * source of meta shape": a stub minted before a field was added graduates missing
+ * that bullet, and this restores it.
+ *
+ * Re-renders only the bullet region (between the core-block table and the field
+ * block's closing `---`) from the canonical field order, preserving each present
+ * field's value through the {@link parseMetaRecord} ↔ {@link renderMetaFile}
+ * round-trip; the core table, the H1, and any section below the rule stay
+ * byte-stable. A no-op when every managed bullet is already present (or the field
+ * block can't be anchored) — returns the input unchanged with an empty `backfilled`,
+ * so a caller gates its write and its notice on a non-empty result.
+ *
+ * @param content - The meta file's raw markdown.
+ * @param overrides - Transition-appropriate backfill values; an absent field falls to its `META_FIELDS` default.
+ * @returns The reconciled content and the backfilled field names (empty on a no-op).
+ */
+export function reconcileMetaFields(
+  content: string,
+  overrides: MetaFieldOverrides = {},
+): ReconcileMetaResult {
+  const lines = content.split("\n");
+  const h1Idx = lines.findIndex((line) => /^# /.test(line));
+  const ruleIdx = lines.findIndex((line, i) => i > h1Idx && line.trim() === "---");
+  if (h1Idx === -1 || ruleIdx === -1) return { content, backfilled: [] };
+
+  const inFieldBlock = (i: number): boolean => i > h1Idx && i < ruleIdx;
+  const bulletFields = META_FIELDS.filter((f) => f.render === "bullet");
+  const absent = new Set<MetaFieldName>(
+    bulletFields
+      .filter((f) => !lines.some((line, i) => inFieldBlock(i) && bulletMarkerRe(f.name).test(line)))
+      .map((f) => f.name as MetaFieldName),
+  );
+  if (absent.size === 0) return { content, backfilled: [] };
+
+  // Re-render the bullet region from the canonical order: present fields keep their
+  // value (recovered bare, re-formatted by `renderBullets`), absent fields take the
+  // override or the declared default. The core table / H1 / below-`---` are untouched.
+  const record = parseMetaRecord(content);
+  const valueOf = (field: MetaFieldDescriptor): string => {
+    const name = field.name as MetaFieldName;
+    if (absent.has(name)) return overrides[name] ?? field.default;
+    return record[name] ?? field.default;
+  };
+  const firstBulletIdx = lines.findIndex((line, i) => inFieldBlock(i) && FIELD_MARKER_RE.test(line));
+  const start = firstBulletIdx === -1 ? ruleIdx : firstBulletIdx;
+  lines.splice(start, ruleIdx - start, ...renderBullets(valueOf), "");
+
+  const backfilled = bulletFields.filter((f) => absent.has(f.name as MetaFieldName)).map((f) => f.name);
+  return { content: lines.join("\n"), backfilled };
 }
 
 /**
@@ -709,13 +876,22 @@ export function parseMetaRecord(content: string): MetaRecord {
   for (const field of META_FIELDS) {
     const fromTable = table && field.name in table ? table[field.name] : undefined;
     const raw = fromTable === undefined ? extractField(section, field.name) : fromTable;
-    // Token fields strip to a bare value; narrative keeps its code spans. (Core
-    // table values arrive pre-stripped and are all non-narrative, so the strip
-    // is a no-op there.)
+    // Token fields strip to a bare value; `url` additionally unwraps the `<…>`
+    // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
+    // keeps its code spans. (Core table values arrive pre-stripped and are all
+    // non-narrative, so the strip is a no-op there.)
     record[field.name] =
-      raw !== null && field.valueClass !== "narrative" ? stripInlineCode(raw) : raw;
+      raw === null || field.valueClass === "narrative"
+        ? raw
+        : stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
   }
   return record;
+}
+
+/** Strip a surrounding `<…>` autolink to its bare target, leaving other forms intact. */
+function stripAutolink(value: string): string {
+  const m = /^<(.+)>$/.exec(value.trim());
+  return m ? (m[1] ?? value) : value;
 }
 
 /**

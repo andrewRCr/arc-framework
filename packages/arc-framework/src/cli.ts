@@ -18,6 +18,7 @@ import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
+  handleErrandCut,
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
@@ -31,20 +32,25 @@ import {
   handleResume,
   handleActivate,
   handleDeactivate,
+  handleIntegrate,
   handleReopen,
   handleAbandon,
   handleArchive,
+  handleTeardown,
   handleSetStage,
+  handleFinalizeStage,
   handleRepointDesign,
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
   type ActivateOptions,
+  type IntegrateOptions,
   type ReopenOptions,
   type AbandonOptions,
+  type ArchiveOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -125,6 +131,7 @@ program
   .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
+  .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
   .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
 
 program
@@ -166,6 +173,13 @@ program
   .action((slug: string | undefined) => handleDeactivate(slug));
 
 program
+  .command("integrate [slug]")
+  .description("Open review on an Active work unit: Active → Integrating (defaults to the current WU); marks phase entry, not the merge")
+  .option("--last-completed <work>", "Work being submitted for review → meta `Last Completed` (required)")
+  .option("--action <action>", "Next action pointer (e.g. `open the PR`) → meta `Next Action` (required)")
+  .action((slug: string | undefined, opts: IntegrateOptions) => handleIntegrate(slug, opts));
+
+program
   .command("reopen [slug]")
   .description("Withdraw an Integrating work unit back to Active (defaults to the current WU); closes its open PR")
   .option("--keep-pr", "Convert the PR to a draft instead of closing it")
@@ -180,7 +194,14 @@ program
 program
   .command("archive [slug]")
   .description("Sweep a shipped work unit to completed/ (defaults to the current WU); computes the dated path")
-  .action((slug: string | undefined) => handleArchive(slug));
+  .option("--pr-url <url>", "Integration PR URL → meta `PR URL` (absent writes a placeholder + warns)")
+  .option("--completed <date>", "Completion date YYYY-MM-DD → meta `Completed` (defaults to today)")
+  .action((slug: string | undefined, opts: ArchiveOptions) => handleArchive(slug, opts));
+
+program
+  .command("teardown [name]")
+  .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .action((name: string | undefined) => handleTeardown(name));
 
 program
   .command("set-stage <stage>")
@@ -193,6 +214,15 @@ program
     "Advance to <stage> at a stage boundary: also reset `Next Action` to the `[begin current workflow]` sentinel",
   )
   .action((stage: string, opts: { advance?: boolean }) => handleSetStage(stage, opts));
+
+program
+  .command("finalize <fire-point>")
+  .description(
+    "Persist a planning ceremony's finalize facts (meta `Class` / `Task List` / `Next Action`) "
+    + "at its fire-point: create-spec | generate-tasks | verify",
+  )
+  .option("--class <value>", "Resolved Class to persist (Light | Heavy | Novel) — required at create-spec / generate-tasks")
+  .action((firePoint: string, opts: { class?: string }) => handleFinalizeStage(firePoint, opts));
 
 program
   .command("repoint-design <event>")
@@ -214,6 +244,11 @@ errand
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+
+errand
+  .command("cut <slug>")
+  .description("Cut the chore/<slug> errand branch off branch.base (idempotent — no-clobber if it exists)")
+  .action((slug: string) => handleErrandCut(slug));
 
 const housekeep = program
   .command("housekeep")
@@ -282,6 +317,11 @@ userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
   .action(handleUserClose);
+
+userCmd
+  .command("inbox-remove <slug>")
+  .description("Drop the slug-matched USER-INBOX entry (title-keyed in v1; idempotent — no-op when absent)")
+  .action(handleUserInboxRemove);
 
 userCmd
   .command("save")

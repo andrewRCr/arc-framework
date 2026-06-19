@@ -38,13 +38,19 @@ teardown is the integration tail's post-merge cleanup, not archive's.
 
 `arc archive` performs the deterministic ship mechanics through the executor: it computes the dated/numbered
 `completed/{dated}/{NN}_{name}/` destination, relocates the WU's artifact set there, flips `**State:**` to
-`Shipped`, clears the meta `**Branch:**` field to `[none]`, resets the orientation soft fields, and — when this WU
-is its cohort's final member — sweeps the coordinating `cohort-<leaf>.md` into a `{NN}a_cohort-<leaf>` closeout
-sidecar.
+`Shipped`, clears the meta `**Branch:**` field to `[none]`, resets the orientation soft fields, writes the
+`**PR URL:**` / `**Completed:**` finalize facts as managed fields, and — when this WU is its cohort's final
+member — sweeps the coordinating `cohort-<leaf>.md` into a `{NN}a_cohort-<leaf>` closeout sidecar.
 
 ```bash
-arc archive {name}   # or bare `arc archive` — context-defaults to the current worktree's WU
+arc archive {name} --pr-url "$(gh pr view {type}/{name} --json url --jq .url)"
+# Bare `arc archive` context-defaults to the current worktree's WU.
 ```
+
+Source `--pr-url` from the integration PR (opened earlier this ceremony). Omit it when no PR exists yet (offline /
+pre-PR / standalone) — the command writes a `[none]` placeholder and warns; backfill later with
+`arc archive {name} --pr-url <url>`. `--completed` defaults to today (the ship day); pass it only to backfill a
+past date.
 
 `{dated}` follows `YYYY-q*` (e.g., `2026-q2`); `{NN}` is the next completion-order index in that quarter,
 reset per quarter — both computed by the command. The relocations are **staged, not committed** (the executor

@@ -19,7 +19,9 @@ export { classifyUserSyncPath, wuNameOfPath, type UserSyncClass } from "./classi
 
 export { resolveCurrentWuName, type ExecForBranch } from "./current-wu.js";
 
-export { parseCrossWuEntries, shapeForFile } from "./parser.js";
+export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parser.js";
+
+export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js";
 
 export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./notes-ref.js";
 

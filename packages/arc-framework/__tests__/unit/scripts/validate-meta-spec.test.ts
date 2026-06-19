@@ -72,7 +72,7 @@ describe("classifyPath", () => {
     expect(classifyPath(".arc/active/tasks-foo.md")).toBe("other");
     expect(classifyPath(".arc/backlog/technical/meta-foo.md")).toBe("other");
     expect(
-      classifyPath(".arc/reference/templates/arc/work-unit/template-meta.md"),
+      classifyPath(".arc/reference/templates/arc/work-unit/template-draft.md"),
     ).toBe("other");
     expect(classifyPath("src/lib/foo.ts")).toBe("other");
   });
@@ -287,7 +287,7 @@ describe("validateFiles", () => {
   it("silently skips non-meta paths — they do not trigger the check", () => {
     const files = {
       ".arc/active/technical/tasks-foo.md": "# Task list",
-      ".arc/reference/templates/arc/work-unit/template-meta.md": metaFile(null),
+      ".arc/reference/templates/arc/work-unit/template-draft.md": metaFile(null),
       "src/lib/foo.ts": "// no design field here",
     };
     const result = validateFiles(Object.keys(files), fakeReader(files));

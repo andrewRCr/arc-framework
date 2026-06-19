@@ -13,6 +13,7 @@ import { describe, it, expect } from "vitest";
 import type { ExecuteTransitionContext, SideEffectHandler } from "../../../src/lib/work-unit/lifecycle-executor.js";
 import type { DirEntry, LifecycleIndexFs } from "../../../src/lib/work-unit/lifecycle-index.js";
 import type { SideEffectId } from "../../../src/lib/work-unit/lifecycle-transitions.js";
+import type { MetaFieldName, MetaFieldOverrides } from "../../../src/lib/active/meta-reader.js";
 import { runGraduate, type GraduateParams } from "../../../src/commands/start.js";
 
 const CWD = "/repo";
@@ -81,13 +82,24 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
   };
 }
 
+interface ReconcileCall {
+  metaPath: string;
+  overrides: MetaFieldOverrides;
+}
+
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
+  reconcileCalls: ReconcileCall[];
 }
 
-function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
+function buildCtx(
+  metas: MetaSpec[],
+  occupancyOk = true,
+  reconcileBackfill: MetaFieldName[] = [],
+): Harness {
   const calls: string[] = [];
+  const reconcileCalls: ReconcileCall[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -120,6 +132,10 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
     },
+    reconcileMeta: async (metaPath, overrides) => {
+      reconcileCalls.push({ metaPath, overrides });
+      return reconcileBackfill;
+    },
     sideEffects,
     guardValidators: {
       "worktree-occupancy": () =>
@@ -127,7 +143,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     },
   };
 
-  return { ctx, calls };
+  return { ctx, calls, reconcileCalls };
 }
 
 const BASE = {
@@ -213,5 +229,40 @@ describe("runGraduate — backlog stub onto its branch", () => {
     expect(result.reason).toMatch(/class/i);
     // Refusal is total — no relocate, no spawn.
     expect(calls.some((c) => c.startsWith("relocate:") || c.startsWith("worktree:"))).toBe(false);
+  });
+
+  it("forward-reconciles the relocated meta with the planning-entry pointer and surfaces the count notice", async () => {
+    const { ctx, reconcileCalls } = buildCtx(
+      [{ slug: "widget", tier: "backlog/provisional", subdir: "widget", state: "Planning", cls: "Light" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ ["Current Workflow", "Origin"],
+    );
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light" });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    // The reconcile runs against the relocated `active/` meta, carrying the
+    // planning-entry `Current Workflow` value (not the template's `[none]`).
+    expect(reconcileCalls).toHaveLength(1);
+    expect(reconcileCalls[0]!.metaPath).toBe(".arc/active/meta-widget.md");
+    expect(reconcileCalls[0]!.overrides).toEqual({ "Current Workflow": "draft-design" });
+    expect(result.backfilled).toEqual(["Current Workflow", "Origin"]);
+    expect(result.notice).toMatch(/[Bb]ackfilled 2 .*field/);
+  });
+
+  it("emits no notice when the relocated meta is already complete (reconcile no-op)", async () => {
+    const { ctx } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ [],
+    );
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Heavy" });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(result.backfilled).toEqual([]);
+    expect(result.notice).toBeNull();
   });
 });

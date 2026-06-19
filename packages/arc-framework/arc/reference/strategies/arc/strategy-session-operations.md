@@ -651,11 +651,12 @@ guards so re-entry is safe.
   direct activation), with `**State:** Active`. Idempotent: existing file → take the transition
   path (Planning → Active, populate execution fields).
 
-**Single template, single shape.** [`template-meta.md`][template-meta] is the canonical source for
-both paths — no planning-variant template. The `**State:**` field carries the lifecycle phase.
+**Single shape, every phase.** A work unit's meta carries one canonical field shape regardless of lifecycle
+phase — there is no planning-variant. The `**State:**` field carries the phase. The shape is rendered by the
+CLI scaffold from a single field definition, so the rendered and parsed views cannot drift apart.
 
-**Always-present fields with `[none]` markers.** All fields in the template's `## Work Unit Metadata` section
-are always present; empty optional fields use the `[none]` literal. Consumers (the probe, session-init,
+**Always-present fields with `[none]` markers.** Every managed field is always present; empty optional fields
+use the `[none]` literal. Consumers (the probe, session-init,
 handoff workflow) get a uniform parse surface — no field-omission ambiguity, no per-state shape
 branching.
 
@@ -1050,7 +1051,6 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
-[template-meta]: ../../templates/arc/work-unit/template-meta.md
 [strategy-index]: ../STRATEGY-INDEX.md
 [workflow-authoring]: strategy-workflow-authoring.md
 [config-arch]: strategy-configurability-architecture.md
