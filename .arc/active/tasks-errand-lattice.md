@@ -24,29 +24,36 @@ this WU's integration (the integrate ceremony does not auto-advance ADR status).
   sub-floor of the same derivation/scale spectrum tests #2–#3 read. Dropped the `chore/<slug>` + PR branch aside
   (the mode-scaled branch mechanism is owned downstream); ratchet text untouched.
 
-### `[ ]` **1.2 Re-base `strategy-work-organization` §§ Class Model / Work Character / Errand Work Class / Auto-Merge Lane**
+### `[x]` **1.2 Re-base `strategy-work-organization` §§ Class Model / Work Character / Errand Work Class / Auto-Merge Lane**
 
 - _Goal:_ The authoritative work-organization homes describe the spec-worthiness gate, the two-layer
   mode-scaled mechanism, and the cut→occupy invariant — no section still states the increment-count floor.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **1.2.a § Class Model — re-base boundary test #1 onto the two-axis floor**
-        - Reflect the three-tier-per-axis sub-floor (errand = shared sub-floor of one spectrum).
-        - Add the two worked examples that split on the scale floor: a self-evident doc-grooming sweep across
-          many increments → errand; a widely-used-symbol rename whose plan must verify call-sites →
-          heavy-by-scale WU.
+    - `[x]` **1.2.a § Class Model — re-base boundary test #1 onto the two-axis floor**
+        - Re-based boundary test #1 and the § framing (`Errand-vs-WU wrapper line`) onto spec-worthiness — below
+          both floors → Errand (atomic or multi-increment), clears either → WU; added the wrapper-floor
+          worked-example pair splitting on the scale axis (self-evident sweep → Errand; widely-used-symbol rename
+          → heavy-by-scale WU).
 
-    - `[ ]` **1.2.b § Work Character — restate errand / atomic / WU on spec-worthiness**
-        - Name the multi-increment single-concern errand shape; lowercase `atomic` as one-increment character.
+    - `[x]` **1.2.b § Work Character — restate errand / atomic / WU on spec-worthiness**
+        - Decoupled character (lowercase `atomic` / `multi-step`) from the wrapper floor; named the
+          multi-increment single-concern Errand; reframed capture routing as by-fate (Errand vs WU), not
+          by-character.
 
-    - `[ ]` **1.2.c § Errand Work Class — the gate, the mode-scaled mechanism, and the cut→occupy invariant**
-        - The gate as spec-worthiness; the mechanism scaled by `branch.protection` (full lattice / partial floor);
-          codify cut→occupy as a consumer invariant (_cut creates; every consumer must immediately occupy per
-          protection mode_).
+    - `[x]` **1.2.c § Errand Work Class — the gate, the mode-scaled mechanism, and the cut→occupy invariant**
+        - Re-based the Errand definition and decision-matrix promotion criteria onto spec-worthiness (scale /
+          derivation floors, not increment-count); added the two-layer model (character universal / mechanism
+          mode-scaled) and the cut→occupy consumer invariant.
 
-    - `[ ]` **1.2.d § Auto-Merge Lane — durable-vs-movable as the orthogonal review-lane axis**
-        - State the review-lane (blast-radius) axis as orthogonal to the wrapper — it applies to errands and WUs
-          alike, and the gate no longer carries it.
+    - `[x]` **1.2.d § Auto-Merge Lane — durable-vs-movable as the orthogonal review-lane axis**
+        - Added the blast-radius axis as orthogonal to the Errand-vs-WU wrapper — applies to errands and WUs
+          alike; the spec-worthiness gate no longer carries review eligibility.
+
+- _Outcome:_ All four §§ re-based off the increment-count wrapper floor onto the two-axis spec-worthiness gate, in
+  lockstep across the package source and the `.arc/` copy; grep confirms no residual increment-count floor,
+  `chore/<slug>` wrapper aside, or `## Atomic` framing remains in the file. Branch-prefix decoupling and
+  record-owned identity stay with their later phases.
 
 ### `[ ]` **1.3 Update `AGENT-BRIEF.ARC` vocabulary and `DEV-RULES.ARC` § Discovered Work Routing; sweep `issue-triage`**
 
