@@ -18,6 +18,7 @@ import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
+  handleErrandCut,
   type ErrandCheckOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
@@ -242,6 +243,11 @@ errand
   .option("--no-fetch", "Skip the oracle's network read; check local refs only")
   .option("--json", "Emit overlap facts as JSON (for skill consumption)")
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
+
+errand
+  .command("cut <slug>")
+  .description("Cut the chore/<slug> errand branch off branch.base (idempotent — no-clobber if it exists)")
+  .action((slug: string) => handleErrandCut(slug));
 
 const housekeep = program
   .command("housekeep")

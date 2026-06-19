@@ -149,8 +149,9 @@ write.
 [§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
 
 - **Fully protected** — **relocate first, then write.** Before any routing write, cut the short-lived
-  grooming branch `chore/<slug>` off the configured base branch, using the same write-context primitive
-  run-errand's Launch relocation uses — `arc housekeep check --json` resolves `baseBranch` +
+  grooming branch `chore/<slug>` off the configured base branch with `arc errand cut <slug>` (no-clobber),
+  resolving the write target with the same write-context primitive run-errand's Launch relocation uses —
+  `arc housekeep check --json` resolves `baseBranch` +
   `primaryWorktreePath` (see [run-errand][run-errand] § Launch step 3). The base context the precondition
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the

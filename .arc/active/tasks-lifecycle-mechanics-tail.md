@@ -316,14 +316,10 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
   symmetry is tracked, not lost. A non-canonical `---` separator that had hidden a live entry from the section
   parser was also corrected in the live inbox.
 
-### `[ ]` **6.2 Errand `chore/<slug>` branch-cut at Launch**
+### `[x]` **6.2 Errand `chore/<slug>` branch-cut at Launch**
 
 - _Goal:_ Errand Launch cuts the `chore/<slug>` branch off `branch.base` from code, consuming the slug as
   logical identity.
-
-- _Context:_ Reuse `ERRAND_BRANCH_PREFIX` (`errand-branch.ts`); never recover identity by parsing the
-  branch (the durable identity record is `errand-lattice`'s). Call sites: `run-errand` Launch,
-  `session-init` errand cold-entry, `drain-inbox`.
 
     - `[x]` **6.2.a Branch-cut mechanic (`chore/<slug>` off `branch.base`)**
         - `cutErrandBranch` (`session-init/errand-branch-cut.ts`) creates `chore/<slug>` off a resolved base
@@ -332,7 +328,17 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
           (a force-create would move the ref and drop its commits). Creation only — occupying the branch
           (worktree vs. in-place switch) stays the caller's protection-mode dispatch. Git seam injected.
 
-    - `[ ]` **6.2.b Wire into the three launch sites**
+    - `[x]` **6.2.b Wire into the three launch sites**
+        - New `arc errand cut <slug>` command (`handleErrandCut`) resolves `branch.base` and calls the mechanic.
+          Wired into `run-errand` Launch (full-protection cut, then occupy), `session-init` errand cold-entry,
+          and `drain-inbox` § Route's grooming-branch relocation (rendered + package template/source copies).
+          E2E-tested against a real repo: cut-off-base-tip and the no-clobber ref-not-moved case.
+
+- _Outcome:_ The errand-launch branch-cut ships end-to-end as a mechanic (`cutErrandBranch`) behind
+  `arc errand cut <slug>` — a sibling to `arc errand check`, distinct from the errand _lifecycle_ verbs
+  (`arc errand open`/`close`) that `errand-lattice` will build to compose it. The three launch sites now name
+  the command instead of hand-running `git branch`; occupying the cut branch (worktree vs. in-place) stays the
+  workflow's protection-mode dispatch.
 
 ### `[ ]` **6.3 `arc stub --cohort <slug>`**
 

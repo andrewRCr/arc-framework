@@ -58,9 +58,10 @@ base-derived branch — so the errand never executes from an unrelated work unit
    `primaryWorktreePath` (the `verdict` is the housekeep guard's concern, not the errand's). Then relocate per
    protection mode ([§ Branch Protection Modes][branch-modes]):
 
-   - **Full protection** — cut `chore/<slug>` off the configured base branch. Where worktree spawning is
-     available, spawn an **ephemeral worktree** for the branch so the errand runs isolated from the launching
-     worktree; otherwise cut the branch in the primary worktree's base checkout. `<slug>` is branch-safe
+   - **Full protection** — cut `chore/<slug>` off the configured base branch with `arc errand cut <slug>`
+     (idempotent — no-clobber if it already exists). Then occupy it: where worktree spawning is available,
+     spawn an **ephemeral worktree** on the branch so the errand runs isolated from the launching worktree;
+     otherwise switch to it in the primary worktree's base checkout. `<slug>` is branch-safe
      (lowercase, digits, hyphens) and doubles as the merge key.
    - **Partial protection** — no branch: target the primary worktree's base checkout directly. The errand
      lands as a direct base-branch commit (a documented off-work-unit maintenance exception).
