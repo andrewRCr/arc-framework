@@ -12,11 +12,11 @@
 - **Task List:** `tasks-errand-lattice.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Re-base classify-work-unit boundary test #1 onto spec-worthiness (line ~17)
+- **Last Completed:** Task 1.4 — Mint ADR-027 + ADR-021 forward-pointer amendment (Phase 1 complete)
+- **Next Task:** Task 2.1 — Define the errand record model and orphan state-ref read/write primitives (line ~113)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — execute via process-task-loop
+- **Next Action:** Begin Task 2.1 — execute via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
