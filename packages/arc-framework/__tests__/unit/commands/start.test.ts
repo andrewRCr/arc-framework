@@ -252,6 +252,35 @@ describe("runColdStart — protected-base auto-cut (candidate J)", () => {
     expect(calls).toContainEqual(["git", "switch", "main"]);
     expect(calls).toContainEqual(["git", "branch", "-D", "plan/widget"]);
   });
+
+  it("removes the orphaned meta when scaffolding fails after the meta is written", async () => {
+    await writeArcConfig(worktree, { "branch.protection": "full", "branch.base": "main" });
+    // The meta write lands (call 1); the SESSION-NOTES seed write (call 2) throws —
+    // so a partial scaffold leaves an orphan `.arc/active/meta-widget.md` behind.
+    const realWrite = io.writeFile;
+    let writes = 0;
+    const failAfterMeta: UserIOContext = {
+      ...io,
+      writeFile: async (path, data) => {
+        writes += 1;
+        if (writes === 1) return realWrite(path, data);
+        throw new Error("EACCES: denied");
+      },
+    };
+
+    const outcome = await runColdStart(ctx(failAfterMeta), {
+      worktreePath: worktree,
+      branch: "main",
+      identity: "andrew",
+      name: "widget",
+    });
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    // git switch leaves untracked files, so the rollback scrubs the orphaned meta
+    // with a scoped pathspec — the next `arc start` won't see a phantom active WU.
+    expect(calls).toContainEqual(["git", "clean", "-f", "--", ".arc/active/meta-widget.md"]);
+  });
 });
 
 describe("runColdStart — spec-input classification (--from)", () => {

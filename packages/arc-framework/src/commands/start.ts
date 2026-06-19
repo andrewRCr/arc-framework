@@ -381,13 +381,21 @@ export async function runColdStart(
       design,
     });
   } catch (err) {
-    // Roll an auto-cut back so a scaffold failure leaves no dangling plan branch
-    // — return the worktree to the protected base it started on. Best-effort: the
+    // Roll an auto-cut back so a scaffold failure leaves no dangling state — return
+    // the worktree to the protected base, delete the half-cut branch, and remove the
+    // meta the scaffold may have written before it threw. `git switch` leaves
+    // untracked files in place, so a lingering `.arc/active/meta-<name>.md` would
+    // read as a phantom active WU on the next `arc start`. Best-effort: the
     // scaffold-failure refusal is the primary signal.
     if (cutFromBase !== undefined) {
+      // Scoped pathspec — removes only the orphaned meta, never other untracked
+      // work. The SESSION-NOTES seed is gitignored (per-WU subdir) and benign: it
+      // doesn't drive active-WU detection and reconciles on the next user load.
+      const orphanMeta = `.arc/active/meta-${wuName}.md`;
       try {
         await ctx.io.exec("git", ["switch", cutFromBase], { cwd: params.worktreePath });
         await ctx.io.exec("git", ["branch", "-D", branch], { cwd: params.worktreePath });
+        await ctx.io.exec("git", ["clean", "-f", "--", orphanMeta], { cwd: params.worktreePath });
       } catch {
         // Leave the partial state; the refusal below tells the caller to inspect.
       }
