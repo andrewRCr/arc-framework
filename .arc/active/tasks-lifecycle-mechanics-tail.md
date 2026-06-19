@@ -302,11 +302,12 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
   replay it idempotently. Not the errand-WIP-handoff path, which deliberately retains the entry until the
   errand completes.
 
-    - `[ ]` **6.1.a Targeted line-removal primitive**
-        - Build `test-first` (one behavior at a time):
-            - Removes the title-matched entry; sibling entries stay byte-stable
-            - Idempotent no-op when the entry is absent
-            - The rest of `USER-INBOX` is untouched (targeted, not a re-render)
+    - `[x]` **6.1.a Targeted line-removal primitive**
+        - `removeInboxEntry` (`user-sync/inbox-writer.ts`) excises the title-matched H3 block and reports a
+          `removed` flag — idempotent no-op when absent, sibling entries and the rest of the file byte-stable
+          (line-splice, not a re-render). Scopes to `## Atomic` / `## Backlog` and mirrors the parser's
+          section boundary (next `##` heading or `---`), so it manages exactly the entries the reader sees; the H3
+          title shape is single-sourced via a new exported `matchInboxEntryTitle`.
 
     - `[ ]` **6.1.b Wire the removal into the completion sites**
         - `run-errand` Complete (authoritative), `drain-inbox`, and `session-handoff` § Same-session
