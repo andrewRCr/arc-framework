@@ -12,10 +12,10 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 5 — planning-stage meta-field writes (Task 5.1)
-- **Next Task:** Task 6.1 — `USER-INBOX` slug-matched line removal (line ~293)
+- **Last Completed:** Phase 6 — errand legs & lifecycle affordances (Tasks 6.1–6.4)
+- **Next Task:** Task 7.1 — Complete verification (line ~361)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 (Phase 6) — implement via process-task-loop
+- **Next Action:** Begin Phase 7 (Task 7.1) — load and follow `verify-work-unit.md`
 
 ---
