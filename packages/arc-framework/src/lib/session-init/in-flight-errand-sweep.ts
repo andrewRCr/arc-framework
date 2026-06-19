@@ -9,24 +9,24 @@
  * promote-or-finish nudge). It mirrors the stale-worktree sweep's advisory role
  * — surfaced, never auto-acted-on.
  *
- * Pure core: the caller enumerates the `chore/` branches and resolves each
- * one's PR / merge / age / meta-backing facts (git + the forge), so this module
- * carries no git or network coupling.
+ * Pure core: the caller enumerates the errand branches and resolves each one's
+ * identity (the record slug) and its PR / merge / age facts (git + the forge),
+ * so this module carries no git or network coupling. Errand-vs-WU classification
+ * is the oracle's job upstream — every fact that reaches here is already an
+ * errand.
  *
  * @module
  */
 
-import { errandSlugOf } from "./errand-branch.js";
-
 /** Derived state of a single in-flight errand branch. */
 export type InFlightErrandState = "in-progress" | "awaiting-merge" | "merged-cleanup" | "stale";
 
-/** Caller-resolved facts for one candidate `chore/` branch. */
+/** Caller-resolved facts for one in-flight errand branch. */
 export interface InFlightErrandFacts {
-  /** The errand's `chore/<slug>` branch name. */
+  /** The errand's record slug — its identity, resolved from the record (branch-derived for a legacy branch). */
+  slug: string;
+  /** The errand's branch name. */
   branch: string;
-  /** Whether an active meta backs the branch — a promoted errand → WU, excluded from the sweep. */
-  hasMeta: boolean;
   /** Whether the branch has an open PR on the forge. */
   hasOpenPr: boolean;
   /** Whether the branch is merged into the integration base. */
@@ -37,9 +37,9 @@ export interface InFlightErrandFacts {
 
 /** One classified in-flight errand. */
 export interface InFlightErrandReport {
-  /** The `<slug>` after `chore/`. */
+  /** The errand's record slug. */
   slug: string;
-  /** The errand's `chore/<slug>` branch name. */
+  /** The errand's branch name. */
   branch: string;
   /** Derived state. */
   state: InFlightErrandState;
@@ -60,14 +60,12 @@ export interface InFlightErrandSweepResult {
 }
 
 /**
- * Classify caller-enumerated `chore/` branches into in-flight errand states.
+ * Classify caller-enumerated errand branches into in-flight errand states.
  *
- * Non-errand branches and meta-backed `chore/` branches (promoted errands →
- * work units) are excluded. State precedence: merged → `merged-cleanup`; else
- * an open PR → `awaiting-merge`; else aged past the threshold → `stale`; else
- * `in-progress`.
+ * State precedence: merged → `merged-cleanup`; else an open PR →
+ * `awaiting-merge`; else aged past the threshold → `stale`; else `in-progress`.
  *
- * @param options - Candidate branches with facts, and the staleness threshold.
+ * @param options - Errand branches with facts (including the record slug), and the staleness threshold.
  * @returns The classified in-flight errands.
  */
 export function classifyInFlightErrands(
@@ -76,11 +74,7 @@ export function classifyInFlightErrands(
   const { branches, staleThresholdDays } = options;
 
   const errands: InFlightErrandReport[] = [];
-  for (const { branch, hasMeta, hasOpenPr, merged, ageDays } of branches) {
-    if (hasMeta) continue;
-    const slug = errandSlugOf(branch);
-    if (slug === null) continue;
-
+  for (const { slug, branch, hasOpenPr, merged, ageDays } of branches) {
     const state: InFlightErrandState = merged
       ? "merged-cleanup"
       : hasOpenPr

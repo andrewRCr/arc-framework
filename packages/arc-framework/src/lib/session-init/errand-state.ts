@@ -1,14 +1,17 @@
 /**
  * Errand-state composer for session-init.
  *
- * The I/O boundary around the pure errand helpers, now oracle-backed. It detects
- * a resumable current `chore/` branch (cheap, always), and — when discovery is
- * on — classifies the oracle's in-flight errand entries and selects the
- * remote-only ones as materialize candidates. The oracle's pruned-ref view
- * supplies each errand's presence and location (`remoteOnly`); this layer adds
- * only the per-errand merge + committer-date reads the classification needs.
- * Open-PR state rides the oracle entry's `pr` enrichment (refs-only until a
- * PR source is wired), so no bespoke forge probe lives here.
+ * The I/O boundary around the pure errand helpers. Identity is record-backed:
+ * the injected errand records form a branch→slug index that resolves each
+ * errand's slug (a record-less branch degrades to the branch-derived slug).
+ * Presence and merge status stay oracle-backed. It detects a resumable current
+ * branch (cheap, always), and — when discovery is on — classifies the oracle's
+ * in-flight errand entries and selects the remote-only ones as materialize
+ * candidates. The oracle's pruned-ref view supplies each errand's presence and
+ * location (`remoteOnly`); this layer adds only the per-errand merge +
+ * committer-date reads the classification needs. Open-PR state rides the oracle
+ * entry's `pr` enrichment (refs-only until a PR source is wired), so no bespoke
+ * forge probe lives here.
  *
  * The dead-ref `git fetch --prune` is no longer part of this path — the oracle
  * is prune-independent (it intersects local refs with live remote membership),
@@ -21,6 +24,7 @@
 import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand } from "../git/in-flight-derivation.js";
 import { isBranchMerged } from "../git/worktree-cleanup.js";
+import type { ErrandRecord } from "../errand/record.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
 import type { NudgeMarkerState } from "./nudge-rate-limit.js";
@@ -64,6 +68,12 @@ export interface RunErrandStateOptions {
    * leave in-flight/materialize empty.
    */
   entries: readonly InFlightEntry[] | null;
+  /**
+   * Errand records (identity-scoped) — the identity oracle for resume and
+   * discovery. Empty when identity is absent or the errand ref is unborn; a
+   * record-less errand branch then degrades to its branch-derived slug.
+   */
+  records: readonly ErrandRecord[];
   /** Integration base branch short-name, e.g. `main`. */
   baseBranch: string;
   /** Whole-day threshold for classifying in-progress branches as stale. */
@@ -81,9 +91,13 @@ export interface RunErrandStateOptions {
  * @returns Composite errand state for the session-init envelope.
  */
 export async function runErrandState(options: RunErrandStateOptions): Promise<ErrandStateResult> {
+  // Branch→slug index: the record-derived identity oracle the probes resolve against.
+  const slugByBranch = new Map(options.records.map((record) => [record.branch, record.slug]));
+
   const resume = detectErrandResume({
     currentBranch: options.currentBranch,
     hasBackingMeta: options.hasBackingMeta,
+    slugByBranch,
   });
 
   if (!options.includeDiscovery) {
@@ -97,7 +111,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
     );
   }
 
-  const materializable = findMaterializableErrands({ entries: options.entries });
+  const materializable = findMaterializableErrands({ entries: options.entries, slugByBranch });
   const errands = options.entries.filter(
     (entry): entry is InFlightErrand => entry.kind === "errand",
   );
@@ -123,10 +137,9 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   const inFlight = classifyInFlightErrands({
     staleThresholdDays: options.staleThresholdDays,
     branches: errands.map((entry) => ({
+      // Identity from the record; a record-less branch degrades to the oracle's branch-derived slug.
+      slug: slugByBranch.get(entry.branch) ?? entry.slug,
       branch: entry.branch,
-      // The oracle classifies a meta-backed `chore/` branch as a work unit, so
-      // every errand entry that reaches here is meta-less by construction.
-      hasMeta: false,
       hasOpenPr: entry.pr !== undefined,
       merged: mergedByBranch.get(entry.branch) ?? false,
       ageDays: ageDays(timestampOf(entry, timestamps), nowMs),

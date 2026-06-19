@@ -226,23 +226,23 @@ status stays a live PR/branch read. Branch-prefix decoupling is additive (`chore
 mechanism — the session-init probe shows zero in-flight errands, so no record-less errand is expected at ship; a
 stray legacy branch degrades gracefully to branch-derived behavior.
 
-### `[ ]` **4.1 Migrate the session-init errand probes to record reads**
+### `[x]` **4.1 Migrate the session-init errand probes to record reads**
 
 - _Goal:_ The errand probes resolve identity and state from the record, not by parsing `chore/<slug>` —
   `detectErrandResume`, `classifyInFlightErrands`, `findMaterializableErrands`, and their `runErrandState`
   composition read the record.
-- _Approach:_ The probes today derive identity via `errandSlugOf` over the branch and via `deriveInFlight`'s
-  meta-presence classification (`lib/git/in-flight-derivation.ts`); repoint them to the Phase 2 record reader.
-  Merge status (`awaiting-merge` / `merged-cleanup` / `materializable`) stays a live read — only identity moves.
 - **Strategies:** strategy-testing-methodology.md
 
-    Build `test-first` (one behavior at a time):
-
-    - resume detection resolves the current branch's errand identity from the record (any nature-typed prefix),
-      not a `chore/` parse
-    - the in-flight sweep classifies record-backed errands; merge-status derivation is unchanged
-    - materializable detection reads remote-only records
-    - a record-less legacy `chore/<slug>` branch degrades gracefully to branch-derived behavior
+- _Outcome:_ `runErrandState` now takes injected errand `records`, derives a `branch→slug` index from them, and
+  feeds all three probes — identity resolves from the record while presence / merge / age stay live oracle reads.
+  `detectErrandResume` resolves the current branch's slug from the index (any nature-typed prefix, where a `chore/`
+  parse would fail); `classifyInFlightErrands` consumes a record-resolved slug, shedding its `hasMeta` /
+  `errandSlugOf` role (errand-vs-WU classification is the oracle's job upstream); `findMaterializableErrands`
+  resolves remote-only candidates' slugs from the index. A record-less branch degrades to the oracle's
+  branch-derived slug, so a stray legacy errand keeps working. The handler (`status.ts`) reads the records via
+  `listErrandRecords`, identity-gated (empty when identity is absent, the no-record-ref case). `errandSlugOf` now
+  survives only as `detectErrandResume`'s legacy fallback — teeing up its retirement and the branch-prefix
+  decouple in 4.2.
 
 ### `[ ]` **4.2 Retire `errandSlugOf`'s branch-parse and decouple the branch prefix**
 

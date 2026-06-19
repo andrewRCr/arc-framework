@@ -85,7 +85,8 @@ import {
   resolveAllSettings,
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { createUserIOContext, gitExec, gitExecInput } from "../lib/io-context.js";
+import { listErrandRecords } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
@@ -392,6 +393,12 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+        // Errand records are the identity oracle for resume + discovery; read
+        // them whenever identity resolved (a cheap local-ref read), else degrade
+        // to branch-derived behavior. No record ref exists without an identity.
+        const records = identity === null
+          ? []
+          : await listErrandRecords({ exec: gitExec, execInput: gitExecInput, identity });
         let entries: InFlightEntry[] | null = null;
         if (input.includeDiscovery) {
           // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
@@ -409,6 +416,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
           entries,
+          records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE),
