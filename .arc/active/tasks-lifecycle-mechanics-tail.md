@@ -370,35 +370,46 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (0 errors / 399 files), ts lint, sh lint, typecheck (src + test), 3053 tests
+  passed (1 skipped / 230 files), tsup build, and the three ARC audits (method-triggers, domain-rules,
+  section-refs) — all clean.
+- _Success criteria:_ 11 criteria, all met — the 9 spec criteria validated against the codebase (verbs,
+  flags, `META_FIELDS`, `finalize-failed` status, template-meta deletion, ship-path teardown tests) plus
+  quality-gates and ready-for-integration. One annotation on the falsifiable sweep: the residual
+  `git branch -d` in `session-handoff` is the out-of-scope `chore/<slug>` errand path (`errand-lattice`'s).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc teardown` fires from the `integrate-work-unit` and `session-handoff` ceremonies; the safety
+- `[x]` `arc teardown` fires from the `integrate-work-unit` and `session-handoff` ceremonies; the safety
   gate authorizes and protects correctly across squash, rebase, and merge-commit ship paths — no merged
   branch lingers (the squash/rebase bug is gone)
-- `[ ]` `arc archive --pr-url [--completed]` writes `PR URL` + `Completed` as `META_FIELDS`, invoked with
+- `[x]` `arc archive --pr-url [--completed]` writes `PR URL` + `Completed` as `META_FIELDS`, invoked with
   the PR URL by the archive ceremony; the `template-meta.md` finalize-field mandate is retired so no facts
   are hand-added
-- `[ ]` `arc integrate` performs the Active → Integrating flip + ROADMAP regen; `integrate-work-unit` no
+- `[x]` `arc integrate` performs the Active → Integrating flip + ROADMAP regen; `integrate-work-unit` no
   longer hand-edits `State`
-- `[ ]` A graduated meta carries every `META_FIELDS` field (warn-and-backfill notice emitted);
+- `[x]` A graduated meta carries every `META_FIELDS` field (warn-and-backfill notice emitted);
   `template-meta.md` is deleted (both copies) and no scaffold path references it
-- `[ ]` `Class` / `Task List` / `Next Action` are written by code at the finalize fire-points — no
+- `[x]` `Class` / `Task List` / `Next Action` are written by code at the finalize fire-points — no
   hand-fill — with core-table alignment intact
-- `[ ]` `USER-INBOX` slug-matched removal and the errand `chore/<slug>` branch-cut fire from code, not
+- `[x]` `USER-INBOX` slug-matched removal and the errand `chore/<slug>` branch-cut fire from code, not
   workflow markdown
-- `[ ]` `arc stub --cohort` places the dir + writes the field under the stub guards; `arc start --here`
+- `[x]` `arc stub --cohort` places the dir + writes the field under the stub guards; `arc start --here`
   auto-cuts / offers `plan/<name>` on a protected base instead of bare-refusing
-- `[ ]` The executor reports the distinct post-side-effect status on a forced post-side-effect failure
+- `[x]` The executor reports the distinct post-side-effect status on a forced post-side-effect failure
   (covered by test)
-- `[ ]` Falsifiable sweep: no "set by hand" / "hand-add" / carry-and-skip teardown tail remains in the
+- `[x]` Falsifiable sweep: no "set by hand" / "hand-add" / carry-and-skip teardown tail remains in the
   lifecycle ceremonies this WU owns (`integrate-work-unit`, `session-handoff`, `archive-work-unit`, the
   create-spec / generate-tasks / verify finalize fire-points, `run-errand`, `drain-inbox`)
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+    - **Deviation:** the WU-teardown tail is gone from all owned ceremonies; the one residual `git branch -d`
+      in `session-handoff`'s finalize pass is the `chore/<slug>` **errand**-candidate path, intentionally
+      retained — errand teardown is `errand-lattice`'s `arc errand close`, not this WU's WU-gated `arc teardown`.
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---
 
