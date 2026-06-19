@@ -55,22 +55,31 @@ this WU's integration (the integrate ceremony does not auto-advance ADR status).
   `chore/<slug>` wrapper aside, or `## Atomic` framing remains in the file. Branch-prefix decoupling and
   record-owned identity stay with their later phases.
 
-### `[ ]` **1.3 Update `AGENT-BRIEF.ARC` vocabulary and `DEV-RULES.ARC` § Discovered Work Routing; sweep `issue-triage`**
+### `[x]` **1.3 Update `AGENT-BRIEF.ARC` vocabulary and `DEV-RULES.ARC` § Discovered Work Routing; sweep `issue-triage`**
 
 - _Goal:_ The orientation and routing surfaces describe the lowercase-atomic / Errand-wrapper vocabulary and the
   spec-worthiness routing, with no residual increment-count basis.
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **1.3.a `AGENT-BRIEF.ARC` — the Errand / atomic / Work-unit vocabulary entries**
-        - Lowercase `atomic` = one-increment character; `Errand` = wrapper, atomic _or_ multi-increment; the
-          spec-worthiness gate.
+    - `[x]` **1.3.a `AGENT-BRIEF.ARC` — the Errand / atomic / Work-unit vocabulary entries**
+        - Added an `Errand` vocabulary entry (off-WU wrapper, below the spec-worthiness floor, atomic _or_
+          multi-increment); re-based `Atomic` → lowercase `atomic` (one-increment character, decoupled from the
+          wrapper; inboxes route by fate); added a `spec-worthy` qualifier to `Work unit`. Kept hot-path-tight.
 
-    - `[ ]` **1.3.b `DEV-RULES.ARC` § Discovered Work Routing — routing table + wrapper floor**
-        - Make the routing table and wrapper-floor wording consistent with the re-based gate; keep Holding ≠
-          execution unchanged.
+    - `[x]` **1.3.b `DEV-RULES.ARC` § Discovered Work Routing — routing table + wrapper floor**
+        - Re-based the express-lanes wording onto spec-worthiness (errand = self-evident, atomic or
+          multi-increment; stub = spec-worthy future work). Trimmed the capture-drain sentence — dropped the
+          housekeep disposition detail (Phase-6 shared-inbox model), the "not at integration" contrast, and the
+          wrong `provisional` default — leaving it at the "drains to a home" altitude. Routing table and
+          Holding ≠ execution unchanged (table delegates classification to the re-based § Errand Work Class).
 
-    - `[ ]` **1.3.c `issue-triage` — sweep for any wrapper-floor / increment-count assumption**
-        - Correct in place if found; confirm-clean if it only delegates to the routing rules.
+    - `[x]` **1.3.c `issue-triage` — sweep for any wrapper-floor / increment-count assumption**
+        - Confirm-clean — no edit. Triages by severity only and delegates all routing to `DEV-RULES.ARC`
+          § Discovered Work Routing, so it carries no wrapper-floor basis to correct.
+
+- _Outcome:_ The two session-loaded orientation surfaces now carry the Errand-wrapper / lowercase-atomic vocabulary
+  and spec-worthiness routing; package source and `.arc/` synced byte-identical, residual-basis grep clean. Edits
+  kept minimal-viable for the hot path (these load every session).
 
 ### `[ ]` **1.4 Mint ADR-027 and add the ADR-021 forward-pointer amendment**
 

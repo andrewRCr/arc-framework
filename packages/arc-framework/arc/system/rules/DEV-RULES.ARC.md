@@ -271,15 +271,15 @@ whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classi
 [strategy-work-organization][work-org] § Errand Work Class.
 
 **Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and act
-directly — run an errand (atomic) or scaffold a `backlog/` stub (multi-step) — but never must:
-capture-plus-drain reaches the same place. Lack of time is never a reason to lose a thought.
+directly — run an errand (a self-evident concern, atomic or multi-increment) or scaffold a `backlog/` stub
+(spec-worthy future work) — but never must: capture-plus-drain reaches the same place. Lack of time is never a
+reason to lose a thought.
 
-**Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow,
-**not** at the integration ceremony: homeless atomic items flush to the shared `ATOMIC-INBOX`, homeless
-multi-step items graduate to a *provisional* stub (there is no shared multi-step inbox). Under PM modes other
-than arc-in-git, captures route per project convention (see [DEV-RULES.PROJECT][dev-rules-project]); the
-inline, holding, and anti-rider rules are mode-independent. The drain clears each entry to a home, with one
-sanctioned exception — a developer may **retain** a specific capture in `USER-INBOX` (held privately until
+**Where captures drain.** `USER-INBOX` is per-developer and drains at the between-WUs `arc-housekeep` flow.
+Under PM modes other than arc-in-git, captures route per project convention (see
+[DEV-RULES.PROJECT][dev-rules-project]); the inline, holding, and anti-rider rules are mode-independent. The
+drain clears each entry to a home, with one sanctioned exception — a developer may **retain** a specific
+capture in `USER-INBOX` (held privately until
 vetted, or for imminent self-execution), explicit and per-entry, never the default. So the WU-start invariant
 is **no un-triaged entries**, not an empty inbox: a retained entry is triaged (marked, reminder-tracked), not
 rot.
