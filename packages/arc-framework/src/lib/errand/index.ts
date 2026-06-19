@@ -29,3 +29,16 @@ export {
   type ErrandTreeMerge,
   type ErrandPushOutcome,
 } from "./merge.js";
+
+export {
+  ERRAND_BRANCH_TYPES,
+  DEFAULT_ERRAND_BRANCH_TYPE,
+  isErrandBranchType,
+  type ErrandBranchType,
+} from "./branch-type.js";
+
+export {
+  openErrand,
+  type OpenErrandParams,
+  type OpenErrandResult,
+} from "./open.js";

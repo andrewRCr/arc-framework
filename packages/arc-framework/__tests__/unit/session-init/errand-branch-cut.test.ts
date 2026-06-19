@@ -60,4 +60,30 @@ describe("cutErrandBranch", () => {
 
     await expect(cutErrandBranch({ exec }, { slug: "  ", base: "main" })).rejects.toThrow(/slug/);
   });
+
+  it("cuts a nature-typed branch when a type is given", async () => {
+    const { exec, calls } = fakeExec(new Set());
+
+    const result = await cutErrandBranch({ exec }, { slug: "flaky-login", base: "main", type: "fix" });
+
+    expect(result).toEqual({ branch: "fix/flaky-login", created: true });
+    expect(calls).toContainEqual({ cmd: "git", args: ["branch", "fix/flaky-login", "main"] });
+  });
+
+  it("defaults to a chore/ branch when no type is given (the unchanged cut behavior)", async () => {
+    const { exec, calls } = fakeExec(new Set());
+
+    await cutErrandBranch({ exec }, { slug: "bump-deps", base: "main" });
+
+    expect(calls).toContainEqual({ cmd: "git", args: ["branch", "chore/bump-deps", "main"] });
+  });
+
+  it("no-clobbers a nature-typed branch independently of the chore default", async () => {
+    const { exec, calls } = fakeExec(new Set(["refactor/extract-io"]));
+
+    const result = await cutErrandBranch({ exec }, { slug: "extract-io", base: "main", type: "refactor" });
+
+    expect(result).toEqual({ branch: "refactor/extract-io", created: false });
+    expect(calls.some((call) => call.args[0] === "branch")).toBe(false);
+  });
 });

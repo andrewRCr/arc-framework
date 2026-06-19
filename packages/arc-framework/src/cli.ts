@@ -19,7 +19,9 @@ import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
   handleErrandCut,
+  handleErrandOpen,
   type ErrandCheckOptions,
+  type ErrandOpenOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
@@ -234,7 +236,7 @@ program
 
 const errand = program
   .command("errand")
-  .description("Errand operations. `check` reports which in-flight work units touch a target path.");
+  .description("Errand operations. `open` launches an errand; `check` reports in-flight overlap.");
 
 errand
   .command("check")
@@ -249,6 +251,13 @@ errand
   .command("cut <slug>")
   .description("Cut the chore/<slug> errand branch off branch.base (idempotent — no-clobber if it exists)")
   .action((slug: string) => handleErrandCut(slug));
+
+errand
+  .command("open <slug>")
+  .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
+  .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
+  .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
+  .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 const housekeep = program
   .command("housekeep")

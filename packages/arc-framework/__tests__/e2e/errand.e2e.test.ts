@@ -7,6 +7,8 @@
  */
 
 import { execFile } from "node:child_process";
+import { readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -19,6 +21,13 @@ const execFileAsync = promisify(execFile);
 async function git(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, { cwd });
   return stdout;
+}
+
+/** Flip the installed config's branch.protection (default `partial`) to `full`. */
+async function setFullProtection(cwd: string): Promise<void> {
+  const path = join(cwd, ".arc", "system", "arc-config.yml");
+  const yaml = await readFile(path, "utf-8");
+  await writeFile(path, yaml.replace("branch.protection: partial", "branch.protection: full"), "utf-8");
 }
 
 describe("arc errand check", () => {
@@ -85,5 +94,55 @@ describe("arc errand cut", () => {
     const after = (await git(tmpDir, ["rev-parse", "chore/fix-typo"])).trim();
     expect(after).toBe(before);
     expect(after).not.toBe((await git(tmpDir, ["rev-parse", "main"])).trim());
+  });
+});
+
+describe("arc errand open", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses under partial protection — an errand there is a direct base commit, no branch", async () => {
+    const result = await runArc(["errand", "open", "fix-typo"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(await git(tmpDir, ["branch", "--list", "chore/fix-typo"])).toBe("");
+  });
+
+  it("mints the record, cuts a nature-typed branch, and occupies it in place under full protection", async () => {
+    await setFullProtection(tmpDir);
+
+    const result = await runArc(["errand", "open", "flaky-login", "--type", "fix"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // The branch is cut nature-typed off the base's tip.
+    expect(await git(tmpDir, ["branch", "--list", "fix/flaky-login"])).toContain("fix/flaky-login");
+    expect((await git(tmpDir, ["rev-parse", "fix/flaky-login"])).trim()).toBe(
+      (await git(tmpDir, ["rev-parse", "main"])).trim(),
+    );
+    // The session occupies the errand branch — never left on the launch branch.
+    expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("fix/flaky-login");
+    // The identity record is minted in the orphan state-ref, projecting the branch.
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:flaky-login"]);
+    expect(record).toContain('"branch": "fix/flaky-login"');
+    expect(record).toContain('"origin": "description"');
+  });
+
+  it("rejects an out-of-set branch type (feat is a work unit, not an errand)", async () => {
+    await setFullProtection(tmpDir);
+
+    const result = await runArc(["errand", "open", "new-thing", "--type", "feat"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(await git(tmpDir, ["branch", "--list", "feat/new-thing"])).toBe("");
   });
 });

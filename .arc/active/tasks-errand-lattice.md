@@ -177,23 +177,23 @@ the Phase 2 record-mint + occupy; `close` composes `removeErrandRecord` + branch
 `removeInboxEntry`. The inbox entry drops at completion (never at start), so an abandoned errand never orphans
 the intent. Occupy default is the in-place switch until `finalize-parallelism` ships.
 
-### `[ ]` **3.1 `arc errand open <slug>` — mint the record, cut a nature-typed branch, occupy per protection mode**
+### `[x]` **3.1 `arc errand open <slug>` — mint the record, cut a nature-typed branch, occupy per protection mode**
 
 - _Goal:_ `arc errand open <slug>` mints the identity record, cuts a nature-typed branch (`fix/` / `refactor/` /
   `chore/`) as the record's projection, and occupies per protection mode — never leaving the session on the
   launch branch.
-- _Approach:_ New subcommand in `cli.ts` (alongside `errand cut` / `errand check`) with a handler in
-  `handlers/errand.ts`; compose the creation-only `cutErrandBranch` (`lib/session-init/errand-branch-cut.ts`,
-  unchanged) + the Phase 2 record-mint + occupy. Occupy = in-place switch (worktree spawn deferred to
-  `finalize-parallelism`).
 - **Strategies:** strategy-testing-methodology.md, strategy-work-organization.md
 
-    Build `test-first` (one behavior at a time):
-
-    - `open <slug>` mints a record and pushes it (Phase 2 sync)
-    - the branch is cut nature-typed; an existing branch is left untouched (no-clobber, via `cutErrandBranch`)
-    - after the cut the session occupies the branch (in-place switch) — never left on the launch branch
-    - a free-description `open` (no originating inbox entry) still produces a recoverable record
+- _Outcome:_ `arc errand open <slug> [--type] [--intent]` ships as a new `openErrand` core (`lib/errand/open.ts`)
+  composing the branch cut + Phase 2 record-mint + record push + in-place occupy (`git switch`); a full-protection
+  verb that refuses under partial protection (where an errand is a direct base commit, no branch/record). The push
+  is non-fatal — a failure records the errand partial-push marker and rides `arc sync`. `cutErrandBranch` was
+  **generalized** to a nature-`type` param (default `chore`), superseding the approach's "unchanged" note per
+  spec § 5; the admissible set is owned by a new `branch-type.ts` — `fix`/`chore`/`refactor`/`hotfix`, the
+  `branch-format` type set minus `feat` (a feature is spec-worthy → a work unit, not an errand). Intent defaults to
+  the slug; origin is always `description` (inbox linkage is Phase 6). Reading a project's `branch-format.override`
+  from code is a forward-compat seam (no method-override config-resolver exists yet), routed to
+  `customization-arch-realign`.
 
 ### `[ ]` **3.2 `arc errand close` — remove the record, reap the branch / worktree, drop the slug-matched inbox entry**
 
