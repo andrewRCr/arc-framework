@@ -561,12 +561,20 @@ export function setMetaFinalizeFields(
     Completed: valueOf("Completed", facts.completed),
   };
 
-  // Already present → rewrite both bullets in place. Absent (a pre-finalize meta)
-  // → insert the group before the field block's `---`.
+  // Both bullets present → rewrite in place. Absent (a pre-finalize meta) → insert
+  // the group before the field block's `---`. A *partial* group (one bullet present,
+  // the other hand-deleted) would make the in-place rewrite throw on the missing
+  // bullet, so normalize it first via the forward-reconcile (which inserts the absent
+  // bullet at its canonical slot) before the in-place update.
   const lines = content.split("\n");
-  const hasGroup = lines.some((line) => /^[ \t>*+-]*\*\*PR URL:\*\*/.test(line));
-  if (hasGroup) {
+  const hasPrUrl = lines.some((line) => bulletMarkerRe("PR URL").test(line));
+  const hasCompleted = lines.some((line) => bulletMarkerRe("Completed").test(line));
+  if (hasPrUrl && hasCompleted) {
     return setMetaBulletFields(content, rendered);
+  }
+  if (hasPrUrl || hasCompleted) {
+    const { content: normalized } = reconcileMetaFields(content);
+    return setMetaBulletFields(normalized, rendered);
   }
 
   const h1Idx = lines.findIndex((line) => /^# /.test(line));

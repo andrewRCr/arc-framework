@@ -688,6 +688,30 @@ describe("setMetaFinalizeFields — the archive finalize-fact write", () => {
     expect(after).not.toContain("<[none]>");
     expect(after).not.toContain("`[none]`");
   });
+
+  it("normalizes a partial finalize group (one bullet present) instead of throwing", () => {
+    // A hand-edited meta where `Completed` was deleted but `PR URL` survived. The
+    // in-place rewrite would throw on the missing bullet; the write reconciles the
+    // absent bullet back in first, then updates both.
+    const full = renderMetaFile("foo", SPAWN_OVERRIDES); // both finalize bullets at [none]
+    const partial = full
+      .split("\n")
+      .filter((line) => !/^\s*- \*\*Completed:\*\*/.test(line))
+      .join("\n");
+    expect(partial).not.toContain("- **Completed:**");
+
+    const after = setMetaFinalizeFields(partial, {
+      prUrl: "https://github.com/x/y/pull/9",
+      completed: "2026-06-18",
+    });
+
+    const record = parseMetaRecord(after);
+    expect(record["PR URL"]).toBe("https://github.com/x/y/pull/9");
+    expect(record.Completed).toBe("2026-06-18");
+    // Exactly one of each bullet — reconciled, not duplicated.
+    expect(after.match(/- \*\*PR URL:\*\*/g)).toHaveLength(1);
+    expect(after.match(/- \*\*Completed:\*\*/g)).toHaveLength(1);
+  });
 });
 
 describe("reconcileMetaFields — forward-reconcile against the field model", () => {
