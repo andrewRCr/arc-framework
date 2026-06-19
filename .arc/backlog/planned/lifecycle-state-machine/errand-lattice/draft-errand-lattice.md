@@ -41,6 +41,23 @@
 - *Scope guard:* keep this scoped to the errand lattice — do **not** generalize into a "supporting lifecycles"
   catch-all (cohort-doc lifecycle and inbox / housekeep already have owners).
 
+### `[ ]` **Errand identity should be record-owned, not branch-prefix-derived (arc-backend forward-compat)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: errand-lattice`), housekeep drain (2026-06-19); captured
+  during `lifecycle-mechanics-tail` forward-compat check (2026-06-18) against storage-evolution / arc-backend.
+- *Concern:* errands are intentionally record-less today — identity + state derive from the `chore/<slug>` branch
+  (+ PR), and `errandSlugOf` (`lib/session-init/errand-branch.ts`) recovers the slug by parsing the branch prefix.
+  The arc-backend / storage-evolution direction (Principle 5) names "inferring WU state from branch existence" as
+  an anti-pattern: logical identity should be a record/field with the branch a projection, so a branchless errand
+  record can exist in a multi-developer backend.
+- *Scope:* errand-lattice owns the errand-lifecycle model, so it should reckon with whether errands need a logical
+  identity record (slug owned in a record; `chore/<slug>` derived from it) rather than the branch being the
+  identity oracle. Not a v1 blocker — `lifecycle-mechanics-tail`'s errand branch-cut consumes the slug as a logical
+  input and treats `chore/<slug>` as the projection, so it stays forward-compatible — but the durable
+  errand-identity model is this WU's call.
+- *Optional cheap adjacent:* an `Arc-Maintenance:` commit trailer for reliable chore-filtering (`draft-arc-backend`
+  § Decoupling (d)).
+
 ---
 
 ## Problem / Motivation

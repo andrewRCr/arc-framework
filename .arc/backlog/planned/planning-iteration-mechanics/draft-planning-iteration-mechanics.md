@@ -14,6 +14,35 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **`assess-spec-readiness` — codify the spec-readiness check + open-questions discipline (draft/spec asymmetry)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-06-19);
+  captured during `lifecycle-mechanics-tail` create-spec, Open Questions discussion (2026-06-18).
+- _Concern:_ the draft has a reusable `assess-draft-readiness` method (fires at draft-design exit + create-spec
+  entry); the spec has no symmetric one. Spec readiness is asserted by `spec-review` + the human Gate 1 at
+  create-spec (producer) and only backstopped _reactively_ at generate-tasks (consumer) by the grounding-audit
+  re-entry valve — no proactive consumer-entry gate. Diagnosed ~80% principled (the spec gets human Gate 1/2 the
+  draft never does; the two spec boundaries ask different questions, weakening the shared-method pull) + ~20% real
+  gap.
+- _Scope:_ the genuine gap is that the **open-questions discipline has no single home** — the "legitimately open
+  vs. masked decision?" line lives implicitly in three places (`assess-draft-readiness` criterion 1 / the
+  divergence test, create-spec's `detailed` "open for the right reason" prose, DEV-RULES § Design before
+  implementation). PPR owns `assess-draft-readiness` + the create-spec interlock split, so this is its lineage;
+  this WU already owns the planning-content split + a buffer-drain contract with that method.
+- _Approach (lean, not decided):_ don't mint a full `assess-spec-readiness` method just for symmetry — codify the
+  open-questions discipline in one home (sharpen `assess-draft-readiness` criterion 1) and add the
+  **decide-now-vs-false-precision** test there: an open question is legitimately open iff leaving it open won't
+  change the task list / scope; it's a masked decision iff deciding it now would. A full method only earns its keep
+  if generate-tasks should gate _proactively_ at entry (symmetric to create-spec's draft-readiness entry gate) vs.
+  relying on the grounding-audit backstop — a planning-time call for this WU.
+
+---
+
 ## Problem / Motivation
 
 The planning pipeline's _readiness_ surface (when is a draft spec-ready, who decides, how the stage pointer

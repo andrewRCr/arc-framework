@@ -161,6 +161,22 @@
   boundary (no physical teardown in `arc archive`), but evaluate a thin post-merge finalize/teardown command that
   consumes the already-settled merge result and runs the safe cleanup legs.
 
+### `[ ]` **Should the workflow-composition mechanism expose a `slug → artifact` resolver?**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), housekeep drain (2026-06-19);
+  captured during `lifecycle-mechanics-tail` PR #114 review cycle (2026-06-19).
+- *Concern:* resolving a workflow by bare slug (no carrying context) currently means a `grep`/`find` — hit when a
+  workflow was named in conversation (`address-pr-review`) rather than reached via a link. A standalone
+  `arc load-workflow <slug>` was considered but **rejected as marginal**: a CLI command can't load into agent
+  context (it only resolves `slug → path`, then the agent still `Read`s — ≈ zero token win), and in-system
+  reference cases already carry the path (workflow→workflow ref-style links, skills name the path,
+  methods/extensions load via frontmatter declaration). A general md-file loader would also be a second load
+  mechanism competing with that convention.
+- *Scope (kernel worth keeping):* if CW's fragment/composition substrate needs a canonical `slug → artifact`
+  resolver anyway (to include/compose fragments), the bare-slug-loading case folds into it for free — the only
+  framing under which this earns its keep. As a standalone verb it doesn't; as a property of CW's composition
+  substrate it might. Decide at CW's design.
+
 ---
 
 ## Problem / Motivation
