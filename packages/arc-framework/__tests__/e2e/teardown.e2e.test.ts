@@ -10,10 +10,13 @@ import { describe, it, expect, afterEach } from "vitest";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 describe("arc teardown (CLI surface)", () => {
-  let tmpDir: string;
+  let tmpDir: string | undefined;
 
   afterEach(async () => {
-    await cleanupTempDir(tmpDir);
+    // Guard the assignment: a setup throw before `tmpDir` is set must not have its
+    // original error masked by a cleanup on `undefined`.
+    if (tmpDir !== undefined) await cleanupTempDir(tmpDir);
+    tmpDir = undefined;
   });
 
   it("refuses without a work-unit name", async () => {
