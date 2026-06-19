@@ -31,11 +31,16 @@ Boundary-test triage, then ratchet against any realized design-authoring work.
 Apply in order. The first test sorts work below the wrapper out of the `Class` model entirely; the next two
 each independently promote a WU to `Heavy`; the last promotes `Heavy → Novel` on the derivation axis alone.
 
-1. **Errand vs. WU (the wrapper floor):** *"Does this need more than a single logical concern — more than one
-   review increment — to do well?"*
-    - **No** → it is an **Errand**, not a WU. `Class` does not apply: an Errand runs below the wrapper
-      (`chore/<slug>` + PR, no meta file). Stop here.
-    - **Yes** → it is a WU. Continue to the two `Heavy` triggers.
+1. **Errand vs. WU (the wrapper floor):** *"Is this spec-worthy — does it clear the floor on either intrinsic
+   axis (a design worth recording, or a substantial grounding pass a correct plan must navigate), or is it
+   self-evident on both?"* This reads the same two axes as the `Heavy` triggers below, at their **sub-floor**: the
+   errand is the shared below-floor tier of one spectrum, not a separate increment-count gate.
+    - **Below floor on *both* axes** → it is an **Errand**, not a WU: one concern with nothing worth recording as
+      design *and* no substantial grounding pass — self-evident, validated by intent + diff + review. `Class` does
+      not apply: an Errand runs below the wrapper (no meta file). Atomic *or* multi-increment — a self-evident
+      one-concern sweep is an errand across many increments; increment-count is irrelevant. Stop here.
+    - **Clears *either* floor** → it is a WU (**spec-worthy**): a design worth recording (even a determinate one)
+      *or* a substantial grounding pass a correct plan must navigate. Continue to the two `Heavy` triggers.
 
 2. **Derivation trigger (→ `Heavy`):** *"Must a real design be authored — concerns, alternatives, tradeoffs
    that don't exist until someone works them out — before a competent engineer can start?"*

@@ -14,14 +14,15 @@ _Design decisions:_ Authoritative-model-first — the vocabulary is settled befo
 (Phase 6) consume it. ADR-027 is written here; the `Proposed → Accepted` flip is a completion-time action at
 this WU's integration (the integrate ceremony does not auto-advance ADR status).
 
-### `[ ]` **1.1 Re-base boundary test #1 in `classify-work-unit` onto the two-axis spec-worthiness floor**
+### `[x]` **1.1 Re-base boundary test #1 in `classify-work-unit` onto the two-axis spec-worthiness floor**
 
 - _Goal:_ The method's first boundary test admits a self-evident multi-increment single-concern sweep as an
   errand and decides the wrapper floor on the two intrinsic `Class` axes (derivation + scale), not increment-count.
-- _Approach:_ Rewrite test #1 from "more than one review increment → WU" to "below floor on _both_ axes →
-  errand; clears _either_ floor → WU"; reflect the three-tier-per-axis sub-floor. Leave the estimate-vs-realized
-  ratchet text intact.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+- _Outcome:_ Rewrote test #1 from the increment-count question onto the two-axis spec-worthiness floor (below
+  _both_ axes → errand, atomic or multi-increment; clears _either_ → WU), framing the errand as the shared
+  sub-floor of the same derivation/scale spectrum tests #2–#3 read. Dropped the `chore/<slug>` + PR branch aside
+  (the mode-scaled branch mechanism is owned downstream); ratchet text untouched.
 
 ### `[ ]` **1.2 Re-base `strategy-work-organization` §§ Class Model / Work Character / Errand Work Class / Auto-Merge Lane**
 
