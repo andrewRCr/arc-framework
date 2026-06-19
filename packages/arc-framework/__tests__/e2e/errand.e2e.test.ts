@@ -7,7 +7,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -144,5 +144,81 @@ describe("arc errand open", () => {
 
     expect(result.exitCode).toBe(1);
     expect(await git(tmpDir, ["branch", "--list", "feat/new-thing"])).toBe("");
+  });
+});
+
+describe("arc errand close", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses under partial protection", async () => {
+    const result = await runArc(["errand", "close", "anything"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("reaps the branch, removes the record, and hops back to base", async () => {
+    await setFullProtection(tmpDir);
+    const open = await runArc(["errand", "open", "tidy", "--type", "chore"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("chore/tidy");
+
+    const result = await runArc(["errand", "close", "tidy"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // The branch is reaped and the session is back on the base.
+    expect(await git(tmpDir, ["branch", "--list", "chore/tidy"])).toBe("");
+    expect((await git(tmpDir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim()).toBe("main");
+    // The identity record is gone from the orphan state-ref.
+    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:tidy"])).rejects.toThrow();
+  });
+
+  it("is a clean no-op when no record exists for the slug", async () => {
+    await setFullProtection(tmpDir);
+
+    const result = await runArc(["errand", "close", "never-opened"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+  });
+
+  it("refuses an unsafe branch but reaps it with --force", async () => {
+    await setFullProtection(tmpDir);
+    await runArc(["errand", "open", "wip", "--type", "fix"], tmpDir);
+    // A commit ahead of base, never pushed — not provably preserved.
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "wip"]);
+    await git(tmpDir, ["switch", "main"]);
+
+    const refused = await runArc(["errand", "close", "wip"], tmpDir);
+    expect(refused.exitCode).toBe(1);
+    expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toContain("fix/wip");
+
+    const forced = await runArc(["errand", "close", "wip", "--force"], tmpDir);
+    expect(forced.exitCode).toBe(0);
+    expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
+  });
+
+  it("leaves unrelated inbox captures untouched (a description errand drops nothing)", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = "# User Inbox\n\n## Atomic\n\n### `[ ]` **Keep me**\n\n- _Observation:_ unrelated.\n\n---\n";
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+
+    await runArc(["errand", "open", "tidy", "--type", "chore"], tmpDir);
+    const result = await runArc(["errand", "close", "tidy"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(inboxPath, "utf-8")).toContain("**Keep me**");
   });
 });

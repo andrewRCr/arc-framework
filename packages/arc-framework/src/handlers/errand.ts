@@ -21,6 +21,7 @@ import { readConfigSettings } from "../lib/config/status-reader.js";
 import { cutErrandBranch } from "../lib/session-init/errand-branch-cut.js";
 import {
   openErrand,
+  closeErrand,
   isErrandBranchType,
   ERRAND_BRANCH_TYPES,
   DEFAULT_ERRAND_BRANCH_TYPE,
@@ -29,6 +30,7 @@ import {
   clearErrandPartialPushMarker,
   recordErrandPartialPushMarker,
 } from "../lib/user-sync/index.js";
+import { runUserInboxRemove } from "../commands/user.js";
 import { gitExec, createUserIOContext } from "../lib/io-context.js";
 import { requireArcProjectRoot, resolveIdentityWithPrompt } from "./shared.js";
 
@@ -228,6 +230,114 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
 
   const cutVerb = result.branchCreated ? "cut" : "reused";
   p.log.success(`Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place.`);
+  p.outro("Done.");
+}
+
+/** Options for the `arc errand close` subcommand. */
+export interface ErrandCloseOptions {
+  /** Bypass the containment safety check — the deliberate shipped / abandon override. */
+  force?: boolean;
+}
+
+/**
+ * Close an errand: reap its branch (containment-safe), remove the identity
+ * record and push the removal, then drop the slug-matched inbox capture.
+ *
+ * A full-protection verb, like `open`. The reap refuses (record kept) when the
+ * branch's commits are not provably preserved, so an abandoned errand stays
+ * recoverable; `--force` is the explicit override for the deliberate shipped /
+ * abandon case. The inbox drop targets the record's originating entry — present
+ * only for inbox-promoted errands — and is an idempotent no-op otherwise.
+ */
+export async function handleErrandClose(slug: string, opts: ErrandCloseOptions): Promise<void> {
+  p.intro("arc errand close");
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    p.log.error(
+      "`arc errand close` is a full-protection verb. Under partial protection an errand is a direct "
+      + "base commit — no branch, no record — so it never closes.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const base = settings["branch.base"].trim();
+  if (base === "") {
+    p.log.error("No branch.base configured — cannot resolve the base to hop to.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    p.log.error("The stdin git seam is unavailable — cannot remove the errand record.");
+    process.exitCode = 1;
+    return;
+  }
+
+  let result;
+  try {
+    result = await closeErrand(
+      { exec: io.exec, execInput: io.execInput, identity },
+      { slug, base, force: opts.force === true },
+    );
+  } catch (err) {
+    p.log.error(`Could not close the errand: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "no-record") {
+    p.log.info(`No errand record for '${slug}' — nothing to close.`);
+    p.outro("Done.");
+    return;
+  }
+
+  if (result.kind === "unsafe-reap") {
+    p.log.error(
+      `Refusing to reap ${result.record.branch}: ${result.reason}. The record is kept, so the errand stays `
+      + "recoverable — push or merge it then retry, or re-run with `--force` if you've verified it shipped.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
+  // of the removal clears any stale marker; a failed push records it and is
+  // non-fatal — the removal rides the next `arc sync`.
+  switch (result.push.kind) {
+    case "pushed":
+    case "reconciled":
+    case "noop":
+      await clearErrandPartialPushMarker(cwd, io, identity);
+      break;
+    case "no-remote":
+    case "conflict":
+    case "failed":
+      await recordErrandPartialPushMarker(cwd, io, identity);
+      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
+      break;
+  }
+
+  // Drop the originating inbox capture (only inbox-promoted errands carry one);
+  // idempotent — an absent entry or missing inbox file is a clean no-op.
+  if (result.record.originEntry !== undefined) {
+    const dropped = await runUserInboxRemove({ cwd, identity, slug: result.record.originEntry });
+    if (dropped.removed) p.log.info("Dropped the originating inbox capture.");
+  }
+
+  p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
   p.outro("Done.");
 }
 

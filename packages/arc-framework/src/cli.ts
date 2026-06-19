@@ -20,8 +20,10 @@ import {
   handleErrandCheck,
   handleErrandCut,
   handleErrandOpen,
+  handleErrandClose,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
+  type ErrandCloseOptions,
 } from "./handlers/errand.js";
 import { handleHousekeepCheck, type HousekeepCheckOptions } from "./handlers/housekeep.js";
 import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
@@ -258,6 +260,12 @@ errand
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
+
+errand
+  .command("close <slug>")
+  .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
+  .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
+  .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
 
 const housekeep = program
   .command("housekeep")

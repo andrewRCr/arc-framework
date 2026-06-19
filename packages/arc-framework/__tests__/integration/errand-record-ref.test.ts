@@ -88,6 +88,18 @@ describe("errand orphan state-ref primitives", () => {
     expect(await readErrandRecord(io, "keep-b")).toEqual(recordFor("keep-b"));
   });
 
+  it("removing the last record leaves a valid empty ref (mktree handles the empty tree)", async () => {
+    await writeErrandRecord(io, recordFor("only"));
+
+    await removeErrandRecord(io, "only");
+
+    expect(await readErrandRecord(io, "only")).toBeNull();
+    expect(await listErrandRecords(io)).toEqual([]);
+    // The ref still resolves — it advanced to a commit holding the empty tree.
+    const { stdout } = await io.exec("git", ["rev-parse", "--verify", errandsRef(IDENTITY)]);
+    expect(stdout.trim()).toMatch(/^[0-9a-f]{40}$/u);
+  });
+
   it("removing an absent slug is a no-op that leaves existing records intact", async () => {
     await writeErrandRecord(io, recordFor("keep"));
 

@@ -84,10 +84,11 @@ export async function writeTreeCommit(
   message: string,
   parents: string[],
 ): Promise<string> {
-  const treeInput = [...entries.entries()]
-    .map(([slug, sha]) => `100644 blob ${sha}\t${slug}`)
-    .join("\n");
-  const treeSha = (await io.execInput(["mktree"], `${treeInput}\n`)).trim();
+  const treeLines = [...entries.entries()].map(([slug, sha]) => `100644 blob ${sha}\t${slug}`);
+  // Empty entries (the last record removed) must feed `mktree` zero bytes — a lone
+  // trailing newline reads as a blank line and `mktree` rejects it outside batch mode.
+  const treeInput = treeLines.length === 0 ? "" : `${treeLines.join("\n")}\n`;
+  const treeSha = (await io.execInput(["mktree"], treeInput)).trim();
 
   const commitArgs = [
     "commit-tree",

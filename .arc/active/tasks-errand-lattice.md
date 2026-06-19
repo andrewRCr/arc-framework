@@ -195,21 +195,25 @@ the intent. Occupy default is the in-place switch until `finalize-parallelism` s
   from code is a forward-compat seam (no method-override config-resolver exists yet), routed to
   `customization-arch-realign`.
 
-### `[ ]` **3.2 `arc errand close` — remove the record, reap the branch / worktree, drop the slug-matched inbox entry**
+### `[x]` **3.2 `arc errand close` — remove the record, reap the branch / worktree, drop the slug-matched inbox entry**
 
 - _Goal:_ `arc errand close` removes the identity record, reaps the branch / ephemeral worktree and prunes the
   remote-tracking ref, and drops the slug-matched inbox entry at completion.
-- _Approach:_ New subcommand + handler composing the separable `removeErrandRecord` (Phase 2) + branch/worktree
-  reap + the shipped `removeInboxEntry` (`lib/user-sync/inbox-writer.ts`) for the inbox drop; the record removal
-  pushes via the Phase 2 sync.
 - **Strategies:** strategy-testing-methodology.md, strategy-work-organization.md
 
-    Build `test-first` (one behavior at a time):
-
-    - `close` removes the record and pushes the removal
-    - the branch / ephemeral worktree is reaped and the remote-tracking ref pruned
-    - the slug-matched inbox entry is dropped; an absent entry is an idempotent no-op
-    - the inbox entry drops only at `close`, never at start (an abandoned errand keeps a recoverable record)
+- _Outcome:_ `arc errand close <slug>` ships as `closeErrand` (`lib/errand/close.ts`): it reaps the branch, removes
+  the record and pushes the removal (the same marker discipline as `open`), and the handler drops the
+  `originEntry`-matched inbox capture via the shipped `runUserInboxRemove`. A full-protection verb, like `open`. The
+  reap is **containment-safe** (the settled design call): the local branch is force-deleted only when its commits
+  are provably preserved — contained in `origin/<branch>` (pushed) **or** in `base` (merged), covering squash /
+  rebase / merge — then the stale remote-tracking ref is pruned; an unprovable branch is refused **atomically**
+  (record kept), so an abandoned errand stays recoverable, with a `--force` escape for the deliberate
+  shipped / abandon override. The remote branch is never deleted (the PR owns that). Inbox-drop keys on
+  `record.originEntry` — present only for inbox-promoted errands, so a Phase-3 description errand is a clean no-op
+  (the inbox→errand crossing edge lands in Phase 6). Fixed a Phase 2 substrate bug this task surfaced: removing the
+  **last** record left an empty tree that `mktree` rejected (`ref-tree.ts`), now regression-covered. The one
+  residual reap gap — a squash-merge whose remote-tracking ref was already pruned, where `--force` is still needed
+  — is captured for `operational-state-docs` (auto-clear via a live-PR merge-status read).
 
 ## **Phase 4:** Record-owned identity migration
 

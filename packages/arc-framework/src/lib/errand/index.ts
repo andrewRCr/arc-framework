@@ -42,3 +42,9 @@ export {
   type OpenErrandParams,
   type OpenErrandResult,
 } from "./open.js";
+
+export {
+  closeErrand,
+  type CloseErrandParams,
+  type CloseErrandResult,
+} from "./close.js";
