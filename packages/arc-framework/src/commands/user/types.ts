@@ -158,6 +158,26 @@ export interface UserCloseOptions {
   wuName: string;
 }
 
+/** Options for dropping a slug-matched `USER-INBOX` entry. */
+export interface UserInboxRemoveOptions {
+  cwd: string;
+  identity: string;
+  /**
+   * The entry's slug. Title-keyed in v1 — the value is matched against the
+   * entry's bold title; the OSD record model later moves the match onto a
+   * `_Slug:_` field with no caller change.
+   */
+  slug: string;
+}
+
+/** Outcome of a `USER-INBOX` entry removal. */
+export interface UserInboxRemoveResult {
+  /** Whether a matching entry was found and dropped. */
+  removed: boolean;
+  /** True when the developer has no `USER-INBOX` file — a clean no-op, not an error. */
+  inboxMissing: boolean;
+}
+
 /** Options for the push operation. */
 export interface UserPushOptions {
   io: UserIOContext;

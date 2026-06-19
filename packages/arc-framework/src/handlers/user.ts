@@ -10,7 +10,7 @@ import * as p from "@clack/prompts";
 
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
-  runUserClose, runUserOpen,
+  runUserClose, runUserInboxRemove, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
   buildSaveSummary, buildLoadSummary, buildUserSessionInitStatusSummary, buildUserStatusSummary,
@@ -192,6 +192,38 @@ export async function handleUserClose(wuName: string): Promise<void> {
       () => runUserClose({ cwd, identity, wuName }),
       `User workspace closed (user/${identity}/${wuName}/).`,
     );
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  p.outro("Done.");
+}
+
+/**
+ * Drop the slug-matched entry from the developer's `USER-INBOX`. Idempotent —
+ * an absent entry or a missing inbox reports a clean no-op rather than failing,
+ * so the errand-completion / drain / finalize call sites can replay it freely.
+ */
+export async function handleUserInboxRemove(slug: string): Promise<void> {
+  p.intro("arc user inbox-remove");
+
+  let identity: string;
+  try {
+    identity = await resolveUserIdentity();
+  } catch (err) {
+    if (isHandledError(err)) return;
+    throw err;
+  }
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  try {
+    const result = await runUserInboxRemove({ cwd, identity, slug });
+    if (result.removed) p.log.success(`Removed USER-INBOX entry: ${slug}`);
+    else if (result.inboxMissing) p.log.info(`No USER-INBOX for ${identity}; nothing to remove.`);
+    else p.log.info(`No matching USER-INBOX entry (already absent): ${slug}`);
   } catch (err) {
     if (isHandledError(err)) return;
     throw err;

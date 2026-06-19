@@ -174,9 +174,10 @@ On merge (full) or commit (partial), tear down the locus and clear the capture:
   merged-and-deleted `origin/chore/<slug>` ref doesn't linger and surface as phantom in-flight. Targeted here
   because the slug is known in-session; session-init's errand sweep carries the broad backstop for errands
   whose PR merged out-of-session.
-- **Remove the slug-matched originating `USER-INBOX` entry** — this is the single point where that removal is
-  ensured. An errand that started but never completed keeps its entry, so the intent is never lost;
-  session-init's in-flight sweep backstops an abandoned branch.
+- **Drop the originating `USER-INBOX` entry** — `arc user inbox-remove <slug>` (matched on the entry title in
+  v1; idempotent — a no-op when already gone). This is the single point where that removal is ensured. An errand
+  that started but never completed keeps its entry, so the intent is never lost; session-init's in-flight sweep
+  backstops an abandoned branch.
 
 **Unattended completion (auto-merge lane).** When the merge lands unattended — after the session has moved on or
 ended — these steps do not fire here in-session. They are replayed from base context by the

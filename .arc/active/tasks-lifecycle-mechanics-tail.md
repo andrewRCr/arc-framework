@@ -290,17 +290,10 @@ _Design decisions:_ The inbox removal is idempotent + targeted + title-keyed in 
 OSD's `_Slug:_`). The errand branch-cut consumes the slug as logical identity — never recovers identity
 by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is `decompose-matrix`'s).
 
-### `[ ]` **6.1 `USER-INBOX` slug-matched line removal**
+### `[x]` **6.1 `USER-INBOX` slug-matched line removal**
 
 - _Goal:_ Errand completion drops the originating `USER-INBOX` entry via an idempotent, targeted,
   title-keyed removal — a no-op when absent, a single entry (not a whole-file rewrite).
-
-- _Context:_ Title-keyed in v1 (forward-compat to OSD's `_Slug:_`, which owns the field later); maps to
-  the future inbox-as-event-log drain _event_. Readers already exist (`inbox-state.ts`,
-  `user-sync/parser.ts`) — this is the missing writer. `run-errand` Complete is the authoritative removal
-  point; `drain-inbox` and the `session-handoff` § Same-session finalize pass (the auto-merge backstop)
-  replay it idempotently. Not the errand-WIP-handoff path, which deliberately retains the entry until the
-  errand completes.
 
     - `[x]` **6.1.a Targeted line-removal primitive**
         - `removeInboxEntry` (`user-sync/inbox-writer.ts`) excises the title-matched H3 block and reports a
@@ -309,10 +302,19 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
           section boundary (next `##` heading or `---`), so it manages exactly the entries the reader sees; the H3
           title shape is single-sourced via a new exported `matchInboxEntryTitle`.
 
-    - `[ ]` **6.1.b Wire the removal into the completion sites**
-        - `run-errand` Complete (authoritative), `drain-inbox`, and `session-handoff` § Same-session
-          finalize pass (backstop) call the writer (slug-matched removal at completion), replacing the
-          hand-run removal.
+    - `[x]` **6.1.b Wire the removal into the completion sites**
+        - New `arc user inbox-remove <slug>` command (`commands/user/inbox-remove.ts` + `handleUserInboxRemove`)
+          resolves the developer's gitignored inbox, calls the primitive, and rewrites only on removal. Wired into
+          the three hand-run sites — `run-errand` Complete, `drain-inbox` § Route, and `session-handoff`
+          Same-session finalize (rendered + package template copies). Integration-tested: removal, absent-entry
+          no-op, missing-inbox no-op.
+
+- _Outcome:_ The inbox-removal writer ships end-to-end — the missing write-side complement to the existing
+  readers. Slug arg is title-keyed in v1 (forward-compat to OSD's `_Slug:_`). The symmetric **add** half was
+  deliberately not pulled in: capture is judgment-laden (the `arc-inbox` skill's), and the deterministic
+  managed-write (`arc inbox add`) is `operational-state-docs`' — routed there via `USER-INBOX` so the I/O
+  symmetry is tracked, not lost. A non-canonical `---` separator that had hidden a live entry from the section
+  parser was also corrected in the live inbox.
 
 ### `[ ]` **6.2 Errand `chore/<slug>` branch-cut at Launch**
 

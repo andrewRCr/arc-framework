@@ -49,7 +49,7 @@ import {
   type ArchiveOptions,
 } from "./handlers/lifecycle.js";
 import {
-  handleUserAdd, handleUserClose, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
+  handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
 } from "./handlers/user.js";
 import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
@@ -310,6 +310,11 @@ userCmd
   .command("close <wu-name>")
   .description("Close per-WU user workspace subdir (removes user/{identity}/<wu-name>/ recursively)")
   .action(handleUserClose);
+
+userCmd
+  .command("inbox-remove <slug>")
+  .description("Drop the slug-matched USER-INBOX entry (title-keyed in v1; idempotent — no-op when absent)")
+  .action(handleUserInboxRemove);
 
 userCmd
   .command("save")

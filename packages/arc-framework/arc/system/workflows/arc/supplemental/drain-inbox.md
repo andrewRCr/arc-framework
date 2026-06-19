@@ -115,8 +115,9 @@ boundaries (there are no routing PRs to chunk). Surface the chunk plan at the in
 
 ### 5. Route — write to homes
 
-Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies); the
-removal rides the same write.
+Each entry takes exactly one route. Routing **moves** the source line out of `USER-INBOX` (never copies):
+`arc user inbox-remove <slug>` drops it (matched on the entry title in v1; idempotent), paired with each routing
+write.
 
 - **Existing-stub home** — a multi-step entry whose home is a live `active/` or `backlog/` stub. Write the note
   into that stub's `draft-*` / `notes-*` in one of **two integration modes**:
