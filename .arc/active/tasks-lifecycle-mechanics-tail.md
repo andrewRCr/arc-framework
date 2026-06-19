@@ -340,20 +340,20 @@ by parsing `chore/<slug>`. Single-member `--cohort` only (the batch scaffold is 
   the command instead of hand-running `git branch`; occupying the cut branch (worktree vs. in-place) stays the
   workflow's protection-mode dispatch.
 
-### `[ ]` **6.3 `arc stub --cohort <slug>`**
+### `[x]` **6.3 `arc stub --cohort <slug>`**
 
 - _Goal:_ `arc stub --cohort <slug>` places the new member dir under `backlog/planned/<cohort>/<name>/`
   and writes the `Cohort` field, under the stub contract's existing collision/validation guards.
 
-- _Context:_ Single member only — the batch-into-cohort-tree scaffold is `decompose-matrix`'s. Extend
-  `stub.ts` / `runStub` + its handler; reuse `isSafeCohortPath` for the cohort-path guard.
-
     - `--cohort` flag → cohort-tree placement + `Cohort` field override; runs under the stub guards.
 
-    - Build `test-first` (one behavior at a time):
-        - Places the dir under the cohort tree and writes the `Cohort` field
-        - Runs under the stub collision/validation guards (commitment + priority still required)
-        - Rejects an unsafe cohort path (`..` traversal, leading `/`)
+- _Outcome:_ `runStub` gained a `cohort` input (threaded from the new `--cohort` flag): on supply it nests the
+  member dir under `backlog/<commitment>/<cohort>/<name>/` and sets meta `Cohort`, guarded by `isSafeCohortPath`
+  (traversal) + `validateCohortPath` (segment cap). Because cohort membership resolves only under
+  `backlog/planned/`, `--cohort` **requires `--commitment planned`** rather than silently overriding — a
+  provisional cohort member would be invisible to the resolver. Single member only; the batch cohort-tree
+  scaffold stays `decompose-matrix`'s. Covered by `stub.test.ts` (placement, nested path, guards retained,
+  planned-tier requirement, unsafe-path rejection).
 
 ### `[ ]` **6.4 `arc start --here` protected-base auto-cut**
 

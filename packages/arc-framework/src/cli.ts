@@ -131,6 +131,7 @@ program
   .option("--priority <priority>", "Work-unit priority, e.g. `P1` (required)")
   .option("--origin <ref>", "External reference (issue / URL) → meta `Origin`")
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
+  .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
   .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
 
 program

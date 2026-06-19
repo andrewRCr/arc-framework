@@ -193,6 +193,7 @@ export interface StubOptions {
   priority?: string;
   origin?: string;
   design?: string;
+  cohort?: string;
 }
 
 /**
@@ -218,7 +219,10 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
   const { executor } = await buildExecutor(base);
   const result = await runStub(
     { executor, fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile } },
-    { name: wuName, commitment, priority: opts.priority, owner: base.identity, origin: opts.origin, design: opts.design },
+    {
+      name: wuName, commitment, priority: opts.priority, owner: base.identity,
+      origin: opts.origin, design: opts.design, cohort: opts.cohort,
+    },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
