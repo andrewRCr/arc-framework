@@ -12,11 +12,11 @@
 - **Task List:** `tasks-errand-lattice.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.3 — Extend the user-state sync machinery to carry the errand ref (Phase 2 complete)
-- **Next Task:** Task 3.1 — `arc errand open <slug>`: mint record, cut a nature-typed branch, occupy (line ~180)
+- **Last Completed:** Task 3.2 — `arc errand close`: containment-safe reap + record removal + inbox drop (Phase 3 complete)
+- **Next Task:** Task 4.1 — Migrate the session-init errand probes to record reads (line ~229)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — execute via process-task-loop
+- **Next Action:** Begin Task 4.1 — execute via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
