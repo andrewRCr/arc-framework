@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `39110eb7`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0dc5c145`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -14,7 +14,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State    | Work unit      | Priority | Owner  | Depends on | Cohort                  |
 |----------|----------------|----------|--------|------------|-------------------------|
-| Planning | errand-lattice | P1       | andrew | —          | lifecycle-state-machine |
+| Active   | errand-lattice | P1       | andrew | —          | lifecycle-state-machine |
 
 ## Ready
 

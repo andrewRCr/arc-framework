@@ -1,22 +1,22 @@
 # Metadata: errand-lattice
 
-| **State**  | **Owner** | **Branch**            | **Class** | **Priority** |
-| ---------- | --------- | --------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/errand-lattice` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**            | **Class** | **Priority** |
+| --------- | --------- | --------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/errand-lattice` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
-- **Depends On:** `lifecycle-transition-core`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-errand-lattice.md`
 - **Task List:** `tasks-errand-lattice.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Re-base classify-work-unit boundary test #1 onto spec-worthiness (line ~17)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — execute via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
