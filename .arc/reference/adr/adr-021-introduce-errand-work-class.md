@@ -215,8 +215,17 @@ capture-flavored `arc-errand` skill + `ERRANDS.md` queue substrate retire. Full 
 `spec-work-routing-discipline.md` § Errand-model re-pivot. Status remains **Proposed** pending Concurrent Work
 Conventions and Agile WU Lifecycle.
 
+**Amendment (2026-06-19):** [ADR-027][adr-027] refines this class's model (the taxonomy above is unchanged). It
+re-bases the errand-vs-WU wrapper floor from increment-count onto **spec-worthiness** — the two intrinsic `Class`
+axes, where an Errand is below floor on both (atomic *or* multi-increment) and a WU clears either — models the
+Errand as one character with a `branch.protection`-scaled mechanism, and gives the full-protection Errand a
+**record-owned identity** (an orphan state-ref at `refs/arc/user/{identity}/errands`; the branch a projection,
+retiring the `errandSlugOf` branch-parse). ADR-021 is **not superseded** — its work-class taxonomy stands; ADR-027
+corrects the threshold basis and identity model it left in place. Full design: `spec-errand-lattice.md`.
+
 ---
 
 [adr-019]: adr-019-work-unit-lifecycle-reform.md
 [adr-020]: adr-020-adopt-principle-anchored-scalable-core.md
+[adr-027]: adr-027-refine-errand-model.md
 [cohort]: ../../backlog/planned/agile-parallelism/cohort-agile-parallelism.md

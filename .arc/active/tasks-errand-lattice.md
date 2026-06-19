@@ -81,7 +81,7 @@ this WU's integration (the integrate ceremony does not auto-advance ADR status).
   and spec-worthiness routing; package source and `.arc/` synced byte-identical, residual-basis grep clean. Edits
   kept minimal-viable for the hot path (these load every session).
 
-### `[ ]` **1.4 Mint ADR-027 and add the ADR-021 forward-pointer amendment**
+### `[x]` **1.4 Mint ADR-027 and add the ADR-021 forward-pointer amendment**
 
 - _Goal:_ ADR-027 records the refined model — the spec-worthiness wrapper floor, the two-layer mode-scaled
   mechanism, and record-owned identity — referencing ADR-021; ADR-021 gains a forward-pointer amendment.
@@ -89,11 +89,15 @@ this WU's integration (the integrate ceremony does not auto-advance ADR status).
   done at integration, not here.
 - **Strategies:** strategy-adr-methodology.md
 
-    - `[ ]` **1.4.a Author ADR-027 (Context references ADR-021)**
-        - Decision: the three refinements. Alternatives: new-over-amend rationale plus the rejected
-          record-location / ref-type / namespace options the spec settles.
+    - `[x]` **1.4.a Author ADR-027 (Context references ADR-021)**
+        - Wrote `adr-027-refine-errand-model.md` (Status `Proposed`). Context cites ADR-021 and the two faults;
+          Decision states the three refinements (spec-worthiness floor / two-layer mode-scaled mechanism /
+          record-owned identity); Alternatives carries the new-over-amend rationale and the rejected
+          record-location, ref-type, and namespace options.
 
-    - `[ ]` **1.4.b Add the ADR-021 Tier-2 forward-pointer amendment pointing to ADR-027**
+    - `[x]` **1.4.b Add the ADR-021 Tier-2 forward-pointer amendment pointing to ADR-027**
+        - Appended a dated `**Amendment (2026-06-19):**` annotation to ADR-021 (append-only Tier-2 — taxonomy
+          unchanged, not superseded) pointing to ADR-027, plus the `[adr-027]` link def.
 
 ## **Phase 2:** The errand record substrate
 
