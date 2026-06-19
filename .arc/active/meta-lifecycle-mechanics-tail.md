@@ -12,10 +12,10 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 3 — integration-tail commands (`arc integrate` + `arc archive` finalize facts; Tasks 3.1–3.2)
-- **Next Task:** Task 4.1 — Graduate forward-reconcile against `META_FIELDS` (warn-and-backfill) (line ~187)
+- **Last Completed:** Phase 4 — meta-shape single source of truth (Tasks 4.1–4.3)
+- **Next Task:** Task 5.1 — Code-write `Class` / `Task List` / `Next Action` at planning finalize (line ~249)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 (Phase 4) — implement via process-task-loop
+- **Next Action:** Begin Task 5.1 (Phase 5) — implement via process-task-loop
 
 ---
