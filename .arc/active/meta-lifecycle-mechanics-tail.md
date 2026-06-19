@@ -12,10 +12,10 @@
 - **Task List:** tasks-lifecycle-mechanics-tail.md
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4 — meta-shape single source of truth (Tasks 4.1–4.3)
-- **Next Task:** Task 5.1 — Code-write `Class` / `Task List` / `Next Action` at planning finalize (line ~249)
+- **Last Completed:** Phase 5 — planning-stage meta-field writes (Task 5.1)
+- **Next Task:** Task 6.1 — `USER-INBOX` slug-matched line removal (line ~293)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 (Phase 5) — implement via process-task-loop
+- **Next Action:** Begin Task 6.1 (Phase 6) — implement via process-task-loop
 
 ---
