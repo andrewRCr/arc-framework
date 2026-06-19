@@ -8,10 +8,10 @@
 - **Depends On:** `lifecycle-transition-core`
 
 - **Origin:** [internal]
-- **Design:** `draft-errand-lattice.md`
+- **Design:** `spec-errand-lattice.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
