@@ -287,6 +287,22 @@
   logic. The **validator-fix** and **corpus-conformance-gate** portions stay genuinely OSD's (unbuilt). The
   2026-06-16 write-path-enforcement entry already reframed only the consistency-hook framing — not these three.
 
+### `[ ]` **Pair OSD's `arc inbox add` managed-write with the shipped inbox-remove half (I/O symmetry + kills append drift)**
+
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-19);
+  captured during `lifecycle-mechanics-tail` Task 6.1 — building the inbox-removal writer.
+- _Concern:_ `lifecycle-mechanics-tail` § 7 shipped `removeInboxEntry` (`user-sync/inbox-writer.ts`) — the inbox
+  **drain/remove** half — as interim markdown, because errand completion had a concrete judgment-free hand-run tail
+  to migrate. Its symmetric **add** half is deliberately not there: capture is judgment-laden (classify → section,
+  author title, compose descriptors, resolve `WU_Target`) and lives in the `arc-inbox` skill. But OSD already
+  scopes the deterministic managed-write CLI (`arc inbox add`) over both inboxes, so the add half is OSD's.
+- _Scope:_ when OSD builds the managed-write, design it as a paired I/O surface with the remove half — re-home
+  `removeInboxEntry` onto records alongside `arc inbox add` (zero-reshape lift), not as two unrelated migrations.
+  **Anti-drift dividend:** a deterministic append (placement + canonical section spacing) eliminates the free-hand
+  spacing drift the skill's hand-append produces today — e.g. stray mid-`## Backlog` `---` separators that hid an
+  entry from the section parser (`routableCount` under-counted until hand-fixed 2026-06-18). The judgment (what to
+  write) stays in the skill; only placement/spacing becomes mechanical.
+
 ---
 
 ## Purpose

@@ -19,6 +19,26 @@
 - *Note:* landing here as the per-user config-settings home; if it reads more as an `init-work-unit` /
   planning-module policy than a storage concern, re-route at integration.
 
+### `[ ]` **Flexible CLI config probe over the resolver (ceremonies stop hand-reading `arc-config.yml`)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: config-storage-architecture`), housekeep drain (2026-06-19);
+  captured during `lifecycle-mechanics-tail` integrate-work-unit Step 1 (2026-06-18).
+- *Concern:* workflow ceremonies resolve config by hand-reading `arc-config.yml` — hit at integrate-work-unit
+  Step 1 (grepped `branch.base` / `merge.strategy` / `archive.cadence` / `review.pre_merge`, none surfaced by the
+  session-init probe's fixed config slice). A correctness gap, not just ergonomics: the interlock modes
+  (`commit.interlock` / `push.interlock`) are git-config-resolved with documented defaults — not yaml — and this WU
+  is moving more keys (`role`, the three interlocks, `releaseOptedIn`) into `.arc/user/{identity}/config.user.yml`.
+  So an agent reading raw yaml silently diverges from the real resolver (`lib/config/resolved-settings.ts`), and
+  the drift worsens as that move lands.
+- *Approach:* a caller-agnostic config probe (`arc config get <key> --json`, or an `arc status --config --json`
+  mode) over the one resolver, read lazily at point-of-need — the same read authority the session-init envelope's
+  `config.value.settings` slice consumes, generalized. Explicitly **not** broadening the fixed init slice (that
+  bloats every init for values most sessions never touch).
+- *Scope:* configuration cohort's; design toward the post-storage-move resolver so it sits on records, not today's
+  yaml. Natural anchor is `config-storage-architecture` (already touches the resolver + the probe-envelope
+  consumers); may instead graduate to its own sibling stub in the cohort — drain decides. Check overlap with
+  `schema-introspection-layer` (architecture-remediation) for any config-value introspection it already implies.
+
 ---
 
 ### `[ ]` **Short identity (`arc.identity.short`) for rendered surfaces**

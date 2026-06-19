@@ -26,6 +26,19 @@
   clear the bar; the routing decision stays judgment in the drain workflow.
 - *Home note:* closest planned home; re-route if `shared-inbox-housekeep` isn't the exact owner of the housekeep CLI.
 
+### `[ ]` **Atomic-inbox completion-order reorder — deterministic sort the sweep could own**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: shared-inbox-housekeep`), housekeep drain (2026-06-19);
+  captured during `lifecycle-mechanics-tail` audit (2026-06-18).
+- *Concern:* atomic-inbox completion ordering (incomplete `[ ]` on top, blank-line gap, then completed in
+  chronological completion order, oldest→newest) is a deterministic partition+sort, currently hand-run in
+  `process-task-loop` § Atomic Task Completion (steps 2–3). No CLI owns it — `lib/classification.ts` has no
+  reorder/sort and `handlers/housekeep.ts` has no writer.
+- *Proposed:* a deterministic reorder the shared-inbox sweep owns — partition by checkbox state, then sort
+  completed entries by completion order.
+- *Home note:* classified out-of-scope at the lifecycle-tail audit (inbox/housekeep substrate, not the
+  lifecycle/transition CLI surface), routed to its owner.
+
 ---
 
 ## Problem / Motivation

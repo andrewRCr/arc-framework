@@ -41,6 +41,45 @@
 - *Scope guard:* keep this scoped to the errand lattice — do **not** generalize into a "supporting lifecycles"
   catch-all (cohort-doc lifecycle and inbox / housekeep already have owners).
 
+### `[ ]` **Errand identity should be record-owned, not branch-prefix-derived (arc-backend forward-compat)**
+
+- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: errand-lattice`), housekeep drain (2026-06-19); captured
+  during `lifecycle-mechanics-tail` forward-compat check (2026-06-18) against storage-evolution / arc-backend.
+- *Concern:* errands are intentionally record-less today — identity + state derive from the `chore/<slug>` branch
+  (+ PR), and `errandSlugOf` (`lib/session-init/errand-branch.ts`) recovers the slug by parsing the branch prefix.
+  The arc-backend / storage-evolution direction (Principle 5) names "inferring WU state from branch existence" as
+  an anti-pattern: logical identity should be a record/field with the branch a projection, so a branchless errand
+  record can exist in a multi-developer backend.
+- *Scope:* errand-lattice owns the errand-lifecycle model, so it should reckon with whether errands need a logical
+  identity record (slug owned in a record; `chore/<slug>` derived from it) rather than the branch being the
+  identity oracle. Not a v1 blocker — `lifecycle-mechanics-tail`'s errand branch-cut consumes the slug as a logical
+  input and treats `chore/<slug>` as the projection, so it stays forward-compatible — but the durable
+  errand-identity model is this WU's call.
+- *Optional cheap adjacent:* an `Arc-Maintenance:` commit trailer for reliable chore-filtering (`draft-arc-backend`
+  § Decoupling (d)).
+
+### `[ ]` **Codify cut/occupy consumer contract — `arc errand cut` creates, callers occupy (audit drain-inbox § 5)**
+
+- *Routed from:* errand-lattice owns the errand-launch contract; surfaced live during a housekeep drain
+  (2026-06-19) when `arc errand cut drain-inbox` left the session on `main` and the routing writes landed there
+  until the release wrapper's branch-protection refusal caught it.
+- *Concern:* `arc errand cut` is **creation-only by design** — it cuts `chore/<slug>` off the base and stops; the
+  lib (`errand-branch-cut.ts`) and handler (`errand.ts`) both state that occupying the branch (an ephemeral
+  worktree under full protection, or an in-place switch otherwise) is "the caller's protection-mode dispatch."
+  That split is sound: the CLI can't pick worktree-vs-switch unilaterally (it depends on protection mode + worktree
+  availability). `run-errand` § Launch step 3 honors the contract — it inlines "**Then occupy it:** spawn an
+  ephemeral worktree … otherwise switch to it." But `drain-inbox` § 5 full-protection inlines only the `arc errand
+  cut` command and *references* the occupy step ("see run-errand § Launch step 3") rather than stating it, so a
+  linear reader cuts and proceeds to write without ever leaving the launch branch — the failure mode hit here.
+- *Scope:* errand-lattice owns the errand-launch lifecycle, so the durable fix is to **codify the cut→occupy
+  pairing as an explicit consumer invariant** (cut creates; every consumer workflow must immediately occupy per
+  protection mode) and **audit consumers for inline conformance** — `drain-inbox` § 5 is the known under-spec
+  (inline the "then occupy" clause, mirroring run-errand § Launch step 3); also check session-init's errand
+  cold-entry. No CLI change — `arc errand cut`'s creation-only behavior is correct as-is.
+- *Note:* per WORKING-MEMORY, code WUs can't use spawned worktrees yet (gitignored `node_modules`), so the
+  in-place switch is the uniform safe occupy default until `finalize-parallelism` ships; a doc-grooming drain like
+  this one is worktree-safe but follows the same in-place default.
+
 ---
 
 ## Problem / Motivation
