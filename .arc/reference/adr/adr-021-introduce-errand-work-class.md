@@ -2,12 +2,12 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-06-19).
 
-Operational conventions (the concurrency gate, the lighter merge gate, the cheap-branch mechanism, the
-tier-model reconciliation) are named here but ratify at the cohort work units' PRDs — Worktree
-Foundation, Concurrent Work Conventions, Agile WU Lifecycle. This ADR decides the work-class taxonomy;
-the plumbing follows. Promote to Accepted when the cohort PRDs validate the operational pieces.
+The operational conventions (the concurrency gate, the lighter merge gate, the cheap-branch mechanism, the
+tier-model reconciliation) were validated by their shipped cohort work units — Worktree Foundation, Concurrent
+Work Doctrine, Agile WU Lifecycle — satisfying the promotion condition. The errand model is subsequently refined
+by [ADR-027][adr-027] (2026-06-19 amendment below), which leaves ADR-021's work-class taxonomy intact.
 
 ## Context
 
