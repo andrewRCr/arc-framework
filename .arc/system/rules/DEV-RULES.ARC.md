@@ -271,7 +271,7 @@ whole new phase may mean it isn't this WU's — ask). Errand-vs-Work-Unit classi
 [strategy-work-organization][work-org] § Errand Work Class.
 
 **Express lanes, never forced.** When you already hold the commitment, you may skip the inbox and act
-directly — run an errand (a self-evident concern, atomic or multi-increment) or scaffold a `backlog/` stub
+directly — run an errand (a self-evident concern, atomic, possibly extended) or scaffold a `backlog/` stub
 (spec-worthy future work) — but never must: capture-plus-drain reaches the same place. Lack of time is never a
 reason to lose a thought.
 

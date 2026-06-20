@@ -393,18 +393,32 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
   Launch trimmed to operational prose; atomic-single-session character headlined. Package-source-first, synced; lint
   and links clean. Closes the run-errand draft held since 6.2.a.
 
-### `[ ]` **5.R.5 Re-cascade the remaining surfaces shipped on the superseded framing**
+### `[x]` **5.R.5 Re-cascade the remaining surfaces shipped on the superseded framing**
 
 - _Goal:_ Every consuming / descriptive surface keys on the sharpened model — no surface still asserts
   "atomic or multi-increment" as equal grounds, nor the increment-count gate.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **5.R.5.a `AGENT-BRIEF.ARC` vocabulary (`Errand`, `atomic`)**
-    - `[ ]` **5.R.5.b `DEV-RULES.ARC` § Discovered Work Routing / Holding ≠ execution**
-    - `[ ]` **5.R.5.c `arc-errand` SKILL (+ harness-local copy)**
-    - `[ ]` **5.R.5.d USER-INBOX preambles — live `.arc/user/.../USER-INBOX.md` + adopter template**
-    - `[ ]` **5.R.5.e Coordination note: cohort doc + `decompose-matrix` draft consume the character gate (sibling
+    - `[x]` **5.R.5.a `AGENT-BRIEF.ARC` vocabulary (`Errand`, `atomic`)**
+    - `[x]` **5.R.5.b `DEV-RULES.ARC` § Discovered Work Routing / Holding ≠ execution**
+    - `[x]` **5.R.5.c `arc-errand` SKILL (+ harness-local copy)**
+    - `[x]` **5.R.5.d USER-INBOX preambles — live `.arc/user/.../USER-INBOX.md` + adopter template**
+    - `[x]` **5.R.5.e Coordination note: cohort doc + `decompose-matrix` draft consume the character gate (sibling
       artifacts — note, don't edit)**
+        - The cohort doc (`cohort-lifecycle-state-machine.md`) and `draft-decompose-matrix.md` both reference the
+          errand-vs-WU character gate at the decompose-as-errand seam — still phrased "multi-increment errand" under
+          the superseded framing. Left unedited (sibling artifacts owned by the cohort / `decompose-matrix`);
+          `decompose-matrix` re-bases that seam to the #3 model (extended errand) when it is worked. Recorded as
+          coordination only.
+
+- _Outcome:_ The last descriptive/consuming surfaces now read on the sharpened model: `AGENT-BRIEF.ARC`
+  `Errand`/`atomic` vocab (Errand defers its character def to `atomic`; pass-/commit-count decoupled, extended-errand
+  band — tightened for the every-session read budget), `DEV-RULES.ARC` express-lane errand (`atomic, possibly
+  extended`), the `arc-errand` skill's WU tell (re-based on the two floors, not increment count), and the USER-INBOX
+  `§ Errand` / `§ Work Unit` preambles (live + adopter template) on the atomic + durable-plan framing.
+  Package-source-first; `.arc` mirrors in sync, `.claude` / `.codex` skill copies auto-synced. Sweep-confirmed no
+  surface still asserts "atomic or multi-increment" as equal grounds (ADR-021/023 stay historical; spec/tasks hits
+  are this WU's own narrative).
 
 ## **Phase 6:** Crossing edges + operational-surface cascade
 

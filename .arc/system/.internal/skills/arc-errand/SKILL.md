@@ -27,7 +27,8 @@ context is already established — it does **not** run session-init.
 2. Dispatch into the errand lifecycle.
 
    Run `.arc/system/workflows/arc/supplemental/run-errand.md`. Its Launch confirms errand-vs-Work-Unit
-   (a multi-increment or design-bearing concern is a Work Unit — route it through `init-work-unit`
-   instead), runs the advisory `arc errand check` overlap probe, and relocates the execution locus to an
-   isolated base-derived branch — so the errand never executes on the branch you launched from. Execute
-   and Integrate carry it to a landed commit.
+   (a concern crossing either floor — a design worth recording, or a durable cross-session plan a correct
+   execution must navigate — is a Work Unit; route it through `init-work-unit` instead), runs the advisory
+   `arc errand check` overlap probe, and relocates the execution locus to an isolated base-derived branch —
+   so the errand never executes on the branch you launched from. Execute and Integrate carry it to a landed
+   commit.
