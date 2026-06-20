@@ -275,16 +275,16 @@ _Design decisions:_ Content and code edited together; the `WU_Target` field stay
 rides the entry `raw` verbatim. A one-time content + `ENTRY_SECTIONS` edit applied with the parser / probe
 updates — no migration mechanism.
 
-### `[ ]` **5.1 Relabel the `USER-INBOX` sections and rewrite the preambles to the spec-worthiness model**
+### `[x]` **5.1 Relabel the `USER-INBOX` sections and rewrite the preambles to the spec-worthiness model**
 
 - _Goal:_ `USER-INBOX` reads `## Errand` / `## Work Unit` with preambles stating the spec-worthiness model; the
   live entries migrate under the new headings and `WU_Target` stays on `## Work Unit` entries.
-- _Approach:_ Edit two surfaces — the live project instance `.arc/user/andrew/USER-INBOX.md` (migrate its
-  current `## Atomic` / `## Backlog` entries) and the shipped new-adopter template
-  `packages/arc-framework/templates/user/USER-INBOX.md` (seeded at `arc init` / user-setup via `lib/setup.ts`).
-  The template is adopter-facing — keep its preamble neutral, no internal-roadmap framing. Leave the
-  `## Removed:` tombstones' historical `_Section:_` values as-is.
-- **Strategies:** strategy-session-operations.md
+- _Outcome:_ Relabelled `## Atomic` → `## Errand` and `## Backlog` → `## Work Unit` with spec-worthiness preambles
+  (errand = below both intrinsic floors, atomic or multi-increment; work unit = clears either floor) in both the
+  live `.arc/user/andrew/USER-INBOX.md` and the adopter template `templates/user/USER-INBOX.md`. Live entries
+  migrated 1:1 (heading-only move, no drain-time re-triage); `## Removed:` tombstone `_Section:_` values left
+  historical. Content-only — the coupled section code (`ENTRY_SECTIONS`, parser, probes) re-bases in Task 5.2, so
+  inbox reads regress against the renamed headings until then.
 
 ### `[ ]` **5.2 Update the coupled inbox-section code in lockstep, tests green**
 
