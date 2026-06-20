@@ -18,11 +18,14 @@ identity model intact.
 Building the errand lifecycle as an explicit lattice — the gapless-lifecycle goal of the `lifecycle-state-machine`
 cohort — surfaces two faults in that intact core:
 
-- **The wrapper floor is increment-count-based.** "More than one review increment → WU" forces a determinate,
-  single-concern maintenance sweep — a decomposition, a doc-grooming pass, a ROADMAP re-render cascade — into the WU
-  wrapper, where it earns an empty spec and a task list that just restates the inbox. It is one logical concern with
-  no design to author, yet it spans several increments, so it is hand-rolled off-script every time. The floor tests
-  the wrong quantity.
+- **The wrapper floor was read against the wrong quantity.** ADR-021's "more than one review increment → WU" is
+  sound when "review increment" means an approval gate — but in practice it was read against *commit / step count*,
+  so a determinate, single-concern maintenance sweep — a decomposition, a doc-grooming pass, a ROADMAP re-render
+  cascade, a housekeep drain that fans out — got forced into the WU wrapper, where it earns an empty spec and a task
+  list that just restates the inbox. Such a sweep is **one logical concern reviewed once** (one review increment)
+  with no design to author, however many commits it lands in; counting commits mis-files it. The durable fix is to
+  state the floor as **spec-worthiness** directly — which grounds *why* one review increment suffices: the concern
+  is determinate, with no design to author and no substantial grounding to navigate.
 - **Errand identity is derived from the branch.** `chore/<slug>` is the identity-and-state oracle; identity is
   parsed from the branch name (`errandSlugOf`). Under partial protection there is no branch at all, and inferring
   identity from branch existence is the storage-evolution Principle-5 anti-pattern. ADR-021's re-pivot removed the
@@ -39,10 +42,12 @@ wrapper-optional class, execution-only, tracked by git history); each corrects a
 1. **Re-base the wrapper floor onto spec-worthiness.** The errand-vs-WU boundary is decided on the same two
    intrinsic axes that drive `Class` — **derivation** (is there design worth recording?) and **scale** (must a
    correct plan navigate a substantial grounding pass?). An **Errand** is a single concern **below floor on both**
-   axes — self-evident, validated by intent + diff + review, **atomic or multi-increment**; a **Work Unit** is
-   **spec-worthy**, clearing *either* floor. Increment-count drops out of the gate; concern-count stays
-   (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing spectrum, not a separate
-   cardinality gate.
+   axes — self-evident, validated by intent + diff + review, and **always atomic**: one concern resolved in one
+   review increment, however many commits it lands in. A **Work Unit** is **spec-worthy**, clearing *either* floor.
+   **Commit-count drops out of the gate**; the review-increment count stays *one* for an errand and *coincides* with
+   the below-floor judgment (needing a second review increment is itself a design / coordination signal).
+   Concern-count stays (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing
+   spectrum, not a separate cardinality gate.
 2. **Model the Errand as one character with a mode-scaled mechanism.** The errand-vs-WU *character* is universal —
    one judgment learned once. Its *mechanism* is a projection of `branch.protection`: under **partial** protection a
    direct base commit tracked by its `standalone (...)` footer (no branch, no lifecycle); under **full** protection a
@@ -88,8 +93,8 @@ co-mingles execution-intent records with personal session-notes content and mism
 
 ### Positive
 
-- A determinate multi-increment maintenance sweep runs on-script as an Errand instead of masquerading as an empty
-  WU; the WU namespace stays free of design-less entries.
+- A determinate maintenance sweep — even a sizable one — runs on-script as an Errand instead of being forced into an
+  empty WU by its volume; it is one concern reviewed once, and the WU namespace stays free of design-less entries.
 - One errand concept spans both protection modes — learned once, with a mechanism that scales, rather than two
   models to reconcile.
 - Errand identity is decoupled from the branch: a `fix/`- or `refactor/`-prefixed branch is unambiguously an Errand

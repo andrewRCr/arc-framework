@@ -65,18 +65,30 @@ Orthogonal to a work unit's *category* (its branch-type prefix, above) is its *c
 **atomic** or **multi-step**. Character is a routing axis in its own right, and it is *scale-invariant*: the same
 distinction sorts inbox items, individual tasks, and whole work units.
 
-- **atomic** — single-bounded, indivisible, no internal stages: one review increment, fully resolved when its
-  commit lands. At the **task scale**, atomic work surfacing mid-WU folds into the current commit or routes out
-  (inline, Errand, or capture); at the **item scale**, deferred atomic work is a one-increment capture.
-- **multi-step** — distinct stages with separate goals; needs decomposition into phases or a task list, and
-  (when for-later) matures through the planning pipeline rather than executing as-is.
+- **atomic** — one self-evident concern, resolved in **one review increment** (a single structured approval gate):
+  no internal stage that needs reviewing apart. *Typically* a single commit — but commit-count is incidental, not
+  the character: one concern may mechanically land in several commits under the normal atomicity policy (a sweep
+  whose touched files revert independently) and stays atomic. At the **task scale**, atomic work surfacing mid-WU
+  folds into the current commit or routes out (inline, Errand, or capture); at the **item scale**, deferred atomic
+  work is a one-increment capture.
+- **multi-step** — distinct stages that need reviewing apart: **more than one review increment**, keyed by a task
+  list. It needs decomposition before execution and (when for-later) matures through the planning pipeline rather
+  than executing as-is.
 
-**Character is not the wrapper floor.** Whether work runs below the WU wrapper as an [Errand](#errand-work-class)
-or earns the WU wrapper is the **spec-worthiness** gate ([§ Class Model](#class-model) boundary test #1), *not* the
-atomic / multi-step split. An Errand is one self-evident concern — below floor on both intrinsic axes — and is
-**atomic *or* multi-increment**: a determinate doc-grooming sweep across many increments is still an Errand. A WU
-is spec-worthy: a design worth recording, or a substantial grounding pass a correct plan must navigate. The two
-axes cross — a multi-step Errand and a multi-step WU both exist, separated by spec-worthiness, not increment-count.
+**Character is not the wrapper floor** — the wrapper is the **spec-worthiness** gate ([§ Class Model](#class-model)
+boundary test #1) — but character and wrapper relate tightly. **An Errand is always atomic:** one self-evident
+concern, one review increment (a determinate sweep — a doc-grooming pass, a `ROADMAP` re-render, a housekeep drain
+that fans out — is *one* concern reviewed once, however many files or commits it lands in). The moment work needs a
+**second review increment** — a stage reviewed apart because settling it needs course-correction the first review
+can't give — it is multi-step, and **multi-step work is a Work Unit** (however light): needing separate review
+surfaces *is* the decomposition the WU wrapper exists to carry. A WU is spec-worthy — a design worth recording, or
+a substantial grounding pass a correct plan must navigate — and is *usually* multi-step, though a small spec-worthy
+concern can be atomic in character too; the WU is decided by spec-worthiness, not by reaching for the "atomic" label.
+
+**One concern, one review increment** is the sharp line. "Is this *one* concern?" carries irreducible boundary
+judgment — two careful readers can split a marginal case differently and both be ARC-correct. The ambiguity is
+deliberate: within the bounds, the developer decides, and a mis-call is cheap to correct via the Errand→WU
+promotion edge.
 
 **Route by fate, not by wrapper.** Capture surfaces sort on what the work *becomes* — Errand vs WU (spec-worthy?),
 not which artifact happened to produce it. For the during-WU-vs-later routing table, see
@@ -142,9 +154,9 @@ promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation a
 1. **Errand vs. WU (the wrapper floor).** *Is this spec-worthy — does it clear the floor on either intrinsic axis
    (a design worth recording, or a substantial grounding pass a correct plan must navigate), or is it self-evident
    on both?* This reads the same two axes below at their **sub-floor** — the Errand is the shared below-floor tier
-   of one spectrum, not a separate increment-count gate. **Below floor on both** → it is an
-   [Errand](#errand-work-class), not a WU (one self-evident concern, atomic *or* multi-increment; increment-count
-   irrelevant): below the wrapper, no meta, no `Class`. **Clears either floor** → it is a WU (spec-worthy);
+   of one spectrum, not a separate cardinality gate. **Below floor on both** → it is an
+   [Errand](#errand-work-class), not a WU (one self-evident concern, always atomic — one review increment, however
+   many commits): below the wrapper, no meta, no `Class`. **Clears either floor** → it is a WU (spec-worthy);
    continue.
 2. **Derivation trigger (→ `heavy`).** *Must a real design be authored — concerns, alternatives, tradeoffs that do
    not exist until someone works them out — before a competent engineer can start?* **Yes** → `heavy`. Count only
@@ -160,12 +172,12 @@ promote a WU to `heavy`; the last promotes `heavy → novel` on the derivation a
 
 ### Worked examples
 
-**The wrapper floor, split on the scale axis.** Both of these are one concern across *several* increments — the
-re-based gate's new admission is that increment-count alone no longer forces a WU:
+**The wrapper floor, split on the scale axis.** Both of these are one concern that can land across *several
+commits* — the re-based gate's admission is that commit-count alone no longer forces a WU:
 
-- **Self-evident sweep → Errand.** A doc-grooming pass or a `ROADMAP` re-render cascade: many increments, but
-  nothing to author and no substantial grounding a correct plan must navigate. Below floor on both axes — an
-  Errand, atomic or not.
+- **Self-evident sweep → Errand.** A doc-grooming pass or a `ROADMAP` re-render cascade: many files or commits, but
+  nothing to author and no substantial grounding a correct plan must navigate. Below floor on both axes — one
+  concern reviewed once, an Errand.
 - **Widely-used-symbol rename → `heavy` WU.** A rename whose correct plan must verify call-sites across a broad
   surface clears the *scale* floor: spec-worthy by grounding demand, so a WU even though the design is
   determinate.
@@ -1148,10 +1160,10 @@ ARC defines two work classes that share commit and review machinery but differ i
   planning entry point (spawn or cold-start; see [§ Branching](#branching)).
 - **Errand** — a single self-evident concern below the WU wrapper, **below floor on both intrinsic `Class` axes**
   (nothing worth recording as design, no substantial grounding a correct plan must navigate) and validated by
-  intent + diff + review. Atomic *or* multi-increment — a self-evident sweep is an Errand across many increments;
-  increment-count is irrelevant. No meta, no lifecycle, no name as a WU. Tracked by git history (Conventional
-  Commits + the `standalone (...)` context footer — see [`commit-footer`][commit-footer-method]), not by the
-  planning layer (ROADMAP, backlog, `active/`).
+  intent + diff + review. Always atomic — one self-evident concern in one review increment; a determinate sweep is
+  an Errand however many commits it lands in. No meta, no lifecycle, no name as a WU. Tracked by git history
+  (Conventional Commits + the `standalone (...)` context footer — see [`commit-footer`][commit-footer-method]), not
+  by the planning layer (ROADMAP, backlog, `active/`).
 
 ### Two layers — one character, a mode-scaled mechanism
 
@@ -1201,9 +1213,9 @@ an Errand. The split operationalizes the general Work-Unit threshold: promote to
 3. it must be **tracked or resumed** as future or owned work (a roadmap slot, dependencies, an owner, a
    cross-session lifecycle).
 
-None of these → it is an Errand, *however many increments it spans*. Create trips criterion 3; a maintain edit
+None of these → it is an Errand, *however many commits it spans*. Create trips criterion 3; a maintain edit
 that turns out to clear a floor — substantial grounding or authored design — trips 1 or 2 and likewise promotes,
-but spanning multiple increments alone never does. As an empirical *symptom* check — not the primary criterion — a
+but spanning multiple commits alone never does. As an empirical *symptom* check — not the primary criterion — a
 candidate that cannot be reviewed in one window (~400 lines / ~60 minutes) likely hides authored design or a
 substantial grounding surface, so re-examine it against floors 1–2.
 

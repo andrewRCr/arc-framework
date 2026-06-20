@@ -317,8 +317,8 @@ harness-local copies in this self-hosting repo.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md, strategy-testing-methodology.md
 
     - `[x]` **6.1.a Re-base the § Promote Errand workflow prose**
-        - Re-based the criterion onto spec-worthiness (increment count no longer gates — a multi-increment errand
-          stays an errand until design is worth recording); made the branch verify + rename prefix-agnostic
+        - Re-based the criterion onto spec-worthiness (commit count no longer gates — a determinate sweep stays an
+          errand however many commits, until design is worth recording); made the branch verify + rename prefix-agnostic
           (`git branch -m {type}/{name}` renames the current errand branch, whatever its nature-type); identity
           resolves from the errand record, not a branch parse; step 7 invokes `arc errand retire`. Edited
           package-source-first, synced byte-identical to `.arc/`.
@@ -332,20 +332,21 @@ harness-local copies in this self-hosting repo.
   `close --keep-branch` flag — keeps `close`'s reap contract and result type clean, and leaves a reusable core for
   a future `arc errand promote`. Integration + e2e both assert "record removed, renamed branch survives."
 
-### `[ ]` **6.2 Update `run-errand` and `drain-inbox` — multi-increment + cut→occupy + routing**
+### `[ ]` **6.2 Update `run-errand` and `drain-inbox` — multi-commit sweep + cut→occupy + routing**
 
-- _Goal:_ `run-errand` admits a multi-increment single-concern maintenance errand (gated in chunks, one PR) with
-  record-owned identity at `open` / `close`, and `drain-inbox` § 5 inlines the "then occupy" clause and routes
-  character-aware.
+- _Goal:_ `run-errand` admits a determinate single-concern sweep that lands in several commits (one review
+  increment, one PR) with record-owned identity at `open` / `close`, and `drain-inbox` § 5 inlines the "then
+  occupy" clause and routes character-aware.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **6.2.a `run-errand` — admit the multi-increment errand; wire the `open` / `close` record lifecycle**
-        - Relax the "one review increment" framing to admit the multi-increment shape; keep cut→occupy inline
-          (already honored at § Launch).
+    - `[ ]` **6.2.a `run-errand` — admit the multi-commit sweep; wire the `open` / `close` record lifecycle**
+        - Keep the single-review-increment framing (an errand is one review increment) but clarify it may span
+          several commits — a determinate sweep reviewed once; wire Launch → `arc errand open` and Complete →
+          `arc errand close`; keep cut→occupy inline (already honored at § Launch).
 
     - `[ ]` **6.2.b `drain-inbox` § 5 — inline cut→occupy conformance; character-aware routing**
         - Inline the "then occupy" clause (the known under-spec: a linear reader currently cuts and writes
-          without leaving the launch branch); route multi-step errand-class work to execute / personal-hold,
+          without leaving the launch branch); route a multi-commit errand-class sweep to execute / personal-hold,
           never a stub.
 
 ### `[ ]` **6.3 Reframe the capture/drain skills + inbox-describing docs; audit session-init cut→occupy**
@@ -362,7 +363,7 @@ harness-local copies in this self-hosting repo.
           update the section-label references to the renamed sections.
 
     - `[ ]` **6.3.b `arc-housekeep` skill — character-aware drain routing**
-        - Multi-step errand-class → execute / personal-hold, never a stub.
+        - A multi-commit errand-class sweep → execute / personal-hold, never a stub.
 
     - `[ ]` **6.3.c `strategy-session-operations` § USER-INBOX — relabel the section descriptions**
         - This surface still names `## Atomic` / `## Backlog`; relabeling it holds the exit-gapless standard
@@ -384,8 +385,8 @@ harness-local copies in this self-hosting repo.
   `strategy-work-organization` § Class Model; no surface in the cascade still describes the increment-count
   wrapper floor or the durable-as-wrapper conflation — including the `USER-INBOX` section labels and the
   `init-work-unit` § Promote Errand criterion.
-- `[ ]` A multi-increment single-concern maintenance errand runs on-script through `run-errand` (gated in chunks,
-  one PR).
+- `[ ]` A determinate single-concern sweep runs on-script through `run-errand` (one review increment, several
+  commits, one PR).
 - `[ ]` `arc errand open <slug>` mints the identity record, cuts a nature-typed branch as its projection, and
   occupies per protection mode; `arc errand close` removes the record, reaps the branch / ephemeral worktree, and
   drops the slug-matched inbox entry at completion.

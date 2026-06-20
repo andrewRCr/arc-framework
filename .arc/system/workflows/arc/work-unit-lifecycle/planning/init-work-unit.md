@@ -253,9 +253,11 @@ Set upstream for the planning branch.
 ## Promote Errand to Work Unit Path
 
 Use this path when [run-errand][run-errand]'s Execute phase discovers that the current full-protection errand
-has become **spec-worthy**: the concern now warrants recorded design — requirements or a referenced spec, or
-substantial grounding a correct plan must navigate — rather than being the self-evident change an errand is.
-The increment count is not the gate; a multi-increment errand stays an errand until design is worth recording.
+has become **spec-worthy** — it now needs recorded design (requirements or a referenced spec) or a substantial
+grounding pass a correct plan must navigate, rather than the self-evident, **single-review-increment** change an
+errand is. The operative tell is needing a **second review increment** — a stage that must be reviewed apart
+because settling it calls for course-correction the first review can't give. Commit count is not the gate: a
+determinate sweep stays an errand however many commits it spans.
 
 This path promotes an errand already in motion. It does not start errands; cold errands enter through
 `arc-session --errand` and [run-errand][run-errand].

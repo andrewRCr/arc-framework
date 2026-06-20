@@ -15,13 +15,14 @@
 Errands cross the WU lattice unmodeled, and the gate that admits them is wrong on its basis. Two faults force a
 design decision now.
 
-**Fault 1 — the wrapper floor is increment-count-based, so multi-step single-concern maintenance is homeless.**
+**Fault 1 — the wrapper floor was read against the wrong quantity, leaving determinate single-concern maintenance homeless.**
 The codified wrapper floor (`strategy-work-organization` § Class Model, boundary test #1) reads *"more than one
-review increment → WU."* A determinate maintenance sweep — a decomposition, a housekeep drain that fans out, a
-doc-grooming sweep, a ROADMAP re-render cascade — is one logical concern across several increments with no design
-to author. Forced into the WU wrapper it gets an empty `spec` and a `tasks` list that just restates the inbox;
-forced into the atomic-errand shape it doesn't fit (not one increment). So it is hand-rolled off-script every
-time. That hole sits exactly where the lattice's **entry predicate** belongs.
+review increment → WU."* Sound as approval gates — but read in practice against *commit count*, so a determinate
+maintenance sweep — a decomposition, a housekeep drain that fans out, a doc-grooming sweep, a ROADMAP re-render
+cascade — got mis-filed. Such a sweep is one logical concern reviewed once (one review increment) with no design
+to author, however many commits it lands in. Misread as multi-increment it was forced into the WU wrapper — an
+empty `spec` and a `tasks` list that just restates the inbox — so it was hand-rolled off-script every time. That
+hole sits exactly where the lattice's **entry predicate** belongs.
 
 **Fault 2 — the errand model is substantively full-protection-shaped, with partial bolted on as a degenerate
 case.** `chore/<slug>` is the identity-and-state oracle; under partial protection there is no branch at all.
@@ -39,8 +40,9 @@ cohort-level coordination — lives in `cohort-lifecycle-state-machine.md`.
 
 ## Goals
 
-- **A correct entry predicate.** The errand-vs-WU boundary admits a self-evident multi-increment single-concern
-  maintenance sweep as an errand, and is decided on the same intrinsic axes that already drive `Class`.
+- **A correct entry predicate.** The errand-vs-WU boundary admits a self-evident single-concern maintenance
+  sweep — one review increment, however many commits — as an errand, decided on the same intrinsic axes that
+  already drive `Class`.
 - **One concept across both protection modes.** A single character-level definition a developer learns once, whose
   *mechanism* scales with `branch.protection` — without pushing full-protection apparatus onto the partial floor.
 - **Record-owned errand identity.** Full-protection errand identity resolves from a logical record, not by parsing
@@ -48,7 +50,7 @@ cohort-level coordination — lives in `cohort-lifecycle-state-machine.md`.
 - **A thin verb surface.** The hand-run full-protection mechanics become a small CLI surface scoped smaller than
   the WU verbs (no `(phase, location)`, no relocation, no `active/` artifact).
 - **Exit gapless.** Every surface a session consults during classification, capture, routing, or execution
-  describes the re-based gate and the mode-scaled model — not the old increment-count floor.
+  describes the re-based gate and the mode-scaled model — not the old count-based reading of the floor.
 
 ## Non-Goals
 
@@ -91,7 +93,7 @@ An errand is a single **work character** (off-WU, single logical concern, below 
 - **Mechanism layer (mode-scaled by `branch.protection`).**
     - **Partial — the floor.** A direct base commit tracked by its `standalone (...)` context footer;
       commit-then-done. No branch, no lifecycle, no record beyond the footer, no discovery, no cross-machine
-      resume. A multi-increment partial errand is just sequential base commits, each already landed.
+      resume. A multi-commit partial errand is just sequential base commits, each already landed.
     - **Full — the rich lattice.** A nature-typed branch (`fix/` / `refactor/` / `chore/<slug>`) + PR with a
       derived lifecycle, a record-owned identity, and discovery. Detailed in parts 4–7.
 
@@ -108,7 +110,7 @@ the natural **sub-floor** of one spectrum rather than a separate cardinality gat
 
 - **errand** = a single concern **below floor on *both* axes** — nothing worth recording as design (derivation
   floor) **and** no substantial grounding pass a correct plan must navigate (scale floor). Self-evident; validated
-  by intent + diff + review — atomic *or* multi-increment, increment-count irrelevant.
+  by intent + diff + review — always atomic: one review increment, however many commits.
 - **work unit** = **spec-worthy** = clears *either* axis's floor: a design worth recording (even a determinate one
   → `brief`), **or** a substantial grounding pass a correct plan must navigate (→ `outline`, heavy-by-scale).
 
@@ -119,10 +121,11 @@ Three tiers per axis; the errand is the shared sub-floor:
 | **Derivation** | nothing to record        | records a determinate design | must *author* design  | must *invent* (only here) |
 | **Scale**      | self-evident             | modest grounding             | substantial grounding | (caps at `heavy`)         |
 
-**Increment-count drops out of the gate; concern-count stays.** An errand is still one concern (multi-concern is
-always a WU or decomposes); the new admission is that a *self-evident* one-concern sweep is an errand across many
-increments. Two one-concern/multi-increment cases split on the **scale floor**: a doc-grooming sweep is
-self-evident → errand; a widely-used-symbol rename whose plan must verify call-sites is heavy-by-scale → WU. The
+**Commit-count drops out of the gate; concern-count stays.** An errand is still one concern (multi-concern is
+always a WU or decomposes), and one concern is one review increment — the admission is that a *self-evident*
+one-concern sweep is an errand however many commits it lands in. Two one-concern cases split on the **scale
+floor**: a doc-grooming sweep is self-evident → errand; a widely-used-symbol rename whose plan must verify
+call-sites is heavy-by-scale → WU. The
 "substantial" bar carries irreducible judgment, but it is the *same* judgment the `Class` model already owns, and
 the errand → WU promotion edge makes a mis-call cheap to fix.
 
@@ -263,9 +266,9 @@ No CLI change — `arc errand cut`'s creation-only behavior is correct. **Occupy
 
 A consequence of the re-based gate: the personal capture surface keys on **what it becomes** (errand vs WU =
 spec-worthy?), not on increment-count. The current `## Atomic` / `## Backlog` sections already encode that *fate*,
-but their labels carry the old basis (`## Atomic` is a misnomer once an errand can be multi-increment) — a surface
-still describing the retired model, which the exit-gapless standard forbids. So this WU **lands the gate in the
-personal surface**, not as a recommendation:
+but their labels carry the old basis (`## Atomic` named a character, not the errand-vs-WU fate the section sorts
+by) — a surface still describing the retired model, which the exit-gapless standard forbids. So this WU **lands the
+gate in the personal surface**, not as a recommendation:
 
 - **`USER-INBOX` relabel.** Rename the sections to the fate-keyed `## Errand` / `## Work Unit`, and rewrite each
   section **preamble** to the spec-worthiness model (not just the heading). The `WU_Target` field stays on
@@ -297,7 +300,7 @@ exits only when no surface still describes the increment-count wrapper floor or 
 - `strategy-work-organization` § Class Model — re-base boundary test #1 (wrapper floor) off increment-count onto
   the two-axis floor; reflect the three-tier-per-axis sub-floor.
 - `strategy-work-organization` § Work Character — restate errand/atomic/WU on spec-worthiness; name the
-  multi-increment errand shape.
+  atomic (one-review-increment) errand shape.
 - `strategy-work-organization` § Errand Work Class — the gate as spec-worthiness; the mode-scaled mechanism (full
   lattice / partial floor); the cut→occupy contract.
 - `strategy-work-organization` § Auto-Merge Lane — durable-vs-movable as the review-lane axis the gate no longer
@@ -307,10 +310,10 @@ exits only when no surface still describes the increment-count wrapper floor or 
 
 - `arc-inbox` skill — capture classification keys on errand-vs-WU (spec-worthiness) / fate; lowercase atomic; the
   infra-smell reframe (review-lane + design-check, not "→ stub").
-- `arc-housekeep` skill — drain routing is character-aware (multi-step errand-class → execute/personal-hold, never
+- `arc-housekeep` skill — drain routing is character-aware (a multi-commit errand-class sweep → execute/personal-hold, never
   a stub).
-- `run-errand` workflow — admit a multi-increment single-concern maintenance errand (gated in chunks, one PR), not
-  only the atomic shape; cut→occupy inline; record-owned identity at `open`/`close`.
+- `run-errand` workflow — admit a determinate single-concern sweep that lands in several commits (one review
+  increment, one PR), not only the single-commit shape; cut→occupy inline; record-owned identity at `open`/`close`.
 - `drain-inbox` workflow — inbox → errand transition; § 5 cut→occupy inline conformance; character-aware routing.
 - `init-work-unit` § Promote Errand to Work Unit — re-base the promotion criterion onto spec-worthiness;
   branch-prefix-agnostic; record-resolved identity + the record-retirement step (part 4).
@@ -326,7 +329,7 @@ exits only when no surface still describes the increment-count wrapper floor or 
 **Vocabulary / orientation:**
 
 - `AGENT-BRIEF.ARC` — the Errand / atomic vocabulary entries (lowercase atomic = one-increment character; Errand =
-  wrapper, atomic or multi-increment; the spec-worthiness gate).
+  wrapper, always atomic — one review increment; the spec-worthiness gate).
 
 **Methods:**
 
@@ -347,10 +350,11 @@ follow-up; ADR-021's stale-`Proposed` state is its live instance.)
 
 ## Alternatives & Rationale
 
-**Gate basis — increment-count (rejected) vs. spec-worthiness (chosen).** Increment-count equates "single concern"
-with "one review increment," forcing a determinate multi-increment sweep into a WU wrapper it doesn't fit.
-Spec-worthiness re-bases the floor onto the two intrinsic `Class` axes, making the errand the sub-floor of one
-spectrum — admitting the self-evident multi-increment sweep while keeping concern-count as the real boundary. The
+**Gate basis — counting (rejected) vs. spec-worthiness (chosen).** Counting the increments a concern spans — read
+in practice as *commits* — mis-equates "single concern" with "single commit," forcing a determinate multi-commit
+sweep into a WU wrapper it doesn't fit. Spec-worthiness re-bases the floor onto the two intrinsic `Class` axes,
+making the errand the sub-floor of one spectrum — admitting the self-evident sweep (one review increment, however
+many commits) while keeping concern-count as the real boundary. The
 "substantial grounding" bar carries judgment, but it is the *same* judgment `Class` already owns.
 
 **Record location.** Three alternatives rejected so the spec doesn't relitigate:
@@ -409,8 +413,8 @@ probe updates so no inbox read or the `removeInboxEntry` write regresses.
   remote-marker mechanism covers it with zero rework. The union/reject semantics handle the errand ref's own
   conflict case; cross-machine *visibility* of an incomplete push stays CMSC's.
 
-**Testing.** Unit-test the re-based gate via `classify-work-unit` worked examples (the two one-concern/
-multi-increment cases that split on the scale floor). Integration-test `arc errand open`/`close` over the record
+**Testing.** Unit-test the re-based gate via `classify-work-unit` worked examples (the two one-concern cases that
+split on the scale floor). Integration-test `arc errand open`/`close` over the record
 lifecycle: record mint + branch cut + occupy; record removal + branch reap + slug-matched inbox-entry drop; the
 tree-merge union (distinct slugs) and same-slug-collision reject paths; record-read identity resolution replacing
 branch-parse across the session-init probes. Cover the errand → WU promotion edge's **record retirement** (promoting
@@ -423,7 +427,7 @@ is this WU's own deliverable (not deferred to `lifecycle-closeout`, which audits
 
 **Dependencies.** `Depends On: lifecycle-transition-core` (crossing-edge firing points). Assumes (no edge) the
 release wrapper's no-active-WU acceptance ships ahead. Coordination seam with `decompose-matrix` (whether
-`decompose` runs as a multi-increment errand keys on this gate). Hands the inbox/routing architecture to
+`decompose` runs as an errand keys on this gate). Hands the inbox/routing architecture to
 `shared-inbox-housekeep`.
 
 ## Success Criteria
@@ -434,8 +438,8 @@ Validated at WU completion:
    `strategy-work-organization` § Class Model; **no surface in the cascade (part 9) still describes the
    increment-count wrapper floor** or the durable-as-wrapper conflation — including the `USER-INBOX` section labels
    and the `init-work-unit` § Promote Errand criterion.
-2. A multi-increment single-concern maintenance errand runs **on-script** through `run-errand` (gated in chunks,
-   one PR) — verifiable against `drain-inbox`'s existing multi-increment shape, which the redefinition legitimizes.
+2. A determinate single-concern sweep runs **on-script** through `run-errand` (one review increment, several
+   commits, one PR) — verifiable against `drain-inbox`'s existing multi-commit shape, which the redefinition legitimizes.
 3. `arc errand open <slug>` mints the identity record, cuts a nature-typed branch as its projection, and occupies
    per protection mode; `arc errand close` removes the record, reaps the branch/ephemeral worktree, and drops the
    slug-matched inbox entry at completion.
@@ -461,8 +465,8 @@ No blocking open design questions — the design is complete. Two non-blocking n
 
 - **Implementation latitude (not design):** the git plumbing for the per-slug tree merge (`read-tree`/`write-tree`
   vs. a library) is an execution choice; the merge *algorithm* and its observable semantics are settled (part 5).
-- **Cross-member coordination (not this spec's to resolve):** whether the `decompose` *operation* itself runs as a
-  multi-increment errand is `decompose-matrix`'s to settle by *applying* this WU's gate to its arms; the seam is
+- **Cross-member coordination (not this spec's to resolve):** whether the `decompose` *operation* itself runs as
+  an errand is `decompose-matrix`'s to settle by *applying* this WU's gate to its arms; the seam is
   recorded bidirectionally in `cohort-lifecycle-state-machine.md` (see § Cross-cutting Considerations → Dependencies).
 
 ---

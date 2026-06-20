@@ -6,9 +6,9 @@
 ## Errand
 
 > _Errand-class captures — a single self-evident concern below the spec-worthiness floor (nothing worth recording
-> as design, no substantial grounding a correct plan must navigate); atomic or multi-increment. Drain to execution
-> — folded into a WU (inline absorption), or run as an errand via `arc-session --errand`, from the primary
-> worktree's base, never a WU branch._
+> as design, no substantial grounding a correct plan must navigate); one review increment, usually a single
+> commit. Drain to execution — folded into a WU (inline absorption), or run as an errand via `arc-session
+> --errand`, from the primary worktree's base, never a WU branch._
 
 ## Work Unit
 
