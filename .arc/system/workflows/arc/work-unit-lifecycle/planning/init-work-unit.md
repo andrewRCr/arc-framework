@@ -1,5 +1,5 @@
 ---
-purpose: Initialize a work unit on a `plan/<name>` branch, or promote a `chore/<slug>` errand into a work unit.
+purpose: Initialize a work unit on a `plan/<name>` branch, or promote an in-flight errand into a work unit.
 audience: agent
 arc:
   methods:
@@ -15,7 +15,7 @@ Creates a work unit on a `plan/<name>` planning branch with a `meta-{name}.md` f
 from the code field model (`renderMetaFile`). Also carries the promotion path for an in-flight errand that has crossed the
 work-unit threshold after launch.
 
-**When to use:** Starting a new work unit, or promoting a current `chore/<slug>` errand into a tracked work
+**When to use:** Starting a new work unit, or promoting a current in-flight errand into a tracked work
 unit. See [Branch Protection Modes][work-org-protection] for when work-unit ceremony is mandatory vs the
 default path.
 
@@ -33,9 +33,9 @@ activate-work-unit          — Planning → Active; branch plan/<name> → <typ
 integrate-work-unit         — PR, review, merge to main
 ```
 
-Promoted errands already have implementation history on a branch. The promotion path renames
-`chore/<slug>` to `<type>/<name>`, creates the backing meta file, skips `activate-work-unit`, backfills
-spec/tasks as needed, then proceeds to task execution.
+Promoted errands already have implementation history on a branch. The promotion path renames the errand
+branch to `<type>/<name>`, creates the backing meta file, retires the errand record, skips
+`activate-work-unit`, backfills spec/tasks as needed, then proceeds to task execution.
 
 ---
 
@@ -68,13 +68,13 @@ Both modes share the rest of the workflow. Graduating a backlog stub (Step 3) di
 reconciling the graduated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
 already exist, whereas fresh scaffolding mints new ones.
 
-Promoting an errand is a separate entry path: it starts from an existing `chore/<slug>` branch and uses
+Promoting an errand is a separate entry path: it starts from an existing errand branch and uses
 [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path), not the numbered new-WU steps below.
 
 ## Steps
 
-The numbered steps below are the new-work-unit initialization path. For an in-flight errand that has outgrown
-one review increment, jump to [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path).
+The numbered steps below are the new-work-unit initialization path. For an in-flight errand that has become
+spec-worthy, jump to [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path).
 
 ### 1) Ensure Clean Base Branch
 
@@ -252,36 +252,39 @@ Set upstream for the planning branch.
 
 ## Promote Errand to Work Unit Path
 
-Use this path when [run-errand][run-errand]'s Execute phase discovers that the current full-protection
-`chore/<slug>` errand has crossed the work-unit threshold: more than one review increment, design that needs a
-referenced spec, or tracked/resumable ownership beyond an errand.
+Use this path when [run-errand][run-errand]'s Execute phase discovers that the current full-protection errand
+has become **spec-worthy**: the concern now warrants recorded design — requirements or a referenced spec, or
+substantial grounding a correct plan must navigate — rather than being the self-evident change an errand is.
+The increment count is not the gate; a multi-increment errand stays an errand until design is worth recording.
 
 This path promotes an errand already in motion. It does not start errands; cold errands enter through
 `arc-session --errand` and [run-errand][run-errand].
 
-Under partial protection there is no `chore/<slug>` branch to promote. Stop direct base-branch edits, start a
+Under partial protection there is no errand branch to promote. Stop direct base-branch edits, start a
 normal work unit from the base branch, and carry any already-landed errand commit as context in the new WU's
 spec or notes.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before promotion. Surface the threshold reason, proposed `{type}/{name}` branch,
-> current `chore/<slug>` branch/upstream state, and originating `USER-INBOX` cleanup plan; await approval before
+> `workflow-interlock`: Stop before promotion. Surface the spec-worthiness reason, proposed `{type}/{name}`
+> branch, current errand branch/upstream state, and originating `USER-INBOX` cleanup plan; await approval before
 > renaming the branch, creating the meta file, pushing, or deleting the old remote branch.
 
-1. **Confirm promotion applies** — verify the current branch is `chore/<slug>`, no active meta file already
-   backs it, and the work genuinely crossed the WU threshold. If a meta file already backs the branch, resume it
-   as a work unit instead; do not run errand promotion twice.
+1. **Confirm promotion applies** — the current branch is an in-flight errand backed by an errand record; resolve
+   its `<slug>` from that record (the errand's identity), not by parsing the branch prefix. Verify no active meta
+   file already backs the branch and the work genuinely became spec-worthy. If a meta file already backs the
+   branch, resume it as a work unit instead; do not run errand promotion twice.
 2. **Stabilize errand progress** — inspect `git status`. Do not mix implementation changes into the promotion
    ceremony commit. If needed, make a standalone errand checkpoint first; otherwise leave implementation changes
    unstaged while staging only promotion artifacts below.
 3. **Choose the WU identity** — choose `{name}` and `{type}`. `{name}` may match `<slug>` when the errand name
    still describes the expanded work; rename when the WU thesis is clearer under a different slug. `{type}`
    follows [`branch-format`][branch-format].
-4. **Rename the branch locally** — preserve the errand commits by renaming the existing branch, not recreating
-   it:
+4. **Rename the branch locally** — preserve the errand commits by renaming the current branch (whatever its
+   nature-type prefix — `fix/` / `refactor/` / `chore/`), not recreating it. The one-argument form renames the
+   current branch, so it is prefix-agnostic:
 
    ```bash
-   git branch -m chore/<slug> {type}/{name}
+   git branch -m {type}/{name}
    ```
 
 5. **Create the backing meta file** — create `.arc/active/meta-{name}.md` in the `renderMetaFile` shape
@@ -322,8 +325,9 @@ spec or notes.
 6. **ROADMAP regen · `arc-in-git` only** — hand-maintain the ROADMAP render so the promoted meta file appears
    in the In Flight tier. This may ride the promotion commit only when the render delta is trivial; otherwise
    use a dedicated `chore(arc):` `workflowCommit` with `Context: meta-{name}.md (activation)`.
-7. **Push the renamed branch and retire the errand ref** — push the new WU branch before deleting any old
-   remote errand branch. If the old `chore/<slug>` branch has no upstream, skip the delete.
+7. **Push the renamed branch, retire the errand record, and delete the old remote branch** — push the new WU
+   branch first, then retire the errand's identity record (the WU meta now supersedes it), then delete the old
+   remote errand branch (its pre-rename name). If the old errand branch has no upstream, skip the delete.
 
    - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
      (established at session init), load and execute its `.actions` before the `workflowPush` push.
@@ -331,12 +335,14 @@ spec or notes.
      skip.
 
    ```bash
-   git push -u origin {type}/{name}      # workflowPush
-   git push origin --delete chore/<slug> # raw — destructive flag stays literal
+   git push -u origin {type}/{name}         # workflowPush
+   arc errand retire {slug}                 # remove the identity record + push the removal (branch untouched)
+   git push origin --delete <errand-branch> # raw — destructive flag stays literal
    ```
 
-   If the new-branch push fails, keep the local renamed branch and do not delete the old remote ref. Surface that
-   cross-machine resume now depends on retrying the push.
+   `arc errand retire` removes the record and pushes the removal; it never touches the branch, so the renamed WU
+   branch survives. If the new-branch push fails, keep the local renamed branch and do not retire the record or
+   delete the old remote ref. Surface that cross-machine resume now depends on retrying the push.
 8. **Clean the source capture and continue** — when the errand was adopted from a slug-matched `USER-INBOX`
    entry, remove that originating entry after promotion succeeds. If the source is ambiguous, leave it and record
    the ambiguity in the WU's `Next Action`; do not run broad housekeep here.

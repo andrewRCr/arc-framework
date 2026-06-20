@@ -309,25 +309,28 @@ consumer audit fixes `run-errand`, `drain-inbox` § 5, and session-init's errand
 Framework-doc edits go package-source-first then sync; canonical skill sources may need a hand-sync to the
 harness-local copies in this self-hosting repo.
 
-### `[ ]` **6.1 Re-base `init-work-unit` § Promote Errand and build the record-retirement-on-promotion step**
+### `[x]` **6.1 Re-base `init-work-unit` § Promote Errand and build the record-retirement-on-promotion step**
 
 - _Goal:_ The Promote Errand path admits an errand that becomes spec-worthy (not "more than one increment"),
   works for any nature-typed branch, resolves the promoted errand's identity from the record, and retires the
   errand record on promotion.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md, strategy-testing-methodology.md
 
-    - `[ ]` **6.1.a Re-base the § Promote Errand workflow prose**
-        - Re-base the promotion criterion onto spec-worthiness (part 2); make the branch verify / rename
-          branch-prefix-agnostic; resolve the promoted errand's identity from the record. Reuse transition-core's
-          `scaffold` / cut / rename mechanics — don't rebuild them.
+    - `[x]` **6.1.a Re-base the § Promote Errand workflow prose**
+        - Re-based the criterion onto spec-worthiness (increment count no longer gates — a multi-increment errand
+          stays an errand until design is worth recording); made the branch verify + rename prefix-agnostic
+          (`git branch -m {type}/{name}` renames the current errand branch, whatever its nature-type); identity
+          resolves from the errand record, not a branch parse; step 7 invokes `arc errand retire`. Edited
+          package-source-first, synced byte-identical to `.arc/`.
 
-    - `[ ]` **6.1.b Build the record-retirement step (promotion removes the errand record)**
-        - Reuse the separable `removeErrandRecord` primitive (Phase 2) — _not_ full `close`, since promotion
-          renames the branch rather than reaping it. The WU meta now supersedes the record.
+    - `[x]` **6.1.b Build the record-retirement step (promotion removes the errand record)**
+        - Added `retireErrand` (`retire.ts`): composes the separable `removeErrandRecord` + `reconcileErrandPush`,
+          no branch touch — exposed as `arc errand retire <slug>` (`handleErrandRetire` + CLI wiring). Mirrors
+          `close`'s marker discipline; the teardown-side sub-primitive completing `cut : open :: retire : close`.
 
-        Build `test-first` (one behavior at a time):
-
-        - promoting an errand removes its identity record while the renamed branch survives
+- _Outcome:_ Record-retirement-on-promotion ships as a dedicated thin verb (`arc errand retire`) rather than a
+  `close --keep-branch` flag — keeps `close`'s reap contract and result type clean, and leaves a reusable core for
+  a future `arc errand promote`. Integration + e2e both assert "record removed, renamed branch survives."
 
 ### `[ ]` **6.2 Update `run-errand` and `drain-inbox` — multi-increment + cut→occupy + routing**
 
