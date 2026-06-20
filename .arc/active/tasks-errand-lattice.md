@@ -456,25 +456,30 @@ to the harness-local copies in this self-hosting repo.
   `close --keep-branch` flag — keeps `close`'s reap contract and result type clean, and leaves a reusable core for
   a future `arc errand promote`. Integration + e2e both assert "record removed, renamed branch survives."
 
-### `[ ]` **6.2 Update `run-errand` and `drain-inbox` — multi-commit sweep + cut→occupy + routing**
+### `[x]` **6.2 Update `run-errand` and `drain-inbox` — extended-errand gate + cut→occupy + routing**
 
 - _Goal:_ `run-errand` admits a determinate single-concern sweep (atomic, possibly extended) with record-owned
   identity at `open` / `close`, and `drain-inbox` § 5 conforms cut→occupy via `arc errand open` and routes
   character-aware.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[x]` **6.2.a `run-errand` — admit the multi-commit sweep; wire the `open` / `close` record lifecycle**
-        - Clarified that the one-review-increment framing admits several commits (a determinate sweep reviewed
-          once, gated once at the workflow-interlock), and re-based § Launch Classify + Execute's promote-tell onto
-          spec-worthiness / needing-a-second-increment. Wired § Launch step 3 → `arc errand open <slug>` (folds
-          cut + record-mint + push + occupy, with cut→occupy inline) and § Complete → `arc errand close <slug>`
-          (containment-safe reap + ref prune + record removal + slug-matched inbox drop). Edited
-          package-source-first, synced byte-identical to `.arc/`.
+    - `[x]` **6.2.a `run-errand` — wire the `open` / `close` record lifecycle**
+        - Wired § Launch step 3 → `arc errand open <slug>` (folds cut + record-mint + push + occupy) and
+          § Complete → `arc errand close <slug>` (containment-safe reap + ref prune + record removal +
+          slug-matched inbox drop). Edited package-source-first, synced byte-identical to `.arc/`.
 
-    - `[ ]` **6.2.b `drain-inbox` § 5 — cut→occupy via `arc errand open`; character-aware routing**
-        - Replace the under-spec cut-then-write (a linear reader cuts and writes without leaving the launch branch)
-          with `arc errand open` (folds cut→occupy, as `run-errand` Launch now does); route a determinate
-          errand-class sweep (atomic, possibly extended) to execute / personal-hold, never a stub.
+    - `[x]` **6.2.b `drain-inbox` § 5 — cut→occupy via `arc errand open`; character-aware routing**
+        - § 5 fully-protected relocate now opens via `arc errand open <slug>` (folds cut→occupy, mirroring
+          `run-errand` § Launch step 3) — retiring the under-spec `arc errand cut` + manual write-context resolve
+          that let a linear reader write on the launch branch. § 2 character / scope-re-triage re-based on the two
+          floors: dropped "multi-commit" / "multi-file" as stub triggers — a determinate sweep crossing neither
+          floor stays errand-class (atomic, possibly extended), however many passes. Folded in the file's orphan
+          `§ Atomic` / `§ Backlog` → `§ Errand` / `§ Work Unit` relabel (no other task owned it; exit-gapless).
+
+- _Outcome:_ `run-errand` (§ Launch/Execute/Complete, via 6.2.a) and `drain-inbox` (§ 1/§ 2/§ 5) now read on the
+  sharpened model and the folded cut→occupy verb: both relocate via `arc errand open`, the errand↔stub gate is the
+  two floors (not increment count), and the drain routes a determinate sweep to execute/hold, never a stub.
+  Package-source-first; `.arc` mirrors in sync; lint clean.
 
 ### `[ ]` **6.3 Reframe the capture/drain skills + inbox-describing docs; audit session-init cut→occupy**
 
