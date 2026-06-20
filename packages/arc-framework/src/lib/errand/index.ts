@@ -48,3 +48,9 @@ export {
   type CloseErrandParams,
   type CloseErrandResult,
 } from "./close.js";
+
+export {
+  retireErrand,
+  type RetireErrandParams,
+  type RetireErrandResult,
+} from "./retire.js";

@@ -21,6 +21,7 @@ import {
   handleErrandCut,
   handleErrandOpen,
   handleErrandClose,
+  handleErrandRetire,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
   type ErrandCloseOptions,
@@ -266,6 +267,11 @@ errand
   .description("Close an errand: reap the branch (containment-safe), remove the record, drop the inbox capture")
   .option("--force", "Bypass the containment check — reap even when the commits can't be proven preserved")
   .action((slug: string, opts: ErrandCloseOptions) => handleErrandClose(slug, opts));
+
+errand
+  .command("retire <slug>")
+  .description("Retire a promoted errand's record (the renamed branch survives as the work-unit branch)")
+  .action((slug: string) => handleErrandRetire(slug));
 
 const housekeep = program
   .command("housekeep")

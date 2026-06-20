@@ -222,3 +222,48 @@ describe("arc errand close", () => {
     expect(await readFile(inboxPath, "utf-8")).toContain("**Keep me**");
   });
 });
+
+describe("arc errand retire", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses under partial protection", async () => {
+    const result = await runArc(["errand", "retire", "anything"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("removes the record while the renamed work-unit branch survives", async () => {
+    await setFullProtection(tmpDir);
+    const open = await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    // Promotion renames the errand branch into the work-unit branch before retiring the record.
+    await git(tmpDir, ["branch", "-m", "fix/growing", "feat/growing-feature"]);
+
+    const result = await runArc(["errand", "retire", "growing"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // The record is gone from the orphan state-ref...
+    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"])).rejects.toThrow();
+    // ...but the renamed branch is untouched.
+    expect(await git(tmpDir, ["branch", "--list", "feat/growing-feature"])).toContain("feat/growing-feature");
+  });
+
+  it("is a clean no-op when no record exists for the slug", async () => {
+    await setFullProtection(tmpDir);
+
+    const result = await runArc(["errand", "retire", "never-opened"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+  });
+});

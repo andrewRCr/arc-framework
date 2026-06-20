@@ -22,6 +22,7 @@ import { cutErrandBranch } from "../lib/session-init/errand-branch-cut.js";
 import {
   openErrand,
   closeErrand,
+  retireErrand,
   isErrandBranchType,
   ERRAND_BRANCH_TYPES,
   DEFAULT_ERRAND_BRANCH_TYPE,
@@ -338,6 +339,81 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
   }
 
   p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
+  p.outro("Done.");
+}
+
+/**
+ * Retire an errand's identity record without touching its branch — the
+ * promotion counterpart to `close`.
+ *
+ * A full-protection verb, like `open` / `close`. Promotion renames the errand
+ * branch into the work-unit branch and mints a meta that supersedes the record;
+ * this removes the now-redundant record and pushes the removal, leaving the
+ * renamed branch untouched. There is no reap and so no containment gate.
+ */
+export async function handleErrandRetire(slug: string): Promise<void> {
+  p.intro("arc errand retire");
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    p.log.error(
+      "`arc errand retire` is a full-protection verb. Under partial protection an errand is a direct "
+      + "base commit — no branch, no record — so it never promotes.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    p.log.error("The stdin git seam is unavailable — cannot remove the errand record.");
+    process.exitCode = 1;
+    return;
+  }
+
+  let result;
+  try {
+    result = await retireErrand({ exec: io.exec, execInput: io.execInput, identity }, { slug });
+  } catch (err) {
+    p.log.error(`Could not retire the errand record: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "no-record") {
+    p.log.info(`No errand record for '${slug}' — nothing to retire.`);
+    p.outro("Done.");
+    return;
+  }
+
+  // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
+  // of the removal clears any stale marker; a failed push records it and is
+  // non-fatal — the removal rides the next `arc sync`.
+  switch (result.push.kind) {
+    case "pushed":
+    case "reconciled":
+    case "noop":
+      await clearErrandPartialPushMarker(cwd, io, identity);
+      break;
+    case "no-remote":
+    case "conflict":
+    case "failed":
+      await recordErrandPartialPushMarker(cwd, io, identity);
+      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
+      break;
+  }
+
+  p.log.success(`Retired errand record '${slug}' — the branch is preserved for the promoted work unit.`);
   p.outro("Done.");
 }
 
