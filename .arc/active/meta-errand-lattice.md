@@ -12,11 +12,11 @@
 - **Task List:** `tasks-errand-lattice.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.2 — `arc errand close`: containment-safe reap + record removal + inbox drop (Phase 3 complete)
-- **Next Task:** Task 4.1 — Migrate the session-init errand probes to record reads (line ~229)
+- **Last Completed:** Task 4.2 — Retire `errandSlugOf`'s branch-parse and decouple the branch prefix (Phase 4 complete)
+- **Next Task:** Task 5.1 — Relabel the `USER-INBOX` sections to the spec-worthiness model (line ~278)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — execute via process-task-loop
+- **Next Action:** Begin Task 5.1 — execute via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
