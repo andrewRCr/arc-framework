@@ -40,6 +40,7 @@ import {
   type PrSource,
 } from "../git/in-flight-derivation.js";
 import { resolveInFlightBranchSet } from "../git/remote-ref-reader.js";
+import { readErrandSlugByBranch } from "../errand/record.js";
 
 import { buildInFlightMineSlice } from "./in-flight-mine.js";
 import {
@@ -159,8 +160,9 @@ export async function runStatusUserView(
     };
   }
 
+  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
   const [remoteEntries, localEntries] = await Promise.all([
-    deriveInFlight({ exec, branches, identity, teamMode, prSource }),
+    deriveInFlight({ exec, branches, identity, teamMode, errandSlugByBranch, prSource }),
     options.readLocalInFlight?.() ?? Promise.resolve([]),
   ]);
   const inFlight = buildInFlightMineSlice(mergeInFlightEntries(remoteEntries, localEntries));

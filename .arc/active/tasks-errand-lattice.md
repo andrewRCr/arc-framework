@@ -244,21 +244,25 @@ stray legacy branch degrades gracefully to branch-derived behavior.
   survives only as `detectErrandResume`'s legacy fallback — teeing up its retirement and the branch-prefix
   decouple in 4.2.
 
-### `[ ]` **4.2 Retire `errandSlugOf`'s branch-parse and decouple the branch prefix**
+### `[x]` **4.2 Retire `errandSlugOf`'s branch-parse and decouple the branch prefix**
 
 - _Goal:_ `errandSlugOf` is removed once no probe depends on it, and a `fix/` or `refactor/` branch resolves as
   an errand via the record — the branch prefix no longer carries errand-ness.
-- _Approach:_ Remove `errandSlugOf` (`lib/session-init/errand-branch.ts`) after 4.1; update `deriveInFlight`'s
-  `classifyBranch` so errand-vs-WU comes from the record, not the `chore/` prefix. `ERRAND_BRANCH_PREFIX` stays
-  valid as a cut default but is no longer the discriminator.
-- _Note:_ Depends on 4.1 — the probes must read records before the parse is removed.
 - **Strategies:** strategy-testing-methodology.md
 
-    Build `test-first` (one behavior at a time):
-
-    - a `fix/<slug>` and a `refactor/<slug>` branch with a record both resolve as errands
-    - `deriveInFlight` classifies errand-vs-WU from the record, not the branch prefix
-    - `errandSlugOf` is gone with no caller remaining (typecheck + grep clean)
+- _Outcome:_ `deriveInFlight`'s `classifyBranch` now classifies errand-vs-WU from an injected `branch→slug` index
+  (the errand records), not the `chore/` prefix: a branch carrying a record is an errand whatever its prefix; a
+  record-less branch resolves by meta presence (so a promoted errand → WU still reads as a WU). Resume detection
+  drops its branch-parse fallback (record-only). The three `deriveInFlight` callers — session-init (`status.ts`,
+  sharing one memoized records read across the oracle and the errand-state probe), `arc active in-flight`, and the
+  STATUS.USER view — resolve the index via a new `readErrandSlugByBranch` helper (`lib/errand/record.ts`), backed by
+  a narrowed read-only `ErrandRecordReadIO` (reads no longer demand the stdin write seam). `errandSlugOf` and its
+  module are deleted; grep + typecheck confirm no caller remains.
+- _Deviation:_ The whole `errand-branch.ts` module was deleted, not just `errandSlugOf`. The task kept
+  `ERRAND_BRANCH_PREFIX` as a "cut default", but Phase 3 had already moved the cut default to `branch-type.ts`
+  (`DEFAULT_ERRAND_BRANCH_TYPE`), leaving `ERRAND_BRANCH_PREFIX` with zero consumers — dead code, so it went too.
+- _Also retired:_ `write-context.ts`'s `errandSlug` dimension — its sole basis was the branch parse and it had no
+  production consumer (tests only), so it was removed with the parse rather than re-sourced from the record.
 
 ## **Phase 5:** Personal capture surface relabel
 

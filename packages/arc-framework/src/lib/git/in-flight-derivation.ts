@@ -3,12 +3,15 @@
  *
  * Given the pruned remote-ref set (live-backed local remote-tracking branches,
  * from the remote-ref reader), this resolves the identity's in-flight work
- * units and errands with no checkout. Each branch is classified by reading its
- * candidate meta off the remote-tracking ref (`git show origin/<branch>:<path>`):
- * a branch whose meta is present is a work unit; a `chore/<slug>` branch with no
- * backing meta is an errand. Classification is content-driven, never branch-name
- * → WU — the branch name only supplies the candidate meta path and the
- * life-phase State proxy (`plan/` = planning, any other type-prefix = activated).
+ * units and errands with no checkout. Errand-ness is a **record** property: a
+ * branch carrying an errand record (supplied as a branch→slug index) is an
+ * errand whatever its prefix, decoupling errand-ness from the `chore/` name. A
+ * record-less branch is then classified by reading its candidate meta off the
+ * remote-tracking ref (`git show origin/<branch>:<path>`): a branch whose meta
+ * is present is a work unit. Classification is record- and content-driven, never
+ * branch-name → WU — the branch name only supplies the candidate meta path and
+ * the life-phase State proxy (`plan/` = planning, any other type-prefix =
+ * activated).
  *
  * Worktree paths are not stored: they resolve live from `git worktree list`, so
  * a WU in flight only on the remote (no local worktree) is flagged `remoteOnly`
@@ -22,7 +25,6 @@
 
 import type { WorkUnitState } from "../../commands/active/types.js";
 import { parseIdentifierList, parseMetaRecord, type MetaRecord } from "../active/meta-reader.js";
-import { errandSlugOf } from "../session-init/errand-branch.js";
 
 import type { GitExec } from "./exec.js";
 import { readMetaAtRef } from "./remote-ref-reader.js";
@@ -109,6 +111,13 @@ export interface DeriveInFlightOptions {
   teamMode: boolean;
   /** Remote whose tracking refs back the reads. Defaults to `origin`. */
   remote?: string;
+  /**
+   * Branch→slug index from the identity's errand records — the errand-identity
+   * oracle. A branch present here is an errand (slug from the record). Defaults
+   * to empty (no record-classified errands), so a record-less branch resolves by
+   * meta presence alone.
+   */
+  errandSlugByBranch?: ReadonlyMap<string, string>;
   /** Open-PR enrichment seam. Absent → refs-only; a rejecting adapter degrades to refs-only. */
   prSource?: PrSource;
 }
@@ -121,10 +130,11 @@ export interface DeriveInFlightOptions {
  */
 export async function deriveInFlight(options: DeriveInFlightOptions): Promise<InFlightEntry[]> {
   const { exec, branches, identity, teamMode, remote = DEFAULT_REMOTE, prSource } = options;
+  const errandSlugByBranch = options.errandSlugByBranch ?? new Map<string, string>();
   const worktreePaths = await resolveWorktreePathsByBranch(exec);
 
   const classified = await Promise.all(
-    branches.map((branch) => classifyBranch(exec, remote, branch, worktreePaths)),
+    branches.map((branch) => classifyBranch(exec, remote, branch, worktreePaths, errandSlugByBranch)),
   );
 
   const kept = classified
@@ -168,24 +178,26 @@ function metaPathForWu(name: string): string {
 }
 
 /**
- * Classify one branch into a work unit, an errand, or nothing — reading its
- * candidate meta off the remote-tracking ref to drive the decision by content.
+ * Classify one branch into a work unit, an errand, or nothing. Errand-ness is a
+ * record property — a branch carrying an errand record is an errand (slug from
+ * the record), whatever its prefix. A record-less branch is decided by content:
+ * read its candidate meta off the remote-tracking ref; present → work unit.
  */
 async function classifyBranch(
   exec: GitExec,
   remote: string,
   branch: string,
   worktreePaths: Map<string, string>,
+  errandSlugByBranch: ReadonlyMap<string, string>,
 ): Promise<InFlightEntry | null> {
   const ref = `${remote}/${branch}`;
   const location = locationOf(branch, worktreePaths);
 
-  const slug = errandSlugOf(branch);
-  if (slug !== null) {
-    // A `chore/` branch is an errand unless a backing meta promotes it to a WU.
-    const content = await readMetaAtRef({ exec, ref, metaPath: metaPathForWu(slug) });
-    if (content === null) return { kind: "errand", slug, ...location };
-    return buildWorkUnit(slug, content, location, /* planning */ false);
+  const errandSlug = errandSlugByBranch.get(branch);
+  if (errandSlug !== undefined) {
+    // A record marks this branch an errand. A promoted errand → WU removed its
+    // record, so it falls through to the meta-backed work-unit path below.
+    return { kind: "errand", slug: errandSlug, ...location };
   }
 
   // A WU branch is `<type>/<wu-name>`; without a `/` it carries no WU name
@@ -196,7 +208,7 @@ async function classifyBranch(
   if (name === "") return null;
 
   const content = await readMetaAtRef({ exec, ref, metaPath: metaPathForWu(name) });
-  if (content === null) return null; // Type-prefixed but no active meta — not a WU.
+  if (content === null) return null; // No errand record and no active meta — not in flight.
   return buildWorkUnit(name, content, location, branch.startsWith(PLANNING_BRANCH_PREFIX));
 }
 

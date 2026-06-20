@@ -23,16 +23,20 @@ const META = [
 ].join("\n");
 
 /**
- * Exec stub answering the four reads the command makes: local remote-tracking
- * refs (`for-each-ref`), live membership (`ls-remote`), the worktree map
- * (`worktree list`), and meta content (`show`).
+ * Exec stub answering the reads the command makes: local remote-tracking refs
+ * (`for-each-ref`), live membership (`ls-remote`), the worktree map (`worktree
+ * list`), meta content (`show`), and the errand records keying errand-ness
+ * (`ls-tree` + `cat-file` over `refs/arc/user/{identity}/errands`).
  */
 function makeExec(opts: {
   localRefs: string[];
   liveBranches: string[] | "unreachable";
   metas?: Record<string, string>;
+  errandRecords?: Array<{ slug: string; branch: string }>;
 }): GitExec {
   const metas = opts.metas ?? {};
+  const errandRecords = opts.errandRecords ?? [];
+  const DUMMY_SHA = "0".repeat(40);
   return vi.fn(async (_cmd, args): Promise<ExecResult> => {
     if (args[0] === "for-each-ref") {
       return { stdout: opts.localRefs.map((b) => `origin/${b}`).join("\n"), stderr: "" };
@@ -45,6 +49,26 @@ function makeExec(opts: {
       };
     }
     if (args[0] === "worktree" && args[1] === "list") return { stdout: "", stderr: "" };
+    if (args[0] === "ls-tree") {
+      return { stdout: errandRecords.map((r) => `100644 blob ${DUMMY_SHA}\t${r.slug}`).join("\n"), stderr: "" };
+    }
+    if (args[0] === "cat-file") {
+      const target = args[2] ?? "";
+      const slug = target.slice(target.lastIndexOf(":") + 1);
+      const rec = errandRecords.find((r) => r.slug === slug);
+      if (rec === undefined) throw new Error(`fatal: not found ${target}`);
+      return {
+        stdout: JSON.stringify({
+          version: 1,
+          slug: rec.slug,
+          origin: "description",
+          intent: rec.slug,
+          branch: rec.branch,
+          createdAt: "2026-01-01T00:00:00.000Z",
+        }),
+        stderr: "",
+      };
+    }
     if (args[0] === "show") {
       const target = args[1] ?? "";
       if (target in metas) return { stdout: metas[target] ?? "", stderr: "" };
@@ -60,9 +84,10 @@ describe("runActiveInFlight", () => {
       localRefs: ["feat/x", "chore/fix-typo"],
       liveBranches: ["feat/x", "chore/fix-typo"],
       metas: { "origin/feat/x:.arc/active/meta-x.md": META },
+      errandRecords: [{ slug: "fix-typo", branch: "chore/fix-typo" }],
     });
 
-    const result = await runActiveInFlight({ exec, identity: null, teamMode: false, localOnly: false });
+    const result = await runActiveInFlight({ exec, identity: "andrew", teamMode: false, localOnly: false });
 
     expect(result.reachable).toBe(true);
     expect(result.entries).toEqual([

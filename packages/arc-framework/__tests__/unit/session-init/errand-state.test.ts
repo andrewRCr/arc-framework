@@ -104,7 +104,7 @@ describe("runErrandState", () => {
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("degrades a record-less current chore/ branch to its branch-derived slug", async () => {
+  it("does not flag a record-less current branch as resumable (identity is record-only)", async () => {
     const exec = buildExec();
 
     const result = await runErrandState({
@@ -120,7 +120,7 @@ describe("runErrandState", () => {
       now: NOW,
     });
 
-    expect(result.resume).toEqual({ resumable: true, slug: "fix-typo" });
+    expect(result.resume).toEqual({ resumable: false, slug: null });
     expect(exec).not.toHaveBeenCalled();
   });
 

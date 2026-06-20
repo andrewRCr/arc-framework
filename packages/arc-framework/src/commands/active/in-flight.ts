@@ -19,6 +19,7 @@ import {
   type PrSource,
 } from "../../lib/git/in-flight-derivation.js";
 import { resolveInFlightBranchSet } from "../../lib/git/remote-ref-reader.js";
+import { readErrandSlugByBranch } from "../../lib/errand/record.js";
 
 export interface ActiveInFlightOptions {
   exec: GitExec;
@@ -56,6 +57,7 @@ export async function runActiveInFlight(
 ): Promise<ActiveInFlightResult> {
   const { exec, identity, teamMode, localOnly, timeoutMs, prSource } = options;
   const { branches, reachable } = await resolveInFlightBranchSet({ exec, localOnly, timeoutMs });
-  const entries = await deriveInFlight({ exec, branches, identity, teamMode, prSource });
+  const errandSlugByBranch = await readErrandSlugByBranch({ exec, identity });
+  const entries = await deriveInFlight({ exec, branches, identity, teamMode, errandSlugByBranch, prSource });
   return { entries, reachable };
 }

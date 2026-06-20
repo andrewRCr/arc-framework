@@ -20,7 +20,10 @@ import {
   hashBlob,
   writeTreeCommit,
   type ErrandRecordIO,
+  type ErrandRecordReadIO,
 } from "./ref-tree.js";
+
+import type { GitExec } from "../git/exec.js";
 
 /**
  * How an errand came to be — the discriminator carried uniformly by every
@@ -120,7 +123,7 @@ function isNonEmptyString(value: unknown): value is string {
  * @returns The parsed record, or `null` when missing or unparseable.
  */
 export async function readErrandRecord(
-  io: ErrandRecordIO,
+  io: ErrandRecordReadIO,
   slug: string,
 ): Promise<ErrandRecord | null> {
   const ref = errandsRef(io.identity);
@@ -141,7 +144,7 @@ export async function readErrandRecord(
  * @param io - Injected git seams and identity.
  * @returns The records held in the ref's tree.
  */
-export async function listErrandRecords(io: ErrandRecordIO): Promise<ErrandRecord[]> {
+export async function listErrandRecords(io: ErrandRecordReadIO): Promise<ErrandRecord[]> {
   const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
   const records: ErrandRecord[] = [];
   for (const slug of entries.keys()) {
@@ -149,6 +152,24 @@ export async function listErrandRecords(io: ErrandRecordIO): Promise<ErrandRecor
     if (record !== null) records.push(record);
   }
   return records;
+}
+
+/**
+ * Read the identity's errand records into a `branch → slug` index — the
+ * identity oracle the session-init probes and the in-flight derivation resolve
+ * errand-ness against (a branch carrying a record is an errand, branch prefix
+ * notwithstanding). A `null` identity (none resolved) yields an empty index, so
+ * a caller degrades to no-errands rather than branching on identity itself.
+ *
+ * @param io - Injected read seam (`exec`) and the identity, which may be `null`.
+ * @returns Branch→slug for every present record; empty when identity is absent or the ref is unborn.
+ */
+export async function readErrandSlugByBranch(
+  io: { exec: GitExec; identity: string | null },
+): Promise<Map<string, string>> {
+  if (io.identity === null) return new Map();
+  const records = await listErrandRecords({ exec: io.exec, identity: io.identity });
+  return new Map(records.map((record) => [record.branch, record.slug]));
 }
 
 /**

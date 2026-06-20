@@ -23,14 +23,18 @@ export function errandsRef(identity: string): string {
   return `${ERRAND_REF_PREFIX}/${identity}/errands`;
 }
 
-/** The injected git seams an errand-ref operation runs over. */
-export interface ErrandRecordIO {
-  /** Standard executor for reads and non-stdin writes (`commit-tree`, `update-ref`). */
+/** The injected git seams an errand-ref *read* runs over — no stdin writer needed. */
+export interface ErrandRecordReadIO {
+  /** Standard executor for reads (`rev-parse`, `ls-tree`, `cat-file`). */
   exec: GitExec;
+  /** The identity whose errand ref is read. */
+  identity: string;
+}
+
+/** The injected git seams an errand-ref *write* runs over — adds the stdin-fed builder. */
+export interface ErrandRecordIO extends ErrandRecordReadIO {
   /** Stdin-fed executor for blob/tree construction (`hash-object`, `mktree`). */
   execInput: GitExecInput;
-  /** The identity whose errand ref is read or written. */
-  identity: string;
 }
 
 /** Current commit a ref points at, or `null` when it does not resolve. */

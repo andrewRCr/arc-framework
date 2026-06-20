@@ -46,14 +46,14 @@ describe("detectErrandResume", () => {
     expect(result).toEqual({ resumable: false, slug: null });
   });
 
-  it("degrades a record-less chore/ branch to the branch-derived slug", () => {
+  it("does not flag a record-less chore/ branch — identity is record-only", () => {
     const result = detectErrandResume({
       currentBranch: "chore/legacy",
       hasBackingMeta: false,
       slugByBranch: index(),
     });
 
-    expect(result).toEqual({ resumable: true, slug: "legacy" });
+    expect(result).toEqual({ resumable: false, slug: null });
   });
 
   it("does not flag a record-less non-chore work-unit branch", () => {
@@ -74,25 +74,5 @@ describe("detectErrandResume", () => {
     });
 
     expect(result).toEqual({ resumable: false, slug: null });
-  });
-
-  it("does not flag a record-less bare `chore/` prefix with an empty slug", () => {
-    const result = detectErrandResume({
-      currentBranch: "chore/",
-      hasBackingMeta: false,
-      slugByBranch: index(),
-    });
-
-    expect(result).toEqual({ resumable: false, slug: null });
-  });
-
-  it("preserves a multi-segment slug from a record-less chore/ branch fallback", () => {
-    const result = detectErrandResume({
-      currentBranch: "chore/fix/nested-typo",
-      hasBackingMeta: false,
-      slugByBranch: index(),
-    });
-
-    expect(result).toEqual({ resumable: true, slug: "fix/nested-typo" });
   });
 });

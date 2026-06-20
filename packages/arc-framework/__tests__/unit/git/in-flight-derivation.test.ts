@@ -129,7 +129,7 @@ describe("deriveInFlight", () => {
     expect(entries[0]).toMatchObject({ kind: "work-unit", name: "new-thing", state: "Planning" });
   });
 
-  it("classifies a chore/<slug> branch with no backing meta as an in-flight errand, not a work unit", async () => {
+  it("classifies a branch carrying an errand record as an in-flight errand (slug from the record)", async () => {
     const exec = makeExec({ metas: {} });
 
     const entries = await deriveInFlight({
@@ -137,11 +137,74 @@ describe("deriveInFlight", () => {
       branches: ["chore/fix-typo"],
       identity: null,
       teamMode: false,
+      errandSlugByBranch: new Map([["chore/fix-typo", "fix-typo"]]),
     });
 
     expect(entries).toEqual([
       { kind: "errand", branch: "chore/fix-typo", slug: "fix-typo", remoteOnly: true },
     ]);
+  });
+
+  it("classifies a nature-typed branch (fix/, refactor/) with a record as an errand, not a work unit", async () => {
+    const exec = makeExec({ metas: {} });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["fix/login-bug", "refactor/extract-helper"],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map([
+        ["fix/login-bug", "login-bug"],
+        ["refactor/extract-helper", "extract-helper"],
+      ]),
+    });
+
+    expect(entries).toEqual([
+      { kind: "errand", branch: "fix/login-bug", slug: "login-bug", remoteOnly: true },
+      { kind: "errand", branch: "refactor/extract-helper", slug: "extract-helper", remoteOnly: true },
+    ]);
+  });
+
+  it("classifies a record-less branch with a backing meta as a work unit (a promoted errand → WU)", async () => {
+    const exec = makeExec({
+      metas: {
+        "origin/chore/promoted:.arc/active/meta-promoted.md": metaContent({ owner: "andrew" }),
+      },
+    });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["chore/promoted"],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map(),
+    });
+
+    expect(entries).toEqual([
+      {
+        kind: "work-unit",
+        branch: "chore/promoted",
+        name: "promoted",
+        state: "Active",
+        owner: "andrew",
+        remoteOnly: true,
+        dependsOn: [],
+      },
+    ]);
+  });
+
+  it("drops a branch with neither an errand record nor a backing meta (not in flight)", async () => {
+    const exec = makeExec({ metas: {} });
+
+    const entries = await deriveInFlight({
+      exec,
+      branches: ["chore/orphan"],
+      identity: null,
+      teamMode: false,
+      errandSlugByBranch: new Map(),
+    });
+
+    expect(entries).toEqual([]);
   });
 
   it("filters to the current identity (owner-matched), passing through unattributed entries", async () => {
@@ -158,6 +221,7 @@ describe("deriveInFlight", () => {
       branches: ["feat/mine", "feat/theirs", "chore/loose"],
       identity: "andrew",
       teamMode: true,
+      errandSlugByBranch: new Map([["chore/loose", "loose"]]),
     });
 
     expect(entries.map((e) => e.branch)).toEqual(["feat/mine", "chore/loose"]);

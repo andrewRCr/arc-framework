@@ -77,34 +77,6 @@ describe("classifyWriteContext", () => {
     });
     expect(result.pathSurface).toBeNull();
   });
-
-  it("resolves the errand slug when the current branch is a chore/ errand", () => {
-    const result = classifyWriteContext({
-      currentBranch: "chore/fix-typo",
-      baseBranch: "main",
-      primaryWorktreePath: "/repo",
-    });
-    // Off-base errand branch still relocates on the existing axis, with the slug surfaced alongside.
-    expect(result).toMatchObject({ verdict: "relocate", errandSlug: "fix-typo" });
-  });
-
-  it("leaves the errand slug null on a non-errand branch", () => {
-    const result = classifyWriteContext({
-      currentBranch: "feat/some-wu",
-      baseBranch: "main",
-      primaryWorktreePath: "/repo",
-    });
-    expect(result.errandSlug).toBeNull();
-  });
-
-  it("leaves the errand slug null on a detached HEAD refusal", () => {
-    const result = classifyWriteContext({
-      currentBranch: null,
-      baseBranch: "main",
-      primaryWorktreePath: "/repo",
-    });
-    expect(result).toMatchObject({ verdict: "refuse", errandSlug: null });
-  });
 });
 
 describe("classifyPathSurface", () => {

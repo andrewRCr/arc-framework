@@ -14,16 +14,14 @@
  * Pure core: the caller injects the current branch, whether a meta backs it
  * (resolved from the active-meta / roster probes), and the branch→slug index
  * derived from the errand records, so this module carries no git or filesystem
- * coupling. A record-less legacy `chore/<slug>` branch degrades to the
- * branch-derived slug.
+ * coupling. Identity is record-only — a branch with no record is not an errand,
+ * whatever its prefix.
  *
  * @module
  */
 
-import { errandSlugOf } from "./errand-branch.js";
-
 export interface ErrandResumeResult {
-  /** True when the current branch is an errand (record-backed or legacy chore/) with no backing meta. */
+  /** True when the current branch carries an errand record and has no backing meta. */
   resumable: boolean;
   /** The errand `<slug>` when resumable; `null` otherwise. */
   slug: string | null;
@@ -49,9 +47,5 @@ export function detectErrandResume(options: DetectErrandResumeOptions): ErrandRe
   if (hasBackingMeta || currentBranch === null) return { resumable: false, slug: null };
 
   const recordSlug = slugByBranch.get(currentBranch);
-  if (recordSlug !== undefined) return { resumable: true, slug: recordSlug };
-
-  // Legacy degrade: a record-less `chore/<slug>` branch falls back to the branch parse.
-  const slug = errandSlugOf(currentBranch);
-  return slug === null ? { resumable: false, slug: null } : { resumable: true, slug };
+  return recordSlug !== undefined ? { resumable: true, slug: recordSlug } : { resumable: false, slug: null };
 }
