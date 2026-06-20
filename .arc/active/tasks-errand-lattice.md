@@ -331,11 +331,11 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
           § 4 promotion edge floor-routed via `arc errand promote`, § 6 admits `promote` as the crossing-out seam;
           Goals, success criteria 2/3/6, and Open Questions re-based.
     - `[x]` **5.R.1.c `strategy-work-organization` §§ Work Character / Class Model / Errand Work Class**
-        - Reframed atomic = indivisible concern + single session (multi-step = needs *durable* decomposition, not
+        - Reframed atomic = indivisible concern + single session (multi-step = needs _durable_ decomposition, not
           >one pass); fixed boundary test #1 + the Errand definition; the symptom check now routes an over-window
           candidate to extended-errand-vs-floors-1–3. Package-source-first, synced.
     - `[x]` **5.R.1.d `classify-work-unit` method — the operational gate**
-        - Boundary test #1 replaces "atomic *or* multi-increment" with the atomic-character + extended-band framing
+        - Boundary test #1 replaces "atomic _or_ multi-increment" with the atomic-character + extended-band framing
           and the durable-plan scale floor. Synced.
 
 - _Outcome:_ The errand↔WU gate now reads identically across ADR-027 / spec / strategy / method: two independent
@@ -366,12 +366,17 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
   rest is deterministic CLI. ROADMAP "regen" is the lifecycle's existing interim advisory (roadmap-tooling owns the
   real renderer), not an automated render. Full suite green (3130). Consumed by R.3's `init-work-unit` rewire.
 
-### `[ ]` **5.R.3 Rewire `init-work-unit` § Promote Errand — CLI-driven, floor-routed**
+### `[x]` **5.R.3 Rewire `init-work-unit` § Promote Errand — CLI-driven, floor-routed**
 
 - _Goal:_ The Promote path replaces the hand-ceremony with `arc errand promote`, routes by floor crossed
   (derivation → draft-design via arc-plan; scale → create-spec brief → generate-tasks), and reads as
   embrace-not-avoid — everything deterministic is CLI; the agent supplies only judgment. Supersedes 6.1's promote prose.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+- _Outcome:_ § Promote Errand collapses the 8-step hand-ceremony to: identify the floor → `arc errand promote
+  <slug> --floor derivation|scale` (rename + meta + retire, deterministic) → commit the meta (`workflowCommit`) +
+  drop the inbox capture → push → continue into the floor-routed planning stage (derivation → draft-design; scale →
+  create-spec brief → generate-tasks). Promote-on-floor-crossing framing; the `git branch -m` / hand-authored-meta /
+  separate `arc errand retire` steps all retired. Package-source-first, synced; links validated.
 
 ### `[ ]` **5.R.4 Rewire `run-errand` Execute — extended band + promotion handoff**
 
