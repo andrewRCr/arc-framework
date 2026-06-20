@@ -6,7 +6,7 @@
  * trigger and a body, all under `## Memories`. `USER-INBOX.md` entries use the
  * H3 managed-entry shape — an `### \`[ ]\` **title**` heading (an optional
  * checkbox before the bold title) followed by descriptor bullets, keyed on the
- * bold title, under `## Atomic` / `## Backlog`. Each parser splits a file into
+ * bold title, under `## Errand` / `## Work Unit`. Each parser splits a file into
  * entry blocks and returns one discriminated outcome per block: a block that
  * doesn't match its shape becomes `{ ok: false, reason }` instead of being
  * dropped.
@@ -118,7 +118,7 @@ function parseWorkingMemory(content: string): EntryParse[] {
 
 function parseUserInbox(content: string): EntryParse[] {
   const out: EntryParse[] = [];
-  for (const section of ["Atomic", "Backlog"]) {
+  for (const section of ["Errand", "Work Unit"]) {
     parseH3Section(sectionLines(content, section), section, `USER-INBOX ${section}`, out);
   }
   return out;
@@ -131,9 +131,9 @@ function parseUserInbox(content: string): EntryParse[] {
  * Descriptor fields that ride the body — e.g. a USER-INBOX `WU_Target` line —
  * stay verbatim in `raw`; they are never extracted as fields. An H3 heading
  * with no bold title surfaces as a failure rather than a silent drop. Used by
- * USER-INBOX for both its `## Atomic` and `## Backlog` sections.
+ * USER-INBOX for both its `## Errand` and `## Work Unit` sections.
  *
- * @param label - File + section name for the failure reason (e.g. `USER-INBOX Atomic`).
+ * @param label - File + section name for the failure reason (e.g. `USER-INBOX Errand`).
  */
 function parseH3Section(lines: readonly string[], section: string, label: string, out: EntryParse[]): void {
   let block: string[] = [];

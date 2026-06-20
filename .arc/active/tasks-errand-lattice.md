@@ -286,23 +286,16 @@ updates — no migration mechanism.
   historical. Content-only — the coupled section code (`ENTRY_SECTIONS`, parser, probes) re-bases in Task 5.2, so
   inbox reads regress against the renamed headings until then.
 
-### `[ ]` **5.2 Update the coupled inbox-section code in lockstep, tests green**
+### `[x]` **5.2 Update the coupled inbox-section code in lockstep, tests green**
 
 - _Goal:_ Every place the section labels are hardcoded reads `Errand` / `Work Unit`, and the inbox
   reader / writer / probes operate on the renamed sections with their tests green.
-- _Approach:_ Update `ENTRY_SECTIONS` (`lib/user-sync/inbox-writer.ts`), the parser section loop
-  (`lib/user-sync/parser.ts`), the reminder section filter (`lib/session-init/inbox-reminders.ts`), and
-  `inbox-state.ts` doc/usage; migrate the test fixtures' literal `## Atomic` / `## Backlog` to the new headings.
-  Preserve the single-section reminder scope — the old `## Atomic`-only nudge maps to `## Errand`-only;
-  `## Work Unit` is never nudged.
-- **Strategies:** strategy-testing-methodology.md
-
-    Build `test-first` (one behavior at a time):
-
-    - `removeInboxEntry` finds and excises entries under `## Errand` and `## Work Unit`
-    - the parser yields entries carrying the new `section` values; `WU_Target` rides `raw` verbatim
-    - reminders surface from `## Errand` only; `## Work Unit` is never nudged
-    - `runInboxState` counts routable entries across both renamed sections
+- _Outcome:_ Renamed the section literals — `ENTRY_SECTIONS` (`inbox-writer.ts`) and the parser loop
+  (`parser.ts`) now drive `Errand` / `Work Unit`, and the reminder filter (`inbox-reminders.ts`) gates on
+  `Errand`, preserving the single-section nudge scope (`Work Unit` is never nudged). `section` is an open
+  `string` on `CrossWuEntry`, so no type change was needed — only doc comments updated in `types.ts` /
+  `inbox-state.ts`. Test fixtures migrated across the unit, integration, and e2e suites; tombstone
+  `_Section:_` values left historical.
 
 ## **Phase 6:** Crossing edges + operational-surface cascade
 

@@ -1146,13 +1146,13 @@ describe("runSessionHandoffStatus — inbox-state envelope path", () => {
       [
         "# User Inbox",
         "",
-        "## Atomic",
+        "## Errand",
         "",
         "### `[ ]` **first capture**",
         "",
         "- A routable atomic entry.",
         "",
-        "## Backlog",
+        "## Work Unit",
         "",
         "### `[ ]` **second capture**",
         "",
@@ -1233,13 +1233,13 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
       [
         "# User Inbox",
         "",
-        "## Atomic",
+        "## Errand",
         "",
         "### `[ ]` **first capture**",
         "",
         "- A routable atomic entry.",
         "",
-        "## Backlog",
+        "## Work Unit",
         "",
         "### `[ ]` **second capture**",
         "",
@@ -1286,7 +1286,7 @@ describe("runSessionInitStatus — inbox-state envelope path", () => {
 
 // Exercises the repointed staleness sweep end to end: a handler-equivalent
 // errandSweep probe reads the fixture's USER-INBOX, extracts the reminder-
-// flagged Atomic entries, and ages them — confirming the sweep now sources the
+// flagged Errand entries, and ages them — confirming the sweep now sources the
 // inbox instead of the retired ERRANDS.md queue.
 describe("runSessionInitStatus — reminder-sweep envelope path", () => {
   const NOW = "2026-05-31T12:00:00.000Z";
@@ -1318,7 +1318,7 @@ describe("runSessionInitStatus — reminder-sweep envelope path", () => {
     };
   }
 
-  it("ages a reminder-flagged Atomic entry past the threshold into the sweep (present)", async () => {
+  it("ages a reminder-flagged Errand entry past the threshold into the sweep (present)", async () => {
     const userDir = join(fixture.root, ".arc", "user", "andrew");
     await mkdir(userDir, { recursive: true });
     await writeFile(
@@ -1326,14 +1326,14 @@ describe("runSessionInitStatus — reminder-sweep envelope path", () => {
       [
         "# User Inbox",
         "",
-        "## Atomic",
+        "## Errand",
         "",
         "### `[ ]` **drain the backlog**",
         "",
         "- _Remind:_ `true`",
         "- _Created:_ `2026-05-28`",
         "",
-        "## Backlog",
+        "## Work Unit",
         "",
       ].join("\n"),
     );

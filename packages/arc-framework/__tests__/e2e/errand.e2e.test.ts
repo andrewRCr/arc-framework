@@ -211,7 +211,7 @@ describe("arc errand close", () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");
     const inboxPath = join(inboxDir, "USER-INBOX.md");
-    const inbox = "# User Inbox\n\n## Atomic\n\n### `[ ]` **Keep me**\n\n- _Observation:_ unrelated.\n\n---\n";
+    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Keep me**\n\n- _Observation:_ unrelated.\n\n---\n";
     await mkdir(inboxDir, { recursive: true });
     await writeFile(inboxPath, inbox, "utf-8");
 
