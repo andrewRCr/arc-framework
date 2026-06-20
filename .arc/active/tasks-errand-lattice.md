@@ -378,13 +378,20 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
   create-spec brief → generate-tasks). Promote-on-floor-crossing framing; the `git branch -m` / hand-authored-meta /
   separate `arc errand retire` steps all retired. Package-source-first, synced; links validated.
 
-### `[ ]` **5.R.4 Rewire `run-errand` Execute — extended band + promotion handoff**
+### `[x]` **5.R.4 Rewire `run-errand` Execute — extended band + promotion handoff**
 
 - _Goal:_ The promote tell re-bases on floor-crossing (not a second pass); Execute carries the extended-errand
   path (agent-proposed decomposition, per-pass interlocks, ephemeral in-session tracking, single-session binding) as
   a bounded exception to the single-pass prototype; spec-worthy hands to `arc errand promote` → init-work-unit.
   Supersedes 6.2.a's framing.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+- _Outcome:_ Rewrote the workflow on the sharpened model plus the deferred prose-economy feedback. Execute now runs
+  a review-increment loop (build → gate → commit) so the gate always precedes the commit (accumulate-then-release,
+  not commit-as-you-go); the **extended-errand** exception (agent-proposed bounded in-session passes, neither floor
+  crossed) and the floor-crossing promote tell (`arc errand promote --floor`, not a second pass) replace the old
+  framing. Commit moved out of Integrate into the Execute loop, so Integrate is purely Ship + Complete. Intro and
+  Launch trimmed to operational prose; atomic-single-session character headlined. Package-source-first, synced; lint
+  and links clean. Closes the run-errand draft held since 6.2.a.
 
 ### `[ ]` **5.R.5 Re-cascade the remaining surfaces shipped on the superseded framing**
 
