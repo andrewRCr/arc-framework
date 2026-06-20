@@ -32,13 +32,16 @@ Apply in order. The first test sorts work below the wrapper out of the `Class` m
 each independently promote a WU to `Heavy`; the last promotes `Heavy → Novel` on the derivation axis alone.
 
 1. **Errand vs. WU (the wrapper floor):** *"Is this spec-worthy — does it clear the floor on either intrinsic
-   axis (a design worth recording, or a substantial grounding pass a correct plan must navigate), or is it
-   self-evident on both?"* This reads the same two axes as the `Heavy` triggers below, at their **sub-floor**: the
-   errand is the shared below-floor tier of one spectrum, not a separate increment-count gate.
-    - **Below floor on *both* axes** → it is an **Errand**, not a WU: one concern with nothing worth recording as
-      design *and* no substantial grounding pass — self-evident, validated by intent + diff + review. `Class` does
-      not apply: an Errand runs below the wrapper (no meta file). Atomic *or* multi-increment — a self-evident
-      one-concern sweep is an errand across many increments; increment-count is irrelevant. Stop here.
+   axis (a design worth recording, or a durable plan a correct execution must navigate — a substantial grounding
+   surface or cross-session tracking), or is it self-evident on both?"* This reads the same two axes as the `Heavy`
+   triggers below, at their **sub-floor**: the errand is the shared below-floor tier of one spectrum, not a separate
+   increment-count gate.
+    - **Below floor on *both* axes** → it is an **Errand**, not a WU: one indivisible concern with nothing worth
+      recording as design *and* no durable plan to navigate (neither a substantial grounding surface nor
+      cross-session tracking) — self-evident, validated by intent + diff + review. `Class` does not apply: an Errand
+      runs below the wrapper (no meta file). **Atomic in character** — bounded to one session; *typically* one
+      review increment, a determinate sweep extended to a bounded few in-session passes (the extended errand).
+      Commit- and review-pass-count don't gate. Stop here.
     - **Clears *either* floor** → it is a WU (**spec-worthy**): a design worth recording (even a determinate one)
       *or* a substantial grounding pass a correct plan must navigate. Continue to the two `Heavy` triggers.
 

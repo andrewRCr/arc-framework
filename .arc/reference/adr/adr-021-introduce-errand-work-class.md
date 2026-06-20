@@ -217,7 +217,8 @@ Conventions and Agile WU Lifecycle.
 
 **Amendment (2026-06-19):** [ADR-027][adr-027] refines this class's model (the taxonomy above is unchanged). It
 re-bases the errand-vs-WU wrapper floor from increment-count onto **spec-worthiness** — the two intrinsic `Class`
-axes, where an Errand is below floor on both (atomic *or* multi-increment) and a WU clears either — models the
+axes (derivation, scale), where an Errand is below both floors (self-evident and single-session; typically one
+review increment, with a bounded in-session extended band) and a WU clears either — models the
 Errand as one character with a `branch.protection`-scaled mechanism, and gives the full-protection Errand a
 **record-owned identity** (an orphan state-ref at `refs/arc/user/{identity}/errands`; the branch a projection,
 retiring the `errandSlugOf` branch-parse). ADR-021 is **not superseded** — its work-class taxonomy stands; ADR-027

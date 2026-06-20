@@ -41,8 +41,8 @@ cohort-level coordination — lives in `cohort-lifecycle-state-machine.md`.
 ## Goals
 
 - **A correct entry predicate.** The errand-vs-WU boundary admits a self-evident single-concern maintenance
-  sweep — one review increment, however many commits — as an errand, decided on the same intrinsic axes that
-  already drive `Class`.
+  sweep — typically one review increment (a determinate one may stage into a bounded few in-session passes),
+  however many commits — as an errand, decided on the same intrinsic axes that already drive `Class`.
 - **One concept across both protection modes.** A single character-level definition a developer learns once, whose
   *mechanism* scales with `branch.protection` — without pushing full-protection apparatus onto the partial floor.
 - **Record-owned errand identity.** Full-protection errand identity resolves from a logical record, not by parsing
@@ -108,11 +108,14 @@ and the light `run-errand` entry (correct footer, review-increment discipline) �
 Re-base the wrapper floor onto the same two intrinsic axes that drive `Light`/`Heavy`/`Novel`, making the errand
 the natural **sub-floor** of one spectrum rather than a separate cardinality gate:
 
-- **errand** = a single concern **below floor on *both* axes** — nothing worth recording as design (derivation
-  floor) **and** no substantial grounding pass a correct plan must navigate (scale floor). Self-evident; validated
-  by intent + diff + review — always atomic: one review increment, however many commits.
-- **work unit** = **spec-worthy** = clears *either* axis's floor: a design worth recording (even a determinate one
-  → `brief`), **or** a substantial grounding pass a correct plan must navigate (→ `outline`, heavy-by-scale).
+- **errand** = the **atomic work character** — a single, indivisible self-evident concern bounded to one session —
+  **below floor on *both* axes**: nothing worth recording as design (derivation floor) **and** no durable
+  cross-session plan a correct execution must navigate (scale floor). Validated by intent + diff + review.
+  **Typically** one review increment, often one commit; a determinate concern may be staged into a bounded few
+  **in-session** review passes (the *extended errand*) without changing character.
+- **work unit** = **spec-worthy** and **composite** = clears *either* axis's floor: a design worth recording (even
+  a determinate one → `brief`), **or** a durable, tracked plan a correct execution must navigate across sessions
+  (→ `outline`, heavy-by-scale).
 
 Three tiers per axis; the errand is the shared sub-floor:
 
@@ -121,13 +124,21 @@ Three tiers per axis; the errand is the shared sub-floor:
 | **Derivation** | nothing to record        | records a determinate design | must *author* design  | must *invent* (only here) |
 | **Scale**      | self-evident             | modest grounding             | substantial grounding | (caps at `heavy`)         |
 
-**Commit-count drops out of the gate; concern-count stays.** An errand is still one concern (multi-concern is
-always a WU or decomposes), and one concern is one review increment — the admission is that a *self-evident*
-one-concern sweep is an errand however many commits it lands in. Two one-concern cases split on the **scale
-floor**: a doc-grooming sweep is self-evident → errand; a widely-used-symbol rename whose plan must verify
-call-sites is heavy-by-scale → WU. The
-"substantial" bar carries irreducible judgment, but it is the *same* judgment the `Class` model already owns, and
-the errand → WU promotion edge makes a mis-call cheap to fix.
+**Commit- and review-pass-count both drop out of the gate; concern-count stays.** An errand is still one concern
+(multi-concern is always a WU or decomposes). The admission is twofold: a *self-evident* one-concern sweep is an
+errand however many **commits** it lands in, **and** — when determinate — however many in-session **review passes**
+it is staged into. What crosses the **scale floor** is not a second pass but needing a **durable, cross-session
+plan**: a tracked decomposition that outlives the session and is validated against a spec. Two one-concern cases
+split on it: a doc-grooming sweep is self-evident → errand; a widely-used-symbol rename whose plan must verify
+call-sites and be tracked is heavy-by-scale → WU. The bar carries irreducible judgment — the *same* judgment the
+`Class` model already owns — and the `arc errand promote` edge makes a mis-call cheap to fix.
+
+**Single-session binding is the character, not a limit.** An errand carries no durable context machinery — no meta,
+no SESSION-NOTES, no task list — so it is atomic in *session* as well as in *concern*. Pause/resume is a thin
+git-state fallback (`commit WIP + push`; reconstruct from the branch diff + the originating capture), safe only
+because the work is determinate: remaining scope stays legible from the diff. The moment correct continuation needs
+a tracked plan rather than the diff, that **is** the scale floor → WU. The two floors, the atomic-single-session
+identity, and the pause-safety test are one statement seen from different sides.
 
 **The relocates-never-authors invariant.** A maintenance errand **never authors new *design* at the home** — a
 destination needing design authored is routed *as* a future increment (a new stub, an inbound-buffer note, a
@@ -155,10 +166,12 @@ The full-protection errand's state is **derived**, not stored as a phase: `in-pr
 
 - **inbox → errand** (`drain-inbox` execution transition): a committed atomic in `USER-INBOX` enters the errand
   `Launch → Execute → Integrate` lifecycle. Capture *holds*; the errand *is* its execution.
-- **errand → WU promotion** (`init-work-unit` Promote Errand path): an errand that crosses the wrapper floor
-  (becomes spec-worthy) renames its branch to `<type>/<name>`, mints a meta (`scaffold`), and enters the WU
-  lattice at `Active` (commits already exist; no activation ceremony). The reverse is never modeled — a WU never
-  demotes to an errand.
+- **errand → WU promotion** (`init-work-unit` Promote Errand path, via `arc errand promote`): an errand that
+  crosses *either* floor renames its branch to `<type>/<name>`, mints the backing meta (`scaffold`), retires the
+  errand record, and enters the WU lattice **at the stage the crossed floor dictates** — a **derivation** crossing
+  enters planning (`Planning`, `Current Workflow → draft-design`); a **scale-only** crossing enters `Active` with a
+  `brief` anchoring the now-durable plan (commits already exist; no activation ceremony). The reverse is never
+  modeled — a WU never demotes to an errand.
 - **errand → completed/abandoned:** an errand ships (merge / direct base commit) or is dropped; neither writes a
   `completed/` archive (no meta to sweep) — the record is its branch + PR + merged commit, plus the identity record
   (part 5).
@@ -230,7 +243,7 @@ record dissolves the latter two (same Principle-5 coupling, retired by the same 
 ### 6. Full-protection mechanism — the thin `arc errand` verb surface
 
 The full-protection mechanics (`run-errand` Launch / Complete) are hand-run markdown — the "ceremony restating
-mechanics" the cohort retires for WUs. They become a **thin** CLI surface, with `open`/`close` as the record's
+mechanics" the cohort retires for WUs. They become a **thin** CLI surface, with `open`/`close`/`promote` spanning the record's
 lifecycle:
 
 - **`arc errand open <slug>`** — mint the identity record, cut the branch (nature-typed) as its projection, and
@@ -240,8 +253,17 @@ lifecycle:
   slug-matched inbox entry (at completion, never at start, so an abandoned errand never orphans the intent). The
   inbox-entry drop consumes the `removeInboxEntry` primitive `lifecycle-mechanics-tail` already shipped.
 
+- **`arc errand promote <slug>`** — the errand → WU crossing edge as a verb: rename the branch (preserving
+  commits), mint the backing WU meta in the stage the crossed floor dictates (`Planning` + `draft-design` for a
+  derivation crossing, `Active` for a scale-only one), regenerate ROADMAP, and retire the record. Composes the
+  shipped `renderMetaFile` + branch-rename + `retireErrand` (the executor's ROADMAP-regen side-effect rides along,
+  interim until roadmap-tooling); the agent supplies only the judgment (WU name/type, which floor). Full-protection
+  only — under partial there is no branch or record, so promotion is just starting a normal WU from the base.
+
 Scoped **smaller than the WU verbs**: errands carry no `(phase, location)`, no relocation, no `active/` artifact —
-so no record-relocation / git-mv staging surface. **Ownership:** this surface is errand-lattice's to build —
+so no record-relocation / git-mv staging surface of their own. `promote` is the exception that proves it — the
+crossing-*out* seam, minting WU machinery by composing transition-core's `renderMetaFile` rather than owning meta
+logic here. **Ownership:** this surface is errand-lattice's to build —
 `lifecycle-mechanics-tail` (PR #114) routed the errand verb surface and the record-owned-identity concern here; it
 has no other home.
 
@@ -438,19 +460,23 @@ Validated at WU completion:
    `strategy-work-organization` § Class Model; **no surface in the cascade (part 9) still describes the
    increment-count wrapper floor** or the durable-as-wrapper conflation — including the `USER-INBOX` section labels
    and the `init-work-unit` § Promote Errand criterion.
-2. A determinate single-concern sweep runs **on-script** through `run-errand` (one review increment, several
-   commits, one PR) — verifiable against `drain-inbox`'s existing multi-commit shape, which the redefinition legitimizes.
+2. A determinate single-concern sweep runs **on-script** through `run-errand` as one errand — typically one review
+   increment / several commits / one PR, and, when large, a bounded few in-session review passes (the extended
+   errand) — verifiable against `drain-inbox`'s existing multi-commit shape, which the redefinition legitimizes.
 3. `arc errand open <slug>` mints the identity record, cuts a nature-typed branch as its projection, and occupies
    per protection mode; `arc errand close` removes the record, reaps the branch/ephemeral worktree, and drops the
-   slug-matched inbox entry at completion.
+   slug-matched inbox entry at completion; `arc errand promote <slug>` performs the errand → WU crossing — branch
+   rename, meta mint at the floor-dictated stage, ROADMAP regen, record retire — leaving only judgment to the agent.
 4. Errand identity resolves from the **record**, not a branch parse: `errandSlugOf`'s branch-parse is retired, the
    session-init errand probes read the record, and a `fix/`- or `refactor/`-prefixed branch resolves as an errand.
 5. The record lives at `refs/arc/user/{identity}/errands` as a **records-only** orphan state-ref (no working-tree
    file), synced via the existing user-state machinery (push-at-`open` + ride `arc sync`); concurrent distinct-slug
    creation union-merges and a same-slug collision rejects under non-fast-forward.
 6. The **crossing edges are updated to the new model**: `init-work-unit` § Promote Errand re-bases its criterion
-   onto spec-worthiness, is branch-prefix-agnostic, resolves identity from the record, and **retires the errand
-   record on promotion** — reusing transition-core's `scaffold`/cut/rename mechanics, not rebuilding them.
+   onto the two-floor gate, is branch-prefix-agnostic, resolves identity from the record, routes to the planning
+   stage the crossed floor dictates (draft-design for derivation; `Active` + `brief` for scale), and runs as the
+   deterministic `arc errand promote` verb (branch rename + meta mint + ROADMAP regen + record retire) — reusing
+   transition-core's mechanics, not rebuilding them.
 7. **cut→occupy is codified as a consumer invariant**, and `run-errand`, `drain-inbox` § 5, and session-init's
    errand cold-entry each inline-conform (no consumer cuts without immediately occupying).
 8. The **personal capture surface lands the gate**: `USER-INBOX` sections are relabeled `## Errand` / `## Work Unit`
@@ -461,7 +487,9 @@ Validated at WU completion:
 
 ## Open Questions
 
-No blocking open design questions — the design is complete. Two non-blocking notes:
+No blocking open design questions — the design is complete: the two **independent** intrinsic floors, the
+**extended errand** band (atomic character, single-session), and the `arc errand promote` crossing verb included.
+Two non-blocking notes:
 
 - **Implementation latitude (not design):** the git plumbing for the per-slug tree merge (`read-tree`/`write-tree`
   vs. a library) is an execution choice; the merge *algorithm* and its observable semantics are settled (part 5).

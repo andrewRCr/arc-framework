@@ -297,6 +297,95 @@ updates — no migration mechanism.
   `inbox-state.ts`. Test fixtures migrated across the unit, integration, and e2e suites; tombstone
   `_Section:_` values left historical.
 
+## **Phase 5.R:** Extended-errand model sharpening + promotion wiring
+
+_Purpose:_ A mid-execution refinement of this WU's own model (surfaced during Phase 6) supersedes the
+increment-count gate the earlier phases cascaded. Re-anchor the errand↔WU boundary on two **independent**
+intrinsic floors (derivation, scale), decouple review-increment **count** from the gate, first-class the
+**extended errand** (a determinate single-session sweep reviewed in a bounded few in-session passes), and make
+errand→WU promotion cheap and seamless by moving its deterministic mechanics into the CLI. Then re-cascade every
+surface the earlier phases shipped on the superseded framing, so the WU still exits gapless under the sharpened
+model.
+
+_Design decisions:_ Sharpen the model **source-first** (ADR-027 — `Proposed`, edited directly; spec; strategy; the
+`classify-work-unit` method) before any consuming surface re-bases. `arc errand promote` composes shipped
+transition-core primitives (`renderMetaFile` + branch rename + `retireErrand`, dispatched so the ROADMAP-regen
+side-effect fires — interim; roadmap-tooling owns the real renderer) — a thin fourth verb beside
+`open`/`close`/`retire`, scoped into spec § 6. Promotion routes by the floor crossed: derivation → `Planning` +
+`draft-design`; scale → `Active` via a brief spec. ADR-021 / ADR-023 stay historical (forward-pointer only); the
+cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination note, not edited here.
+
+### `[x]` **5.R.1 Sharpen the authoritative model (source-first)**
+
+- _Goal:_ The four model-defining surfaces state the sharpened gate consistently — two independent floors
+  (derivation OR scale = durable cross-session plan, either sufficient), the single-pass prototype with a bounded
+  in-session extended band, single-session structural identity, and commit-/pass-count out of the gate.
+- **Strategies:** strategy-work-organization.md, strategy-adr-methodology.md, strategy-package-project-sync.md
+
+    - `[x]` **5.R.1.a `adr-027` Decision pt 1 — decouple increment-count; sharpen the scale floor; add the band**
+        - Rewrote Decision pt 1 on three pillars (two independent floors; review-pass-count decoupled / extended
+          errand; single-session structural identity), reintroduced **atomic** as the errand's immutable character
+          (WU as its composite foil), aligned Consequences/Risks, and corrected the ADR-021 forward-pointer.
+    - `[x]` **5.R.1.b `spec-errand-lattice` — model section, § 6 verb surface, Open Questions**
+        - § 2 gate (atomic character, extended band, durable-plan scale floor, single-session + legibility test),
+          § 4 promotion edge floor-routed via `arc errand promote`, § 6 admits `promote` as the crossing-out seam;
+          Goals, success criteria 2/3/6, and Open Questions re-based.
+    - `[x]` **5.R.1.c `strategy-work-organization` §§ Work Character / Class Model / Errand Work Class**
+        - Reframed atomic = indivisible concern + single session (multi-step = needs *durable* decomposition, not
+          >one pass); fixed boundary test #1 + the Errand definition; the symptom check now routes an over-window
+          candidate to extended-errand-vs-floors-1–3. Package-source-first, synced.
+    - `[x]` **5.R.1.d `classify-work-unit` method — the operational gate**
+        - Boundary test #1 replaces "atomic *or* multi-increment" with the atomic-character + extended-band framing
+          and the durable-plan scale floor. Synced.
+
+- _Outcome:_ The errand↔WU gate now reads identically across ADR-027 / spec / strategy / method: two independent
+  floors (derivation; scale = needs a durable cross-session plan), the errand as the **atomic** character (one
+  indivisible concern, single session) with a bounded in-session **extended errand** band, and review-pass-count
+  decoupled from the gate. Lands as one lockstep commit; R.3/R.4 workflows and R.5 surfaces cascade from here.
+
+### `[ ]` **5.R.2 Build `arc errand promote` (deterministic mechanics → CLI)**
+
+- _Goal:_ `arc errand promote <slug>` performs the full deterministic promotion — rename the errand branch
+  (preserving commits), mint the backing WU meta (State by floor: `Planning` for derivation, `Active` for scale),
+  regenerate ROADMAP, retire the errand record — leaving only the judgment (name/type, floor) to the agent.
+- **Strategies:** strategy-work-organization.md, strategy-testing-methodology.md, strategy-package-project-sync.md
+- Build `test-first` (one behavior at a time):
+
+    - `[ ]` **5.R.2.a `promoteErrand` core + floor-branched meta mint**
+        - Compose `renderMetaFile` (Active-shape overrides; State branches on floor) + branch rename + `retireErrand`;
+          fire the interim ROADMAP-regen side-effect. Resolve ride-the-executor vs compose-directly.
+    - `[ ]` **5.R.2.b `arc errand promote <slug>` handler + CLI wiring**
+        - Judgment inputs (`--type` / name / floor); handler mirrors the `open`/`close`/`retire` marker discipline;
+          full-protection only (partial promotes via the new-WU-from-base path). Package-source + sync.
+
+### `[ ]` **5.R.3 Rewire `init-work-unit` § Promote Errand — CLI-driven, floor-routed**
+
+- _Goal:_ The Promote path replaces the hand-ceremony with `arc errand promote`, routes by floor crossed
+  (derivation → draft-design via arc-plan; scale → create-spec brief → generate-tasks), and reads as
+  embrace-not-avoid — everything deterministic is CLI; the agent supplies only judgment. Supersedes 6.1's promote prose.
+- **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+
+### `[ ]` **5.R.4 Rewire `run-errand` Execute — extended band + promotion handoff**
+
+- _Goal:_ The promote tell re-bases on floor-crossing (not a second pass); Execute carries the extended-errand
+  path (agent-proposed decomposition, per-pass interlocks, ephemeral in-session tracking, single-session binding) as
+  a bounded exception to the single-pass prototype; spec-worthy hands to `arc errand promote` → init-work-unit.
+  Supersedes 6.2.a's framing.
+- **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+
+### `[ ]` **5.R.5 Re-cascade the remaining surfaces shipped on the superseded framing**
+
+- _Goal:_ Every consuming / descriptive surface keys on the sharpened model — no surface still asserts
+  "atomic or multi-increment" as equal grounds, nor the increment-count gate.
+- **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
+
+    - `[ ]` **5.R.5.a `AGENT-BRIEF.ARC` vocabulary (`Errand`, `atomic`)**
+    - `[ ]` **5.R.5.b `DEV-RULES.ARC` § Discovered Work Routing / Holding ≠ execution**
+    - `[ ]` **5.R.5.c `arc-errand` SKILL (+ harness-local copy)**
+    - `[ ]` **5.R.5.d USER-INBOX preambles — live `.arc/user/.../USER-INBOX.md` + adopter template**
+    - `[ ]` **5.R.5.e Coordination note: cohort doc + `decompose-matrix` draft consume the character gate (sibling
+      artifacts — note, don't edit)**
+
 ## **Phase 6:** Crossing edges + operational-surface cascade
 
 _Purpose:_ Update every operational surface a session consults during classification, capture, routing, or
@@ -339,10 +428,13 @@ harness-local copies in this self-hosting repo.
   occupy" clause and routes character-aware.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **6.2.a `run-errand` — admit the multi-commit sweep; wire the `open` / `close` record lifecycle**
-        - Keep the single-review-increment framing (an errand is one review increment) but clarify it may span
-          several commits — a determinate sweep reviewed once; wire Launch → `arc errand open` and Complete →
-          `arc errand close`; keep cut→occupy inline (already honored at § Launch).
+    - `[x]` **6.2.a `run-errand` — admit the multi-commit sweep; wire the `open` / `close` record lifecycle**
+        - Clarified that the one-review-increment framing admits several commits (a determinate sweep reviewed
+          once, gated once at the workflow-interlock), and re-based § Launch Classify + Execute's promote-tell onto
+          spec-worthiness / needing-a-second-increment. Wired § Launch step 3 → `arc errand open <slug>` (folds
+          cut + record-mint + push + occupy, with cut→occupy inline) and § Complete → `arc errand close <slug>`
+          (containment-safe reap + ref prune + record removal + slug-matched inbox drop). Edited
+          package-source-first, synced byte-identical to `.arc/`.
 
     - `[ ]` **6.2.b `drain-inbox` § 5 — inline cut→occupy conformance; character-aware routing**
         - Inline the "then occupy" clause (the known under-spec: a linear reader currently cuts and writes

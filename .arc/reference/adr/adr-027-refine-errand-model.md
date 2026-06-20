@@ -39,15 +39,34 @@ modes. Full requirements and the worked design live in `spec-errand-lattice.md`.
 We will refine the Errand model along three axes. None reverses ADR-021's taxonomy (Errand remains a
 wrapper-optional class, execution-only, tracked by git history); each corrects a basis ADR-021 left in place.
 
-1. **Re-base the wrapper floor onto spec-worthiness.** The errand-vs-WU boundary is decided on the same two
-   intrinsic axes that drive `Class` — **derivation** (is there design worth recording?) and **scale** (must a
-   correct plan navigate a substantial grounding pass?). An **Errand** is a single concern **below floor on both**
-   axes — self-evident, validated by intent + diff + review, and **always atomic**: one concern resolved in one
-   review increment, however many commits it lands in. A **Work Unit** is **spec-worthy**, clearing *either* floor.
-   **Commit-count drops out of the gate**; the review-increment count stays *one* for an errand and *coincides* with
-   the below-floor judgment (needing a second review increment is itself a design / coordination signal).
-   Concern-count stays (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing
-   spectrum, not a separate cardinality gate.
+1. **Re-base the wrapper floor onto spec-worthiness — two independent floors.** The errand-vs-WU boundary is
+   decided on the same two intrinsic axes that drive `Class`, **either of which alone** warrants a Work Unit:
+   **derivation** (is there design to be *worked out* — requirements or a referenced spec — however clear the
+   result reads once settled?) and **scale** (does correct execution need a **durable, cross-session plan** — a
+   tracked decomposition that outlives the session, validated against a spec?). An **Errand** is the **atomic work
+   character** — a single, indivisible self-evident concern bounded to one session — sitting **below both** floors,
+   validated by intent + diff + review; a **Work Unit** is **spec-worthy** and *composite* (it decomposes into
+   tracked work and may span sessions), clearing *either* floor. The floors are independent: needing design is
+   sufficient on its own, regardless of whether a durable record turns out strictly necessary — the act of
+   *deriving* is the signal, and ARC records it either way.
+
+   **Review-increment count is decoupled from the gate.** An errand stays **atomic in character** throughout — the
+   concern is one indivisible whole; only how that whole is *reviewed* and *committed* varies. It is **typically**
+   one review increment, often a single commit — its prototype and common case. But a determinate single-session
+   concern may be reviewed in a **bounded few in-session review passes** — the **extended errand** — without
+   becoming a Work Unit: staging review for reviewer ergonomics crosses neither floor. What crosses the **scale**
+   floor is needing a *durable* plan, not needing a second pass. **Commit-count and review-pass-count both drop out
+   of the gate**; concern-count stays
+   (multi-concern always decomposes). The errand is the shared sub-floor of one work-sizing spectrum, not a
+   cardinality gate.
+
+   **Single-session binding is the errand's structural identity.** An errand carries no durable context machinery —
+   no meta, no SESSION-NOTES, no task list — so it is bound to a single session by construction. Pause/resume is a
+   thin git-state fallback (`commit WIP + push`; reconstruct from the branch diff + the originating capture), safe
+   *only* because errand work is determinate (remaining scope legible from the diff). Needing durable cross-session
+   context or a tracked plan **is** the scale floor → Work Unit — which is precisely the machinery (meta +
+   SESSION-NOTES + task list) durability requires. So the two floors, the single-session identity, and the
+   pause-safety test are one statement seen from different sides.
 2. **Model the Errand as one character with a mode-scaled mechanism.** The errand-vs-WU *character* is universal —
    one judgment learned once. Its *mechanism* is a projection of `branch.protection`: under **partial** protection a
    direct base commit tracked by its `standalone (...)` footer (no branch, no lifecycle); under **full** protection a
@@ -94,7 +113,8 @@ co-mingles execution-intent records with personal session-notes content and mism
 ### Positive
 
 - A determinate maintenance sweep — even a sizable one — runs on-script as an Errand instead of being forced into an
-  empty WU by its volume; it is one concern reviewed once, and the WU namespace stays free of design-less entries.
+  empty WU by its volume: one self-evident concern, reviewed once or, when large, in a bounded few in-session passes
+  (the extended errand), keeping the WU namespace free of design-less entries.
 - One errand concept spans both protection modes — learned once, with a mechanism that scales, rather than two
   models to reconcile.
 - Errand identity is decoupled from the branch: a `fix/`- or `refactor/`-prefixed branch is unambiguously an Errand
@@ -107,8 +127,9 @@ co-mingles execution-intent records with personal session-notes content and mism
 
 - A new synced ref (`refs/arc/user/{identity}/errands`) joins the user-notes ref, and ARC must implement its
   tree-union / reject merge explicitly rather than inheriting git-notes union.
-- Re-basing the floor onto "substantial grounding" carries irreducible judgment at the errand → WU boundary — but it
-  is the same judgment `Class` already owns, and the errand → WU promotion edge makes a mis-call cheap to correct.
+- The errand → WU boundary carries irreducible judgment — but it is the same judgment `Class` already owns, and
+  the errand → WU promotion edge, with its deterministic mechanics handled by the CLI (branch preserved, meta
+  minted, record retired, routed to the right planning stage), makes a mis-call cheap to correct.
 - The errand ref inherits the partial-push cross-machine visibility gap the user-notes ref already has; closing it
   is `cross-machine-sync-coherence`'s concern, not this decision's.
 
