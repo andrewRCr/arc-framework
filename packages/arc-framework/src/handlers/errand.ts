@@ -19,10 +19,13 @@ import { runActiveInFlight } from "../commands/active.js";
 import { detectForeignArtifactOverlap, projectInFlightToOverlapRoster } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { cutErrandBranch } from "../lib/session-init/errand-branch-cut.js";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+
 import {
   openErrand,
   closeErrand,
   retireErrand,
+  promoteErrand,
   isErrandBranchType,
   ERRAND_BRANCH_TYPES,
   DEFAULT_ERRAND_BRANCH_TYPE,
@@ -414,6 +417,140 @@ export async function handleErrandRetire(slug: string): Promise<void> {
   }
 
   p.log.success(`Retired errand record '${slug}' — the branch is preserved for the promoted work unit.`);
+  p.outro("Done.");
+}
+
+/** Options for the `arc errand promote` subcommand. */
+export interface ErrandPromoteOptions {
+  /** The new WU name (the meta filename stem and branch leaf); defaults to the slug. */
+  name?: string;
+  /** The WU branch nature-type prefixing the name; defaults to `feat`. */
+  type?: string;
+  /** Which floor the errand crossed — `derivation` | `scale`. Required (the agent's judgment). */
+  floor?: string;
+  /** WU priority for the minted meta. */
+  priority?: string;
+  /** WU `Class` for the minted meta. */
+  class?: string;
+}
+
+/**
+ * Promote an errand to a work unit: rename its branch (commits preserved), mint
+ * the backing meta at the floor-dictated stage, and retire the identity record.
+ *
+ * A full-protection verb, like `open` / `close` / `retire`. The crossed floor is
+ * the agent's judgment and is required — `derivation` enters planning at
+ * `draft-design`, `scale` enters `Active` for a brief + task-list backfill. The
+ * deterministic mechanics (rename, meta mint, record retire, push) run here; only
+ * the WU name/type, the floor, and optional priority/`Class` are supplied.
+ */
+export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptions): Promise<void> {
+  p.intro("arc errand promote");
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    p.log.error(
+      "`arc errand promote` is a full-protection verb. Under partial protection an errand is a direct "
+      + "base commit — no branch, no record — so promotion is just starting a normal work unit from the base.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const floor = opts.floor?.trim();
+  if (floor !== "derivation" && floor !== "scale") {
+    p.log.error(
+      "`arc errand promote` requires `--floor derivation|scale` — the crossed floor is the agent's judgment "
+      + "and routes the entry stage (derivation → planning at draft-design; scale → Active for a brief backfill).",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    p.log.error("The stdin git seam is unavailable — cannot retire the errand record.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const rawName = opts.name?.trim();
+  const wuName = rawName !== undefined && rawName !== "" ? rawName : slug;
+  const type = opts.type?.trim();
+
+  let result;
+  try {
+    result = await promoteErrand(
+      {
+        io: { exec: io.exec, execInput: io.execInput, identity },
+        fs: { mkdir, writeFile, readFile: (path) => readFile(path, "utf8") },
+        cwd,
+      },
+      {
+        slug,
+        name: wuName,
+        type: type !== undefined && type !== "" ? type : "feat",
+        floor,
+        owner: identity,
+        priority: opts.priority,
+        class: opts.class,
+      },
+    );
+  } catch (err) {
+    p.log.error(`Could not promote the errand: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "no-record") {
+    p.log.info(`No errand record for '${slug}' — nothing to promote.`);
+    p.outro("Done.");
+    return;
+  }
+
+  if (result.kind === "name-taken") {
+    p.log.error(`A work unit meta already exists at ${result.metaPath} — choose a different --name.`);
+    process.exitCode = 1;
+    return;
+  }
+
+  // Mirror the sync leg's marker discipline (see handleErrandClose): a clean push
+  // of the removal clears any stale marker; a failed push records it and is
+  // non-fatal — the removal rides the next `arc sync`.
+  switch (result.push.kind) {
+    case "pushed":
+    case "reconciled":
+    case "noop":
+      await clearErrandPartialPushMarker(cwd, io, identity);
+      break;
+    case "no-remote":
+    case "conflict":
+    case "failed":
+      await recordErrandPartialPushMarker(cwd, io, identity);
+      p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
+      break;
+  }
+
+  const stage = floor === "derivation" ? "Planning (draft-design)" : "Active";
+  p.log.success(
+    `Promoted errand '${slug}' → work unit on ${result.branch}; minted ${result.metaPath} at ${stage}, `
+    + "record retired.",
+  );
+  // ROADMAP regen is advisory until roadmap-tooling ships the renderer (mirrors the
+  // WU lifecycle's reconcile-roadmap side-effect): nudge a hand-render for the new WU.
+  p.log.info(
+    `ROADMAP regen pending (no renderer yet): \`${wuName}\` promoted to ${stage} — hand-render the readiness view.`,
+  );
   p.outro("Done.");
 }
 

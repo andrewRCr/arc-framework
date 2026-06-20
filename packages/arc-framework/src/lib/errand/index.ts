@@ -54,3 +54,12 @@ export {
   type RetireErrandParams,
   type RetireErrandResult,
 } from "./retire.js";
+
+export {
+  promoteErrand,
+  type PromoteErrandContext,
+  type PromoteErrandFs,
+  type PromoteErrandParams,
+  type PromoteErrandResult,
+  type PromoteFloor,
+} from "./promote.js";

@@ -343,7 +343,7 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
   indivisible concern, single session) with a bounded in-session **extended errand** band, and review-pass-count
   decoupled from the gate. Lands as one lockstep commit; R.3/R.4 workflows and R.5 surfaces cascade from here.
 
-### `[ ]` **5.R.2 Build `arc errand promote` (deterministic mechanics → CLI)**
+### `[x]` **5.R.2 Build `arc errand promote` (deterministic mechanics → CLI)**
 
 - _Goal:_ `arc errand promote <slug>` performs the full deterministic promotion — rename the errand branch
   (preserving commits), mint the backing WU meta (State by floor: `Planning` for derivation, `Active` for scale),
@@ -351,12 +351,20 @@ cohort doc and `decompose-matrix`'s draft are sibling artifacts — coordination
 - **Strategies:** strategy-work-organization.md, strategy-testing-methodology.md, strategy-package-project-sync.md
 - Build `test-first` (one behavior at a time):
 
-    - `[ ]` **5.R.2.a `promoteErrand` core + floor-branched meta mint**
-        - Compose `renderMetaFile` (Active-shape overrides; State branches on floor) + branch rename + `retireErrand`;
-          fire the interim ROADMAP-regen side-effect. Resolve ride-the-executor vs compose-directly.
-    - `[ ]` **5.R.2.b `arc errand promote <slug>` handler + CLI wiring**
-        - Judgment inputs (`--type` / name / floor); handler mirrors the `open`/`close`/`retire` marker discipline;
-          full-protection only (partial promotes via the new-WU-from-base path). Package-source + sync.
+    - `[x]` **5.R.2.a `promoteErrand` core + floor-branched meta mint**
+        - `promote.ts` composes `renderMetaFile` + `git branch -m` + record removal/push **compose-directly**
+          (consistent with `open`/`close`/`retire`; the executor's table is keyed over WU states an errand never
+          occupies). Floor routes State: derivation → `Planning` + `Current Workflow: draft-design`; scale →
+          `Active`. Guards: `no-record`, `name-taken` (meta collision); the record is retired **last** (a failure
+          before it leaves the errand recoverable). 4 integration tests.
+    - `[x]` **5.R.2.b `arc errand promote <slug>` handler + CLI wiring**
+        - `handleErrandPromote` + `cli.ts` (`--name`/`--type`/`--floor`/`--priority`/`--class`); full-protection +
+          required-`--floor` guards; open/close/retire marker discipline; emits the interim ROADMAP hand-render
+          advisory. 4 e2e cases (partial-refuse, floor-required, both crossings).
+
+- _Outcome:_ `arc errand promote` collapses the 8-step hand-ceremony to one judgment call (name/type + floor) — the
+  rest is deterministic CLI. ROADMAP "regen" is the lifecycle's existing interim advisory (roadmap-tooling owns the
+  real renderer), not an automated render. Full suite green (3130). Consumed by R.3's `init-work-unit` rewire.
 
 ### `[ ]` **5.R.3 Rewire `init-work-unit` § Promote Errand — CLI-driven, floor-routed**
 

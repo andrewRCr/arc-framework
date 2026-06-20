@@ -267,3 +267,73 @@ describe("arc errand retire", () => {
     expect(result.exitCode).toBe(0);
   });
 });
+
+describe("arc errand promote", () => {
+  let tmpDir: string;
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+  });
+
+  it("refuses under partial protection", async () => {
+    const result = await runArc(["errand", "promote", "anything", "--floor", "scale"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+  });
+
+  it("requires --floor — the crossed floor is the agent's judgment", async () => {
+    await setFullProtection(tmpDir);
+    await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
+
+    const result = await runArc(["errand", "promote", "growing", "--name", "growth"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    // No rename happened — the errand branch survives for a retry.
+    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toContain("fix/growing");
+  });
+
+  it("derivation crossing → renames the branch, mints a Planning meta at draft-design, retires the record", async () => {
+    await setFullProtection(tmpDir);
+    await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
+
+    const result = await runArc(
+      ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation"],
+      tmpDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    // Branch renamed into the WU branch; the errand name is gone.
+    expect(await git(tmpDir, ["branch", "--list", "feat/growth-feature"])).toContain("feat/growth-feature");
+    expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toBe("");
+    // Record retired from the orphan state-ref.
+    await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"])).rejects.toThrow();
+    // Meta minted at the planning stage the derivation floor dictates.
+    const meta = await readFile(join(tmpDir, ".arc", "active", "meta-growth-feature.md"), "utf-8");
+    expect(meta).toContain("# Metadata: growth-feature");
+    expect(meta).toMatch(/\bPlanning\b/u);
+    expect(meta).toContain("feat/growth-feature");
+    expect(meta).toContain("draft-design");
+  });
+
+  it("scale crossing → mints an Active meta with no draft-design pointer", async () => {
+    await setFullProtection(tmpDir);
+    await runArc(["errand", "open", "sweeping", "--type", "chore"], tmpDir);
+
+    const result = await runArc(
+      ["errand", "promote", "sweeping", "--name", "sweep-unit", "--type", "refactor", "--floor", "scale"],
+      tmpDir,
+    );
+
+    expect(result.exitCode).toBe(0);
+    const meta = await readFile(join(tmpDir, ".arc", "active", "meta-sweep-unit.md"), "utf-8");
+    expect(meta).toMatch(/\bActive\b/u);
+    expect(meta).not.toContain("draft-design");
+  });
+});
