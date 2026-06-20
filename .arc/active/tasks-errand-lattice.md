@@ -412,11 +412,12 @@ _Purpose:_ Update every operational surface a session consults during classifica
 execution — the crossing edges, the routing/execution workflows, and the skills — to the new model, so the WU
 exits gapless (no surface still describes the increment-count floor or the durable-as-wrapper conflation).
 
-_Design decisions:_ `init-work-unit` § Promote Errand re-bases its criterion and gains the
-record-retirement-on-promotion step, reusing the Phase 2/3 machinery rather than rebuilding it. The cut→occupy
-consumer audit fixes `run-errand`, `drain-inbox` § 5, and session-init's errand cold-entry to inline-conform.
-Framework-doc edits go package-source-first then sync; canonical skill sources may need a hand-sync to the
-harness-local copies in this self-hosting repo.
+_Design decisions:_ Phase 5.R re-did the promotion path under the sharpened model — `init-work-unit` § Promote
+Errand now drives `arc errand promote` (floor-routed) and `run-errand` carries the extended-errand band — so the
+remaining surfaces here conform to that: the cut→occupy consumers (`drain-inbox` § 5, session-init's errand
+cold-entry) use `arc errand open` (folds cut→occupy), and the capture/drain skills + inbox docs key on the
+two-floor gate. Framework-doc edits go package-source-first then sync; canonical skill sources may need a hand-sync
+to the harness-local copies in this self-hosting repo.
 
 ### `[x]` **6.1 Re-base `init-work-unit` § Promote Errand and build the record-retirement-on-promotion step**
 
@@ -443,9 +444,9 @@ harness-local copies in this self-hosting repo.
 
 ### `[ ]` **6.2 Update `run-errand` and `drain-inbox` — multi-commit sweep + cut→occupy + routing**
 
-- _Goal:_ `run-errand` admits a determinate single-concern sweep that lands in several commits (one review
-  increment, one PR) with record-owned identity at `open` / `close`, and `drain-inbox` § 5 inlines the "then
-  occupy" clause and routes character-aware.
+- _Goal:_ `run-errand` admits a determinate single-concern sweep (atomic, possibly extended) with record-owned
+  identity at `open` / `close`, and `drain-inbox` § 5 conforms cut→occupy via `arc errand open` and routes
+  character-aware.
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
     - `[x]` **6.2.a `run-errand` — admit the multi-commit sweep; wire the `open` / `close` record lifecycle**
@@ -456,34 +457,34 @@ harness-local copies in this self-hosting repo.
           (containment-safe reap + ref prune + record removal + slug-matched inbox drop). Edited
           package-source-first, synced byte-identical to `.arc/`.
 
-    - `[ ]` **6.2.b `drain-inbox` § 5 — inline cut→occupy conformance; character-aware routing**
-        - Inline the "then occupy" clause (the known under-spec: a linear reader currently cuts and writes
-          without leaving the launch branch); route a multi-commit errand-class sweep to execute / personal-hold,
-          never a stub.
+    - `[ ]` **6.2.b `drain-inbox` § 5 — cut→occupy via `arc errand open`; character-aware routing**
+        - Replace the under-spec cut-then-write (a linear reader cuts and writes without leaving the launch branch)
+          with `arc errand open` (folds cut→occupy, as `run-errand` Launch now does); route a determinate
+          errand-class sweep (atomic, possibly extended) to execute / personal-hold, never a stub.
 
 ### `[ ]` **6.3 Reframe the capture/drain skills + inbox-describing docs; audit session-init cut→occupy**
 
 - _Goal:_ The capture/drain skills and the inbox-describing docs key on the spec-worthiness question and the
   reframed infra-smell advisory, and session-init's errand cold-entry inline-conforms to cut→occupy.
-- _Context:_ The single capture gate is _"does this need a spec — anything worth recording as
-  design/requirements — or is it self-evident?"_ The infra-smell advisory reframes to "needs the reviewed lane,
-  and _check_ whether design is hiding here" — not "promote to a stub."
+- _Context:_ The capture gate is the two-floor question — _"does it need design recorded, or a durable
+  cross-session plan — or is it self-evident and single-session?"_ The infra-smell advisory reframes to "needs the
+  reviewed lane, and _check_ whether design is hiding here" — not "promote to a stub."
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
     - `[ ]` **6.3.a `arc-inbox` skill — spec-worthiness classification + the `## Errand` / `## Work Unit` labels**
-        - Capture classification keys on spec-worthiness / fate; lowercase `atomic`; the infra-smell reframe;
-          update the section-label references to the renamed sections.
+        - Capture classification keys on the two-floor gate / fate; lowercase `atomic` (the character); the
+          infra-smell reframe; update the section-label references to the renamed sections.
 
     - `[ ]` **6.3.b `arc-housekeep` skill — character-aware drain routing**
-        - A multi-commit errand-class sweep → execute / personal-hold, never a stub.
+        - A determinate errand-class sweep (atomic, possibly extended) → execute / personal-hold, never a stub.
 
     - `[ ]` **6.3.c `strategy-session-operations` § USER-INBOX — relabel the section descriptions**
         - This surface still names `## Atomic` / `## Backlog`; relabeling it holds the exit-gapless standard
           (no surface describes the old sections).
 
-    - `[ ]` **6.3.d Audit session-init's errand cold-entry for cut→occupy inline conformance**
-        - Confirm the errand cold-entry path inlines the "then occupy" clause (no consumer cuts without
-          immediately occupying).
+    - `[ ]` **6.3.d Audit session-init's errand cold-entry for cut→occupy conformance**
+        - Confirm the errand cold-entry path uses `arc errand open` (folds cut→occupy) — no consumer cuts without
+          immediately occupying.
 
 ## **Phase 7:** Verification
 
