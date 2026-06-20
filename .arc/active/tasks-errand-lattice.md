@@ -481,7 +481,7 @@ to the harness-local copies in this self-hosting repo.
   two floors (not increment count), and the drain routes a determinate sweep to execute/hold, never a stub.
   Package-source-first; `.arc` mirrors in sync; lint clean.
 
-### `[ ]` **6.3 Reframe the capture/drain skills + inbox-describing docs; audit session-init cut→occupy**
+### `[x]` **6.3 Reframe the capture/drain skills + inbox-describing docs; audit session-init cut→occupy**
 
 - _Goal:_ The capture/drain skills and the inbox-describing docs key on the spec-worthiness question and the
   reframed infra-smell advisory, and session-init's errand cold-entry inline-conforms to cut→occupy.
@@ -490,20 +490,39 @@ to the harness-local copies in this self-hosting repo.
   reviewed lane, and _check_ whether design is hiding here" — not "promote to a stub."
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-    - `[ ]` **6.3.a `arc-inbox` skill — spec-worthiness classification + the `## Errand` / `## Work Unit` labels**
-        - Capture classification keys on the two-floor gate / fate; lowercase `atomic` (the character); the
-          infra-smell reframe; update the section-label references to the renamed sections.
+    - `[x]` **6.3.a `arc-inbox` skill — spec-worthiness classification + the `## Errand` / `## Work Unit` labels**
+        - Classify-by-**fate** (two-floor gate): `## Errand` (self-evident, single-session, below both floors;
+          atomic, possibly extended) vs `## Work Unit` (clears either floor). Infra-smell reframed — a smelly errand
+          needs the **reviewed lane** (blast-radius, orthogonal to the wrapper) and a **design-hiding** check, not
+          auto-promotion to a stub. Section labels + homeless/reminder refs relabeled. `.claude`/`.codex` auto-synced.
 
-    - `[ ]` **6.3.b `arc-housekeep` skill — character-aware drain routing**
-        - A determinate errand-class sweep (atomic, possibly extended) → execute / personal-hold, never a stub.
+    - `[x]` **6.3.b `arc-housekeep` skill — character-aware drain routing**
+        - Confirmed a clean delegator to `drain-inbox`; the character-aware routing (determinate sweep → execute /
+          hold, never a stub) lives in `drain-inbox` § 2/§ 5, conformed in 6.2.b. No edit needed.
 
-    - `[ ]` **6.3.c `strategy-session-operations` § USER-INBOX — relabel the section descriptions**
-        - This surface still names `## Atomic` / `## Backlog`; relabeling it holds the exit-gapless standard
-          (no surface describes the old sections).
+    - `[x]` **6.3.c `strategy-session-operations` § USER-INBOX — relabel the section descriptions**
+        - Relabeled `## Atomic`/`## Backlog` → `## Errand`/`## Work Unit` and reframed single-step/multi-step →
+          errand-class/spec-worthy across the section (structure, reminder/retain flags, lifecycle routing).
 
-    - `[ ]` **6.3.d Audit session-init's errand cold-entry for cut→occupy conformance**
-        - Confirm the errand cold-entry path uses `arc errand open` (folds cut→occupy) — no consumer cuts without
-          immediately occupying.
+    - `[x]` **6.3.d Audit session-init's errand cold-entry for cut→occupy conformance**
+        - Found non-conformance: the cold-entry cut via `arc errand cut`. Fixed → `arc errand open` (folds
+          cut→occupy), template + instance; also relabeled session-init's three `§ Atomic` refs.
+
+    - `[x]` **6.3.e Extend the relabel to the remaining model-describing surfaces (exit-gapless)**
+        - The relabel rippled past 6.3.a–d. Swept the corpus and relabelled every surface that **describes the
+          current model**: `strategy-planning-module` § Inbox Family / routing tree (×2), `process-task-loop`
+          § Atomic Task Completion body ref (template + instance), `DEV-RULES.PROJECT` capture-routing example,
+          and the `ATOMIC-INBOX` header (template + live). **Left intact** (correctly out of scope): historical
+          `_Routed from: § Backlog/§ Atomic` provenance in `backlog/**` drafts (audit trail), other WUs' planning
+          artifacts (their own scope — e.g. `naming-conventions` owns a future inbox-naming evolution), and this
+          WU's own spec/tasks narrative. Character-axis names ("Atomic Task Completion", "atomic vs. multi-step")
+          stay — those are work-character, still valid.
+
+- _Outcome:_ Every operational/model-describing surface now names the `## Errand` / `## Work Unit` sections and the
+  two-floor gate; the infra-smell advisory is reviewed-lane + design-hiding, not auto-stub; session-init and
+  `drain-inbox` both relocate via `arc errand open`. Corpus sweep confirms no current-model surface still names the
+  old sections (historical provenance + other-WU drafts excepted by design). Package-source-first; `.arc` mirrors
+  and harness skill copies in sync; lint clean.
 
 ## **Phase 7:** Verification
 

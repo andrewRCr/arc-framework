@@ -18,15 +18,18 @@ executing them is `arc-session`'s.
    - If the item isn't "capture for later," stop and route it per `DEV-RULES.ARC § Discovered Work
      Routing` — the table there makes the inline / errand-now / capture-defer call.
 
-2. Classify by character → section.
+2. Classify by fate → section.
 
-   - **Atomic** (single-step) → `## Atomic`.
-   - **Multi-step** (needs a draft / PRD before it can be scheduled) → `## Backlog`.
-   - Pick by work *character*, not by destination — the section is the routing fate; the finer home
+   - **Errand** — self-evident, single-session, below both intrinsic floors → `## Errand`. Atomic in character:
+     one indivisible concern (possibly an extended sweep), no design to record and no durable cross-session plan a
+     correct execution must navigate.
+   - **Work Unit** — clears either floor (a design worth recording, or a durable cross-session plan) → `## Work Unit`.
+   - Pick by *fate* (the two-floor gate), not by destination — the section is the routing fate; the finer home
      (existing stub, new stub, standalone errand, shared flush) resolves later at the drain.
-   - **Infra smell (advisory, never a gate):** if an `## Atomic` capture obviously touches load-bearing infra
-     (`.arc/system/**`, strategies, `arc-config.yml`), several files, or carries a design fork, it will likely
-     reclassify to a stub at the drain (the atomic infra smell-flag). Still file it under `## Atomic` and
+   - **Infra smell (advisory, never a gate):** if a `## Errand` capture obviously touches load-bearing infra
+     (`.arc/system/**`, strategies, `arc-config.yml`), several files, or carries a design fork, it likely needs the
+     **reviewed lane** (a blast-radius read, orthogonal to the wrapper) — and is worth a second look for **design
+     hiding** in it (a derivation floor quietly crossed → it is a Work Unit). Still file it under `## Errand` and
      let the drain re-triage — optionally note the smell in an `_Observation:_`. Capture stays coarse by design;
      the drain is the authoritative re-triage.
 
@@ -37,8 +40,8 @@ executing them is `arc-session`'s.
 
    - **Descriptors** (prose, bare values): `_Observation:_`, `_Approach:_`, `_Files:_`, `_Scope:_`,
      `_Captured during:_` — and others as the entry warrants.
-   - **`## Atomic`** — the shared shape; **no `WU_Target`**. May carry the reminder flag (step 4).
-   - **`## Backlog`** — the shared shape **plus a `WU_Target:` line** naming its destination stub:
+   - **`## Errand`** — the shared shape; **no `WU_Target`**. May carry the reminder flag (step 4).
+   - **`## Work Unit`** — the shared shape **plus a `WU_Target:` line** naming its destination stub:
      - `WU_Target: <slug>` — route there if it exists; create it if not (dir decided at drain).
      - `WU_Target: <slug> (planned|provisional)` — the parenthetical is a new-stub dir hint, ignored
        once the target already exists.
@@ -53,7 +56,7 @@ executing them is `arc-session`'s.
    - _Captured during:_ <the work in hand>.
    ```
 
-4. Reminder flag — `## Atomic` only, optional.
+4. Reminder flag — `## Errand` only, optional.
 
    When the developer asks not to forget a capture, set the managed reminder field so session-init
    nudges them after a delay:
@@ -72,7 +75,7 @@ executing them is `arc-session`'s.
    - Append the entry to the chosen section of `user/{identity}/USER-INBOX.md` — personal and
      gitignored, so it accepts writes any time, from any branch, with no isolation cost. Leave existing
      entries in place; `USER-INBOX` drains at the between-WUs `arc-housekeep` flow.
-   - **Homeless atomic** — an item with no determinable home still captures to `## Atomic` here; it
+   - **Homeless errand-class item** — one with no determinable home still captures to `## Errand` here; it
      transits to the shared `backlog/ATOMIC-INBOX.md` at the next drain. Never write the shared inbox
      directly from a capture — it is drain-written only (write isolation). The shared inbox is
-     atomic-only; multi-step work always graduates to a stub instead.
+     errand-class-only; spec-worthy work always graduates to a stub instead.
