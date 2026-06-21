@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "teardown-merged-reap",
-  "origin": "description",
-  "intent": "Reap an in-place merged branch without relying on the remote branch surviving; share a git-native patch-equivalence containment oracle across errand-close and WU-teardown",
-  "branch": "fix/teardown-merged-reap",
-  "createdAt": "2026-06-21T18:01:23.341Z"
-}
