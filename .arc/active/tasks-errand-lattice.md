@@ -526,37 +526,49 @@ to the harness-local copies in this self-hosting repo.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint, code lint (ts + sh), typecheck (source + tests), 3130 tests, build — all passed.
+  The only md-lint failures are two pre-existing out-of-scope `WORKING-MEMORY.md` MD013 tombstones (gitignored).
+- _Success criteria:_ 9 criteria met. The cascade label-sweep surfaced and fixed one stale `§ Atomic` reference
+  in `arc-config.yml`'s `inbox.remind_after_days` comment (both copies → `§ Errand`). ADR-027's
+  `Proposed → Accepted` flip is deferred to integration per spec § 10.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` The errand-vs-WU gate is defined on spec-worthiness (the two-axis floor) in `classify-work-unit` and
+- `[x]` The errand-vs-WU gate is defined on spec-worthiness (the two-axis floor) in `classify-work-unit` and
   `strategy-work-organization` § Class Model; no surface in the cascade still describes the increment-count
   wrapper floor or the durable-as-wrapper conflation — including the `USER-INBOX` section labels and the
   `init-work-unit` § Promote Errand criterion.
-- `[ ]` A determinate single-concern sweep runs on-script through `run-errand` (one review increment, several
+    - **Deviation:** the label sweep surfaced one stale section-name reference (`§ Atomic` in the
+      `inbox.remind_after_days` comment of `arc-config.yml`, both copies); corrected to `§ Errand` during
+      verification to complete the relabel cascade.
+- `[x]` A determinate single-concern sweep runs on-script through `run-errand` (one review increment, several
   commits, one PR).
-- `[ ]` `arc errand open <slug>` mints the identity record, cuts a nature-typed branch as its projection, and
+- `[x]` `arc errand open <slug>` mints the identity record, cuts a nature-typed branch as its projection, and
   occupies per protection mode; `arc errand close` removes the record, reaps the branch / ephemeral worktree, and
   drops the slug-matched inbox entry at completion.
-- `[ ]` Errand identity resolves from the record, not a branch parse: `errandSlugOf`'s branch-parse is retired,
+- `[x]` Errand identity resolves from the record, not a branch parse: `errandSlugOf`'s branch-parse is retired,
   the session-init errand probes read the record, and a `fix/`- or `refactor/`-prefixed branch resolves as an
   errand.
-- `[ ]` The record lives at `refs/arc/user/{identity}/errands` as a records-only orphan state-ref (no
+- `[x]` The record lives at `refs/arc/user/{identity}/errands` as a records-only orphan state-ref (no
   working-tree file), synced via the existing user-state machinery; concurrent distinct-slug creation
   union-merges and a same-slug collision rejects under non-fast-forward.
-- `[ ]` The crossing edges are updated: `init-work-unit` § Promote Errand re-bases its criterion onto
+- `[x]` The crossing edges are updated: `init-work-unit` § Promote Errand re-bases its criterion onto
   spec-worthiness, is branch-prefix-agnostic, resolves identity from the record, and retires the errand record on
   promotion — reusing transition-core's mechanics, not rebuilding them.
-- `[ ]` cut→occupy is codified as a consumer invariant, and `run-errand`, `drain-inbox` § 5, and session-init's
+- `[x]` cut→occupy is codified as a consumer invariant, and `run-errand`, `drain-inbox` § 5, and session-init's
   errand cold-entry each inline-conform.
-- `[ ]` The personal capture surface lands the gate: `USER-INBOX` sections relabeled `## Errand` / `## Work Unit`
+- `[x]` The personal capture surface lands the gate: `USER-INBOX` sections relabeled `## Errand` / `## Work Unit`
   with new-model preambles; `arc-inbox` / `arc-housekeep` / `DEV-RULES` key on spec-worthiness; the coupled code
   updated in lockstep with tests green.
-- `[ ]` ADR-027 is written and `Accepted` (referencing ADR-021, which gains a forward-pointer amendment).
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` ADR-027 is written and `Accepted` (referencing ADR-021, which gains a forward-pointer amendment).
+    - **Deviation:** ADR-027 is written and ADR-021's forward-pointer amendment is in place; the
+      `Proposed → Accepted` status flip is performed at integration per spec § 10 (the integrate ceremony
+      advances it — verification correctly leaves it `Proposed`).
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md

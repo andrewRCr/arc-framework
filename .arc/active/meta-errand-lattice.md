@@ -16,7 +16,7 @@
 - **Next Task:** Task 7.1 — Complete verification (line ~529)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 7.1 — load and follow `verify-work-unit.md`
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
