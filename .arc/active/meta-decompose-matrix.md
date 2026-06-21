@@ -1,22 +1,22 @@
 # Metadata: decompose-matrix
 
-| **State**  | **Owner** | **Branch**              | **Class** | **Priority** |
-| ---------- | --------- | ----------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/decompose-matrix` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**              | **Class** | **Priority** |
+| --------- | --------- | ----------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/decompose-matrix` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
-- **Depends On:** `lifecycle-transition-core`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-decompose-matrix.md`
 - **Task List:** `tasks-decompose-matrix.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Define the cut-map / DecomposeParams shape
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin implementation at Task 1.1 (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
