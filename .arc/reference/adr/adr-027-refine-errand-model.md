@@ -2,10 +2,10 @@
 
 ## Status
 
-Proposed.
+Accepted (2026-06-21).
 
-Authored alongside the `errand-lattice` work unit (`lifecycle-state-machine` cohort). Promote to Accepted at that
-WU's integration — the integrate ceremony does not auto-advance ADR status.
+Authored alongside the `errand-lattice` work unit (`lifecycle-state-machine` cohort) and accepted at its
+integration.
 
 ## Context
 
