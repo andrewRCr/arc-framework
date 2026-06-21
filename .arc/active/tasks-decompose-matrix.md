@@ -136,51 +136,60 @@ the command as a structured file (non-interactive by nature), read → parsed/va
 boundary, rejected before any mutation. Wired through `handlers/lifecycle.ts` + `cli.ts`, mirroring the sibling
 verbs.
 
-### `[ ]` **4.1 Wire `arc decompose <origin> --cut-map <file>`**
+### `[x]` **4.1 Wire `arc decompose <origin> --cut-map <file>`**
 
 - _Goal:_ `arc decompose` reads a cut-map file, validates it, and runs `runDecompose` — rejecting a malformed
   file before any mutation.
 
 - **Strategies:** strategy-testing-methodology.md
 
-- `[ ]` **4.1.a Add the `decompose` handler in `handlers/lifecycle.ts`**
-    - Read the `--cut-map` file, parse/validate via Phase 1, dispatch to `runDecompose`; surface a rejection in
-      the same shape the sibling verb handlers use.
+- `[x]` **4.1.a Add the `decompose` handler in `handlers/lifecycle.ts`**
+    - `handleDecompose` deserializes the `--cut-map` file (JSON), validates via `parseCutMap`, and dispatches
+      `runDecompose`; a read/syntax failure, a validator rejection, an origin↔cut-map mismatch, and a missing
+      `--cut-map` / origin each refuse before mutation in the sibling-handler shape.
 
-- `[ ]` **4.1.b Register `arc decompose <origin> --cut-map <file>` in `cli.ts`**
-    - Orchestration category, consistent with the existing lifecycle command registrations.
+- `[x]` **4.1.b Register `arc decompose <origin> --cut-map <file>` in `cli.ts`**
+    - Registered alongside the lifecycle commands with the `--cut-map <file>` option.
 
-- `[ ]` **4.1.c Handler-level behavior tests**
-    - Mirror `lifecycle-verbs.test.ts`: a valid file executes; a malformed file is rejected before mutation; a
-      missing file is rejected.
+- `[x]` **4.1.c Handler-level behavior tests**
+    - 6 cases in `lifecycle-verbs.test.ts`: valid file executes; malformed file rejected before mutation; missing
+      file rejected before parse; origin mismatch, absent `--cut-map`, and absent origin each refuse.
 
-### `[ ]` **4.2 Integration coverage of the executor shapes**
+### `[x]` **4.2 Integration coverage of the executor shapes**
 
 - _Goal:_ Each executable shape runs end-to-end against a fixture repo — origin disposition, member scaffold, and
   ROADMAP delta all asserted together.
 
-- _Approach:_ Mirror the existing integration roundtrips (`park-resume-roundtrip.test.ts`,
-  `archive-staging.test.ts`).
-
 - **Strategies:** strategy-testing-methodology.md
 
-- `[ ]` **4.2.a Symmetric shape** — live origin retired, whole draft distributed, N members minted.
+- `[x]` **4.2.a Symmetric shape** — started origin retired (artifacts removed, branch + worktree torn down, remote
+  branch best-effort deleted), members scaffolded, a dependent re-pointed and staged — all on a real repo.
 
-- `[ ]` **4.2.b Extraction / origin-survives** — origin kept (keep-active), only the extracted member minted, no
-  teardown edge, origin→member `Depends On` added.
+- `[x]` **4.2.b Extraction / origin-survives** — origin kept in place, only the extracted member minted (with its
+  `Depends On` edge to the origin), no teardown edge.
 
-- `[ ]` **4.2.c Backlog-stub-source** — `planned/` stub decomposed in place, origin retired, emptied subdir
-  pruned.
+- `[x]` **4.2.c Backlog-stub-source** — `planned/` stub at the cap decomposed in place, origin retired, emptied
+  own-subdir pruned while the occupied parent cohort dir survives.
 
-### `[ ]` **4.3 Symmetric-shape regression fixture**
+- _Outcome:_ `decompose-shapes.test.ts` runs all three shapes through the real binder seams. The symmetric run
+  surfaced a latent bug in the shared `executor-context.ts` git-exec binding (`{ ...opts, cwd }` clobbered a
+  per-call `cwd`), so the `worktree-clean` guard checked the base repo instead of the teardown-target worktree —
+  masked for `park@Active` / `abandon` (base clean or cwd _is_ the worktree), but exposed here because the
+  scaffold+sweep dirty the base before the teardown guard. Fixed to `{ cwd, ...opts }` (default repo, honor an
+  explicit override); the executor-context cwd test was inverted from asserting-the-bug to pinning the override.
+
+### `[x]` **4.3 Symmetric-shape regression fixture**
 
 - _Goal:_ The symmetric shape reproduces the prior hand-rolled cohort result on a fixture, guarding behavior
   parity against the realized cell.
 
 - **Strategies:** strategy-testing-methodology.md
 
-    - Build a fixture from a known prior decomposition and assert `runDecompose`'s output matches the
-      hand-rolled result (members, fields, re-pointed edges, ROADMAP delta).
+- _Outcome:_ A golden test (`decompose.test.ts`) over a representative monolith → multi-member split (the shape
+  that minted the lifecycle cohort) pins the full per-member field set — inherited `Origin`/`Owner`/`Priority`,
+  per-member `Class`, own `Design`, dual-placed `Cohort`, by-need `Depends On`, and unset fields at their
+  scaffold defaults — plus the in-cut-order re-point and member paths. Any drift in field composition or the meta
+  projection breaks it, not just a behavior change.
 
 ## **Phase 5:** Workflow rewrite — judgment half
 

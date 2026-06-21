@@ -58,6 +58,29 @@ vi.mock("../../../src/lib/work-unit/lifecycle-index.js", () => ({ buildLifecycle
 const mockRunStub = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/stub.js", () => ({ runStub: (...a: unknown[]) => mockRunStub(...a) }));
 
+// The `decompose` handler reads its cut-map file off `node:fs/promises` directly;
+// mock the read so the file content is test-driven (the other ops are unused — the
+// verb is mocked). `readFile` defaults to valid JSON; a test rejects it for the
+// missing-file case.
+const mockReadFile = vi.fn(async () => "{}");
+vi.mock("node:fs/promises", () => ({
+  // The cut-map content is fixed per-test via `mockReadFile`; the path argument is
+  // not asserted, so the factory doesn't forward it.
+  readFile: () => mockReadFile(),
+  readdir: vi.fn(),
+  rm: vi.fn(),
+  rmdir: vi.fn(),
+}));
+
+const mockParseCutMap = vi.fn();
+vi.mock("../../../src/lib/work-unit/decompose-cut-map.js", () => ({
+  parseCutMap: (...a: unknown[]) => mockParseCutMap(...a),
+}));
+const mockRunDecompose = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/decompose.js", () => ({
+  runDecompose: (...a: unknown[]) => mockRunDecompose(...a),
+}));
+
 const mockRunPromote = vi.fn();
 const mockRunDemote = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/promote-demote.js", () => ({
@@ -115,6 +138,7 @@ vi.mock("../../../src/lib/work-unit/lifecycle-resolver.js", async (orig) => ({
 
 const {
   handleStub,
+  handleDecompose,
   handlePromote,
   handleDemote,
   handlePark,
@@ -145,6 +169,15 @@ beforeEach(() => {
   mockRunReopen.mockResolvedValue({ status: "reopened", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockCreateGhWorkUnitPrSource.mockReturnValue(mockPrSource);
   mockPrSource.mockResolvedValue(new Map([["feat/foo", { merged: false }]]));
+  mockReadFile.mockResolvedValue('{"schemaVersion":1}');
+  mockParseCutMap.mockReturnValue({
+    status: "parsed",
+    params: { origin: { slug: "mono", phase: "Planning", location: "active" }, shape: "symmetric", entries: [], internalEdges: [] },
+  });
+  mockRunDecompose.mockResolvedValue({
+    status: "decomposed",
+    result: { members: [{ slug: "alpha" }, { slug: "beta" }], repointed: [], origin: "retired" },
+  });
 });
 
 afterEach(() => {
@@ -173,6 +206,60 @@ describe("handleStub", () => {
     await handleStub(undefined, { commitment: "provisional", priority: "P1" });
     expect(mockRunStub).not.toHaveBeenCalled();
     expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+});
+
+describe("handleDecompose", () => {
+  it("reads + validates the cut-map and dispatches runDecompose with the parsed cut", async () => {
+    await handleDecompose("mono", { cutMap: "cut.json" });
+
+    expect(mockParseCutMap).toHaveBeenCalledTimes(1);
+    expect(mockRunDecompose).toHaveBeenCalledTimes(1);
+    const params = mockRunDecompose.mock.calls[0]?.[1];
+    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } }, currentLocus: "/repo" });
+  });
+
+  it("refuses a malformed cut-map before any mutation", async () => {
+    mockParseCutMap.mockReturnValue({ status: "rejected", reason: "cut-map requires an `entries` array." });
+
+    await handleDecompose("mono", { cutMap: "cut.json" });
+
+    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses a missing / unreadable cut-map file before parse or mutation", async () => {
+    mockReadFile.mockRejectedValue(new Error("ENOENT: no such file"));
+
+    await handleDecompose("mono", { cutMap: "missing.json" });
+
+    expect(mockParseCutMap).not.toHaveBeenCalled();
+    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses when the cut-map origin disagrees with the `<origin>` argument", async () => {
+    await handleDecompose("other", { cutMap: "cut.json" });
+
+    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses without `--cut-map`, never dispatching", async () => {
+    await handleDecompose("mono", {});
+
+    expect(mockReadFile).not.toHaveBeenCalled();
+    expect(mockRunDecompose).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
+  });
+
+  it("refuses without an origin argument", async () => {
+    await handleDecompose(undefined, { cutMap: "cut.json" });
+
+    expect(mockRunDecompose).not.toHaveBeenCalled();
     expect(process.exitCode).toBe(1);
   });
 });

@@ -33,6 +33,7 @@ import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
+  handleDecompose,
   handlePromote,
   handleDemote,
   handlePark,
@@ -55,6 +56,7 @@ import {
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
+  type DecomposeOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -140,6 +142,12 @@ program
   .option("--design <ref>", "Design artifact (spec / draft) → meta `Design`")
   .option("--cohort <slug>", "Enrol under a cohort: place at backlog/planned/<cohort>/<name>/ + set meta `Cohort` (planned-tier, single member)")
   .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
+
+program
+  .command("decompose <origin>")
+  .description("Split a work unit into a cohort of members per a structured cut-map file")
+  .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
+  .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
 
 program
   .command("promote [slug]")

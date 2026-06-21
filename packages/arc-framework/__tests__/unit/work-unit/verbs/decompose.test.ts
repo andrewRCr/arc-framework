@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../../../src/lib/active/meta-reader.js";
 import {
   runDecompose,
   scaffoldCohortMembers,
@@ -550,5 +550,89 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/origin.*absent|not found/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Symmetric-shape regression fixture — golden parity vs. a hand-rolled cohort
+// ---------------------------------------------------------------------------
+
+/**
+ * A golden lock on the symmetric cell: a representative monolith → multi-member
+ * split (the shape that minted the lifecycle cohort by hand) must reproduce the
+ * hand-rolled result exactly — every member's full field set, the by-need
+ * dependency distribution, and the incoming re-point. Any drift in the scaffold's
+ * field composition or the meta projection breaks this, not just a behavior test.
+ */
+describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () => {
+  it("reproduces the hand-rolled cohort result: member fields, distributed edges, re-point", async () => {
+    const h = buildRunHarness(
+      [
+        { slug: "monolith", tier: "active", subdir: "", state: "Planning", branch: "plan/monolith", origin: "[internal]" },
+        { slug: "downstream", tier: "active", subdir: "", state: "Active", dependsOn: ["monolith"] },
+      ],
+      { [`${CWD}/.arc/active`]: ["meta-monolith.md", "draft-monolith.md"] },
+    );
+
+    const cut: DecomposeParams = {
+      schemaVersion: 1,
+      origin: { slug: "monolith", phase: "Planning", location: "active" },
+      shape: "symmetric",
+      parentPosition: "standalone",
+      cohort: "lifecycle-machine",
+      entries: [
+        newMember("resolver", { workClass: "Heavy", dependsOn: [] }),
+        newMember("transition-core", { workClass: "Heavy", dependsOn: [] }),
+        newMember("closeout", { workClass: "Light", dependsOn: [] }),
+      ],
+      // Authored from the cut's delivery order: core after resolver, closeout last.
+      internalEdges: [
+        { from: "transition-core", to: "resolver" },
+        { from: "closeout", to: "transition-core" },
+      ],
+    };
+
+    const result = await runDecompose(h.ctx, { cut, worktreePath: "/wt/monolith", currentLocus: "/wt/monolith" });
+
+    expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
+
+    // The golden field set per member — inherited Origin/Owner/Priority, per-member
+    // Class, own Design, dual-placed Cohort, by-need Depends On, and unset fields at
+    // their defaults (nothing else leaked in).
+    const golden: Record<string, Record<string, string | null>> = {
+      resolver: { Class: "Heavy", "Depends On": "[none]" },
+      "transition-core": { Class: "Heavy", "Depends On": "resolver" },
+      closeout: { Class: "Light", "Depends On": "transition-core" },
+    };
+    for (const [slug, expected] of Object.entries(golden)) {
+      const record = parseMetaRecord(writeFor(h.writes, `/lifecycle-machine/${slug}/meta-${slug}.md`).content);
+      expect(record).toMatchObject({
+        State: "Planning",
+        Owner: "andrew",
+        Branch: "[none]",
+        Class: expected.Class,
+        Priority: "P1",
+        Cohort: "lifecycle-machine",
+        Origin: "[internal]",
+        Design: `draft-${slug}.md`,
+        "Depends On": expected["Depends On"],
+        // Untouched fields stay at their fresh-scaffold defaults — no leakage.
+        "Task List": "[none]",
+        "Current Workflow": "[none]",
+        "PR URL": "[none]",
+      });
+    }
+
+    // The incoming edge re-points to the full delivering cohort, in cut order.
+    expect(result.result.repointed).toEqual([
+      { dependent: "downstream", to: ["resolver", "transition-core", "closeout"] },
+    ]);
+    expect(result.result.members.map((m) => m.metaPath)).toEqual([
+      ".arc/backlog/planned/lifecycle-machine/resolver/meta-resolver.md",
+      ".arc/backlog/planned/lifecycle-machine/transition-core/meta-transition-core.md",
+      ".arc/backlog/planned/lifecycle-machine/closeout/meta-closeout.md",
+    ]);
+    expect(result.result.origin).toBe("retired");
   });
 });
