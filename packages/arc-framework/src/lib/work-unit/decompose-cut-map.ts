@@ -19,7 +19,9 @@
  * @module
  */
 
+import { isSafeCohortPath, validateCohortPath } from "../active/cohort-path.js";
 import type { WorkClass, WorkUnitState } from "../../commands/active/types.js";
+import { isSlugSafe } from "./slug.js";
 
 /**
  * The cut-map schema version. Bumped when the {@link DecomposeParams} shape
@@ -193,4 +195,210 @@ export interface DecomposeParams {
   entries: CutEntry[];
   /** Internal dependency edges among the new members. */
   internalEdges: InternalEdge[];
+}
+
+/**
+ * The outcome of parsing an untrusted cut-map — a named rejection reason, or the
+ * validated {@link DecomposeParams}. Mirrors the discriminated
+ * `{ status: "rejected" } | { status: … }` shape the sibling verbs return
+ * (`StubResult` / `ArchiveResult`), so the `arc decompose` boundary rejects a
+ * malformed cut-map before any mutation runs.
+ */
+export type CutMapParseResult =
+  | { status: "rejected"; reason: string }
+  | { status: "parsed"; params: DecomposeParams };
+
+const TRANSFORM_SHAPES: readonly TransformShape[] = [
+  "symmetric",
+  "extraction",
+  "backlog-stub-source",
+  "heterogeneous-home",
+];
+const PARENT_POSITIONS: readonly ParentPosition[] = ["standalone", "in-cohort", "at-cap"];
+const ORIGIN_LOCATIONS: readonly OriginLocation[] = ["provisional", "planned", "active"];
+/** Only a `Planning` or `Active` origin is a valid decompose source. */
+const ORIGIN_PHASES: readonly WorkUnitState[] = ["Planning", "Active"];
+const WORK_CLASSES: readonly WorkClass[] = ["Light", "Heavy", "Novel"];
+const ORIGIN_DISPOSITIONS: readonly OriginDisposition[] = ["keep-active", "park"];
+const EXISTING_HOME_KINDS: readonly ExistingHomeKind[] = ["fold", "atomic-edit"];
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim() !== "";
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function isIn<T extends string>(value: unknown, allowed: readonly T[]): value is T {
+  return typeof value === "string" && (allowed as readonly string[]).includes(value);
+}
+
+/** Validate one entry by its `kind` discriminant; returns a named reason, or the typed entry. */
+function parseEntry(raw: unknown, position: number): { reason: string } | { entry: CutEntry } {
+  if (!isObject(raw)) return { reason: `entry ${position} must be an object.` };
+  const kind = raw.kind;
+
+  if (kind === "new-member") {
+    if (!isNonEmptyString(raw.slug) || !isSlugSafe(raw.slug)) {
+      return { reason: `entry ${position} (new-member) requires a slug-safe \`slug\`.` };
+    }
+    if (!isIn(raw.workClass, WORK_CLASSES)) {
+      return { reason: `member "${raw.slug}" requires a resolved \`Class\` (\`Light\` | \`Heavy\` | \`Novel\`).` };
+    }
+    if (!isStringArray(raw.dependsOn)) {
+      return { reason: `member "${raw.slug}" requires a \`dependsOn\` string array (use \`[]\` for none).` };
+    }
+    if (!isStringArray(raw.receives) || raw.receives.length === 0) {
+      return { reason: `member "${raw.slug}" requires a non-empty distribution (\`receives\`).` };
+    }
+    return {
+      entry: { kind, slug: raw.slug, workClass: raw.workClass, dependsOn: raw.dependsOn, receives: raw.receives },
+    };
+  }
+
+  if (kind === "surviving-origin") {
+    if (!isNonEmptyString(raw.slug) || !isSlugSafe(raw.slug)) {
+      return { reason: `entry ${position} (surviving-origin) requires a slug-safe \`slug\`.` };
+    }
+    if (!isIn(raw.disposition, ORIGIN_DISPOSITIONS)) {
+      return { reason: `surviving origin "${raw.slug}" requires a \`disposition\` (\`keep-active\` | \`park\`).` };
+    }
+    return { entry: { kind, slug: raw.slug, disposition: raw.disposition } };
+  }
+
+  if (kind === "existing-home") {
+    if (!isNonEmptyString(raw.target)) {
+      return { reason: `entry ${position} (existing-home) requires a non-empty \`target\`.` };
+    }
+    if (!isIn(raw.home, EXISTING_HOME_KINDS)) {
+      return { reason: `existing-home "${raw.target}" requires a \`home\` (\`fold\` | \`atomic-edit\`).` };
+    }
+    if (!isStringArray(raw.receives) || raw.receives.length === 0) {
+      return { reason: `existing-home "${raw.target}" requires a non-empty distribution (\`receives\`).` };
+    }
+    return { entry: { kind, target: raw.target, home: raw.home, receives: raw.receives } };
+  }
+
+  return { reason: `entry ${position} has an unknown \`kind\` (expected new-member | surviving-origin | existing-home).` };
+}
+
+/** Assert the cut clears the per-shape member floor; returns a named reason, or `null`. */
+function shapeFloorError(shape: TransformShape, entries: CutEntry[]): string | null {
+  const newMembers = entries.filter((e) => e.kind === "new-member").length;
+  const survivors = entries.filter((e) => e.kind === "surviving-origin").length;
+
+  switch (shape) {
+    case "symmetric":
+    case "backlog-stub-source":
+      // The origin retires into its replacements, so the cohort is the new members alone.
+      return newMembers >= 2 ? null : `the \`${shape}\` shape requires at least 2 new members; got ${newMembers}.`;
+    case "extraction":
+      // The origin survives; a decomposition needs at least one extracted member beside it.
+      return survivors >= 1 && newMembers >= 1
+        ? null
+        : "the `extraction` shape requires a surviving origin and at least 1 extracted member.";
+    case "heterogeneous-home":
+      return entries.length >= 2 ? null : `the \`heterogeneous-home\` shape requires at least 2 destinations.`;
+  }
+}
+
+/**
+ * Parse and validate an untrusted cut-map (a deserialized object) into a
+ * {@link DecomposeParams}. The single boundary entry point: it enforces the
+ * version envelope, the origin's resolved position, the selected matrix cell,
+ * the cohort path (reusing the sibling verbs' `cohort-path` guards), every
+ * entry's discriminated shape, and the per-shape member floor — returning a
+ * named rejection on the first failure so no malformed cut-map reaches a
+ * mutation.
+ *
+ * Format deserialization (reading the file, `JSON.parse`) is the command's job;
+ * this validates the resulting structure, shaped so a later zod swap is a
+ * drop-in replacement of this function.
+ *
+ * @param input - The deserialized cut-map object, untrusted.
+ * @returns A rejection with a named reason, or the validated `DecomposeParams`.
+ */
+export function parseCutMap(input: unknown): CutMapParseResult {
+  if (!isObject(input)) return { status: "rejected", reason: "cut-map must be an object." };
+
+  if (input.schemaVersion !== DECOMPOSE_SCHEMA_VERSION) {
+    return {
+      status: "rejected",
+      reason: `unrecognized cut-map \`schemaVersion\` (expected ${DECOMPOSE_SCHEMA_VERSION}).`,
+    };
+  }
+
+  const origin = input.origin;
+  if (!isObject(origin)) return { status: "rejected", reason: "cut-map requires an `origin` object." };
+  if (!isNonEmptyString(origin.slug) || !isSlugSafe(origin.slug)) {
+    return { status: "rejected", reason: "`origin` requires a slug-safe `slug`." };
+  }
+  if (!isIn(origin.phase, ORIGIN_PHASES)) {
+    return { status: "rejected", reason: "`origin.phase` must be `Planning` or `Active` (a valid decompose source)." };
+  }
+  if (!isIn(origin.location, ORIGIN_LOCATIONS)) {
+    return { status: "rejected", reason: "`origin.location` must be `provisional`, `planned`, or `active`." };
+  }
+
+  if (!isIn(input.shape, TRANSFORM_SHAPES)) {
+    return { status: "rejected", reason: "cut-map requires a known `shape` (the transform-shape axis)." };
+  }
+  if (!isIn(input.parentPosition, PARENT_POSITIONS)) {
+    return { status: "rejected", reason: "cut-map requires a known `parentPosition` (the parent-position axis)." };
+  }
+
+  let cohort: string | undefined;
+  if (input.cohort !== undefined) {
+    if (typeof input.cohort !== "string") {
+      return { status: "rejected", reason: "`cohort`, when present, must be a string." };
+    }
+    if (!isSafeCohortPath(input.cohort)) {
+      return { status: "rejected", reason: `\`cohort\` rejects an unsafe path "${input.cohort}".` };
+    }
+    const shapeError = validateCohortPath(input.cohort);
+    if (shapeError !== null) return { status: "rejected", reason: `\`cohort\`: ${shapeError}.` };
+    cohort = input.cohort;
+  }
+
+  if (!Array.isArray(input.entries)) {
+    return { status: "rejected", reason: "cut-map requires an `entries` array." };
+  }
+  const parsedEntries: CutEntry[] = [];
+  for (let i = 0; i < input.entries.length; i++) {
+    const result = parseEntry(input.entries[i], i);
+    if ("reason" in result) return { status: "rejected", reason: result.reason };
+    parsedEntries.push(result.entry);
+  }
+
+  const floorError = shapeFloorError(input.shape, parsedEntries);
+  if (floorError !== null) return { status: "rejected", reason: floorError };
+
+  if (!Array.isArray(input.internalEdges)) {
+    return { status: "rejected", reason: "cut-map requires an `internalEdges` array (use `[]` for none)." };
+  }
+  const parsedEdges: InternalEdge[] = [];
+  for (let i = 0; i < input.internalEdges.length; i++) {
+    const edge: unknown = input.internalEdges[i];
+    if (!isObject(edge) || !isNonEmptyString(edge.from) || !isNonEmptyString(edge.to)) {
+      return { status: "rejected", reason: `internal edge ${i} requires non-empty \`from\` and \`to\` slugs.` };
+    }
+    parsedEdges.push({ from: edge.from, to: edge.to });
+  }
+
+  const params: DecomposeParams = {
+    schemaVersion: DECOMPOSE_SCHEMA_VERSION,
+    origin: { slug: origin.slug, phase: origin.phase, location: origin.location },
+    shape: input.shape,
+    parentPosition: input.parentPosition,
+    entries: parsedEntries,
+    internalEdges: parsedEdges,
+  };
+  if (cohort !== undefined) params.cohort = cohort;
+
+  return { status: "parsed", params };
 }

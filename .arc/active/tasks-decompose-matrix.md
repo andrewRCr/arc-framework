@@ -30,26 +30,19 @@ _Design decisions:_ Hand-rolled bespoke validator (zod is not yet a CLI dep); si
   is left as section-label `string[]`, deferring the field-level encoding to settle with 5.2's allocation-map
   render.
 
-### `[ ]` **1.2 Build the hand-rolled boundary parser/validator**
+### `[x]` **1.2 Build the hand-rolled boundary parser/validator**
 
 - _Goal:_ A malformed cut-map is rejected at the command boundary, with a discriminated result, before any
   mutation runs.
 
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - A well-formed cut-map parses to a `DecomposeParams`.
-
-    - A member with a missing/empty required field (slug, `Class`, distribution) is rejected with a named reason.
-
-    - An unsafe or malformed cohort path is rejected (reuse the `cohort-path` guards the sibling verbs use).
-
-    - An unknown or malformed entry-kind discriminant is rejected.
-
-    - An unrecognized `schemaVersion` is rejected (the version envelope is enforced, not ignored).
-
-    - A batch below the floor (fewer members than the selected shape requires) is rejected.
+- _Outcome:_ `parseCutMap(input: unknown): CutMapParseResult` in `decompose-cut-map.ts` — the single boundary
+  entry point, returning the sibling-verb-shaped `{ status: "rejected"; reason } | { status: "parsed"; params }`.
+  Validates the `schemaVersion` envelope, the origin `(phase, location)` (only `Planning`/`Active` sources), the
+  matrix-axis enums, each entry by its `kind` discriminant, the internal-edge shape, and a per-shape member floor
+  (`shapeFloorError`: symmetric/stub-source ≥ 2 new members; extraction = surviving origin + ≥ 1 extracted;
+  heterogeneous ≥ 2 destinations). Reuses the sibling verbs' `cohort-path` + `slug` guards. 10 unit tests; the six
+  reject behaviors plus extraction/heterogeneous accept paths. Format deserialization (file read + `JSON.parse`)
+  stays the command's job, keeping this a drop-in zod-swap target.
 
 ## **Phase 2:** Incoming-edge re-point sweep mutator
 
