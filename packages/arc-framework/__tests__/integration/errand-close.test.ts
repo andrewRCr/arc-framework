@@ -86,7 +86,13 @@ describe("closeErrand", () => {
   });
 
   afterEach(async () => {
-    await Promise.all([dir, remoteDir].map(cleanupTempDir));
+    // Best-effort cleanup — never let a cleanup error (e.g. an early beforeEach
+    // failure leaving a path unassigned) mask the real test/setup failure.
+    try {
+      await Promise.all([dir, remoteDir].map(cleanupTempDir));
+    } catch {
+      // ignored
+    }
   });
 
   it("removes the record and pushes the removal, reaping the branch and hopping off it", async () => {

@@ -27,7 +27,11 @@ async function git(cwd: string, args: string[]): Promise<string> {
 async function setFullProtection(cwd: string): Promise<void> {
   const path = join(cwd, ".arc", "system", "arc-config.yml");
   const yaml = await readFile(path, "utf-8");
-  await writeFile(path, yaml.replace("branch.protection: partial", "branch.protection: full"), "utf-8");
+  const updated = yaml.replace("branch.protection: partial", "branch.protection: full");
+  if (updated === yaml) {
+    throw new Error("setFullProtection: expected `branch.protection: partial` in arc-config.yml");
+  }
+  await writeFile(path, updated, "utf-8");
 }
 
 describe("arc errand check", () => {

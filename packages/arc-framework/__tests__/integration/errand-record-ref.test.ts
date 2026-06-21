@@ -55,7 +55,13 @@ describe("errand orphan state-ref primitives", () => {
   });
 
   afterEach(async () => {
-    await cleanupTempDir(dir);
+    // Best-effort cleanup — never let a cleanup error (e.g. an early beforeEach
+    // failure leaving `dir` unassigned) mask the real test/setup failure.
+    try {
+      await cleanupTempDir(dir);
+    } catch {
+      // ignored
+    }
   });
 
   it("writes a record keyed by slug and reads it back by slug", async () => {
