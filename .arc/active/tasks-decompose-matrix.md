@@ -64,25 +64,17 @@ logical `(phase, location)` + meta fields, never git inference (the ADR-022 guar
   `provisional` is below the sweep's floor. Returns dependents in index order (active before planned); the origin
   never self-lists. 4 unit tests added to `lifecycle-deps.test.ts`.
 
-### `[ ]` **2.2 Re-point write to the delivering member(s)**
+### `[x]` **2.2 Re-point write to the delivering member(s)**
 
 - _Goal:_ Each discovered dependent's edge is rewritten from the origin to the delivering member(s), leaving its
   other edges and field formatting intact.
 
-- _Approach:_ Rewrite the `Depends On` bullet field via `setMetaBulletFields` (update-or-insert, preserves the
-  rest of the meta); the origin → delivering-member(s) mapping comes from the Phase 1 cut-map.
-
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - A dependent on the origin re-points to the single delivering member.
-
-    - A dependent re-points to **multiple** members when the needed work split across several.
-
-    - Sibling `Depends On` edges and the surrounding meta field formatting are preserved.
-
-    - A no-op when no dependent names the origin (nothing rewritten, no spurious edits).
+- _Outcome:_ `repointDependsOn(content, originSlug, deliveringMembers): string` in the new `decompose-sweep.ts` —
+  replaces the origin slot with the delivering member(s) at its position, keeps every sibling edge, collapses
+  duplicates, and re-formats as a backticked identifier list via the shared `setMetaBulletFields` writer (one
+  bullet touched, rest byte-stable). A meta not naming the origin returns byte-identical (no spurious edits), so
+  the caller applies it unconditionally. 4 unit tests. With 2.1's discovery, the incoming-edge sweep's two
+  halves — find dependents, rewrite each — are now both built; Phase 3's executor wires them over the filesystem.
 
 ## **Phase 3:** `runDecompose` executor — the four legs
 
