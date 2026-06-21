@@ -101,52 +101,30 @@ step). Lives in `verbs/decompose.ts`, mirroring `runStub` / `runArchive` / `runP
   skeleton rendered programmatically (`renderMemberDraft`, mirroring `template-draft.md`), per the `renderMetaFile`
   precedent.
 
-### `[ ]` **3.2 Origin teardown via the reserved edges**
+### `[x]` **3.2 Origin teardown via the reserved edges**
 
 - _Goal:_ The origin is retired through its position-appropriate reserved edge, a retired backlog stub leaves no
   orphaned cohort subdir, and the extraction shape skips teardown entirely.
 
-- _Context:_ The reserved edges already exist in `lifecycle-transitions.ts` (`decompose@planning` fires
-  `artifacts: remove` + `reconcileBranch: delete` + `reconcileWorktree: teardown`; `decompose@planned` fires
-  `artifacts: remove` only). This leg fires the right one for the origin's position.
+- _Outcome:_ The teardown fires the reserved edge via `executeTransition` (verb `decompose`): a started
+  (`planning`) origin tears down branch + worktree, a `planned` / `provisional` stub removes artifacts only, and
+  the extraction shape fires no edge (origin survives). `pruneEmptyBacklogSource` lifted to a shared export in
+  `relocate-artifacts.ts` — generalized to accept both repo-relative (relocate) and absolute (the origin-remove
+  runner) paths via a tier-root walk — and called from the remove runner so a retired stub's emptied subdir is
+  pruned without removing the occupied parent.
 
-- _Approach:_ The `artifacts: remove` disposition does not run `relocateArtifacts`, so its emptied-subdir prune
-  must be wired explicitly: lift `pruneEmptyBacklogSource` to a shared export and call it from the remove path
-  (or from `runDecompose` after teardown) so a retired backlog stub leaves no orphaned subdir.
-
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - A `Planning`-position origin fires `decompose@planning` (artifacts removed; branch + worktree torn down).
-
-    - A `planned` backlog-stub origin fires `decompose@planned` (artifacts removed; no branch teardown).
-
-    - The emptied-subdir prune fires on a retired backlog stub (via the lifted `pruneEmptyBacklogSource`) — no
-      orphaned cohort subdir.
-
-    - The extraction / origin-survives shape fires **no** teardown edge (the origin is kept in place).
-
-### `[ ]` **3.3 Re-point wiring, ROADMAP regen, and structured result**
+### `[x]` **3.3 Re-point wiring, ROADMAP regen, and structured result**
 
 - _Goal:_ `runDecompose` composes the re-point sweep and ROADMAP regen and returns a structured account of what
   it did — the substrate the workflow renders into the allocation map.
 
-- _Approach:_ The teardown edges carry the render side-effect, but the extraction shape fires no edge, so regen
-  must be driven by the verb (via `reconcileRoadmap`) on **every** shape — not left to the edge alone.
-
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - Invokes the Phase 2 sweep so incoming edges re-point as part of the run.
-
-    - ROADMAP regen fires on every shape — including extraction, where no teardown edge fires: the origin drops
-      out of In Flight (when retired); members appear in `backlog/planned/**`.
-
-    - Returns a result describing members scaffolded, edges re-pointed, and origin disposition.
-
-    - Every leg resolves state from `(phase, location)` + meta fields — never `git branch` / `git log` inference.
+- _Outcome:_ `runDecompose` (`verbs/decompose.ts`) orchestrates the four legs and returns `DecomposeResult`
+  (members scaffolded, edges re-pointed, origin `retired` / `survived`). The sweep discovers dependents over the
+  index (`resolveReverseDeps`, broader than the cut-map) and re-points each off a retired origin to the **full**
+  new-member set — the cohort is the origin's new deliverable; the workflow's allocation map narrows specific
+  edges as judgment. ROADMAP regen fires once per shape: carried by the teardown edge's `reconcile-roadmap`
+  side-effect when one fires, driven directly (same handler) on the edge-less extraction shape. Every leg
+  resolves state from `(phase, location)` + meta fields — never `git` inference.
 
 ## **Phase 4:** `arc decompose` command & end-to-end shape coverage
 

@@ -21,9 +21,22 @@
 
 import { join } from "node:path";
 
-import { renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
+import { parseMetaRecord, renderMetaFile, type MetaFieldOverrides } from "../../active/meta-reader.js";
 import { ensureDir, type MkdirFn, type WriteFileFn } from "../../template/files.js";
-import type { InternalEdge, NewMemberEntry } from "../decompose-cut-map.js";
+import { repointDependsOn } from "../decompose-sweep.js";
+import type { DecomposeParams, InternalEdge, NewMemberEntry } from "../decompose-cut-map.js";
+import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
+import { resolveReverseDeps } from "../lifecycle-deps.js";
+import {
+  executeTransition,
+  type ArtifactRunner,
+  type ExecuteTransitionContext,
+  type TransitionInputs,
+  type TransitionOutcome,
+} from "../lifecycle-executor.js";
+import { resolveSlugState } from "../lifecycle-resolver.js";
+import type { Location, Phase } from "../lifecycle-state.js";
+import { artifactMatcher, pruneEmptyBacklogSource } from "../mutators/relocate-artifacts.js";
 
 /** Filesystem seam for writing the scaffolded member metas + drafts. */
 export interface CohortMemberScaffoldFs {
@@ -191,4 +204,257 @@ export async function scaffoldCohortMembers(
   }
 
   return scaffolded;
+}
+
+// ---------------------------------------------------------------------------
+// runDecompose — the fan-out verb over the four legs
+// ---------------------------------------------------------------------------
+
+/** Artifact-removal seam for the origin teardown's `remove` disposition (list, delete, prune). */
+export interface DecomposeRemoveFs {
+  /** List entry names directly under a directory (matches `fs.readdir(p)`). */
+  readdir: (path: string) => Promise<string[]>;
+  /** Remove one file (matches `fs.rm(p)`). */
+  rm: (path: string) => Promise<void>;
+  /** Remove an emptied directory (matches `fs.rmdir(p)`); best-effort. */
+  rmdir: (path: string) => Promise<void>;
+}
+
+/** The seams `runDecompose` drives across its four legs. */
+export interface RunDecomposeContext {
+  /**
+   * The executor's transition engine (minus the `scaffoldOrRemove` runner, which
+   * the verb builds) — drives the origin-teardown edge, stages the re-pointed
+   * dependents, builds the index, and carries the render side-effect handlers.
+   */
+  executor: Omit<ExecuteTransitionContext, "scaffoldOrRemove">;
+  /** Meta/draft write seam — the member scaffolds and the re-pointed dependent metas. */
+  fs: CohortMemberScaffoldFs;
+  /** Artifact-removal seam for the origin teardown. */
+  removeFs: DecomposeRemoveFs;
+}
+
+/** The operational inputs a `runDecompose` supplies beyond the cut-map. */
+export interface RunDecomposeParams {
+  /** The validated cut-map — the judgment the executor refuses to fabricate. */
+  cut: DecomposeParams;
+  /** The origin worktree to tear down — required for a `Planning`-phase (started) origin. */
+  worktreePath?: string;
+  /** The directory the transition runs from — drives self-teardown locus relocation. */
+  currentLocus?: string;
+}
+
+/** One incoming edge re-pointed off the retired origin. */
+export interface RepointedEdge {
+  /** The dependent WU whose `Depends On` edge named the origin. */
+  dependent: string;
+  /** The delivering member(s) the edge now names. */
+  to: string[];
+}
+
+/** The structured account a `runDecompose` returns — the substrate the workflow renders into the allocation map. */
+export interface DecomposeResult {
+  /** The members scaffolded, in cut order. */
+  members: ScaffoldedMember[];
+  /** The incoming edges re-pointed off the retired origin (empty on the extraction shape). */
+  repointed: RepointedEdge[];
+  /** Whether the origin was retired (teardown fired) or survives (extraction). */
+  origin: "retired" | "survived";
+}
+
+/** The outcome of a `runDecompose` — a rejection reason, or the structured account of what it did. */
+export type RunDecomposeResult =
+  | { status: "rejected"; reason: string }
+  | { status: "decomposed"; result: DecomposeResult };
+
+/**
+ * Run the decompose verb's deterministic legs over the cut-map — fan-out
+ * orchestration, *not* a single `executeTransition` edge: (1) batch-scaffold the
+ * new members, (2) retire the origin through its position-appropriate reserved
+ * edge — skipped on the extraction shape, where the origin survives, (3) re-point
+ * every incoming `Depends On` edge off a retired origin to the delivering
+ * members, and (4) regenerate the ROADMAP on every shape (carried by the teardown
+ * edge's render side-effect when one fires; driven directly on the edge-less
+ * extraction shape). It writes member skeletons and retires / re-points; it never
+ * edits existing artifacts (the heterogeneous homes are workflow-authored) and
+ * never relocates a surviving origin (the extraction-park is a separate step).
+ *
+ * Every leg resolves state from the logical `(phase, location)` + meta fields —
+ * never `git branch` / `git log` inference (the arc-backend design guard).
+ *
+ * @param ctx - The executor seams plus the scaffold and origin-removal fs seams.
+ * @param params - The validated cut-map and the origin worktree locators.
+ * @returns A rejection, or the structured account of members, re-points, and origin disposition.
+ */
+export async function runDecompose(
+  ctx: RunDecomposeContext,
+  params: RunDecomposeParams,
+): Promise<RunDecomposeResult> {
+  const { executor } = ctx;
+  const { cut } = params;
+  const originSlug = cut.origin.slug;
+
+  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const originEntry = index.get(originSlug);
+  if (originEntry === undefined) {
+    return { status: "rejected", reason: `decompose origin "${originSlug}" is absent from the lifecycle index.` };
+  }
+  const originRecord = parseMetaRecord(await executor.indexFs.readFile(join(executor.cwd, originEntry.path)));
+
+  // The resolved member-enrolment cohort: the cut-map's cohort for the standalone
+  // / in-cohort arms; the origin's existing cohort for the at-cap lateral fan-out
+  // (no new node minted), which the cut-map omits.
+  const placementCohort = cut.cohort ?? originEntry.cohort ?? undefined;
+  if (placementCohort === undefined || placementCohort === "") {
+    return {
+      status: "rejected",
+      reason: `decompose needs a cohort placement: the cut-map omits one and origin "${originSlug}" carries no cohort.`,
+    };
+  }
+
+  const newMembers = cut.entries.filter((e): e is NewMemberEntry => e.kind === "new-member");
+
+  // Leg 1 — batch N-member scaffold.
+  const members = await scaffoldCohortMembers(
+    { cwd: executor.cwd, fs: ctx.fs },
+    {
+      cohort: placementCohort,
+      originContext: {
+        origin: originRecord.Origin ?? "[internal]",
+        owner: originRecord.Owner ?? "—",
+        priority: originRecord.Priority ?? "P3",
+      },
+      members: newMembers,
+      internalEdges: cut.internalEdges,
+    },
+  );
+
+  const originRetired = cut.shape !== "extraction";
+  let repointed: RepointedEdge[] = [];
+
+  if (originRetired) {
+    // Leg 3 — incoming-edge re-point sweep (scans the index directly, so it catches
+    // dependents the cut-map didn't enumerate). The origin's deliverable is now the
+    // whole cohort, so each dependent re-points to the full new-member set; the
+    // workflow's allocation map narrows specific edges as judgment.
+    const deliveringMembers = newMembers.map((m) => m.slug);
+    repointed = await sweepIncomingEdges(ctx, index, originSlug, deliveringMembers);
+
+    // Leg 2 — origin teardown via the reserved edge; its render side-effect fires Leg 4.
+    const outcome = await tearDownOrigin(ctx, originSlug, originRecord, params);
+    if (outcome.status !== "ok") {
+      return { status: "rejected", reason: outcome.message };
+    }
+  } else {
+    // Extraction: the origin survives — no teardown edge, no sweep — but Leg 4 still
+    // fires (members appear in `backlog/planned/**`; the thinned origin stays in flight).
+    await regenerateRoadmap(ctx, originSlug, originEntry.phase, originEntry.location);
+  }
+
+  return {
+    status: "decomposed",
+    result: { members, repointed, origin: originRetired ? "retired" : "survived" },
+  };
+}
+
+/**
+ * Re-point every incoming `Depends On` edge that names `originSlug` to the
+ * delivering members. Discovers dependents over the index ({@link
+ * resolveReverseDeps}), rewrites each via {@link repointDependsOn}, and writes +
+ * stages only the metas that actually changed (the rewrite is a no-op when the
+ * origin is absent, so a non-edge prose mention never triggers a write).
+ */
+async function sweepIncomingEdges(
+  ctx: RunDecomposeContext,
+  index: LifecycleIndex,
+  originSlug: string,
+  deliveringMembers: string[],
+): Promise<RepointedEdge[]> {
+  const { executor } = ctx;
+  const repointed: RepointedEdge[] = [];
+  for (const slug of resolveReverseDeps(index, originSlug)) {
+    const entry = index.get(slug);
+    if (entry === undefined) continue;
+    const abs = join(executor.cwd, entry.path);
+    const before = await executor.indexFs.readFile(abs);
+    const after = repointDependsOn(before, originSlug, deliveringMembers);
+    if (after === before) continue;
+    await ctx.fs.writeFile(abs, after);
+    if (executor.stageMeta !== undefined) await executor.stageMeta(entry.path);
+    repointed.push({ dependent: slug, to: deliveringMembers });
+  }
+  return repointed;
+}
+
+/**
+ * Retire the origin through its position-appropriate reserved edge: a started
+ * (`planning`) origin fires `decompose@planning` (artifacts removed, branch + worktree
+ * torn down); a backlog stub (`planned` / `provisional`) fires its artifacts-only
+ * edge. The `remove` runner deletes the origin's artifact set and prunes the emptied
+ * backlog subdir so a retired stub leaves no orphaned cohort dir.
+ */
+async function tearDownOrigin(
+  ctx: RunDecomposeContext,
+  originSlug: string,
+  originRecord: ReturnType<typeof parseMetaRecord>,
+  params: RunDecomposeParams,
+): Promise<TransitionOutcome> {
+  const { executor } = ctx;
+  const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
+  const inputs: TransitionInputs = {};
+
+  // Only a started (`Planning`-phase, `active`-location) origin carries a branch +
+  // worktree to tear down; a backlog stub removes artifacts alone.
+  if (resolveSlugState(index, originSlug) === "planning") {
+    inputs.branchOp = { mutation: "delete", branch: originRecord.Branch ?? "[none]" };
+    if (params.worktreePath === undefined || params.currentLocus === undefined) {
+      return {
+        status: "rejected",
+        stage: "inputs",
+        message: `decompose of a started origin "${originSlug}" needs its worktree path and current locus to tear down.`,
+      };
+    }
+    inputs.worktreeOp = { mutation: "teardown", worktreePath: params.worktreePath, currentLocus: params.currentLocus };
+  }
+
+  const scaffoldOrRemove = buildOriginRemoveRunner(executor.cwd, ctx.removeFs);
+  return executeTransition({ ...executor, scaffoldOrRemove }, { verb: "decompose", slug: originSlug, inputs });
+}
+
+/**
+ * Build the origin teardown's `remove` artifact runner: delete the origin's own
+ * artifact set (by slug) from its source directory, then prune the now-emptied
+ * backlog subdir(s) via the shared {@link pruneEmptyBacklogSource} (a no-op for a
+ * flat `active/` origin, which has no per-WU subdir to drop).
+ */
+function buildOriginRemoveRunner(cwd: string, removeFs: DecomposeRemoveFs): ArtifactRunner {
+  return async ({ disposition, slug, fromDir }) => {
+    if (disposition !== "remove") {
+      throw new Error(`decompose retires the origin via removal; received a \`${disposition}\` disposition.`);
+    }
+    if (fromDir === null) throw new Error("decompose origin-remove requires a source directory.");
+
+    const absDir = join(cwd, fromDir);
+    const matcher = artifactMatcher(slug);
+    const names = (await removeFs.readdir(absDir)).filter((n) => matcher.test(n)).sort();
+    for (const n of names) await removeFs.rm(join(absDir, n));
+
+    await pruneEmptyBacklogSource(removeFs, absDir);
+  };
+}
+
+/**
+ * Drive ROADMAP regen directly — the extraction shape's Leg 4, where no teardown
+ * edge fires to carry the render side-effect. Invokes the same `reconcile-roadmap`
+ * handler the edge would, so regen fires exactly once on every shape.
+ */
+async function regenerateRoadmap(
+  ctx: RunDecomposeContext,
+  originSlug: string,
+  phase: Phase,
+  location: Location,
+): Promise<void> {
+  const handler = ctx.executor.sideEffects?.["reconcile-roadmap"];
+  if (handler === undefined) return;
+  await handler({ cwd: ctx.executor.cwd, slug: originSlug, from: { phase, location }, to: null, inputs: {} });
 }

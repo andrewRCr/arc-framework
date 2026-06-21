@@ -43,7 +43,7 @@ export interface RelocateArtifactsFs {
  * so the tier root itself — and any source outside the backlog tree (`active/` on
  * the archive sweep) — is never removed.
  */
-const PRUNE_BOUNDARY_PREFIXES = [".arc/backlog/planned/", ".arc/backlog/provisional/"] as const;
+const PRUNE_BOUNDARY_TIERS = [".arc/backlog/planned", ".arc/backlog/provisional"] as const;
 
 /** Dependencies for {@link relocateArtifacts}. */
 export interface RelocateArtifactsContext {
@@ -109,34 +109,64 @@ export async function relocateArtifacts(
     await ctx.exec("git", ["mv", join(fromDir, name), join(toDir, name)]);
   }
 
-  await pruneEmptyBacklogSource(ctx, fromDir);
+  await pruneEmptyBacklogSource(ctx.fs, fromDir);
   return { moved: names };
 }
 
+/** The directory seam {@link pruneEmptyBacklogSource} drives — list to test emptiness, remove. */
+export interface PruneBacklogFs {
+  /** List entry names directly under a directory (matches `fs.readdir(p)`). */
+  readdir(path: string): Promise<string[]>;
+  /** Remove an emptied directory (matches `fs.rmdir(p)`); best-effort. */
+  rmdir(path: string): Promise<void>;
+}
+
 /**
- * Prune the now-emptied backlog source subdir(s) after the move — the
- * relocate-mutator counterpart to the `promote` / `demote` / `abandon` verb-level
- * prune, so the graduate path (which runs through this mutator, not a verb) no
- * longer leaves an orphaned member / cohort subdir behind. Walks up from `fromDir`
- * removing each empty level while it stays strictly below a {@link
- * PRUNE_BOUNDARY_PREFIXES} root, stopping at the first occupied dir (a sibling
- * member, the `cohort-*.md` doc) or the tier root. Best-effort and bounded to the
- * backlog tree: an `active/` source (the archive sweep) matches no prefix, so the
- * prune is a no-op there. Git does not track empty dirs, so this is a local-cosmetic
- * cleanup, never a staged change.
+ * Resolve the backlog-tier root `dir` sits under — the level the prune stops at —
+ * or `null` when `dir` is outside the backlog tree. Matches the tier as a full
+ * path segment in either form the callers pass: repo-relative (`.arc/backlog/…`,
+ * the relocate mutator) or absolute (`/repo/.arc/backlog/…`, the `decompose`
+ * origin-remove runner).
  */
-async function pruneEmptyBacklogSource(ctx: RelocateArtifactsContext, fromDir: string): Promise<void> {
+function backlogTierRoot(dir: string): string | null {
+  for (const tier of PRUNE_BOUNDARY_TIERS) {
+    const at = dir.indexOf(`/${tier}/`);
+    if (at !== -1) return dir.slice(0, at) + `/${tier}`;
+    if (dir === tier || dir.startsWith(`${tier}/`)) return tier;
+  }
+  return null;
+}
+
+/**
+ * Prune the now-emptied backlog source subdir(s) after a relocation or removal —
+ * the shared counterpart to the `promote` / `demote` / `abandon` verb-level prune,
+ * so the graduate path (which runs through the relocate mutator) and the
+ * `decompose` origin-teardown (which removes a retired stub in place) no longer
+ * leave an orphaned member / cohort subdir behind. Walks up from `fromDir`
+ * removing each empty level while it stays *strictly below* the {@link
+ * PRUNE_BOUNDARY_TIERS} root, stopping at the first occupied dir (a sibling member,
+ * the `cohort-*.md` doc) or the tier root. Best-effort and bounded to the backlog
+ * tree: an `active/` source (the archive sweep, a `Planning`-origin decompose) is
+ * outside any tier, so the prune is a no-op there. Git does not track empty dirs,
+ * so this is a local-cosmetic cleanup, never a staged change.
+ *
+ * @param fs - The list / remove directory seam.
+ * @param fromDir - The vacated source directory (relative or absolute).
+ */
+export async function pruneEmptyBacklogSource(fs: PruneBacklogFs, fromDir: string): Promise<void> {
   let dir = fromDir.split("\\").join("/");
-  while (PRUNE_BOUNDARY_PREFIXES.some((prefix) => dir.startsWith(prefix))) {
+  const root = backlogTierRoot(dir);
+  if (root === null) return;
+  while (dir !== root && dir.startsWith(`${root}/`)) {
     let remaining: string[];
     try {
-      remaining = await ctx.fs.readdir(dir);
+      remaining = await fs.readdir(dir);
     } catch {
       break; // already gone — nothing to prune above it.
     }
     if (remaining.length > 0) break; // a sibling member / the cohort doc remains.
     try {
-      await ctx.fs.rmdir(dir);
+      await fs.rmdir(dir);
     } catch {
       break; // best-effort — leave the rest to the operator.
     }
