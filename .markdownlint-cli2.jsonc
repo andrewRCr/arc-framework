@@ -35,6 +35,13 @@
         "**/.venv*/**",
         "**/venv/**",
         ".arc/completed/**",
+        // Cross-WU managed records — tooling-merged (tombstone headers, append /
+        // merge churn), gitignored, never published. Their structural noise is a
+        // known artifact slated for an at-source fix, not keepable clean by hand;
+        // silence it here meanwhile. SESSION-NOTES is deliberately NOT excluded —
+        // it is hand-authored fresh each handoff, which verifies it lints clean.
+        ".arc/user/**/WORKING-MEMORY.md",
+        ".arc/user/**/USER-INBOX.md",
         ".arc/**/temp-*.md",
         "arc/**",
     ],
