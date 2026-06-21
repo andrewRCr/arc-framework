@@ -150,6 +150,14 @@ export {
 } from "./worktree-cleanup.js";
 
 export {
+  assessReapSafety,
+  isContainedIn,
+  isLandedInBase,
+  type AssessReapSafetyParams,
+  type ReapSafety,
+} from "./branch-containment.js";
+
+export {
   slugifyIdentity,
   resolveIdentity,
   type IdentityOptions,
