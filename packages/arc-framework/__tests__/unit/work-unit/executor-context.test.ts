@@ -235,8 +235,8 @@ describe("buildExecutorContext — user-workspace binding", () => {
   });
 });
 
-describe("buildExecutorContext — git executor cwd pin", () => {
-  it("pins cwd to the repository root, ignoring an opts.cwd override", async () => {
+describe("buildExecutorContext — git executor cwd default + override", () => {
+  it("defaults cwd to the repository root so cwd-relative ops resolve", async () => {
     const io = fakeIo();
     const ctx = buildExecutorContext({
       cwd: "/repo",
@@ -246,9 +246,26 @@ describe("buildExecutorContext — git executor cwd pin", () => {
       internalTemplateDir: "/tpl",
     });
 
-    await ctx.exec!("git", ["status"], { cwd: "/elsewhere" });
+    await ctx.exec!("git", ["mv", "a", "b"]);
 
-    // The pin wins: a caller-supplied cwd cannot redirect transition git ops.
-    expect(io.exec).toHaveBeenCalledWith("git", ["status"], { cwd: "/repo" });
+    expect(io.exec).toHaveBeenCalledWith("git", ["mv", "a", "b"], { cwd: "/repo" });
+  });
+
+  it("honors an explicit per-call cwd over the default — the worktree-clean guard targets the right tree", async () => {
+    const io = fakeIo();
+    const ctx = buildExecutorContext({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      teamMode: false,
+      internalTemplateDir: "/tpl",
+    });
+
+    // The `worktree-clean` guard checks `git status` in the *target worktree*; the
+    // default-to-repo pin must not clobber that, or the guard checks the base repo
+    // (a dirty base then wrongly refuses a clean worktree's teardown).
+    await ctx.exec!("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
+
+    expect(io.exec).toHaveBeenCalledWith("git", ["status", "--porcelain"], { cwd: "/wt-foo" });
   });
 });
