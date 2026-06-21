@@ -12,11 +12,11 @@
 - **Task List:** `tasks-decompose-matrix.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.2 — Re-point write to the delivering member(s) (Phase 2 complete)
-- **Next Task:** Task 3.1 — Batch N-member cohort scaffold (line ~90)
+- **Last Completed:** Task 4.3 — Symmetric-shape regression fixture (Phases 3 and 4 complete)
+- **Next Task:** Task 5.1 — Rewrite `decompose-work-unit.md` over `runDecompose` (line ~204)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 3, Task 3.1 (process-task-loop)
+- **Next Action:** Begin Phase 5, Task 5.1 (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
