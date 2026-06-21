@@ -17,17 +17,19 @@
  * 1. **Arc-state authority** — the WU resides in `completed/` (the `archive`
  *    transition ran; the WU shipped as a lifecycle fact). Resolved from location
  *    via {@link isShipped}, never from `git branch` / `git log` inference.
- * 2. **Push-state durability** — every local commit on the branch is contained in
- *    its remote-tracking ref. Enacted by the merged-safe delete leg, and
- *    merge-strategy-independent (unlike `git branch -d`'s base-reachability test,
- *    which false-negatives under squash / rebase).
+ * 2. **Preservation durability** — every local commit on the branch is provably
+ *    preserved: contained in its remote upstream (pushed) or landed in `base`
+ *    (merged). Enacted by the shared reap oracle ({@link assessReapSafety}) the
+ *    merged-safe delete leg uses; the base leg via patch-equivalence holds even
+ *    when the remote-tracking ref was pruned at merge (delete-on-merge), the case
+ *    an upstream-only check false-negatives.
  *
  * The branch name is resolved by enumerating local refs and matching the WU slug
  * ({@link branchToWorkUnitSlug}) — a ref-projection lookup, type-prefix agnostic,
  * because the meta `Branch` field is cleared to `[none]` at archive. The legs fire
- * in the only constraint-safe order: worktree teardown (frees the checked-out
- * branch), then the branch delete, then the prune (so the containment check can
- * still read the stale `<remote>/<branch>` tracking ref before it is pruned).
+ * in the only constraint-safe order: free the checked-out branch first — a linked
+ * worktree is torn down, an in-place branch is relocated by switching the primary
+ * worktree to `base` — then the branch delete, then the prune.
  *
  * @module
  */
@@ -60,6 +62,8 @@ export interface TeardownContext {
 export interface TeardownParams {
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
   name: string;
+  /** Base branch — the merged-into target the reap oracle checks, and the relocation target for an in-place branch. */
+  base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
@@ -137,7 +141,7 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
  */
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   const { cwd, exec, indexFs, chdir } = ctx;
-  const { name, remote, suggestion } = params;
+  const { name, base, remote, suggestion } = params;
 
   // 1. Arc-state authority gate — only a shipped (`completed/`) WU. Location, never git.
   const index = await buildLifecycleIndex({ cwd, fs: indexFs });
@@ -171,6 +175,17 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }
       worktreeRemoved = worktreePath;
+    } else if (worktreePath === primary) {
+      // In-place arm: the branch is checked out in the *primary* worktree, so the
+      // step-4 delete would be refused ("branch used by worktree"). Relocate the
+      // primary onto `base` first (a linked worktree is torn down above; an
+      // unmapped branch — already switched away — needs no relocation).
+      try {
+        await exec("git", ["switch", base], { cwd: primary });
+      } catch (err) {
+        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+      }
+      notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
     }
   }
 
@@ -179,11 +194,12 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   //    upstream) leaves the branch intact; surface it rather than dropping work.
   let branchDeleted = false;
   if (branch !== null) {
-    await reconcileBranch({ exec }, { mutation: "delete-merged", branch, remote });
+    await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base, remote });
     branchDeleted = !(await branchExists(exec, branch));
     if (!branchDeleted) {
       notices.push(
-        `Branch \`${branch}\` is ahead of (or has no) upstream — left intact (unpushed commits would be lost).`,
+        `Branch \`${branch}\` is not contained on its upstream or landed in \`${base}\` — left intact ` +
+          `(unpushed, unmerged commits would be lost).`,
       );
     }
   }

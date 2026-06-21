@@ -86,7 +86,17 @@ async function writeShippedMeta(cloneA: string, name: string): Promise<void> {
  * tracking ref is stale) and HEAD switched back to `main`. Returns the feature
  * branch's tip sha.
  */
-async function shipFeature(h: MultiClone, name: string, strategy: MergeStrategy): Promise<void> {
+async function shipFeature(
+  h: MultiClone,
+  name: string,
+  strategy: MergeStrategy,
+  opts?: {
+    /** Also prune clone A's local remote-tracking ref (the post-`git pull` state). */
+    pruneLocalRef?: boolean;
+    /** Branch to leave checked out in clone A (default `main`); set to the feature branch for the in-place case. */
+    endOn?: string;
+  },
+): Promise<void> {
   const { cloneA, origin } = h;
   const branch = `feat/${name}`;
 
@@ -116,7 +126,12 @@ async function shipFeature(h: MultiClone, name: string, strategy: MergeStrategy)
   // Simulate delete-on-merge from the remote side: the bare origin loses the branch
   // while clone A keeps its (now stale) remote-tracking ref until prune.
   await git(origin, ["update-ref", "-d", `refs/heads/${branch}`]);
-  await git(cloneA, ["checkout", "main"]);
+  if (opts?.pruneLocalRef === true) {
+    // The post-`git pull`/prune state: clone A's tracking ref is gone too, so the
+    // upstream containment check can no longer prove preservation.
+    await git(cloneA, ["update-ref", "-d", `refs/remotes/origin/${branch}`]);
+  }
+  await git(cloneA, ["checkout", opts?.endOn ?? "main"]);
 }
 
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
@@ -128,7 +143,7 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
         await writeShippedMeta(h.cloneA, "demo");
         expect(await branchPresent(h.cloneA, "feat/demo")).toBe(true);
 
-        const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo" });
+        const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
 
         expect(result.status).toBe("torn-down");
         if (result.status !== "torn-down") return;
@@ -160,12 +175,62 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
 
       // Teardown checks containment against the branch's own upstream instead, so it
       // reaps the branch regardless of how `main` merged it.
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
       expect(result.branchDeleted).toBe(true);
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("reaps a merged branch when the local tracking ref is also pruned (base patch-equivalence)", async () => {
+    const h = await setupMultiClone();
+    try {
+      // Squash ship + the tracking ref pruned: the upstream-only check has no ref to
+      // read, and the squashed tip is unreachable from `main`, so only patch
+      // identity (`git cherry`) proves preservation. The fault-(B) fix.
+      await shipFeature(h, "demo", "squash", { pruneLocalRef: true });
+      await writeShippedMeta(h.cloneA, "demo");
+      await expect(
+        git(h.cloneA, ["rev-parse", "--verify", "--quiet", "refs/remotes/origin/feat/demo"]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["merge-base", "--is-ancestor", "feat/demo", "main"]),
+      ).rejects.toThrow();
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.branchDeleted).toBe(true);
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("relocates the primary off an in-place merged branch, then reaps it (the fault-(A) fix)", async () => {
+    const h = await setupMultiClone();
+    try {
+      // Merge-commit ship, tracking ref pruned, branch left checked out in the
+      // primary clone — the in-place WU post-merge state. The reap would be refused
+      // ("branch used by worktree") without the relocation.
+      await shipFeature(h, "demo", "merge-commit", { pruneLocalRef: true, endOn: "feat/demo" });
+      await writeShippedMeta(h.cloneA, "demo");
+      expect(await git(h.cloneA, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("feat/demo");
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.branchDeleted).toBe(true);
+      expect(result.worktreeRemoved).toBeNull(); // in-place: no distinct worktree removed
+      expect(await git(h.cloneA, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("main");
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+      expect(result.notices.some((n) => /relocated the primary worktree/iu.test(n))).toBe(true);
     } finally {
       await h.cleanup();
     }
@@ -183,7 +248,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       const wtPath = join(wtParent, "wt");
       await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
 
       expect(result.status).toBe("torn-down");
       if (result.status !== "torn-down") return;
@@ -210,7 +275,7 @@ describe("arc teardown — worktree dispatch over real git", () => {
       await git(h.cloneA, ["worktree", "add", wtPath, "feat/demo"]);
       await writeFile(join(wtPath, "uncommitted.txt"), "dirty\n");
 
-      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo" });
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
 
       expect(result.status).toBe("rejected");
       if (result.status !== "rejected") return;

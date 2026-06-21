@@ -127,7 +127,7 @@ describe("runTeardown — arc-state authority gate", () => {
   it("authorizes a `completed/` WU (location, not git)", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: [] });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
   });
@@ -135,7 +135,7 @@ describe("runTeardown — arc-state authority gate", () => {
   it("refuses an `active/` WU that has not shipped — no git touched", async () => {
     const { ctx, calls } = buildCtx([ACTIVE_META]);
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -147,7 +147,7 @@ describe("runTeardown — arc-state authority gate", () => {
   it("refuses a nonexistent WU", async () => {
     const { ctx } = buildCtx([], { branches: [] });
 
-    const result = await runTeardown(ctx, { name: "ghost" });
+    const result = await runTeardown(ctx, { name: "ghost", base: "main" });
 
     expect(result.status).toBe("rejected");
   });
@@ -157,7 +157,7 @@ describe("runTeardown — branch resolution", () => {
   it("resolves the WU branch by slug regardless of type prefix and reaps it", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main", "feat/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -169,7 +169,7 @@ describe("runTeardown — branch resolution", () => {
   it("is a no-op on the branch arm when no local branch maps (already reaped), still prunes", async () => {
     const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["main"] });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -183,7 +183,7 @@ describe("runTeardown — branch resolution", () => {
   it("refuses when more than one local branch maps to the slug (ambiguous)", async () => {
     const { ctx } = buildCtx([SHIPPED_META], { branches: ["feat/demo", "fix/demo"] });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("rejected");
     if (result.status !== "rejected") return;
@@ -198,7 +198,7 @@ describe("runTeardown — branch resolution", () => {
       branchSurvivesDelete: true,
     });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
@@ -210,7 +210,7 @@ describe("runTeardown — branch resolution", () => {
 describe("runTeardown — worktree dispatch (presence guard)", () => {
   const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
 
-  it("in-place arm: branch lives in the primary worktree → no worktree removal", async () => {
+  it("in-place arm: branch lives in the primary worktree → relocate to base, no worktree removal", async () => {
     const porcelain =
       "worktree /repo\nHEAD abc\nbranch refs/heads/feat/demo\n";
     const { ctx, calls } = buildCtx([SHIPPED_META], {
@@ -218,13 +218,20 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       worktreePorcelain: porcelain,
     });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;
-    // The branch maps to the primary worktree → no distinct worktree to remove.
+    // The branch maps to the primary worktree → no distinct worktree to remove,
+    // but the primary must be switched off the branch before the delete.
     expect(result.worktreeRemoved).toBeNull();
     expect(calls.some((c) => c[1] === "worktree" && c[2] === "remove")).toBe(false);
+    expect(calls).toContainEqual(["git", "switch", "main"]);
+    // The relocation precedes the branch delete (a checked-out branch can't be deleted).
+    const switchIdx = calls.findIndex((c) => c[1] === "switch");
+    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    expect(switchIdx).toBeLessThan(deleteIdx);
+    expect(result.notices.some((n) => /relocated the primary worktree/i.test(n))).toBe(true);
   });
 
   it("linked arm: branch lives in a distinct worktree → that worktree is removed", async () => {
@@ -236,7 +243,7 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
       worktreePorcelain: porcelain,
     });
 
-    const result = await runTeardown(ctx, { name: "demo" });
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
 
     expect(result.status).toBe("torn-down");
     if (result.status !== "torn-down") return;

@@ -768,13 +768,20 @@ export async function handleTeardown(name: string | undefined): Promise<void> {
     return;
   }
 
+  const { settings } = await readConfigSettings(base.cwd);
+  const baseBranch = settings["branch.base"].trim();
+  if (baseBranch === "") {
+    refuse("No `branch.base` configured — cannot resolve the base to reap against.");
+    return;
+  }
+
   // Default to the repo root, but let an explicit `opts.cwd` win — the worktree
   // cleanliness check targets the *linked* worktree being torn down, not the cwd
   // (unlike a transition executor, teardown operates on a worktree it isn't in).
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
   const result = await runTeardown(
     { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
-    { name: wuName },
+    { name: wuName, base: baseBranch },
   );
   if (result.status === "rejected") {
     refuse(result.reason);

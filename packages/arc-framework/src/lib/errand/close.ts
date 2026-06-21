@@ -22,6 +22,7 @@
 import { reconcileErrandPush, type ErrandPushOutcome } from "./merge.js";
 import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./record.js";
 import type { ErrandRecordIO } from "./ref-tree.js";
+import { assessReapSafety } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
 
 /** The default remote whose upstream containment proves preservation. */
@@ -75,7 +76,7 @@ export async function closeErrand(
   if (record === null) return { kind: "no-record", slug };
 
   if (params.force !== true) {
-    const safety = await assessReapSafety(io.exec, record.branch, params.base, remote);
+    const safety = await assessReapSafety(io.exec, { branch: record.branch, base: params.base, remote });
     if (!safety.safe) return { kind: "unsafe-reap", record, reason: safety.reason };
   }
 
@@ -98,55 +99,6 @@ export async function closeErrand(
   const push = await reconcileErrandPush(io);
 
   return { kind: "closed", record, branchReaped: true, push };
-}
-
-/** Result of the containment-safety assessment. */
-interface ReapSafety {
-  safe: boolean;
-  reason: string;
-}
-
-/**
- * Whether `branch` is safe to delete — its commits are provably preserved.
- *
- * Safe when the branch is contained in its remote upstream (pushed, so the
- * commits live on the remote) or in `base` (merged, so they live there). Both
- * cover squash / rebase / merge-commit strategies. Unsafe only when neither
- * holds — an unpushed, unmerged branch, or a squash-merge whose remote branch
- * was already deleted (commits preserved under no name git can check).
- */
-async function assessReapSafety(
-  exec: GitExec,
-  branch: string,
-  base: string,
-  remote: string,
-): Promise<ReapSafety> {
-  const upstream = `${remote}/${branch}`;
-  let upstreamExists = false;
-  try {
-    await exec("git", ["rev-parse", "--verify", "--quiet", upstream]);
-    upstreamExists = true;
-  } catch {
-    // No upstream — fall through to the base-containment check.
-  }
-  if (upstreamExists && (await isContainedIn(exec, branch, upstream))) {
-    return { safe: true, reason: "" };
-  }
-  if (await isContainedIn(exec, branch, base)) {
-    return { safe: true, reason: "" };
-  }
-  return {
-    safe: false,
-    reason: upstreamExists
-      ? `'${branch}' has commits not on its upstream or in '${base}'`
-      : `'${branch}' is unmerged (not in '${base}') and unpushed — push or merge it first, or remove it manually`,
-  };
-}
-
-/** Whether every commit on `branch` is reachable from `container` (empty ahead-set). */
-async function isContainedIn(exec: GitExec, branch: string, container: string): Promise<boolean> {
-  const { stdout } = await exec("git", ["rev-list", branch, `^${container}`]);
-  return stdout.trim() === "";
 }
 
 /** The current branch name (`git rev-parse --abbrev-ref HEAD`). */
