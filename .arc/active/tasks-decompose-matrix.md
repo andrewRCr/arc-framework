@@ -87,33 +87,19 @@ the re-point sweep (Phase 2), and ROADMAP regen. Does **not** edit existing arti
 workflow-authored) and does **not** relocate the surviving origin (extraction-park is a separate `arc park`
 step). Lives in `verbs/decompose.ts`, mirroring `runStub` / `runArchive` / `runPark`.
 
-### `[ ]` **3.1 Batch N-member cohort scaffold**
+### `[x]` **3.1 Batch N-member cohort scaffold**
 
 - _Goal:_ One call scaffolds N member subdirs with `meta-` + `draft-` skeletons, fields set from the cut-map and
   origin, placed correctly across all three parent-position arms.
 
-- _Approach:_ Generalize the shipped single-member `arc stub --cohort` (`StubParams.cohort`) to a batch. Each
-  member gets both a `meta-` (via `renderMetaFile`) and a `draft-` skeleton (from `template-draft.md`) — extending
-  `runStub`'s meta-only scaffold. The executor writes **skeletons only**; the design _content_ distribution stays
-  the workflow's conservation gate (Phase 5), honoring the executor's no-fabricate-content contract.
-
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - Scaffolds N (≥ 2) member dirs under `backlog/planned/<cohort>[/<subcohort>]/<member>/`, each with
-      `meta-<member>.md` + `draft-<member>.md`.
-
-    - `Origin` inherited from the origin; `Design` set to the member's own draft; `State` `Planning`;
-      `Class` taken per-member from the cut (not inherited).
-
-    - `Cohort` dual-placed — in the meta **and** mirrored into the member draft's header.
-
-    - `Depends On` distributed by actual need: outgoing edges only where the member genuinely depends; internal
-      edges authored from the cut's delivery order; never blanket-inherited.
-
-    - The three parent-position arms place members correctly: top-level cohort, sub-cohort, and at-cap lateral
-      fan-out.
+- _Outcome:_ `scaffoldCohortMembers` (`verbs/decompose.ts`) — a direct fan-out writer over the fs seam, **not** N
+  `executeTransition` / `runStub` calls, so ROADMAP regen fires once (3.3), not per member. Takes a single resolved
+  `cohort` placement path: all three arms collapse to one placement, with the arm→path resolution (`cut-map cohort`
+  for standalone / in-cohort, the origin's existing cohort for at-cap) and the origin-meta read for inherited
+  `Origin` / `Owner` / `Priority` deferred to 3.3's wiring. `Class` is per-member from the cut; `Design` the
+  member's own draft; `Depends On` merges outgoing + internal edges (deduped, never blanket-inherited). Draft
+  skeleton rendered programmatically (`renderMemberDraft`, mirroring `template-draft.md`), per the `renderMetaFile`
+  precedent.
 
 ### `[ ]` **3.2 Origin teardown via the reserved edges**
 
