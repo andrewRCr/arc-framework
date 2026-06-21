@@ -96,6 +96,9 @@ export async function promoteErrand(
   if (slug === "") throw new Error("promoteErrand: slug must be non-empty");
   const name = params.name.trim();
   if (name === "") throw new Error("promoteErrand: name must be non-empty");
+  if (name === "." || name === ".." || /[\\/]/u.test(name)) {
+    throw new Error("promoteErrand: name must not contain path separators");
+  }
   const type = params.type.trim();
   if (type === "") throw new Error("promoteErrand: type must be non-empty");
 

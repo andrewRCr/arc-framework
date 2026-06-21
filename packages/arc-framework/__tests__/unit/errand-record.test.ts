@@ -64,4 +64,22 @@ describe("errand record (de)serialization", () => {
     expect(deserializeErrandRecord("{}")).toBeNull();
     expect(deserializeErrandRecord(JSON.stringify({ ...inboxRecord, slug: "" }))).toBeNull();
   });
+
+  it("rejects an inbox-origin record missing its back-pointer", () => {
+    const blob = JSON.stringify({
+      version: 1,
+      slug: "x",
+      origin: "inbox",
+      intent: "i",
+      branch: "chore/x",
+      createdAt: "2026-06-19T12:00:00.000Z",
+    });
+    expect(deserializeErrandRecord(blob)).toBeNull();
+  });
+
+  it("rejects a free-description record carrying an inbox back-pointer", () => {
+    expect(
+      deserializeErrandRecord(JSON.stringify({ ...descriptionRecord, originEntry: "x" })),
+    ).toBeNull();
+  });
 });

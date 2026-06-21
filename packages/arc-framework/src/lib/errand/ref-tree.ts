@@ -58,7 +58,7 @@ export async function readTreeEntries(exec: GitExec, ref: string): Promise<Map<s
   }
   for (const line of stdout.split("\n")) {
     // `<mode> SP <type> SP <sha> TAB <name>`
-    const match = /^\d{6} blob ([0-9a-f]{40})\t(.+)$/u.exec(line.trimEnd());
+    const match = /^\d{6} blob ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/u.exec(line.trimEnd());
     if (match) {
       const [, sha, slug] = match;
       if (sha && slug) entries.set(slug, sha);

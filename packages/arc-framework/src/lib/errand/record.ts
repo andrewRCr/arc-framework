@@ -99,6 +99,14 @@ export function deserializeErrandRecord(blob: string): ErrandRecord | null {
   ) {
     return null;
   }
+  // An inbox-origin record must carry its back-pointer; a description-origin one
+  // must not — enforce the discriminator's contract rather than tolerate drift.
+  if (record.origin === "inbox" && !isNonEmptyString(record.originEntry)) {
+    return null;
+  }
+  if (record.origin === "description" && record.originEntry !== undefined) {
+    return null;
+  }
 
   return {
     version: 1,

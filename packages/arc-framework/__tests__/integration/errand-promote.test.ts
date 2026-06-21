@@ -169,4 +169,22 @@ describe("promoteErrand", () => {
     expect(await readErrandRecord(io, "growing")).not.toBeNull();
     expect(await branchExists(dir, "fix/growing")).toBe(true);
   });
+
+  it("rejects a name with a path separator before any rename (no half-applied promotion)", async () => {
+    await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
+
+    await expect(
+      promoteErrand(ctxFor(dir, io), {
+        slug: "growing",
+        name: "nested/name",
+        type: "feat",
+        floor: "scale",
+        owner: IDENTITY,
+      }),
+    ).rejects.toThrow(/path separator/u);
+
+    // The guard fires before the branch rename / meta write, so nothing is half-applied.
+    expect(await branchExists(dir, "fix/growing")).toBe(true);
+    expect(await readErrandRecord(io, "growing")).not.toBeNull();
+  });
 });

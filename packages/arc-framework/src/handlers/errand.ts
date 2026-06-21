@@ -364,7 +364,7 @@ export async function handleErrandRetire(slug: string): Promise<void> {
   if (settings["branch.protection"] !== "full") {
     p.log.error(
       "`arc errand retire` is a full-protection verb. Under partial protection an errand is a direct "
-      + "base commit — no branch, no record — so it never promotes.",
+      + "base commit — no branch, no record — so it never retires.",
     );
     process.exitCode = 1;
     return;
