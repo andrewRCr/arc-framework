@@ -8,10 +8,10 @@
 - **Depends On:** `lifecycle-transition-core`
 
 - **Origin:** [internal]
-- **Design:** `draft-decompose-matrix.md`
+- **Design:** `spec-decompose-matrix.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
