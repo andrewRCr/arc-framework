@@ -53,23 +53,16 @@ _Design decisions:_ Direct reverse-dependency scan across `active/**` + `backlog
 cut-map's named dependents); re-point each hit to the delivering member(s) per the cut-map; resolves state from
 logical `(phase, location)` + meta fields, never git inference (the ADR-022 guard the whole cohort honors).
 
-### `[ ]` **2.1 Reverse-dependency discovery over the index**
+### `[x]` **2.1 Reverse-dependency discovery over the index**
 
 - _Goal:_ Every dependent of the origin is found — across `active/**` and `backlog/planned/**` — including
   dependents the cut-map never enumerated.
 
-- _Approach:_ Reverse-lookup over the `buildLifecycleIndex` entries' parsed `dependsOn`, rather than a raw text
-  grep — the index already carries the edges and the logical state, keeping the sweep arc-backend-safe.
-
-- **Strategies:** strategy-testing-methodology.md
-
-- Build `test-first` (one behavior at a time):
-
-    - Returns every slug whose `Depends On` names the origin, spanning both the active and backlog tiers.
-
-    - Returns empty when nothing depends on the origin.
-
-    - Counts only genuine `Depends On` edges — an incidental mention of the origin name elsewhere is not a hit.
+- _Outcome:_ `resolveReverseDeps(index, originSlug): string[]` in `lifecycle-deps.ts` — the reverse of
+  `resolveDepStates`, iterating the lifecycle index's parsed `dependsOn` (not a text grep, so a prose mention is
+  never a hit). Scoped to the re-pointable tiers (`active` + `planned`): a `completed` dependent is immutable and
+  `provisional` is below the sweep's floor. Returns dependents in index order (active before planned); the origin
+  never self-lists. 4 unit tests added to `lifecycle-deps.test.ts`.
 
 ### `[ ]` **2.2 Re-point write to the delivering member(s)**
 
