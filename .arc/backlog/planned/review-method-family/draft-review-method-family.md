@@ -29,6 +29,15 @@
 - _Relationship:_ this WU already owns `review-response` / `address-pr-review` integration; this adds the
   missing _trigger_ decision around that cycle. Touches the extension family + `integrate-work-unit.md` fire
   point (point-scanner CHECK 16) + the project `address-pr-review.md` override.
+- _Merged in (housekeep drain 2026-06-21; from errand-lattice integration, PR #116 review step, 2026-06-21):_ a
+  second capture of this same seam — adds three points. **(1)** The driver: CodeRabbit's GitHub-app auto-review
+  would fire on _every_ PR including Errand PRs (which can cover anything, so CodeRabbit's own path/branch filters
+  can't cleanly express the errand cut) — hence a managed trigger rather than the app's own filters. **(2)** Wire
+  the extension's project-instance behavior as: confirm-with-recommendation → post `@coderabbitai review` → **then
+  load `address-pr-review`** to process the findings (the existing entry stops at "post + wait"). **(3)** Distinct
+  from the WORKING-MEMORY entry on gating the ARC `pre-pr-review` extension by errand _content_ (that is the
+  framework extension firing); this is the CodeRabbit-app-side auto-trigger plus the post-PR-open ARC seam to manage
+  it. Confirms `review-method-family` as the shared home.
 
 ### `[ ]` **Content/lane-gate review extensions for doc-only lifecycle ceremonies**
 

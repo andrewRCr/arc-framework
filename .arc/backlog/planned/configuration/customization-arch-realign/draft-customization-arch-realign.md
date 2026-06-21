@@ -36,6 +36,26 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   method/extension `active`-flag architecture (same frontmatter + loading surface). Cross-ref
   `review-method-family` (the trigger was a review extension).
 
+### `[ ]` **`branch-format`'s overridable type set needs a code-readable projection (first method→code consumer)**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: customization-arch-realign`), housekeep drain (2026-06-21);
+  captured during errand-lattice Task 3.1 design (`arc errand open` surface, 2026-06-19).
+- _Merge, don't duplicate:_ enrich the existing `branch-format` → "Type list override" inventory row (§ Current
+  State Inventory) **and** the `worktree.location_template` code-consumed worked example (§ Cross-Plan Coordination
+  → `plan-worktree-foundation`) — this is their mirror case, not a new concern.
+- _Concern:_ errand-lattice's `arc errand open --type` is the first code consumer of a method's override-defined
+  value: it validates `--type` against the errand branch-nature set (the `branch-format` type set minus `feat`,
+  since a feature is spec-worthy → a WU, not an errand). `branch-format` is agent-read markdown today with no
+  code-readable projection, so the CLI hardcodes the default set (`fix|chore|refactor|hotfix`) and silently ignores
+  a project's `branch-format.override`. This is the **mirror** of the `worktree.location_template` case the draft
+  already records: there a value provisionally placed in a method moved to code-consumed config; here an existing
+  **method** gains a **code** consumer — sharpening the same method-vs-config boundary the decision tree owns.
+- _Scope/question:_ does a method's override surface need a code-readable projection (a resolver exposing
+  `branch-format`'s type list to the CLI), or does the errand type set migrate to a config key (per the "values code
+  reads → Config" row)? Either resolution adopts the errand type-set hardcode as its worked example; coordinate with
+  `config-storage-architecture` (resolver substrate, already cross-referenced from this draft) for the projection
+  mechanism.
+
 ---
 
 ## Problem / Motivation

@@ -286,6 +286,16 @@
   integrating`) and the gate-only treatment; OSD's slice is the record / projection substrate, not the discharge
   logic. The **validator-fix** and **corpus-conformance-gate** portions stay genuinely OSD's (unbuilt). The
   2026-06-16 write-path-enforcement entry already reframed only the consistency-hook framing — not these three.
+- _Also — a 4th re-home target + a read-side consumer (housekeep drain 2026-06-21; from errand-lattice Task 3.2,
+  2026-06-19):_ the **errand record** (shipped via errand-lattice, distinct provenance from the three cohort
+  behaviors above) is a 4th surface to re-home onto records. Its consumer `arc errand close` reaps containment-safe
+  (delete only when commits are provably preserved on `origin/<branch>` or in `base`) and ships a `--force` escape
+  for the rest; one narrow case still needs the flag — a **squash-merge whose remote-tracking ref was already
+  pruned** (commits exist under no name git can check). A live-PR merge-status read (read-side external state:
+  `awaiting-merge` / `merged-cleanup`) would let `close` recognize the merged PR and auto-clear the reap without
+  `--force`. Low priority — `--force` already covers it; this removes the manual flag in a rare window and depends
+  on OSD's live-PR-read substrate (behind CSA). OSD owns the errand record's projection + read-side external state;
+  `close` is the consumer.
 
 ### `[ ]` **Pair OSD's `arc inbox add` managed-write with the shipped inbox-remove half (I/O symmetry + kills append drift)**
 
@@ -302,6 +312,28 @@
   spacing drift the skill's hand-append produces today — e.g. stray mid-`## Backlog` `---` separators that hid an
   entry from the section parser (`routableCount` under-counted until hand-fixed 2026-06-18). The judgment (what to
   write) stays in the skill; only placement/spacing becomes mechanical.
+
+### `[ ]` **Decouple cross-WU entry identity from rendered header text (managed-record model)**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-21);
+  captured during the errand-lattice session investigating recurring WORKING-MEMORY MD013 failures (2026-06-20).
+- _Concern:_ user-sync keys cross-WU entry identity on the exact rendered header (`parser.ts` `key: header`;
+  `merge.ts` `(section, key)`), so any header edit — including the one MD013 forces on a >120-char title — orphans
+  the old identity. The merge then synthesizes a tombstone for the now-absent original header while treating the
+  reworded entry as new, producing the near-duplicate `## Removed:` fossil trail (repeated `_Removed:_` timestamps =
+  one merge pass minting several). Editing a placed tombstone heading is the same hazard from the other side: it
+  changes the tombstone key and can resurrect the original entry if it's still inside the 10-note window
+  (`CROSS_WU_NOTE_WINDOW`).
+- _Approach:_ give entries a stable short ID/slug decoupled from rendered prose, so the long title lives in a
+  wrappable body and rendering is a projection (line-length-immune) — the managed-record model. Interim if a full
+  migration is too heavy: normalize/slug the merge key (hash or stable prefix) instead of raw header text, so a
+  header reword no longer orphans identity.
+- _Relationship:_ this is the **at-source / durable** fix for the recurring WORKING-MEMORY MD013 churn whose
+  **interim** mitigation (scope `.arc/user/**` out of MD013 line-length lint) was executed as a config errand at
+  this same drain (2026-06-21) — symptom there, root cause here. Sibling of the existing buffer entries **Reconcile
+  the interim title-keyed parser to the slug-keyed grammar** (the USER-INBOX-side analog), **WORKING-MEMORY parser
+  silently drops wrapped or colon-less entry headers**, and **Take tombstones out of the rendered files** — same
+  rendered-text-as-identity family; build the slug/record decoupling once across them.
 
 ---
 

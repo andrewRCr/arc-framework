@@ -123,6 +123,30 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   to an ancestor note after a current save.
 - *Scope:* extension-on-existing; verify-then-extend.
 
+### `[ ]` **CAS + retry on local state-ref writes (notes ref + errand ref) — guard same-machine inter-process races**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-06-21); captured during
+  errand-lattice integration — CodeRabbit finding on `errand/ref-tree.ts:107` (PR #116), triaged as
+  defer-to-follow-up (2026-06-21).
+- *Home caveat (read first):* this concern is **single-machine** (inter-process race on one machine), distinct from
+  this WU's **cross-machine** framing. The capture's own reasoning is that it **wants its own home** — recorded here
+  only because this WU already parks the notes-ref twin as an open question (§ Unknowns "Sibling-sessions concern";
+  § Scope broader-scope sibling-sessions). **Landing this should discharge (or explicitly hand over) that parked
+  OQ.** Settle home at planning: a small standalone stub, or absorb here if the broader scope is adopted.
+- *Concern:* the errand orphan state-ref write (`writeTreeCommit` in `errand/ref-tree.ts`) ends with an
+  unconditional `git update-ref <ref> <sha>` over a read-modify-write (read tip → read tree → mutate → commit →
+  update-ref). Two same-machine, same-identity processes can both read tip T, build on T, then update-ref — last
+  writer wins, silently dropping the other's record (the branch survives; the identity record is lost). The
+  cross-machine path is already safe (`reconcileErrandPush` + `mergeErrandTrees` union/reject + non-fast-forward
+  retry); this is the single-machine gap.
+- *Scope:* not errand-specific — the **user-notes ref** has the identical unconditional-write shape, so this owns
+  CAS + retry for **both** state-refs. Full fix (not just the guard): `git update-ref <ref> <new> <old>`
+  compare-and-swap plus a retry loop wrapping the read-modify-write (re-read the changed tree and rebuild on a stale
+  tip), threaded through the direct writes and the reconcile's local commit. ~50 LOC + concurrency tests in the
+  errand module, plus the notes-ref analog.
+- *Eventual re-home:* `arc-backend`'s version-checked-writes / optimistic-concurrency substrate (§ "Concurrency &
+  Version History"), zero-reshape.
+
 ---
 
 ## Problem / Motivation

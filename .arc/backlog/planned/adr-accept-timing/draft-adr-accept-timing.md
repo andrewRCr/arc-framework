@@ -24,6 +24,19 @@
 - _Scope note:_ the existing draft focuses on in-WU ADRs flipping at integration; this capture broadens the WU to
   cover deferred acceptance for ADRs ratified by downstream WU kickoff or ship events.
 
+### `[ ]` **Net-new: a live stale-`Proposed` instance + a one-time existing-ADR sweep deliverable**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: adr-accept-timing`), housekeep drain (2026-06-21); captured
+  during errand-lattice create-spec (2026-06-19), deciding ADR disposition for the new ADR-027.
+- _Largely covered already:_ the draft § Scope already names the `integrate-work-unit` flip step and an enforcement
+  check, and the buffer entry above covers the trigger convention + lifecycle backstops. Integrate this _into_ those
+  rather than as a separate concern.
+- _Net-new (a) — design fork to settle:_ which ADR(s) a WU advances needs a small design — the spec's ADR pointer?
+  a meta field? multi-ADR WUs? — paired with the Proposed→Accepted timing.
+- _Net-new (b) — one-time sweep:_ add an explicit deliverable to sweep existing stale-`Proposed` ADRs that should be
+  `Accepted`. Live instance: `adr-021-introduce-errand-work-class` is still `Proposed` despite its cohort work
+  having shipped/integrated (its 2026-05-27 / 2026-05-31 amendments already treat it as effectively live).
+
 ## Problem / Motivation
 
 An ADR was marked `Accepted` at authoring time, so a premise corrected later in the same work unit had to land as
