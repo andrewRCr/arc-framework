@@ -30,6 +30,7 @@ _None in flight._
 | naming-conventions           | P2       | andrew | —          | doc-conventions             |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core     |
 | cli-substrate-adoption       | P2       | andrew | —          | —                           |
+| cross-wu-coordination        | P2       | andrew | —          | —                           |
 | goal-aware-direction         | P2       | andrew | —          | —                           |
 | graduation-cleanup           | P2       | andrew | —          | —                           |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization  |

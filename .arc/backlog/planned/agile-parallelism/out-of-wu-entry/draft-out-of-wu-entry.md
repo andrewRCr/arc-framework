@@ -68,6 +68,18 @@ capture-side and ergonomics gaps that surfaced alongside it.
   with no intent to activate drifts harder than a draft. Possible backstop: a "time since last planning" staleness
   signal surfaced at session-init / `arc-plan` re-entry, advisory not blocking.
 
+### `[ ]` **Re-source errand identity from the record at the write-context / entry gate**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: out-of-wu-entry`), housekeep drain (2026-06-21); captured
+  during errand-lattice Task 4.2 (record-owned identity migration, 2026-06-19).
+- *Concern:* errand-lattice retired `errandSlugOf` and the branch-parse, so `resolveWriteContext` /
+  `classifyWriteContext` (`lib/git/write-context.ts`) no longer carry the `errandSlug` dimension — errand identity is
+  record-owned and the `chore/` prefix no longer signals errand-ness. The dimension was dropped (no consumer
+  existed) rather than re-sourced.
+- *Approach:* if the shared write-context / planning-entry gate this WU touches needs the current branch's errand
+  identity, resolve it from the record via `readErrandSlugByBranch` (`lib/errand/record.ts`), not a branch-prefix
+  parse.
+
 ---
 
 ## Problem / Motivation

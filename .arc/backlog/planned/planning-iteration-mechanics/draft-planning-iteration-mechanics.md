@@ -40,6 +40,17 @@
   change the task list / scope; it's a masked decision iff deciding it now would. A full method only earns its keep
   if generate-tasks should gate _proactively_ at entry (symmetric to create-spec's draft-readiness entry gate) vs.
   relying on the grounding-audit backstop — a planning-time call for this WU.
+- _2nd live instance (housekeep drain 2026-06-21; from errand-lattice create-spec, 2026-06-19):_ second
+  confirmation of the same open-questions-discipline gap. errand-lattice create-spec first parked the state-ref
+  tree-merge as an "implementation detail" Open Question; on review it was a **masked design decision** — the merge
+  algorithm had to be authored before any impl task could be written — so it was pulled into Proposed Design. Two
+  sibling open questions were also wrong as first written (legacy-errand backfill → dropped; decompose-as-errand →
+  re-cut to a dependency seam). Three open questions, none legitimately open as drafted.
+- _Sharper operational handle (the net-new — fold into the Approach above):_ alongside the
+  decide-now-vs-false-precision test, add the **writable-task** framing — an open question is genuine impl latitude
+  iff a concrete implementation task can be written against it now; if the only task you could write is "figure this
+  out, then implement," it is settle-able design masquerading as impl detail → resolve it into the spec (or fire the
+  re-entry valve), never park it.
 
 ---
 

@@ -39,6 +39,38 @@
 - *Home note:* classified out-of-scope at the lifecycle-tail audit (inbox/housekeep substrate, not the
   lifecycle/transition CLI surface), routed to its owner.
 
+### `[ ]` **Reframe this WU — decide the shared-inbox *model* first; own the inbox/routing architecture**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: shared-inbox-housekeep`), housekeep drain (2026-06-21);
+  surfaced examining errand-lattice's drain disposition (2026-06-19).
+- *Concern:* this stub currently *assumes* `ATOMIC-INBOX` lives and only needs a rot-fix re-homing sweep. Elevate
+  it to first decide **whether the shared atomic inbox should exist at all** — retire is a legitimate outcome (it
+  looks like the same "capture surface holding execution-bound items" anti-pattern the 2026-05-31 errand-queue
+  re-pivot retired). The rot-fix sweep becomes a *conditional* deliverable (only if keep wins).
+- *Proposed rename:* `shared-inbox-model` (or similar) — the name should signal "decide the model," not "maintain
+  the assumed one."
+- *Scope it should own (the routing/inbox-architecture cluster, all surfaced during errand-lattice planning):*
+    - **Shared-atomic-inbox fate** — examine whether it fills a real gap (atomic items with no owning WU that can't
+      execute now *and* benefit from *shared* vs. personal visibility) or is a rot-pile to retire.
+    - **The bucket problem** — captures pile into "the only backlog surface touching that domain," accreting
+      unrelated concerns until the eventual WU inherits a mess.
+    - **The fracturing problem (most disruptive)** — a capture lands in a so-so home; a better-fitting WU later
+      spawns but never *discovers and absorbs* the prior scattered thinking. Implies a **discovery-at-WU-start**
+      sweep (a new stub/WU checks capture surfaces + sibling stubs for in-domain thinking and consolidates).
+      Principle: right-place-*eventually* > right-place-*immediately* when the immediate home isn't obvious.
+    - **Holding-ground vs. direct-stub tension** — a swept-regularly intermediate holding ground aids
+      eventually-correct routing, but obviously-WU-tier work should skip holding and become a stub directly.
+      Unresolved.
+    - **Aggregation discovery** — N errand-class captures that *combined* are either a WU (if the aggregate needs
+      design) or one "big errand" (if it doesn't). The classification rule is errand-lattice's (the
+      spec-worthiness gate applied to the aggregate); the *discovery* ("notice they belong together") is
+      housekeep's.
+- *Boundary (re-cut during errand-lattice create-spec, 2026-06-19):* the **personal** `USER-INBOX` surface — its
+  section relabel (`## Atomic`/`## Backlog` → `## Errand`/`## Work Unit` + preambles), the
+  `arc-inbox`/`arc-housekeep` classification keyed on spec-worthiness, and the coupled code — is **errand-lattice's**
+  (shipped). This WU owns only the **shared** inbox model (the bullets above). The deterministic managed-write
+  `arc inbox add` stays `operational-state-docs`'.
+
 ---
 
 ## Problem / Motivation
