@@ -11,14 +11,12 @@
 - **Design:** `draft-decompose-matrix.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin draft-design — iterate the formalization-ready draft: the three transform-shape arms +
-  the conservation-gate generalization (absorbed from the retired `decompose-work-unit-arms`); the facilitation
-  axis is a scoped open question.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
