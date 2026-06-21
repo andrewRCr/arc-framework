@@ -14,24 +14,21 @@ _Design decisions:_ Hand-rolled bespoke validator (zod is not yet a CLI dep); si
 `lib/work-unit/`; discriminated `{status: "rejected"} | {status: …}` result matching the shipped verbs
 (`StubResult`); a `schemaVersion`-ready top-level object.
 
-### `[ ]` **1.1 Define the cut-map / `DecomposeParams` shape**
+### `[x]` **1.1 Define the cut-map / `DecomposeParams` shape**
 
 - _Goal:_ One typed contract describes a decomposition request — members, internal edges, distribution and
   dispositions, and the two entry kinds the new shapes need — versionable so a later zod migration reshapes
   nothing.
 
-- _Approach:_ A single co-located module under `lib/work-unit/` (where CSA's `lib/<subsystem>/schemas.ts`
-  convention expects subsystem contracts); a top-level `schemaVersion` envelope wrapping the request body.
-
-- _Note:_ The field-level encoding settles here alongside 5.2's allocation-map render; the cut-map file and the
-  allocation map are the same artifact in two views (one source).
-
-    - Member record: slug, `Class`, per-member `Depends On`, distribution target, optional disposition.
-
-    - Internal dependency edges (`m_i → m_j`) and the origin's resolved `(phase, location)` + selected arm/shape.
-
-    - The two entry kinds as discriminated variants — **surviving-origin** (names the retained origin with its
-      keep-active / park disposition) and **existing/atomic-home** (names an existing or atomic destination).
+- _Outcome:_ `lib/work-unit/decompose-cut-map.ts` (types only; the validator joins it in 1.2). `DecomposeParams`
+  is the versioned top-level shape — `schemaVersion` envelope (`DECOMPOSE_SCHEMA_VERSION`), origin
+  `(phase, location)` + selected `TransformShape` / `ParentPosition`, optional `cohort`, `entries`, and
+  `internalEdges`. Destinations are a `kind`-discriminated `CutEntry` union: `NewMemberEntry` (slug, own
+  `workClass`, by-need `dependsOn`, allocated `receives`), `SurvivingOriginEntry` (the extraction entry kind —
+  slug + keep-active/park `disposition`, no `receives` since it keeps the unextracted remainder), and
+  `ExistingHomeEntry` (the heterogeneous entry kind — `target` + fold/atomic-edit `home` + `receives`). `receives`
+  is left as section-label `string[]`, deferring the field-level encoding to settle with 5.2's allocation-map
+  render.
 
 ### `[ ]` **1.2 Build the hand-rolled boundary parser/validator**
 
