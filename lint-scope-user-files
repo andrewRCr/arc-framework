@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "lint-scope-user-files",
-  "origin": "description",
-  "intent": "Scope .arc/user/** out of the markdownlint glob — clear recurring personal-file lint noise (WORKING-MEMORY MD013 tombstones + USER-INBOX MD049 emphasis); interim pending OSD's managed-doc projection",
-  "branch": "chore/lint-scope-user-files",
-  "createdAt": "2026-06-21T18:25:26.231Z"
-}
