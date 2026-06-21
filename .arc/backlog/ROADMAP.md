@@ -12,7 +12,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_None in flight._
+| State    | Work unit        | Priority | Owner  | Depends on | Cohort                  |
+|----------|------------------|----------|--------|------------|-------------------------|
+| Planning | decompose-matrix | P1       | andrew | —          | lifecycle-state-machine |
 
 ## Ready
 
@@ -20,7 +22,6 @@ _None in flight._
 |------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
-| decompose-matrix             | P1       | andrew | —          | lifecycle-state-machine     |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
