@@ -12,11 +12,11 @@
 - **Task List:** `tasks-decompose-matrix.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Define the cut-map / DecomposeParams shape
+- **Last Completed:** Task 2.2 — Re-point write to the delivering member(s) (Phase 2 complete)
+- **Next Task:** Task 3.1 — Batch N-member cohort scaffold (line ~90)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation at Task 1.1 (process-task-loop)
+- **Next Action:** Begin Phase 3, Task 3.1 (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
