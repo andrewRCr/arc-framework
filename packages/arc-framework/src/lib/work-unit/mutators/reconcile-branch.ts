@@ -24,6 +24,7 @@
  * @module
  */
 
+import { assessReapSafety } from "../../git/branch-containment.js";
 import type { GitExec } from "../../git/exec.js";
 
 /** The default remote a teardown deletes the branch from. */
@@ -43,8 +44,10 @@ export interface ReconcileBranchContext {
  * - `delete` — force-tear down `branch` locally and on `remote` (default `origin`);
  *   the park / pre-merge `abandon` path, where the branch is discarded outright.
  * - `delete-merged` — a **local-only** merged-safe delete: remove `branch` only
- *   when its tip is contained in its upstream (`remote`/`branch`), so the commits
- *   are provably preserved on the remote. The post-merge teardown path; never
+ *   when its commits are provably preserved — contained in its upstream
+ *   (`remote`/`branch`, pushed) or landed in `base` (merged), via the shared
+ *   {@link assessReapSafety} oracle. The base leg holds even when the
+ *   remote-tracking ref was pruned at merge. The post-merge teardown path; never
  *   touches the remote ref (that is where the work is kept).
  * - `preserve` — leave the branch untouched (`park@Active` keeps the pushed
  *   branch as the durable shelf).
@@ -54,7 +57,7 @@ export interface ReconcileBranchContext {
 export type ReconcileBranchOp =
   | { mutation: "rename"; branch: string; toBranch: string }
   | { mutation: "delete"; branch: string; remote?: string }
-  | { mutation: "delete-merged"; branch: string; remote?: string }
+  | { mutation: "delete-merged"; branch: string; base: string; remote?: string }
   | { mutation: "preserve" }
   | { mutation: "create" };
 
@@ -97,24 +100,18 @@ export async function reconcileBranch(
       return;
     }
     case "delete-merged": {
-      const remote = op.remote ?? DEFAULT_REMOTE;
-      const upstream = `${remote}/${op.branch}`;
-      // Prove the upstream exists. A never-pushed branch has no upstream to
-      // contain it, so it can't be shown safe — refuse (no delete). The
-      // WU-lifecycle caller only tears down shipped, pushed branches.
-      try {
-        await ctx.exec("git", ["rev-parse", "--verify", "--quiet", upstream]);
-      } catch {
-        return;
-      }
-      // Containment check: commits on `branch` not reachable from its upstream.
-      // Empty output → the tip is fully contained → safe to delete regardless of
-      // merge strategy (squash / rebase / merge-commit all land the commits in
-      // the upstream). Non-empty → the branch is ahead; deleting would drop
-      // unpushed work, so refuse.
-      const { stdout } = await ctx.exec("git", ["rev-list", op.branch, `^${upstream}`]);
-      if (stdout.trim() !== "") return;
-      // Containment is proven, so force-delete: `-d` re-checks base-reachability,
+      // Provably-preserved check via the shared oracle: contained in the upstream
+      // (pushed) or landed in `base` (merged, patch-equivalence). The base leg
+      // holds even when the remote-tracking ref was pruned at merge — the
+      // delete-on-merge case an upstream-only check false-negatives. Unsafe →
+      // refuse (no delete), leaving the branch for the caller to surface.
+      const safety = await assessReapSafety(ctx.exec, {
+        branch: op.branch,
+        base: op.base,
+        remote: op.remote,
+      });
+      if (!safety.safe) return;
+      // Preservation is proven, so force-delete: `-d` re-checks base-reachability,
       // which false-negatives under squash / rebase merges (the bug this guards).
       await ctx.exec("git", ["branch", "-D", op.branch]);
       return;
