@@ -18,7 +18,7 @@ const IDENTITY = "tester";
 
 const INBOX = `# User Inbox
 
-## Atomic
+## Errand
 
 > _Single-step captures._
 

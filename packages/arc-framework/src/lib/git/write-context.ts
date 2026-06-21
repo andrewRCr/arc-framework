@@ -17,7 +17,6 @@
  * @module
  */
 
-import { errandSlugOf } from "../session-init/errand-branch.js";
 import { getCurrentBranch } from "./exec.js";
 import { resolvePrimaryWorktreePath } from "./worktree-roster.js";
 
@@ -37,16 +36,13 @@ import type { GitExec } from "./exec.js";
 export type PathSurface = "cohort-doc" | "work-unit" | "other";
 
 /**
- * The two concurrency dimensions carried on every verdict, independent of the
+ * The concurrency dimension carried on every verdict, independent of the
  * proceed/relocate/refuse axis: the classified surface of the targeted write
- * (`null` when the check is path-agnostic) and the errand slug when the write
- * originates from a `chore/<slug>` branch (`null` otherwise).
+ * (`null` when the check is path-agnostic).
  */
 interface WriteContextDimensions {
   /** Classified surface of the target path, or `null` when none was supplied. */
   pathSurface: PathSurface | null;
-  /** Errand slug when the current branch is `chore/<slug>`, else `null`. */
-  errandSlug: string | null;
 }
 
 /**
@@ -125,9 +121,8 @@ export function classifyPathSurface(path: string): PathSurface {
 /**
  * Classify a write context from resolved git facts. Keyed on **write context**
  * (current branch vs. base), not on the absence of an active work unit — so a
- * base-branch invocation proceeds even mid-WU. The path-surface and errand-slug
- * dimensions are computed independently of the branch-context axis and ride on
- * every verdict.
+ * base-branch invocation proceeds even mid-WU. The path-surface dimension is
+ * computed independently of the branch-context axis and rides on every verdict.
  *
  * @param input - Resolved current branch, base branch, primary worktree path,
  *   and the optional target path.
@@ -137,7 +132,6 @@ export function classifyWriteContext(input: WriteContextInput): WriteContext {
   const { currentBranch, baseBranch, primaryWorktreePath, targetPath } = input;
   const dimensions: WriteContextDimensions = {
     pathSurface: targetPath != null ? classifyPathSurface(targetPath) : null,
-    errandSlug: errandSlugOf(currentBranch),
   };
   if (currentBranch === null) {
     return { ...dimensions, verdict: "refuse", reason: "detached-head", currentBranch: null, baseBranch, primaryWorktreePath };

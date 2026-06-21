@@ -3,7 +3,7 @@
  * a developer's `USER-INBOX` and derives whether housekeeping is due.
  *
  * The pure core counts well-formed (`parse.ok`) entries across the inbox's
- * `## Atomic` and `## Backlog` sections, so session-init can offer housekeep
+ * `## Errand` and `## Work Unit` sections, so session-init can offer housekeep
  * from a machine-resolved count rather than an agent re-scan. "Routable" means
  * a well-formed entry that still needs routing: malformed blocks are skipped
  * (mirroring the staleness sweep skipping entries it cannot age), and so are
@@ -21,7 +21,7 @@ import { parseCrossWuEntries } from "../user-sync/index.js";
 import { managedFlagIsTrue } from "./managed-field.js";
 
 export interface InboxStateResult {
-  /** Count of well-formed (`parse.ok`) entries across `## Atomic` + `## Backlog`. */
+  /** Count of well-formed (`parse.ok`) entries across `## Errand` + `## Work Unit`. */
   routableCount: number;
   /** Whether housekeeping is due — true when at least one entry is routable. */
   housekeepNeeded: boolean;

@@ -249,7 +249,7 @@ archive.cadence: with-integration
 # --- Inbox ---
 
 # Reminder threshold, in whole days, for flagged USER-INBOX captures. A `_Remind:_`-flagged
-# `§ Atomic` entry surfaces a session-init nudge once its capture date is this many days old
+# `§ Errand` entry surfaces a session-init nudge once its capture date is this many days old
 # (floor: never the same day). Conceptually a per-user preference; lives here today, migrating
 # to a per-user config substrate later.
 inbox.remind_after_days: 1

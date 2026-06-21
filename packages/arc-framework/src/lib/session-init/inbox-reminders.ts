@@ -1,5 +1,5 @@
 /**
- * Inbox reminder-flag extractor — surfaces `## Atomic` USER-INBOX entries that
+ * Inbox reminder-flag extractor — surfaces `## Errand` USER-INBOX entries that
  * the session-init nudge should keep in view, with their `_Created:_` aging date.
  *
  * Two managed flags opt an entry in, both written as a backtick-delimited value
@@ -13,7 +13,7 @@
  *
  * Both pair with a tool-stamped `` - _Created:_ `<YYYY-MM-DD>` `` aging anchor
  * (re-stamped to the retain date when an entry is held). The reminder is
- * personal-`USER-INBOX`-only and `## Atomic`-only; `## Backlog` is never nudged.
+ * personal-`USER-INBOX`-only and `## Errand`-only; `## Work Unit` is never nudged.
  *
  * Pure core over the inbox text: it extracts the flagged entries; ageing them
  * against the threshold is the staleness sweep's job.
@@ -24,7 +24,7 @@
 import { parseCrossWuEntries } from "../user-sync/index.js";
 import { managedFieldValue, managedFlagIsTrue } from "./managed-field.js";
 
-/** A flagged Atomic capture surfaced for the reminder nudge. */
+/** A flagged Errand capture surfaced for the reminder nudge. */
 export interface ReminderEntry {
   /** The entry's H3 title — its identifying key. */
   key: string;
@@ -38,12 +38,12 @@ export interface ExtractReminderEntriesOptions {
 }
 
 export interface ReminderEntriesResult {
-  /** The reminder-flagged Atomic entries. */
+  /** The reminder-flagged Errand entries. */
   entries: ReminderEntry[];
 }
 
 /**
- * Extract the reminder-surfaced Atomic entries from inbox content — those
+ * Extract the reminder-surfaced Errand entries from inbox content — those
  * carrying `_Remind:_ \`true\`` (capture-time) or `_Hold:_ \`true\`` (drain-time
  * retain).
  *
@@ -53,7 +53,7 @@ export interface ReminderEntriesResult {
 export function extractReminderEntries(options: ExtractReminderEntriesOptions): ReminderEntriesResult {
   const entries: ReminderEntry[] = [];
   for (const parse of parseCrossWuEntries(options.content, "user-inbox")) {
-    if (!parse.ok || parse.entry.section !== "Atomic") continue;
+    if (!parse.ok || parse.entry.section !== "Errand") continue;
     const raw = parse.entry.raw;
     if (!managedFlagIsTrue(raw, "Remind") && !managedFlagIsTrue(raw, "Hold")) continue;
     entries.push({ key: parse.entry.key, created: managedFieldValue(raw, "Created") ?? "" });

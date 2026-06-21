@@ -22,8 +22,10 @@ export {
   runUserSave,
 } from "./user/save-load.js";
 export {
+  clearErrandPartialPushMarker,
   clearPartialPushMarker,
   readLocalSyncState,
+  recordErrandPartialPushMarker,
   recordPartialPushMarker,
 } from "../lib/user-sync/index.js";
 export {

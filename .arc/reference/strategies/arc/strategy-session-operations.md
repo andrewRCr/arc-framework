@@ -810,7 +810,7 @@ accumulating into noise — the trigger is the commitment that keeps the file ac
 ## USER-INBOX
 
 USER-INBOX.md is the developer's personal capture surface for items to handle later —
-single-step (`## Atomic` section) or multi-step (`## Backlog` section). Gitignored, cross-WU,
+errand-class (`## Errand` section) or spec-worthy (`## Work Unit` section). Gitignored, cross-WU,
 branch-agnostic. Where SESSION-NOTES is a per-WU snapshot (write at handoff, discard at
 integration) and WORKING-MEMORY is eviction-triggered persistent context, USER-INBOX is a
 live-write capture surface — entries land any time, drain at the between-WUs housekeep flow.
@@ -819,14 +819,14 @@ live-write capture surface — entries land any time, drain at the between-WUs h
 
 **Section structure.**
 
-- **`## Atomic`** — single-step entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
+- **`## Errand`** — errand-class entries (H3 + checkbox + bold title + italic-descriptor sub-bullets).
   No `WU_Target`. May carry an optional `_Remind:_` descriptor (see **Reminder flag** below), or — when
   retained at a drain — a `_Hold:_` descriptor (see **Retain flag** below).
-- **`## Backlog`** — multi-step entries that need draft-doc / PRD treatment before scheduling. Each
+- **`## Work Unit`** — spec-worthy entries that need draft-doc / PRD treatment before scheduling. Each
   carries a `WU_Target:` line (`<slug>`, `<slug> (planned|provisional)`, or `TBD`) naming its
   destination stub — existence at drain decides route-vs-create.
 
-**Reminder flag.** A `## Atomic` entry may carry an optional `_Remind:_` descriptor — a low-friction
+**Reminder flag.** A `## Errand` entry may carry an optional `_Remind:_` descriptor — a low-friction
 "don't let me forget" switch set at capture time, named for its effect rather than an urgency reading.
 When set, session-init surfaces the capture as an advisory orientation line after a delay. It renders as
 an italic descriptor bullet like the entry's others, but a *parsed* field marks itself by
@@ -842,7 +842,7 @@ the same field grammar but is never nudged (it has no singular owner). How `arc-
 field and stamps the date lives with that skill; this surface documents the grammar and the behavior.
 
 **Retain flag.** The between-WUs drain normally clears every entry, but a developer may, per entry,
-**retain** a `## Atomic` capture in place rather than route or flush it — to hold it privately until
+**retain** a `## Errand` capture in place rather than route or flush it — to hold it privately until
 vetted, or because they intend to execute it themselves soon. Retention is **never the default and never
 agent-suggested**: it is an explicit per-entry choice at the drain's confirmation gate, set by a managed
 `_Hold:_` field (boolean, default `false`, value backtick-delimited and rendered only when `true`, the
@@ -857,9 +857,9 @@ the retention. The drain therefore closes on **no un-triaged entries**, not nece
 **Lifecycle.** Writes accepted any time (the live-capture role). The drain fires at the
 between-WUs housekeep flow — *not* at the integration ceremony; destinations vary by PM mode:
 
-- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Atomic` items to their
-  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Backlog` items to an
-  existing stub or a new *provisional* stub (there is no shared multi-step inbox). See
+- **`pm.mode: arc-in-git`** — housekeep routes each entry to its home: `§ Errand` items to their
+  target stub or, if homeless, the shared `backlog/ATOMIC-INBOX.md`; `§ Work Unit` items to an
+  existing stub or a new *provisional* stub (there is no shared Work-Unit inbox). See
   `strategy-planning-module.md` § Inbox Family and § Shared-Inbox Write Discipline for operational
   details.
 - **`pm.mode: external`** — entries route to the external tracker per the project's integration

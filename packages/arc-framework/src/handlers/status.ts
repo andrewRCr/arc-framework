@@ -86,6 +86,7 @@ import {
   type ResolvedSettingsResult,
 } from "../lib/config/resolved-settings.js";
 import { createUserIOContext, gitExec } from "../lib/io-context.js";
+import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
@@ -295,6 +296,17 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // fires the other does too; memoizing keeps it a single read. Lazy: a resume
     // session forces neither probe, so the network read never runs there.
     let oraclePromise: Promise<{ entries: InFlightEntry[]; reachable: boolean }> | undefined;
+    // Errand records — the errand-identity oracle, shared by the in-flight
+    // derivation (errand-vs-WU classification) and the errand-state probe
+    // (resume + discovery). Identity-scoped and local, so read once and reused;
+    // empty when no identity resolved (no record ref exists).
+    let errandRecordsPromise: Promise<ErrandRecord[]> | undefined;
+    const getErrandRecords = (): Promise<ErrandRecord[]> => {
+      errandRecordsPromise ??= identity === null
+        ? Promise.resolve([])
+        : listErrandRecords({ exec: gitExec, identity });
+      return errandRecordsPromise;
+    };
     const getOracle = (): Promise<{ entries: InFlightEntry[]; reachable: boolean }> => {
       oraclePromise ??= (async () => {
         const resolved = await resolvedSettingsP;
@@ -306,7 +318,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         // Unreachable: derive nothing rather than a half-resolved view over
         // un-pruned local refs. Consumers surface no candidates / skip discovery.
         if (!reachable) return { entries: [], reachable: false };
-        const entries = await deriveInFlight({ exec: gitExec, branches, identity, teamMode });
+        const records = await getErrandRecords();
+        const errandSlugByBranch = new Map(records.map((record) => [record.branch, record.slug]));
+        const entries = await deriveInFlight({
+          exec: gitExec,
+          branches,
+          identity,
+          teamMode,
+          errandSlugByBranch,
+        });
         return { entries, reachable: true };
       })();
       return oraclePromise;
@@ -392,6 +412,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       errandState: async (input) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
+        // Errand records are the identity oracle for resume + discovery (shared
+        // with the in-flight derivation); empty when no identity resolved.
+        const records = await getErrandRecords();
         let entries: InFlightEntry[] | null = null;
         if (input.includeDiscovery) {
           // Fire the dead-ref prune (hygiene backstop) alongside — not feeding —
@@ -409,6 +432,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           hasBackingMeta: input.hasBackingMeta,
           includeDiscovery: input.includeDiscovery,
           entries,
+          records,
           baseBranch: resolved.settings["branch.base"],
           staleThresholdDays: thresholdDays,
           nudge: await resolveNudgeState(cwd, io, identity, ERRAND_NUDGE_MARKER_RELATIVE),

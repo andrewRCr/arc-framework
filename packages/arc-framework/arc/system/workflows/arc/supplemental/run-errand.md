@@ -1,5 +1,5 @@
 ---
-purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch → Execute → Integrate lifecycle dispatched by arc-session — one review increment, no task list.
+purpose: Execute an out-of-work-unit errand end to end as a re-enterable Launch → Execute → Integrate lifecycle dispatched by arc-session — one atomic concern, single session, no task list.
 audience: agent
 arc:
   methods:
@@ -14,28 +14,28 @@ arc:
 
 # Workflow: Run Errand
 
-Execution body for an **errand** — a single bounded out-of-work-unit concern — entered warm from an active
-session via the `arc-errand` skill, cold via the `arc-session` skill (`--errand`, or adopted from
-session-init's discovery arm), or directly from a [`drain-inbox`][drain-inbox] execution transition when the
-housekeep drain hands off a committed atomic. For what
-distinguishes an errand from a work unit, see [strategy-work-organization § Errand Work Class][errand-class];
-this workflow runs one.
+Execution body for an **errand** — a single **atomic** concern (one indivisible unit of work, bounded to one
+session) — entered warm from an active session via the `arc-errand` skill, cold via `arc-session` (`--errand`, or
+adopted from session-init's discovery arm), or from a [`drain-inbox`][drain-inbox] hand-off. For the
+errand-vs-work-unit boundary, see [§ Errand Work Class][errand-class].
 
-An errand is **one review increment**, so this workflow honors the [Review-Increment Invariant][dev-rules-arc]
-directly and does **not** load `process-task-loop` (there is no task list). Its phases — Launch → Execute →
-Integrate — are **re-enterable**: a paused errand resumes where it left off, and pausing mid-errand is `commit
-WIP + push` — the pushed `chore/<slug>` branch and the originating inbox entry carry continuity, with no
-SESSION-NOTES.
+**Typically one review increment, often one commit** — but neither bounds the character: a determinate sweep may
+land in several commits, and a large one may be reviewed in a bounded few **in-session** passes (an *extended
+errand*), each its own gate. No task list, no `process-task-loop`. The phases — Launch → Execute → Integrate — are
+**re-enterable**: pausing is `commit WIP + push`; a paused errand resumes from its pushed branch and originating
+capture, with no SESSION-NOTES.
 
 ## Launch
 
-Confirm the work is an errand, check for in-flight overlap, and relocate the execution locus to an isolated
-base-derived branch — so the errand never executes from an unrelated work unit's branch.
+Confirm the work is an errand, check for in-flight overlap, and relocate off the launch branch — so the errand
+never executes from an unrelated work unit's branch.
 
-1. **Classify — errand vs. work unit.** Confirm the work is a single bounded concern that fits one review
-   increment. Multi-increment or design-bearing scope is a work unit, not an errand — route it through
-   [`init-work-unit`][init-work-unit] instead. (Scope that *explodes mid-execution* is handled by Execute's
-   promote-to-WU primer.) See [strategy-work-organization § Errand Work Class][errand-class] for the boundary.
+1. **Classify — errand vs. work unit.** Confirm the work is a single **self-evident** concern that fits one
+   session. The work-unit tell is **spec-worthiness**: design worth recording, or a determinate concern large
+   enough to need a durable cross-session plan — route those through [`init-work-unit`][init-work-unit]. A
+   determinate sweep stays an errand however many commits, or in-session passes, it takes. (Scope that *crosses a
+   floor* mid-execution is handled by Execute's promote primer.) See [§ Errand Work Class][errand-class] for the
+   boundary.
 
 2. **Check for foreign overlap — apply [`assess-parallel-fit`][assess-parallel-fit] (overlap read only).** Run the
    overlap check against the paths the errand will touch:
@@ -45,111 +45,103 @@ base-derived branch — so the errand never executes from an unrelated work unit
    ```
 
    It emits `{overlaps, reachable}` — which in-flight work units touch the same paths, across worktrees and
-   machines (via the in-flight oracle), fresher here at execution time than at capture. Apply the method's overlap
-   read to those facts: the rubric and the all-owner gate (foreign-owned → coordinate). An errand has no design
-   stage, so the design-load read does not apply. **Advisory, never a gate:** surface any overlap so you can
-   coordinate or sequence the errand after the other unit integrates, then proceed. If the remote is unreachable
-   the check degrades to local refs and says so.
+   machines, fresher here than at capture. Apply the method's overlap read (the rubric and the all-owner gate:
+   foreign-owned → coordinate); an errand has no design stage, so the design-load read does not apply. **Advisory,
+   never a gate:** surface any overlap, coordinate or sequence after the other unit integrates, then proceed. If
+   the remote is unreachable the check degrades to local refs and says so.
 
-3. **Resolve the base and relocate the locus.** The errand executes from a base-derived locus, never the
-   branch you launched from — launching from any worktree (a work unit's included) is fine; only *executing*
-   there would tangle that branch. Resolve the base branch and primary worktree with the shared write-context
-   resolution — `arc housekeep check --json` exposes the same primitive; read its `baseBranch` and
-   `primaryWorktreePath` (the `verdict` is the housekeep guard's concern, not the errand's). Then relocate per
-   protection mode ([§ Branch Protection Modes][branch-modes]):
+3. **Open the errand locus** — relocate per protection mode ([§ Branch Protection Modes][branch-modes]):
 
-   - **Full protection** — cut `chore/<slug>` off the configured base branch with `arc errand cut <slug>`
-     (idempotent — no-clobber if it already exists). Then occupy it: where worktree spawning is available,
-     spawn an **ephemeral worktree** on the branch so the errand runs isolated from the launching worktree;
-     otherwise switch to it in the primary worktree's base checkout. `<slug>` is branch-safe
-     (lowercase, digits, hyphens) and doubles as the merge key.
-   - **Partial protection** — no branch: target the primary worktree's base checkout directly. The errand
-     lands as a direct base-branch commit (a documented off-work-unit maintenance exception).
-
-   The `chore/<slug>` branch is cut lazily here, not earlier — an errand that never launches leaves no dangling
-   branch.
+   - **Full protection** — `arc errand open <slug>` cuts the errand branch and occupies it in place (`--type
+     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). `<slug>` is branch-safe
+     (lowercase/digits/hyphens) and is the merge key; idempotent — re-running reuses an existing branch.
+   - **Partial protection** — no branch (`open` refuses here): read `arc housekeep check --json` → `baseBranch` /
+     `primaryWorktreePath`, switch to that base checkout, and commit directly to base (a documented off-work-unit
+     maintenance exception).
 
 ## Execute
 
-Do the errand as a **single review increment**, honoring the [Review-Increment Invariant][dev-rules-arc]
-directly.
+Honor the [Review-Increment Invariant][dev-rules-arc]: each review increment's change **accumulates uncommitted**,
+is **reviewed once at its gate**, and is committed only **after** approval — never commit-then-review.
 
-**Scope explosion → promote, don't grow.** If the errand outgrows one review increment — it needs design
-decisions, several increments, or a task list — stop expanding it in place. Promote it to a work unit via
-[`init-work-unit`'s Promote Errand to Work Unit path][promote-errand-to-wu] (mint a `meta-*`, rename
-`chore/<slug>` → `<type>/<name>`, preserve the commits already made), then continue under the work-unit
-lifecycle. The errand's commits carry forward intact.
+**Most errands are one pass.** Make the change, run the project's Tier 1 quality gates on what you touched, gate,
+and commit.
 
-Otherwise, make the change and run the project's Tier 1 quality gates on what you touched.
+**Extended errand (the exception).** A *determinate* concern too large to review in one window may be staged into
+a **bounded few in-session passes** — but only when it crosses **neither floor** (no design to author, no durable
+cross-session plan). Propose the split and get approval first ("this is ~N passes — gate at each?"); then run each
+pass as its own increment, tracked in-session only, never a task list. Staging review for ergonomics is not a
+work-unit signal; needing a *durable plan* is.
 
-- **Extensions** · `#post-task-quality`: If `post-task-quality` appears in the active-extensions list
-  (established at session init), load and execute its `.actions`. Otherwise, skip.
+**Spec-worthy → promote.** If the work crosses a floor mid-execution — it needs design authored, or a durable
+cross-session plan — stop and promote via the [Promote Errand path][promote-errand-to-wu] (`arc errand promote
+<slug> --floor derivation|scale`: rename → meta at the floor's stage → record retired, commits preserved), then
+continue under the work-unit lifecycle.
 
-> [!IMPORTANT]
-> `workflow-interlock`: Stop after the errand change is complete and its quality gates pass. Surface the diff
-> and verification status; await approval before proceeding to Integrate (commit, then PR/merge or direct base
-> commit).
+Run each review increment (one for a typical errand; a few for an extended one):
+
+1. **Build** the change and run Tier 1 quality gates on what you touched.
+
+   - **Extensions** · `#post-task-quality`: If `post-task-quality` is active, run its `.actions`. Otherwise skip.
+
+   > [!IMPORTANT]
+   > `workflow-interlock`: Stop after the change is complete and its gates pass. Surface the diff and verification
+   > status; await approval before committing. For the final increment, approval also releases into Integrate.
+
+2. **Commit** on approval — the change carries a `standalone (...)` context footer (no work unit owns it):
+
+   > [!CAUTION]
+   > `commit-interlock` release — commit as `taskCommit` (the gate above precedes the commit; a determinate
+   > increment that spans several commits releases them together):
+
+   ```text
+   <type>(<scope>): <errand summary>
+
+   Context: standalone (<kind>)
+   ```
+
+   See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
 
 ## Integrate
 
-Land the errand and clean up. The commit carries a `standalone (...)` context footer — no active work unit
-owns it — and the rest of Integrate branches on protection mode.
-
-### Commit
-
-> [!CAUTION]
-> `commit-interlock` release — commit as `taskCommit` (an errand is one review increment, so its commit
-> releases at the increment-approval gate above):
-
-```text
-<type>(<scope>): <errand summary>
-
-Context: standalone (<kind>)
-```
-
-See the [`commit-footer` method][commit-footer] for the `standalone (...)` parenthetical set.
+The errand's commits are made; now ship and clean up. Integrate branches on protection mode.
 
 ### Ship — full protection
 
 1. **Classify the merge lane** by what the errand touched ([§ Auto-Merge Lane][auto-lane]): a code errand is
-   **reviewed-lane** (code always reviewed) and ships 1:1 on its own PR; a pure planning- or doc-grooming
-   errand may be **auto-merge-lane**.
+   **reviewed-lane** and ships on its own PR; a pure planning- or doc-grooming errand may be **auto-merge-lane**.
 
-2. **Push** `chore/<slug>` upstream.
+2. **Push** the errand branch upstream.
 
-   - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-     (established at session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an
-     actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+   - **Extensions** · `#pre-push-review`: If active, run its `.actions` before the push; halt-on-fail surfaces an
+     actionable message, fix-and-retry or explicit-invoke bypasses. Otherwise skip.
 
    > [!CAUTION]
-   > `push-interlock` release — `workflowPush`: `-u origin chore/<slug>`.
+   > `push-interlock` release — `workflowPush`: `-u origin <branch>`.
 
-3. **Open the PR** with a **lean errand body** — `template-pull-request` assumes a work unit, so inline a
-   minimal body instead: a one-line Summary (what the errand does and why), plus a one-line Test Plan only when
-   verification is non-obvious. No Spec / Out-of-Scope / Follow-Up sections — an errand is one concern.
+3. **Open the PR** with a **lean errand body** — `template-pull-request` assumes a work unit, so inline a minimal
+   body: a one-line Summary, plus a one-line Test Plan only when verification is non-obvious. No Spec /
+   Out-of-Scope / Follow-Up sections — an errand is one concern.
 
-   - **Extensions** · `#pre-pr-review`: If `pre-pr-review` appears in the active-extensions list, load and
-     execute its `.actions` before opening the PR. Halt-on-fail surfaces an actionable message; user
-     fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+   - **Extensions** · `#pre-pr-review`: If active, run its `.actions` before opening the PR; halt-on-fail as above.
+     Otherwise skip.
 
    ```bash
-   gh pr create --base <base-branch> --head chore/<slug>
+   gh pr create --base <base-branch> --head <branch>
    ```
 
 > [!IMPORTANT]
 > `integration-interlock`: Stop before arming auto-merge or merging. Surface PR status (checks, required
-> approvals) and the resolved lane; await explicit integration approval before proceeding — never infer merge
-> approval from the increment approval above.
+> approvals) and the resolved lane; await explicit integration approval — never infer it from the increment
+> approval above.
 
 4. Fire the pre-merge review, then land per lane:
 
-   - **Extensions** · `#pre-merge-review`: If `pre-merge-review` appears in the active-extensions list, load
-     and execute its `.actions` before the merge. Halt-on-fail surfaces an actionable message; user
-     fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+   - **Extensions** · `#pre-merge-review`: If active, run its `.actions` before the merge; halt-on-fail as above.
+     Otherwise skip.
 
    **Auto-merge-lane** — resolve `merge.strategy` via the config probe, then arm native auto-merge with the
-   matching merge method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`). Do not parse
-   `arc-config.yml` directly; use `arc config status --json` and read `settings["merge.strategy"]`.
+   matching method (`merge` → `--merge`, `squash` → `--squash`, `rebase` → `--rebase`):
 
    ```bash
    arc config status --json   # read settings["merge.strategy"]
@@ -160,32 +152,22 @@ See the [`commit-footer` method][commit-footer] for the `standalone (...)` paren
 
 ### Ship — partial protection
 
-No branch and no PR: the errand is already a direct base-branch commit, so there is no merge step. The
-base-branch push follows the project's normal base-push discipline.
+No branch and no PR: the errand is already a direct base-branch commit, so there is no merge step. The base push
+follows the project's normal base-push discipline.
 
 ### Complete
 
-On merge (full) or commit (partial), tear down the locus and clear the capture:
+On merge (full) or final commit (partial), close out:
 
-- **Remove the errand locus** (full only) — remove any ephemeral worktree spawned at Launch before deleting the
-  local `chore/<slug>` branch. Do not pass `--delete-branch` to `gh pr merge` while the errand branch is still
-  checked out in an ephemeral worktree; Git refuses to delete a branch that any worktree is using. If the host
-  does not delete the remote PR branch as part of merge, delete the remote branch after merge independently.
-- **Prune the stale remote-tracking ref** (full only) — `git fetch --prune origin` after the merge, so the
-  merged-and-deleted `origin/chore/<slug>` ref doesn't linger and surface as phantom in-flight. Targeted here
-  because the slug is known in-session; session-init's errand sweep carries the broad backstop for errands
-  whose PR merged out-of-session.
-- **Drop the originating `USER-INBOX` entry** — `arc user inbox-remove <slug>` (matched on the entry title in
-  v1; idempotent — a no-op when already gone). This is the single point where that removal is ensured. An errand
-  that started but never completed keeps its entry, so the intent is never lost; session-init's in-flight sweep
-  backstops an abandoned branch.
+- **Full protection** — `arc errand close <slug>` reaps the branch, prunes its tracking ref, removes the record,
+  and drops the slug-matched `USER-INBOX` capture. The reap is containment-safe: if the branch's commits aren't
+  provably preserved (pushed or merged), it **refuses** and keeps the record — push/merge then retry, or `--force`
+  if you've verified it shipped. The remote PR branch is the host's to delete on merge.
+- **Partial protection** — nothing to close; the errand is already a direct base commit.
 
-**Unattended completion (auto-merge lane).** When the merge lands unattended — after the session has moved on or
-ended — these steps do not fire here in-session. They are replayed from base context by the
-[same-session finalize pass][finalize-pass] or, next session, by session-init's in-flight-errand sweep. This
-section stays the authoritative specification of what completion does; the backstops replay it, and every step
-is idempotent — locus removal, ref prune, and the `USER-INBOX` line drop each no-op when their target is already
-gone — so the one-authoritative-point-plus-backstops shape never double-fires.
+**Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed
+from base context by the [finalize pass][finalize-pass] or next session-init's errand sweep — idempotent, so it
+never double-fires.
 
 ---
 

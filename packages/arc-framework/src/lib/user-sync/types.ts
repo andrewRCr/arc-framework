@@ -16,13 +16,13 @@
  *
  * Identity is `(section, key)`: `WORKING-MEMORY` keys on the bold-field header
  * within its single `## Memories` section; `USER-INBOX` keys on the H3 bold
- * title scoped to its `## Atomic` / `## Backlog` section, so the same title
+ * title scoped to its `## Errand` / `## Work Unit` section, so the same title
  * under different sections stays distinct. `raw` is the verbatim entry block —
  * preserved for divergent-body resolution (most-recent note wins) and for
  * lossless reconstruction into the merged file.
  */
 export interface CrossWuEntry {
-  /** Containing H2 heading text — `Memories`, `Atomic`, or `Backlog`. */
+  /** Containing H2 heading text — `Memories`, `Errand`, or `Work Unit`. */
   section: string;
   /** Merge identity within the section — bold-field header (WM) or H3 bold title (UI). */
   key: string;

@@ -3,25 +3,27 @@
  * session's current branch is an in-progress errand to resume rather than a
  * work unit.
  *
- * An errand is execution-only: a `chore/<slug>` branch with no backing meta
- * file (errands carry no meta — their state is derived from branch + PR). When
- * the current branch matches that shape, session-init's resolution arm loads
- * the run-errand workflow instead of the task loop. A `chore/` branch that
- * *does* have a backing meta is a promoted errand → work unit, not a resume.
+ * An errand is execution-only: a nature-typed branch (`fix/` / `refactor/` /
+ * `chore/<slug>`) with no backing meta file, identified by its errand record
+ * rather than its branch prefix (errands carry no meta — their state is derived
+ * from branch + PR). When the current branch matches a record, session-init's
+ * resolution arm loads the run-errand workflow instead of the task loop. A
+ * branch that *does* have a backing meta is a promoted errand → work unit, not a
+ * resume.
  *
- * Pure core: the caller injects the current branch and whether a meta backs it
- * (resolved from the active-meta / roster probes), so this module carries no
- * git or filesystem coupling.
+ * Pure core: the caller injects the current branch, whether a meta backs it
+ * (resolved from the active-meta / roster probes), and the branch→slug index
+ * derived from the errand records, so this module carries no git or filesystem
+ * coupling. Identity is record-only — a branch with no record is not an errand,
+ * whatever its prefix.
  *
  * @module
  */
 
-import { errandSlugOf } from "./errand-branch.js";
-
 export interface ErrandResumeResult {
-  /** True when the current branch is a `chore/` errand with no backing meta. */
+  /** True when the current branch carries an errand record and has no backing meta. */
   resumable: boolean;
-  /** The `<slug>` after `chore/` when resumable; `null` otherwise. */
+  /** The errand `<slug>` when resumable; `null` otherwise. */
   slug: string | null;
 }
 
@@ -30,20 +32,20 @@ export interface DetectErrandResumeOptions {
   currentBranch: string | null;
   /** Whether an active meta file backs the current branch (a promoted errand → WU). */
   hasBackingMeta: boolean;
+  /** Branch→slug index from the errand records — the identity oracle, branch-prefix-agnostic. */
+  slugByBranch: ReadonlyMap<string, string>;
 }
 
 /**
  * Detect whether the current branch is a resumable errand.
  *
- * @param options - The current branch and whether a meta backs it.
- * @returns Whether the branch is a backing-meta-less `chore/` errand, with its slug.
+ * @param options - The current branch, whether a meta backs it, and the record-derived branch→slug index.
+ * @returns Whether the branch is a backing-meta-less errand, with its slug.
  */
 export function detectErrandResume(options: DetectErrandResumeOptions): ErrandResumeResult {
-  const { currentBranch, hasBackingMeta } = options;
-  if (hasBackingMeta) return { resumable: false, slug: null };
+  const { currentBranch, hasBackingMeta, slugByBranch } = options;
+  if (hasBackingMeta || currentBranch === null) return { resumable: false, slug: null };
 
-  const slug = errandSlugOf(currentBranch);
-  if (slug === null) return { resumable: false, slug: null };
-
-  return { resumable: true, slug };
+  const recordSlug = slugByBranch.get(currentBranch);
+  return recordSlug !== undefined ? { resumable: true, slug: recordSlug } : { resumable: false, slug: null };
 }

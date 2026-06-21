@@ -47,17 +47,17 @@ describe("mergeEntries", () => {
   });
 
   it("scopes identity by section so the same key survives in different sections", () => {
-    const recent: CrossWuEntry[] = [{ section: "Atomic", key: "X", raw: "- **X** — recent atomic" }];
+    const recent: CrossWuEntry[] = [{ section: "Errand", key: "X", raw: "- **X** — recent atomic" }];
     const older: CrossWuEntry[] = [
-      { section: "Backlog", key: "X", raw: "- **X** — backlog" },
-      { section: "Atomic", key: "X", raw: "- **X** — stale atomic" },
+      { section: "Work Unit", key: "X", raw: "- **X** — backlog" },
+      { section: "Errand", key: "X", raw: "- **X** — stale atomic" },
     ];
 
     const merged = mergeEntries([recent, older]);
 
     expect(merged).toHaveLength(2);
-    expect(merged.find((e) => e.section === "Atomic")?.raw).toContain("recent atomic");
-    expect(merged.find((e) => e.section === "Backlog")?.raw).toContain("backlog");
+    expect(merged.find((e) => e.section === "Errand")?.raw).toContain("recent atomic");
+    expect(merged.find((e) => e.section === "Work Unit")?.raw).toContain("backlog");
   });
 });
 
@@ -140,7 +140,7 @@ Body.
 describe("parseCrossWuEntries — USER-INBOX", () => {
   const content = `# User Inbox
 
-## Atomic
+## Errand
 
 <!-- ### \`[ ]\` **commented-shape** — shape example, not a real entry -->
 
@@ -153,7 +153,7 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
 
 - malformed atomic entry
 
-## Backlog
+## Work Unit
 
 ### \`[ ]\` **Lead B**
 
@@ -167,13 +167,13 @@ describe("parseCrossWuEntries — USER-INBOX", () => {
     const parsed = parseCrossWuEntries(content, "user-inbox");
     const ok = parsed.flatMap((p) => (p.ok ? [p.entry] : []));
 
-    expect(ok.map((e) => `${e.section}:${e.key}`)).toEqual(["Atomic:Lead A", "Backlog:Lead B"]);
+    expect(ok.map((e) => `${e.section}:${e.key}`)).toEqual(["Errand:Lead A", "Work Unit:Lead B"]);
     expect(ok[0]?.raw).toContain("nested detail line");
   });
 
-  it("preserves a Backlog entry's WU_Target line verbatim in raw", () => {
+  it("preserves a Work Unit entry's WU_Target line verbatim in raw", () => {
     const backlog = parseCrossWuEntries(content, "user-inbox").flatMap((p) =>
-      p.ok && p.entry.section === "Backlog" ? [p.entry] : [],
+      p.ok && p.entry.section === "Work Unit" ? [p.entry] : [],
     );
 
     expect(backlog[0]?.raw).toContain("WU_Target: some-wu (provisional)");
@@ -227,13 +227,13 @@ Older body.
   });
 
   it("folds older USER-INBOX items into their own section, keeping boundaries", () => {
-    const recent = `## Atomic
+    const recent = `## Errand
 
 ### \`[ ]\` **atomic recent**
 
 - recent atomic item
 
-## Backlog
+## Work Unit
 
 ### \`[ ]\` **backlog recent**
 
@@ -241,13 +241,13 @@ Older body.
 
 ---
 `;
-    const older = `## Atomic
+    const older = `## Errand
 
 ### \`[ ]\` **atomic older**
 
 - older atomic item
 
-## Backlog
+## Work Unit
 
 ### \`[ ]\` **backlog older**
 
@@ -257,14 +257,14 @@ Older body.
 `;
     const result = mergeCrossWuFile("USER-INBOX.md", [{ content: recent }, { content: older }]);
 
-    const atomicStart = result.content.indexOf("## Atomic");
-    const backlogStart = result.content.indexOf("## Backlog");
+    const errandStart = result.content.indexOf("## Errand");
+    const workUnitStart = result.content.indexOf("## Work Unit");
     const atomicOlder = result.content.indexOf("**atomic older**");
     const backlogOlder = result.content.indexOf("**backlog older**");
 
-    expect(atomicOlder).toBeGreaterThan(atomicStart);
-    expect(atomicOlder).toBeLessThan(backlogStart);
-    expect(backlogOlder).toBeGreaterThan(backlogStart);
+    expect(atomicOlder).toBeGreaterThan(errandStart);
+    expect(atomicOlder).toBeLessThan(workUnitStart);
+    expect(backlogOlder).toBeGreaterThan(workUnitStart);
   });
 
   it("surfaces malformed entries instead of dropping them", () => {
@@ -341,15 +341,15 @@ describe("appendRemovalTombstones", () => {
 
   it("keys the tombstone to (section, key) so a removal spares the same title elsewhere", () => {
     const uiFile = (atomic: string, backlog: string): string =>
-      `# User Inbox\n\n## Atomic\n\n${atomic}\n\n## Backlog\n\n${backlog}\n\n---\n`;
+      `# User Inbox\n\n## Errand\n\n${atomic}\n\n## Work Unit\n\n${backlog}\n\n---\n`;
     const prior = uiFile("### `[ ]` **Shared**\n\n- atomic body", "### `[ ]` **Shared**\n\n- backlog body");
     const current = uiFile("### `[ ]` **Shared**\n\n- atomic body", "");
 
     const result = appendRemovalTombstones("USER-INBOX.md", current, [{ content: prior }], NOW);
 
     expect(result).toContain("## Removed: Shared");
-    expect(result).toContain("_Section:_ Backlog");
-    expect(result).not.toContain("_Section:_ Atomic");
+    expect(result).toContain("_Section:_ Work Unit");
+    expect(result).not.toContain("_Section:_ Errand");
   });
 
   it("leaves an unknown-shape file unchanged", () => {
@@ -496,13 +496,13 @@ describe("mergeCrossWuFile — byte-identical materialization", () => {
   });
 
   it("folds older USER-INBOX items into their owning sections", () => {
-    const recent = `## Atomic\n\n### \`[ ]\` **atomic recent**\n\n- recent atomic item\n\n## Backlog\n\n### \`[ ]\` **backlog recent**\n\n- recent backlog item\n\n---\n`;
-    const older = `## Atomic\n\n### \`[ ]\` **atomic older**\n\n- older atomic item\n\n## Backlog\n\n### \`[ ]\` **backlog older**\n\n- older backlog item\n\n---\n`;
+    const recent = `## Errand\n\n### \`[ ]\` **atomic recent**\n\n- recent atomic item\n\n## Work Unit\n\n### \`[ ]\` **backlog recent**\n\n- recent backlog item\n\n---\n`;
+    const older = `## Errand\n\n### \`[ ]\` **atomic older**\n\n- older atomic item\n\n## Work Unit\n\n### \`[ ]\` **backlog older**\n\n- older backlog item\n\n---\n`;
 
     const result = mergeCrossWuFile("USER-INBOX.md", [{ content: recent }, { content: older }], NOW);
 
     expect(result.content).toMatchInlineSnapshot(`
-      "## Atomic
+      "## Errand
 
       ### \`[ ]\` **atomic recent**
 
@@ -512,7 +512,7 @@ describe("mergeCrossWuFile — byte-identical materialization", () => {
 
       - older atomic item
 
-      ## Backlog
+      ## Work Unit
 
       ### \`[ ]\` **backlog recent**
 

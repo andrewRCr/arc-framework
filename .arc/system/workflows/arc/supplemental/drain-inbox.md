@@ -67,8 +67,8 @@ classification.
 
 ### 1. Read the inbox
 
-Read `USER-INBOX` in full — both `§ Atomic` (single-step captures) and `§ Backlog` (multi-step captures). These
-are the entries to route; the shared inbox (`ATOMIC-INBOX`) is a _destination_, not a source.
+Read `USER-INBOX` in full — both `§ Errand` (errand-class captures) and `§ Work Unit` (spec-worthy captures).
+These are the entries to route; the shared inbox (`ATOMIC-INBOX`) is a _destination_, not a source.
 
 ### 2. First-pass classification — no writes
 
@@ -79,11 +79,13 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
 - **Verify before routing.** A capture may already be **done or obsolete** — resolved inline by a later commit,
   or by the host WU itself. Confirm against the current tree before proposing a route; a resolved capture is
   _dismissed_ (removed at routing), not routed.
-- **Character** — _atomic_ (single-step) or _multi-step_ (design-bearing or trackable; belongs in a stub).
-- **Scope re-triage.** Capture-time character is intentionally coarse. A `§ Atomic` capture whose real scope is
-  **larger than atomic** — load-bearing infra, multi-file, multi-commit, or carrying a design fork —
-  **reclassifies to a stub** here (existing or new), not to standalone execution. This is the at-drain
-  reclassification [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
+- **Character** — _atomic_ (one indivisible concern, single session — possibly an extended errand) or
+  _multi-step_ (needs durable cross-session decomposition; belongs in a stub).
+- **Scope re-triage.** Capture-time character is intentionally coarse. A `§ Errand` capture whose real scope
+  crosses a wrapper floor — load-bearing infra or a large/intricate surface (scale), or a design worth
+  recording (derivation) — **reclassifies to a stub** here (existing or new), not to standalone execution; a
+  determinate sweep crossing neither floor stays errand-class (atomic, possibly extended), however many
+  passes. This is the at-drain reclassification [DEV-RULES.ARC § Task Execution][dev-rules-arc] promises.
 - **Home** — an **existing** stub (`active/` or `backlog/`), a **new** stub identifiable now, or **none**
   (homeless).
 - **Group by concern.** Multiple homeless multi-step captures that share **one logical concern** consolidate
@@ -148,11 +150,10 @@ write.
 **Write mechanics (protection-mode block).** This is the only mode-dependent step; it defers to
 [§ Cheap-branch path][cheap-branch] / [§ Auto-Merge Lane][auto-lane]:
 
-- **Fully protected** — **relocate first, then write.** Before any routing write, cut the short-lived
-  grooming branch `chore/<slug>` off the configured base branch with `arc errand cut <slug>` (no-clobber),
-  resolving the write target with the same write-context primitive run-errand's Launch relocation uses —
-  `arc housekeep check --json` resolves `baseBranch` +
-  `primaryWorktreePath` (see [run-errand][run-errand] § Launch step 3). The base context the precondition
+- **Fully protected** — **relocate first, then write.** Before any routing write, `arc errand open <slug>`
+  cuts the short-lived grooming branch `chore/<slug>` off the configured base branch and occupies it in place
+  (folding cut→occupy, as [run-errand][run-errand] § Launch step 3 does), so the routing writes never land on
+  the launch branch; idempotent — re-running reuses an existing branch. The base context the precondition
   established is the fork point, not the write target: full protection forbids committing the shared paths to
   the base branch itself. The planning-routing writes (existing-stub edits, new provisional stubs, the
   homeless-atomic flush) are then **one coherent concern** and batch into a **single auto-merge PR** per lane

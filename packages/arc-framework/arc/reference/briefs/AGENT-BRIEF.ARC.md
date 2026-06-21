@@ -26,8 +26,8 @@ DEV-RULES.ARC § Commit Discipline.
 
 Precise meanings — assume the technical sense.
 
-- **Work unit (WU):** Wrapper noun — a bounded chunk of work with one branch, a meta file, and
-  one PR. Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*`
+- **Work unit (WU):** Wrapper noun — a bounded, _spec-worthy_ chunk of work with one branch, a meta file,
+  and one PR. Artifact group: `meta-{name}.md` plus any present `spec-*`, `draft-*`, `tasks-*`, `notes-*`
   companions. Not "any chunk of work".
 - **Class:** A work unit's recorded _weight_ — `Light` / `Heavy` / `Novel` (`[TBD]` until resolved). `Heavy`
   when _either_ intrinsic axis runs high: derivation (a real design must be authored before work can start) or
@@ -41,9 +41,13 @@ Precise meanings — assume the technical sense.
   group's shared coordination. The work unit is the leaf deliverable. Nesting is path-valued via the `Cohort`
   field, capped at one level — `<cohort>/<subcohort>/<wu>`. When an active WU names a `Cohort`, session-init
   resolves and reads that `cohort-{name}.md`, so the group's shared coordination loads as session context.
-- **Atomic:** Work _character_ — a single logical concern that fits one review increment (typically one
-  commit, even if multi-file). Executed inline within a same-domain WU, or on its own as an Errand. Inboxes
-  route by character, not wrapper presence. Not "atomic" in the concurrency sense.
+- **Errand:** Off-WU wrapper for a single _self-evident_ concern — below the spec-worthiness floor (no design
+  worth recording, no durable plan a correct execution must navigate). Always **atomic** (below); no meta or
+  lifecycle — state derives from its branch + PR.
+- **atomic:** Work _character_ — one _indivisible_ concern in a single session, no stage needing _durable_
+  (cross-session) decomposition. _Typically_ one review increment, but pass- and commit-count are incidental:
+  a _determinate_ concern may run a bounded few _in-session_ passes (an _extended errand_) and stay atomic. A
+  descriptor, not a wrapper; inboxes route by _fate_ (Errand vs WU), not character. Not the concurrency sense.
 - **Interlock:** Configurable control point gating an action — fires automatically, on user approval, or
   only on explicit invocation, per type and config. Always-stop: `task-`, `workflow-`, `integration-`.
   Configurable: `commit-`, `push-`.

@@ -1,8 +1,10 @@
 /**
- * Unit tests for the session-init errand-state composer — now oracle-backed: it
- * classifies the oracle's in-flight errand entries (enriched with merged + age)
- * and selects the remote-only ones as materialize candidates, while resume and
- * nudge stay independent of discovery.
+ * Unit tests for the session-init errand-state composer — oracle-backed for
+ * presence/merge/age and record-backed for identity: it resolves each errand's
+ * slug from the injected records (a branch→slug index), classifies the oracle's
+ * in-flight errand entries, and selects the remote-only ones as materialize
+ * candidates, while resume and nudge stay independent of discovery. A record-less
+ * legacy branch degrades to its branch-derived slug.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -14,6 +16,7 @@ import type {
   InFlightErrand,
   InFlightWorkUnit,
 } from "../../../src/lib/git/in-flight-derivation.js";
+import type { ErrandRecord } from "../../../src/lib/errand/record.js";
 
 const NOW = "2026-06-01T12:00:00.000Z";
 const TODAY = "2026-06-01";
@@ -46,6 +49,16 @@ const wu = (over: Partial<InFlightWorkUnit> = {}): InFlightWorkUnit => ({
   ...over,
 });
 
+const record = (over: Partial<ErrandRecord> = {}): ErrandRecord => ({
+  version: 1,
+  slug: "fix-typo",
+  origin: "description",
+  intent: "fix the typo",
+  branch: "chore/fix-typo",
+  createdAt: "2026-06-01T09:00:00.000Z",
+  ...over,
+});
+
 /**
  * Git mock: `for-each-ref` returns the supplied ref/committerdate lines;
  * `merge-base --is-ancestor <ref> <target>` succeeds (merged) when the ref is in
@@ -68,7 +81,30 @@ function buildExec(options: { refs?: string; merged?: readonly string[] } = {}):
 }
 
 describe("runErrandState", () => {
-  it("detects a resumable chore branch without running discovery", async () => {
+  it("resolves a resumable current branch from its record, without running discovery", async () => {
+    const exec = buildExec();
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "refactor/extract-helper",
+      hasBackingMeta: false,
+      includeDiscovery: false,
+      entries: null,
+      records: [record({ slug: "extract-helper", branch: "refactor/extract-helper" })],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(false),
+      now: NOW,
+    });
+
+    expect(result.resume).toEqual({ resumable: true, slug: "extract-helper" });
+    expect(result.inFlight.errands).toEqual([]);
+    expect(result.materializable.candidates).toEqual([]);
+    expect(result.nudge).toEqual(nudge(false));
+    expect(exec).not.toHaveBeenCalled();
+  });
+
+  it("does not flag a record-less current branch as resumable (identity is record-only)", async () => {
     const exec = buildExec();
 
     const result = await runErrandState({
@@ -77,26 +113,25 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: false,
       entries: null,
+      records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
       now: NOW,
     });
 
-    expect(result.resume).toEqual({ resumable: true, slug: "fix-typo" });
-    expect(result.inFlight.errands).toEqual([]);
-    expect(result.materializable.candidates).toEqual([]);
-    expect(result.nudge).toEqual(nudge(false));
+    expect(result.resume).toEqual({ resumable: false, slug: null });
     expect(exec).not.toHaveBeenCalled();
   });
 
-  it("reports a meta-backed current chore branch as not resumable (a promoted errand → WU)", async () => {
+  it("reports a meta-backed current branch as not resumable (a promoted errand → WU)", async () => {
     const result = await runErrandState({
       exec: buildExec(),
       currentBranch: "chore/promoted",
       hasBackingMeta: true,
       includeDiscovery: false,
       entries: null,
+      records: [record({ slug: "promoted", branch: "chore/promoted" })],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(false),
@@ -131,6 +166,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries,
+      records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -144,6 +180,35 @@ describe("runErrandState", () => {
       { slug: "stale", branch: "chore/stale", state: "stale", ageDays: 7 },
     ]);
     expect(result.nudge).toEqual(nudge());
+  });
+
+  it("takes in-flight and materialize identity from the record, not the entry's branch-derived slug", async () => {
+    const exec = buildExec({
+      refs: [`refs/remotes/origin/fix/typo\t${RECENT}`].join("\n"),
+    });
+
+    // The entry carries a stale branch-derived slug; the record is authoritative.
+    const entries: InFlightEntry[] = [errand({ slug: "branch-derived", branch: "fix/typo" })];
+
+    const result = await runErrandState({
+      exec,
+      currentBranch: "main",
+      hasBackingMeta: false,
+      includeDiscovery: true,
+      entries,
+      records: [record({ slug: "record-slug", branch: "fix/typo" })],
+      baseBranch: "main",
+      staleThresholdDays: 1,
+      nudge: nudge(),
+      now: NOW,
+    });
+
+    expect(result.inFlight.errands).toEqual([
+      { slug: "record-slug", branch: "fix/typo", state: "in-progress", ageDays: 0 },
+    ]);
+    expect(result.materializable.candidates).toEqual([
+      { slug: "record-slug", branch: "fix/typo" },
+    ]);
   });
 
   it("selects remote-only errand entries as materialize candidates (work units excluded)", async () => {
@@ -166,6 +231,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries,
+      records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -186,6 +252,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: null,
+      records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),
@@ -209,6 +276,7 @@ describe("runErrandState", () => {
       hasBackingMeta: false,
       includeDiscovery: true,
       entries: [wu()],
+      records: [],
       baseBranch: "main",
       staleThresholdDays: 1,
       nudge: nudge(),

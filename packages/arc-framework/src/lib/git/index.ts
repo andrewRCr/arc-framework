@@ -16,6 +16,7 @@ export {
   type ExecResult,
   type GitConfigScope,
   type GitExec,
+  type GitExecInput,
   type GitExecOptions,
   type MergeResult,
 } from "./exec.js";

@@ -34,6 +34,15 @@ export type GitExec = (
 ) => Promise<ExecResult>;
 
 /**
+ * A git invocation that pipes `input` to the subprocess stdin and resolves with
+ * its stdout. The stdin-fed counterpart to {@link GitExec}, for plumbing that
+ * reads its payload from stdin (`hash-object --stdin`, `mktree`) — which
+ * `execFile`-based {@link GitExec} cannot provide. Production wires a
+ * spawn-backed implementation, mirroring the user-notes note writer.
+ */
+export type GitExecInput = (args: string[], input: string) => Promise<string>;
+
+/**
  * Checks whether git is available on PATH.
  *
  * @param exec - Injectable command executor

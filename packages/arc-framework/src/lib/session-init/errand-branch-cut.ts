@@ -15,7 +15,7 @@
  */
 
 import type { GitExec } from "../git/exec.js";
-import { ERRAND_BRANCH_PREFIX } from "./errand-branch.js";
+import { DEFAULT_ERRAND_BRANCH_TYPE, type ErrandBranchType } from "../errand/branch-type.js";
 
 /** Dependencies for {@link cutErrandBranch}. */
 export interface CutErrandBranchContext {
@@ -25,10 +25,12 @@ export interface CutErrandBranchContext {
 
 /** Operands for {@link cutErrandBranch}. */
 export interface CutErrandBranchParams {
-  /** The errand slug — its logical identity; `chore/<slug>` is the projection. */
+  /** The errand slug — its logical identity; `<type>/<slug>` is the projection. */
   slug: string;
   /** The base branch the errand forks from (a resolved `branch.base`). */
   base: string;
+  /** Branch nature-type prefixing the slug; defaults to `chore`. */
+  type?: ErrandBranchType;
 }
 
 /** Outcome of an errand branch-cut. */
@@ -45,11 +47,11 @@ export interface CutErrandBranchResult {
  * No-clobber: an already-existing branch of that name is left untouched and
  * reported as `created: false` — a force-create would move the ref and drop the
  * commits already on it. The slug is consumed verbatim as logical identity;
- * `chore/<slug>` is derived from it via {@link ERRAND_BRANCH_PREFIX}, never the
- * reverse.
+ * `<type>/<slug>` is derived from it (the nature-type defaulting to `chore`),
+ * never the reverse.
  *
  * @param ctx - Injected git seam.
- * @param params - The errand slug and the base to fork from.
+ * @param params - The errand slug, the base to fork from, and the nature-type.
  * @returns The resolved branch name and whether this call created it.
  */
 export async function cutErrandBranch(
@@ -58,7 +60,7 @@ export async function cutErrandBranch(
 ): Promise<CutErrandBranchResult> {
   const slug = params.slug.trim();
   if (slug === "") throw new Error("cutErrandBranch: slug must be non-empty");
-  const branch = `${ERRAND_BRANCH_PREFIX}${slug}`;
+  const branch = `${params.type ?? DEFAULT_ERRAND_BRANCH_TYPE}/${slug}`;
 
   if (await branchExists(ctx.exec, branch)) return { branch, created: false };
 

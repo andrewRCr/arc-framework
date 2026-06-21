@@ -4,7 +4,7 @@
  * when the entry is absent), and targeted (a single entry excised, sibling
  * entries and the rest of the file byte-stable — never a parse-and-re-render).
  * The writer mirrors the parser's view of an entry: an H3 managed-entry block
- * within `## Atomic` / `## Backlog`, where the section runs to the next `## `
+ * within `## Errand` / `## Work Unit`, where the section runs to the next `## `
  * heading or `---` rule.
  */
 
@@ -12,12 +12,12 @@ import { describe, it, expect } from "vitest";
 
 import { removeInboxEntry } from "../../src/lib/user-sync/index.js";
 
-/** A realistic inbox: two `## Atomic` entries, one `## Backlog` entry, a trailing tombstone. */
+/** A realistic inbox: two `## Errand` entries, one `## Work Unit` entry, a trailing tombstone. */
 const INBOX = `# User Inbox
 
 > _Personal capture surface for items to handle later._
 
-## Atomic
+## Errand
 
 > _Single-step captures._
 
@@ -29,7 +29,7 @@ const INBOX = `# User Inbox
 
 - _Observation:_ second.
 
-## Backlog
+## Work Unit
 
 > _Multi-step captures._
 
@@ -56,7 +56,7 @@ describe("removeInboxEntry", () => {
 
 > _Personal capture surface for items to handle later._
 
-## Atomic
+## Errand
 
 > _Single-step captures._
 
@@ -64,7 +64,7 @@ describe("removeInboxEntry", () => {
 
 - _Observation:_ first.
 
-## Backlog
+## Work Unit
 
 > _Multi-step captures._
 
@@ -87,7 +87,7 @@ describe("removeInboxEntry", () => {
     const result = removeInboxEntry(INBOX, "First atomic");
 
     expect(result.removed).toBe(true);
-    expect(result.content).toContain(`## Atomic
+    expect(result.content).toContain(`## Errand
 
 > _Single-step captures._
 
@@ -100,7 +100,7 @@ describe("removeInboxEntry", () => {
     const result = removeInboxEntry(INBOX, "A backlog item");
 
     expect(result.removed).toBe(true);
-    expect(result.content).toContain(`## Backlog
+    expect(result.content).toContain(`## Work Unit
 
 > _Multi-step captures._
 
@@ -119,7 +119,7 @@ describe("removeInboxEntry", () => {
   it("leaves the rest of the file — other section, tombstones — untouched", () => {
     const result = removeInboxEntry(INBOX, "First atomic");
 
-    // The Backlog entry and the tombstone block survive verbatim.
+    // The Work Unit entry and the tombstone block survive verbatim.
     expect(result.content).toContain(`### \`[ ]\` **A backlog item**
 
 - WU_Target: foo
@@ -139,7 +139,7 @@ describe("removeInboxEntry", () => {
   });
 
   it("matches a title carrying backticks and punctuation verbatim", () => {
-    const content = `## Atomic
+    const content = `## Errand
 
 ### \`[ ]\` **\`assess-spec-readiness\` — codify the check (draft/spec asymmetry)**
 
@@ -162,7 +162,7 @@ describe("removeInboxEntry", () => {
   it("does not remove an H3 that falls outside an entry section (below a rule)", () => {
     // A non-canonical `---` between entries ends the section for the reader, so
     // the entry beneath it is out of view — the writer mirrors that and no-ops.
-    const content = `## Backlog
+    const content = `## Work Unit
 
 ### \`[ ]\` **In section**
 

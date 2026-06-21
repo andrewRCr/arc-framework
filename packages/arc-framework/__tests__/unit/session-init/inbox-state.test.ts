@@ -15,15 +15,15 @@ const backlogEntry = (title: string): string =>
   ["### `[ ]` **" + title + "**", "", "- A routable backlog capture.", ""].join("\n");
 
 describe("runInboxState", () => {
-  it("counts well-formed entries across the Atomic and Backlog sections", () => {
+  it("counts well-formed entries across the Errand and Work Unit sections", () => {
     const content = [
       "# User Inbox",
       "",
-      "## Atomic",
+      "## Errand",
       "",
       atomicEntry("first atomic"),
       atomicEntry("second atomic"),
-      "## Backlog",
+      "## Work Unit",
       "",
       backlogEntry("a backlog item"),
     ].join("\n");
@@ -32,13 +32,13 @@ describe("runInboxState", () => {
   });
 
   it("sets housekeepNeeded when at least one entry is routable", () => {
-    const content = ["## Atomic", "", atomicEntry("only entry"), "## Backlog", ""].join("\n");
+    const content = ["## Errand", "", atomicEntry("only entry"), "## Work Unit", ""].join("\n");
 
     expect(runInboxState({ content }).housekeepNeeded).toBe(true);
   });
 
   it("reports an empty inbox as zero count with housekeepNeeded false", () => {
-    const content = ["# User Inbox", "", "## Atomic", "", "## Backlog", ""].join("\n");
+    const content = ["# User Inbox", "", "## Errand", "", "## Work Unit", ""].join("\n");
 
     expect(runInboxState({ content })).toEqual({ routableCount: 0, housekeepNeeded: false });
   });
@@ -49,14 +49,14 @@ describe("runInboxState", () => {
 
   it("does not count malformed entries (H3 with no bold title)", () => {
     const content = [
-      "## Atomic",
+      "## Errand",
       "",
       atomicEntry("well-formed"),
       "### just a heading with no bold title",
       "",
       "- orphaned descriptor",
       "",
-      "## Backlog",
+      "## Work Unit",
       "",
     ].join("\n");
 
@@ -68,7 +68,7 @@ describe("runInboxState", () => {
       ["### `[ ]` **" + title + "**", "", "- _Hold:_ `true`", "- _Created:_ `2026-06-01`", "- A retained capture.", ""].join(
         "\n",
       );
-    const content = ["## Atomic", "", atomicEntry("pending atomic"), heldEntry("retained atomic"), "## Backlog", ""].join(
+    const content = ["## Errand", "", atomicEntry("pending atomic"), heldEntry("retained atomic"), "## Work Unit", ""].join(
       "\n",
     );
 
@@ -77,10 +77,10 @@ describe("runInboxState", () => {
 
   it("reports housekeepNeeded false when the only entry is held", () => {
     const content = [
-      "## Atomic",
+      "## Errand",
       "",
       ["### `[ ]` **only held**", "", "- _Hold:_ `true`", "- _Created:_ `2026-06-01`", "- Retained.", ""].join("\n"),
-      "## Backlog",
+      "## Work Unit",
       "",
     ].join("\n");
 

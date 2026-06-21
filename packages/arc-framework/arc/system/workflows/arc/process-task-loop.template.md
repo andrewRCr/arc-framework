@@ -284,7 +284,7 @@ atomic-vs-multi-step call, capture routing, and where captures drain.
 
 ### Atomic Task Completion
 
-When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBOX § Atomic`), follow this protocol:
+When you complete an atomic task in a shared inbox (`ATOMIC-INBOX` or `USER-INBOX § Errand`), follow this protocol:
 
 1. **Mark `[x]`** and update the description — trim planning scaffolding (problem statement,
    research steps, options to evaluate) to outcomes (what was done, key decisions, files changed).

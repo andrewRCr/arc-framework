@@ -40,12 +40,21 @@ import {
   loadRecipe,
   makeIOContext,
   makeUserIO,
+  makeGitExec,
+  makeGitExecInput,
   getArcTemplatePath,
   getInternalTemplatePath,
 } from "../helpers/integration.js";
 import { runInit } from "../../src/commands/init.js";
 import { handleSync } from "../../src/handlers/sync.js";
 import { runUserPull, runUserSessionInitStatus } from "../../src/commands/user.js";
+import {
+  writeErrandRecord,
+  reconcileErrandPush,
+  errandsRef,
+  type ErrandRecord,
+  type ErrandRecordIO,
+} from "../../src/lib/errand/index.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -53,6 +62,7 @@ interface SyncEnvelope {
   cell: string;
   worktree: { action: string; result: string; detail?: string };
   notes: { action: string; result: string; detail?: string };
+  errand?: { action: string; result: string; detail?: string };
   exitCode: number;
 }
 
@@ -308,4 +318,127 @@ describe("user-notes paired-push cross-clone regression", () => {
       }
     },
   );
+});
+
+describe("errand-ref cross-clone sync regression", () => {
+  function errandRecord(slug: string): ErrandRecord {
+    return {
+      version: 1,
+      slug,
+      origin: "description",
+      intent: `do ${slug}`,
+      branch: `chore/${slug}`,
+      createdAt: "2026-06-19T12:00:00.000Z",
+    };
+  }
+
+  function errandIo(dir: string, identity: string): ErrandRecordIO {
+    return { exec: makeGitExec(dir), execInput: makeGitExecInput(dir), identity };
+  }
+
+  it("arc sync reconciles the errand ref: fetches the remote, tree-merges, and pushes", async () => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const identity = "test-user";
+    const ref = errandsRef(identity);
+
+    try {
+      const recipe = await loadRecipe();
+      const templateDir = getArcTemplatePath();
+      const internalTemplateDir = getInternalTemplatePath();
+      for (const dir of [harness.cloneA, harness.cloneB]) {
+        await runInit({
+          cwd: dir,
+          io: makeIOContext(dir),
+          templateDir,
+          internalTemplateDir,
+          recipe,
+          prompts: DEFAULT_PROMPTS,
+          identityResult: identity,
+        });
+      }
+
+      // Clone B creates an errand and pushes it — origin's errand ref now holds `from-b`.
+      const ioB = errandIo(harness.cloneB, identity);
+      await writeErrandRecord(ioB, errandRecord("from-b"));
+      expect((await reconcileErrandPush(ioB)).kind).toBe("pushed");
+
+      // Clone A creates a divergent errand. `arc sync` must fetch B's ref, union
+      // the trees, and push — clone A never had `from-b`, so its push is a real
+      // non-fast-forward the cross-cutting errand leg reconciles.
+      const ioA = errandIo(harness.cloneA, identity);
+      await writeErrandRecord(ioA, errandRecord("from-a"));
+
+      let envelope: SyncEnvelope;
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+      process.chdir(harness.cloneA);
+      try {
+        await handleSync({ json: true, yes: true });
+      } finally {
+        const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+        stdoutWrite.mockRestore();
+        process.chdir(originalCwd);
+        envelope = JSON.parse(written) as SyncEnvelope;
+      }
+
+      expect(envelope.errand).toEqual({ action: "reconcile", result: "success" });
+
+      // Origin's errand ref holds both slugs — the union landed remotely.
+      const { stdout: originTree } = await execFileAsync(
+        "git", ["ls-tree", "--name-only", ref], { cwd: harness.origin },
+      );
+      expect(originTree.split("\n").map((s) => s.trim()).filter(Boolean).sort()).toEqual([
+        "from-a",
+        "from-b",
+      ]);
+    } finally {
+      await harness.cleanup();
+    }
+  });
+
+  it("degrades gracefully and records the errand marker when the remote is unavailable", async () => {
+    const harness = await setupMultiClone();
+    const originalCwd = process.cwd();
+    const identity = "test-user";
+
+    try {
+      await runInit({
+        cwd: harness.cloneA,
+        io: makeIOContext(harness.cloneA),
+        templateDir: getArcTemplatePath(),
+        internalTemplateDir: getInternalTemplatePath(),
+        recipe: await loadRecipe(),
+        prompts: DEFAULT_PROMPTS,
+        identityResult: identity,
+      });
+
+      // Drop the remote so the errand push has nowhere to land, and seed a local errand ref.
+      await execFileAsync("git", ["remote", "remove", "origin"], { cwd: harness.cloneA });
+      await writeErrandRecord(errandIo(harness.cloneA, identity), errandRecord("orphaned"));
+
+      let envelope: SyncEnvelope;
+      const stdoutWrite = vi.spyOn(process.stdout, "write").mockReturnValue(true);
+      process.chdir(harness.cloneA);
+      try {
+        await handleSync({ json: true, yes: true });
+      } finally {
+        const written = stdoutWrite.mock.calls.map((call) => String(call[0])).join("");
+        stdoutWrite.mockRestore();
+        process.chdir(originalCwd);
+        envelope = JSON.parse(written) as SyncEnvelope;
+      }
+
+      // The reconcile surfaces failure without throwing, and leaves a recovery marker.
+      expect(envelope.errand?.result).toBe("failed");
+      const syncState = JSON.parse(
+        await readFile(
+          join(harness.cloneA, ".arc", "user", identity, ".internal", ".sync-state.json"),
+          "utf-8",
+        ),
+      ) as { partialPushErrand?: unknown };
+      expect(syncState.partialPushErrand).toBeDefined();
+    } finally {
+      await harness.cleanup();
+    }
+  });
 });

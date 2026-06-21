@@ -61,9 +61,11 @@ export {
 } from "./orphan-classification.js";
 
 export {
+  clearErrandPartialPushMarker,
   clearPartialPushMarker,
   getUserInternalDir,
   readLocalSyncState,
+  recordErrandPartialPushMarker,
   recordPartialPushMarker,
   writeLocalSyncState,
   type LocalSyncState,

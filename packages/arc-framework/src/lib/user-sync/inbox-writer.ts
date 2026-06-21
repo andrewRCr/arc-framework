@@ -8,7 +8,7 @@
  * **targeted** — a single entry block is excised and the rest of the file stays
  * byte-stable, so it maps to a future inbox-as-event-log drain *event* rather
  * than a whole-file re-render. The writer mirrors the parser's view of an entry:
- * an H3 managed-entry within `## Atomic` / `## Backlog`, where the section runs
+ * an H3 managed-entry within `## Errand` / `## Work Unit`, where the section runs
  * to the next `## ` heading or `---` rule. An H3 beyond that boundary is out of
  * the reader's view, so the writer leaves it untouched too.
  *
@@ -18,7 +18,7 @@
 import { matchInboxEntryTitle } from "./parser.js";
 
 /** Sections whose H3 children are routable inbox entries. */
-const ENTRY_SECTIONS = ["Atomic", "Backlog"];
+const ENTRY_SECTIONS = ["Errand", "Work Unit"];
 
 /** Outcome of a targeted removal. */
 export interface RemoveInboxEntryResult {
@@ -42,7 +42,7 @@ function isEntryHeading(line: string): boolean {
 /**
  * Remove the title-matched H3 entry from a `USER-INBOX` file.
  *
- * Scans the `## Atomic` and `## Backlog` sections for the first entry whose bold
+ * Scans the `## Errand` and `## Work Unit` sections for the first entry whose bold
  * title equals `title` (whitespace-trimmed on both sides), then excises that
  * block — its heading through the blank lines before the next entry or the
  * section boundary. Siblings and every other line stay byte-identical. When no

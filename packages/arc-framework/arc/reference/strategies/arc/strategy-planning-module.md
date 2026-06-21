@@ -31,12 +31,12 @@ work without these artifacts.
 Three capture surfaces plus a generated sequencing view, distinguished by **ownership** (personal
 vs. project-shared) and **work character** (atomic vs. multi-step):
 
-| Artifact                              | Location           | Scope                | Purpose                                                |
-|---------------------------------------|--------------------|----------------------|--------------------------------------------------------|
-| `USER-INBOX.md`                       | `user/{identity}/` | Personal, gitignored | Live capture; `## Atomic` and `## Backlog` sections    |
-| `ATOMIC-INBOX.md`                     | `backlog/`         | Project-shared       | Homeless atomic entries (committed, tracked)           |
-| `{planned,provisional}/<wu-name>/`    | `backlog/`         | Project-shared       | Per-WU subdirs for matured backlog WUs                 |
-| `ROADMAP.md`                          | `backlog/`         | Project-shared       | Generated view — sequencing across committed WUs       |
+| Artifact                           | Location           | Scope                | Purpose                                               |
+|------------------------------------|--------------------|----------------------|-------------------------------------------------------|
+| `USER-INBOX.md`                    | `user/{identity}/` | Personal, gitignored | Live capture; `## Errand` and `## Work Unit` sections |
+| `ATOMIC-INBOX.md`                  | `backlog/`         | Project-shared       | Homeless atomic entries (committed, tracked)          |
+| `{planned,provisional}/<wu-name>/` | `backlog/`         | Project-shared       | Per-WU subdirs for matured backlog WUs                |
+| `ROADMAP.md`                       | `backlog/`         | Project-shared       | Generated view — sequencing across committed WUs      |
 
 Per-WU subdirs always carry `meta-<wu-name>.md` and may carry `plan-<wu-name>.md`,
 `prd-<wu-name>.md`, and other companions when present. Meta-file shape lives in
@@ -58,7 +58,7 @@ The capture surfaces split by **ownership** (personal vs. project-shared) and **
 
 - **Personal** — `user/{identity}/USER-INBOX.md`. Live-capture surface; cross-PM-mode (exists
   outside arc-in-git too). See `strategy-session-operations.md` § USER-INBOX for purpose,
-  lifecycle, and the `## Atomic` / `## Backlog` section semantics.
+  lifecycle, and the `## Errand` / `## Work Unit` section semantics.
 - **Project-shared atomic** — `backlog/ATOMIC-INBOX.md` (below). The *only* shared inbox: multi-step
   work always has a stub home, so there is no shared multi-step surface.
 
@@ -69,7 +69,7 @@ shared atomic inbox.
 
 Committed-tracked queue of *homeless* atomic-character entries — single-step work with no better
 home than the shared surface. The between-WUs housekeep drain *writes* it, flushing homeless
-`USER-INBOX § Atomic` items here; activation and planning-kickoff *read* from it, pulling in items
+`USER-INBOX § Errand` items here; activation and planning-kickoff *read* from it, pulling in items
 whose home turns out to be the WU. Entries execute as-is from inbox at their owning WU; completion
 deletes the entry, and the routing record lives in the deletion commit message plus the absorbing
 artifact. Multi-step work never lands here — it always has a stub home.
@@ -77,7 +77,7 @@ artifact. Multi-step work never lands here — it always has a stub home.
 **Entry shape:** H3 with a `[ ]` checkbox and bold title, followed by italic-descriptor bullets
 — `_Observation:_`, `_Proposed action:_`, `_Scope:_`, `_Branch:_`, `_Captured during:_` (and
 others as the entry warrants). Entries sit under a `## Inbox` H2 wrapper (the H2 layer below the
-file H1). `USER-INBOX` shares the shape but splits into `## Atomic` / `## Backlog` in lieu of
+file H1). `USER-INBOX` shares the shape but splits into `## Errand` / `## Work Unit` in lieu of
 `## Inbox`, and its multi-step entries carry the `WU_Target` grammar — see
 `strategy-session-operations.md` § USER-INBOX. Multi-line bullets within an entry separate with
 blank lines (loose-list per `strategy-task-list-formatting.md` § Blank-Line Discipline).
@@ -103,14 +103,14 @@ Routing depends on three axes: **lifecycle intent** (during this WU vs. for late
 New work item
   ├─ Atomic, during this WU?      → fold into the commit, or spin an Errand
   ├─ Multi-step, during this WU?  → fold into current task list
-  ├─ Atomic, for later?           → USER-INBOX.md § Atomic
-  ├─ Multi-step, for later?       → USER-INBOX.md § Backlog
+  ├─ Atomic, for later?           → USER-INBOX.md § Errand
+  ├─ Multi-step, for later?       → USER-INBOX.md § Work Unit
   └─ Quick (< 5 min)?             → fix immediately
 ```
 
 Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep drain routes them —
-*not* the integration ceremony: § Atomic items route to their home, or flush to
-`backlog/ATOMIC-INBOX.md` if homeless; § Backlog items route to an existing stub, or graduate to a
+*not* the integration ceremony: § Errand items route to their home, or flush to
+`backlog/ATOMIC-INBOX.md` if homeless; § Work Unit items route to an existing stub, or graduate to a
 *provisional* stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
 Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
 ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
@@ -127,8 +127,8 @@ The shared `backlog/ATOMIC-INBOX.md` is **written** at one point and **read** at
 continuously multi-writer-edited:
 
 - **Written by the housekeep drain (between-WUs).** When `USER-INBOX` drains, genuinely homeless
-  `§ Atomic` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives *off* the
-  integration ceremony. (`§ Backlog` items never flush here — multi-step work graduates to a
+  `§ Errand` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives *off* the
+  integration ceremony. (`§ Work Unit` items never flush here — multi-step work graduates to a
   *provisional* stub instead; there is no shared multi-step inbox.)
 - **Read at activation** — a WU pulls in shared-inbox items whose home turns out to be its domain;
   the rest stay put. Absorption *from* `USER-INBOX` is the degenerate case (empty post-housekeep).

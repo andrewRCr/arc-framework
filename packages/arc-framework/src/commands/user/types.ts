@@ -2,6 +2,7 @@ import { isRefusalCondition } from "../../lib/git/index.js";
 import type {
   AccessFn,
   DirEntry,
+  GitExecInput,
   PushabilityCondition,
   SkipWarning,
   WorktreeSyncState,
@@ -17,6 +18,12 @@ export interface UserIOContext extends CoreIO {
   writeNote: (ref: string, content: string, commit: string) => Promise<void>;
   /** Read content from a git note ref on a commit. Returns null if no note. */
   readNote: (ref: string, commit: string) => Promise<string | null>;
+  /**
+   * Stdin-fed git executor for orphan-state-ref (errand) blob/tree plumbing.
+   * Optional — present in production and errand-sync tests; when absent, the
+   * errand-ref reconcile is skipped (the leg is additive).
+   */
+  execInput?: GitExecInput;
 }
 
 /** Result of a user save operation. */

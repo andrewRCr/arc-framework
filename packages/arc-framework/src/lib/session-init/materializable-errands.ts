@@ -30,21 +30,24 @@ export interface MaterializableErrand {
 export interface FindMaterializableErrandsOptions {
   /** Oracle-derived in-flight entries (work units and errands). */
   entries: readonly InFlightEntry[];
+  /** Branch→slug index from the errand records — the identity oracle, branch-prefix-agnostic. */
+  slugByBranch: ReadonlyMap<string, string>;
 }
 
 export interface MaterializableErrandsResult {
-  /** Remote-only `chore/` errands materializable as cross-machine resumes. */
+  /** Remote-only errands materializable as cross-machine resumes. */
   candidates: MaterializableErrand[];
 }
 
 /**
  * Select the materializable errands from the oracle's in-flight entries.
  *
- * An entry qualifies when it is an errand (a `chore/<slug>` branch with no
- * backing meta) in flight only on the remote (no local worktree — not already
- * resumable here). Work units are never errand candidates.
+ * An entry qualifies when it is an errand in flight only on the remote (no
+ * local worktree — not already resumable here). Identity resolves from the
+ * record (the branch→slug index); a record-less legacy branch degrades to its
+ * branch-derived slug. Work units are never errand candidates.
  *
- * @param options - The oracle's in-flight entries.
+ * @param options - The oracle's in-flight entries and the record-derived branch→slug index.
  * @returns The remote-only materializable errands.
  */
 export function findMaterializableErrands(
@@ -54,7 +57,8 @@ export function findMaterializableErrands(
   for (const entry of options.entries) {
     if (entry.kind !== "errand") continue;
     if (!entry.remoteOnly) continue;
-    candidates.push({ slug: entry.slug, branch: entry.branch });
+    const slug = options.slugByBranch.get(entry.branch) ?? entry.slug;
+    candidates.push({ slug, branch: entry.branch });
   }
   return { candidates };
 }

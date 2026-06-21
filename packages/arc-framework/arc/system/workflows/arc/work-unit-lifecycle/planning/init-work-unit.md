@@ -1,5 +1,5 @@
 ---
-purpose: Initialize a work unit on a `plan/<name>` branch, or promote a `chore/<slug>` errand into a work unit.
+purpose: Initialize a work unit on a `plan/<name>` branch, or promote an in-flight errand into a work unit.
 audience: agent
 arc:
   methods:
@@ -15,7 +15,7 @@ Creates a work unit on a `plan/<name>` planning branch with a `meta-{name}.md` f
 from the code field model (`renderMetaFile`). Also carries the promotion path for an in-flight errand that has crossed the
 work-unit threshold after launch.
 
-**When to use:** Starting a new work unit, or promoting a current `chore/<slug>` errand into a tracked work
+**When to use:** Starting a new work unit, or promoting a current in-flight errand into a tracked work
 unit. See [Branch Protection Modes][work-org-protection] for when work-unit ceremony is mandatory vs the
 default path.
 
@@ -33,9 +33,9 @@ activate-work-unit          — Planning → Active; branch plan/<name> → <typ
 integrate-work-unit         — PR, review, merge to main
 ```
 
-Promoted errands already have implementation history on a branch. The promotion path renames
-`chore/<slug>` to `<type>/<name>`, creates the backing meta file, skips `activate-work-unit`, backfills
-spec/tasks as needed, then proceeds to task execution.
+Promoted errands already have implementation history on a branch. The promotion path renames the errand
+branch to `<type>/<name>`, creates the backing meta file, retires the errand record, skips
+`activate-work-unit`, backfills spec/tasks as needed, then proceeds to task execution.
 
 ---
 
@@ -68,13 +68,13 @@ Both modes share the rest of the workflow. Graduating a backlog stub (Step 3) di
 reconciling the graduated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
 already exist, whereas fresh scaffolding mints new ones.
 
-Promoting an errand is a separate entry path: it starts from an existing `chore/<slug>` branch and uses
+Promoting an errand is a separate entry path: it starts from an existing errand branch and uses
 [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path), not the numbered new-WU steps below.
 
 ## Steps
 
-The numbered steps below are the new-work-unit initialization path. For an in-flight errand that has outgrown
-one review increment, jump to [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path).
+The numbered steps below are the new-work-unit initialization path. For an in-flight errand that has become
+spec-worthy, jump to [Promote Errand to Work Unit Path](#promote-errand-to-work-unit-path).
 
 ### 1) Ensure Clean Base Branch
 
@@ -252,59 +252,45 @@ Set upstream for the planning branch.
 
 ## Promote Errand to Work Unit Path
 
-Use this path when [run-errand][run-errand]'s Execute phase discovers that the current full-protection
-`chore/<slug>` errand has crossed the work-unit threshold: more than one review increment, design that needs a
-referenced spec, or tracked/resumable ownership beyond an errand.
+Use this path when [run-errand][run-errand]'s Execute phase finds the current full-protection errand has crossed a
+**wrapper floor** — it is no longer self-evident and single-session. The floor crossed routes the WU's entry stage:
 
-This path promotes an errand already in motion. It does not start errands; cold errands enter through
-`arc-session --errand` and [run-errand][run-errand].
+- **Derivation** — the work now needs **design authored** (requirements, a referenced spec) → enter planning at
+  `draft-design`.
+- **Scale** — a determinate concern that now needs a **durable cross-session plan** (a tracked decomposition
+  outliving the session) → enter `Active` for a `brief` + task-list backfill.
 
-Under partial protection there is no `chore/<slug>` branch to promote. Stop direct base-branch edits, start a
-normal work unit from the base branch, and carry any already-landed errand commit as context in the new WU's
-spec or notes.
+A bounded few in-session review passes alone do **not** cross a floor — that stays an
+[extended errand][errand-class]. When a floor is reached, `arc errand promote` makes promotion one judgment (the
+floor, the name/type) plus deterministic CLI.
+
+It promotes an errand already in motion; it does not start one (cold errands enter via `arc-session --errand`).
+Under **partial** protection there is no errand branch — stop the direct base-branch edits, start a normal work
+unit from the base, and carry any landed errand commit as context in the new WU's spec or notes.
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before promotion. Surface the threshold reason, proposed `{type}/{name}` branch,
-> current `chore/<slug>` branch/upstream state, and originating `USER-INBOX` cleanup plan; await approval before
-> renaming the branch, creating the meta file, pushing, or deleting the old remote branch.
+> `workflow-interlock`: Stop before promotion. Surface the floor crossed and its reason, the proposed
+> `{type}/{name}`, and the originating `USER-INBOX` capture (if any); await approval before running the verb.
 
-1. **Confirm promotion applies** — verify the current branch is `chore/<slug>`, no active meta file already
-   backs it, and the work genuinely crossed the WU threshold. If a meta file already backs the branch, resume it
-   as a work unit instead; do not run errand promotion twice.
-2. **Stabilize errand progress** — inspect `git status`. Do not mix implementation changes into the promotion
-   ceremony commit. If needed, make a standalone errand checkpoint first; otherwise leave implementation changes
-   unstaged while staging only promotion artifacts below.
-3. **Choose the WU identity** — choose `{name}` and `{type}`. `{name}` may match `<slug>` when the errand name
-   still describes the expanded work; rename when the WU thesis is clearer under a different slug. `{type}`
-   follows [`branch-format`][branch-format].
-4. **Rename the branch locally** — preserve the errand commits by renaming the existing branch, not recreating
-   it:
+1. **Identify the crossing.** Confirm the branch is an in-flight errand backed by a record, and name the floor —
+   **derivation** or **scale**. This is the judgment `arc errand promote` cannot make; the rest is deterministic.
+
+2. **Stabilize.** The verb renames the branch, so commit any in-progress errand work as a normal errand checkpoint
+   first; never fold implementation into the promotion.
+
+3. **Promote.** Pick `{name}` (may keep the errand `<slug>`) and `{type}` ([`branch-format`][branch-format]), then
+   run the verb. It renames the branch (commits preserved), mints `meta-{name}.md` at the floor's stage
+   (derivation → `Planning` + `Current Workflow: draft-design`; scale → `Active`), retires the errand record, and
+   prints the interim ROADMAP hand-render advisory. The rename keeps you on the branch under its new name.
 
    ```bash
-   git branch -m chore/<slug> {type}/{name}
+   arc errand promote {slug} --name {name} --type {type} --floor {derivation|scale}
    ```
 
-5. **Create the backing meta file** — create `.arc/active/meta-{name}.md` in the `renderMetaFile` shape
-   (Active state) — the canonical single-source field set `arc start` produces, no template. This promoted WU
-   starts as **Active** because implementation commits already exist and the branch carries its
-   execution-phase prefix. Set:
+   Pass `--priority` / `--class` when known, or resolve `Class` at the planning entry (step 6).
 
-   1. **State** → `Active`
-   2. **Owner** → the resolved `arc.identity`
-   3. **Branch** → the renamed branch (`{type}/{name}`)
-   4. **Current Workflow** → `[none]` (the non-planning sentinel)
-   5. **Last Completed** → `Errand promoted to work unit`
-   6. **Next Action** → backfill the design / task artifacts needed before further implementation
-
-   Then reconcile **Design** → a `spec-{name}.md` filename when one already exists (else `[none]`), and
-   **Task List** → a `tasks-{name}.md` filename when one already exists (else `[none]`). Seed the per-WU
-   user workspace:
-
-   ```bash
-   arc user open {name}
-   ```
-
-   Do not run `activate-work-unit` later for this WU; promotion already performed the branch-side activation.
+4. **Commit the meta; drop the source capture.** The verb wrote `meta-{name}.md` into the working tree without
+   committing. Stage it together with the hand-rendered ROADMAP and commit:
 
    > [!CAUTION]
    > `commit-interlock` release — commit as `workflowCommit`:
@@ -314,42 +300,46 @@ spec or notes.
 
    - Create active meta for promoted work
    - Preserve errand commits on {type}/{name}
-   - Mark promotion complete without an activation ceremony
 
    Context: meta-{name}.md (activation)
    ```
 
-6. **ROADMAP regen · `arc-in-git` only** — hand-maintain the ROADMAP render so the promoted meta file appears
-   in the In Flight tier. This may ride the promotion commit only when the render delta is trivial; otherwise
-   use a dedicated `chore(arc):` `workflowCommit` with `Context: meta-{name}.md (activation)`.
-7. **Push the renamed branch and retire the errand ref** — push the new WU branch before deleting any old
-   remote errand branch. If the old `chore/<slug>` branch has no upstream, skip the delete.
+   When the errand was adopted from a slug-matched `USER-INBOX` entry, drop it now — the intent is a tracked WU:
+   `arc user inbox-remove {slug}` (idempotent; a no-op for a free-description errand).
 
-   - **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list
-     (established at session init), load and execute its `.actions` before the `workflowPush` push.
-     Halt-on-fail surfaces an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwise,
-     skip.
+5. **Push the WU branch; retire the old remote ref.**
+
+   - **Extensions** · `#pre-push-review`: If `pre-push-review` is active, run its `.actions` before the push —
+     halt-on-fail surfaces an actionable message; fix-and-retry or explicit-invoke bypasses. Otherwise skip.
+
+   > [!CAUTION]
+   > `push-interlock` release — `workflowPush`: `-u origin {type}/{name}`.
 
    ```bash
-   git push -u origin {type}/{name}      # workflowPush
-   git push origin --delete chore/<slug> # raw — destructive flag stays literal
+   git push -u origin {type}/{name}
+   git push origin --delete <errand-branch>   # raw — destructive flag stays literal; skip if it had no upstream
    ```
 
-   If the new-branch push fails, keep the local renamed branch and do not delete the old remote ref. Surface that
-   cross-machine resume now depends on retrying the push.
-8. **Clean the source capture and continue** — when the errand was adopted from a slug-matched `USER-INBOX`
-   entry, remove that originating entry after promotion succeeds. If the source is ambiguous, leave it and record
-   the ambiguity in the WU's `Next Action`; do not run broad housekeep here.
+   The errand record was already retired by the verb; if the branch push fails, retry before relying on
+   cross-machine resume.
 
-   Backfill `spec-{name}.md` / `tasks-{name}.md` on the promoted branch as needed. When the task list is accepted,
-   include meta `Design`, `Task List`, and `Next Action` updates in the task-list acceptance commit, then proceed
-   to [process-task-loop][process-task-loop].
+6. **Continue into the routed planning stage** — by the floor crossed. Do **not** run `activate-work-unit`;
+   promotion already performed the branch-side activation. Resolve `Class`
+   ([classify-work-unit][classify-work-unit]) here if it was not supplied at promotion.
+
+   - **Derivation** → the meta points at `draft-design`; work the design out, then [create-spec][create-spec], then
+     [generate-tasks][generate-tasks].
+   - **Scale** → [create-spec][create-spec] for a `brief` anchoring the durable plan, then
+     [generate-tasks][generate-tasks], then [process-task-loop][process-task-loop]. The errand's commits carry
+     forward intact.
 
 ---
 
 [create-spec]: ../../create-spec.md
+[generate-tasks]: ../../generate-tasks.md
 [process-task-loop]: ../../process-task-loop.md
 [run-errand]: ../../supplemental/run-errand.md
+[errand-class]: ../../../../../reference/strategies/arc/strategy-work-organization.md#errand-work-class
 [in-flight-scope-check]: ../in-flight-scope-check.md
 [commit-format]: ../../../../methods/commit-format.md
 [branch-format]: ../../../../methods/branch-format.md
