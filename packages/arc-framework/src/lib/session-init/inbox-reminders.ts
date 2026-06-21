@@ -38,7 +38,7 @@ export interface ExtractReminderEntriesOptions {
 }
 
 export interface ReminderEntriesResult {
-  /** The reminder-flagged Atomic entries. */
+  /** The reminder-flagged Errand entries. */
   entries: ReminderEntry[];
 }
 
