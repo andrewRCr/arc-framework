@@ -622,17 +622,20 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
-    // The started-WU abandon cells gate on `worktree-clean` *before* the artifact
-    // remove leg — the table-level fail-fast that keeps a dirty teardown from
-    // half-applying (artifacts gone, branch/worktree intact when the teardown leg
-    // throws). The branchless PROVISIONAL/PLANNED stubs and the worktree-less
-    // PARKED abandon do not declare it (no worktree to gate).
+    // The started-WU abandon cells remove artifacts in-verb but defer their branch +
+    // worktree teardown **out-of-band** to a post-action `arc teardown --force`, not
+    // an in-verb leg. Firing teardown here tripped the `worktree-clean` guard on the
+    // verb's own staged removal and, in-place, targeted the un-removable primary
+    // worktree — so these edges declare neither the teardown legs nor that guard
+    // (mirroring `park@Planning` / `decompose@planning`). PARKED still deletes its
+    // branch in-verb (no worktree to self-teardown); the backlog stubs remove only
+    // artifacts.
     verb: "abandon",
     from: PLANNING,
     to: null,
     inverse: null,
-    guards: ["confirmation", "worktree-clean"],
-    encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
+    guards: ["confirmation"],
+    encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -641,8 +644,8 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     from: ACTIVE,
     to: null,
     inverse: null,
-    guards: ["confirmation", "worktree-clean"],
-    encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
+    guards: ["confirmation"],
+    encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

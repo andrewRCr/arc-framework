@@ -12,11 +12,13 @@
  *
  * - `provisional` / `planned` — a branchless backlog stub: just remove the
  *   artifact set.
- * - `planning` / `active` — a started WU: also delete the branch (local + remote)
- *   and tear down the worktree (with execution-locus relocation when abandoning
- *   the current WU).
+ * - `planning` / `active` — a started WU: remove the artifact set in-verb; its
+ *   branch + worktree teardown is **out-of-band**, a post-action `arc teardown
+ *   <name> --force` (the in-verb teardown legs tripped the `worktree-clean` guard
+ *   on the verb's own staged removal and, in-place, targeted the un-removable
+ *   primary worktree — see the abandon edges in `lifecycle-transitions`).
  * - `parked` — delete the preserved branch, but tear down no worktree (a parked
- *   WU has none).
+ *   WU has none, so no self-teardown to defer).
  *
  * `integrating` and merged / `shipped` are illegal (the table's marked cells):
  * post-merge backout is a new origin-linked WU (ADR-026 amendment), never a
@@ -70,10 +72,6 @@ export interface AbandonParams {
   name: string;
   /** Explicit destructive-cascade confirmation (`--yes`); absent ⇒ refused. */
   confirmed: boolean | undefined;
-  /** The worktree root to tear down — required for a started (`planning` / `active`) WU. */
-  worktreePath?: string;
-  /** The directory the transition runs from — drives self-teardown locus relocation. */
-  currentLocus?: string;
 }
 
 /** The outcome of an `abandon` attempt — a rejection, or the completed teardown. */
@@ -81,11 +79,11 @@ export type AbandonResult =
   | { status: "rejected"; reason: string }
   | { status: "abandoned"; outcome: TransitionOutcome };
 
-/** Source states whose abandon cascade tears down a branch (started or parked WU). */
-const BRANCH_TEARDOWN: ReadonlySet<LifecycleState> = new Set(["planning", "active", "parked"]);
+/** Started states whose branch + worktree teardown is deferred to a post-action `arc teardown --force`. */
+const STARTED: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
 
-/** Source states whose abandon cascade also tears down a worktree (started WU only). */
-const WORKTREE_TEARDOWN: ReadonlySet<LifecycleState> = new Set(["planning", "active"]);
+/** Source states whose abandon cascade deletes a branch in-verb — only `parked` (no worktree to self-teardown). */
+const IN_VERB_BRANCH_DELETE: ReadonlySet<LifecycleState> = new Set(["parked"]);
 
 /** The destructive-cascade impact preview for an `abandon` — its legality and the cascade lines. */
 export interface AbandonPlan {
@@ -96,38 +94,45 @@ export interface AbandonPlan {
 }
 
 /**
- * Compose the destructive-cascade impact plan for a resolved source state — the
- * teardown legs that will fire, gated on the state's table cell (a backlog stub
- * removes only artifacts; a started WU also tears down its branch and worktree; a
- * parked WU deletes its branch but has no worktree). Pure: the handler resolves the
- * state + branch, prints these lines, and refuses without explicit confirmation.
+ * Compose the destructive-cascade impact plan for a resolved source state, gated on
+ * the state's table cell: a backlog stub removes only artifacts; a started WU
+ * removes artifacts in-verb and defers branch + worktree teardown to a post-action
+ * `arc teardown <name> --force`; a parked WU deletes its branch in-verb but has no
+ * worktree. Pure: the handler resolves the state + branch, prints these lines, and
+ * refuses without explicit confirmation.
  *
  * @param state - The target WU's resolved lifecycle state.
- * @param branch - The WU's branch (for the branch-delete leg), or null when none.
+ * @param branch - The WU's branch (for the parked branch-delete leg), or null when none.
+ * @param name - The WU slug, for the started-state post-action teardown command.
  * @returns The legality verdict and the impact-plan lines (empty when illegal).
  */
-export function planAbandon(state: LifecycleState, branch: string | null): AbandonPlan {
+export function planAbandon(state: LifecycleState, branch: string | null, name: string): AbandonPlan {
   if (!validFromStates("abandon").includes(state)) return { legal: false, lines: [] };
   const lines = ["Artifacts: remove the work unit's artifact set"];
-  if (BRANCH_TEARDOWN.has(state)) lines.push(`Branch:    delete \`${branch ?? "[none]"}\` (local + remote)`);
-  if (WORKTREE_TEARDOWN.has(state)) lines.push("Worktree:  tear down the work unit's worktree");
+  if (STARTED.has(state)) {
+    lines.push(`Teardown:  post-action — \`arc teardown ${name} --force\` (branch + worktree)`);
+  } else if (IN_VERB_BRANCH_DELETE.has(state)) {
+    lines.push(`Branch:    delete \`${branch ?? "[none]"}\` (local + remote)`);
+  }
   lines.push("Workspace: remove the user session workspace");
   lines.push("ROADMAP:   remove its row");
   return { legal: true, lines };
 }
 
 /**
- * Run `abandon`: resolve the source state, compose the per-cell teardown operands,
- * and dispatch the destructive cascade. Rejects without confirmation (the
- * `confirmation` guard), when a started WU lacks its worktree locators, or from an
+ * Run `abandon`: resolve the source state, compose the per-cell operands, and
+ * dispatch the destructive cascade. A started WU's branch + worktree teardown is
+ * **not** fired here — it is deferred to a post-action `arc teardown --force` (see
+ * the abandon edges in `lifecycle-transitions`); only a `parked` WU deletes its
+ * branch in-verb. Rejects without confirmation (the `confirmation` guard) or from an
  * illegal source (the table's lookup — `integrating` / merged / `shipped`).
  *
  * @param ctx - The executor seams plus the artifact-removal fs.
- * @param params - The target WU, the confirmation flag, and the worktree locators.
+ * @param params - The target WU and the confirmation flag.
  * @returns A rejection or the completed teardown outcome.
  */
 export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Promise<AbandonResult> {
-  const { name, confirmed, worktreePath, currentLocus } = params;
+  const { name, confirmed } = params;
   const { executor, fs } = ctx;
 
   const index = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
@@ -136,18 +141,9 @@ export async function runAbandon(ctx: AbandonContext, params: AbandonParams): Pr
 
   const inputs: TransitionInputs = { confirmed };
 
-  if (BRANCH_TEARDOWN.has(state) && entry !== undefined) {
+  if (IN_VERB_BRANCH_DELETE.has(state) && entry !== undefined) {
     const record = await readMeta(executor, entry.path);
     inputs.branchOp = { mutation: "delete", branch: record.Branch ?? "[none]" };
-  }
-  if (WORKTREE_TEARDOWN.has(state)) {
-    if (worktreePath === undefined || currentLocus === undefined) {
-      return {
-        status: "rejected",
-        reason: `\`abandon\` of a started WU needs its worktree path and current locus to tear down.`,
-      };
-    }
-    inputs.worktreeOp = { mutation: "teardown", worktreePath, currentLocus };
   }
 
   const scaffoldOrRemove = buildRemoveRunner(executor.cwd, fs);

@@ -76,18 +76,24 @@ function deriveExpectedMutators(
   // A move into `completed/` is the merge-gated `archive` ship: its relocation
   // rides the PR, so the Branch *field* clears logically here (`clearBranchField`)
   // while physical branch/worktree teardown is deferred to post-merge cleanup,
-  // outside the transition table. Every other branchless target (`park@Planning`,
-  // `abandon`) is local, so it reconciles the branch + worktree in place below.
+  // outside the transition table. The other out-of-band exits (`decompose`,
+  // `park@Planning`, the started-WU `abandon` cells) defer their teardown too —
+  // handled in the branch below; every remaining branchless target reconciles in place.
   if (et?.dirTier === "completed") {
     spec.clearBranchField = true;
-  } else if (verb === "decompose" || (verb === "park" && from?.phase === "Planning")) {
-    // `decompose` (any position) and `park@Planning` retire / relocate the origin's
-    // artifacts in-verb but defer the started origin's branch + worktree teardown
-    // out-of-band (post-action `arc teardown --force`), so their edges declare
-    // neither leg even where the position transition (active → gone / planned)
-    // would otherwise imply them. Distinct from the co-located `abandon` (tears
-    // down in place) and `park@Active` (preserves the branch, tears down the
-    // worktree in-verb from the base checkout).
+  } else if (
+    verb === "decompose" ||
+    (verb === "park" && from?.phase === "Planning") ||
+    (verb === "abandon" && ef?.dirTier === "active")
+  ) {
+    // `decompose` (any position), `park@Planning`, and the started-WU `abandon` cells
+    // (Planning / Active, in `active/`) retire / remove the origin's artifacts in-verb
+    // but defer the branch + worktree teardown out-of-band (a post-action
+    // `arc teardown --force`), so their edges declare neither leg even where the
+    // position transition (active → gone / planned) would otherwise imply them.
+    // Distinct from `abandon@parked` (deletes the preserved branch in place; no
+    // worktree) and `park@Active` (preserves the branch, tears down the worktree
+    // in-verb from the base checkout).
   } else {
     // Branch — by category transition.
     const fromBranch = ef?.branch ?? "none";

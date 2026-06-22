@@ -768,7 +768,7 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
   const entry = index.get(target);
   const branch = entry === undefined ? null : parseMetaRecord(await base.io.readFile(join(base.cwd, entry.path))).Branch;
 
-  const plan = planAbandon(state, branch);
+  const plan = planAbandon(state, branch, target);
   if (!plan.legal) {
     refuse(
       state === "nonexistent"
@@ -786,17 +786,23 @@ export async function handleAbandon(slug: string | undefined, opts: AbandonOptio
     return;
   }
 
-  const worktreePath = await resolveWuWorktreePath(base, target);
   const { executor } = await buildExecutor(base);
   const result = await runAbandon(
     { executor, fs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) } },
-    { name: target, confirmed: true, worktreePath, currentLocus: base.cwd },
+    { name: target, confirmed: true },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
-  reportOutcome("Abandoned", [`Work unit: ${target}`], result.outcome);
+  // A started WU's branch + worktree teardown is out-of-band — surface the exact
+  // post-action command (the in-verb teardown legs were dropped to avoid the
+  // self-teardown defect; see the abandon edges in lifecycle-transitions).
+  const abandonedLines = [`Work unit: ${target}`];
+  if (state === "planning" || state === "active") {
+    abandonedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+  }
+  reportOutcome("Abandoned", abandonedLines, result.outcome);
 }
 
 // ---------------------------------------------------------------------------
