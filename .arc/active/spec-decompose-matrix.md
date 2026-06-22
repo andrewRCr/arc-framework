@@ -96,7 +96,7 @@ not a `relocate-artifacts` caller; it shares only the **teardown legs** with `pa
 
 | Shape | Origin | Distribution | Table edge | Teardown |
 | --- | --- | --- | --- | --- |
-| **symmetric** (covered today) | retired (`git rm`) | whole draft → N new members | `decompose@planning` | branch + worktree |
+| **symmetric** (covered today) | retired (`git rm`) | whole draft → N new members | `decompose@planning` (`artifacts: remove` only) | branch + worktree — **post-merge `arc teardown`**, not in-verb ([§ revision](#teardown-is-out-of-band-phase-4r-revision)) |
 | **extraction / origin-survives** | **kept** (disposition fork: keep-active or `park@Planning`) | only the *extracted* subset; adds origin→member `Depends On` | none fires (origin not retired) | none (or `park`'s, if parked) |
 | **backlog-stub-source** | retired from backlog | whole stub → N members, in place | `decompose@planned` (`artifacts: remove`, no branch) | none (no branch) |
 | **heterogeneous-home** | retired per its position (reuses symmetric / stub-source edge) | members route to mixed destinations: new stub, fold into existing artifact, or atomic edit to a standing doc | per origin position | per origin position |
@@ -143,9 +143,12 @@ destinations through one transition call). It consumes the resolved cut-map plus
     - **`Depends On`** — distributed by *actual need*, never blanket-inherited (outgoing edges inherited only where
       a member genuinely depends; internal edges authored from the cut's delivery order; incoming edges re-pointed
       in the sweep).
-2. **Origin teardown** — fire the reserved table edge for the origin's position (`decompose@planning` /
-   `decompose@planned`), or skip entirely on the extraction shape (origin survives). The `artifacts: remove` leg
-   prunes the emptied backlog subdir the same way the `relocate` leg already does.
+2. **Origin retirement** — fire the reserved table edge's `artifacts: remove` leg for the origin's position
+   (`decompose@planning` / `decompose@planned`), staged and committed with the transform, or skip entirely on the
+   extraction shape (origin survives). The leg prunes the emptied backlog subdir the same way the `relocate` leg
+   already does. **The branch + worktree teardown is *not* an in-verb leg** — see
+   [§ Teardown is out-of-band](#teardown-is-out-of-band-phase-4r-revision); `decompose@planning` no longer fires
+   `reconcileBranch` / `reconcileWorktree`.
 3. **Incoming-edge re-point sweep** — scan **every** meta whose `Depends On` names the origin across `active/**`
    and `backlog/planned/**` (broader than the cut-map's named dependents — a direct scan catches dependents the
    cut-map didn't enumerate) and re-point each to the delivering member(s).
@@ -153,15 +156,50 @@ destinations through one transition call). It consumes the resolved cut-map plus
    `backlog/planned/**` (Blocked or Ready per their distributed `Depends On`). Reuses the shipped `reconcile-roadmap`
    side-effect.
 
-`runDecompose` performs **only** these four legs — homogeneous member-scaffolds plus origin teardown. It does
-**not** edit existing artifacts (the heterogeneous shape's fold / atomic-edit homes are workflow-authored — the
-executor has no content-editing leg by design, mirroring its no-fabricate-content contract) and it does **not**
-relocate the surviving origin (the extraction-park is a separate `arc park` workflow step). It returns a structured
-result describing what it did (members scaffolded, edges re-pointed, origin disposition) — the substrate the
-workflow renders into the allocation-map PR description.
+`runDecompose` performs **only** these four legs — homogeneous member-scaffolds, origin *retirement* (file
+removal, staged), the re-point sweep, and ROADMAP regen. It does **not** edit existing artifacts (the
+heterogeneous shape's fold / atomic-edit homes are workflow-authored — the executor has no content-editing leg by
+design, mirroring its no-fabricate-content contract), it does **not** relocate the surviving origin (the
+extraction-park is a separate `arc park` workflow step), and it does **not** tear down the origin's branch or
+worktree (post-merge `arc teardown`, below). It returns a structured result describing what it did (members
+scaffolded, edges re-pointed, origin disposition) — the substrate the workflow renders into the allocation-map PR
+description.
 
 The legs resolve state from **logical `(phase, location)` + meta fields**, never `git branch` / `git log`
 inference — the arc-backend design guard (ADR-022) the whole cohort honors.
+
+### Teardown is out-of-band (Phase 4.R revision)
+
+The shipped `decompose@planning` edge fired branch + worktree teardown **in-verb**
+(`reconcileBranch: delete` + `reconcileWorktree: teardown`), before the transform commits. This is broken for a
+started origin, and the executor's unit tests (git driven through spies) plus the integration tests (which hand-fed
+**cross-worktree** inputs the CLI never generates) never exercised the real path:
+
+- **Dirty-tree refusal.** The verb stages the scaffolds + origin removal + re-points into the run-cwd, then the
+  teardown leg's `worktree-clean` guard checks that same tree → dirty → `reconcileWorktree` throws. The verb stages
+  but never commits before teardown, so the guard trips every time the run-cwd *is* the teardown target.
+- **In-place primary removal.** Under `arc start --here` (no linked worktree) the teardown target resolves to the
+  **primary** worktree; `git worktree remove <primary>` is refused by git outright.
+- **Dangling locus.** The verb's `process.chdir` locus-hop moves only the CLI subprocess, not the agent's shell —
+  the next command lands in a deleted directory.
+
+**The fix: teardown moves out-of-band, post-merge, onto the existing `arc teardown` verb** (shipped by
+`lifecycle-mechanics-tail`), which already does it correctly — post-merge from the primary on a *committed* tree,
+in-place vs. linked dispatched (`git switch <base>` vs. `git worktree remove`), self-teardown locus-hopped,
+constraint-safe ordering, stale-ref prune. `decompose@planning` drops its `reconcileBranch` / `reconcileWorktree`
+legs (keeping `artifacts: remove`); the workflow runs `arc teardown <origin>` after the decompose PR merges.
+
+`arc teardown` is **generalized** to fit, because the origin is *retired* (not shipped to `completed/`) and its
+`plan/<name>` branch is *unmerged* (the design was redistributed into members, not git-merged): a new un-shipped /
+force (**"abandoned"**) mode swaps the `isShipped` arc-state gate and the `delete-merged` containment delete for the
+retired-origin case — the **conservation gate** is the upstream safety here, not git-containment. All other
+mechanics are reused unchanged.
+
+**Cross-charter fold-in.** `park@Planning` (archived `lifecycle-transition-core`) carries the *identical* in-verb
+self-teardown defect and is corrected the same way in this WU — a deliberate extension recorded here per the
+cohort's consistency-on-exit standard: shipping the generalized teardown surface while leaving a known-broken twin
+on the old path would be the half-migrated core the standard says to absorb. `abandon@{Planning,Active}` is the
+same family; it adopts the generalized surface as a scoped follow-up (captured to `USER-INBOX`), not folded here.
 
 ### The cut-map input contract
 
@@ -317,6 +355,25 @@ depending on it (CW is still backlog and design-heavy):
   (origin disposition + member scaffold + ROADMAP delta); a regression test that the symmetric shape reproduces the
   prior hand-rolled result. The conservation gate is workflow judgment (not code), validated by the workflow's
   interlock surface, not a unit test.
+
+  **Teardown coverage (Phase 4.R) — close the gap that hid the self-teardown defect.** The shipped tests missed it
+  by testing imagined behavior: they drove the verb **cores** with hand-fed *cross-worktree* inputs the CLI never
+  generates, and there is no E2E tier exercising the destructive verbs through the actual command. Per
+  `strategy-testing-methodology` (test behavior through public interfaces; E2E = full CLI invocation, no mocking
+  git), 4.R adds:
+    - **E2E** invoking `arc decompose` (and `arc teardown`) via `child_process` in real temp repos, in **both**
+      worktree models — **in-place (`--here`)** and **spawned/linked** — asserting on-disk + git outcomes (origin
+      retired, members scaffolded, branch gone, worktree gone or primary switched to `base`).
+    - **Integration tests reworked onto the handler's real run-context** (`handleDecompose` resolution, not
+      hand-fed cross-worktree inputs), so the self-teardown configuration the CLI actually produces is in the
+      tested path.
+    - **The generalized `arc teardown` is test-first** — unit for the gate + delete-variant selection
+      (shipped/merged vs. un-shipped/force), then real-git integration for the force + un-shipped mode across
+      in-place and linked, asserting the four behaviors that silently broke: dirty-tree refusal, self-teardown
+      locus-hop, in-place primary-switch (no removal), and unmerged force-delete.
+
+  Structural lesson recorded for the testing-standards follow-up: the bug class is *a test constructs inputs the
+  production code path never generates* — guarded against by driving destructive verbs through the CLI seam.
 - **Migration / rollout.** The `runDecompose` build, the `assess-cohort-fit` cut-map extension, the workflow
   rewrite, and the `strategy-work-organization` guidance land together as one WU. No data migration — existing
   decomposed cohorts are unaffected (decomposition is a one-time transform). The symmetric arm's behavior is
@@ -361,9 +418,14 @@ Validated at work-unit completion:
 - **Extraction-from-Active** runs first-class (origin stays Active, only unbuilt scope extracted); **full-split-from-
   Active** is recognized by the workflow guard and routed to the `strategy-work-organization` guidance — no
   automated edge exists.
-- The rewritten `decompose-work-unit.md` calls `runDecompose` for all relocation/scaffold/teardown mechanics and
-  contains no hand-rolled relocation logic; its commit `Context` footer uses `(maintenance)`.
+- The rewritten `decompose-work-unit.md` calls `runDecompose` for the scaffold / retire / re-point mechanics and
+  `arc teardown` for the post-merge branch + worktree teardown; it contains no hand-rolled relocation or teardown
+  logic; its commit `Context` footer uses `(maintenance)`.
 - The emptied-subdir prune fires on a retired backlog-stub-source origin (no orphaned cohort subdir).
+- **(Phase 4.R)** A started origin's branch + worktree teardown runs **out-of-band, post-merge** via a generalized
+  `arc teardown` (un-shipped / force mode), not an in-verb leg — proven by real-git E2E across in-place and linked
+  worktrees. `park@Planning` is corrected onto the same surface; `decompose@planning` no longer fires
+  `reconcileBranch` / `reconcileWorktree`.
 
 ## Open Questions
 
