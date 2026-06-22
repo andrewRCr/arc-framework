@@ -1,8 +1,8 @@
 # Metadata: decompose-matrix
 
-| **State**     | **Owner** | **Branch**              | **Class** | **Priority** |
-| ------------- | --------- | ----------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/decompose-matrix` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/120>
+- **Completed:** 2026-06-22
 
 ---
 
