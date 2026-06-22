@@ -481,36 +481,43 @@ framework-file edit mirrors to the package source.
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **7.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint, lint:ts, lint:sh, typecheck:all, tests (3209 passed, 1 skipped), build — all passed.
+- _Success criteria:_ 12 criteria, all met; one carries a deviation note (Phase 4.R moved branch + worktree
+  teardown out-of-band to `arc teardown`, so the workflow no longer routes teardown through `runDecompose`).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `arc decompose` executes the **symmetric** shape end-to-end (origin retired, N members scaffolded with
+- `[x]` `arc decompose` executes the **symmetric** shape end-to-end (origin retired, N members scaffolded with
   correct field inheritance, incoming edges re-pointed, ROADMAP regenerated), reproducing the prior hand-rolled
   result on a regression fixture.
-- `[ ]` All four transform shapes have a named, reachable path: symmetric / extraction / backlog-stub-source via
+- `[x]` All four transform shapes have a named, reachable path: symmetric / extraction / backlog-stub-source via
   `runDecompose`; heterogeneous-home orchestrated by the workflow, fold / atomic-edit homes authored as direct
   edits that ride the decompose PR and appear in the allocation map.
-- `[ ]` `arc decompose <origin> --cut-map <file>` consumes a structured cut-map file parsed/validated at the
+- `[x]` `arc decompose <origin> --cut-map <file>` consumes a structured cut-map file parsed/validated at the
   command boundary — a malformed cut-map is rejected before any mutation; the validator is a single co-located,
   hand-rolled, versionable boundary surface under `lib/work-unit/`.
-- `[ ]` The batch N-member scaffold produces N members (N ≥ 2) with `Origin` inherited, `Design` / `Cohort`
+- `[x]` The batch N-member scaffold produces N members (N ≥ 2) with `Origin` inherited, `Design` / `Cohort`
   (dual-placed) / `Class` / `State` set, and `Depends On` distributed by actual need — across the three
   parent-position arms.
-- `[ ]` The extraction shape's optional origin-park is a separate `arc park` step sequenced by the workflow, not
+- `[x]` The extraction shape's optional origin-park is a separate `arc park` step sequenced by the workflow, not
   a `runDecompose` flag; keep-active is a valid terminal outcome.
-- `[ ]` The conservation gate asserts conservation under partial extraction and atomic-edit homes, with the
+- `[x]` The conservation gate asserts conservation under partial extraction and atomic-edit homes, with the
   allocation map rendered into the PR description.
-- `[ ]` `assess-cohort-fit`'s cut-map carries the surviving-origin and existing/atomic-home entry kinds.
-- `[ ]` Extraction-from-Active runs first-class (origin stays Active, only unbuilt scope extracted);
+- `[x]` `assess-cohort-fit`'s cut-map carries the surviving-origin and existing/atomic-home entry kinds.
+- `[x]` Extraction-from-Active runs first-class (origin stays Active, only unbuilt scope extracted);
   full-split-from-Active is recognized by the workflow guard and routed to the `strategy-work-organization`
   guidance — no automated edge exists.
-- `[ ]` The rewritten `decompose-work-unit.md` calls `runDecompose` for all relocation/scaffold/teardown
+- `[x]` The rewritten `decompose-work-unit.md` calls `runDecompose` for all relocation/scaffold/teardown
   mechanics and contains no hand-rolled relocation logic; its commit `Context` footer uses `(maintenance)`.
-- `[ ]` The emptied-subdir prune fires on a retired backlog-stub-source origin (no orphaned cohort subdir).
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+    - **Deviation:** teardown migrated out-of-band in Phase 4.R — the workflow calls `runDecompose` for the
+      scaffold / retire / re-point mechanics and the separate `arc teardown` verb for the post-merge branch +
+      worktree teardown. No hand-rolled relocation or teardown logic remains; footer is `(maintenance)`.
+- `[x]` The emptied-subdir prune fires on a retired backlog-stub-source origin (no orphaned cohort subdir).
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
