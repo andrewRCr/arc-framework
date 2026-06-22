@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "consolidate-merge-oracle",
-  "origin": "description",
-  "intent": "Consolidate isBranchMerged's session-init advisory surfaces onto the shared isLandedInBase oracle (squash/rebase-aware); fix the stale worktree-cleanup docstring",
-  "branch": "refactor/consolidate-merge-oracle",
-  "createdAt": "2026-06-22T15:34:01.843Z"
-}
