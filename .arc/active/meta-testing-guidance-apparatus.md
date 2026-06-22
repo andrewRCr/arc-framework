@@ -12,7 +12,7 @@
 - **Task List:** `tasks-testing-guidance-apparatus.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — spec-testing-guidance-apparatus.md finalized (outline, Class Light)
+- **Last Completed:** generate-tasks — tasks-testing-guidance-apparatus.md finalized; WU activated to feat/
 - **Next Task:** Begin Task 1.1 — Add optional override-mode enum validation to method.ts
 - **Blockers:** [none]
 
