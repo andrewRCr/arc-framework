@@ -12,11 +12,11 @@
 - **Task List:** `tasks-decompose-matrix.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.3 — Symmetric-shape regression fixture (Phases 3 and 4 complete)
-- **Next Task:** Task 5.1 — Rewrite `decompose-work-unit.md` over `runDecompose` (line ~204)
+- **Last Completed:** Task 4.R.1 — Spec + cohort-doc revision (teardown-ordering reframe recorded)
+- **Next Task:** Task 4.R.2 — Generalize `arc teardown` with an un-shipped / force mode (line ~237)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 5, Task 5.1 (process-task-loop)
+- **Next Action:** Begin Phase 4.R, Task 4.R.2 (process-task-loop, test-first)
 
 - **PR URL:** [none]
 - **Completed:** [none]
