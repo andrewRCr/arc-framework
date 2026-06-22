@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "route-abandon-teardown",
-  "origin": "description",
-  "intent": "Route abandon@{Planning,Active} teardown legs onto arc teardown --force (post-action), fixing the in-verb self-teardown defect",
-  "branch": "fix/route-abandon-teardown",
-  "createdAt": "2026-06-22T14:17:55.639Z"
-}
