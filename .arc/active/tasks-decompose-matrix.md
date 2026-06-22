@@ -255,7 +255,7 @@ exercised.)
 
 - _Outcome:_ The shipped teardown verb is generalized to the retired-origin case without re-implementing its
   mechanics — `abandoned` is a gate-inversion plus a force-delete swap, shifting the safety from git-containment
-  to the caller's conservation gate (the `--force` flag / `mode` param *is* that authorization). Backward
+  to the caller's conservation gate (the `--force` flag / `mode` param _is_ that authorization). Backward
   compatible: the default `shipped` mode preserves the existing contract (one stale e2e assertion on the no-name
   refusal wording updated). Unblocks 4.R.3 (route `decompose@planning` through it) and 4.R.4 (`park@Planning`).
 
@@ -284,13 +284,29 @@ exercised.)
   encoding-consistency oracle now treats `decompose`'s out-of-band teardown as a verb-keyed exception (alongside the
   `completed/`-ship one). Remaining: 4.R.6 lands the workflow's post-merge step + 4.R.5 closes the coverage gap.
 
-### `[ ]` **4.R.4 Route `park@Planning` teardown out-of-band**
+### `[x]` **4.R.4 Route `park@Planning` teardown out-of-band**
 
 - _Goal:_ `park@Planning` stops in-verb teardown; `park-work-unit.md` calls `arc teardown` post-action.
   _(Cross-charter — recorded in 4.R.1.)_
 
-- `[ ]` **4.R.4.a Drop the in-verb teardown from `parkPlanning`'s `executeTransition` inputs**
-- `[ ]` **4.R.4.b Update `park-work-unit.md` to call `arc teardown` post-action**
+- `[x]` **4.R.4.a Drop the in-verb teardown from `parkPlanning`'s `executeTransition` inputs**
+    - The `park@Planning` edge (`lifecycle-transitions.ts`) now declares `artifacts: relocate` alone — the
+      `reconcileBranch: delete` / `reconcileWorktree: teardown` legs and the `worktree-clean` guard are gone.
+      `parkPlanning` (`park-resume.ts`) passes only `{ toDir }`; `arc park` surfaces the post-action
+      `arc teardown {name} --force` for the Planning arm (keyed on `outcome.from.phase`). park@Active is untouched
+      (still tears down its worktree in-verb, branch preserved).
+- `[x]` **4.R.4.b Update `park-work-unit.md` to call `arc teardown` post-action**
+    - Both copies (package source + `.arc/` mirror) corrected: park@Planning relocates in-verb, then reaps its
+      `plan/<name>` branch + worktree out-of-band via `arc teardown {name} --force` after the park change lands.
+      Replaced the stale "teardown already ran inside `arc park`" claim and split the intro/Step-3 framing by arm.
+
+- _Outcome:_ park@Planning's self-teardown defect is corrected the same way as decompose's (4.R.3), per the cohort's
+  consistency-on-exit standard — shipping the generalized teardown surface without leaving a known-broken twin. The
+  transition encoding-consistency oracle's out-of-band exception now covers `park@Planning` alongside `decompose`
+  (and explicitly excludes `abandon` / `park@Active`). Incidental ripple absorbed: six `lifecycle-executor` tests
+  that used `park@Planning` as their teardown-leg / `worktree-clean` fixture were re-pointed to `abandon@Planning`
+  (now the canonical executor-routed destructive-teardown edge). `abandon@{Planning,Active}` remains the captured
+  follow-up for the same out-of-band migration.
 
 ### `[ ]` **4.R.5 Close the coverage gap**
 

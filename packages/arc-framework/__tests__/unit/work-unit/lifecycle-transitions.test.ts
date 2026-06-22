@@ -80,12 +80,14 @@ function deriveExpectedMutators(
   // `abandon`) is local, so it reconciles the branch + worktree in place below.
   if (et?.dirTier === "completed") {
     spec.clearBranchField = true;
-  } else if (verb === "decompose") {
-    // `decompose` retires the origin's artifacts in-verb but defers the started
-    // origin's branch + worktree teardown out-of-band (post-merge `arc teardown
-    // --force`), so its edges declare neither leg even where the position
-    // transition (active → gone) would otherwise imply them. Distinct from the
-    // co-located `abandon`, which tears down in place.
+  } else if (verb === "decompose" || (verb === "park" && from?.phase === "Planning")) {
+    // `decompose` (any position) and `park@Planning` retire / relocate the origin's
+    // artifacts in-verb but defer the started origin's branch + worktree teardown
+    // out-of-band (post-action `arc teardown --force`), so their edges declare
+    // neither leg even where the position transition (active → gone / planned)
+    // would otherwise imply them. Distinct from the co-located `abandon` (tears
+    // down in place) and `park@Active` (preserves the branch, tears down the
+    // worktree in-verb from the base checkout).
   } else {
     // Branch — by category transition.
     const fromBranch = ef?.branch ?? "none";

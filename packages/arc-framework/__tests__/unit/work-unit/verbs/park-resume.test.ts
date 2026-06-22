@@ -226,7 +226,7 @@ const BASE_RESUME: ResumeParams = {
 };
 
 describe("runPark — park@Planning", () => {
-  it("tears down the branch and relocates to backlog/planned/ (resolves planned)", async () => {
+  it("relocates to backlog/planned/ but defers branch + worktree teardown out-of-band (resolves planned)", async () => {
     const { ctx, calls } = buildCtx([PLANNING]);
 
     const result = await runPark(ctx, { ...BASE_PARK, sourceRecord: recordFor(PLANNING) });
@@ -240,8 +240,10 @@ describe("runPark — park@Planning", () => {
     }
     expect(result.metaPath).toBe(".arc/backlog/planned/foo/meta-foo.md");
     expect(calls).toContain("relocate:.arc/active->.arc/backlog/planned/foo");
-    expect(calls).toContain("branch:delete:plan/foo");
-    expect(calls).toContain("worktree:teardown");
+    // Teardown is out-of-band (post-action `arc teardown --force`): the verb relocates
+    // the artifacts but fires no in-verb branch / worktree legs.
+    expect(calls.some((c) => c.startsWith("branch:"))).toBe(false);
+    expect(calls).not.toContain("worktree:teardown");
     // No pointer-record on the Planning arm — there is no preserved branch to point at.
     expect(result.pointerRecord).toBeUndefined();
   });

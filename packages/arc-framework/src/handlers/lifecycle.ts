@@ -557,7 +557,15 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
     refuse(result.reason);
     return;
   }
-  reportOutcome("Parked", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  const parkedLines = [`Work unit: ${target}`, `Meta:      ${result.metaPath}`];
+  // park@Planning relocates the artifacts but leaves the `plan/<name>` branch +
+  // worktree for an out-of-band reap (firing it in-verb would trip on the staged
+  // tree / target the primary). park@Active preserves the branch and tore the
+  // worktree down in-verb, so it owes no teardown.
+  if (result.outcome.status === "ok" && result.outcome.from?.phase === "Planning") {
+    parkedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+  }
+  reportOutcome("Parked", parkedLines, result.outcome);
 }
 
 /** Options for `arc resume`. */

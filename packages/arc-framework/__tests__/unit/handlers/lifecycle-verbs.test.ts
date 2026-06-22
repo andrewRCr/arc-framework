@@ -158,7 +158,11 @@ beforeEach(() => {
   mockRunStub.mockResolvedValue({ status: "scaffolded", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
   mockRunPromote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/planned/foo/meta-foo.md" });
   mockRunDemote.mockResolvedValue({ status: "moved", outcome: okOutcome, metaPath: ".arc/backlog/provisional/foo/meta-foo.md" });
-  mockRunPark.mockResolvedValue({ status: "parked", outcome: okOutcome, metaPath: ".arc/backlog/planned/foo/meta-foo.md" });
+  mockRunPark.mockResolvedValue({
+    status: "parked",
+    outcome: { ...okOutcome, from: { phase: "Active", location: "active" } },
+    metaPath: ".arc/backlog/planned/foo/meta-foo.md",
+  });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
