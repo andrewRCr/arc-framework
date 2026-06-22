@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design — draft consolidated to formalization-ready (task-list marker + content partition settled)
+- **Last Completed:** create-spec — spec-testing-guidance-apparatus.md finalized (outline, Class Light)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
