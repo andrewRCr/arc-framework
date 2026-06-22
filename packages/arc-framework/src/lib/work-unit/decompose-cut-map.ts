@@ -381,11 +381,23 @@ export function parseCutMap(input: unknown): CutMapParseResult {
   if (!Array.isArray(input.internalEdges)) {
     return { status: "rejected", reason: "cut-map requires an `internalEdges` array (use `[]` for none)." };
   }
+  // Internal edges run among the new members (`from` depends on `to`); cross-check
+  // both ends against the minted member slugs so a typo'd ref is rejected at the
+  // boundary rather than producing a dropped or dangling `Depends On` edge.
+  const memberSlugs = new Set(
+    parsedEntries.filter((e): e is NewMemberEntry => e.kind === "new-member").map((e) => e.slug),
+  );
   const parsedEdges: InternalEdge[] = [];
   for (let i = 0; i < input.internalEdges.length; i++) {
     const edge: unknown = input.internalEdges[i];
     if (!isObject(edge) || !isNonEmptyString(edge.from) || !isNonEmptyString(edge.to)) {
       return { status: "rejected", reason: `internal edge ${i} requires non-empty \`from\` and \`to\` slugs.` };
+    }
+    if (!memberSlugs.has(edge.from)) {
+      return { status: "rejected", reason: `internal edge ${i} references an unknown \`from\` member "${edge.from}".` };
+    }
+    if (!memberSlugs.has(edge.to)) {
+      return { status: "rejected", reason: `internal edge ${i} references an unknown \`to\` member "${edge.to}".` };
     }
     parsedEdges.push({ from: edge.from, to: edge.to });
   }

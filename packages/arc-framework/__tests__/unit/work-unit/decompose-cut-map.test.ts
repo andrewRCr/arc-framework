@@ -121,6 +121,13 @@ describe("parseCutMap", () => {
     if (result.status === "rejected") expect(result.reason).toMatch(/version/i);
   });
 
+  it("rejects an internal edge referencing an unknown member slug", () => {
+    const result = parseCutMap(wellFormed({ internalEdges: [{ from: "member-b", to: "membr-a" }] }));
+
+    expect(result.status).toBe("rejected");
+    if (result.status === "rejected") expect(result.reason).toMatch(/unknown `to` member "membr-a"/);
+  });
+
   it("rejects a symmetric batch below the two-member floor", () => {
     const result = parseCutMap(
       wellFormed({
