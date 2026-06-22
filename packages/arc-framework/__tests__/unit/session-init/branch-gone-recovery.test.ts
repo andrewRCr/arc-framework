@@ -20,8 +20,8 @@ const PRESENT_MARKER: WorktreeMarkerReadResult = {
 
 /**
  * Mock git: `status --porcelain` reports clean unless the worktree cwd is in
- * `dirty`; `merge-base --is-ancestor <branch> <target>` resolves when `branch`
- * is in `merged`, else throws (not an ancestor).
+ * `dirty`; `cherry <base> <branch>` reports landed (empty output) when `branch`
+ * is in `merged`, else lists an unmerged commit (`+ <sha>`).
  */
 function buildExec(opts: { dirty?: Set<string>; merged?: Set<string> } = {}): GitExec {
   return vi.fn(async (_cmd: string, args: string[], options?: GitExecOptions): Promise<ExecResult> => {
@@ -29,10 +29,10 @@ function buildExec(opts: { dirty?: Set<string>; merged?: Set<string> } = {}): Gi
       const cwd = options?.cwd ?? "";
       return { stdout: opts.dirty?.has(cwd) ? " M file.ts\n" : "", stderr: "" };
     }
-    if (args[0] === "merge-base") {
+    if (args[0] === "cherry") {
       const branch = args[2];
       if (branch !== undefined && opts.merged?.has(branch)) return { stdout: "", stderr: "" };
-      throw new Error("not an ancestor");
+      return { stdout: "+ deadbeef\n", stderr: "" };
     }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   });

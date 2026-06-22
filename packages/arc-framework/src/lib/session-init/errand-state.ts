@@ -23,7 +23,7 @@
 
 import type { GitExec } from "../git/exec.js";
 import type { InFlightEntry, InFlightErrand } from "../git/in-flight-derivation.js";
-import { isBranchMerged } from "../git/worktree-cleanup.js";
+import { isLandedInBase } from "../git/branch-containment.js";
 import type { ErrandRecord } from "../errand/record.js";
 
 import { detectErrandResume, type ErrandResumeResult } from "./errand-resume-detection.js";
@@ -125,11 +125,7 @@ export async function runErrandState(options: RunErrandStateOptions): Promise<Er
   const mergedByBranch = new Map<string, boolean>();
   await Promise.all(
     errands.map(async (entry) => {
-      const merged = await isBranchMerged({
-        exec: options.exec,
-        branch: mergeRefOf(entry),
-        target: `origin/${options.baseBranch}`,
-      });
+      const merged = await isLandedInBase(options.exec, mergeRefOf(entry), `origin/${options.baseBranch}`);
       mergedByBranch.set(entry.branch, merged);
     }),
   );

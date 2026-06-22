@@ -99,15 +99,14 @@ function shippedRoster(): WorktreeRosterResult {
   };
 }
 
-/** git stub: `status --porcelain` reflects `clean`; `merge-base --is-ancestor` reflects `merged`. */
+/** git stub: `status --porcelain` reflects `clean`; `cherry` reflects `merged` (landed-in-base). */
 function buildExec(opts: { clean: boolean; merged: boolean }): GitExec {
   return (async (_cmd: string, args: string[]) => {
     if (args[0] === "status") {
       return { stdout: opts.clean ? "" : " M file.ts\n", stderr: "" };
     }
-    if (args[0] === "merge-base") {
-      if (!opts.merged) throw new Error("not an ancestor");
-      return { stdout: "", stderr: "" };
+    if (args[0] === "cherry") {
+      return { stdout: opts.merged ? "" : "+ deadbeef\n", stderr: "" };
     }
     throw new Error(`unexpected git invocation: ${args.join(" ")}`);
   }) as GitExec;

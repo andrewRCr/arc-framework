@@ -141,9 +141,7 @@ export {
 } from "./worktree-scaffold.js";
 
 export {
-  isBranchMerged,
   decideWorktreeCleanup,
-  type IsBranchMergedOptions,
   type WorktreeCleanupContext,
   type WorktreeCleanupDecision,
   type WorktreeCleanupInputs,
