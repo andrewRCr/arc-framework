@@ -884,12 +884,17 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
     return;
   }
 
-  // Default to the repo root, but let an explicit `opts.cwd` win — the worktree
+  // Default to the run locus, but let an explicit `opts.cwd` win — the worktree
   // cleanliness check targets the *linked* worktree being torn down, not the cwd
   // (unlike a transition executor, teardown operates on a worktree it isn't in).
-  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
+  // The locus tracks the self-teardown hop: when teardown removes the very worktree
+  // it was invoked from, `chdir` relocates the process *and* re-points this exec to
+  // the primary, so the post-hop branch-delete / prune don't run against a vanished
+  // cwd (the dangling-locus failure the out-of-band move exists to avoid).
+  let locus = base.cwd;
+  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   const result = await runTeardown(
-    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
+    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
     { name: wuName, base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
   );
   if (result.status === "rejected") {

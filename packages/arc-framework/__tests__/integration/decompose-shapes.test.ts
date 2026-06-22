@@ -5,8 +5,10 @@
  * executable shapes end-to-end through the real binder seams (`buildExecutorContext`
  * + `node:fs/promises`) over a temp repo, asserting the on-disk result the spies
  * can't: member skeletons actually written, the origin's artifacts actually removed
- * (or kept), a real branch + worktree actually torn down, and an incoming dependent's
- * `Depends On` actually re-pointed and staged.
+ * (or kept), and an incoming dependent's `Depends On` actually re-pointed and staged.
+ * The started origin's branch + worktree teardown is out-of-band, so the verb returns
+ * its locators here and the real reap is covered through the CLI seam in the
+ * `lifecycle-exit` E2E — not fabricated with a cross-worktree state the CLI never makes.
  *
  * (ROADMAP regen is a forward-compat advisory in production — `roadmap-tooling`
  * owns the real render — so the shapes assert origin disposition + scaffold +
@@ -15,7 +17,7 @@
 
 import { execFile } from "node:child_process";
 import { readdir, rm, rmdir, mkdir, readFile, writeFile, stat } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { join } from "node:path";
 import { promisify } from "node:util";
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -53,10 +55,9 @@ async function writeWu(repo: string, relDir: string, slug: string, over: MetaFie
 }
 
 /**
- * A repo-rooted git executor that honors a per-call `cwd` override — the
- * production exec's behavior (the simplified `makeGitExec` drops it, which would
- * mis-target the `worktree-clean` guard's `git status` at the base repo instead
- * of the teardown-target worktree).
+ * A repo-rooted git executor that honors a per-call `cwd` override — mirroring the
+ * production exec's behavior (the simplified `makeGitExec` drops it), so a leg that
+ * scopes a command to a specific path resolves it there, not at the base repo.
  */
 function repoExec(repo: string): GitExec {
   return async (cmd, args, opts) => {
@@ -88,11 +89,9 @@ function newMember(slug: string, dependsOn: string[] = []): DecomposeParams["ent
 
 describe("runDecompose shapes — end-to-end against a real repo", () => {
   let repo: string;
-  const spawned: string[] = [];
 
   beforeEach(async () => {
     repo = await createTempRepo("arc-decompose-");
-    spawned.length = 0;
     await mkdir(join(repo, ".arc", "active"), { recursive: true });
     await mkdir(join(repo, ".arc", "backlog", "planned"), { recursive: true });
     await mkdir(join(repo, ".arc", "system"), { recursive: true });
@@ -101,24 +100,19 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
   });
 
   afterEach(async () => {
-    for (const wt of spawned) {
-      await execFileAsync("git", ["worktree", "remove", "--force", wt], { cwd: repo }).catch(() => {});
-      await rm(wt, { recursive: true, force: true }).catch(() => {});
-    }
     await cleanupTempDir(repo);
   });
 
-  it("symmetric: retires a started origin's artifacts, defers branch + worktree teardown out-of-band, scaffolds members, re-points a dependent", async () => {
-    // The started origin lives in `active/` on its plan branch + worktree; a
-    // standalone dependent names it. (The origin meta also rides `main` here so the
-    // index resolves it from the base checkout the decompose runs in.)
+  it("symmetric: retires a started origin's artifacts, defers teardown out-of-band, scaffolds members, re-points a dependent", async () => {
+    // The real run-context: the started origin and a standalone dependent live in
+    // `active/` on the working branch where decompose runs. No cross-worktree
+    // artifice (origin committed to `main` + a separate clean worktree) full
+    // protection never produces — and none is needed, because the branch + worktree
+    // teardown is out-of-band: the verb returns its locators (meta-sourced) and the
+    // reap belongs to `arc teardown --force`, covered end-to-end at the E2E tier.
     await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono", Origin: "[internal]" });
     await writeWu(repo, ".arc/active", "dep", { State: "Active", Branch: "feat/dep", "Depends On": "mono" });
     await commitAll(repo, "origin + dependent");
-
-    const worktree = join(dirname(repo), `${basename(repo)}-mono`);
-    await execFileAsync("git", ["worktree", "add", "-b", "plan/mono", worktree], { cwd: repo });
-    spawned.push(worktree);
 
     const cut: DecomposeParams = {
       schemaVersion: 1,
@@ -143,13 +137,10 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     const beta = parseMetaRecord(await readFile(join(repo, ".arc/backlog/planned/mono/beta/meta-beta.md"), "utf8"));
     expect(beta["Depends On"]).toContain("alpha");
 
-    // Origin artifacts removed in-verb; its branch + worktree are NOT — teardown is
-    // out-of-band (post-merge `arc teardown --force`). The verb returns the locators.
+    // Origin artifacts removed in-verb; the branch + worktree teardown is deferred —
+    // the verb reaps nothing and returns the meta-sourced locators instead.
     expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
     expect(result.result.teardown).toEqual({ slug: "mono", branch: "plan/mono" });
-    const { stdout: branches } = await execFileAsync("git", ["branch", "--list", "plan/mono"], { cwd: repo });
-    expect(branches).toContain("plan/mono");
-    expect(await pathExists(worktree)).toBe(true);
 
     // The dependent's incoming edge re-pointed to the delivering members, and staged.
     expect(result.result.repointed).toEqual([{ dependent: "dep", to: ["alpha", "beta"] }]);

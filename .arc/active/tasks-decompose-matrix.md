@@ -308,19 +308,33 @@ exercised.)
   (now the canonical executor-routed destructive-teardown edge). `abandon@{Planning,Active}` remains the captured
   follow-up for the same out-of-band migration.
 
-### `[ ]` **4.R.5 Close the coverage gap**
+### `[x]` **4.R.5 Close the coverage gap**
 
 - _Goal:_ The self-teardown configuration the CLI actually produces is in the tested path, across in-place and
   linked, for decompose and park.
 
 - **Strategies:** strategy-testing-methodology.md
 
-- `[ ]` **4.R.5.a E2E: `arc decompose` + `arc park` via the CLI** in real temp repos, in-place + linked — assert
-  origin retired, members scaffolded, branch gone, worktree gone or primary switched to `base`
-- `[ ]` **4.R.5.b Rework the integration tests onto the handler's real run-context** — drop the origin-on-`main` +
-  separate-clean-worktree artifice that tests a state full protection never produces
-- `[ ]` **4.R.5.c Assert the four silently-broken behaviors** — dirty-tree refusal, self-teardown locus-hop,
-  in-place primary-switch (no removal), unmerged force-delete
+- `[x]` **4.R.5.a E2E: `arc decompose` + `arc park` via the CLI** in real temp repos, in-place + linked
+    - New `lifecycle-exit.e2e.test.ts` drives the built CLI: `arc decompose --cut-map` retires the origin's
+      artifacts + scaffolds members + surfaces the post-action teardown command (branch/worktree persist);
+      `arc park` (Planning) relocates + surfaces it. Post-reframe, the branch/worktree reap is the `arc teardown
+      --force` step the same E2E chains into — not an in-verb effect.
+- `[x]` **4.R.5.b Rework the integration tests onto the handler's real run-context**
+    - `decompose-shapes.test.ts` symmetric case dropped the origin-on-`main` + separate-clean-worktree artifice
+      (and the dead `spawned` / worktree machinery): the origin lives in `active/` on the working branch, and the
+      deferred teardown is asserted via the returned meta-sourced locator, not a fabricated git state.
+- `[x]` **4.R.5.c Assert the four silently-broken behaviors** (via `arc teardown --force`, E2E)
+    - All four asserted in the real repos that produce them: unmerged force-delete (linked + in-place),
+      in-place primary-switch (no removal), self-teardown locus-hop (run from inside the torn-down worktree),
+      dirty-tree refusal.
+
+- _Outcome:_ The decompose/park exit choreography is now covered through the CLI seam (real git, in-place + linked),
+  closing the gap that hid the teardown-ordering defect — the suite no longer drives verb cores with cross-worktree
+  inputs the CLI never generates. **Surfaced + fixed a real latent bug:** self-teardown from _inside_ the
+  worktree left the branch unreaped — the handler's exec was cwd-pinned to the vanished invocation dir,
+  so the post-locus-hop branch-delete ran against a dead cwd. `handleTeardown` now tracks a mutable locus the
+  `chdir` hop re-points, so the post-hop legs follow to the primary. (+6 E2E tests; full suite 3209.)
 
 ### `[ ]` **4.R.6 Re-land the workflow on the corrected contract**
 
