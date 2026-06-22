@@ -93,6 +93,8 @@ interface ExecOptions {
   worktreePorcelain?: string;
   /** Whether the branch still exists after a delete attempt (drives `branchDeleted`). */
   branchSurvivesDelete?: boolean;
+  /** Whether the local `git branch -D` throws (simulates a force-delete failure). */
+  branchDeleteThrows?: boolean;
 }
 
 function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -105,7 +107,10 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
     if (sub === "rev-list") return { stdout: "" }; // contained → safe
-    if (sub === "branch" && args[1] === "-D") return { stdout: "" };
+    if (sub === "branch" && args[1] === "-D") {
+      if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
+      return { stdout: "" };
+    }
     if (sub === "show-ref") {
       if (opts.branchSurvivesDelete) return { stdout: "" };
       throw new Error("not found"); // ref gone → deleted
@@ -304,6 +309,40 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     // The containment oracle is the discriminator — the force path never consults it.
     expect(calls.some((c) => c[1] === "rev-list")).toBe(false);
     expect(calls.some((c) => c[1] === "cherry")).toBe(false);
+  });
+
+  it("rejects when the local force-delete fails and the branch survives — not a torn-down report", async () => {
+    // The local `git branch -D` throws and the branch is still present afterward:
+    // a force-mode failure, distinct from a best-effort remote-ref cleanup miss.
+    const { ctx } = buildCtx([], {
+      branches: ["plan/demo"],
+      branchDeleteThrows: true,
+      branchSurvivesDelete: true,
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/force-delete local branch/i);
+  });
+
+  it("degrades a remote-only delete failure to a notice when the local delete landed", async () => {
+    // The local `git branch -D` succeeds (branch gone), but the remote `push
+    // --delete` fails with an actionable error → a notice, still torn-down.
+    const { ctx } = buildCtx([], { branches: ["plan/demo"] });
+    const baseExec = ctx.exec;
+    ctx.exec = async (cmd, args) => {
+      if (args[0] === "push" && args.includes("--delete")) throw new Error("remote rejected: connection refused");
+      return baseExec(cmd, args);
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.notices.some((n) => /remote branch/i.test(n))).toBe(true);
   });
 
   it("mode selection routes correctly: shipped uses the containment-gated delete, not force", async () => {

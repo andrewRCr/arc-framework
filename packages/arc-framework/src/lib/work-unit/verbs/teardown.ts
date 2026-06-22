@@ -253,9 +253,17 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
       try {
         await reconcileBranch({ exec }, { mutation: "delete", branch, remote });
       } catch (err) {
-        notices.push(
-          `Could not delete the remote branch \`${branch}\` (${err instanceof Error ? err.message : String(err)}).`,
-        );
+        const detail = err instanceof Error ? err.message : String(err);
+        // The local force-delete runs before the remote-ref cleanup, so a branch
+        // that still exists means the local `git branch -D` is what failed — a
+        // force-mode failure, not a best-effort remote miss. Reject rather than
+        // reporting a torn-down branch that is in fact still present. A
+        // remote-only failure (local delete landed) degrades to a notice, like
+        // the prune leg.
+        if (await branchExists(exec, branch)) {
+          return { status: "rejected", reason: `Could not force-delete local branch \`${branch}\` (${detail}).` };
+        }
+        notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
       }
       branchDeleted = !(await branchExists(exec, branch));
     }
