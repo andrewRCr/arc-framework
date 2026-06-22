@@ -1,8 +1,8 @@
 # Metadata: testing-guidance-apparatus
 
-| **State**  | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ---------- | --------- | --------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/testing-guidance-apparatus` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
+| --------- | --------- | --------------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/testing-guidance-apparatus` | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `spec-testing-guidance-apparatus.md`
 - **Task List:** `tasks-testing-guidance-apparatus.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** create-spec — spec-testing-guidance-apparatus.md finalized (outline, Class Light)
-- **Next Task:** [none]
+- **Next Task:** Begin Task 1.1 — Add optional override-mode enum validation to method.ts
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — override-mode enum validation (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
