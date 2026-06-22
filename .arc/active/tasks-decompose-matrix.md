@@ -191,6 +191,96 @@ verbs.
   scaffold defaults — plus the in-cut-order re-point and member paths. Any drift in field composition or the meta
   projection breaks it, not just a behavior change.
 
+## **Phase 4.R:** Teardown-ordering correction — out-of-band via generalized `arc teardown`
+
+_Purpose:_ Correct the self-teardown defect surfaced during Phase 5: the started-origin branch + worktree teardown
+fires **in-verb, before the transform commits**, so the `worktree-clean` guard refuses the dirty tree and — in-place
+(`arc start --here`) — resolves the teardown target to the un-removable primary worktree. Move teardown out-of-band
+onto a generalized `arc teardown`, route `decompose@planning` + `park@Planning` through it, and close the
+test-coverage gap that hid it — before Phase 5's workflow proceeds on a corrected contract.
+
+_Design decisions:_ Teardown is **post-merge, not an in-verb leg** (the `integrate-work-unit` precedent). Generalize
+the shipped `arc teardown` (`lifecycle-mechanics-tail`) with an un-shipped / force ("abandoned") mode rather than
+build new — reuse its solved mechanics (in-place vs. linked dispatch, locus-hop, constraint-safe ordering, prune).
+`park@Planning` (archived `lifecycle-transition-core`) carries the identical defect and is folded in here per the
+cohort's consistency-on-exit standard; `abandon@{Planning,Active}` routes to a follow-up errand (captured to
+`USER-INBOX`). Coverage-gap root cause: integration tests hand-fed cross-worktree inputs the CLI never generates +
+no E2E tier — corrected per `strategy-testing-methodology`. (Note: the Phase 4 cwd fix — `1372fd31` — addressed the
+dirty-base-before-teardown-guard interaction for the _cross-worktree_ case only; the self-teardown path was never
+exercised.)
+
+### `[ ]` **4.R.1 Spec + cohort-doc revision**
+
+- _Goal:_ The spec's `runDecompose` contract reflects out-of-band teardown; the generalized `arc teardown`, the
+  `park@Planning` cross-charter fold-in, and the testing-gap retro are recorded.
+
+- **Strategies:** strategy-work-planning.md
+
+- `[ ]` **4.R.1.a Revise the `runDecompose` teardown contract in `spec-decompose-matrix.md`**
+    - Origin retirement (`artifacts: remove`) stays in-verb; branch + worktree teardown is post-merge
+      `arc teardown`. _(Drafted — § Teardown is out-of-band.)_
+- `[ ]` **4.R.1.b Record the cross-charter `park@Planning` fold-in + the `abandon`-family follow-up**
+- `[ ]` **4.R.1.c Cohort-doc touch if the teardown-ownership seam shifts** — the mutator-bundle teardown legs vs.
+  the `arc teardown` surface as the shared teardown home.
+
+### `[ ]` **4.R.2 Generalize `arc teardown` with an un-shipped / force mode**
+
+- _Goal:_ `arc teardown` serves the retired-origin / parked / abandoned case — un-shipped arc-state, force
+  (unmerged) branch delete — reusing all worktree / locus / ordering / prune mechanics.
+
+- **Strategies:** strategy-testing-methodology.md
+
+- Build `test-first` (one behavior at a time):
+    - un-shipped (non-`completed/`) arc-state gate accepts a retired / parked origin
+    - force-delete variant for an unmerged branch (vs. `delete-merged`), gated on the caller's authorization
+    - in-place arm: `git switch <base>`, no primary removal
+    - linked arm: worktree teardown + self-teardown locus-hop
+    - mode selection (shipped/merged vs. un-shipped/force) routes correctly
+
+- `[ ]` **4.R.2.a Add the un-shipped / force mode to `runTeardown` + the `arc teardown` surface**
+- `[ ]` **4.R.2.b Unit coverage for the gate + delete-variant selection**
+
+### `[ ]` **4.R.3 Route `decompose@planning` teardown out-of-band**
+
+- _Goal:_ The decompose edge drops its in-verb teardown legs; the started origin's teardown runs post-merge.
+
+- `[ ]` **4.R.3.a Drop `reconcileBranch` / `reconcileWorktree` from the `decompose@planning` edge** (keep
+  `artifacts: remove`)
+- `[ ]` **4.R.3.b `runDecompose` returns the origin's teardown locators** for the workflow's post-merge
+  `arc teardown` call
+
+### `[ ]` **4.R.4 Route `park@Planning` teardown out-of-band**
+
+- _Goal:_ `park@Planning` stops in-verb teardown; `park-work-unit.md` calls `arc teardown` post-action.
+  _(Cross-charter — recorded in 4.R.1.)_
+
+- `[ ]` **4.R.4.a Drop the in-verb teardown from `parkPlanning`'s `executeTransition` inputs**
+- `[ ]` **4.R.4.b Update `park-work-unit.md` to call `arc teardown` post-action**
+
+### `[ ]` **4.R.5 Close the coverage gap**
+
+- _Goal:_ The self-teardown configuration the CLI actually produces is in the tested path, across in-place and
+  linked, for decompose and park.
+
+- **Strategies:** strategy-testing-methodology.md
+
+- `[ ]` **4.R.5.a E2E: `arc decompose` + `arc park` via the CLI** in real temp repos, in-place + linked — assert
+  origin retired, members scaffolded, branch gone, worktree gone or primary switched to `base`
+- `[ ]` **4.R.5.b Rework the integration tests onto the handler's real run-context** — drop the origin-on-`main` +
+  separate-clean-worktree artifice that tests a state full protection never produces
+- `[ ]` **4.R.5.c Assert the four silently-broken behaviors** — dirty-tree refusal, self-teardown locus-hop,
+  in-place primary-switch (no removal), unmerged force-delete
+
+### `[ ]` **4.R.6 Re-land the workflow on the corrected contract**
+
+- _Goal:_ `decompose-work-unit.md` carries the post-merge teardown step and a corrected symmetric run-context.
+
+- **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
+
+- `[ ]` **4.R.6.a Add the post-merge `arc teardown` step + fix the symmetric arm's run-context** — supersedes the
+  in-verb self-teardown framing the 5.1 rewrite carries
+- `[ ]` **4.R.6.b Re-mirror the rewritten workflow to the package source**
+
 ## **Phase 5:** Workflow rewrite — judgment half
 
 _Purpose:_ Rewrite `decompose-work-unit.md` to carry the judgment half (cut-map, conservation gate,
@@ -201,32 +291,49 @@ _Design decisions:_ One workflow with the transform-shape arms as **whole condit
 fragments later); mechanics → `runDecompose`, judgment → the workflow; commit `Context` footer uses
 `(maintenance)`. Each framework-file edit mirrors to the package source.
 
-### `[ ]` **5.1 Rewrite `decompose-work-unit.md` over `runDecompose` with whole-block shape arms**
+_Revisit after Phase 4.R:_ 5.1 landed the rewrite, but its **symmetric run-context + ship/teardown sequencing** are
+provisional — they assume in-verb self-teardown, which 4.R corrects to a post-merge `arc teardown`. Task 4.R.6
+re-lands those parts on the corrected contract; the spine, cut-map, conservation gate, and the other three shape
+arms stand as-is.
+
+### `[x]` **5.1 Rewrite `decompose-work-unit.md` over `runDecompose` with whole-block shape arms**
 
 - _Goal:_ The workflow carries only judgment and calls `runDecompose` for all relocation / scaffold / teardown
   mechanics, with the four shapes authored as whole conditional blocks atop the existing parent-position arms.
 
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-- `[ ]` **5.1.a Replace hand-rolled relocation/scaffold/teardown steps with a `runDecompose` call**
-    - The workflow no longer authors `git mv` / `git rm` / stub-loop mechanics; it composes the cut-map and
-      invokes the command.
+- `[x]` **5.1.a Replace hand-rolled relocation/scaffold/teardown steps with a `runDecompose` call**
+    - Spine Step 5 invokes `arc decompose <origin> --cut-map <file>`; the workflow authors no `git mv` / `git rm` /
+      stub-loop / branch-worktree-teardown mechanics — the verb owns them and self-tears-down.
 
-- `[ ]` **5.1.b Author the four transform-shape arms as whole conditional blocks**
-    - symmetric / extraction / backlog-stub-source / heterogeneous-home, each a self-contained block — no
-      shape conditionals scattered through individual steps.
+- `[x]` **5.1.b Author the four transform-shape arms as whole conditional blocks**
+    - symmetric / extraction / backlog-stub-source / heterogeneous-home authored under `## Transform-shape arms`,
+      each self-contained (run-context, conservation scope, extra leg); the spine stays shape-agnostic and defers
+      to the arm — no shape conditionals scattered through steps.
 
-- `[ ]` **5.1.c Heterogeneous-home: workflow-authored direct edits riding the decompose PR**
-    - Fold into a sibling stub / `draft-design` block and atomic edits to standing docs are authored in the
-      workflow (same-concern, known-home, conservation-required) and recorded in the allocation map — never
-      inbox-captured.
+- `[x]` **5.1.c Heterogeneous-home: workflow-authored direct edits riding the decompose PR**
+    - The heterogeneous arm authors the fold / atomic-edit homes as direct edits in the ship step
+      (same-concern, known-home, conservation-required), recorded in the allocation map — never inbox-captured.
 
-- `[ ]` **5.1.d Extraction-park as a separate `arc park` step**
-    - The workflow sequences `arc decompose` then `arc park <origin>` for the park disposition; keep-active is a
-      valid terminal outcome with no park.
+- `[x]` **5.1.d Extraction-park as a separate `arc park` step**
+    - The extraction arm's disposition fork sequences `arc decompose` then `arc park <origin> --reason …` via
+      `park-work-unit`; keep-active is a valid terminal outcome with no park (purely additive).
 
-- `[ ]` **5.1.e Commit/PR surface + package-source mirror**
-    - Commit `Context` footer uses `(maintenance)`; mirror the rewritten workflow to the package source.
+- `[x]` **5.1.e Commit/PR surface + package-source mirror**
+    - Ship step releases `workflowCommit` with a `(maintenance)` `Context` footer; the allocation map is the PR
+      description; rewrite mirrored byte-identical to the package source.
+
+- _Outcome:_ `decompose-work-unit.md` rewritten as a shape-agnostic 7-step spine (resolve cell → conservation
+  gate → cohort coordination → compose cut-map → run `arc decompose` → verify consistency → ship) plus four
+  whole-block transform-shape arms + the at-cap parent-position arm. Run-context resolved per shape against the
+  `park` precedent: symmetric = self-teardown from the `plan/<name>` worktree (the `park@Planning` mirror —
+  supersedes the old "PR on `plan/<name>`" with an auto-merge-lane `chore/decompose-<name>` ship); extraction =
+  origin survives, no teardown; backlog-stub-source = no worktree; heterogeneous = per origin position. Mechanics
+  → the `arc decompose` verb, judgment → the workflow — the mechanics/judgment split shaped for the eventual
+  workflow-composition mechanism (whole-block arms, named cores by stable slug). The conservation-gate
+  _generalization_ (partial-extraction / atomic-home assertions, 5.2) and the Active-state guard (5.3) are seamed
+  but not yet authored.
 
 ### `[ ]` **5.2 Generalize the conservation gate**
 
