@@ -54,39 +54,28 @@ _Design decisions:_ Self-gating contract (inert on doc-only / no-test tasks); th
 antidotes appear verbatim in the universal default; package source omits `override-mode` (neutral by omission),
 the `.arc/` copy declares `extend`. (Satisfies S2, S7, S11.)
 
-### `[ ]` **2.1 Author the `testing-standards` method (both copies)**
+### `[x]` **2.1 Author the `testing-standards` method (both copies)**
 
 - _Goal:_ A `testing-standards.md` method exists in both copies — a self-gating contract, the universal-default
   rule set as `.default`, and (in the `.arc/` copy only) the project partition as an `extend` override.
 
-- _Shape:_ The contract states the agnostic invariant and the self-gating condition ("when this task writes or
-  modifies tests, apply…"). `.default` carries the lean enriched universal set — the eight S11 lines, including
-  the two verbatim antidotes ("don't assert on spy / call args as the outcome" and "keep mocked boundaries
-  faithful"). The `.arc/` override body carries the stack-specific set (the concrete boundary list, Vitest mock
-  mechanics, dependency-injection / `IOContext`, the CLI handler-seam + destructive-verb real-CLI-E2E
-  discipline, fixture / file-naming specifics) under `override-mode: extend`; the package-source copy omits the
-  field and leaves `.override` unpopulated. The file follows the per-file method body conventions
-  (H1 `# Method: testing-standards`, blockquoted preamble with Workflow / When / Contract, then
-  `## testing-standards.override` + `## testing-standards.default`); the `.arc/` copy declares
-  `override-active: true`, the package-source copy `override-active: false`.
+    - `[x]` **2.1.a Write the contract + universal `.default`** (both copies, identical body)
+        - Self-gating contract + the eight-line universal set (the two verbatim antidotes — spy-args and
+          boundary-fidelity — lead). `related: [test-first]` declared in both copies.
 
-- _Note:_ Keep the method non-overlapping — no decision tree (it stays in `test-first`), no tier map or tier
-  commands (strategy and `quality-gate-commands` own those).
+    - `[x]` **2.1.b Populate the `.arc/` copy's `extend` override** with the project partition
+        - `.arc/` copy declares `override-mode: extend` + `override-active: true` with the stack-specific body
+          (boundary list, Vitest mock mechanics, DI/`IOContext`, the net-new CLI handler-seam +
+          destructive-verb real-CLI-E2E discipline, fixtures). Package source stays neutral — empty `.override`,
+          `override-active: false`, no `override-mode`.
 
-- _Strategies:_ strategy-testing-methodology.md, strategy-package-project-sync.md
+    - `[x]` **2.1.c Register `testing-standards` in the methods README** (both copies)
+        - Index entry added; symmetric `testing-standards` ↔ `test-first` rows added to the Method Dependencies
+          table.
 
-    - `[ ]` **2.1.a Write the contract + universal `.default`** (both copies, identical body)
-        - Declare `related: [test-first]` — the two methods partition the testing apparatus along the
-          planning / execution seam, so overriding one should prompt review of the other.
-
-    - `[ ]` **2.1.b Populate the `.arc/` copy's `extend` override** with the project partition
-        - Declare `override-mode: extend` + `override-active: true` in the `.arc/` copy's frontmatter; author
-          the stack-specific body, including the net-new CLI handler-seam + destructive-verb real-CLI-E2E
-          discipline. Package-source copy keeps an empty `.override` (`override-active: false`, no
-          `override-mode`).
-
-    - `[ ]` **2.1.c Register `testing-standards` in the methods README** (both copies)
-        - Add the index entry and a `testing-standards` ↔ `test-first` row in the Method Dependencies table.
+- _Outcome:_ The method exists but is not yet referenced by any workflow's `arc.methods` — the trigger audit
+  (`lint:arc:triggers`, CI-only) flags it until Task 3.1 wires it into `process-task-loop` frontmatter. Expected
+  transient from the author-then-wire phase split; pre-commit does not run the audit.
 
 ## **Phase 3:** Two-gate loop wiring & `test-first` resplit
 

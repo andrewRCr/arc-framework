@@ -219,7 +219,8 @@ mechanism: the default states the principle, the override appends the instantiat
   behavior).
 - **Mock at boundaries; never mock internals** — if that is hard, the interface is wrong, not the test.
 - **Design for testability** — inject dependencies; separate computation from I/O.
-- **Cover error and boundary paths**, not just the happy path.
+- **Keep tests isolated** — no test depends on another's state or run order; reset shared state between tests.
+- **Cover error and boundary paths.**
 - **Meaningful assertions over coverage targets.**
 
 The first two lines (spy-args + fidelity) are the direct antidotes to the originating defect, and are precisely

@@ -26,6 +26,7 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 - [commit-footer](commit-footer.md) — `Context:` footer patterns
 - [issue-triage](issue-triage.md) — severity triage, fix-vs-defer decisions
 - [test-first](test-first.md) — decision tree by change type
+- [testing-standards](testing-standards.md) — execution-time testing discipline (mocking, assertions, error paths)
 - [classify-work-unit](classify-work-unit.md) — boundary-test triage + estimate-vs-realized ratchet for `Class`
 - [assess-cohort-fit](assess-cohort-fit.md) — upper-bound WU-vs-cohort boundary test (decompose, or stay one WU)
 - [session-state](session-state.md) — reading and writing session state
@@ -38,13 +39,15 @@ configurability model, see [Configurability Architecture Strategy][config-arch].
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
 when populating any `.override` section. Methods not listed here are independent.
 
-| Method                | Related Methods       | Coupling                        |
-| --------------------- | --------------------- | ------------------------------- |
-| commit-format         | commit-footer         | Both govern the commit message  |
-| commit-footer         | commit-format         | Both govern the commit message  |
-| diff-review           | review-triage         | Uses review-triage for findings |
-| assess-cohort-fit     | classify-work-unit    | Upper/lower WU-boundary tests   |
-| classify-work-unit    | assess-cohort-fit     | Upper/lower WU-boundary tests   |
+| Method             | Related Methods    | Coupling                        |
+|--------------------|--------------------|---------------------------------|
+| commit-format      | commit-footer      | Both govern the commit message  |
+| commit-footer      | commit-format      | Both govern the commit message  |
+| diff-review        | review-triage      | Uses review-triage for findings |
+| assess-cohort-fit  | classify-work-unit | Upper/lower WU-boundary tests   |
+| classify-work-unit | assess-cohort-fit  | Upper/lower WU-boundary tests   |
+| testing-standards  | test-first         | Planning/execution seam split   |
+| test-first         | testing-standards  | Planning/execution seam split   |
 
 ---
 
