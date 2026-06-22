@@ -87,23 +87,18 @@ _Design decisions:_ `process-task-loop` edits land in both the `.arc/` plain cop
 `.template.md` variant; `test-first` drops from `process-task-loop` frontmatter and stays declared in
 `generate-tasks` only. (Satisfies S2, S3.)
 
-### `[ ]` **3.1 Wire the two per-task gates into `process-task-loop`** (both copies)
+### `[x]` **3.1 Wire the two per-task gates into `process-task-loop`** (both copies)
 
 - _Goal:_ The loop body carries two test gates — the marker-keyed sequencing/RGR gate repointed to
   `testing-standards`, and a new test-touch-keyed discipline gate that fires on every test-touching task
   regardless of marker.
 
-- _Approach:_ Repoint the existing "Test-first execution" bullet from the `test-first` method to
-  `testing-standards`; add the new before-implementing discipline gate ("if the task writes or modifies tests,
-  apply `testing-standards`' mocking / assertion discipline"); swap `test-first` → `testing-standards` in the
-  frontmatter `arc.methods` list; update the `[arc-methods-tf]` link reference accordingly. Fold the existing
-  "consult your testing methodology strategy for mocking rules / fixtures / tiers" pointer in the marker-gate
-  prose into the new discipline gate — `testing-standards` is now that operational home — so the two gates read
-  without double-instruction.
-
-- _Note:_ Edit both `process-task-loop.md` (`.arc/`) and `process-task-loop.template.md` (package source).
-
-- _Strategies:_ strategy-package-project-sync.md
+- _Outcome:_ Marker-keyed "Test-first execution" bullet repointed to `testing-standards`; new "Testing
+  discipline" gate added (fires before implementing on any test-touching task, marker or not); frontmatter
+  `arc.methods` swapped `test-first` → `testing-standards`; `[arc-methods-tf]` link ref replaced with
+  `[arc-methods-ts]`; the strategy-consult pointer folded into the new gate. Both copies edited (the package
+  `.template.md` keeps its `team.mode` conditionals). Resolves the Phase 2 trigger-audit transient —
+  `lint:arc:triggers` now green.
 
 ### `[ ]` **3.2 Resplit the `test-first` method along the planning/execution seam** (both copies)
 
