@@ -10,7 +10,10 @@
  * across squash, rebase, and merge-commit ship paths alike. The realistic
  * post-merge state — the platform deleted the remote branch, leaving a *stale*
  * local tracking ref until prune — is reproduced by deleting the ref in the bare
- * origin while the working clone keeps its tracking ref.
+ * origin while the working clone keeps its tracking ref. The merge also lands on
+ * `origin/main` (a real PR merge advances the remote base), so a separate case rolls
+ * the *local* base back behind `origin/main` to prove the reap refreshes the base
+ * before its safety check rather than trusting a stale local ref.
  *
  * The linked-worktree teardown and the dirty-worktree refusal are exercised here
  * with real `git worktree` rather than spies; the orchestration decisions live in
@@ -95,6 +98,12 @@ async function shipFeature(
     pruneLocalRef?: boolean;
     /** Branch to leave checked out in clone A (default `main`); set to the feature branch for the in-place case. */
     endOn?: string;
+    /**
+     * Reset clone A's local `main` back to its pre-merge sha after the merge is
+     * pushed to origin — the realistic post-remote-merge state where `origin/main`
+     * carries the merge but the local base has not yet pulled it.
+     */
+    staleLocalBase?: boolean;
   },
 ): Promise<void> {
   const { cloneA, origin } = h;
@@ -109,6 +118,7 @@ async function shipFeature(
   await git(cloneA, ["push", "-u", "origin", branch]);
 
   await git(cloneA, ["checkout", "main"]);
+  const preMergeMain = await git(cloneA, ["rev-parse", "main"]);
   if (strategy === "squash") {
     await git(cloneA, ["merge", "--squash", branch]);
     await git(cloneA, ["commit", "-m", `squash: ${name}`]);
@@ -121,6 +131,15 @@ async function shipFeature(
     await git(cloneA, ["add", "base-advance.txt"]);
     await git(cloneA, ["commit", "-m", "chore: advance base"]);
     await git(cloneA, ["cherry-pick", tip]);
+  }
+
+  // The merge lands on the remote base too — the realistic post-PR-merge state
+  // (`origin/main` advanced on the platform), which the teardown reap checks against.
+  await git(cloneA, ["push", "origin", "main"]);
+  if (opts?.staleLocalBase === true) {
+    // Roll the local base back behind `origin/main`: the merge is on the remote but
+    // not yet pulled, so a check against the local base would false-negative.
+    await git(cloneA, ["reset", "--hard", preMergeMain]);
   }
 
   // Simulate delete-on-merge from the remote side: the bare origin loses the branch
@@ -199,6 +218,35 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       ).rejects.toThrow();
       await expect(
         git(h.cloneA, ["merge-base", "--is-ancestor", "feat/demo", "main"]),
+      ).rejects.toThrow();
+
+      const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.branchDeleted).toBe(true);
+      expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
+    } finally {
+      await h.cleanup();
+    }
+  });
+
+  it("reaps a merged branch against the refreshed remote base when the local base is stale", async () => {
+    const h = await setupMultiClone();
+    try {
+      // The realistic post-remote-merge state: `origin/main` carries the squash, the
+      // local base is rolled back behind it (not yet pulled), and the tracking ref is
+      // pruned. The upstream leg has no ref, and a check against the *local* base
+      // false-negatives — only a fetch + landed-in-base against `origin/main` proves
+      // preservation. This refused (forcing a manual fetch + retry) before the fix.
+      await shipFeature(h, "demo", "squash", { staleLocalBase: true, pruneLocalRef: true });
+      await writeShippedMeta(h.cloneA, "demo");
+      // Local base lacks the squash; the tracking ref is gone.
+      await expect(
+        git(h.cloneA, ["merge-base", "--is-ancestor", "feat/demo", "main"]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["rev-parse", "--verify", "--quiet", "refs/remotes/origin/feat/demo"]),
       ).rejects.toThrow();
 
       const result = await runTeardown(teardownCtx(h.cloneA), { name: "demo", base: "main" });
