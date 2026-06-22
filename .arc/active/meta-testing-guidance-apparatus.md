@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-testing-guidance-apparatus.md`
 - **Task List:** [none]
 
 - **Current Workflow:** `draft-design`
