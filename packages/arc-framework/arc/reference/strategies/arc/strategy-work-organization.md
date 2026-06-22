@@ -412,6 +412,31 @@ one concern" fact is preserved as **provenance — an immutable past-event recor
   *parent* cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt
   only; the cap is never raised to rescue a member that legitimately outgrew itself.
 
+### Active-state decomposition
+
+Decomposition is normally a planning-time act, before code is written. Mid-implementation the supported path is
+**extraction**: the origin stays active and only its *unbuilt* scope splits off into new members — committed code
+stays put. ARC runs this directly.
+
+Splitting an origin's *already-committed* code across several members — a **full split** — is not an ARC operation;
+there is no `arc decompose` for it. It is the ordinary git task of dividing a branch's history across branches, and
+it is an escape hatch, not a recommended move:
+
+- **Cleanly-separated commits** — `git cherry-pick` each member's commits (by hash, or an `A^..B` range) onto its
+  branch.
+- **Interleaved commits** — separating a commit that mixes several members' work needs history surgery
+  (`git rebase -i` to split or reorder). Reaching for it is a commit-atomicity smell; the fix is upstream — commit
+  one concern at a time, and decompose at the planning maturity gate before the code exists, so the cut stays clean.
+
+Git ships no "split this branch for me" command, by design — prevention beats the surgery.
+
+### Errand-character decompositions
+
+Not every decomposition authors design. Splitting a backlog stub in place, or routing pieces to existing homes (an
+established sibling, a standing doc), is **pure relocation** — no new design written — and runs as a bounded few
+in-session increments rather than a planning ceremony: [Errand](#errand-work-class) *character* (not a `Class`).
+Decompositions that author member design on a live planning branch stay full lifecycle ceremonies.
+
 ### WU sizing standard
 
 Decomposition keys on **orthogonality, not size** — but size is the heads-up that prompts the question. This is

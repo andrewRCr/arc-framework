@@ -82,6 +82,8 @@ function buildIndexFs(metas: MetaSpec[]): LifecycleIndexFs {
 
 const SHIPPED_META: MetaSpec = { slug: "demo", tier: "completed", state: "Shipped", subdir: "2026-q2/01_demo" };
 const ACTIVE_META: MetaSpec = { slug: "demo", tier: "active", state: "Active" };
+/** A parked origin — `Active` phase, `backlog/planned/` location (the `park@Planning` shelf). */
+const PARKED_META: MetaSpec = { slug: "demo", tier: "backlog", state: "Active", subdir: "planned/demo" };
 
 /** A configurable git exec spy. Routes by command; records calls. */
 interface ExecOptions {
@@ -91,6 +93,8 @@ interface ExecOptions {
   worktreePorcelain?: string;
   /** Whether the branch still exists after a delete attempt (drives `branchDeleted`). */
   branchSurvivesDelete?: boolean;
+  /** Whether the local `git branch -D` throws (simulates a force-delete failure). */
+  branchDeleteThrows?: boolean;
 }
 
 function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
@@ -103,7 +107,10 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "worktree" && args[1] === "list") return { stdout: opts.worktreePorcelain ?? "" };
     if (sub === "rev-parse") return { stdout: "deadbeef\n" };
     if (sub === "rev-list") return { stdout: "" }; // contained → safe
-    if (sub === "branch" && args[1] === "-D") return { stdout: "" };
+    if (sub === "branch" && args[1] === "-D") {
+      if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
+      return { stdout: "" };
+    }
     if (sub === "show-ref") {
       if (opts.branchSurvivesDelete) return { stdout: "" };
       throw new Error("not found"); // ref gone → deleted
@@ -250,6 +257,140 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     expect(result.worktreeRemoved).toBe("/repo-feat-demo");
     expect(calls).toContainEqual(["git", "worktree", "remove", "/repo-feat-demo"]);
     // Worktree removal precedes the branch delete (a checked-out branch can't be deleted).
+    const removeIdx = calls.findIndex((c) => c[1] === "worktree" && c[2] === "remove");
+    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    expect(removeIdx).toBeLessThan(deleteIdx);
+  });
+});
+
+describe("runTeardown — abandoned mode (un-shipped / force)", () => {
+  const PRIMARY_PORCELAIN = "worktree /repo\nHEAD abc\nbranch refs/heads/main\n";
+
+  it("accepts a parked (`backlog/planned/`) origin — un-shipped arc-state", async () => {
+    const { ctx } = buildCtx([PARKED_META], { branches: ["plan/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+  });
+
+  it("accepts a retired (removed → nonexistent) origin — no meta on disk", async () => {
+    const { ctx } = buildCtx([], { branches: ["plan/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+  });
+
+  it("refuses a shipped (`completed/`) WU — the force path is not for the merged case", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/shipped|merged-safe|completed/i);
+    // The gate refused before any git invocation.
+    expect(calls).toEqual([]);
+  });
+
+  it("force-deletes the unmerged branch (local + remote), bypassing the containment check", async () => {
+    const { ctx, calls } = buildCtx([], { branches: ["plan/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branch).toBe("plan/demo");
+    expect(result.branchDeleted).toBe(true);
+    expect(calls).toContainEqual(["git", "branch", "-D", "plan/demo"]);
+    // Full retirement: the remote ref is deleted too (the merged-safe path never does this).
+    expect(calls).toContainEqual(["git", "push", "origin", "--delete", "plan/demo"]);
+    // The containment oracle is the discriminator — the force path never consults it.
+    expect(calls.some((c) => c[1] === "rev-list")).toBe(false);
+    expect(calls.some((c) => c[1] === "cherry")).toBe(false);
+  });
+
+  it("rejects when the local force-delete fails and the branch survives — not a torn-down report", async () => {
+    // The local `git branch -D` throws and the branch is still present afterward:
+    // a force-mode failure, distinct from a best-effort remote-ref cleanup miss.
+    const { ctx } = buildCtx([], {
+      branches: ["plan/demo"],
+      branchDeleteThrows: true,
+      branchSurvivesDelete: true,
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/force-delete local branch/i);
+  });
+
+  it("degrades a remote-only delete failure to a notice when the local delete landed", async () => {
+    // The local `git branch -D` succeeds (branch gone), but the remote `push
+    // --delete` fails with an actionable error → a notice, still torn-down.
+    const { ctx } = buildCtx([], { branches: ["plan/demo"] });
+    const baseExec = ctx.exec;
+    ctx.exec = async (cmd, args) => {
+      if (args[0] === "push" && args.includes("--delete")) throw new Error("remote rejected: connection refused");
+      return baseExec(cmd, args);
+    };
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branchDeleted).toBe(true);
+    expect(result.notices.some((n) => /remote branch/i.test(n))).toBe(true);
+  });
+
+  it("mode selection routes correctly: shipped uses the containment-gated delete, not force", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "shipped" });
+
+    expect(result.status).toBe("torn-down");
+    // The merged-safe path consults containment and never force-deletes the remote ref.
+    expect(calls.some((c) => c[1] === "rev-list" || c[1] === "cherry")).toBe(true);
+    expect(calls.some((c) => c[1] === "push" && c.includes("--delete"))).toBe(false);
+  });
+
+  it("in-place arm under abandoned mode: switches the primary to base, no worktree removal", async () => {
+    const porcelain = "worktree /repo\nHEAD abc\nbranch refs/heads/plan/demo\n";
+    const { ctx, calls } = buildCtx([PARKED_META], {
+      branches: ["plan/demo"],
+      worktreePorcelain: porcelain,
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.worktreeRemoved).toBeNull();
+    expect(calls.some((c) => c[1] === "worktree" && c[2] === "remove")).toBe(false);
+    expect(calls).toContainEqual(["git", "switch", "main"]);
+    // The relocation precedes the force-delete (a checked-out branch can't be deleted).
+    const switchIdx = calls.findIndex((c) => c[1] === "switch");
+    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    expect(switchIdx).toBeLessThan(deleteIdx);
+  });
+
+  it("linked arm under abandoned mode: tears down the worktree before the force-delete", async () => {
+    const porcelain =
+      PRIMARY_PORCELAIN +
+      "\nworktree /repo-plan-demo\nHEAD def\nbranch refs/heads/plan/demo\n";
+    const { ctx, calls } = buildCtx([PARKED_META], {
+      branches: ["plan/demo"],
+      worktreePorcelain: porcelain,
+    });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main", mode: "abandoned" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.worktreeRemoved).toBe("/repo-plan-demo");
+    expect(calls).toContainEqual(["git", "worktree", "remove", "/repo-plan-demo"]);
     const removeIdx = calls.findIndex((c) => c[1] === "worktree" && c[2] === "remove");
     const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
     expect(removeIdx).toBeLessThan(deleteIdx);

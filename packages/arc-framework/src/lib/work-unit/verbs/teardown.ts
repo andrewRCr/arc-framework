@@ -1,28 +1,36 @@
 /**
- * The `teardown` verb — post-merge physical cleanup of a shipped work unit.
+ * The `teardown` verb — physical cleanup (branch + worktree) of a retired work
+ * unit, in two modes (see {@link TeardownMode}).
  *
  * The deterministic cleanup hand-run today in the integration tail: reap the
- * merged branch, remove the worktree (worktree-kind dispatched, presence-guarded),
- * and prune the stale remote-tracking ref a delete-on-merge leaves behind. It
- * composes the shared legs — the merged-safe `reconcile-branch` delete, the
- * `reconcile-worktree` teardown, and the `fetch-prune` leg — never re-implementing
- * their mechanics.
+ * branch, remove the worktree (worktree-kind dispatched, presence-guarded), and
+ * prune the stale remote-tracking ref. It composes the shared legs — a
+ * `reconcile-branch` delete, the `reconcile-worktree` teardown, and the
+ * `fetch-prune` leg — never re-implementing their mechanics.
  *
  * Teardown is **not** a lifecycle transition: the branch and worktree are
  * *projections*, not lifecycle state, so it does not run through the transition
- * table. It fires *after* merge, distinct from the pre-merge `archive` sweep.
+ * table. It fires *after* the retiring transition has merged, distinct from the
+ * pre-merge `archive` sweep.
  *
- * The two-part safety model (settled upstream):
+ * Two modes share every mechanic but the gate and the branch-delete strategy:
  *
- * 1. **Arc-state authority** — the WU resides in `completed/` (the `archive`
- *    transition ran; the WU shipped as a lifecycle fact). Resolved from location
- *    via {@link isShipped}, never from `git branch` / `git log` inference.
- * 2. **Preservation durability** — every local commit on the branch is provably
- *    preserved: contained in its remote upstream (pushed) or landed in `base`
- *    (merged). Enacted by the shared reap oracle ({@link assessReapSafety}) the
- *    merged-safe delete leg uses; the base leg via patch-equivalence holds even
- *    when the remote-tracking ref was pruned at merge (delete-on-merge), the case
- *    an upstream-only check false-negatives.
+ * - **`shipped`** (default) — post-merge cleanup of a `completed/` WU. The
+ *   two-part safety model (settled upstream): (1) **arc-state authority** — the
+ *   WU resides in `completed/` (the `archive` transition ran), resolved from
+ *   location via {@link isShipped}, never from `git branch` / `git log`
+ *   inference; (2) **preservation durability** — every local commit is provably
+ *   preserved (contained in its upstream, or landed in `base` by
+ *   patch-equivalence), enacted by the shared reap oracle ({@link
+ *   assessReapSafety}) the merged-safe delete leg uses, holding even when the
+ *   remote-tracking ref was pruned at merge.
+ * - **`abandoned`** — cleanup of a *retired* / *parked* origin (a decompose
+ *   origin removed into its members, a `park@Planning` shelf) whose branch is
+ *   *unmerged by construction*. The gate is the inverse (any un-shipped WU; a
+ *   `completed/` one is refused), and the branch is force-deleted (local +
+ *   remote). Git-containment cannot prove safety for an unmerged branch, so the
+ *   safety is the *caller's* conservation gate — passing this mode is that
+ *   authorization.
  *
  * The branch name is resolved by enumerating local refs and matching the WU slug
  * ({@link branchToWorkUnitSlug}) — a ref-projection lookup, type-prefix agnostic,
@@ -58,6 +66,22 @@ export interface TeardownContext {
   chdir: (dir: string) => void;
 }
 
+/**
+ * Teardown mode — selects the arc-state gate and the branch-delete strategy. The
+ * worktree / locus-hop / ordering / prune mechanics are identical in both.
+ *
+ * - `shipped` (default) — a `completed/` WU whose branch is merged. Gate:
+ *   `completed/` presence ({@link isShipped}). Branch delete: the merged-safe,
+ *   containment-gated, local-only `delete-merged` — git-containment is the safety.
+ * - `abandoned` — a *retired* / *parked* origin (decompose's removed origin, a
+ *   `park@Planning` shelf) whose branch is **unmerged by construction**. Gate: the
+ *   inverse — anything *not* shipped (a `completed/` WU must use the merged-safe
+ *   path). Branch delete: a caller-authorized force delete (local + remote). The
+ *   conservation gate the caller enforced is the upstream safety here, not
+ *   git-containment; passing this mode *is* that authorization.
+ */
+export type TeardownMode = "shipped" | "abandoned";
+
 /** The operational inputs a `teardown` supplies. */
 export interface TeardownParams {
   /** Target WU name (the CLI defaults this to the current worktree's WU). */
@@ -66,6 +90,8 @@ export interface TeardownParams {
   base: string;
   /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
   remote?: string;
+  /** Teardown mode (default `shipped`). See {@link TeardownMode}. */
+  mode?: TeardownMode;
   /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
 }
@@ -129,11 +155,13 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
 }
 
 /**
- * Run `teardown`: gate on `completed/` arc-state, resolve the WU branch, then
- * compose the cleanup legs in their constraint-safe order — worktree teardown
- * (linked arm only; the in-place / absent arm is a presence-guarded no-op), the
- * merged-safe branch delete (push-state gated), and the prune. Rejects a
- * not-yet-shipped WU, an ambiguous branch match, or a dirty linked worktree.
+ * Run `teardown`: gate on arc-state (mode-keyed — see {@link TeardownMode}),
+ * resolve the WU branch, then compose the cleanup legs in their constraint-safe
+ * order — worktree teardown (linked arm only; the in-place / absent arm is a
+ * presence-guarded no-op), the branch delete (merged-safe + push-state-gated in
+ * `shipped`; caller-authorized force in `abandoned`), and the prune. Rejects on a
+ * gate mismatch (a not-yet-shipped WU in `shipped`, a `completed/` WU in
+ * `abandoned`), an ambiguous branch match, or a dirty linked worktree.
  *
  * @param ctx - The git executor, index-scan seam, and locus-hop.
  * @param params - The target WU (and an optional remote / next-step suggestion).
@@ -142,13 +170,26 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
   const { cwd, exec, indexFs, chdir } = ctx;
   const { name, base, remote, suggestion } = params;
+  const mode: TeardownMode = params.mode ?? "shipped";
 
-  // 1. Arc-state authority gate — only a shipped (`completed/`) WU. Location, never git.
+  // 1. Arc-state authority gate — mode-keyed, resolved from location, never git.
+  //    `shipped`: only a `completed/` WU (the merged-safe path's precondition).
+  //    `abandoned`: the inverse — accept any *un-shipped* WU (a retired / parked
+  //    origin), but refuse a `completed/` one so the force path can't reap a
+  //    merged WU that the safe path handles.
   const index = await buildLifecycleIndex({ cwd, fs: indexFs });
-  if (!isShipped(index, name)) {
+  const shipped = isShipped(index, name);
+  if (mode === "shipped" && !shipped) {
     return {
       status: "rejected",
       reason: `\`${name}\` has not shipped (no \`completed/\` presence) — teardown runs only after archive + merge.`,
+    };
+  }
+  if (mode === "abandoned" && shipped) {
+    return {
+      status: "rejected",
+      reason:
+        `\`${name}\` has shipped (\`completed/\`) — use the default merged-safe teardown, not the force path.`,
     };
   }
 
@@ -189,18 +230,42 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
     }
   }
 
-  // 4. Merged-safe branch delete — the push-state gate lives in the leg. Local-only
-  //    (the work is preserved on the remote). A refusal (branch ahead of / no
-  //    upstream) leaves the branch intact; surface it rather than dropping work.
+  // 4. Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated,
+  //    local-only delete; a refusal (branch ahead of / no upstream) leaves the
+  //    branch intact, surfaced rather than dropping work. `abandoned`: a
+  //    caller-authorized force delete (local + remote) — the retired origin's
+  //    branch is unmerged by construction, so containment would always refuse;
+  //    the caller's conservation gate is the safety. The local force-delete is
+  //    authoritative, so a remote-ref cleanup failure degrades to a notice
+  //    (best-effort, like the prune leg) rather than discarding the completed work.
   let branchDeleted = false;
   if (branch !== null) {
-    await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base, remote });
-    branchDeleted = !(await branchExists(exec, branch));
-    if (!branchDeleted) {
-      notices.push(
-        `Branch \`${branch}\` is not contained on its upstream or landed in \`${base}\` — left intact ` +
-          `(unpushed, unmerged commits would be lost).`,
-      );
+    if (mode === "shipped") {
+      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base, remote });
+      branchDeleted = !(await branchExists(exec, branch));
+      if (!branchDeleted) {
+        notices.push(
+          `Branch \`${branch}\` is not contained on its upstream or landed in \`${base}\` — left intact ` +
+            `(unpushed, unmerged commits would be lost).`,
+        );
+      }
+    } else {
+      try {
+        await reconcileBranch({ exec }, { mutation: "delete", branch, remote });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        // The local force-delete runs before the remote-ref cleanup, so a branch
+        // that still exists means the local `git branch -D` is what failed — a
+        // force-mode failure, not a best-effort remote miss. Reject rather than
+        // reporting a torn-down branch that is in fact still present. A
+        // remote-only failure (local delete landed) degrades to a notice, like
+        // the prune leg.
+        if (await branchExists(exec, branch)) {
+          return { status: "rejected", reason: `Could not force-delete local branch \`${branch}\` (${detail}).` };
+        }
+        notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
+      }
+      branchDeleted = !(await branchExists(exec, branch));
     }
   }
 

@@ -425,12 +425,19 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
+    // park@Planning relocates the codeless WU's artifacts to `backlog/planned/`
+    // in-verb (staged + committed with the park), but its `plan/<name>` branch +
+    // worktree teardown is **out-of-band**: it runs post-action via
+    // `arc teardown --force`, not an in-verb leg. Firing teardown here tripped the
+    // `worktree-clean` guard on the verb's own staged tree and, in-place, targeted
+    // the un-removable primary worktree — so this edge declares neither the
+    // teardown legs nor that guard (mirroring `decompose@planning`).
     verb: "park",
     from: PLANNING,
     to: PLANNED,
     inverse: "start",
-    guards: ["worktree-clean"],
-    encodingUpdates: { artifacts: "relocate", reconcileBranch: "delete", reconcileWorktree: "teardown" },
+    guards: [],
+    encodingUpdates: { artifacts: "relocate" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },
@@ -577,12 +584,18 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     softFields: PRESERVE_SOFT,
   },
   {
+    // A started origin retires its artifacts in-verb (staged + committed with the
+    // transform), but its branch + worktree teardown is **out-of-band**: it runs
+    // post-merge via the generalized `arc teardown --force`, not an in-verb leg.
+    // Firing teardown here tripped the `worktree-clean` guard on the verb's own
+    // staged tree and, in-place, targeted the un-removable primary worktree — so
+    // this edge declares neither the teardown legs nor that guard.
     verb: "decompose",
     from: PLANNING,
     to: null,
     inverse: null,
-    guards: ["worktree-clean"],
-    encodingUpdates: { artifacts: "remove", reconcileBranch: "delete", reconcileWorktree: "teardown" },
+    guards: [],
+    encodingUpdates: { artifacts: "remove" },
     sideEffects: withRender("user-workspace"),
     softFields: PRESERVE_SOFT,
   },

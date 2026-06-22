@@ -9,17 +9,18 @@ arc:
 # Workflow: Park Work Unit
 
 Shelve a started work unit off the active set, freeing the worktree while leaving the unit resumable. `park` is the
-inverse of `start`. The [`arc park`](#3-run-arc-park-from-a-base-checkout) verb owns the mechanics (relocate /
-branch-preserve / worktree teardown / pointer-record / side-effects); this workflow supplies the judgment, the
-run-context, and the ship legs.
+inverse of `start`. The [`arc park`](#3-run-arc-park-from-a-base-checkout) verb owns the in-verb mechanics (relocate
+/ branch-preserve / park@Active worktree teardown / pointer-record / side-effects); this workflow supplies the
+judgment, the run-context, the out-of-band park@Planning teardown, and the ship legs.
 
 `park` is **phase-polymorphic** over `**State:**`:
 
 - **park@Active** — code exists; the pushed branch is **preserved** as the durable shelf, only the worktree is torn
   down, and a fresh **pointer-record** lands on the tracked branch (the authoritative artifacts ride the preserved
   branch, never moved). Resolves to `parked`.
-- **park@Planning** — no code yet; the `plan/<name>` branch is torn down (re-cut on resume) and the artifacts
-  relocate `active/ → backlog/planned/`. Resolves to `planned`.
+- **park@Planning** — no code yet; the artifacts relocate `active/ → backlog/planned/` (in-verb), and the
+  `plan/<name>` branch + worktree are torn down **out-of-band** via a post-action `arc teardown --force` (re-cut on
+  resume). Resolves to `planned`.
 
 **When to use:** A started unit must step aside without being abandoned — a deliberate, resumable pause. Choosing
 `park` over [`abandon`][deactivate] *is* the resume commitment. Never pause by leaving a unit idle in `active/`:
@@ -69,11 +70,13 @@ arc park {name} --reason "<why this unit is being shelved>"
 ```
 
 `{name}` defaults to the current worktree's unit when omitted. `arc park` **stages but does not commit**: it
-relocates (Planning) or renders the pointer-record (Active), preserves or deletes the branch, tears down the unit's
-worktree (refusing on uncommitted work), regenerates `STATUS.USER`, closes the user workspace, and emits a ROADMAP
-regen advisory. The relocate + teardown choreography is the single-source park-exit block authored in
-[`decompose-work-unit`][decompose] § [The park-exit block](decompose-work-unit.md#the-park-exit-block); `park`
-drives it through the verb rather than re-spelling it.
+relocates (Planning) or renders the pointer-record (Active), regenerates `STATUS.USER`, closes the user workspace,
+and emits a ROADMAP regen advisory. For **park@Active** it also preserves the branch and tears down the unit's
+worktree in-verb (refusing on uncommitted work). For **park@Planning** the `plan/<name>` branch + worktree teardown
+is **out-of-band** — a post-action `arc teardown --force` (Step 4 below), not an in-verb leg, since firing it on the
+verb's own staged relocate would trip the clean guard and, in-place, target the un-removable primary worktree. The
+relocate choreography is shared with [`decompose-work-unit`][decompose] § [The park-exit
+block](decompose-work-unit.md#the-park-exit-block); `park` drives it through the verb rather than re-spelling it.
 
 ### 4) Ship per protection mode
 
@@ -123,8 +126,19 @@ gh pr create --base {base-branch} --head chore/park-{name}
 gh pr merge {pr-number} --squash   # or per merge.strategy
 ```
 
-The worktree teardown already ran inside `arc park` (Step 3) — no separate teardown step. park@Active preserved the
-branch (the shelf); park@Planning deleted the `plan/` branch.
+**park@Active** tore down its worktree in-verb (Step 3) and preserved the branch as the shelf — no separate
+teardown step.
+
+**park@Planning** reaps its `plan/<name>` branch + worktree **out-of-band**, after the park change has landed
+(committed under partial, merged under full) — never before, or the relocate would not yet be durable:
+
+```bash
+arc teardown {name} --force   # un-shipped / force mode: reaps the retired plan branch + worktree
+```
+
+`--force` selects the un-shipped teardown mode: the WU is parked (not in `completed/`) and its `plan/<name>` branch
+is unmerged, so the conservation safety is the durable relocate above, not git-containment. The in-place arm
+switches the primary worktree to the base branch; a linked arm removes the worktree and locus-hops.
 
 ---
 

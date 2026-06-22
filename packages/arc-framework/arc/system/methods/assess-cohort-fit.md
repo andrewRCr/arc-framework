@@ -108,6 +108,15 @@ The method produces either **"stays one WU"** or the **cut-map**:
 - **internal dependency edges** — `m_i → m_j`, authored from the cut's delivery order;
 - **deliverable boundaries** — what each member independently ships.
 
+**Entry kinds.** A cut-map entry defaults to a **new member** (a freshly-minted WU, above). Two further kinds
+cover the non-symmetric transform shapes — a data-shape the cut-map carries, while *when* to use them stays this
+method's judgment:
+
+- **surviving-origin** — names the *retained* origin as an entry (the extraction shape), carrying its disposition
+  (`keep-active` / `park`); the origin survives the cut rather than retiring.
+- **existing/atomic-home** — names an *existing or atomic destination* (the heterogeneous shape): a sibling stub, a
+  `draft-design` block, or an in-place atomic edit to a standing doc, rather than a new member.
+
 Producing the cut-map ends this method's job — it *decides*, it never executes the cut. `decompose-work-unit`
 consumes the cut-map and runs the transform.
 

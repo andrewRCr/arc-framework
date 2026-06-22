@@ -19,7 +19,7 @@
  * @module
  */
 
-import { basename, join } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { readFile, readdir, rm, rmdir } from "node:fs/promises";
 
 import * as p from "@clack/prompts";
@@ -60,6 +60,8 @@ import {
 } from "../lib/work-unit/verbs/promote-demote.js";
 import { runPark, runResume, type ParkResumeFs } from "../lib/work-unit/verbs/park-resume.js";
 import { runStub, type StubCommitment } from "../lib/work-unit/verbs/stub.js";
+import { runDecompose } from "../lib/work-unit/verbs/decompose.js";
+import { parseCutMap } from "../lib/work-unit/decompose-cut-map.js";
 import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
@@ -229,6 +231,91 @@ export async function handleStub(name: string | undefined, opts: StubOptions): P
     return;
   }
   reportOutcome("Stubbed", [`Work unit: ${wuName}`, `Meta:      ${result.metaPath}`], result.outcome);
+}
+
+// ---------------------------------------------------------------------------
+// Composite (fan-out) — `decompose`
+// ---------------------------------------------------------------------------
+
+/** Options for `arc decompose`. */
+export interface DecomposeOptions {
+  /** Path to the structured cut-map file (JSON) — required; the cut is authored, never inferred. */
+  cutMap?: string;
+}
+
+/**
+ * `arc decompose <origin> --cut-map <file>` — turn one work unit into a cohort of
+ * members per a structured cut-map. Deserializes + validates the cut-map file
+ * (the boundary `parseCutMap`), refusing a malformed file before any mutation,
+ * then runs the deterministic legs (`runDecompose`): batch-scaffold the members,
+ * retire the origin through its reserved edge (skipped on the extraction shape),
+ * re-point the incoming `Depends On` edges, and regenerate the ROADMAP. The
+ * cut-map's judgment (members, distribution, dispositions) is authored upstream;
+ * the command never fabricates it.
+ */
+export async function handleDecompose(origin: string | undefined, opts: DecomposeOptions): Promise<void> {
+  p.intro("arc decompose");
+  const base = await resolveVerbBase();
+  if (base === null) return;
+
+  const originArg = origin?.trim();
+  if (!originArg) {
+    refuse("`arc decompose <origin> --cut-map <file>` requires the origin work-unit name.");
+    return;
+  }
+  const cutMapPath = opts.cutMap?.trim();
+  if (!cutMapPath) {
+    refuse("`arc decompose` requires `--cut-map <file>` — the cut is authored, never inferred.");
+    return;
+  }
+
+  // Deserialization (read the file, parse JSON) is the command's job; structural
+  // validation is `parseCutMap`'s, so a read / syntax failure refuses distinctly.
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(resolve(base.cwd, cutMapPath), "utf8"));
+  } catch (err) {
+    refuse(`could not read or parse the cut-map file \`${cutMapPath}\`: ${(err as Error).message}`);
+    return;
+  }
+
+  const parsed = parseCutMap(raw);
+  if (parsed.status === "rejected") {
+    refuse(`cut-map rejected: ${parsed.reason}`);
+    return;
+  }
+  if (parsed.params.origin.slug !== originArg) {
+    refuse(`cut-map origin \`${parsed.params.origin.slug}\` does not match the \`<origin>\` argument \`${originArg}\`.`);
+    return;
+  }
+
+  const { executor } = await buildExecutor(base);
+  const result = await runDecompose(
+    {
+      executor,
+      fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
+      removeFs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
+    },
+    { cut: parsed.params },
+  );
+  if (result.status === "rejected") {
+    refuse(result.reason);
+    return;
+  }
+
+  const { members, repointed, origin: disposition, teardown } = result.result;
+  const lines = [
+    `Origin:     ${originArg} (${disposition})`,
+    `Members:    ${members.map((m) => m.slug).join(", ")}`,
+    `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
+  ];
+  if (teardown !== null) {
+    // The started origin's branch + worktree teardown is deferred to post-merge —
+    // surface the exact command rather than reaping the live branch mid-transform.
+    lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+  }
+  p.note(lines.join("\n"), "Decomposed");
+  p.outro("Done.");
 }
 
 // ---------------------------------------------------------------------------
@@ -470,7 +557,15 @@ export async function handlePark(slug: string | undefined, opts: ParkOptions): P
     refuse(result.reason);
     return;
   }
-  reportOutcome("Parked", [`Work unit: ${target}`, `Meta:      ${result.metaPath}`], result.outcome);
+  const parkedLines = [`Work unit: ${target}`, `Meta:      ${result.metaPath}`];
+  // park@Planning relocates the artifacts but leaves the `plan/<name>` branch +
+  // worktree for an out-of-band reap (firing it in-verb would trip on the staged
+  // tree / target the primary). park@Active preserves the branch and tore the
+  // worktree down in-verb, so it owes no teardown.
+  if (result.outcome.status === "ok" && result.outcome.from?.phase === "Planning") {
+    parkedLines.push(`Teardown:  post-action — \`arc teardown ${target} --force\``);
+  }
+  reportOutcome("Parked", parkedLines, result.outcome);
 }
 
 /** Options for `arc resume`. */
@@ -750,21 +845,35 @@ export async function handleArchive(slug: string | undefined, opts: ArchiveOptio
   reportOutcome("Archived", lines, result.outcome);
 }
 
+/** Options for `arc teardown`. */
+export interface TeardownOptions {
+  /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
+  force?: boolean;
+}
+
 /**
- * `arc teardown <name>` — post-merge physical cleanup of a shipped work unit:
- * reap the merged branch, remove the linked worktree (in-place is a no-op), and
- * prune the stale tracking ref. Gated on `completed/` arc-state + the merged-safe
- * push-state durability check. Requires an explicit name — a shipped WU has no
- * `active/` meta to default from.
+ * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
+ * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
+ * prune the stale tracking ref. Two modes (default `shipped`; `--force` selects
+ * `abandoned`):
+ *
+ * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
+ *   arc-state + the merged-safe push-state durability check.
+ * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
+ *   into its members, a `park@Planning` shelf) whose branch is unmerged;
+ *   force-deletes it. The caller asserts the work is conserved (the flag is that
+ *   authorization); refuses a `completed/` WU (use the default path).
+ *
+ * Requires an explicit name — a retired WU has no `active/` meta to default from.
  */
-export async function handleTeardown(name: string | undefined): Promise<void> {
+export async function handleTeardown(name: string | undefined, opts: TeardownOptions = {}): Promise<void> {
   p.intro("arc teardown");
   const base = await resolveVerbBase();
   if (base === null) return;
 
   const wuName = name?.trim();
   if (!wuName) {
-    refuse("`arc teardown <name>` requires the shipped work-unit name to clean up.");
+    refuse("`arc teardown <name>` requires the work-unit name to clean up.");
     return;
   }
 
@@ -775,13 +884,18 @@ export async function handleTeardown(name: string | undefined): Promise<void> {
     return;
   }
 
-  // Default to the repo root, but let an explicit `opts.cwd` win — the worktree
+  // Default to the run locus, but let an explicit `opts.cwd` win — the worktree
   // cleanliness check targets the *linked* worktree being torn down, not the cwd
   // (unlike a transition executor, teardown operates on a worktree it isn't in).
-  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
+  // The locus tracks the self-teardown hop: when teardown removes the very worktree
+  // it was invoked from, `chdir` relocates the process *and* re-points this exec to
+  // the primary, so the post-hop branch-delete / prune don't run against a vanished
+  // cwd (the dangling-locus failure the out-of-band move exists to avoid).
+  let locus = base.cwd;
+  const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
   const result = await runTeardown(
-    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
-    { name: wuName, base: baseBranch },
+    { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
+    { name: wuName, base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
   );
   if (result.status === "rejected") {
     refuse(result.reason);

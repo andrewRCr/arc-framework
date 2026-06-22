@@ -52,6 +52,7 @@ function findLegalEdge(verb: Verb, from: LifecyclePosition | null): TransitionRe
  * is written only when it changes between two existing positions.
  */
 function deriveExpectedMutators(
+  verb: Verb,
   from: LifecyclePosition | null,
   to: LifecyclePosition | null,
 ): MutatorSpec {
@@ -79,6 +80,14 @@ function deriveExpectedMutators(
   // `abandon`) is local, so it reconciles the branch + worktree in place below.
   if (et?.dirTier === "completed") {
     spec.clearBranchField = true;
+  } else if (verb === "decompose" || (verb === "park" && from?.phase === "Planning")) {
+    // `decompose` (any position) and `park@Planning` retire / relocate the origin's
+    // artifacts in-verb but defer the started origin's branch + worktree teardown
+    // out-of-band (post-action `arc teardown --force`), so their edges declare
+    // neither leg even where the position transition (active → gone / planned)
+    // would otherwise imply them. Distinct from the co-located `abandon` (tears
+    // down in place) and `park@Active` (preserves the branch, tears down the
+    // worktree in-verb from the base checkout).
   } else {
     // Branch — by category transition.
     const fromBranch = ef?.branch ?? "none";
@@ -169,7 +178,7 @@ describe("lifecycle transition table — inverse round-trip", () => {
 describe("lifecycle transition table — encoding consistency", () => {
   it("declares encoding mutators that match the target's expected encoding", () => {
     for (const edge of TRANSITIONS) {
-      const expectedMutators = deriveExpectedMutators(edge.from, edge.to);
+      const expectedMutators = deriveExpectedMutators(edge.verb, edge.from, edge.to);
       expect(
         normalizeMutators(edge.encodingUpdates),
         `${edge.verb}(${posKey(edge.from)}→${posKey(edge.to)}) encoding`,

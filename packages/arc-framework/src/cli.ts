@@ -33,6 +33,7 @@ import { handlePlanCheck, type PlanCheckOptions } from "./handlers/plan.js";
 import { handleUpdate, handleHealth, handleDiff } from "./handlers/installation.js";
 import {
   handleStub,
+  handleDecompose,
   handlePromote,
   handleDemote,
   handlePark,
@@ -55,6 +56,8 @@ import {
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
+  type TeardownOptions,
+  type DecomposeOptions,
 } from "./handlers/lifecycle.js";
 import {
   handleUserAdd, handleUserClose, handleUserInboxRemove, handleUserOpen, handleUserSave, handleUserLoad, handleUserPush, handleUserFetch, handleUserPull, handleUserStatus,
@@ -142,6 +145,12 @@ program
   .action((name: string | undefined, opts: StubOptions) => handleStub(name, opts));
 
 program
+  .command("decompose <origin>")
+  .description("Split a work unit into a cohort of members per a structured cut-map file")
+  .option("--cut-map <file>", "Path to the cut-map file (JSON) — members, edges, distribution, dispositions (required)")
+  .action((origin: string | undefined, opts: DecomposeOptions) => handleDecompose(origin, opts));
+
+program
   .command("promote [slug]")
   .description("Raise a provisional stub to planned (requires a resolved `Class`)")
   .action((slug: string | undefined) => handlePromote(slug));
@@ -208,7 +217,11 @@ program
 program
   .command("teardown [name]")
   .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
-  .action((name: string | undefined) => handleTeardown(name));
+  .option(
+    "--force",
+    "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
+  )
+  .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 
 program
   .command("set-stage <stage>")

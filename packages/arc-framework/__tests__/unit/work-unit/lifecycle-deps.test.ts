@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 
 import { buildLifecycleIndexFromMetas } from "../../../src/lib/work-unit/lifecycle-index.js";
-import { resolveDepStates } from "../../../src/lib/work-unit/lifecycle-deps.js";
+import { resolveDepStates, resolveReverseDeps } from "../../../src/lib/work-unit/lifecycle-deps.js";
 
 /** Minimal valid meta — H1 plus the flat-bullet `State` and an optional `Depends On` edge list. */
 function meta(state: string, dependsOn?: string[]): string {
@@ -50,5 +50,59 @@ describe("resolveDepStates", () => {
 
   it("returns no edges for a slug absent from the index", () => {
     expect(resolveDepStates(index(["shipped-dep"]), "ghost")).toEqual([]);
+  });
+});
+
+describe("resolveReverseDeps", () => {
+  it("finds every dependent that names the origin, across the active and planned tiers", () => {
+    const reverse = resolveReverseDeps(
+      buildLifecycleIndexFromMetas([
+        { path: ".arc/active/meta-origin.md", content: meta("Active") },
+        { path: ".arc/active/meta-active-dep.md", content: meta("Active", ["origin"]) },
+        { path: ".arc/backlog/planned/cohort-x/planned-dep/meta-planned-dep.md", content: meta("Planning", ["origin"]) },
+        { path: ".arc/active/meta-unrelated.md", content: meta("Active", ["something-else"]) },
+      ]),
+      "origin",
+    );
+
+    expect(reverse).toEqual(["active-dep", "planned-dep"]);
+  });
+
+  it("returns empty when nothing depends on the origin", () => {
+    const reverse = resolveReverseDeps(
+      buildLifecycleIndexFromMetas([
+        { path: ".arc/active/meta-origin.md", content: meta("Active") },
+        { path: ".arc/active/meta-loner.md", content: meta("Active", []) },
+      ]),
+      "origin",
+    );
+
+    expect(reverse).toEqual([]);
+  });
+
+  it("counts only genuine Depends On edges, not an incidental mention of the origin name", () => {
+    const prose = "# Metadata: x\n\n- **State:** Active\n- **Depends On:** [none]\n\nNotes: blocked behind origin earlier.\n";
+    const reverse = resolveReverseDeps(
+      buildLifecycleIndexFromMetas([
+        { path: ".arc/active/meta-origin.md", content: meta("Active") },
+        { path: ".arc/active/meta-prose-only.md", content: prose },
+      ]),
+      "origin",
+    );
+
+    expect(reverse).toEqual([]);
+  });
+
+  it("excludes a completed dependent — a shipped edge is immutable, not re-pointed", () => {
+    const reverse = resolveReverseDeps(
+      buildLifecycleIndexFromMetas([
+        { path: ".arc/active/meta-origin.md", content: meta("Active") },
+        { path: ".arc/completed/2026-q2/01_shipped/meta-shipped.md", content: meta("Shipped", ["origin"]) },
+        { path: ".arc/active/meta-active-dep.md", content: meta("Active", ["origin"]) },
+      ]),
+      "origin",
+    );
+
+    expect(reverse).toEqual(["active-dep"]);
   });
 });

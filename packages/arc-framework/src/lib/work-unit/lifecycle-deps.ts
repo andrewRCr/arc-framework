@@ -46,3 +46,30 @@ export function resolveDepStates(index: LifecycleIndex, slug: string): DepEdgeSt
   if (entry === undefined) return [];
   return entry.dependsOn.map((dep) => ({ slug: dep, landed: isShipped(index, dep) }));
 }
+
+/**
+ * Discover every work unit whose `**Depends On:**` edges name `originSlug` — the
+ * reverse of {@link resolveDepStates}' forward read, and the discovery half of
+ * the incoming-edge re-point sweep a decomposition runs when an origin is
+ * retired into its members.
+ *
+ * Scoped to the **re-pointable** tiers (`active` + `planned`): a `completed`
+ * dependent's edge is immutable (shipped, not rewritten), and a `provisional`
+ * dependent is below the commitment floor the sweep operates on. Matching is on
+ * the parsed `dependsOn` edges only, so an incidental prose mention of the origin
+ * name is never a hit. Returns dependent slugs in index order (active before
+ * planned); the origin never lists itself.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param originSlug - The retired origin whose dependents to find.
+ * @returns The re-pointable dependents' slugs, in index order.
+ */
+export function resolveReverseDeps(index: LifecycleIndex, originSlug: string): string[] {
+  const dependents: string[] = [];
+  for (const entry of index.values()) {
+    if (entry.slug === originSlug) continue;
+    if (entry.location !== "active" && entry.location !== "planned") continue;
+    if (entry.dependsOn.includes(originSlug)) dependents.push(entry.slug);
+  }
+  return dependents;
+}

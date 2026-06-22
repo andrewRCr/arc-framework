@@ -96,8 +96,12 @@ consumers, never the design itself:
   (cohort-membership reads).
 - **The 1↔1 relocation/sweep mutator bundle** (`relocate-artifacts` / `reconcile-branch` / `reconcile-worktree` /
   `set-phase`, fired together so the three-encoding invariant holds by construction). Owned by
-  `lifecycle-transition-core`. `decompose-matrix` consumes only the **teardown legs** (`reconcile-branch` /
-  `reconcile-worktree`) — it is _not_ a `relocate-artifacts` caller.
+  `lifecycle-transition-core`. `decompose-matrix` is _not_ a `relocate-artifacts` caller, and — per its Phase 4.R
+  teardown-ordering correction — does _not_ fire the teardown legs **in-verb** either: a started origin's branch +
+  worktree teardown runs **out-of-band, post-merge**, through the generalized `arc teardown` verb (the shared
+  teardown surface `park@Planning` is also corrected onto, with `abandon@{Planning,Active}` a captured follow-up).
+  The in-verb teardown fired before the transform commit, where the `worktree-clean` guard refuses the dirty tree
+  and, in-place, targets the un-removable primary.
 - **The planning-stage pointer fields** — `Current Workflow` (a code-owned encoding naming the active lifecycle
   workflow) and `Design` as an **event-driven pointer** (repoint `draft → spec` at create-spec finalization, not at
   spec existence), plus their advancement through the planning sub-stages. Owned by `planning-pipeline-readiness`.
@@ -204,7 +208,8 @@ dep-edge discharge at `activate`: compose the readiness policy over the resolver
 _Exposes:_ the full decompose matrix (4 transform shapes × 3 parent positions), the generalized conservation
 gate, and the rewritten `decompose` workflow.
 
-_Consumes:_ `lifecycle-transition-core`'s mutator-bundle teardown legs and the resolver's cohort-membership reads.
+_Consumes:_ the generalized post-merge `arc teardown` verb for the started-origin branch + worktree teardown
+(Phase 4.R — out-of-band, _not_ the in-verb mutator-bundle teardown legs) and the resolver's cohort-membership reads.
 Coordination seam with `errand-lattice`: whether `decompose` itself is runnable as a multi-increment errand
 (its backlog-stub-source / heterogeneous-home arms are errand-class) keys on the character gate.
 

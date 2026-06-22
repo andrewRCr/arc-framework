@@ -4,10 +4,12 @@
  * `park` shelves a started work unit off the active set; `resume` re-attaches it.
  * `park` is **phase-polymorphic** over the source state:
  *
- * - **park@Planning** — no code exists yet, so the `plan/<name>` branch is torn
- *   down (re-cut on resume); the artifacts relocate to `backlog/planned/` and the
- *   WU resolves `planned`. Routes through {@link executeTransition} (run from the
- *   WU's own worktree, where its `active/` resolves).
+ * - **park@Planning** — no code exists yet; the artifacts relocate to
+ *   `backlog/planned/` in-verb and the WU resolves `planned`. The `plan/<name>`
+ *   branch + worktree teardown is **out-of-band** (post-action
+ *   `arc teardown --force`, re-cut on resume), not an in-verb leg. Routes through
+ *   {@link executeTransition} (run from the WU's own worktree, where its
+ *   `active/` resolves).
  * - **park@Active** — code exists, so the pushed branch is **preserved** as the
  *   durable shelf (no branch leg); only the worktree is torn down, and a minimal
  *   **pointer-record** (see {@link composePointerRecord}) is rendered *fresh* on
@@ -234,31 +236,20 @@ export async function runPark(ctx: ParkContext, params: ParkParams): Promise<Par
 
   return sourceRecord.State === "Active"
     ? parkActive(ctx, name, reason, sourceRecord, worktreePath, currentLocus)
-    : parkPlanning(ctx, name, sourceRecord, worktreePath, currentLocus);
+    : parkPlanning(ctx, name);
 }
 
 /**
- * park@Planning — codeless: relocate `active/ → backlog/planned/`, delete the
- * `plan/<name>` branch, tear down the worktree. Routes through the executor (run
- * from the WU's own worktree, where its `active/` resolves).
+ * park@Planning — codeless: relocate `active/ → backlog/planned/` in-verb. The
+ * `plan/<name>` branch + worktree teardown is **out-of-band** (post-action
+ * `arc teardown --force`, re-cut on resume), not an in-verb leg — firing it here
+ * tripped the `worktree-clean` guard on the verb's own staged relocate and,
+ * in-place, targeted the un-removable primary worktree. Routes through the
+ * executor (run from the WU's own worktree, where its `active/` resolves).
  */
-async function parkPlanning(
-  ctx: ParkContext,
-  name: string,
-  sourceRecord: Record<MetaFieldName, string | null>,
-  worktreePath: string,
-  currentLocus: string,
-): Promise<ParkResult> {
+async function parkPlanning(ctx: ParkContext, name: string): Promise<ParkResult> {
   const toDir = parkedDir(name);
-  const inputs: TransitionInputs = {
-    toDir,
-    worktreeOp: { mutation: "teardown", worktreePath, currentLocus },
-  };
-  if (sourceRecord.Branch !== null && sourceRecord.Branch !== "[none]") {
-    inputs.branchOp = { mutation: "delete", branch: sourceRecord.Branch };
-  }
-
-  const outcome = await executeTransition(ctx.executor, { verb: "park", slug: name, inputs });
+  const outcome = await executeTransition(ctx.executor, { verb: "park", slug: name, inputs: { toDir } });
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
   return { status: "parked", outcome, metaPath: `${toDir}/meta-${name}.md` };
 }

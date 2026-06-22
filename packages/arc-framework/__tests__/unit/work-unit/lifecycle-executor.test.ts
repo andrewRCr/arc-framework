@@ -339,18 +339,20 @@ describe("executeTransition — guard validation", () => {
   });
 
   it("rejects when a declared guard has no validator wired", async () => {
-    // park@Planning declares `worktree-clean`, an IO guard with no *default*
+    // abandon@Planning declares `worktree-clean`, an IO guard with no *default*
     // validator (production supplies it via `buildFootgunGuards`). Dropping the
     // caller's validators leaves it unwired, so the wiring check rejects before
     // any mutation — the executor never runs an edge whose guard is unresolvable.
+    // (`confirmation`, the edge's other guard, has a default validator and passes
+    // on `confirmed: true`, so the unwired `worktree-clean` is what's reported.)
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
       guardValidators: {},
     });
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
-      inputs: { toDir: ".arc/backlog/planned/demo" },
+      inputs: { confirmed: true },
     });
 
     expect(outcome.status).toBe("rejected");
@@ -360,13 +362,14 @@ describe("executeTransition — guard validation", () => {
     expect(calls).toEqual([]);
   });
 
-  it("resolves the real worktree-clean validator: park@Planning proceeds on a clean worktree", async () => {
+  it("resolves the real worktree-clean validator: abandon@Planning proceeds on a clean worktree", async () => {
     // Wire the *production* `worktree-clean` guard over a git exec whose
     // `status --porcelain` returns empty (clean) — the executor resolves it and
-    // the park bundle proceeds.
+    // the abandon bundle proceeds.
     const cleanExec: GitExec = async () => ({ stdout: "", stderr: "" });
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
+      withScaffoldOrRemove: true,
       guardValidators: buildFootgunGuards({
         cwd: CWD,
         readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
@@ -375,10 +378,10 @@ describe("executeTransition — guard validation", () => {
     });
 
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
       inputs: {
-        toDir: ".arc/backlog/planned/demo",
+        confirmed: true,
         branchOp: { mutation: "delete", branch: "plan/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
@@ -388,12 +391,13 @@ describe("executeTransition — guard validation", () => {
     expect(calls).toContain("leg:worktree:teardown");
   });
 
-  it("resolves the real worktree-clean validator: park@Planning rejects on a dirty worktree", async () => {
+  it("resolves the real worktree-clean validator: abandon@Planning rejects on a dirty worktree", async () => {
     // The git exec reports an uncommitted change — `isWorktreeClean` reads it as
     // dirty, so the real guard rejects at the guard stage, before any mutation.
     const dirtyExec: GitExec = async () => ({ stdout: " M file.ts\n", stderr: "" });
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
+      withScaffoldOrRemove: true,
       guardValidators: buildFootgunGuards({
         cwd: CWD,
         readActiveMetaCandidates: async () => ({ layout: "full", candidates: [], warnings: [] }),
@@ -402,10 +406,10 @@ describe("executeTransition — guard validation", () => {
     });
 
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
       inputs: {
-        toDir: ".arc/backlog/planned/demo",
+        confirmed: true,
         branchOp: { mutation: "delete", branch: "plan/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
@@ -514,17 +518,18 @@ describe("executeTransition — foot-gun guards", () => {
 
 describe("executeTransition — encoding leg ordering & recovery", () => {
   it("fires worktree teardown before branch delete (the cross-leg constraint)", async () => {
-    // park@Planning declares relocate + branch delete + worktree teardown.
+    // abandon@Planning declares remove + branch delete + worktree teardown.
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
+      withScaffoldOrRemove: true,
       guardValidators: { "worktree-clean": () => ({ ok: true }) },
     });
 
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
       inputs: {
-        toDir: ".arc/backlog/planned/demo",
+        confirmed: true,
         branchOp: { mutation: "delete", branch: "plan/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
@@ -532,9 +537,9 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
 
     expect(outcome.status).toBe("ok");
     const legCalls = calls.filter((c) => c.startsWith("leg:"));
-    // artifacts (relocate) → worktree (teardown) → branch (delete).
+    // artifacts (remove) → worktree (teardown) → branch (delete).
     expect(legCalls).toEqual([
-      "leg:artifacts:relocate:.arc/active->.arc/backlog/planned/demo",
+      "leg:artifacts:remove",
       "leg:worktree:teardown",
       "leg:branch:delete",
     ]);
@@ -544,15 +549,16 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
   it("reports a mid-bundle leg failure as recoverable — no side-effects, no soft write", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
+      withScaffoldOrRemove: true,
       guardValidators: { "worktree-clean": () => ({ ok: true }) },
       throwOnLeg: "reconcileWorktree",
     });
 
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
       inputs: {
-        toDir: ".arc/backlog/planned/demo",
+        confirmed: true,
         branchOp: { mutation: "delete", branch: "plan/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },
@@ -561,7 +567,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
     expect(outcome.status).toBe("encoding-failed");
     if (outcome.status !== "encoding-failed") return;
     expect(outcome.failedLeg).toBe("reconcileWorktree");
-    expect(outcome.legsFired).toEqual(["artifacts"]); // relocate landed; worktree threw
+    expect(outcome.legsFired).toEqual(["artifacts"]); // remove landed; worktree threw
     expect(outcome.message).toMatch(/boom:reconcileWorktree/);
     // No branch delete after the failed worktree leg, no side-effects, no soft write.
     expect(calls).not.toContain("leg:branch:delete");
@@ -575,7 +581,7 @@ describe("executeTransition — encoding leg ordering & recovery", () => {
       guardValidators: { "worktree-clean": () => ({ ok: true }) },
     });
 
-    // park declares relocate + branch delete + worktree teardown but supplies none.
+    // park@Planning declares an `artifacts: relocate` leg (needs a `toDir`) but supplies none.
     const outcome = await executeTransition(ctx, { verb: "park", slug: "demo", inputs: {} });
 
     expect(outcome.status).toBe("rejected");
@@ -667,15 +673,16 @@ describe("executeTransition — post-side-effect finalize failure", () => {
   it("a pre-side-effect leg throw still reports `encoding-failed` — no side-effects, distinct arm", async () => {
     const { ctx, calls } = buildSpies({
       metas: [PLANNING_ACTIVE_META],
+      withScaffoldOrRemove: true,
       guardValidators: { "worktree-clean": () => ({ ok: true }) },
       throwOnLeg: "reconcileWorktree",
     });
 
     const outcome = await executeTransition(ctx, {
-      verb: "park",
+      verb: "abandon",
       slug: "demo",
       inputs: {
-        toDir: ".arc/backlog/planned/demo",
+        confirmed: true,
         branchOp: { mutation: "delete", branch: "plan/demo" },
         worktreeOp: { mutation: "teardown", worktreePath: "/wt", currentLocus: "/repo" },
       },

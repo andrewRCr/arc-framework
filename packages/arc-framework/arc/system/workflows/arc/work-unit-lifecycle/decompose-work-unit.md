@@ -1,5 +1,5 @@
 ---
-purpose: Transform a live work unit into a cohort of self-contained member WUs via a park-shaped exit on its planning branch.
+purpose: Transform a live work unit into a cohort of member WUs — the cut-map judgment and conservation gate over the `arc decompose` mechanics.
 audience: agent
 arc:
   extensions:
@@ -8,190 +8,178 @@ arc:
 
 # Workflow: Decompose Work Unit
 
-Turn a single work unit into a **cohort** of self-contained member WUs. This is a genuine lifecycle transition —
-the WU changing *what it is* — not a code-shipping integration: nothing merges to `main` as a deliverable, no
-`completed/` archive is written. The origin WU's design is split across newly-minted member stubs, the origin is
-retired, and the result lands in `backlog/planned/` as future work.
+Turn one work unit into a **cohort** of self-contained member WUs. A genuine lifecycle transition — the WU
+changing *what it is* — not a code-shipping integration: nothing merges as a deliverable and no `completed/`
+archive is written for the origin (the cohort carries the eventual archive when its last member ships). The
+[`arc decompose`](#5-run-arc-decompose) verb owns the in-verb mechanics (batch member scaffold, origin **artifact**
+retirement, incoming-edge re-point, ROADMAP regen); this workflow supplies the **judgment** — the cut-map, the
+conservation gate, the cohort coordination, and the shape selection — plus the ship legs and the out-of-band
+post-merge teardown of a started origin's branch + worktree.
 
-The cut itself — members, slugs, dependency edges, deliverable boundaries — is **not decided here**. It arrives
-as the **cut-map** produced by the [`assess-cohort-fit`][assess-cohort-fit] method at planning time. This
-workflow *consumes* the cut-map and *executes* the transform; it never re-derives the decision.
+The cut — members, slugs, dependency edges, deliverable boundaries — is **not decided here.** It arrives as the
+**cut-map** from the [`assess-cohort-fit`][assess-cohort-fit] method at planning time; this workflow consumes it
+and never re-derives it. Run it only to split a draft that *matured* into a cohort; when `assess-cohort-fit` fired
+*during* draft-design (no monolith ever formed), author directly into the cohort structure and skip this workflow.
 
-**When to use:** `assess-cohort-fit` has returned an affirmative cut-map for a live WU whose holistic design has
-matured and revealed itself as a cohort (the **emergent** arm — typically surfaced during
-[`create-spec`][create-spec]). The WU is on its `plan/<name>` planning branch in `**State:** Planning`;
-decomposition is the branch's **terminal act**. There is no fresh branch and no `Active` step — a decomposing WU
-never activates, because it stops being a WU.
+The cut selects two independent axes — resolve both ([Step 1](#1-resolve-the-matrix-cell--gate)):
+
+- **Parent position** (cohort placement): standalone → top-level cohort; in-cohort → sub-cohort; at-cap → lateral
+  fan-out ([§ At-cap arm](#at-cap-arm)).
+- **Transform shape** (origin disposition): symmetric / extraction / backlog-stub-source / heterogeneous-home —
+  each a [whole block](#transform-shape-arms) carrying its run-context, distribution scope, and any extra leg.
 
 > [!NOTE]
-> **Not an integration.** `decompose-work-unit` reuses the **park** pattern's mechanics (`active/ → backlog/`,
-> PR to `main`, branch + worktree teardown) — *not* [`integrate-work-unit`][integrate-work-unit]'s. No code
-> deliverable ships and no `completed/` entry is written for the origin; the **cohort** carries the eventual
-> archive when its last member ships.
+> **Not an integration.** No code deliverable ships and no `completed/` entry is written for the origin. The
+> ship is PM-artifact grooming on the auto-merge lane ([Step 7](#7-ship-per-protection-mode)), not a deliverable PR.
 
 ---
 
 ## Steps
 
-### 1) Pre-conditions and arm selection
+The spine below is shape-agnostic; each step defers its shape-specific delta to the matching
+[transform-shape arm](#transform-shape-arms). Read the spine for the invariant flow, then the one arm your cut selects.
 
-Verify the decomposition context:
+### Active-state precondition guard
 
-- The current branch is the origin WU's `plan/<name>` planning branch, and `active/meta-<name>.md` shows
-  `**State:** Planning`.
-- A cut-map is in hand from [`assess-cohort-fit`][assess-cohort-fit]: the members (with slugs), the internal
-  dependency edges, and the deliverable boundaries. If no cut-map exists, stop — run the method first; this
-  workflow does not decide the cut.
+Run first, before resolving the cell — route on the origin's `(phase, location)` and any committed code:
 
-Select the **arm** from the origin's position relative to the one-level nesting cap (see
-[Work Organization Strategy § Decomposition][work-org-decomp]). The arm governs Steps 2–3 only; every other
-step is identical across arms.
+- **`Planning` origin** (the realized cases) → no guard action; proceed to [Step 1](#1-resolve-the-matrix-cell--gate).
+- **`Active` origin, built code belongs to one member** → **extraction-from-Active**, the first-class Active path:
+  the origin stays `Active`, only unbuilt scope is extracted ([extraction arm](#extraction-arm)). Proceed.
+- **`Active` origin, genuine multi-member-built code** (committed work spanning several would-be members) → **stop.**
+  Full-split is recognized and routed, never run here: there is no `decompose@active` edge and this workflow performs
+  no commit-allocation or git-history surgery. Route to the full-split escape-hatch guidance in
+  [Work Organization Strategy § Active-state decomposition][work-org-active-state].
 
-1. **Standalone WU → top-level cohort.** The origin is in no cohort. It becomes a new top-level cohort carrying
-   its own name; members nest beneath. *Name preserved.*
-2. **In-cohort WU → sub-cohort.** The origin is already in a single-segment cohort. It becomes a sub-cohort under
-   that parent; members nest one level deeper. *Name preserved.*
-3. **At-cap WU → lateral fan-out.** The origin is already at the cap (a two-segment `Cohort`). No legal nested
-   target exists — minting a cohort beneath it would be a forbidden third segment — so it fans out *laterally*
-   into sibling WUs under its existing parent. *No cohort is minted; the name is not preserved as a grouping
-   node.* See [§ At-cap arm](#at-cap-arm) for how Steps 2–3 change.
+This guard **directs**; it never runs git surgery.
 
-### 2) Mint the cohort
+### 1) Resolve the matrix cell & gate
 
-> Skip on the **at-cap arm** — no cohort node is minted there (see [§ At-cap arm](#at-cap-arm)).
+Confirm a cut-map is in hand from [`assess-cohort-fit`][assess-cohort-fit] — the members (with slugs and resolved
+`Class`), the internal dependency edges, the per-destination distribution, and the dispositions. If none exists,
+**stop** — run the method first; this workflow does not decide the cut.
 
-Create the (sub)cohort directory under `backlog/planned/<cohort>[/<subcohort>]/` and author its
-`cohort-<name>.md` from [`template-cohort.md`][template-cohort], carrying forward the coordination content from
-the origin draft (shared contracts, cross-member seams, closeout criteria). At minimum the doc carries the
-required one-paragraph `Purpose` floor. Membership stays **derived** from each member's `Cohort` field — the doc
-records coordination, never a roster.
+Resolve both axes:
 
-For arms 1–2 the cohort takes the **origin's name** (a WU→cohort rename, swept in Step 6's reference handling).
+- **Parent position** from the origin's existing `**Cohort:**` against the one-level nesting cap (see
+  [Work Organization Strategy § Decomposition][work-org-decomp]): standalone (no cohort) → top-level cohort;
+  in-cohort (single segment) → sub-cohort; at-cap (two segments) → lateral fan-out ([§ At-cap arm](#at-cap-arm)).
+- **Transform shape** from the origin's `(phase, location)` and the cut's disposition — jump to the matching
+  [arm](#transform-shape-arms) for its run-context and distribution scope.
 
-### 3) Backfill the parent cohort doc if absent
+### 2) Conservation gate — the allocation map
 
-When the minted (sub)cohort nests under a parent grouping directory that has no `cohort-<name>.md` yet, author
-the parent's doc to its `Purpose`-floor minimum from [`template-cohort.md`][template-cohort]. Every grouping
-directory is constitutive — no doc-less grouping may exist (the cohort-consistency invariant, Step 7). On the
-at-cap arm this parent doc already exists (the origin was a member of it); backfill is a no-op there.
+The origin's design is **split, not copied**, under a gate that guarantees no silent loss. Map *every* origin
+section and design-point — **and every dependency edge** — to exactly one destination, or *dropped-with-reason*
+(superseded, or satisfied internally by the cut):
 
-### 4) Scaffold the member stubs
+1. **Allocate.** Each item → a member's `draft-<member>.md`, the cohort doc's cohort-level coordination, a member's
+   per-member coordination, an existing/atomic home (the [heterogeneous arm](#heterogeneous-home-arm)), **retained
+   on the surviving origin** (the [extraction arm](#extraction-arm) — an un-extracted section stays put; a conserved
+   destination, not a drop), or dropped-with-reason.
+2. **Classify** by the design-vs-coordination boundary: design that drives a member's task list → that member's
+   draft; ownerless shared material → cohort-level coordination; a member's exposes/consumes surface → per-member
+   coordination; an owned contract → its owner's draft, with a pointer + consumer list in the cohort doc.
+3. **Conserve.** Assert every allocated item lands in exactly one destination or is dropped-with-reason, at the
+   arm's **scope**: the symmetric / stub-source arms conserve the *whole* draft; the [extraction arm](#extraction-arm)
+   conserves only the *extracted subset* — the surviving origin absorbs the remainder as a retained entry, not a
+   drop. For an existing/atomic home, "lands" carries an ordering: the destination edit is staged **in the transform,
+   before the origin retires** — never deferred.
 
-For each member in the cut-map, scaffold a per-member subdir under
-`backlog/planned/<cohort>[/<subcohort>]/<member>/` carrying `meta-<member>.md` and `draft-<member>.md`.
-Members land uniformly in `backlog/planned/`; each
-activates later as a separate, deliberate act via [`init-work-unit`][init-work-unit] Path A, in dependency order.
+The allocation map feeds both the cut-map file ([Step 4](#4-compose-the-cut-map-file)) and the decomposition PR
+description ([Step 7](#7-ship-per-protection-mode)).
 
-**Field inheritance.** Set each stub's meta fields from the cut-map and the origin:
+### 3) Author the cohort coordination
 
-- **`Origin`** — *inherited from the origin WU.* Members of a decomposed concern share its provenance
-  (`[internal]`, or the external tracker the origin carried); it is known at decomposition time.
-- **`Design`** — the member's own `draft-<member>.md`.
-- **`Cohort`** — the path-set (sub)cohort value, **dual-placed**: in the meta *and* mirrored into the member
-  draft's header, per the dual-placement convention.
-- **`Class`** — the member's own weight, resolved per the cut — not inherited from the origin.
-- **`State`** — `Planning`.
+The verb scaffolds member skeletons but never writes coordination content. Author it here:
 
-**`Depends On` — distributed by *actual need*, never blanket-inherited.** Blanket-inheriting the origin's
-outgoing edges manufactures artificial serialization: a member that never touches `X` would be falsely gated
-behind it. Distribute across three edge kinds:
+- **Mint the (sub)cohort doc** under `backlog/planned/<cohort>[/<subcohort>]/` from [`template-cohort.md`][template-cohort],
+  carrying forward the origin draft's coordination (shared contracts, cross-member seams, closeout criteria) per the
+  Step 2 allocation. At minimum the required one-paragraph `Purpose` floor. Membership stays **derived** from each
+  member's `Cohort` field — the doc records coordination, never a roster. *Skipped on the [at-cap arm](#at-cap-arm)*
+  (no cohort node minted).
+- **Backfill the parent cohort doc** to its `Purpose` floor when the minted (sub)cohort nests under a grouping
+  directory that has no `cohort-<name>.md` yet — no doc-less grouping may exist. A no-op where the parent doc
+  already exists.
 
-- **Outgoing** (origin → `X`): a member inherits `Depends On: X` *only where it genuinely depends on `X`.*
-- **Internal** (member → member): authored fresh from the cut's delivery order.
-- **Incoming** (`Y` → origin): re-pointed to the delivering member(s) in Step 6.
+### 4) Compose the cut-map file
 
-Each authored edge is a **live gate** among members — a coordination seam discharged at the depended-on member's
-activation, not a hard blocker — so parallel-able members carry no inter-edges and imply no sequencing.
+Serialize the Step 2 allocation into the structured cut-map file `arc decompose` consumes — a JSON file authored
+to a scratch path (an input artifact, never committed). The validated shape:
 
-### 5) Distribute the origin draft's design — the four-step gate
-
-The origin draft's design is **split, not copied**, under a four-step gate that guarantees no silent loss:
-
-1. **Allocation map.** Map *every* origin section and design-point — **and every dependency edge** — to exactly
-   one destination: a member's `draft-<member>.md`, the cohort doc's cohort-level coordination, the cohort doc's
-   per-member coordination, or *dropped-with-reason* (superseded, or satisfied internally by the cut).
-2. **Classify** each item by the design-vs-coordination boundary: design that drives a member's task list → that
-   member's draft; genuinely ownerless shared material → cohort-level coordination; a member's exposes/consumes
-   surface → per-member coordination; an owned contract → its owner's draft, with a pointer + consumer list left
-   in the cohort doc.
-3. **Conservation gate.** Assert every origin section *and* outgoing dependency edge lands in exactly one
-   destination, or is explicitly dropped-with-reason — no silent loss. This gate is the precondition for
-   retirement.
-4. **Retire only after the gate passes** (Step 8): the origin is not deleted until the conservation gate is green.
-
-The allocation map is **not throwaway** — it becomes the decomposition PR description (Step 10), the
-reader-facing "here is where everything went" audit trail.
-
-### 6) Re-point incoming dependency edges — the sweep
-
-Incoming edges belong to the Step 5 allocation, but they live *outside* the origin draft, so they take an
-explicit sweep. Scan **every** meta whose `**Depends On:**` names the origin — across `active/**` and
-`backlog/planned/**`:
-
-```bash
-grep -rl '<origin-name>' .arc/active .arc/backlog/planned --include='meta-*.md'
+```json
+{
+  "schemaVersion": 1,
+  "origin": { "slug": "<origin>", "phase": "Planning|Active", "location": "provisional|planned|active" },
+  "shape": "symmetric|extraction|backlog-stub-source|heterogeneous-home",
+  "parentPosition": "standalone|in-cohort|at-cap",
+  "cohort": "<cohort>[/<subcohort>]",
+  "entries": [
+    { "kind": "new-member", "slug": "<m>", "workClass": "Light|Heavy|Novel", "dependsOn": [], "receives": ["<section>"] },
+    { "kind": "surviving-origin", "slug": "<origin>", "disposition": "keep-active|park" },
+    { "kind": "existing-home", "target": "<slug|draft-block|doc-path>", "home": "fold|atomic-edit", "receives": ["<section>"] }
+  ],
+  "internalEdges": [ { "from": "<m2>", "to": "<m1>" } ]
+}
 ```
 
-Confirm each hit is a `Depends On` edge, then re-point it to the specific member(s) that now deliver what the
-dependent needs. The sweep is **broader than the cut-map's named dependents** — scan for the edge directly,
-because a dependent the cut-map didn't enumerate is otherwise silently orphaned when the origin name disappears.
-A real split routinely turns up more incoming edges than the cut-map named — the direct scan is what catches them.
+Field rules the verb enforces from the cut (it never fabricates judgment): `Origin` / `Owner` / `Priority`
+inherit from the origin; `Class` is per-member; `Cohort` is dual-placed (meta + draft header); `State` is
+`Planning`; `Depends On` is distributed by **actual need** — a member inherits an origin edge only where it
+genuinely depends, internal edges come from the cut's delivery order, and incoming edges are re-pointed by the
+verb's sweep. Omit `cohort` only on the at-cap arm. The entry kinds each arm uses are named in its
+[arm block](#transform-shape-arms).
 
-A `**Cohort:**` rename of the origin (arms 1–2) is a render-field edit on the affected metas; stage those edits
-with the rest of the transform.
-
-### 7) Verify cohort consistency
-
-Before retiring the origin, verify the three cohort-consistency conditions hold over the minted structure:
-
-1. **Field ↔ dir path-match** — each member's path-valued `**Cohort:**` matches its
-   `backlog/planned/<cohort>[/<subcohort>]/` parent directory path.
-2. **Every grouping dir carries a doc** — each grouping directory has a `cohort-<name>.md` with at least a
-   `Purpose` floor (Steps 2–3).
-3. **No orphan per-member sections** — every per-member section in a cohort doc keys to a slug that is a derived
-   member (its `Cohort` field points here).
-
-Confirm these by hand before retiring the origin — the Step 8 interlock surfaces the result, so drift is caught
-before the commit rather than after the origin is gone. The cohort-consistency structural guard enforces the same
-three conditions at commit time as the backstop.
-
-### 8) Retire the origin
+### 5) Run `arc decompose`
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before retiring the origin and committing the transform. Surface (a) the
-> **allocation map** from Step 5 — where every origin section and dependency edge landed, or why it was dropped;
-> (b) the Step 7 verification result; (c) the planned origin retirement (`meta-<name>.md` + `draft-<name>.md`
-> deleted) and the ROADMAP delta the regen will produce. Await approval before deleting the origin or committing.
+> `workflow-interlock`: Stop before running the transform — it is the destructive act (origin artifacts removed,
+> incoming edges re-pointed; the branch + worktree reap is the separate post-merge step in
+> [Step 7](#7-ship-per-protection-mode)). Surface the **allocation map** (Step 2 — where every section and edge
+> lands, or why dropped), the cohort-consistency check ([Step 6](#6-verify-cohort-consistency)), and the planned
+> origin disposition + ROADMAP delta. Await approval before running the verb.
 
-The conservation check (Step 5) having passed, retire the origin — it has been fully redistributed and ceases to
-be a WU:
+Run the verb with the cut-map from the run-context the [shape arm](#transform-shape-arms) names:
 
 ```bash
-git rm .arc/active/meta-<name>.md .arc/active/draft-<name>.md
+arc decompose <origin> --cut-map <scratch-path>
 ```
 
-No `completed/` entry is written: the origin's outputs are *future* work now living in `backlog/`. The cohort
-carries the eventual `completed/` archive when its last member ships.
+The verb validates the cut-map (refusing a malformed file before any mutation), then runs the deterministic legs:
+batch-scaffold the members under `backlog/planned/<cohort>[/<subcohort>]/<member>/` (`meta-` + skeleton `draft-`),
+retire the origin through its reserved edge (**skipped on the [extraction arm](#extraction-arm)**, where the origin
+survives), re-point every incoming `Depends On` edge off the retired origin to the delivering members, and
+regenerate the ROADMAP. It **stages** its result; it does not commit. A started origin's branch + worktree are
+**not** torn down in-verb — that teardown is out-of-band, a post-merge `arc teardown <origin> --force`
+([Step 7](#7-ship-per-protection-mode)); the verb retires the origin's artifacts only.
 
-### 9) Regenerate ROADMAP · `arc-in-git` only
+### 6) Verify cohort consistency
 
-> **Skip this step** under `pm.mode: none` or `external`.
+Before the ship commit, verify the three cohort-consistency conditions over the minted structure:
 
-A WU leaving `active/` to become a cohort changes the render set — decomposition is a regen fire-point. Re-render
-per [Work Organization Strategy § ROADMAP][work-org-roadmap]: the origin drops out of In Flight, and its members
-appear in `backlog/planned/**` (Blocked or Ready per their distributed `Depends On`).
+1. **Field ↔ dir path-match** — each member's path-valued `**Cohort:**` matches its
+   `backlog/planned/<cohort>[/<subcohort>]/` parent directory.
+2. **Every grouping dir carries a doc** — each grouping directory has a `cohort-<name>.md` with at least a
+   `Purpose` floor (Step 3).
+3. **No orphan per-member sections** — every per-member section in a cohort doc keys to a derived member.
 
-### 10) Park-shaped PR to `main`
+The cohort-consistency structural guard re-checks these at commit time as the backstop; confirming here surfaces
+drift at the Step 5 interlock rather than after the origin is gone.
 
-Bundle the transform — cohort mint (Steps 2–3), member stubs (Step 4), redistributed drafts (Step 5), re-pointed
-edges (Step 6), origin retirement (Step 8), and ROADMAP regen (Step 9) — as the decomposition commit.
+### 7) Ship per protection mode
 
-**Decomposition PR description.** The Step 5 allocation map is **not throwaway** — it *is* the PR description.
-Lead with the operation ("decompose `<name>` into cohort `<cohort>`: `<m1>`, `<m2>`, `<m3>`"), then account for
-where every origin section and dependency edge landed (member draft / cohort doc / dropped-with-reason) — the
-"here is where everything went" audit trail a reviewer reads to confirm nothing was lost. Write it in the same
-plain-prose register as any commit or PR surface: legible without ARC-internal knowledge, artifact references
-kept as backticked filenames.
+`arc decompose` left the transform staged. Distribute the design into the scaffolded member drafts and author any
+[heterogeneous direct edits](#heterogeneous-home-arm) per the Step 2 allocation — content the verb does not write —
+then commit and ship per [Work Organization Strategy § Branch Protection Modes][work-org-protection]:
+
+- **Partial** — a direct base commit.
+- **Full** — ship on a short-lived `chore/decompose-<name>` branch + PR (the auto-merge lane), cut from the base
+  checkout.
+
+**The allocation map is the PR description.** Lead with the operation (`decompose <name> into cohort <cohort>:
+<m1>, <m2>, <m3>`), then account for where every origin section and dependency edge landed (member draft / cohort
+doc / existing home / dropped-with-reason) — the audit trail a reviewer reads to confirm nothing was lost. Plain
+prose, legible without ARC-internal knowledge; artifact references kept as backticked filenames.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -202,22 +190,21 @@ chore(arc): decompose <name> into cohort
 - Mint cohort <cohort> + member stubs in backlog/planned/
 - Distribute origin design across member drafts (allocation map in PR)
 - Re-point incoming Depends On to delivering members
-- Retire origin meta + draft; regenerate ROADMAP
+- Retire origin; regenerate ROADMAP
 
-Context: meta-<name>.md (decomposition)
+Context: meta-<name>.md (maintenance)
 ```
 
-Push the planning branch and open the PR to `main`:
+Push the grooming branch and open the PR:
 
-- **Extensions** · `#pre-push-review`: If `pre-push-review` appears in the active-extensions list (established at
-  session init), load and execute its `.actions` before the push. Halt-on-fail surfaces an actionable message;
-  user fix-and-retries or explicit-invoke bypasses. Otherwise, skip.
+- **Extensions** · `#pre-push-review`: If `pre-push-review` is in the active-extensions list, load and execute its
+  `.actions` before the push. Otherwise, skip.
 
 > [!CAUTION]
-> `push-interlock` release — `workflowPush`: `-u origin plan/<name>`.
+> `push-interlock` release — `workflowPush`: `-u origin chore/decompose-<name>`.
 
 ```bash
-gh pr create --base main --head plan/<name>
+gh pr create --base main --head chore/decompose-<name>
 ```
 
 > [!IMPORTANT]
@@ -225,106 +212,134 @@ gh pr create --base main --head plan/<name>
 > explicit 'merge' direction before merging.
 
 ```bash
-gh pr merge <pr-number> --merge   # or --squash / --rebase per merge.strategy
+gh pr merge <pr-number> --squash   # or per merge.strategy
 ```
 
-Post-merge, retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
+**Post-merge teardown — started origin only.** For a started (`Planning`) origin (the [symmetric arm](#symmetric-arm),
+or a [heterogeneous](#heterogeneous-home-arm) cut over one), reap its now-orphaned `plan/<name>` branch + worktree
+**after** the decompose has merged — never before, or the artifact retirement would not yet be durable. Run from the
+base checkout (so the locus survives the worktree removal):
+
+```bash
+arc teardown <origin> --force   # un-shipped / force mode: reaps the retired plan branch + worktree
+```
+
+`--force` selects the un-shipped teardown mode: the origin is retired (not in `completed/`) and its `plan/<name>`
+branch is unmerged (the design was redistributed into members, not git-merged), so the conservation gate above is the
+upstream safety, not git-containment. The in-place arm switches the primary to base; a linked arm removes the
+worktree and locus-hops. The [backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the
+[extraction arm](#extraction-arm) (origin survives) owe no teardown.
+
+Then retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
 
 ```bash
 arc user close <name>
 ```
 
-### 11) Branch and worktree teardown
+---
 
-Under the pre-merge `integration-interlock` approval — no second prompt fires — tear down the origin's planning
-branch and, when spawned, its worktree. Dispatch on the current worktree identity:
+## Transform-shape arms
 
-**Primary worktree (in-place WU):** the `plan/<name>` branch lived directly in the main worktree — no distinct
-worktree exists to remove. Switch back to the base branch and delete the planning branch local + remote:
+Each shape is a whole block: its run-context for [Step 5](#5-run-arc-decompose), its distribution scope, and any
+extra leg. The parent-position axis ([§ At-cap arm](#at-cap-arm)) is orthogonal and composes with any shape.
 
-```bash
-git switch main                       # branch.base
-git branch -D plan/<name>             # raw — local planning branch, never activated
-git push origin --delete plan/<name>  # raw — destructive flag stays literal
-```
+### Symmetric arm
 
-The workflow continues to [`## Next step`](#next-step) normally.
+The realized cell: a live `plan/<name>` origin in `**State:** Planning`, cut-map in hand. The whole draft is
+distributed to N new members (all `kind: new-member`); the origin is **retired** (its artifacts removed), and its
+`plan/<name>` branch + worktree are reaped post-merge ([Step 7](#7-ship-per-protection-mode)).
 
-**Linked worktree (spawned WU):** delete the branch and remove the worktree. Run the cascade from another
-worktree (typically the primary):
+- **`shape`**: `symmetric`. Entries: ≥ 2 `new-member`.
+- **Conservation scope** (Step 2): the *whole* origin draft.
+- **Run-context** (Step 5): from a base checkout — the transform is PM-artifact grooming, staged on the base tree and
+  shipped on the auto-merge lane. `arc decompose` retires the origin's artifacts but does **not** touch its
+  `plan/<name>` branch or worktree, so the run-locus is never sawn off mid-transform; the branch + worktree are
+  reaped post-merge via `arc teardown <origin> --force` (Step 7), run from the base checkout the ship already used.
 
-```bash
-cd <primary-worktree-path>
-git worktree remove <wu-worktree-path>
-git branch -D plan/<name>
-git push origin --delete plan/<name>  # raw — destructive flag stays literal
-```
+### Extraction arm
 
-**Session terminates here on the linked arm.** The origin worktree is removed and the agent's prior cwd no
-longer exists; start a fresh session in another worktree (typically the primary). `## Next step` does not apply
-on this arm.
+The origin sheds one orthogonal sub-concern as a new sibling and **survives** — no origin-retire edge fires. Only
+the *extracted* subset is distributed; the surviving (thinned) origin keeps the rest.
+
+- **`shape`**: `extraction`. Entries: ≥ 1 `new-member` (the extracted member, carrying its `Depends On: <origin>`
+  edge) **plus** one `surviving-origin` entry naming the origin and its disposition.
+- **Conservation scope** (Step 2): the *extracted subset only* — the surviving origin is itself a cut-map entry,
+  not a dropped section.
+- **Run-context** (Step 5): from the origin's worktree; no teardown leg fires (the origin is untouched — branch and
+  any committed code stay).
+- **Active-state origin** (first-class): extraction is the first-class path for a mid-implementation (`Active`)
+  origin — it stays `Active`, the extracted member(s) mint as `Planning`, and **only unbuilt scope** is extracted.
+  Built code stays with the surviving origin; extracting written code needs the full-split machinery this workflow
+  does not run (see the [Active-state guard](#active-state-precondition-guard)).
+- **Disposition fork** — the `surviving-origin` entry carries `keep-active` or `park`:
+    - `keep-active` — the thinned origin stays in `active/`, a valid terminal outcome. No extra leg.
+    - `park` — relocate it to backlog as a **separate** workflow step after the ship, sequencing two orthogonal
+      primitives: `arc park <origin> --reason "<thinned by extraction of <member>>"` via the
+      [`park-work-unit`][park] ceremony. Park is *not* a `decompose` leg — it is purely additive over the
+      already-terminal keep-active, so a skipped or deferred park leaves no partial state.
+
+### Backlog-stub-source arm
+
+Decompose a `planned/` (or `provisional/`) stub **in place** — no activation, no `plan/` branch. The origin is
+retired from backlog and the members are minted in backlog.
+
+- **`shape`**: `backlog-stub-source`. Entries: ≥ 2 `new-member`.
+- **Conservation scope** (Step 2): the *whole* stub.
+- **Run-context** (Step 5): from any base checkout — no worktree exists. The verb's `artifacts: remove` leg prunes
+  the emptied backlog subdir, so a retired stub leaves no orphaned cohort dir.
+
+### Heterogeneous-home arm
+
+Members route to **mixed destinations**: a new stub, a fold into an existing sibling stub or `draft-design` block,
+or an atomic edit to a standing doc. The origin-retire side reuses the symmetric or stub-source edge per the
+origin's position; what is novel is the **destination handling**.
+
+- **`shape`**: `heterogeneous-home`. Entries: ≥ 2 destinations, mixing `new-member` with `existing-home`
+  (`home: fold | atomic-edit`).
+- **Run-context** (Step 5): per the origin's position (symmetric or backlog-stub-source above).
+- **Direct edits ride the decompose PR.** The fold / atomic-edit homes are **workflow-authored direct edits**
+  ([Step 7](#7-ship-per-protection-mode)) — the verb has no content-editing leg. They are **same-concern**
+  (redistributing the origin's design *is* the decompose concern), the home is **already known** (the cut decided
+  it), and the conservation gate **requires** each to land before the origin retires — so they are authored into
+  the transform, recorded in the allocation map, and **never inbox-captured.** (A *foreign* concern that merely
+  surfaces during the decompose still routes to capture — concern-identity is the discriminator, per
+  [DEV-RULES.ARC § Anti-rider][dev-rules-antirider].)
 
 ---
 
 ## At-cap arm
 
-When the origin is already at the nesting cap (Step 1, arm 3), no cohort node can be minted — so Steps 2–3 change
-and every other step is unchanged:
+The parent-position cap (Step 1, two-segment `Cohort`): no cohort node can be minted, so the cohort-mint legs change
+and every other step is unchanged. Composes with any [transform shape](#transform-shape-arms).
 
-- **No cohort minted (Step 2 skipped).** The members are scaffolded (Step 4) as **siblings under the origin's
-  existing parent cohort**, peers of its current siblings, rather than under a new node.
-- **Fan-out provenance, not a grouping node (Step 3 replaced).** Because the cap denies a new grouping node, the
-  "these came from one concern" fact is recorded as **provenance — a write-once, immutable past-event note** in
-  the parent cohort doc, in greppable phrasing:
+- **No cohort minted (Step 3 cohort-mint skipped).** Members are scaffolded as **siblings under the origin's existing
+  parent cohort**, peers of its current siblings (`cohort` omitted from the cut-map; the verb enrols them under the
+  origin's existing cohort).
+- **Fan-out provenance, not a grouping node.** The "these came from one concern" fact is recorded as **provenance —
+  a write-once, immutable past-event note** in the parent cohort doc, in greppable phrasing:
 
   ```text
   Fanned out from `<origin>`: `<m1>`, `<m2>`, `<m3>` (at-cap lateral decomposition).
   ```
 
-  It records a past event, so it never drifts and needs no guard — stronger than any slug convention and
-  invisible-safe to the cohort-consistency invariant (which keys on the shared `Cohort` path).
+  It records a past event, so it never drifts and needs no guard — invisible-safe to the cohort-consistency
+  invariant (which keys on the shared `Cohort` path).
 
 - **Reality check before fanning out (judgment, not a gate):** ask whether hitting the cap signals the *parent*
-  cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt only;
-  the cap is never raised to rescue a member that legitimately outgrew itself.
-
-Coordination for the new siblings rides the existing parent cohort doc — they are members of it now, each taking
-a per-member section there when it has cross-cutting coordination to record.
+  cohort was mis-scoped — calling for a parent restructure — rather than a clean lateral split. A prompt only; the
+  cap is never raised to rescue a member that legitimately outgrew itself.
 
 ---
 
 ## Composition and reuse
 
-`decompose-work-unit` layers as `[distribute + retire-origin] ∘ cohort-scaffold ∘ park-exit` — a
-monolith-splitting discipline wrapped around two reusable cores. The cores are authored here as named blocks so a
-later workflow-composition mechanism can hoist them into shared steps without a rewrite; cross-workflow references
-to them use the **stable heading slug**, never a step number.
-
-### Predicted vs. emergent arms
-
-Whether *this workflow* runs at all depends on whether a monolith ever formed — the relationship is not 1:1:
-
-- **Emergent.** A holistic draft matures and *then* reveals itself as a cohort (the affirmative fires at
-  [`create-spec`][create-spec]). A monolith exists to *split* — this is the arm `decompose-work-unit` and its
-  distribution discipline (Steps 5–6) serve.
-- **Predicted.** [`assess-cohort-fit`][assess-cohort-fit] fires affirmative *during* draft-design, while the
-  design is still forming. You author directly into the cohort structure; no monolith is ever created, so
-  **`decompose-work-unit` does not run.** The predicted arm reuses the
-  [cohort-scaffold block](#the-cohort-scaffold-block) alone — minting the cohort and member stubs incrementally
-  as the design forms — without the monolith-splitting Steps 5–6.
-
-### The cohort-scaffold block
-
-Mint the cohort (Step 2), backfill the parent doc (Step 3), scaffold the member stubs (Step 4), and verify cohort
-consistency (Step 7). This is the core the **predicted arm** reuses directly: it builds cohort structure without
-reference to an origin draft being split, so it composes cleanly on its own.
-
 ### The park-exit block
 
-The `active/ → backlog/` relocation, the park-shaped PR to `main` (Step 10), and the worktree-kind teardown
-(Step 11). It is authored single-source here so any lifecycle ceremony needing the same relocate-park-teardown
-choreography can adopt it from one place rather than re-authoring it — a deliberate future composition step, not a
-present-tense edit to those workflows.
+The exit choreography is shared with [`park-work-unit`][park]: an in-verb artifact retire / relocate
+([Step 5](#5-run-arc-decompose)), the ship legs ([Step 7](#7-ship-per-protection-mode)), and — for a started
+origin — the **out-of-band post-merge `arc teardown --force`** that reaps the orphaned `plan/<name>` branch +
+worktree. `arc park` also serves an extraction's origin-park disposition. Neither verb tears down the branch or
+worktree in-verb; both defer it to the shared post-merge teardown.
 
 ---
 
@@ -335,18 +350,21 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 
 ## Related workflows
 
-- [`assess-cohort-fit`][assess-cohort-fit] — the planning-time method that produces the cut-map this workflow
-  consumes.
+- [`assess-cohort-fit`][assess-cohort-fit] — the planning-time method that produces the cut-map this workflow consumes.
 - [`init-work-unit`][init-work-unit] — activates each member (`backlog/planned/ → active/`) when its work begins.
+- [`park-work-unit`][park] — shares the exit choreography (in-verb retire + post-merge teardown); the extraction
+  arm's origin-park sequences it.
 - [`integrate-work-unit`][integrate-work-unit] — the code-shipping lifecycle exit; contrast with this
-  transform-and-park exit.
+  transform-and-ship exit.
 
 ---
 
 [assess-cohort-fit]: ../../../methods/assess-cohort-fit.md
-[create-spec]: ../create-spec.md
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[park]: park-work-unit.md
 [template-cohort]: ../../../../reference/templates/arc/work-unit/template-cohort.md
+[dev-rules-antirider]: ../../../../system/rules/DEV-RULES.ARC.md#anti-rider
 [work-org-decomp]: ../../../../reference/strategies/arc/strategy-work-organization.md#decomposition--three-arms-by-parent-position
-[work-org-roadmap]: ../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
+[work-org-active-state]: ../../../../reference/strategies/arc/strategy-work-organization.md#active-state-decomposition
+[work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
