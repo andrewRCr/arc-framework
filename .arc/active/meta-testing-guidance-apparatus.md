@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** draft-design first pass — apparatus design settled, open questions captured
+- **Last Completed:** draft-design — draft consolidated to formalization-ready (task-list marker + content partition settled)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
