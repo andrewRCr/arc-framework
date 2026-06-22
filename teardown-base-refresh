@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "teardown-base-refresh",
+  "origin": "description",
+  "intent": "Refresh base before arc teardown's reap-safety check — fetch origin/<base> so a stale local base no longer false-negatives a merged branch",
+  "branch": "fix/teardown-base-refresh",
+  "createdAt": "2026-06-22T15:12:30.269Z"
+}
