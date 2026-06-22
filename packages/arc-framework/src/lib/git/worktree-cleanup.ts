@@ -1,60 +1,27 @@
 /**
  * Worktree cleanup gating.
  *
- * Two pieces, consumed wherever ARC decides whether to remove a worktree
- * (post-merge integration, the branch-gone cascade, the stale-worktree sweep,
- * deactivation's Case A-delete):
+ * Two pieces, consumed where ARC decides whether to remove a worktree (the
+ * branch-gone cascade and the stale-worktree sweep):
  *
- * - {@link isBranchMerged} — the "is this branch merged into the integration
- *   target" check, via `git merge-base --is-ancestor`. Detects true-merge and
- *   fast-forward integration (the branch tip is reachable from the target). A
- *   squash- or rebase-merge rewrites history, so the original tip is no longer
- *   an ancestor and reads as not-merged — the same boundary `git branch
- *   --merged` has.
+ * - {@link isWorktreeClean} — whether a worktree's tree has no uncommitted
+ *   changes, via `git status --porcelain` scoped to its `cwd`.
  * - {@link decideWorktreeCleanup} — the pure decision mapping marker presence,
  *   clean, merged, and removal-context signals to one removability state. The
  *   returned state describes the *worktree* (not the action) — each caller
- *   chooses its action per its own approval model: integrate's pre-approved
- *   auto-execute, the branch-gone cascade's user-offer, the stale-worktree
- *   sweep's user-offer, deactivate Case A-delete's deactivation-approved
- *   auto-execute.
+ *   chooses its action per its own approval model: the branch-gone cascade's
+ *   user-offer, the stale-worktree sweep's user-offer.
+ *
+ * The `merged` signal `decideWorktreeCleanup` consumes is resolved by the callers
+ * from the shared branch-containment oracle (`isLandedInBase`), which proves
+ * patch-equivalence via `git cherry` and so detects squash- and rebase-merges,
+ * not just fast-forward / merge-commit ancestry.
  *
  * @module
  */
 
-import type { GitExec, GitExecOptions } from "./exec.js";
+import type { GitExec } from "./exec.js";
 import type { WorktreeMarkerReadResult } from "./worktree-marker.js";
-
-/** Inputs for the merged-check. */
-export interface IsBranchMergedOptions {
-  exec: GitExec;
-  /** Branch (or commit) tested for being merged into `target`. */
-  branch: string;
-  /** Integration target the branch is tested against (e.g. `main`, `origin/main`). */
-  target: string;
-  /** Working directory pinned for the git invocation. */
-  cwd?: string;
-}
-
-/**
- * Whether `branch`'s tip is reachable from `target` — i.e. the branch is
- * merged. Implemented with `git merge-base --is-ancestor` (exit 0 → merged). A
- * non-zero exit (not an ancestor) or any exec failure reads as not merged, the
- * safe default — uncertainty never yields a removal offer downstream.
- *
- * @param options - Executor, branch, integration target, optional cwd
- * @returns Whether the branch is merged into the target
- */
-export async function isBranchMerged(options: IsBranchMergedOptions): Promise<boolean> {
-  const { exec, branch, target, cwd } = options;
-  const execOptions: GitExecOptions | undefined = cwd === undefined ? undefined : { cwd };
-  try {
-    await exec("git", ["merge-base", "--is-ancestor", branch, target], execOptions);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** Inputs for the worktree-clean check. */
 export interface IsWorktreeCleanOptions {

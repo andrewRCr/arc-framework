@@ -61,8 +61,9 @@ const record = (over: Partial<ErrandRecord> = {}): ErrandRecord => ({
 
 /**
  * Git mock: `for-each-ref` returns the supplied ref/committerdate lines;
- * `merge-base --is-ancestor <ref> <target>` succeeds (merged) when the ref is in
- * the `merged` set, else throws (not merged). No `fetch` — the prune is decoupled.
+ * `cherry <base> <ref>` reports landed (empty output) when the ref is in the
+ * `merged` set, else lists an unmerged commit (`+ <sha>`). No `fetch` — the prune
+ * is decoupled.
  */
 function buildExec(options: { refs?: string; merged?: readonly string[] } = {}): GitExec {
   const merged = new Set(options.merged ?? []);
@@ -71,10 +72,10 @@ function buildExec(options: { refs?: string; merged?: readonly string[] } = {}):
     if (args[0] === "for-each-ref") {
       return { stdout: options.refs ?? "", stderr: "" };
     }
-    if (args[0] === "merge-base") {
+    if (args[0] === "cherry") {
       const ref = args[2];
       if (ref !== undefined && merged.has(ref)) return { stdout: "", stderr: "" };
-      throw new Error("not merged");
+      return { stdout: "+ deadbeef\n", stderr: "" };
     }
     throw new Error(`unexpected git ${args.join(" ")}`);
   });

@@ -18,9 +18,9 @@
  */
 
 import type { GitExec } from "../git/exec.js";
+import { isLandedInBase } from "../git/branch-containment.js";
 import {
   decideWorktreeCleanup,
-  isBranchMerged,
   isWorktreeClean,
   type WorktreeCleanupDecision,
 } from "../git/worktree-cleanup.js";
@@ -127,7 +127,7 @@ export async function runStaleWorktreeSweep(
       const [marker, clean, merged] = await Promise.all([
         readMarker(entry.worktreePath),
         isWorktreeClean({ exec, cwd: entry.worktreePath }),
-        isBranchMerged({ exec, branch: entry.branch, target: integrationTarget }),
+        isLandedInBase(exec, entry.branch, integrationTarget),
       ]);
       return {
         worktreePath: entry.worktreePath,

@@ -12,7 +12,8 @@
  * @module
  */
 
-import { isBranchMerged, isWorktreeClean } from "../git/worktree-cleanup.js";
+import { isLandedInBase } from "../git/branch-containment.js";
+import { isWorktreeClean } from "../git/worktree-cleanup.js";
 import { readWorktreeMarker } from "../git/worktree-marker.js";
 import type { GitExec } from "../git/exec.js";
 import type {
@@ -100,7 +101,7 @@ async function buildWorktreeCandidate(
   const [marker, clean, merged] = await Promise.all([
     ctx.readMarker(entry.worktreePath),
     isWorktreeClean({ exec: ctx.exec, cwd: entry.worktreePath }),
-    isBranchMerged({ exec: ctx.exec, branch: entry.branch, target: ctx.integrationTarget }),
+    isLandedInBase(ctx.exec, entry.branch, ctx.integrationTarget),
   ]);
 
   return {
