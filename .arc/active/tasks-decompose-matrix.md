@@ -234,22 +234,30 @@ exercised.)
   testing-standards follow-ups). 4.R.1.a/.b landed with the spec commit `f6039fde`; this batch added the cohort-doc
   correction (.c).
 
-### `[ ]` **4.R.2 Generalize `arc teardown` with an un-shipped / force mode**
+### `[x]` **4.R.2 Generalize `arc teardown` with an un-shipped / force mode**
 
 - _Goal:_ `arc teardown` serves the retired-origin / parked / abandoned case — un-shipped arc-state, force
   (unmerged) branch delete — reusing all worktree / locus / ordering / prune mechanics.
 
 - **Strategies:** strategy-testing-methodology.md
 
-- Build `test-first` (one behavior at a time):
-    - un-shipped (non-`completed/`) arc-state gate accepts a retired / parked origin
-    - force-delete variant for an unmerged branch (vs. `delete-merged`), gated on the caller's authorization
-    - in-place arm: `git switch <base>`, no primary removal
-    - linked arm: worktree teardown + self-teardown locus-hop
-    - mode selection (shipped/merged vs. un-shipped/force) routes correctly
+- `[x]` **4.R.2.a Add the un-shipped / force mode to `runTeardown` + the `arc teardown` surface**
+    - Added a `TeardownMode` (`shipped` | `abandoned`) param to `runTeardown` (`verbs/teardown.ts`): the
+      `abandoned` arm inverts the gate (reject only a `completed/` WU; accept any un-shipped one) and swaps the
+      containment-gated `delete-merged` for a caller-authorized force `delete` (local + remote, best-effort on the
+      remote ref). `arc teardown` gains a `--force` flag (`handlers/lifecycle.ts`, `cli.ts`) selecting it. The
+      worktree / locus-hop / ordering / prune legs are reused unchanged.
+- `[x]` **4.R.2.b Unit coverage for the gate + delete-variant selection**
+    - Added an abandoned-mode block to `teardown.test.ts`: the gate accepts parked + retired/nonexistent origins
+      and refuses a shipped WU; the force path deletes local + remote and skips the containment oracle (`rev-list`
+      / `cherry`) — the discriminator from `delete-merged` — with mode routing and the reused in-place / linked
+      arms asserted.
 
-- `[ ]` **4.R.2.a Add the un-shipped / force mode to `runTeardown` + the `arc teardown` surface**
-- `[ ]` **4.R.2.b Unit coverage for the gate + delete-variant selection**
+- _Outcome:_ The shipped teardown verb is generalized to the retired-origin case without re-implementing its
+  mechanics — `abandoned` is a gate-inversion plus a force-delete swap, shifting the safety from git-containment
+  to the caller's conservation gate (the `--force` flag / `mode` param *is* that authorization). Backward
+  compatible: the default `shipped` mode preserves the existing contract (one stale e2e assertion on the no-name
+  refusal wording updated). Unblocks 4.R.3 (route `decompose@planning` through it) and 4.R.4 (`park@Planning`).
 
 ### `[ ]` **4.R.3 Route `decompose@planning` teardown out-of-band**
 

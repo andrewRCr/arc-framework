@@ -837,21 +837,35 @@ export async function handleArchive(slug: string | undefined, opts: ArchiveOptio
   reportOutcome("Archived", lines, result.outcome);
 }
 
+/** Options for `arc teardown`. */
+export interface TeardownOptions {
+  /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
+  force?: boolean;
+}
+
 /**
- * `arc teardown <name>` — post-merge physical cleanup of a shipped work unit:
- * reap the merged branch, remove the linked worktree (in-place is a no-op), and
- * prune the stale tracking ref. Gated on `completed/` arc-state + the merged-safe
- * push-state durability check. Requires an explicit name — a shipped WU has no
- * `active/` meta to default from.
+ * `arc teardown <name>` — physical cleanup (branch + worktree) of a retired work
+ * unit: reap the branch, remove the linked worktree (in-place is a no-op), and
+ * prune the stale tracking ref. Two modes (default `shipped`; `--force` selects
+ * `abandoned`):
+ *
+ * - default — post-merge cleanup of a `completed/` WU; gated on `completed/`
+ *   arc-state + the merged-safe push-state durability check.
+ * - `--force` — cleanup of a retired / parked origin (a decompose origin removed
+ *   into its members, a `park@Planning` shelf) whose branch is unmerged;
+ *   force-deletes it. The caller asserts the work is conserved (the flag is that
+ *   authorization); refuses a `completed/` WU (use the default path).
+ *
+ * Requires an explicit name — a retired WU has no `active/` meta to default from.
  */
-export async function handleTeardown(name: string | undefined): Promise<void> {
+export async function handleTeardown(name: string | undefined, opts: TeardownOptions = {}): Promise<void> {
   p.intro("arc teardown");
   const base = await resolveVerbBase();
   if (base === null) return;
 
   const wuName = name?.trim();
   if (!wuName) {
-    refuse("`arc teardown <name>` requires the shipped work-unit name to clean up.");
+    refuse("`arc teardown <name>` requires the work-unit name to clean up.");
     return;
   }
 
@@ -868,7 +882,7 @@ export async function handleTeardown(name: string | undefined): Promise<void> {
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: base.cwd, ...opts });
   const result = await runTeardown(
     { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); } },
-    { name: wuName, base: baseBranch },
+    { name: wuName, base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
   );
   if (result.status === "rejected") {
     refuse(result.reason);

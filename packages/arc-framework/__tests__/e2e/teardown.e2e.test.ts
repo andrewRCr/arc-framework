@@ -26,7 +26,7 @@ describe("arc teardown (CLI surface)", () => {
     const result = await runArc(["teardown"], tmpDir);
 
     expect(result.exitCode).toBe(1);
-    expect(result.stdout + result.stderr).toMatch(/requires the shipped work-unit name/i);
+    expect(result.stdout + result.stderr).toMatch(/requires the work-unit name/i);
   });
 
   it("refuses a work unit that has not shipped (no completed/ presence)", async () => {

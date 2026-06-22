@@ -56,6 +56,7 @@ import {
   type ReopenOptions,
   type AbandonOptions,
   type ArchiveOptions,
+  type TeardownOptions,
   type DecomposeOptions,
 } from "./handlers/lifecycle.js";
 import {
@@ -216,7 +217,11 @@ program
 program
   .command("teardown [name]")
   .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
-  .action((name: string | undefined) => handleTeardown(name));
+  .option(
+    "--force",
+    "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
+  )
+  .action((name: string | undefined, opts: TeardownOptions) => handleTeardown(name, opts));
 
 program
   .command("set-stage <stage>")
