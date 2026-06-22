@@ -12,8 +12,8 @@
 - **Task List:** `tasks-decompose-matrix.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 4.R complete — teardown-ordering correction (Task 4.R.6: decompose workflow re-landed)
-- **Next Task:** Task 5.2 — Generalize the conservation gate (line ~414)
+- **Last Completed:** Phase 7 complete — verification (Tier 3 gates green; 12/12 success criteria met)
+- **Next Task:** [none] — all tasks complete (Phases 1–7); work unit ready for integration
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
