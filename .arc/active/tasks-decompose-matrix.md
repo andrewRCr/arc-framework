@@ -411,35 +411,41 @@ arms stand as-is.
   _generalization_ (partial-extraction / atomic-home assertions, 5.2) and the Active-state guard (5.3) are seamed
   but not yet authored.
 
-### `[ ]` **5.2 Generalize the conservation gate**
+### `[x]` **5.2 Generalize the conservation gate**
 
 - _Goal:_ The gate asserts conservation under partial extraction (extracted subset only) and atomic-edit homes
   (a standing-doc destination), with the allocation map rendered into the PR description.
 
 - **Strategies:** strategy-workflow-authoring.md
 
-- `[ ]` **5.2.a Partial-extraction conservation**
-    - Conservation is asserted over the _extracted subset_ only; the surviving origin is itself a cut-map entry,
-      not a dropped section.
+- `[x]` **5.2.a Partial-extraction conservation**
+    - Step 2 Allocate gains "retained on the surviving origin" as a conserved destination; Conserve scopes
+      conservation to the extracted subset, the surviving origin absorbing the remainder as a retained entry,
+      not a drop.
 
-- `[ ]` **5.2.b Atomic-edit homes as valid destinations**
-    - A standing doc edited in place is a valid home; the gate asserts the edit lands before the origin retires.
+- `[x]` **5.2.b Atomic-edit homes as valid destinations**
+    - Conserve asserts an existing/atomic home's edit is staged in the transform, before the origin retires —
+      never deferred.
 
-### `[ ]` **5.3 Active-state decomposition — extraction-first-class + full-split escape-hatch guard**
+- _Outcome:_ The gate (Step 2) now carries both generalizations itself rather than only seaming to the arms —
+  partial-extraction scope + surviving-origin-as-destination, and the landing-before-retire ordering for
+  atomic-edit homes. The allocation-map → PR-description rendering was already in place from 5.1.
+
+### `[x]` **5.3 Active-state decomposition — extraction-first-class + full-split escape-hatch guard**
 
 - _Goal:_ Extraction-from-Active runs first-class (origin stays Active, only unbuilt scope extracted), and
   full-split-from-Active is recognized and routed — never automated.
 
 - **Strategies:** strategy-workflow-authoring.md
 
-- `[ ]` **5.3.a Extraction-from-Active as the first-class Active path**
-    - Maps onto the extraction shape: origin stays `Active` (branch + committed code untouched), extracted
-      member(s) mint as `Planning`, only the unbuilt subset distributed.
+- `[x]` **5.3.a Extraction-from-Active as the first-class Active path**
+    - Extraction arm gains an Active-state bullet: origin stays `Active` (branch + committed code untouched),
+      extracted member(s) mint as `Planning`, only unbuilt scope extracted (built code stays with the origin).
 
-- `[ ]` **5.3.b Full-split-from-Active recognition guard**
-    - A whole-block precondition guard near the top of the workflow detects `Active` + committed code and routes:
-      extraction-from-Active when the built code belongs to one member, else a pointer to the guidance section.
-      It directs; it never runs git surgery (no `decompose@active` edge).
+- `[x]` **5.3.b Full-split-from-Active recognition guard**
+    - New whole-block `Active-state precondition guard` atop the spine routes on `(phase, location)` + committed
+      code: Planning → proceed; Active single-member-built → extraction; Active multi-member-built → stop and route
+      to `strategy-work-organization § Decomposition`. Directs only; no `decompose@active` edge, no git surgery.
 
 ## **Phase 6:** Method & strategy documentation
 

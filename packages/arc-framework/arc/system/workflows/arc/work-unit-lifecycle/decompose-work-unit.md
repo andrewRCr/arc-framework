@@ -39,6 +39,20 @@ The cut selects two independent axes — resolve both ([Step 1](#1-resolve-the-m
 The spine below is shape-agnostic; each step defers its shape-specific delta to the matching
 [transform-shape arm](#transform-shape-arms). Read the spine for the invariant flow, then the one arm your cut selects.
 
+### Active-state precondition guard
+
+Run first, before resolving the cell — route on the origin's `(phase, location)` and any committed code:
+
+- **`Planning` origin** (the realized cases) → no guard action; proceed to [Step 1](#1-resolve-the-matrix-cell--gate).
+- **`Active` origin, built code belongs to one member** → **extraction-from-Active**, the first-class Active path:
+  the origin stays `Active`, only unbuilt scope is extracted ([extraction arm](#extraction-arm)). Proceed.
+- **`Active` origin, genuine multi-member-built code** (committed work spanning several would-be members) → **stop.**
+  Full-split is recognized and routed, never run here: there is no `decompose@active` edge and this workflow performs
+  no commit-allocation or git-history surgery. Route to the full-split escape-hatch guidance in
+  [Work Organization Strategy § Decomposition][work-org-decomp].
+
+This guard **directs**; it never runs git surgery.
+
 ### 1) Resolve the matrix cell & gate
 
 Confirm a cut-map is in hand from [`assess-cohort-fit`][assess-cohort-fit] — the members (with slugs and resolved
@@ -253,6 +267,10 @@ the *extracted* subset is distributed; the surviving (thinned) origin keeps the 
   not a dropped section.
 - **Run-context** (Step 5): from the origin's worktree; no teardown leg fires (the origin is untouched — branch and
   any committed code stay).
+- **Active-state origin** (first-class): extraction is the first-class path for a mid-implementation (`Active`)
+  origin — it stays `Active`, the extracted member(s) mint as `Planning`, and **only unbuilt scope** is extracted.
+  Built code stays with the surviving origin; extracting written code needs the full-split machinery this workflow
+  does not run (see the [Active-state guard](#active-state-precondition-guard)).
 - **Disposition fork** — the `surviving-origin` entry carries `keep-active` or `park`:
     - `keep-active` — the thinned origin stays in `active/`, a valid terminal outcome. No extra leg.
     - `park` — relocate it to backlog as a **separate** workflow step after the ship, sequencing two orthogonal
