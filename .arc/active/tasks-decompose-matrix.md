@@ -209,19 +209,30 @@ no E2E tier — corrected per `strategy-testing-methodology`. (Note: the Phase 4
 dirty-base-before-teardown-guard interaction for the _cross-worktree_ case only; the self-teardown path was never
 exercised.)
 
-### `[ ]` **4.R.1 Spec + cohort-doc revision**
+### `[x]` **4.R.1 Spec + cohort-doc revision**
 
 - _Goal:_ The spec's `runDecompose` contract reflects out-of-band teardown; the generalized `arc teardown`, the
   `park@Planning` cross-charter fold-in, and the testing-gap retro are recorded.
 
 - **Strategies:** strategy-work-planning.md
 
-- `[ ]` **4.R.1.a Revise the `runDecompose` teardown contract in `spec-decompose-matrix.md`**
-    - Origin retirement (`artifacts: remove`) stays in-verb; branch + worktree teardown is post-merge
-      `arc teardown`. _(Drafted — § Teardown is out-of-band.)_
-- `[ ]` **4.R.1.b Record the cross-charter `park@Planning` fold-in + the `abandon`-family follow-up**
-- `[ ]` **4.R.1.c Cohort-doc touch if the teardown-ownership seam shifts** — the mutator-bundle teardown legs vs.
-  the `arc teardown` surface as the shared teardown home.
+- `[x]` **4.R.1.a Revise the `runDecompose` teardown contract in `spec-decompose-matrix.md`**
+    - Landed in `f6039fde` — new § Teardown is out-of-band; origin retirement (`artifacts: remove`) stays in-verb,
+      branch + worktree teardown moves post-merge to a generalized `arc teardown`; the matrix table, Success
+      Criteria, and Testing section were updated alongside.
+- `[x]` **4.R.1.b Record the cross-charter `park@Planning` fold-in + the `abandon`-family follow-up**
+    - In the spec's § Teardown is out-of-band (consistency-on-exit rationale) and `USER-INBOX` — `park@Planning`
+      folded in here; `abandon@{Planning,Active}` captured as the Errand follow-up; the testing-standards concern
+      captured as a Work Unit.
+- `[x]` **4.R.1.c Cohort-doc touch — the teardown-ownership seam shifted**
+    - `cohort-lifecycle-state-machine.md` shared-contracts + the `decompose-matrix` member `Consumes` updated:
+      decompose no longer consumes the in-verb mutator-bundle teardown legs; the started-origin teardown is
+      out-of-band via the generalized `arc teardown` (shared with `park@Planning`).
+
+- _Outcome:_ Durable record of the teardown-ordering reframe across all three planning surfaces — the spec
+  (contract + retro), the cohort doc (shared-teardown-surface ownership), and `USER-INBOX` (the abandon-family and
+  testing-standards follow-ups). 4.R.1.a/.b landed with the spec commit `f6039fde`; this batch added the cohort-doc
+  correction (.c).
 
 ### `[ ]` **4.R.2 Generalize `arc teardown` with an un-shipped / force mode**
 
