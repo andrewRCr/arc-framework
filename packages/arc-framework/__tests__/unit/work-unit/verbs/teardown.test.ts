@@ -238,6 +238,8 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     const switchIdx = calls.findIndex((c) => c[1] === "switch");
     const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
     expect(switchIdx).toBeLessThan(deleteIdx);
+    // The refreshed remote base is fast-forwarded into the local base after the switch.
+    expect(calls).toContainEqual(["git", "merge", "--ff-only", "origin/main"]);
     expect(result.notices.some((n) => /relocated the primary worktree/i.test(n))).toBe(true);
   });
 
@@ -260,6 +262,24 @@ describe("runTeardown — worktree dispatch (presence guard)", () => {
     const removeIdx = calls.findIndex((c) => c[1] === "worktree" && c[2] === "remove");
     const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
     expect(removeIdx).toBeLessThan(deleteIdx);
+  });
+});
+
+describe("runTeardown — base refresh before the reap-safety check", () => {
+  it("fetches `origin/<base>` before the merged-safe delete (order-independent reap)", async () => {
+    const { ctx, calls } = buildCtx([SHIPPED_META], { branches: ["feat/demo"] });
+
+    const result = await runTeardown(ctx, { name: "demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    // The base is refreshed (fetch `origin main`) ahead of the containment-gated
+    // delete, so a stale local base can't false-negative a merged branch.
+    const fetchIdx = calls.findIndex(
+      (c) => c[1] === "fetch" && c[2] === "origin" && c[3] === "main",
+    );
+    const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
+    expect(fetchIdx).toBeGreaterThanOrEqual(0);
+    expect(fetchIdx).toBeLessThan(deleteIdx);
   });
 });
 

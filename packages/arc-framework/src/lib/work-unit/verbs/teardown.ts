@@ -23,7 +23,10 @@
  *   preserved (contained in its upstream, or landed in `base` by
  *   patch-equivalence), enacted by the shared reap oracle ({@link
  *   assessReapSafety}) the merged-safe delete leg uses, holding even when the
- *   remote-tracking ref was pruned at merge.
+ *   remote-tracking ref was pruned at merge. The base leg checks against the
+ *   freshly-fetched `origin/<base>` (see {@link refreshBase}), so a stale local
+ *   base — the common state right after a remote merge — never false-negatives a
+ *   merged branch; teardown is order-independent of any prior fetch / prune.
  * - **`abandoned`** — cleanup of a *retired* / *parked* origin (a decompose
  *   origin removed into its members, a `park@Planning` shelf) whose branch is
  *   *unmerged by construction*. The gate is the inverse (any un-shipped WU; a
@@ -155,6 +158,30 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
 }
 
 /**
+ * Resolve the authoritative base ref for the reap-safety check: fetch the remote
+ * base and return `<remote>/<base>` when it resolves, so the landed-in-base leg
+ * evaluates against the post-merge remote rather than a possibly-stale local
+ * `base`. Best-effort — any failure (no remote, offline, unresolved ref) falls
+ * back to the local `base`, preserving the prior behavior.
+ *
+ * @param exec - Injected git executor.
+ * @param base - The local base branch name.
+ * @param remote - The remote whose base ref is authoritative (default `origin`).
+ * @returns `<remote>/<base>` when fetched and resolvable, else the local `base`.
+ */
+async function refreshBase(exec: GitExec, base: string, remote?: string): Promise<string> {
+  const remoteName = remote ?? "origin";
+  const remoteBase = `${remoteName}/${base}`;
+  try {
+    await exec("git", ["fetch", remoteName, base]);
+    await exec("git", ["rev-parse", "--verify", "--quiet", remoteBase]);
+    return remoteBase;
+  } catch {
+    return base;
+  }
+}
+
+/**
  * Run `teardown`: gate on arc-state (mode-keyed — see {@link TeardownMode}),
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
  * order — worktree teardown (linked arm only; the in-place / absent arm is a
@@ -200,6 +227,16 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
 
   const notices: string[] = [];
 
+  // Refresh the base before the reap-safety check and any in-place relocation. The
+  // landed-in-base leg checks patch-equivalence against `base`, but right after a
+  // remote merge the *local* `base` is typically stale (the merge is on
+  // `origin/<base>`, not yet pulled), so checking the local ref false-negatives a
+  // merged branch — the order-dependence that forced a manual fetch + retry. Fetch
+  // `origin/<base>` and evaluate against that authoritative ref instead. Best-effort:
+  // offline / no-remote degrades to the local ref (prior behavior). Only meaningful
+  // when a branch remains to reap.
+  const baseRef = branch === null ? base : await refreshBase(exec, base, remote);
+
   // 3. Worktree arm: tear down a *linked* worktree (distinct from the primary). The
   //    in-place arm (branch in the primary worktree) and an already-removed worktree
   //    are presence-guarded no-ops. Worktree first, so the branch delete in step 4
@@ -226,6 +263,16 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
       } catch (err) {
         return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
       }
+      // Land the developer on a current base: fast-forward local `base` to the
+      // refreshed remote base (best-effort; a non-ff or unavailable base is left
+      // as-is). Skipped when the remote base did not resolve (`baseRef === base`).
+      if (baseRef !== base) {
+        try {
+          await exec("git", ["merge", "--ff-only", baseRef], { cwd: primary });
+        } catch {
+          // Non-fast-forwardable (local base ahead) or unavailable — leave it as-is.
+        }
+      }
       notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
     }
   }
@@ -241,11 +288,11 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   let branchDeleted = false;
   if (branch !== null) {
     if (mode === "shipped") {
-      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base, remote });
+      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
       branchDeleted = !(await branchExists(exec, branch));
       if (!branchDeleted) {
         notices.push(
-          `Branch \`${branch}\` is not contained on its upstream or landed in \`${base}\` — left intact ` +
+          `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
             `(unpushed, unmerged commits would be lost).`,
         );
       }
