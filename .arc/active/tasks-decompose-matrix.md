@@ -259,14 +259,30 @@ exercised.)
   compatible: the default `shipped` mode preserves the existing contract (one stale e2e assertion on the no-name
   refusal wording updated). Unblocks 4.R.3 (route `decompose@planning` through it) and 4.R.4 (`park@Planning`).
 
-### `[ ]` **4.R.3 Route `decompose@planning` teardown out-of-band**
+### `[x]` **4.R.3 Route `decompose@planning` teardown out-of-band**
 
 - _Goal:_ The decompose edge drops its in-verb teardown legs; the started origin's teardown runs post-merge.
 
-- `[ ]` **4.R.3.a Drop `reconcileBranch` / `reconcileWorktree` from the `decompose@planning` edge** (keep
+- `[x]` **4.R.3.a Drop `reconcileBranch` / `reconcileWorktree` from the `decompose@planning` edge** (keep
   `artifacts: remove`)
-- `[ ]` **4.R.3.b `runDecompose` returns the origin's teardown locators** for the workflow's post-merge
+    - The `decompose@planning` edge (`lifecycle-transitions.ts`) now declares `artifacts: remove` alone — the
+      `reconcileBranch: delete` / `reconcileWorktree: teardown` legs and the `worktree-clean` guard (inert without a
+      teardown op, and incompatible with the verb's deliberately-dirty staged tree) are gone. `tearDownOrigin`
+      (`decompose.ts`) fires the transition with empty inputs; the now-dead `worktreePath` / `currentLocus` params
+      and the handler's git-roster resolve are removed.
+- `[x]` **4.R.3.b `runDecompose` returns the origin's teardown locators** for the workflow's post-merge
   `arc teardown` call
+    - `DecomposeResult` gains `teardown: OriginTeardown | null` — `{ slug, branch }` (from meta fields, never git
+      inference) for a started origin, `null` for a backlog-stub origin (branchless) or the extraction shape.
+      `arc decompose` surfaces the post-merge `arc teardown <slug> --force` command when a teardown is owed.
+
+- _Outcome:_ The decompose transform and the started origin's branch/worktree teardown are now decoupled: the verb
+  retires artifacts on a committed tree, and the workflow reaps the branch + worktree post-merge via the generalized
+  force-mode `arc teardown` (4.R.2). This closes the in-verb self-teardown defect at its source — no dirty-tree
+  guard trip, no in-place primary-removal, no dangling locus. Existing decompose unit + integration tests were
+  re-pointed to the new contract (branch/worktree persist after the verb; locators returned), and the transition
+  encoding-consistency oracle now treats `decompose`'s out-of-band teardown as a verb-keyed exception (alongside the
+  `completed/`-ship one). Remaining: 4.R.6 lands the workflow's post-merge step + 4.R.5 closes the coverage gap.
 
 ### `[ ]` **4.R.4 Route `park@Planning` teardown out-of-band**
 

@@ -176,7 +176,12 @@ beforeEach(() => {
   });
   mockRunDecompose.mockResolvedValue({
     status: "decomposed",
-    result: { members: [{ slug: "alpha" }, { slug: "beta" }], repointed: [], origin: "retired" },
+    result: {
+      members: [{ slug: "alpha" }, { slug: "beta" }],
+      repointed: [],
+      origin: "retired",
+      teardown: { slug: "mono", branch: "plan/mono" },
+    },
   });
 });
 
@@ -217,7 +222,7 @@ describe("handleDecompose", () => {
     expect(mockParseCutMap).toHaveBeenCalledTimes(1);
     expect(mockRunDecompose).toHaveBeenCalledTimes(1);
     const params = mockRunDecompose.mock.calls[0]?.[1];
-    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } }, currentLocus: "/repo" });
+    expect(params).toMatchObject({ cut: { origin: { slug: "mono" } } });
   });
 
   it("refuses a malformed cut-map before any mutation", async () => {

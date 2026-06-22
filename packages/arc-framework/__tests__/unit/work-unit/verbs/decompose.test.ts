@@ -397,22 +397,25 @@ function symmetricCut(over: Partial<DecomposeParams> = {}): DecomposeParams {
 }
 
 describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", () => {
-  it("fires decompose@planning for a started origin — artifacts removed, branch + worktree torn down", async () => {
+  it("retires a started origin's artifacts but defers branch + worktree teardown out-of-band", async () => {
     const h = buildRunHarness([{ slug: "mono", tier: "active", subdir: "", state: "Planning", branch: "plan/mono" }], {
       [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"],
     });
 
-    const result = await runDecompose(h.ctx, { cut: symmetricCut(), worktreePath: "/wt/mono", currentLocus: "/wt/mono" });
+    const result = await runDecompose(h.ctx, { cut: symmetricCut() });
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("retired");
     expect(h.removed).toContain(`${CWD}/.arc/active/meta-mono.md`);
-    expect(h.branchOps).toContain("delete:plan/mono");
-    expect(h.worktreeOps).toContain("teardown");
+    // Teardown is out-of-band (post-merge `arc teardown --force`): the verb fires no
+    // in-verb branch / worktree legs and instead returns the locators for the workflow.
+    expect(h.branchOps).toEqual([]);
+    expect(h.worktreeOps).toEqual([]);
+    expect(result.result.teardown).toEqual({ slug: "mono", branch: "plan/mono" });
   });
 
-  it("fires decompose@planned for a backlog-stub origin — artifacts removed, no branch teardown", async () => {
+  it("fires decompose@planned for a backlog-stub origin — artifacts removed, no teardown owed", async () => {
     const h = buildRunHarness(
       [{ slug: "mono", tier: "backlog/planned", subdir: "mono", state: "Planning", cohort: "mono" }],
       { [`${CWD}/.arc/backlog/planned/mono`]: ["meta-mono.md", "draft-mono.md"] },
@@ -421,10 +424,12 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     const result = await runDecompose(h.ctx, { cut: symmetricCut({ shape: "backlog-stub-source" }) });
 
     expect(result.status).toBe("decomposed");
+    if (result.status !== "decomposed") return;
     expect(h.removed).toContain(`${CWD}/.arc/backlog/planned/mono/meta-mono.md`);
-    // A planned-tier stub has no branch / worktree to tear down.
+    // A planned-tier stub has no branch / worktree — nothing to tear down, in-verb or out.
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
+    expect(result.result.teardown).toBeNull();
   });
 
   it("prunes the emptied subdir of a retired backlog stub — no orphaned cohort dir, parent kept", async () => {
@@ -465,10 +470,11 @@ describe("runDecompose — origin teardown via the reserved edges (Task 3.2)", (
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
     expect(result.result.origin).toBe("survived");
-    // No origin artifacts removed, no branch / worktree torn down.
+    // No origin artifacts removed, no branch / worktree torn down, no teardown owed.
     expect(h.removed).toEqual([]);
     expect(h.branchOps).toEqual([]);
     expect(h.worktreeOps).toEqual([]);
+    expect(result.result.teardown).toBeNull();
   });
 });
 
@@ -483,7 +489,7 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
       { [`${CWD}/.arc/active`]: ["meta-mono.md", "draft-mono.md"] },
     );
 
-    const result = await runDecompose(h.ctx, { cut: symmetricCut(), worktreePath: "/wt/mono", currentLocus: "/wt/mono" });
+    const result = await runDecompose(h.ctx, { cut: symmetricCut() });
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
@@ -503,7 +509,7 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
       [`${CWD}/.arc/active`]: ["meta-mono.md"],
     });
 
-    await runDecompose(h.ctx, { cut: symmetricCut(), worktreePath: "/wt/mono", currentLocus: "/wt/mono" });
+    await runDecompose(h.ctx, { cut: symmetricCut() });
 
     expect(h.fired).toContain("reconcile-roadmap");
   });
@@ -532,7 +538,7 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
       { [`${CWD}/.arc/active`]: ["meta-mono.md"] },
     );
 
-    const result = await runDecompose(h.ctx, { cut: symmetricCut(), worktreePath: "/wt/mono", currentLocus: "/wt/mono" });
+    const result = await runDecompose(h.ctx, { cut: symmetricCut() });
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
@@ -540,6 +546,7 @@ describe("runDecompose — sweep, regen, and structured result (Task 3.3)", () =
     expect(result.result.members[0]!.metaPath).toBe(".arc/backlog/planned/mono/alpha/meta-alpha.md");
     expect(result.result.repointed).toEqual([{ dependent: "dependent", to: ["alpha", "beta"] }]);
     expect(result.result.origin).toBe("retired");
+    expect(result.result.teardown).toEqual({ slug: "mono", branch: "plan/mono" });
   });
 
   it("rejects when the origin is absent from the index", async () => {
@@ -592,7 +599,7 @@ describe("runDecompose — symmetric-shape regression (hand-rolled parity)", () 
       ],
     };
 
-    const result = await runDecompose(h.ctx, { cut, worktreePath: "/wt/monolith", currentLocus: "/wt/monolith" });
+    const result = await runDecompose(h.ctx, { cut });
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;

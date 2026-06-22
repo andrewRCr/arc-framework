@@ -26,7 +26,7 @@ import { getInternalTemplatePath } from "../../src/lib/paths.js";
 import { buildExecutorContext } from "../../src/lib/work-unit/executor-context.js";
 import type { DecomposeParams } from "../../src/lib/work-unit/decompose-cut-map.js";
 import { runDecompose, type RunDecomposeContext } from "../../src/lib/work-unit/verbs/decompose.js";
-import { createTempRepo, cleanupTempDir, addBareRemote, type GitExec } from "../helpers/integration.js";
+import { createTempRepo, cleanupTempDir, type GitExec } from "../helpers/integration.js";
 
 const execFileAsync = promisify(execFile);
 const IDENTITY = "test-user";
@@ -108,17 +108,13 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     await cleanupTempDir(repo);
   });
 
-  it("symmetric: retires a started origin (artifacts removed, branch + worktree torn down), scaffolds members, re-points a dependent", async () => {
+  it("symmetric: retires a started origin's artifacts, defers branch + worktree teardown out-of-band, scaffolds members, re-points a dependent", async () => {
     // The started origin lives in `active/` on its plan branch + worktree; a
     // standalone dependent names it. (The origin meta also rides `main` here so the
     // index resolves it from the base checkout the decompose runs in.)
     await writeWu(repo, ".arc/active", "mono", { State: "Planning", Branch: "plan/mono", Origin: "[internal]" });
     await writeWu(repo, ".arc/active", "dep", { State: "Active", Branch: "feat/dep", "Depends On": "mono" });
     await commitAll(repo, "origin + dependent");
-    // A real repo has an `origin`; the started-origin teardown's best-effort remote
-    // branch delete needs one (it swallows the never-pushed "remote ref does not
-    // exist", but not a missing-remote failure).
-    await addBareRemote(repo);
 
     const worktree = join(dirname(repo), `${basename(repo)}-mono`);
     await execFileAsync("git", ["worktree", "add", "-b", "plan/mono", worktree], { cwd: repo });
@@ -134,7 +130,7 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
       internalEdges: [{ from: "beta", to: "alpha" }],
     };
 
-    const result = await runDecompose(decomposeCtx(repo), { cut, worktreePath: worktree, currentLocus: repo });
+    const result = await runDecompose(decomposeCtx(repo), { cut });
 
     expect(result.status).toBe("decomposed");
     if (result.status !== "decomposed") return;
@@ -147,11 +143,13 @@ describe("runDecompose shapes — end-to-end against a real repo", () => {
     const beta = parseMetaRecord(await readFile(join(repo, ".arc/backlog/planned/mono/beta/meta-beta.md"), "utf8"));
     expect(beta["Depends On"]).toContain("alpha");
 
-    // Origin artifacts removed; its branch + worktree torn down.
+    // Origin artifacts removed in-verb; its branch + worktree are NOT — teardown is
+    // out-of-band (post-merge `arc teardown --force`). The verb returns the locators.
     expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
+    expect(result.result.teardown).toEqual({ slug: "mono", branch: "plan/mono" });
     const { stdout: branches } = await execFileAsync("git", ["branch", "--list", "plan/mono"], { cwd: repo });
-    expect(branches.trim()).toBe("");
-    expect(await pathExists(worktree)).toBe(false);
+    expect(branches).toContain("plan/mono");
+    expect(await pathExists(worktree)).toBe(true);
 
     // The dependent's incoming edge re-pointed to the delivering members, and staged.
     expect(result.result.repointed).toEqual([{ dependent: "dep", to: ["alpha", "beta"] }]);

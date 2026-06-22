@@ -289,9 +289,6 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
     return;
   }
 
-  // A started (`Planning`-phase) origin tears down its branch + worktree; resolve
-  // its worktree the same way `abandon` does (the backlog-stub arms ignore it).
-  const worktreePath = await resolveWuWorktreePath(base, originArg);
   const { executor } = await buildExecutor(base);
   const result = await runDecompose(
     {
@@ -299,22 +296,25 @@ export async function handleDecompose(origin: string | undefined, opts: Decompos
       fs: { mkdir: base.io.mkdir, writeFile: base.io.writeFile },
       removeFs: { readdir: (path) => readdir(path), rm: (path) => rm(path), rmdir: (path) => rmdir(path) },
     },
-    { cut: parsed.params, worktreePath, currentLocus: base.cwd },
+    { cut: parsed.params },
   );
   if (result.status === "rejected") {
     refuse(result.reason);
     return;
   }
 
-  const { members, repointed, origin: disposition } = result.result;
-  p.note(
-    [
-      `Origin:     ${originArg} (${disposition})`,
-      `Members:    ${members.map((m) => m.slug).join(", ")}`,
-      `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
-    ].join("\n"),
-    "Decomposed",
-  );
+  const { members, repointed, origin: disposition, teardown } = result.result;
+  const lines = [
+    `Origin:     ${originArg} (${disposition})`,
+    `Members:    ${members.map((m) => m.slug).join(", ")}`,
+    `Re-pointed: ${repointed.length === 0 ? "none" : repointed.map((r) => r.dependent).join(", ")}`,
+  ];
+  if (teardown !== null) {
+    // The started origin's branch + worktree teardown is deferred to post-merge —
+    // surface the exact command rather than reaping the live branch mid-transform.
+    lines.push(`Teardown:   post-merge — \`arc teardown ${teardown.slug} --force\` (branch \`${teardown.branch}\`)`);
+  }
+  p.note(lines.join("\n"), "Decomposed");
   p.outro("Done.");
 }
 
