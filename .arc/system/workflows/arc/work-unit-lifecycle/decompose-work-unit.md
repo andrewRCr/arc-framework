@@ -11,9 +11,10 @@ arc:
 Turn one work unit into a **cohort** of self-contained member WUs. A genuine lifecycle transition — the WU
 changing *what it is* — not a code-shipping integration: nothing merges as a deliverable and no `completed/`
 archive is written for the origin (the cohort carries the eventual archive when its last member ships). The
-[`arc decompose`](#5-run-arc-decompose) verb owns the mechanics (batch member scaffold, origin teardown,
-incoming-edge re-point, ROADMAP regen); this workflow supplies the **judgment** — the cut-map, the conservation
-gate, the cohort coordination, and the shape selection — plus the ship legs.
+[`arc decompose`](#5-run-arc-decompose) verb owns the in-verb mechanics (batch member scaffold, origin **artifact**
+retirement, incoming-edge re-point, ROADMAP regen); this workflow supplies the **judgment** — the cut-map, the
+conservation gate, the cohort coordination, and the shape selection — plus the ship legs and the out-of-band
+post-merge teardown of a started origin's branch + worktree.
 
 The cut — members, slugs, dependency edges, deliverable boundaries — is **not decided here.** It arrives as the
 **cut-map** from the [`assess-cohort-fit`][assess-cohort-fit] method at planning time; this workflow consumes it
@@ -115,10 +116,11 @@ verb's sweep. Omit `cohort` only on the at-cap arm. The entry kinds each arm use
 ### 5) Run `arc decompose`
 
 > [!IMPORTANT]
-> `workflow-interlock`: Stop before running the transform — it is the destructive act (origin retired, branch +
-> worktree torn down). Surface the **allocation map** (Step 2 — where every section and edge lands, or why dropped),
-> the cohort-consistency check ([Step 6](#6-verify-cohort-consistency)), and the planned origin disposition + ROADMAP
-> delta. Await approval before running the verb.
+> `workflow-interlock`: Stop before running the transform — it is the destructive act (origin artifacts removed,
+> incoming edges re-pointed; the branch + worktree reap is the separate post-merge step in
+> [Step 7](#7-ship-per-protection-mode)). Surface the **allocation map** (Step 2 — where every section and edge
+> lands, or why dropped), the cohort-consistency check ([Step 6](#6-verify-cohort-consistency)), and the planned
+> origin disposition + ROADMAP delta. Await approval before running the verb.
 
 Run the verb with the cut-map from the run-context the [shape arm](#transform-shape-arms) names:
 
@@ -130,8 +132,9 @@ The verb validates the cut-map (refusing a malformed file before any mutation), 
 batch-scaffold the members under `backlog/planned/<cohort>[/<subcohort>]/<member>/` (`meta-` + skeleton `draft-`),
 retire the origin through its reserved edge (**skipped on the [extraction arm](#extraction-arm)**, where the origin
 survives), re-point every incoming `Depends On` edge off the retired origin to the delivering members, and
-regenerate the ROADMAP. It **stages** its result; it does not commit. A started origin's branch + worktree teardown
-runs inside the verb (self-teardown locus-hop handled) — there is no separate teardown step.
+regenerate the ROADMAP. It **stages** its result; it does not commit. A started origin's branch + worktree are
+**not** torn down in-verb — that teardown is out-of-band, a post-merge `arc teardown <origin> --force`
+([Step 7](#7-ship-per-protection-mode)); the verb retires the origin's artifacts only.
 
 ### 6) Verify cohort consistency
 
@@ -195,7 +198,22 @@ gh pr create --base main --head chore/decompose-<name>
 gh pr merge <pr-number> --squash   # or per merge.strategy
 ```
 
-Post-merge, retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
+**Post-merge teardown — started origin only.** For a started (`Planning`) origin (the [symmetric arm](#symmetric-arm),
+or a [heterogeneous](#heterogeneous-home-arm) cut over one), reap its now-orphaned `plan/<name>` branch + worktree
+**after** the decompose has merged — never before, or the artifact retirement would not yet be durable. Run from the
+base checkout (so the locus survives the worktree removal):
+
+```bash
+arc teardown <origin> --force   # un-shipped / force mode: reaps the retired plan branch + worktree
+```
+
+`--force` selects the un-shipped teardown mode: the origin is retired (not in `completed/`) and its `plan/<name>`
+branch is unmerged (the design was redistributed into members, not git-merged), so the conservation gate above is the
+upstream safety, not git-containment. The in-place arm switches the primary to base; a linked arm removes the
+worktree and locus-hops. The [backlog-stub-source arm](#backlog-stub-source-arm) (no branch) and the
+[extraction arm](#extraction-arm) (origin survives) owe no teardown.
+
+Then retire the origin's per-WU user workspace subdir (filesystem op only, contents gitignored):
 
 ```bash
 arc user close <name>
@@ -211,13 +229,15 @@ extra leg. The parent-position axis ([§ At-cap arm](#at-cap-arm)) is orthogonal
 ### Symmetric arm
 
 The realized cell: a live `plan/<name>` origin in `**State:** Planning`, cut-map in hand. The whole draft is
-distributed to N new members (all `kind: new-member`); the origin is **retired** and its branch + worktree torn down.
+distributed to N new members (all `kind: new-member`); the origin is **retired** (its artifacts removed), and its
+`plan/<name>` branch + worktree are reaped post-merge ([Step 7](#7-ship-per-protection-mode)).
 
 - **`shape`**: `symmetric`. Entries: ≥ 2 `new-member`.
 - **Conservation scope** (Step 2): the *whole* origin draft.
-- **Run-context** (Step 5): from the origin's own `plan/<name>` worktree; `arc decompose` self-tears-down,
-  hopping the locus to the primary worktree before removing the origin worktree. The prior cwd no longer exists
-  afterward — continue the ship legs from the primary worktree.
+- **Run-context** (Step 5): from a base checkout — the transform is PM-artifact grooming, staged on the base tree and
+  shipped on the auto-merge lane. `arc decompose` retires the origin's artifacts but does **not** touch its
+  `plan/<name>` branch or worktree, so the run-locus is never sawn off mid-transform; the branch + worktree are
+  reaped post-merge via `arc teardown <origin> --force` (Step 7), run from the base checkout the ship already used.
 
 ### Extraction arm
 
@@ -294,9 +314,11 @@ and every other step is unchanged. Composes with any [transform shape](#transfor
 
 ### The park-exit block
 
-The retire-and-teardown choreography ([Step 5](#5-run-arc-decompose)) and the ship legs
-([Step 7](#7-ship-per-protection-mode)) run through `arc decompose` (and `arc park` for an extraction's origin
-disposition). [`park-work-unit`][park] reuses the same choreography.
+The exit choreography is shared with [`park-work-unit`][park]: an in-verb artifact retire / relocate
+([Step 5](#5-run-arc-decompose)), the ship legs ([Step 7](#7-ship-per-protection-mode)), and — for a started
+origin — the **out-of-band post-merge `arc teardown --force`** that reaps the orphaned `plan/<name>` branch +
+worktree. `arc park` also serves an extraction's origin-park disposition. Neither verb tears down the branch or
+worktree in-verb; both defer it to the shared post-merge teardown.
 
 ---
 
@@ -309,7 +331,8 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 
 - [`assess-cohort-fit`][assess-cohort-fit] — the planning-time method that produces the cut-map this workflow consumes.
 - [`init-work-unit`][init-work-unit] — activates each member (`backlog/planned/ → active/`) when its work begins.
-- [`park-work-unit`][park] — shares the verb-driven exit choreography; the extraction arm's origin-park sequences it.
+- [`park-work-unit`][park] — shares the exit choreography (in-verb retire + post-merge teardown); the extraction
+  arm's origin-park sequences it.
 - [`integrate-work-unit`][integrate-work-unit] — the code-shipping lifecycle exit; contrast with this
   transform-and-ship exit.
 

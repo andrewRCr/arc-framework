@@ -336,15 +336,26 @@ exercised.)
   so the post-locus-hop branch-delete ran against a dead cwd. `handleTeardown` now tracks a mutable locus the
   `chdir` hop re-points, so the post-hop legs follow to the primary. (+6 E2E tests; full suite 3209.)
 
-### `[ ]` **4.R.6 Re-land the workflow on the corrected contract**
+### `[x]` **4.R.6 Re-land the workflow on the corrected contract**
 
 - _Goal:_ `decompose-work-unit.md` carries the post-merge teardown step and a corrected symmetric run-context.
 
 - **Strategies:** strategy-workflow-authoring.md, strategy-package-project-sync.md
 
-- `[ ]` **4.R.6.a Add the post-merge `arc teardown` step + fix the symmetric arm's run-context** — supersedes the
-  in-verb self-teardown framing the 5.1 rewrite carries
-- `[ ]` **4.R.6.b Re-mirror the rewritten workflow to the package source**
+- `[x]` **4.R.6.a Add the post-merge `arc teardown` step + fix the symmetric arm's run-context**
+    - Step 7 gains a started-origin-only `arc teardown <origin> --force` step (post-merge, never before — the
+      retirement must be durable first); the symmetric arm's run-context flips from "self-tears-down from the origin
+      worktree" to "from a base checkout; the branch + worktree are reaped post-merge." The Step 5 interlock + body,
+      the intro, and the park-exit block were re-framed off the in-verb self-teardown the 5.1 rewrite carried. The
+      extraction (origin survives) and backlog-stub (no branch) arms correctly owe no teardown.
+- `[x]` **4.R.6.b Re-mirror the rewritten workflow to the package source**
+    - Edited the package source, verified byte-identical to `.arc/` at HEAD, re-synced (Framework file, verbatim).
+
+- _Outcome:_ The decompose workflow now matches the shipped contract end-to-end: an in-verb artifact retire, then
+  the shared out-of-band `arc teardown --force` (the same exit choreography `park-work-unit.md` carries since 4.R.4).
+  No surface still describes the in-verb self-teardown the reframe removed. Phase 4.R complete — the teardown-ordering
+  defect is corrected across the verb (4.R.2/4.R.3/4.R.4), proven by CLI-seam E2E (4.R.5), and reflected in both
+  exit workflows.
 
 ## **Phase 5:** Workflow rewrite — judgment half
 
