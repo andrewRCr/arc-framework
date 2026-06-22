@@ -1,7 +1,7 @@
 /**
  * E2E for the work-unit exit choreography through the built CLI — `arc decompose`,
- * `arc park`, and the generalized `arc teardown --force`, in real git repos across
- * the **in-place** and **linked** worktree models.
+ * `arc park`, `arc abandon`, and the generalized `arc teardown --force`, in real git
+ * repos across the **in-place** and **linked** worktree models.
  *
  * This is the coverage the unit/integration tiers structurally could not give: the
  * earlier tests drove the verb *cores* with hand-fed cross-worktree inputs the CLI
@@ -10,11 +10,12 @@
  * teardown-ordering defect shipped uncaught. These tests drive the verbs through the
  * CLI seam and assert on-disk outcomes — never on core call-args.
  *
- * The post-reframe contract under test: `decompose` / `park@Planning` retire (remove /
- * relocate) the origin's artifacts in-verb but defer its branch + worktree teardown
- * out-of-band to a post-action `arc teardown <slug> --force`. The force mode's four
- * behaviors — dirty-tree refusal, self-teardown locus-hop, in-place primary-switch,
- * and unmerged force-delete — are asserted here in the real repos that produce them.
+ * The post-reframe contract under test: `decompose` / `park@Planning` /
+ * `abandon@{Planning,Active}` retire (remove / relocate) the origin's artifacts in-verb
+ * but defer its branch + worktree teardown out-of-band to a post-action
+ * `arc teardown <slug> --force`. The force mode's four behaviors — dirty-tree refusal,
+ * self-teardown locus-hop, in-place primary-switch, and unmerged force-delete — are
+ * asserted here in the real repos that produce them.
  */
 
 import { execFile } from "node:child_process";
@@ -191,6 +192,59 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await branchExists(repo, "plan/solo")).toBe(true);
     expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown solo --force/);
+  });
+
+  // -------------------------------------------------------------------------
+  // arc abandon (CLI) — remove artifacts in-verb, defer teardown out-of-band
+  // -------------------------------------------------------------------------
+
+  it("arc abandon removes the started WU's artifacts but defers branch + worktree teardown", async () => {
+    const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
+    expect(worktree).toBeDefined();
+    if (worktree !== undefined) worktrees.push(worktree);
+
+    const result = await runArc(["abandon", "mono", "--yes"], repo);
+
+    expect(result.exitCode).toBe(0);
+    // Artifacts removed from active/; the branch + worktree linger for the post-action reap.
+    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
+    expect(await branchExists(repo, "plan/mono")).toBe(true);
+    expect(await pathExists(worktree!)).toBe(true);
+    expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
+  });
+
+  it("arc abandon → commit → teardown --force reaps the branch + worktree (linked)", async () => {
+    const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
+    if (worktree !== undefined) worktrees.push(worktree);
+
+    const abandon = await runArc(["abandon", "mono", "--yes"], repo);
+    expect(abandon.exitCode).toBe(0);
+    // The removal is staged-but-uncommitted (a dirty tree); commit it so the
+    // post-action teardown reaps from a clean worktree, per the ceremony.
+    await commitAll(repo, "abandon mono");
+
+    const teardown = await runArc(["teardown", "mono", "--force"], repo);
+
+    expect(teardown.exitCode).toBe(0);
+    expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
+    expect(await branchExists(repo, "plan/mono")).toBe(false);
+    expect(await pathExists(worktree!)).toBe(false);
+  });
+
+  it("arc abandon → commit → teardown --force switches the primary to base (in-place)", async () => {
+    await scaffoldStartedWu(repo, "mono", "in-place");
+
+    const abandon = await runArc(["abandon", "mono", "--yes"], repo);
+    expect(abandon.exitCode).toBe(0);
+    await commitAll(repo, "abandon mono");
+
+    const teardown = await runArc(["teardown", "mono", "--force"], repo);
+
+    expect(teardown.exitCode).toBe(0);
+    // The primary is switched to base (never removed); the unmerged branch is reaped.
+    expect(await pathExists(repo)).toBe(true);
+    expect(await git(repo, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("main");
+    expect(await branchExists(repo, "plan/mono")).toBe(false);
   });
 
   // -------------------------------------------------------------------------

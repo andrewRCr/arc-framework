@@ -111,26 +111,56 @@ See QUICK-REFERENCE § Platform Commands for non-GitHub equivalents.
 
 ### 2) Run the `abandon` transition
 
+Run this from the WU's own checkout — the **primary** worktree on the WU branch for an in-place WU, or the WU's
+**linked** worktree.
+
 ```bash
 arc abandon {name} --yes
 ```
 
-The destructive cascade tears the WU down in one call: removes its artifact set, force-deletes the branch
-(`-D` locally **and** the remote ref — force is required since the activation commit never merged), tears down
-the WU's worktree, removes the user session workspace, and regenerates `STATUS.USER`. `--yes` confirms the
-cascade — `arc abandon` prints the impact plan and refuses without it; the slug is required (`abandon` never
-defaults to the current WU). It also emits a ROADMAP hand-render advisory — fold that re-render into Step 3.
+The destructive cascade **stages** the removal of the WU's artifact set, closes the user session workspace, and
+regenerates `STATUS.USER`, emitting a ROADMAP hand-render advisory. `--yes` confirms the cascade — `arc abandon`
+prints the impact plan and refuses without it; the slug is required (`abandon` never defaults to the current WU).
 
-The worktree-identity dispatch is the handler's: it resolves the WU's worktree path and current locus, so the
-single call covers both arms — the **primary** (in-place) WU, where the self-teardown hops the execution locus
-to the base before deleting the branch, and the **linked** (spawned) WU, whose worktree is torn down. The
-agent's prior cwd no longer exists if it was in a torn-down WU worktree.
+The branch and worktree are **not** torn down here — that physical reap is the out-of-band `arc teardown --force`
+in Step 4. (Firing the teardown in-verb tripped the clean guard on the verb's own staged removal and, in-place,
+targeted the un-removable primary worktree.) `arc abandon` stages but does not commit.
 
-### 3) Clean up base-branch leftovers (per `pm.mode`)
+### 3) Commit the abandonment
 
-The Step 2 cascade removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
+`arc teardown` reaps from a **clean** worktree (it refuses a dirty tree and never force-removes uncommitted
+work), so the staged removal is committed first. The commit lands on the WU branch and is never merged — the
+branch is reaped in Step 4 — so it records the abandonment and clears the tree for the teardown.
+
+> [!CAUTION]
+> `commit-interlock` release — commit as `workflowCommit`:
+
+```text
+chore(arc): abandon {work-name} work unit
+
+- Remove the work unit's artifact set
+- Close the user session workspace
+
+Context: meta-{name}.md (deactivation)
+```
+
+### 4) Tear down the branch + worktree
+
+```bash
+arc teardown {name} --force
+```
+
+`--force` selects the un-shipped teardown mode: the WU is not in `completed/` and its branch is unmerged, so the
+conservation safety is the committed abandonment above, not git-containment. It force-deletes the branch (local
+**and** the remote ref) and reaps the worktree — the in-place arm switches the primary worktree to the base
+branch before the delete; a linked arm removes the worktree and locus-hops. The agent's prior cwd no longer
+exists if it was in a torn-down WU worktree.
+
+### 5) Clean up base-branch leftovers (per `pm.mode`)
+
+Steps 2–4 removed the WU's in-flight artifacts (`active/meta-*`, `active/spec-*`, `active/tasks-*`,
 `active/notes-*`, any residual `active/draft-*`) along with its branch and worktree — they lived only on the
-deleted branch and were never merged. The remaining cleanup concerns base-branch leftovers the cascade doesn't
+reaped branch and were never merged. The remaining cleanup concerns base-branch leftovers those steps don't
 reach:
 
 - **`arc-in-git`:** If the WU originated from a backlog stub, `backlog/{state}/{name}/` may still exist on base
@@ -141,15 +171,15 @@ reach:
   abandoned bucket. No local file cleanup needed.
 - **`none`:** No file cleanup needed.
 
-If a commit is required for the cleanup (arc-in-git with backlog/ROADMAP edits), full protection wants its own
-branch — `git checkout -b chore/deactivate-{name}` — pushed (`workflowPush`) and merged via PR. Under partial
-protection, the commit lands directly on base.
+This base cleanup is a separate commit, made from the base checkout (Step 4 left the primary on the base branch).
+Under full protection it wants its own branch — `git checkout -b chore/deactivate-{name}` — pushed
+(`workflowPush`) and merged via PR. Under partial protection, the commit lands directly on base.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-chore(arc): abandon {work-name} work unit
+chore(arc): clean up abandoned {work-name} backlog leftovers
 
 Context: meta-{name}.md (deactivation)
 ```

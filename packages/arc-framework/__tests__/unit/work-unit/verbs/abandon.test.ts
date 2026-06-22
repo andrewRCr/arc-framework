@@ -5,8 +5,9 @@
  * resolver then returns `nonexistent`). It is a destructive cascade gated on an
  * explicit confirmation (`--yes`); bare invocation refuses (safe default). The
  * cascade is phase-polymorphic: a backlog stub is just an artifact removal; a
- * started WU (`planning` / `active`) also tears down its branch and worktree; a
- * `parked` WU deletes its preserved branch but has no worktree to tear down.
+ * started WU (`planning` / `active`) removes its artifacts in-verb but defers its
+ * branch + worktree teardown to a post-action `arc teardown --force`; a `parked` WU
+ * deletes its preserved branch in-verb but has no worktree to tear down.
  * `integrating` and merged / `shipped` are illegal — post-merge backout is a new
  * origin-linked WU. The mutators, the remove runner, and the side-effects reach
  * the contract as spies, so each behavior is asserted over an in-memory index.
@@ -157,7 +158,7 @@ function buildCtx(metas: MetaSpec[], worktreeClean = true): Harness {
   return { ctx: { executor, fs }, calls, removed, rmdirs };
 }
 
-const BASE: AbandonParams = { name: "foo", confirmed: true, worktreePath: WORKTREE, currentLocus: WORKTREE };
+const BASE: AbandonParams = { name: "foo", confirmed: true };
 
 const ACTIVE: MetaSpec = { slug: "foo", tier: "active", subdir: "", state: "Active", branch: "feat/foo" };
 const PROVISIONAL: MetaSpec = { slug: "foo", tier: "backlog/provisional", subdir: "foo", state: "Planning" };
@@ -179,7 +180,7 @@ describe("runAbandon — the confirmation gate", () => {
 });
 
 describe("runAbandon — started WU (active)", () => {
-  it("removes the artifact set, deletes the branch, and tears down the worktree with the current locus", async () => {
+  it("removes the artifact set but defers branch + worktree teardown out-of-band", async () => {
     const { ctx, calls, removed } = buildCtx([ACTIVE]);
 
     const result = await runAbandon(ctx, BASE);
@@ -194,28 +195,27 @@ describe("runAbandon — started WU (active)", () => {
     expect(removed).toContain("/repo/.arc/active/meta-foo.md");
     expect(removed).toContain("/repo/.arc/active/spec-foo.md");
     expect(removed.some((p) => p.includes("cohort-other"))).toBe(false);
-    expect(calls).toContain("branch:delete:feat/foo");
-    // Execution-locus relocation: the teardown op carries the current locus for self-teardown detection.
-    expect(calls).toContain(`worktree:teardown:${WORKTREE}`);
+    // Branch + worktree teardown is out-of-band (post-action `arc teardown --force`):
+    // no in-verb branch-delete or worktree-teardown leg fires.
+    expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
     // The user-workspace satellite is closed and the readiness views regen.
     expect(calls).toContain("side:user-workspace");
     expect(calls).toContain("side:reconcile-roadmap");
   });
 });
 
-describe("runAbandon — dirty started WU (worktree-clean fail-fast)", () => {
-  it("rejects at the guard before any artifact removal when the worktree is dirty", async () => {
-    const { ctx, calls, removed, rmdirs } = buildCtx([ACTIVE], /* worktreeClean */ false);
+describe("runAbandon — started WU on a dirty worktree", () => {
+  it("no longer gates on worktree cleanliness — the deferred teardown owns the worktree", async () => {
+    const { ctx, calls, removed } = buildCtx([ACTIVE], /* worktreeClean */ false);
 
     const result = await runAbandon(ctx, BASE);
 
-    expect(result.status).toBe("rejected");
-    if (result.status !== "rejected") return;
-    expect(result.reason).toMatch(/dirty worktree|uncommitted/i);
-    // Fail-fast: the guard rejects before the remove leg, so no half-apply —
-    // artifacts untouched and no branch / worktree teardown.
-    expect(removed).toEqual([]);
-    expect(rmdirs).toEqual([]);
+    // The started-WU abandon edges dropped the `worktree-clean` guard along with the
+    // in-verb teardown legs it protected, so a dirty worktree no longer blocks the
+    // artifact removal; the post-action `arc teardown --force` owns the worktree.
+    expect(result.status).toBe("abandoned");
+    if (result.status !== "abandoned") return;
+    expect(removed).toContain("/repo/.arc/active/meta-foo.md");
     expect(calls.some((c) => c.startsWith("branch:") || c.startsWith("worktree:"))).toBe(false);
   });
 });
@@ -249,36 +249,37 @@ describe("runAbandon — parked WU", () => {
 });
 
 describe("planAbandon — the impact plan per from-state", () => {
-  it("a started WU (active) plans branch + worktree teardown alongside artifacts", () => {
-    const plan = planAbandon("active", "feat/foo");
-    expect(plan.legal).toBe(true);
-    expect(plan.lines.some((l) => /Branch:.*feat\/foo.*local \+ remote/.test(l))).toBe(true);
-    expect(plan.lines.some((l) => /Worktree:/.test(l))).toBe(true);
-    expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
-  });
-
-  it("a backlog stub (provisional) plans only the artifact removal — no branch or worktree", () => {
-    const plan = planAbandon("provisional", null);
+  it("a started WU (active) plans artifacts + a post-action teardown, no in-verb branch/worktree legs", () => {
+    const plan = planAbandon("active", "feat/foo", "foo");
     expect(plan.legal).toBe(true);
     expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Teardown:.*arc teardown foo --force/.test(l))).toBe(true);
+    // No in-verb branch-delete / worktree-teardown lines — those are out-of-band.
     expect(plan.lines.some((l) => /Branch:|Worktree:/.test(l))).toBe(false);
   });
 
-  it("a parked WU plans branch teardown but no worktree (parked has none)", () => {
-    const plan = planAbandon("parked", "feat/foo");
+  it("a backlog stub (provisional) plans only the artifact removal — no branch, worktree, or teardown", () => {
+    const plan = planAbandon("provisional", null, "foo");
     expect(plan.legal).toBe(true);
-    expect(plan.lines.some((l) => /Branch:/.test(l))).toBe(true);
-    expect(plan.lines.some((l) => /Worktree:/.test(l))).toBe(false);
+    expect(plan.lines.some((l) => /Artifacts:/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Branch:|Worktree:|Teardown:/.test(l))).toBe(false);
+  });
+
+  it("a parked WU plans an in-verb branch delete but no worktree or post-action teardown", () => {
+    const plan = planAbandon("parked", "feat/foo", "foo");
+    expect(plan.legal).toBe(true);
+    expect(plan.lines.some((l) => /Branch:.*feat\/foo.*local \+ remote/.test(l))).toBe(true);
+    expect(plan.lines.some((l) => /Worktree:|Teardown:/.test(l))).toBe(false);
   });
 
   it("an illegal source (integrating) yields no plan", () => {
-    const plan = planAbandon("integrating", "feat/foo");
+    const plan = planAbandon("integrating", "feat/foo", "foo");
     expect(plan.legal).toBe(false);
     expect(plan.lines).toEqual([]);
   });
 
   it("a merged / shipped WU yields no plan", () => {
-    expect(planAbandon("shipped", null).legal).toBe(false);
+    expect(planAbandon("shipped", null, "foo").legal).toBe(false);
   });
 });
 
