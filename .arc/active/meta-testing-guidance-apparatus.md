@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** draft-design first pass — apparatus design settled, open questions captured
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Resolve `draft-testing-guidance-apparatus.md` open questions (O1 task-list marker primary), then create-spec
 
 - **PR URL:** [none]
 - **Completed:** [none]
