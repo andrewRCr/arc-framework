@@ -453,29 +453,31 @@ _Purpose:_ The supporting documentation surfaces — the `assess-cohort-fit` cut
 `strategy-work-organization` escape-hatch guidance — plus the errand-character framing the workflow states. Each
 framework-file edit mirrors to the package source.
 
-### `[ ]` **6.1 Extend `assess-cohort-fit` with the two cut-map entry kinds**
+### `[x]` **6.1 Extend `assess-cohort-fit` with the two cut-map entry kinds**
 
 - _Goal:_ The method's cut-map output documents the surviving-origin and existing/atomic-home entry kinds (a
   data-shape change; the decision of _when_ to use them stays the method's existing judgment).
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - Add the two entry kinds to § Output — the cut-map; mirror to the package source.
+    - § Output gains an **Entry kinds** block: `new-member` (default), `surviving-origin` (extraction), and
+      `existing/atomic-home` (heterogeneous); mirrored to the package source.
 
-### `[ ]` **6.2 Escape-hatch guidance + errand-character framing in `strategy-work-organization`**
+### `[x]` **6.2 Escape-hatch guidance + errand-character framing in `strategy-work-organization`**
 
 - _Goal:_ The strategy carries the full-split escape-hatch guidance in general git terms, and the
   errand-character of the stub-source / heterogeneous arms is stated.
 
 - **Strategies:** strategy-work-organization.md, strategy-package-project-sync.md
 
-- `[ ]` **6.2.a Escape-hatch subsection in § Decomposition**
-    - General git terms (no `arc decompose --active`): extraction-from-Active first → `cherry-pick` of atomic
-      commits for multi-member-built → interleaved-commit surgery is a commit-atomicity smell. Adopter-appropriate.
+- `[x]` **6.2.a Escape-hatch subsection in § Decomposition**
+    - New `§ Active-state decomposition`: extraction is the supported mid-implementation path; full split of
+      committed code is a non-ARC escape hatch in general git terms (`cherry-pick` clean commits; `rebase -i`
+      surgery for interleaved commits = commit-atomicity smell; prevention beats it). Workflow guard re-pointed to it.
 
-- `[ ]` **6.2.b Errand-character framing**
-    - State that the backlog-stub-source and heterogeneous-home arms are errand-character (pure relocation, no
-      design authored), run as a bounded few in-session increments; mirror to the package source.
+- `[x]` **6.2.b Errand-character framing**
+    - New `§ Errand-character decompositions`: in-place stub split / routing to existing homes is pure relocation
+      (no design authored), a bounded few in-session increments — Errand character, not a `Class`.
 
 ## **Phase 7:** Verification
 

@@ -49,7 +49,7 @@ Run first, before resolving the cell — route on the origin's `(phase, location
 - **`Active` origin, genuine multi-member-built code** (committed work spanning several would-be members) → **stop.**
   Full-split is recognized and routed, never run here: there is no `decompose@active` edge and this workflow performs
   no commit-allocation or git-history surgery. Route to the full-split escape-hatch guidance in
-  [Work Organization Strategy § Decomposition][work-org-decomp].
+  [Work Organization Strategy § Active-state decomposition][work-org-active-state].
 
 This guard **directs**; it never runs git surgery.
 
@@ -366,4 +366,5 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 [template-cohort]: ../../../../reference/templates/arc/work-unit/template-cohort.md
 [dev-rules-antirider]: ../../../../system/rules/DEV-RULES.ARC.md#anti-rider
 [work-org-decomp]: ../../../../reference/strategies/arc/strategy-work-organization.md#decomposition--three-arms-by-parent-position
+[work-org-active-state]: ../../../../reference/strategies/arc/strategy-work-organization.md#active-state-decomposition
 [work-org-protection]: ../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
