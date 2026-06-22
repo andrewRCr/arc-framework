@@ -15,25 +15,15 @@ _Design decisions:_ The field is optional, absent ⇒ `replace`; only `method.ts
 (every frontmatter consumer already tolerates an unknown key, verified at spec time); the symmetric
 present-everywhere treatment and its package-neutrality gate are deferred to a sibling work unit. (Satisfies S6.)
 
-### `[ ]` **1.1 Add optional `override-mode` enum validation to `method.ts`**
+### `[x]` **1.1 Add optional `override-mode` enum validation to `method.ts`**
 
 - _Goal:_ The method-frontmatter parser accepts an optional `override-mode` of `replace` or `extend`, surfaces
   it on the parsed result, and errors on any out-of-enum value.
 
-- _Approach:_ Mirror the existing optional `related?` field end-to-end — an optional interface member, a
-  presence-guarded validation branch, and conditional assignment onto the returned frontmatter object. The
-  parser leaves the field `undefined` when absent (no normalization); the absent ⇒ `replace` semantics live in
-  the contract and docs, not in the parser. Self-contained: touches no other method file and not the
-  package-neutrality check.
-
-- _Strategies:_ strategy-testing-methodology.md
-
-    Build `test-first` (one behavior at a time):
-
-    - accepts frontmatter declaring `override-mode: extend`
-    - accepts frontmatter declaring `override-mode: replace`
-    - accepts frontmatter omitting `override-mode` (field is `undefined` on the result, not defaulted)
-    - rejects an out-of-enum `override-mode` value with a clear error
+- _Outcome:_ Mirrored the optional `related?` field in `method.ts` — `"override-mode"?: "replace" | "extend"`
+  on `MethodFrontmatter`, a presence-guarded enum check, and conditional assignment. Absent stays `undefined`
+  (no defaulting); the absent ⇒ `replace` semantics live in the contract/docs, not the parser. Four cases added
+  to `method.test.ts`.
 
 ### `[ ]` **1.2 Document the `override-mode` contract across the alignment sites**
 
