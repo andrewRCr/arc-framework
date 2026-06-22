@@ -56,6 +56,20 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   `config-storage-architecture` (resolver substrate, already cross-referenced from this draft) for the projection
   mechanism.
 
+### `[ ]` **New method override disposition: `override-mode: replace | extend` (compose, not just substitute)**
+
+- _Routed from:_ `testing-guidance-apparatus` planning init (2026-06-22).
+- _Concern:_ this draft already records that "methods have an override axis but no clean enable/disable axis."
+  `testing-guidance-apparatus` adds a _third_ disposition to the override axis itself — `override-mode: replace |
+  extend` in method frontmatter, where `extend` applies the default _then_ appends the override (the
+  `super()`-calling analogue) vs `replace` (today's behavior: the override substitutes the default). Introduced
+  minimally there (motivated + consumed by the new `testing-standards` method, whose shape is a universal default
+  plus an additive project override), default `replace` for back-compat.
+- _Fold-in:_ the principled model + which-mechanism decision tree this WU codifies should treat method override as
+  _replace vs. extend_ (alongside the enable/disable axis this draft already owns), not a single binary.
+  `strategy-configurability-architecture § Method Overrides` is the shared home — it currently reads "follow the
+  override _instead of_ the default," which the `extend` mode revises.
+
 ---
 
 ## Problem / Motivation

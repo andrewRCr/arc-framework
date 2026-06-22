@@ -65,6 +65,19 @@
   fix `graduate-work-unit.md`'s template (both copies). Routed here because `rules-restructure` owns the
   allowed-contexts list and `commit-footer.md`.
 
+### `[ ]` **Testing standards resolved as a method, not a `DOMAIN-RULES.TESTING` domain**
+
+- _Routed from:_ `testing-guidance-apparatus` planning init (2026-06-22).
+- _Concern:_ this draft's default-domain inventory (§ Unknowns and Assumptions) lists `testing` as a candidate
+  stock `DOMAIN-RULES.*` domain. `testing-guidance-apparatus` deliberately routes testing standards to an
+  execution-loaded **method** (`testing-standards`, declared in `process-task-loop` frontmatter) instead —
+  because testing is _near-universal_ (nearly every code-execution session writes tests), so the conditional-load
+  machinery domain rules exist for buys little; a genuinely _occasional_ domain (frontend, security) is the right
+  fit for `DOMAIN-RULES.*`.
+- _Fold-in:_ drop `testing` from the candidate default-domain inventory (or annotate it method-owned) so this WU
+  doesn't reintroduce `DOMAIN-RULES.TESTING` in conflict. The domain-rule mechanism stays scoped to occasional
+  domains; the near-universal/occasional split is the selection criterion worth recording.
+
 ---
 
 ## Problem / Motivation

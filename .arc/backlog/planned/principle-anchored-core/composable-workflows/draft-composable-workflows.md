@@ -177,6 +177,17 @@
   framing under which this earns its keep. As a standalone verb it doesn't; as a property of CW's composition
   substrate it might. Decide at CW's design.
 
+### `[ ]` **Design `override-mode` resolution as machine-resolvable input to resolve-then-load**
+
+- *Routed from:* `testing-guidance-apparatus` planning init (2026-06-22).
+- *Concern:* `testing-guidance-apparatus` adds an `override-mode: replace | extend` flag to method frontmatter
+  (`extend` = the default applies, then the override appends). Resolving a declared method — fragment selection,
+  override-vs-default, and replace-vs-extend composition order — is fully deterministic, and that is exactly CW's
+  resolve-then-load territory; only *applying* the loaded guidance stays agent judgment.
+- *Forward-compat:* keep `override-mode` clean machine-resolvable data so a future `arc method resolve <name>`
+  (CW's resolver) can compose the method markdown as a pure function over frontmatter — zero agent reasoning about
+  which fragments to emit or in what order. Sibling of this buffer's existing `slug → artifact` resolver kernel.
+
 ---
 
 ## Problem / Motivation
