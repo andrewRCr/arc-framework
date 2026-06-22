@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                        | **Class** | **Priority** |
 | ---------- | --------- | --------------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/testing-guidance-apparatus` | `Light`   | `P3`         |
+| `Planning` | `andrew`  | `plan/testing-guidance-apparatus` | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `draft-testing-guidance-apparatus.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** draft-design first pass — apparatus design settled, open questions captured
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resolve `draft-testing-guidance-apparatus.md` open questions (O1 task-list marker primary), then create-spec
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
