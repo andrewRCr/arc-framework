@@ -155,8 +155,9 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("arc decompose retires the origin's artifacts but defers branch + worktree teardown", async () => {
-    await scaffoldStartedWu(repo, "mono", "linked");
-    worktrees.push(join(dirname(repo), `${basename(repo)}-mono`));
+    const { worktree } = await scaffoldStartedWu(repo, "mono", "linked");
+    expect(worktree).toBeDefined();
+    if (worktree !== undefined) worktrees.push(worktree);
     const cutMap = await writeCutMap(repo, "mono", "mono", ["alpha", "beta"]);
 
     const result = await runArc(["decompose", "mono", "--cut-map", cutMap], repo);
@@ -168,6 +169,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/active/meta-mono.md"))).toBe(false);
     // Branch + worktree are NOT torn down in-verb — the output surfaces the post-action command.
     expect(await branchExists(repo, "plan/mono")).toBe(true);
+    expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown mono --force/);
   });
 
@@ -176,8 +178,9 @@ describe("lifecycle exit choreography (CLI seam)", () => {
   // -------------------------------------------------------------------------
 
   it("arc park@Planning relocates to backlog/planned/ and defers branch + worktree teardown", async () => {
-    await scaffoldStartedWu(repo, "solo", "linked");
-    worktrees.push(join(dirname(repo), `${basename(repo)}-solo`));
+    const { worktree } = await scaffoldStartedWu(repo, "solo", "linked");
+    expect(worktree).toBeDefined();
+    if (worktree !== undefined) worktrees.push(worktree);
 
     const result = await runArc(["park", "solo", "--reason", "pivoting to a dependency first"], repo);
 
@@ -186,6 +189,7 @@ describe("lifecycle exit choreography (CLI seam)", () => {
     expect(await pathExists(join(repo, ".arc/backlog/planned/solo/meta-solo.md"))).toBe(true);
     expect(await pathExists(join(repo, ".arc/active/meta-solo.md"))).toBe(false);
     expect(await branchExists(repo, "plan/solo")).toBe(true);
+    expect(await pathExists(worktree!)).toBe(true);
     expect(result.stdout + result.stderr).toMatch(/arc teardown solo --force/);
   });
 
