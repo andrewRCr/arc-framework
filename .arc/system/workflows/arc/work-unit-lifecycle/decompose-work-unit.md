@@ -60,14 +60,17 @@ section and design-point — **and every dependency edge** — to exactly one de
 (superseded, or satisfied internally by the cut):
 
 1. **Allocate.** Each item → a member's `draft-<member>.md`, the cohort doc's cohort-level coordination, a member's
-   per-member coordination, an existing/atomic home (the [heterogeneous arm](#heterogeneous-home-arm)), or
-   dropped-with-reason.
+   per-member coordination, an existing/atomic home (the [heterogeneous arm](#heterogeneous-home-arm)), **retained
+   on the surviving origin** (the [extraction arm](#extraction-arm) — an un-extracted section stays put; a conserved
+   destination, not a drop), or dropped-with-reason.
 2. **Classify** by the design-vs-coordination boundary: design that drives a member's task list → that member's
    draft; ownerless shared material → cohort-level coordination; a member's exposes/consumes surface → per-member
    coordination; an owned contract → its owner's draft, with a pointer + consumer list in the cohort doc.
-3. **Conserve.** Assert every allocated item lands in exactly one destination or is dropped-with-reason. The
-   conservation **scope** is the arm's: the symmetric / stub-source arms conserve the *whole* draft; the
-   [extraction arm](#extraction-arm) conserves only the *extracted subset*.
+3. **Conserve.** Assert every allocated item lands in exactly one destination or is dropped-with-reason, at the
+   arm's **scope**: the symmetric / stub-source arms conserve the *whole* draft; the [extraction arm](#extraction-arm)
+   conserves only the *extracted subset* — the surviving origin absorbs the remainder as a retained entry, not a
+   drop. For an existing/atomic home, "lands" carries an ordering: the destination edit is staged **in the transform,
+   before the origin retires** — never deferred.
 
 The allocation map feeds both the cut-map file ([Step 4](#4-compose-the-cut-map-file)) and the decomposition PR
 description ([Step 7](#7-ship-per-protection-mode)).
