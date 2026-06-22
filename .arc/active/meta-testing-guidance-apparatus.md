@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-testing-guidance-apparatus.md`
+- **Design:** `spec-testing-guidance-apparatus.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design — draft consolidated to formalization-ready (task-list marker + content partition settled)
 - **Next Task:** [none]
 - **Blockers:** [none]
