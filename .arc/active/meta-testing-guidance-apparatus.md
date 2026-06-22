@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-testing-guidance-apparatus.md`
-- **Task List:** [none]
+- **Task List:** `tasks-testing-guidance-apparatus.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** create-spec — spec-testing-guidance-apparatus.md finalized (outline, Class Light)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

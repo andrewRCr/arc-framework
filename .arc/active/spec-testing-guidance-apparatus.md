@@ -81,10 +81,13 @@ carry):
 `strategy-testing-methodology` survives as the **canonical deep-dive**: rationale (why mock bleed produces
 order-dependent failures, etc.), the tier-map, and worked examples — the "understand the whole testing approach
 in one place" doc. It **cedes the operational rules to the methods by reference** rather than restating them, and
-**drops** the duplicated TDD decision tree and RGR loop. It is also the relocation home for content trimmed from
-the method as table-stakes (S11). Minimizing literal duplication minimizes drift; a future `knowledge-lint` then
-polices only the thin reference seam (making strategy = deep-dive / method = operational a feature, not a
-hazard).
+**drops** the duplicated TDD decision tree and RGR loop. "Duplicated TDD decision tree" means the **generic**
+test-first/test-after/no-test categorization that duplicates the `test-first` method's default; the
+**project-specific** module guidance (which modules are test-first) is **retained, reframed from a normative tree
+into deep-dive worked examples**, since this WU authors no `test-first` project override to hold it. It is also
+the relocation home for content trimmed from the method as table-stakes (S11). Minimizing literal duplication
+minimizes drift; a future `knowledge-lint` then polices only the thin reference seam (making strategy =
+deep-dive / method = operational a feature, not a hazard).
 
 ### S5 — `DEV-RULES.PROJECT` § Testing stays a thin pointer
 
