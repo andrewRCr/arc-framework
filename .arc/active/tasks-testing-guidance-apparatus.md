@@ -25,28 +25,23 @@ present-everywhere treatment and its package-neutrality gate are deferred to a s
   (no defaulting); the absent ⇒ `replace` semantics live in the contract/docs, not the parser. Four cases added
   to `method.test.ts`.
 
-### `[ ]` **1.2 Document the `override-mode` contract across the alignment sites**
+### `[x]` **1.2 Document the `override-mode` contract across the alignment sites**
 
 - _Goal:_ A reader learns that `extend` exists, what it does, and that absent means `replace`, consistently
   everywhere method-override semantics are described.
 
-- _Context:_ The methods README is the primary "How overrides work" home; the other three are alignment edits
-  so the contract reads the same from every entry point.
+    - `[x]` **1.2.a Extend the methods README "How overrides work" paragraph** (both copies)
+        - Added a paragraph stating both dispositions: `replace` (the default; absent ⇒ this) stands alone;
+          `extend` applies `.default` first, then appends the override.
 
-- _Strategies:_ strategy-package-project-sync.md
+    - `[x]` **1.2.b Align `DEV-RULES.ARC` § Method and extension loading** (both copies)
+        - Added the disposition + absent ⇒ `replace` default to the agent-compliance rule.
 
-    - `[ ]` **1.2.a Extend the methods README "How overrides work" paragraph** (both copies)
-        - State the two dispositions: `replace` (the default; absent ⇒ this) stands alone; `extend` applies the
-          default, then appends the override.
+    - `[x]` **1.2.c Align `strategy-configurability-architecture` § Method Overrides** (both copies)
+        - Reworked § Mechanism to describe `extend` alongside the replace-only model.
 
-    - `[ ]` **1.2.b Align `DEV-RULES.ARC` § Method and extension loading** (both copies)
-        - Note the disposition and the absent ⇒ `replace` default at the agent-compliance rule.
-
-    - `[ ]` **1.2.c Align `strategy-configurability-architecture` § Method Overrides** (both copies)
-        - Describe `extend` alongside the existing replace-only override model.
-
-    - `[ ]` **1.2.d Align `strategy-session-operations` § Method and Extension Loading** (both copies)
-        - Include the optional `override-mode` field in the frontmatter-schema listing.
+    - `[x]` **1.2.d Align `strategy-session-operations` § Method and Extension Loading** (both copies)
+        - Added `override-mode` to the method schema block and a field-semantics bullet.
 
 ## **Phase 2:** `testing-standards` execution-time method
 

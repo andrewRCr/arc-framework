@@ -411,6 +411,9 @@ When a workflow declares method or extension dependencies in its YAML frontmatte
 (`arc.methods` / `arc.extensions`), load the declared content before executing the workflow.
 Don't proceed from intuition when the declared content is one read away.
 
+When a loaded method carries a populated `.override`, follow its `override-mode`: `replace` (the default; absent
+⇒ this) supersedes `.default`, while `extend` applies `.default` first and then the override on top.
+
 ---
 
 ## Documentation Boundaries
