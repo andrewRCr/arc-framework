@@ -12,11 +12,11 @@
 - **Task List:** `tasks-decompose-matrix.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.R.1 — Spec + cohort-doc revision (teardown-ordering reframe recorded)
-- **Next Task:** Task 4.R.2 — Generalize `arc teardown` with an un-shipped / force mode (line ~237)
+- **Last Completed:** Phase 4.R complete — teardown-ordering correction (Task 4.R.6: decompose workflow re-landed)
+- **Next Task:** Task 5.2 — Generalize the conservation gate (line ~414)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 4.R, Task 4.R.2 (process-task-loop, test-first)
+- **Next Action:** Begin Phase 5, Task 5.2 (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
