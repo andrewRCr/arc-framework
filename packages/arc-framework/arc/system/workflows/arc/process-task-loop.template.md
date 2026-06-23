@@ -38,7 +38,7 @@ arc:
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
 
-- **Test-first execution:** When a task has a `Build \`test-first\` (one behavior at a time):` marker
+- **Test-first execution:** When a task has a ``Build `test-first` (one behavior at a time):`` marker
   (per the [testing-standards method][arc-methods-ts]), execute as vertical slices — one behavior at a time:
     1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
     2. **GREEN:** Write minimal code to make it pass

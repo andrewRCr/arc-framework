@@ -44,7 +44,7 @@ Decision tree by change type.
 
 **During task list creation:** Group test and implementation together — by module or concern, not by activity.
 A test-first task covers both writing tests and writing the code that makes them pass. Use the
-`Build \`test-first\` (one behavior at a time):` marker line to introduce the behavior list — this signals the
+``Build `test-first` (one behavior at a time):`` marker line to introduce the behavior list — this signals the
 executing agent to apply the red-green-refactor loop (see [process-task-loop][process-task-loop] for execution
 details).
 
