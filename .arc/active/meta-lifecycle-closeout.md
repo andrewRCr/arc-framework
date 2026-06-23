@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 1 complete (Tasks 1.1–1.4) — wiring completions verified
-- **Next Task:** Task 2.1 — Rename `graduate-work-unit.md → promote-work-unit.md` + repoint references (line ~89)
+- **Last Completed:** Task 2.1 — `graduate-work-unit.md → promote-work-unit.md` rename + reference repoint
+- **Next Task:** Task 2.2 — Token-triage `graduat*` + surface `demote` + session-init register parity (line ~105)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — rename `graduate-work-unit.md → promote-work-unit.md` + repoint references (process-task-loop)
+- **Next Action:** Continue Task 2.2 — prose verb sweep of the remaining corpus; see SESSION-NOTES for triage + rules
 
 - **PR URL:** [none]
 - **Completed:** [none]
