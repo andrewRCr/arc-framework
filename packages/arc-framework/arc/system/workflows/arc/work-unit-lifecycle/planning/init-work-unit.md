@@ -144,7 +144,7 @@ When resuming from a backlog stub, run the `start` transition to bring the work 
 per-WU subdir's artifact set (`meta-{name}.md` always, plus any `draft-*` / `notes-*` / companions) from
 `backlog/{state}/{name}/` into `active/`, births the `plan/{name}` branch, writes the meta `Branch` field, and
 opens the per-WU user workspace — one executor-dispatched transition, replacing the hand-run relocation. On the
-normal readiness-ladder path this is the `planned → active` rung; [graduate-work-unit][graduate-work-unit] has
+normal readiness-ladder path this is the `planned → active` rung; [promote-work-unit][promote-work-unit] has
 already performed `provisional → planned`.
 
 **Resolve `Class` first.** The transition's `class-resolved` guard refuses a stub whose `Class` is still
@@ -348,5 +348,5 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[graduate-work-unit]: ../graduate-work-unit.md
+[promote-work-unit]: ../promote-work-unit.md
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

@@ -6,7 +6,7 @@ arc:
     - classify-work-unit
 ---
 
-# Workflow: Graduate Work Unit
+# Workflow: Promote Work Unit
 
 Promotes a work unit one rung up the readiness ladder — relocating `backlog/provisional/<name>/` to
 `backlog/planned/<name>/` via the `promote` transition, forcing a resolved `Class` via the

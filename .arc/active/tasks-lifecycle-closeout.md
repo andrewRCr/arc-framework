@@ -86,19 +86,21 @@ doc under `backlog/planned/` is internal-dev and unmirrored. "readiness ladder" 
 active` rung concept) is deliberately preserved — only the transition verb/noun `graduate`/`graduation` is
 rewritten. See `notes-lifecycle-closeout.md` § A1 for the grounded hit inventory and the false-positives list.
 
-### `[ ]` **2.1 Rename `graduate-work-unit.md → promote-work-unit.md` + repoint references**
+### `[x]` **2.1 Rename `graduate-work-unit.md → promote-work-unit.md` + repoint references**
 
 - _Goal:_ The ceremony ships as `promote-work-unit.md` (both copies) with its title and every reference-link label
   repointed — no dangling `[graduate-work-unit]` reference remains.
-- _Approach:_ Pure `git mv` + reference repoint, no behavior change.
 
-    - `[ ]` **2.1.a Rename the file and retitle it** (both copies)
-        - `git mv graduate-work-unit.md promote-work-unit.md`; change the `# Workflow:` title
-          `Graduate Work Unit → Promote Work Unit`.
+    - `[x]` **2.1.a Rename the file and retitle it** (both copies)
+        - `git mv` to `promote-work-unit.md`; retitled the `# Workflow:` heading to `Promote Work Unit`. Title
+          only — the frontmatter `purpose` and body `graduat*` tokens stay for Task 2.2.
 
-    - `[ ]` **2.1.b Repoint the reference-link consumers**
-        - `init-work-unit.md` (one `[graduate-work-unit]` label use + its `:` definition);
-          `strategy-work-organization.md` (two label uses + the `:` definition).
+    - `[x]` **2.1.b Repoint the reference-link consumers**
+        - `init-work-unit.md` (label use + `:` definition) and `strategy-work-organization.md` (two label uses +
+          `:` definition) repointed to `promote-work-unit`; both mirror copies.
+
+- _Outcome:_ Mechanical rename complete across both copies; a corpus grep confirms no `graduate-work-unit`
+  reference-link survives in durable surfaces (the `graduat*` prose token sweep is Task 2.2).
 
 ### `[ ]` **2.2 Token-triage `graduat*` + surface `demote` + session-init register parity**
 

@@ -236,7 +236,7 @@ signal, not a retrospective effort tally.
 A startable work unit carries a *resolved* `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
 `backlog/planned/` — the [readiness-ladder](#readiness-ladder) rung the start decision reads — is the **forcing
 point**, because the weight signal must exist *before* a WU becomes a start candidate, not at activation (too late:
-the start decision precedes it). The [graduate-work-unit][graduate-work-unit] workflow performs that rung and forces
+the start decision precedes it). The [promote-work-unit][promote-work-unit] workflow performs that rung and forces
 the estimate via the [classify-work-unit][classify-work-unit] method.
 
 ### Planning depth and spec forms
@@ -510,7 +510,7 @@ Before a work unit enters the `State` lifecycle above, it climbs a **readiness l
   `**Class:**` may be `[TBD]`.
 - **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
   `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
-  legal only in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and
+  legal only in `provisional/`. The [promote-work-unit][promote-work-unit] workflow performs this rung and
   forces the estimate via the [classify-work-unit][classify-work-unit] method.
 - **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
   [init-work-unit][init-work-unit] performs `planned → active`.
@@ -1353,7 +1353,7 @@ installs, routing and graduation flow, inbox routing, and scaling guidance.
 
 [team-coordination]: strategy-team-coordination.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
-[graduate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/graduate-work-unit.md
+[promote-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/promote-work-unit.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md
