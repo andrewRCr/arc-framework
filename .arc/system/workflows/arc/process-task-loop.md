@@ -5,7 +5,7 @@ arc:
   methods:
     - issue-triage
     - quality-gate-commands
-    - test-first
+    - testing-standards
   extensions:
     - post-task-quality
     - post-unit-quality
@@ -25,7 +25,7 @@ arc:
   current task, flag the conflict and ask how to proceed.
 
 - **Test-first execution:** When a task has a `Build \`test-first\` (one behavior at a time):` marker
-  (per the [test-first method][arc-methods-tf]), execute as vertical slices — one behavior at a time:
+  (per the [testing-standards method][arc-methods-ts]), execute as vertical slices — one behavior at a time:
     1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
     2. **GREEN:** Write minimal code to make it pass
     3. **REFACTOR:** Review the code you just wrote. If you see duplication, unclear naming, or an
@@ -33,8 +33,7 @@ arc:
     4. Next behavior → repeat from RED
 
   Test cases listed in the task are behaviors to cover, not an execution sequence — let each cycle
-  inform the next. If your project has a testing methodology strategy, consult it for project-specific
-  TDD details (mocking rules, fixture conventions, tier boundaries).
+  inform the next.
 
   **Batching judgment:** When behaviors are tightly coupled (single function, shared setup, no
   independent discovery value), batching tests before implementing is a pragmatic alternative to
@@ -42,6 +41,11 @@ arc:
   your completion report to the user (e.g., "behaviors tightly coupled, single-pass
   implementation") — not in task list completion notes. This makes the decision visible during
   review without bloating the persistent record.
+
+- **Testing discipline:** Before implementing, if the task writes or modifies tests, apply the
+  [testing-standards method][arc-methods-ts] — its assertion / mocking discipline plus any project override
+  (boundaries, fixtures, tier specifics). Fires on every test-touching task, marker or not, so test-after work
+  is covered too.
 
 - **Issue triage:** When you encounter pre-existing issues in files you're modifying,
   follow the [issue-triage method][arc-methods-it] for severity assessment and fix-vs-defer decisions.
@@ -299,7 +303,7 @@ updates**. Always update the task list file before reporting completion.
 [arc-ext-task-quality]: ../../extensions/post-task-quality.md
 [arc-ext-task-completion]: ../../extensions/post-task-completion.md
 [arc-ext-unit-quality]: ../../extensions/post-unit-quality.md
-[arc-methods-tf]: ../../methods/test-first.md
+[arc-methods-ts]: ../../methods/testing-standards.md
 [arc-methods-it]: ../../methods/issue-triage.md
 [arc-methods-qg]: ../../methods/quality-gate-commands.md
 [team-coordination]: ../../../reference/strategies/arc/strategy-team-coordination.md

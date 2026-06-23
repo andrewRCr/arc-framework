@@ -1,16 +1,20 @@
 ---
 name: test-first
 description: Decision tree for test-first vs test-after by change type
+related:
+  - testing-standards
 override-active: false
 ---
 
 # Method: test-first
 
-> - **Workflow:** [process-task-loop.md][process-task-loop]
-> - **When:** Agent begins implementing any task
+> - **Workflow:** [generate-tasks.md][generate-tasks]
+> - **When:** Agent structures tasks during task-list generation
 >
-> - **Contract:** Assess whether tests should be written before implementation. The assessment must inform
->   task structure.
+> - **Contract:** Decide whether each task's tests come before or after its implementation, and let that
+>   decision shape how the task list is structured.
+> - **Related:** [testing-standards](testing-standards.md) — the execution-time counterpart; the two partition
+>   the testing apparatus along the planning / execution seam.
 
 ## test-first.override
 
@@ -38,13 +42,6 @@ Decision tree by change type.
 
 **If unsure, default to test-first.** Writing tests after implementation is harder and less effective.
 
-**Execution discipline — one behavior at a time:** The behavior list under the marker is a discovery guide, not
-a batch spec. The default is vertical slices: write one test, make it pass, then write the next — each cycle
-informs the next. Avoid writing all tests upfront then implementing; that tests *imagined* behavior, not actual
-behavior. When behaviors are tightly coupled and slicing adds no discovery value, batching is acceptable — note
-the rationale in the completion report to the user (not in task list completion notes; see
-[process-task-loop][process-task-loop] § Batching judgment).
-
 **During task list creation:** Group test and implementation together — by module or concern, not by activity.
 A test-first task covers both writing tests and writing the code that makes them pass. Use the
 `Build \`test-first\` (one behavior at a time):` marker line to introduce the behavior list — this signals the
@@ -53,4 +50,5 @@ details).
 
 ---
 
+[generate-tasks]: ../workflows/arc/generate-tasks.md
 [process-task-loop]: ../workflows/arc/process-task-loop.md

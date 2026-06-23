@@ -171,6 +171,25 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   cleaner boundaries; this WU keeps the `TYPE.QUALIFIER` hub renames + the file-classification codification.
   Decide the exact split at this WU's next planning iteration (it may stay here if it lands cleaner).
 
+### `[ ]` **Rename the `test-first` method → question-named `test-sequencing` (+ reference cascade)**
+
+- *Routed from:* `testing-guidance-apparatus` draft-design (2026-06-22).
+- *Concern:* `test-first` names the method after one *answer* (tests-first), but its contract is to *decide* test
+  sequencing per task — so it reads incoherently when it selects test-after, the exact friction a configurable,
+  override-aware testing apparatus exposes. The name-by-question principle wants `test-sequencing` (or
+  `test-timing`). Deferred out of `testing-guidance-apparatus` to keep that WU Light, and because the rename is
+  cleanest *after* it ships.
+- *Scope:* rename the method file (both copies) + frontmatter `name:`; cascade every method reference — the
+  `generate-tasks` frontmatter declaration, reference-link definitions (`[arc-methods-tf]`), and prose mentions
+  across DEV-RULES.ARC, `strategy-task-list-formatting`, `strategy-testing-methodology`, the methods README, and
+  templates.
+- *Critical constraint:* `testing-guidance-apparatus` deliberately splits `test-first` into two senses — the
+  **method name** (renames here) and the **task-list marker's approach keyword** (`test-first`, stays). Rename
+  **method-name occurrences only**; do **not** rewrite the approach-keyword markers. A blind `test-first` →
+  `test-sequencing` find-replace would corrupt the markers.
+- *Sequencing:* after `testing-guidance-apparatus` ships. Coordinate with `composable-workflows` if it lands the
+  machine-resolvable method resolution by then.
+
 ---
 
 ## Problem / Motivation

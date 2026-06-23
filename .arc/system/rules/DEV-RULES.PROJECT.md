@@ -66,9 +66,10 @@ For ARC methodology rules (commit discipline, task execution, session management
 Commands are validated through integration and E2E tests. No hard coverage percentage target —
 meaningful assertions over line counting.
 
-**Testing methodology:** See [Testing Methodology Strategy][testing-methodology] — TDD decision
-tree, tier details, mocking rules (including Vitest mock mechanics), vertical slice workflow,
-test naming conventions.
+**Testing methodology:** Operational rules live in the methods — [`test-first`][test-first] (planning-time
+test sequencing) and [`testing-standards`][testing-standards] (execution-time assertion / mocking / isolation
+discipline). See [Testing Methodology Strategy][testing-methodology] for the deep-dive — rationale, tier
+details, and worked examples.
 
 ## Code Quality Principles
 
@@ -237,5 +238,7 @@ for docs-site content.
 [quality-gates]: ../../reference/strategies/arc/strategy-quality-gates.md
 [adr-methodology]: ../../reference/strategies/arc/strategy-adr-methodology.md
 [testing-methodology]: ../../reference/strategies/project/strategy-testing-methodology.md
+[test-first]: ../methods/test-first.md
+[testing-standards]: ../methods/testing-standards.md
 [package-sync]: ../../reference/strategies/project/strategy-package-project-sync.md
 [workflow-authoring]: ../../reference/strategies/arc/strategy-workflow-authoring.md

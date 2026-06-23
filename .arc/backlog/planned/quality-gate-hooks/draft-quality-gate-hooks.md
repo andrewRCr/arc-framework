@@ -126,6 +126,23 @@
   blanket all-functions threshold. Settle the exact rule set + severity at authoring. Sibling of this WU's
   existing forbidden-pattern / link-validation commit-gate checks.
 
+### `[ ]` **E2E-coverage + seam-assertion guards for destructive lifecycle verbs**
+
+- *Routed from:* `testing-guidance-apparatus` planning init (2026-06-22) — the enforcement (defense-in-depth)
+  half of the `USER-INBOX` testing-standards capture; the salience/loading half is owned by
+  `testing-guidance-apparatus` itself.
+- *Concern:* the `decompose@planning` / `park@Planning` self-teardown defect shipped uncaught because the
+  integration tests called the verb cores (`runDecompose` / `runPark`) with hand-fed cross-worktree inputs the
+  CLI never generates, and there is no E2E tier driving the destructive verbs through the real CLI. Both
+  contravene the testing standard (test through public interfaces; E2E = full CLI, no git mocking) — yet nothing
+  mechanically enforced it.
+- *Approach:* candidate guards — an E2E-coverage requirement for new lifecycle/destructive verbs; a lint flagging
+  integration tests that assert on core call-args instead of CLI-seam outcomes (bypassing the handler's
+  run-context resolution). The bug class to make un-bypassable: *a test constructs inputs the production path
+  never generates.* Secondary (mechanical) layer — `testing-guidance-apparatus` makes the standard actually-read,
+  the primary fix.
+- *Captured during:* `decompose-matrix` Phase 5 teardown investigation (2026-06-21).
+
 ---
 
 ## Problem / Motivation

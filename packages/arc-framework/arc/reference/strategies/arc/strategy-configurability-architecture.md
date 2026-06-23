@@ -451,8 +451,11 @@ sections).
 Each preset method defines a contract — the invariant that both the default and any override must satisfy.
 Contracts are advisory, not mechanically enforced.
 
-When an override is populated, the agent follows the override instead of the default. Method content loads
-on-demand when the agent reaches a workflow step that references the method — not at session initialization.
+When an override is populated, the agent follows it according to the method's optional `override-mode`
+frontmatter field. `replace` (the default; absent ⇒ this) follows the override instead of the default — the
+replace-only model. `extend` applies the default first, then the override on top, for an additive override that
+augments the baseline rather than supplanting it. Method content loads on-demand when the agent reaches a
+workflow step that references the method — not at session initialization.
 
 ### Method references in workflows
 

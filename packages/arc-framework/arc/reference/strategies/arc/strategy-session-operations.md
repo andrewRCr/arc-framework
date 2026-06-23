@@ -234,6 +234,7 @@ description: <one-line operational purpose>
 related:
   - <related-method-name>
 override-active: false
+override-mode: extend  # optional; replace | extend, absent ⇒ replace
 ---
 ```
 
@@ -260,6 +261,9 @@ active: false
   default is in effect. Consumed by the framework-repo CI audit, docs generation, and authoring tooling —
   not by session-init. Method bodies (both `.override` and `.default`) always load at workflow trigger, so
   init-time override-presence surfacing serves no agent decision
+- `override-mode` (methods only, optional) — override disposition, `replace` or `extend`. Absent ⇒ `replace`
+  (the override supersedes the default); `extend` applies the default first, then the override on top. Carry it
+  only on a method whose override is additive — absent-means-replace leaves every other method unchanged
 - `active` (extensions only) — `true` when the extension's `.actions` section is populated; `false` when the
   extension is an empty placeholder. Session-init enumerates files where `active: true` via `grep -l` to
   produce the active-extensions list (see § Session-Init Consumption). Fire-point directives consult the

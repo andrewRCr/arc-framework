@@ -97,6 +97,65 @@ describe("parseMethodFrontmatter", () => {
     expect(result.errors.some((e) => e.includes("`override-active`"))).toBe(true);
   });
 
+  it("accepts method frontmatter declaring `override-mode: extend`", () => {
+    const content = [
+      "---",
+      "name: example",
+      "description: Example",
+      "override-active: false",
+      "override-mode: extend",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseMethodFrontmatter(content, "example");
+    expect(result.errors).toEqual([]);
+    expect(result.frontmatter?.["override-mode"]).toBe("extend");
+  });
+
+  it("accepts method frontmatter declaring `override-mode: replace`", () => {
+    const content = [
+      "---",
+      "name: example",
+      "description: Example",
+      "override-active: false",
+      "override-mode: replace",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseMethodFrontmatter(content, "example");
+    expect(result.errors).toEqual([]);
+    expect(result.frontmatter?.["override-mode"]).toBe("replace");
+  });
+
+  it("leaves `override-mode` undefined when the field is omitted (not defaulted)", () => {
+    const content = [
+      "---",
+      "name: example",
+      "description: Example",
+      "override-active: false",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseMethodFrontmatter(content, "example");
+    expect(result.errors).toEqual([]);
+    expect(result.frontmatter?.["override-mode"]).toBeUndefined();
+  });
+
+  it("rejects an out-of-enum `override-mode` value with a clear error", () => {
+    const content = [
+      "---",
+      "name: example",
+      "description: Example",
+      "override-active: false",
+      "override-mode: append",
+      "---",
+      "",
+    ].join("\n");
+    const result = parseMethodFrontmatter(content, "example");
+    expect(result.frontmatter).toBeUndefined();
+    expect(result.errors.some((e) => e.includes("`override-mode`"))).toBe(true);
+  });
+
   it("rejects non-array `related` as a type mismatch", () => {
     const content = [
       "---",

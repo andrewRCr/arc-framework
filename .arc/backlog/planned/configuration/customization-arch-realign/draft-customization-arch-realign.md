@@ -56,6 +56,27 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   `config-storage-architecture` (resolver substrate, already cross-referenced from this draft) for the projection
   mechanism.
 
+### `[ ]` **New method override disposition: `override-mode: replace | extend` (compose, not just substitute)**
+
+- _Routed from:_ `testing-guidance-apparatus` planning init (2026-06-22); sharpened at its create-spec (2026-06-22).
+- _Concern:_ this draft already records that "methods have an override axis but no clean enable/disable axis."
+  `testing-guidance-apparatus` adds a _third_ disposition to the override axis itself — `override-mode: replace |
+  extend` in method frontmatter, where `extend` applies the default _then_ appends the override (the
+  `super()`-calling analogue) vs `replace` (today's behavior: the override substitutes the default).
+- _Shipped by `testing-guidance-apparatus` (minimal):_ an **optional** field, **absent ⇒ `replace`**, validated by
+  an optional enum in `method.ts` (mirrors the existing `related?` field); only `testing-standards`'s `.arc/` copy
+  carries `override-mode: extend`, package source omits it (neutral by omission). It deliberately did **not** make
+  the field symmetric with `override-active`, to hold blast radius to the one consuming method — leaving the
+  holistic treatment here. (Consumer tolerance was verified there: all method-frontmatter consumers are permissive
+  / presence-only, so the new field is accepted.)
+- _Fold-in (this WU owns):_ (1) the principled model + which-mechanism decision tree should treat method override
+  as _replace vs. extend_ (alongside the enable/disable axis this draft already owns), not a single binary —
+  `strategy-configurability-architecture § Method Overrides` is the shared home (it currently reads "follow the
+  override _instead of_ the default," which `extend` revises); (2) make `override-mode` a present-everywhere field
+  aligned with `override-active`, riding this WU's per-method frontmatter pass (the new `active:` axis) at
+  near-zero marginal cost; (3) add the package-neutrality gate barring `override-mode: extend` from package source
+  (mirroring the `override-active: true` / `active: true` gate).
+
 ---
 
 ## Problem / Motivation
