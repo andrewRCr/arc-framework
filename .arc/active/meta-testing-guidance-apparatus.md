@@ -1,8 +1,8 @@
 # Metadata: testing-guidance-apparatus
 
-| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
-| --------- | --------- | --------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/testing-guidance-apparatus` | `Light`   | `P2`         |
+| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
+| ------------- | --------- | --------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/testing-guidance-apparatus` | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-testing-guidance-apparatus.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.3 — DEV-RULES.PROJECT § Testing thin pointer (Phase 4 complete)
-- **Next Task:** Task 5.1 — Complete verification (line ~163)
+- **Last Completed:** Task 5.1 — Complete verification (Phase 5)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
