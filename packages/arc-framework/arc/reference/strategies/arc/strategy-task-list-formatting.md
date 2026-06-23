@@ -333,18 +333,22 @@ work. If your team has overridden test-first to test-after, this section's patte
 **Core rule:** Group test and implementation together — by module or concern, not by activity.
 Name tasks for the module (`` `User` model ``), not the activity ("Write tests for User
 model"). A `` Build `test-first` (one behavior at a time): `` marker introduces the behavior
-list; the marker signals red-green-refactor discipline. Its absence means test-after is
-acceptable.
+list. The marker records the sequencing decision made at task generation: its presence means
+tests-first for that increment, its absence means the baseline (test-after or no tests).
+`test-first` is a stable approach keyword, not a reference to the method's name — it holds even
+if the method is renamed.
 
-Behavior bullets are coverage targets, not an execution sequence — each RED→GREEN cycle informs
-the next. Implementation detail bullets (fields, file locations, architectural notes) precede
-the marker. No separate "implement" task — test and implementation form one vertical unit.
+Marker absence is not "no testing discipline": a task that writes or modifies tests still gets
+the assertion / mocking discipline at execution, applied by the test-touch gate regardless of
+the marker (see [process-task-loop.md][process-task-loop]).
+
+Behavior bullets are coverage targets, not an execution sequence — each cycle informs the next.
+Implementation detail bullets (fields, file locations, architectural notes) precede the marker.
+No separate "implement" task — test and implementation form one vertical unit.
 
 **Multiple related components:** one task per component within a phase, each with its own
 behavior list and marker. **Multi-layer projects** (backend + frontend, API + CLI): separate
 phases per layer with the same grouped pattern in each, plus a cross-layer validation phase.
-
-See [process-task-loop.md][process-task-loop] for the red-green-refactor execution loop.
 
 ---
 

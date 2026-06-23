@@ -135,23 +135,18 @@ stays a single backticked `test-first` token. (Satisfies S4, S5, S10.)
   Summary (duplicated method defaults). Kept Test Tiers / Test Naming / Quality Gates verbatim. Added
   reference-style links to the two methods + `process-task-loop`.
 
-### `[ ]` **4.2 Reframe the test-first marker convention** (both copies of each surface)
+### `[x]` **4.2 Reframe the test-first marker convention** (both copies of each surface)
 
 - _Goal:_ The marker is documented as a method-gated sequencing-decision record and a stable approach keyword
   decoupled from the method name, with the red-green-refactor gloss removed.
 
-- _Context:_ Two surfaces carry the marker convention — `strategy-task-list-formatting` § Test-First Task
-  Structure and `template-tasks`.
-
-- _Approach:_ Marker = a single backticked `test-first` token; presence = tests-first for the increment,
-  absence = baseline (disambiguated at execution by the test-touch gate); the marker renders the sequencing
-  method's decision at `generate-tasks`, not an unconditional structural feature; remove "the marker signals
-  red-green-refactor discipline" and the RGR cross-reference.
-
-- _Note:_ Edit §Test-First Task Structure only — leave the adjacent §Verification Phase untouched (its
-  `verify-work-unit` relative-link correction is a separate captured errand, not this work unit's scope).
-
-- _Strategies:_ strategy-task-list-formatting.md, strategy-package-project-sync.md
+- _Outcome:_ Reframed `strategy-task-list-formatting` § Test-First Task Structure (both copies): the marker now
+  records the sequencing decision made at task generation (presence = tests-first, absence = baseline), is a
+  stable keyword decoupled from the method name, and its absence ≠ no testing discipline (the execution
+  test-touch gate still applies). Removed "the marker signals red-green-refactor discipline" and the RGR
+  cross-reference. `template-tasks` needed no edit — it carries no marker-convention text, only a pointer to the
+  strategy (the planning-time "both surfaces" framing was slightly stale; verified against the file). §
+  Verification Phase left untouched per its separate captured errand.
 
 ### `[ ]` **4.3 Keep `DEV-RULES.PROJECT` § Testing a thin pointer** (single copy)
 
