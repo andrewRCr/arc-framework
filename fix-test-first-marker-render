@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "fix-test-first-marker-render",
-  "origin": "description",
-  "intent": "test-first marker mis-renders: escaped inner backticks inside a single-backtick code span",
-  "branch": "fix/fix-test-first-marker-render",
-  "createdAt": "2026-06-23T01:20:28.801Z"
-}
