@@ -185,13 +185,26 @@ on Task 1.1 landing).
 
 ### `[ ]` **3.2 Surface the resolver state-query to agents**
 
-- _Goal:_ `arc status <slug>` is discoverable where agents reach for it — both the on-demand command catalog and
-  the always-loaded behavioral rule.
+- _Goal:_ The lifecycle verb set is discoverable where agents reach for it — the on-demand command catalog (the
+  **complete** verb index, `arc status <slug>` included) and the always-loaded behavioral rule for state resolution.
 
-    - `[ ]` **3.2.a Add the QUICK-REFERENCE catalog entry** (both copies)
-        - QUICK-REFERENCE § ARC CLI Commands — add `arc status <slug>` at parity with its siblings (on-demand
-          reference). Per the verb-inventory bucketing, the full lifecycle-verb catalog lands here, not in
-          DEV-RULES.
+    - `[ ]` **3.2.a Populate the QUICK-REFERENCE verb catalog** (both copies)
+        - QUICK-REFERENCE § ARC CLI Commands — add the full lifecycle-verb set at parity with its siblings
+          (on-demand reference; the section carries zero lifecycle verbs today): `arc status <slug>`, `start`,
+          `park` / `resume`, `activate` / `deactivate`, `promote` / `demote`, `reopen`, `abandon`, `archive`,
+          `stub`, `decompose`, `teardown`, `plan check`, and the errand verbs (`open` / `close` / `promote` /
+          `retire`). Per the verb-inventory bucketing the full set lands here, not in DEV-RULES; the
+          workflow-trigger-only internals (`set-stage`, `repoint-design`) stay out of the catalog.
+        - Mark the **judgment-light verbs that have no standalone workflow** explicitly — `demote`, `teardown`,
+          `stub` (confirm the exact set against the `work-unit-lifecycle/` file list at execution) — each with a
+          one-line "no ceremony — see X" pointer (e.g. `demote` → `promote-work-unit.md` § Inverse). Closes the
+          Task 2.2.b deferral: `demote`'s catalog entry rides here, paired with `promote`.
+        - Add a short orienting line: the catalog is the **complete** verb index; the `work-unit-lifecycle/`
+          workflow files are the judgment-bearing subset, so a verb without a workflow is by design, not a gap.
+        - _Note:_ The workflow directory reads as one-file-per-verb, but the CLI-mechanics split deliberately
+          produces verbs without ceremonies. Absent the catalog as the named complete index, each judgment-light
+          verb looks like a missing file — the DX gap this subtask closes (surfaced reviewing Task 2.2's `demote`
+          note, which is discoverable only by already knowing it is `promote`'s inverse).
 
     - `[ ]` **3.2.b Add the always-loaded DEV-RULES rule** (both copies)
         - DEV-RULES.ARC § Verification and Discovery → "Verify before assuming" — resolve a WU's lifecycle state by
