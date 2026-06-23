@@ -12,11 +12,11 @@
 - **Task List:** `tasks-testing-guidance-apparatus.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — tasks-testing-guidance-apparatus.md finalized; WU activated to feat/
-- **Next Task:** Begin Task 1.1 — Add optional override-mode enum validation to method.ts
+- **Last Completed:** Task 4.3 — DEV-RULES.PROJECT § Testing thin pointer (Phase 4 complete)
+- **Next Task:** Task 5.1 — Complete verification (line ~163)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — override-mode enum validation (process-task-loop)
+- **Next Action:** Begin Task 5.1 — load and follow `verify-work-unit.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
