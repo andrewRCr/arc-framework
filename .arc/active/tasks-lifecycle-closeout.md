@@ -41,14 +41,14 @@ residual surfaces for the grounded symbol/file inventory.
   `drain-inbox` § 5's grooming `open` batches many routing writes (not a single-capture adoption), so the thread
   goes to § 6's `run-errand` hand-off instead of the § 5 `open`.
 
-### `[ ]` **1.2 Resolver state-query trigger rewire**
+### `[x]` **1.2 Resolver state-query trigger rewire**
 
 - _Goal:_ `integrate-work-unit` resolves fresh-vs-resume entry mode from the resolver's derived enum, not a
   hand-read of meta `**State:**`.
-- _Note:_ One rewire, not a sweep — the entry-mode dispatch in `integrate-work-unit.md` goes to
-  `arc status <slug> --json` (the enum distinguishes `integrating` from `active`). Leave the consistent surfaces:
-  session-init's `sessionType` (probe-resolved), the multiple-candidate tiebreaker, and the precondition-gate
-  `**State:**` checks (each verb re-guards). The `gh pr view` PR-state resolution stays — out of resolver scope.
+- _Outcome:_ Repointed the Step 1 entry-mode dispatch (and its two arm headers) in `integrate-work-unit.md` to
+  `arc status {name} --json`'s derived `state` (`active` → fresh, `integrating` → resume); both mirror copies.
+  Left the consistent surfaces untouched per scope — the precondition-gate `**State:**` checks (each verb
+  re-guards), session-init's `sessionType`, the multiple-candidate tiebreaker, and the `gh pr view` PR-state read.
 
 ### `[ ]` **1.3 Nested-parent `{NN}b` archival cascade**
 
