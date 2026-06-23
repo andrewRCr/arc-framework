@@ -100,17 +100,16 @@ _Design decisions:_ `process-task-loop` edits land in both the `.arc/` plain cop
   `.template.md` keeps its `team.mode` conditionals). Resolves the Phase 2 trigger-audit transient —
   `lint:arc:triggers` now green.
 
-### `[ ]` **3.2 Resplit the `test-first` method along the planning/execution seam** (both copies)
+### `[x]` **3.2 Resplit the `test-first` method along the planning/execution seam** (both copies)
 
 - _Goal:_ `test-first` carries only the planning-time decision tree under a sharpened, explicitly-agnostic
   contract; the red-green-refactor execution discipline is gone (now owned by `testing-standards`).
 
-- _Approach:_ Remove the RGR / execution-discipline content; keep and sharpen the decision tree so the contract
-  states the agnostic invariant with ARC's test-first-leaning answer as the overridable default; declare the
-  reciprocal `related: [testing-standards]` coupling; confirm `test-first` remains declared in `generate-tasks`
-  frontmatter only (already present there — verify it is not re-added to `process-task-loop`).
-
-- _Strategies:_ strategy-package-project-sync.md
+- _Outcome:_ Removed the RGR / execution-discipline paragraph; kept the decision tree and sharpened the contract
+  to an explicit agnostic invariant (the test-first lean stays in `.default`). Re-homed the preamble
+  Workflow/When from `process-task-loop` to `generate-tasks` (its sole remaining consumer) and added the
+  reciprocal `related: [testing-standards]`. `test-first` confirmed declared in `generate-tasks` frontmatter
+  only; trigger audit green.
 
 ## **Phase 4:** Strategy recharter, marker convention & rules pointer
 
