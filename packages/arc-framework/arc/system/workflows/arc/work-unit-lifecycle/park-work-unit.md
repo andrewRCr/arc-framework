@@ -152,7 +152,7 @@ on a parked unit routes to `resume`.
 
 - [`resume-work-unit`][resume] — the inverse; re-attaches this park@Active shelf.
 - [`init-work-unit`][init-work-unit] — the `start`-family forward edge (`backlog/planned/ → active/`); park@Planning
-  reverses its graduate.
+  reverses it.
 - [`decompose-work-unit`][decompose] — shares the single-source park-exit relocate + teardown choreography.
 - [`deactivate-work-unit`][deactivate] — the destructive sibling (`abandon`); park is the resumable alternative.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit; contrast with this resumable pause.

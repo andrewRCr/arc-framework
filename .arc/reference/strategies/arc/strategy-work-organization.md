@@ -516,8 +516,7 @@ Before a work unit enters the `State` lifecycle above, it climbs a **readiness l
   [init-work-unit][init-work-unit] performs `planned → active`.
 
 The forcing rule has teeth because the start decision — read off the ready list — precedes activation, so the
-weight signal must be present before then. **"Graduation" names a readiness-ladder promotion** (the
-`provisional → planned → active` climb) and only that.
+weight signal must be present before then.
 
 ---
 
@@ -934,7 +933,7 @@ regeneration re-reads current state, so a regen reflects whatever changed since 
 **Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
 step, so these need no separate discipline:
 
-- **Initialization** (`backlog/planned/<wu>/` → `active/` graduation, or a fresh meta scaffolded
+- **Initialization** (`backlog/planned/<wu>/` → `active/` relocation, or a fresh meta scaffolded
   directly into `active/`) — the WU lands in `active/` and enters In Flight.
 - **Activation** (in-place `State: Planning → Active` + branch rename; no directory move) — the WU is
   already In Flight from initialization, so tier membership doesn't change; the regen self-heals any render
@@ -952,7 +951,7 @@ missed since the previous one.
 **Manual discipline** — these change a render input but have no ceremony workflow to carry the step,
 so re-render by hand (per § Render algorithm) when you make the change:
 
-- **Backlog membership** — graduation (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) adds a
+- **Backlog membership** — promotion (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) adds a
   WU to the render; demotion (the reverse) and creating a stub directly in `backlog/planned/` likewise
   change the render set.
 - **Render-field edits** on a planned or active meta — a `**Depends On:**` change re-tiers the WU
@@ -1347,7 +1346,7 @@ patterns, merge conflict expectations, and external tracker integration.
 ## Planning Module
 
 See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
-installs, routing and graduation flow, inbox routing, and scaling guidance.
+installs, routing and promotion flow, inbox routing, and scaling guidance.
 
 ---
 

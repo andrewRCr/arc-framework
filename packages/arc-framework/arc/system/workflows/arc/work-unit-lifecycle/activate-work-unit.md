@@ -103,7 +103,7 @@ chore(arc): activate {work-name} work unit
 - Rotate branch: plan/{name} → {type}/{name}
 - Set Next Task / Next Action; discharge satisfied Depends On edges
 - Settle Class (confirm-or-ratchet)
-- Remove draft-{name}.md (graduated to PRD; safety-catch)
+- Remove draft-{name}.md (absorbed into the spec; safety-catch)
 
 Context: meta-{name}.md (activation)
 ```

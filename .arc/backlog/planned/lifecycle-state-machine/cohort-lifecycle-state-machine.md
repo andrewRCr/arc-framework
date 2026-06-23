@@ -51,7 +51,7 @@ The directional target this cohort takes its first step toward. The lifecycle sp
   **→ stays in the workflow.**
 
 The CLI _executes_ transitions; it never _decides_ to take them (except where the decision is genuinely
-deterministic — a name collision forces graduate-not-scaffold) and never _fabricates_ judgment values
+deterministic — a name collision forces initialize-not-scaffold) and never _fabricates_ judgment values
 (commitment, priority, `Class`): it requires them supplied. CLI-migration depth is settled at **B1** — a
 hand-rolled declarative transition table as code + a thin imperative executor, over _logical_ `(phase, location)`
 (arc-backend-safe), full start/relocation/sweep scope. Not B0 (doc-only) and not B2 (generic engine).
@@ -139,8 +139,6 @@ naturally consume, so the posture is "design toward / hand-roll now / build v1,"
   gap (the substrate transitions correctly today), so — by the consistency-on-exit standard — it stays **out of**
   `lifecycle-closeout`'s scope and `lifecycle-closeout` does **not** depend on it (same treatment as
   `graduation-cleanup`). Fast-follow off `lifecycle-transition-core`; sequences independently.
-- **`idiomatic-alignment`** — names the verbs (`start` / `park` / `promote` / `demote` / `reopen` / `abandon`);
-  the final register check coordinates with it.
 - **`out-of-wu-entry`** (member of `agile-parallelism`, **not** this cohort) — shares the `session-init` entry
   surface and the `resolveWriteContext` primitive with `lifecycle-transition-core`'s planning-entry gate. The two
   are **distinct concerns** (entry-signal dispatch vs. lifecycle-transition write-context) — sequence, don't
@@ -238,8 +236,10 @@ the spine concerns (readiness method, interlock split, pointer mechanics) stay.
 
 ### `lifecycle-closeout`
 
-_Exposes:_ the cross-cutting verb-rename documentation sweep (strategies, rules, briefs, lifecycle workflows) and
-the final consistency audit that certifies the corpus matches the shipped model.
+_Exposes:_ the residual code-wiring completions (the half-built lifecycle edges the audit confirmed — errand
+inbox-drain provenance, resolver-driven entry-mode dispatch, the nested-parent archival cascade), the
+cross-cutting verb-register documentation sweep (strategies, rules, briefs, lifecycle workflows), and the final
+consistency audit that certifies the corpus matches the shipped model.
 
 _Consumes:_ all five prior members — it is the global-consistency tail that runs only once their code + local
 docs have landed.

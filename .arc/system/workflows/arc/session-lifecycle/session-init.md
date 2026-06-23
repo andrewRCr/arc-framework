@@ -467,7 +467,8 @@ planning session, assess readiness for the next unit:
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
 2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
-4. Propose next steps; ask for confirmation before proceeding
+4. Propose next steps (typically `arc start` to initialize the chosen unit, or continue drafting); ask for
+   confirmation before proceeding
 
 When the surface presents more than one candidate, load [`assess-parallel-fit`][assess-parallel-fit] on-demand —
 it is deliberately **not** declared in this workflow's frontmatter, so it loads only on the arms that read overlap,
@@ -488,9 +489,9 @@ deliberately.
 ```
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
-> Under partial protection (the default), proceed directly to [create-spec.md][create-spec] — no planning
-> branch needed.
+> next steps, initialize the chosen unit via [init-work-unit][init-work-unit] (`arc start`) — scaffolding its
+> planning branch and meta — before drafting or spec work. Under partial protection (the default), proceed
+> directly to [create-spec.md][create-spec] — no planning branch needed.
 
 ## 6. Confirm Orientation
 

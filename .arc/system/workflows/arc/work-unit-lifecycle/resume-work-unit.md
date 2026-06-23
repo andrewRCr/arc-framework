@@ -18,8 +18,8 @@ worktree by default, or `--here` in the current checkout) and removes the pointe
 branch. Resolves to `active`.
 
 A park@**Planning** unit resolved to `planned` (its full artifacts relocated to `backlog/planned/`, no preserved
-branch) — it re-enters via `arc start {name}` (graduate, [`init-work-unit`][init-work-unit] Path A), **not**
-`resume`. `arc start` on a parked unit routes to `resume`; on a planned stub it graduates.
+branch) — it re-enters via `arc start {name}` (initialize, [`init-work-unit`][init-work-unit] Path A), **not**
+`resume`. `arc start` on a parked unit routes to `resume`; on a planned stub it initializes it.
 
 > [!NOTE]
 > **arc-in-git only.** `resume` reads the pointer-record from the `backlog/planned/` pipeline, which exists only
@@ -135,7 +135,7 @@ current checkout.
 ## Related workflows
 
 - [`park-work-unit`][park] — the inverse; shelves a started unit (this resumes the park@Active result).
-- [`init-work-unit`][init-work-unit] — re-enters a park@**Planning** unit (`planned`) via `start`/graduate, the
+- [`init-work-unit`][init-work-unit] — re-enters a park@**Planning** unit (`planned`) via `start`/`init`, the
   branch this workflow does not cover.
 - [`integrate-work-unit`][integrate] — the code-shipping lifecycle exit once the resumed work completes.
 

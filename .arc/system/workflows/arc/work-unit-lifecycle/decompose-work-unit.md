@@ -351,7 +351,7 @@ The origin is now a cohort of `backlog/planned/` members. Each is activated sepa
 ## Related workflows
 
 - [`assess-cohort-fit`][assess-cohort-fit] — the planning-time method that produces the cut-map this workflow consumes.
-- [`init-work-unit`][init-work-unit] — activates each member (`backlog/planned/ → active/`) when its work begins.
+- [`init-work-unit`][init-work-unit] — initializes each member (`backlog/planned/ → active/`) when its work begins.
 - [`park-work-unit`][park] — shares the exit choreography (in-verb retire + post-merge teardown); the extraction
   arm's origin-park sequences it.
 - [`integrate-work-unit`][integrate-work-unit] — the code-shipping lifecycle exit; contrast with this

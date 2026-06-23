@@ -42,7 +42,7 @@ idea. Act on the emitted `route`:
   before acting — the mechanic resolved the context, but the leg is judgment:
     - **start now** — WU-worthy → `arc start <name>`, then draft on its branch.
     - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
-      backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
+      backlog stub; when `draftPresent`, fold the existing draft in, then start it via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 **Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this

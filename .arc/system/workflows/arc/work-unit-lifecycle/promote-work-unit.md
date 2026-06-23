@@ -113,6 +113,14 @@ Context: meta-{name}.md (graduation)
 
 ---
 
+## Inverse — `demote`
+
+`arc demote {name}` reverses this rung — relocating `backlog/planned/{name}/` back to
+`backlog/provisional/{name}/` when a planned candidate is set aside as not-yet-committed. It is the
+unguarded inverse of `promote`: a content-preserving, cohort-aware backlog move with no branch, no
+worktree, and no standalone ceremony of its own. The resolved `Class` rides down untouched — the ratchet
+is sticky, so a later re-promote needs no reclassification.
+
 ## Next Step
 
 The work unit is now a startable candidate on the ready list. When work begins, proceed to

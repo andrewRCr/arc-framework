@@ -102,44 +102,50 @@ rewritten. See `notes-lifecycle-closeout.md` § A1 for the grounded hit inventor
 - _Outcome:_ Mechanical rename complete across both copies; a corpus grep confirms no `graduate-work-unit`
   reference-link survives in durable surfaces (the `graduat*` prose token sweep is Task 2.2).
 
-### `[ ]` **2.2 Token-triage `graduat*` + surface `demote` + session-init register parity**
+### `[x]` **2.2 Token-triage `graduat*` + surface `demote` + session-init register parity**
 
 - _Goal:_ Every durable surface names the shipped transition verb (`promote`, with `demote` as its inverse)
   instead of the retired `graduate`/`graduation`, while the reserved "readiness ladder" concept and genuine
   false-positives stay untouched.
 
-    - `[ ]` **2.2.a Rewrite the `graduat*` transition verb/noun across the corpus**
-        - Rewrite to `promote` / "promote up the readiness ladder"; delete the circular self-definitions
-          (`strategy-work-organization.md`, the renamed ceremony). Hits cluster in the renamed ceremony +
-          `init-work-unit.md` (Path A / "Graduate Backlog Subdir" headings); scattered in `activate-work-unit.md`,
-          `resume-work-unit.md`, `park-work-unit.md`, `draft-design.md`, `create-spec.md`.
-        - Sweep the live durable surfaces the original cluster missed: `classify-work-unit.md`,
-          `template-draft.md`, `strategy-team-coordination.md`, `strategy-session-operations.md`,
-          `STRATEGY-INDEX.md`, and the `arc-inbox` skill (full grounded list in `notes-lifecycle-closeout.md`
-          § A1). `commit-footer.md`'s only hit is the `(graduation)` footer category — **not** a prose-verb rewrite;
-          the ceremony-footer consistency fix (fold to `(maintenance)`) is Task 3.4, and the fuller reconciliation
-          is `naming-conventions`'. The promote / park / resume ceremony commit-message example blocks (subject
-          verb + footer) are likewise Task 3.4, not this prose sweep. Exempt the dated historical records —
-          `adr-019` and the `reference/supplemental/research|analysis` snapshots are point-in-time and stay as written.
-        - Keep "readiness ladder"; leave false positives untouched (`graduated lookup`, the release-wrapper
-          "confidence ladder", `draft-* → notes-*` content-promotion usage).
+    - `[x]` **2.2.a Rewrite the `graduat*` transition verb/noun across the corpus**
+        - Swept 13 durable surfaces (both copies): `init-work-unit.md` (11 hits), `resume-work-unit.md`,
+          `park-work-unit.md`, `activate-work-unit.md`, `create-spec.md`, `draft-design.md`,
+          `classify-work-unit.md`, `strategy-team-coordination.md`, `strategy-session-operations.md`,
+          `STRATEGY-INDEX.md`, `strategy-work-organization.md`, and the `arc-inbox` skill. Verb split by edge:
+          `provisional → planned` → **promote/promotion**; `planned → active` (the `init`/`start` edge) →
+          **initialize/start**, never promote; relocation-sense hits → **relocate**. Deleted the circular
+          "Graduation names a readiness-ladder promotion" self-definition; kept the concept term "readiness
+          ladder" and the false positives (`graduated lookup`, `draft-* → notes-*` content-promotion).
+        - Held in-scope-elsewhere, untouched here: `commit-footer.md` `(graduation)` category + the
+          promote/park/resume ceremony commit-message example blocks → Task 3.4; `strategy-planning-module.md`
+          / `strategy-work-planning.md` dense pipeline vocab → Task 4.2.a.
 
-    - `[ ]` **2.2.b Surface `demote` as `promote`'s inverse**
-        - Add `demote` (`arc demote`, `planned → provisional`) to `promote-work-unit.md` and the command catalog —
-          no standalone ceremony (a trivial backlog-tier move).
+    - `[x]` **2.2.b Surface `demote` as `promote`'s inverse**
+        - Added an `## Inverse — demote` section to `promote-work-unit.md` (both copies): `arc demote`
+          (`planned → provisional`), the unguarded cohort-aware backlog move with a sticky-Class ratchet, no
+          standalone ceremony. The command-catalog entry rides with Task 3.2.a, which owns the full lifecycle-verb
+          catalog population (the section carries zero lifecycle verbs today — `promote`/`demote` land there as a
+          pair; seeding `demote` alone would be an incoherent intermediate).
 
-    - `[ ]` **2.2.c Bring the session-init discovery arm to start-verb register parity**
-        - `session-init.md` discovery arm + `session-init.template.md` (both `arc:if` arms) — a light,
-          state-accurate `start`/`initialize`/`scaffold` framing at the "propose next steps" + full-protection
-          note. The contributor variant has no discovery arm and is **not** a target. Cosmetic tightenings:
-          `decompose-work-unit.md` "activates each member", `activate-work-unit.md` "graduated to PRD".
+    - `[x]` **2.2.c Bring the session-init discovery arm to start-verb register parity**
+        - `session-init.md` (rendered) + `session-init.template.md`: named `arc start` / initialize / scaffold in
+          the discovery "propose next steps" item and the full-protection note. The non-git `arc:if` arm (partial
+          protection — no branch ceremony) carries no start verb and is left register-correct.
+          `decompose-work-unit.md` "activates each member" → "initializes" (the `planned → active` edge); the
+          `activate-work-unit.md` "graduated to PRD" cosmetic already landed in 2.2.a.
 
-    - `[ ]` **2.2.d Correct the cohort doc**
-        - `cohort-lifecycle-state-machine.md`: remove the phantom `idiomatic-alignment` references (the
-          verb-register check was re-homed here) and the `graduate-not-scaffold` usage; refresh the
-          `lifecycle-closeout` member entry to include the wiring scope. Keep the `graduation-cleanup` proper-noun
-          reference. The `multi-increment errand → extended errand` residue here is a Phase 5 audit item, not this
-          task.
+    - `[x]` **2.2.d Correct the cohort doc**
+        - `cohort-lifecycle-state-machine.md`: dropped the phantom `idiomatic-alignment` soft-coordination bullet
+          (register check re-homed into this WU), rewrote `graduate-not-scaffold` → `initialize-not-scaffold`, and
+          refreshed the `lifecycle-closeout` member entry to name the Phase 1 wiring scope. Kept `graduation-cleanup`
+          (proper noun); left the as-is evidence-spine baseline and the Phase 5 errand-residue item untouched.
+
+- _Outcome:_ The durable corpus now names the shipped verb set — `promote` / `demote` for the backlog rung,
+  `initialize` / `start` for the `planned → active` edge — with the "readiness ladder" concept preserved. Scope
+  reconciliation worth recording: 2.2.b's command-catalog half defers to Task 3.2.a's full lifecycle-verb catalog
+  population (a verb-less catalog can't coherently carry `demote` alone). A residual-`graduat*` audit confirms only
+  intended keeps remain (content-promotion senses, `graduated lookup`, and the Task 3.4 / 4.2.a held items).
 
 ### `[ ]` **2.3 Reconcile the "no meta-less draft" position**
 

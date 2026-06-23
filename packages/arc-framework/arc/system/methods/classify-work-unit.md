@@ -9,7 +9,7 @@ override-active: false
 > - **Workflow:** [init-work-unit.md][init-work-unit], [activate-work-unit.md][activate-work-unit],
 >   [draft-design.md][draft-design], [create-spec.md][create-spec],
 >   [generate-tasks.md][generate-tasks]
-> - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — graduation into
+> - **When:** A work unit's `Class` is set or re-confirmed at a lifecycle touchpoint — promotion into
 >   `backlog/planned/` (the forcing point), `init` as the WU enters active planning, `activate` at the
 >   pre-implementation settle, and the planning stages.
 >
