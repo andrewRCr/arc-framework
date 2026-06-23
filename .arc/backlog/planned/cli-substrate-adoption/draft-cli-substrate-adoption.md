@@ -102,6 +102,19 @@ post-trio architecture-remediation plans consume.
 - *Status:* the correctness fix (propagate actionable failures) already landed via exit-code / stderr
   classification; this is the follow-up refactor to the structured layer only.
 
+### `[ ]` **Migrate decompose-matrix's hand-rolled cut-map validator onto a zod schema**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-22);
+  captured during `decompose-matrix` create-spec (2026-06-21), forward-compat pass against this WU and
+  `schema-introspection-layer`.
+- *Concern:* `decompose-matrix` ships `arc decompose <origin> --cut-map <file>` with a bespoke boundary
+  parser-validator for the cut-map (members, edges, distribution, dispositions), because zod isn't a CLI dep until
+  this WU. It is deliberately authored as a migration drop-in: a single parse/validate entry point, co-located
+  under `lib/work-unit/`, with a versionable `schemaVersion`-ready top-level shape.
+- *Proposed:* fold the validator onto a zod schema in this WU's validation-surface sweep, alongside the existing
+  enumerated targets (cold-start spec-input parser, branch-gone cascade union, reconcile-branch error
+  classification). Once schematized, `schema-introspection-layer` can publish the cut-map contract via `arc schema`.
+
 ---
 
 ## Problem / Motivation

@@ -75,7 +75,13 @@ mechanism for which concern" in `strategy-configurability-architecture.md`.
   override _instead of_ the default," which `extend` revises); (2) make `override-mode` a present-everywhere field
   aligned with `override-active`, riding this WU's per-method frontmatter pass (the new `active:` axis) at
   near-zero marginal cost; (3) add the package-neutrality gate barring `override-mode: extend` from package source
-  (mirroring the `override-active: true` / `active: true` gate).
+  (mirroring the `override-active: true` / `active: true` gate); (4) settle the body-section **ordering
+  convention** for `extend` methods — place `.override` _after_ `.default` so reading order matches application
+  order (default applies first, then the override appends), clearer than the uniform override-first layout every
+  method uses today. Safe against today's only mechanical consumer (`validate-package-neutrality.ts`'s
+  `extractSectionBody` is heading-keyed, not positional); keep any future resolver heading-keyed too. (Routed from
+  `USER-INBOX § Work Unit`, housekeep drain 2026-06-22; captured during `testing-guidance-apparatus` authoring
+  `testing-standards`, the first extend-mode method.)
 
 ---
 
