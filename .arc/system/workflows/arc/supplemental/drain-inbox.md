@@ -172,7 +172,10 @@ write.
 ### 6. Execution transition — committed atomics → `run-errand`
 
 For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
-atomic work itself. Two explicit paths, the user's choice by context budget (never a structural gate):
+atomic work itself. The atomic's `USER-INBOX` entry is the errand's **originating capture**: pass it to
+`run-errand` so its `arc errand open --from-inbox <entry-title>` mints an `inbox`-origin record, and the entry
+drops at the errand's `close` off that back-pointer rather than being orphaned. Two explicit paths, the user's
+choice by context budget (never a structural gate):
 
 - **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
   **one at a time, sequentially** (batch only when they are genuinely one concern). `run-errand`'s Launch

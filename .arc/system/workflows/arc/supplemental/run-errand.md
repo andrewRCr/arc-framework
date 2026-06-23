@@ -53,7 +53,9 @@ never executes from an unrelated work unit's branch.
 3. **Open the errand locus** — relocate per protection mode ([§ Branch Protection Modes][branch-modes]):
 
    - **Full protection** — `arc errand open <slug>` cuts the errand branch and occupies it in place (`--type
-     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). `<slug>` is branch-safe
+     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). When the errand adopts an
+     originating `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` — the record is minted
+     `inbox`-origin and `arc errand close` drops that capture instead of orphaning it. `<slug>` is branch-safe
      (lowercase/digits/hyphens) and is the merge key; idempotent — re-running reuses an existing branch.
    - **Partial protection** — no branch (`open` refuses here): read `arc housekeep check --json` → `baseBranch` /
      `primaryWorktreePath`, switch to that base checkout, and commit directly to base (a documented off-work-unit

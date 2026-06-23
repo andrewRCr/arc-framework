@@ -175,9 +175,11 @@ provenance:
   `origin: originEntry ? "inbox" : "description"` with the conditional `originEntry` (serialize/deserialize already
   handle it).
 - Add the `--from-inbox <entry-slug>` producer flag to `arc errand open` and thread it from the **adoption
-  call-sites**, all confirmed origin-blind today: `drain-inbox`, `run-errand` Launch, the warm `arc-errand` skill,
-  and session-init's `--errand`/discovery adoption (`session-init.template.md` calls bare `arc errand open
-  <slug>`).
+  call-sites**, all confirmed origin-blind today: `run-errand` Launch; the warm `arc-errand` skill (a pointer — it
+  delegates the literal `open` to run-errand, so it carries adoption guidance, not the command); `drain-inbox`
+  § 6's `run-errand` hand-off (the genuine single-capture adoption — **not** § 5's grooming `open`, which batches
+  many routing writes and adopts no one capture); and session-init's `--errand`/discovery adoption
+  (`session-init.{md,template.md}` call bare `arc errand open <slug>`).
 - No close-side or schema work: the consumer, the contract, and the conditional serialize already ship.
 
 #### W2 — Resolver state-query trigger rewiring (single)

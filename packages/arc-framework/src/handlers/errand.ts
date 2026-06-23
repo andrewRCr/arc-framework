@@ -148,6 +148,12 @@ export interface ErrandOpenOptions {
   type?: string;
   /** Free-text statement of the errand's concern; defaults to the slug. */
   intent?: string;
+  /**
+   * Originating `USER-INBOX` capture this errand adopts (its bold title). Marks
+   * the record `inbox`-origin so `arc errand close` drops the capture; omitted
+   * for a free-description launch.
+   */
+  fromInbox?: string;
 }
 
 /**
@@ -158,6 +164,10 @@ export interface ErrandOpenOptions {
  * commit with no branch and no record, so `open` refuses there. The record push
  * is non-fatal: a failure records the errand partial-push marker (the same
  * machinery `arc sync` reconciles) rather than aborting the open.
+ *
+ * `--from-inbox <entry-slug>` adopts a `USER-INBOX` capture: the record is
+ * minted `inbox`-origin with the capture as its back-pointer, so `arc errand
+ * close` drops that capture instead of orphaning it.
  */
 export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): Promise<void> {
   p.intro("arc errand open");
@@ -207,7 +217,7 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   try {
     result = await openErrand(
       { exec: io.exec, execInput: io.execInput, identity },
-      { slug, base, type, intent: opts.intent, createdAt: new Date().toISOString() },
+      { slug, base, type, intent: opts.intent, originEntry: opts.fromInbox, createdAt: new Date().toISOString() },
     );
   } catch (err) {
     p.log.error(`Could not open the errand: ${err instanceof Error ? err.message : String(err)}`);
@@ -233,7 +243,12 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   }
 
   const cutVerb = result.branchCreated ? "cut" : "reused";
-  p.log.success(`Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place.`);
+  const adopted = result.record.origin === "inbox"
+    ? ` — adopted inbox capture '${result.record.originEntry ?? ""}'`
+    : "";
+  p.log.success(
+    `Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place${adopted}.`,
+  );
   p.outro("Done.");
 }
 

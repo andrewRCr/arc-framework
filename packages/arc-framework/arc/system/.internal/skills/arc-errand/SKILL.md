@@ -31,4 +31,5 @@ context is already established — it does **not** run session-init.
    execution must navigate — is a Work Unit; route it through `init-work-unit` instead), runs the advisory
    `arc errand check` overlap probe, and relocates the execution locus to an isolated base-derived branch —
    so the errand never executes on the branch you launched from. Execute and Integrate carry it to a landed
-   commit.
+   commit. When this errand adopts a flagged `USER-INBOX § Errand` capture, Launch threads it as the originating
+   entry (`arc errand open --from-inbox`), so the capture drops at the errand's close instead of being orphaned.

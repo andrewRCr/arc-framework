@@ -18,35 +18,28 @@ until the producer leg ships. Task 1.4 (W3) is verify-only: the out-of-band tear
 Task 1.1.c are framework _content_ and carry the two-copy mirror. See `notes-lifecycle-closeout.md` § Code
 residual surfaces for the grounded symbol/file inventory.
 
-### `[ ]` **1.1 Errand inbox-drain provenance producer-leg**
+### `[x]` **1.1 Errand inbox-drain provenance producer-leg**
 
 - _Goal:_ An inbox-drained errand records its originating capture, so `arc errand close` drops that capture
   instead of orphaning it.
-- _Context:_ The consumer leg ships — `lib/errand/record.ts` defines `origin: "description" | "inbox"` plus
-  `originEntry?` with an enforced `inbox ⇔ originEntry` deserialize contract, and `handlers/errand.ts` drains the
-  capture at close. No code sets the pointer: `openErrand` hardcodes `origin: "description"` and `arc errand open`
-  takes no originating argument, so the drain is universally dead. No close-side or schema work.
-- _Approach:_ Adopt-by-capture provenance via a `--from-inbox <entry-slug>` producer flag on `arc errand open`.
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **1.1.a Thread an originating entry through `openErrand`**
-        - `lib/errand/open.ts`: add an originating-entry parameter to `OpenErrandParams`; mint
-          `origin: originEntry ? "inbox" : "description"` with the conditional `originEntry` (serialize/deserialize
-          already handle it).
-        - Build `test-first` (one behavior at a time):
-            - with an originating entry → the record carries `origin: "inbox"` + `originEntry`
-            - without one → `origin: "description"`, no `originEntry`
+    - `[x]` **1.1.a Thread an originating entry through `openErrand`**
+        - `lib/errand/open.ts`: added `originEntry?` to `OpenErrandParams`; mints
+          `origin: originEntry ? "inbox" : "description"` with the conditional `originEntry`.
 
-    - `[ ]` **1.1.b Add the `--from-inbox <entry-slug>` flag to `arc errand open`**
-        - `handlers/errand.ts` `ErrandOpenOptions`: accept `--from-inbox <entry-slug>` and pass it through to
-          `openErrand`.
-        - Build `test-first` (one behavior at a time):
-            - `arc errand open --from-inbox <slug>` end-to-end → the capture is dropped at `arc errand close`
-              (the drain that is dead today)
+    - `[x]` **1.1.b Add the `--from-inbox <entry-slug>` flag to `arc errand open`**
+        - `handlers/errand.ts` `ErrandOpenOptions.fromInbox` + the `cli.ts` flag, threaded to `openErrand` as
+          `originEntry`; the success line names the adopted capture.
 
-    - `[ ]` **1.1.c Thread the flag from the four adoption call-sites**
-        - `drain-inbox.md`, `run-errand.md` (Launch), the `arc-errand` skill, and `session-init.template.md`'s
-          bare `arc errand open <slug>` — pass the originating capture at each.
+    - `[x]` **1.1.c Thread the flag from the adoption call-sites**
+        - `run-errand.md` Launch, `session-init.{md,template.md}` cold-entry, the `arc-errand` skill, and
+          `drain-inbox.md` § 6's `run-errand` hand-off — each passes the originating capture (both copies mirrored).
+
+- _Outcome:_ Producer leg live end-to-end — `arc errand open --from-inbox <title>` mints an `inbox`-origin record
+  and `arc errand close` drops the capture (e2e-covered). The doc threading lands at the genuine adoption points:
+  `drain-inbox` § 5's grooming `open` batches many routing writes (not a single-capture adoption), so the thread
+  goes to § 6's `run-errand` hand-off instead of the § 5 `open`.
 
 ### `[ ]` **1.2 Resolver state-query trigger rewire**
 

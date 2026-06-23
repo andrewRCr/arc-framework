@@ -211,6 +211,27 @@ describe("arc errand close", () => {
     expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
   });
 
+  it("drops the originating capture at close when opened with --from-inbox (the producer→drain leg)", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Drain me**\n\n- _Observation:_ adopt this.\n\n---\n";
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+
+    const open = await runArc(["errand", "open", "adopt-it", "--type", "chore", "--from-inbox", "Drain me"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    // The record is inbox-origin, carrying the back-pointer the drain matches on.
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:adopt-it"]);
+    expect(record).toContain('"origin": "inbox"');
+    expect(record).toContain('"originEntry": "Drain me"');
+
+    const close = await runArc(["errand", "close", "adopt-it"], tmpDir);
+    expect(close.exitCode).toBe(0);
+    // The originating capture is dropped — the drain that was universally dead before the producer leg.
+    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Drain me**");
+  });
+
   it("leaves unrelated inbox captures untouched (a description errand drops nothing)", async () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");

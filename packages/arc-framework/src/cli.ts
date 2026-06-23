@@ -275,6 +275,7 @@ errand
   .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
+  .option("--from-inbox <entry-slug>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
