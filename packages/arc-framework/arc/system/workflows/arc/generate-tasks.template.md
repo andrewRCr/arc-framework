@@ -230,7 +230,7 @@ Strategy][team-coordination] § Task Ownership for conventions.
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
 business logic, complex algorithms), group test and implementation together in each task — named by module or
-concern, not by activity. Use the `Build \`test-first\` (one behavior at a time):` marker line to introduce the
+concern, not by activity. Use the ``Build `test-first` (one behavior at a time):`` marker line to introduce the
 behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
 [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
 [strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
@@ -371,7 +371,7 @@ pre-save checklist and bundles the commit.
 - [ ] Italic for non-actionable descriptors (`_Purpose:_`, `_Goal:_`, `_Outcome:_`, `_Note:_`,
       `_Rationale:_`, `_Approach:_`, `_Context:_`, `_Shape:_`); bold for actionable titles (`**X.Y Title**`)
 - [ ] Test-first tasks group test + implementation together (by concern, not activity)
-- [ ] Test-first tasks use `Build \`test-first\` (one behavior at a time):` marker line before behavior list
+- [ ] Test-first tasks use ``Build `test-first` (one behavior at a time):`` marker line before behavior list
 - [ ] 4-space indentation per hierarchy level
 - [ ] Backticks for all technical terms: `field_name`, `ClassName`, `/api/endpoint/`
 - [ ] No time estimates anywhere (no duration emojis, minute counts)
