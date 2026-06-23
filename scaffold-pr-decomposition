@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "scaffold-pr-decomposition",
-  "origin": "description",
-  "intent": "Scaffold the pr-decomposition backlog WU: stub meta + rough draft + research companion",
-  "branch": "chore/scaffold-pr-decomposition",
-  "createdAt": "2026-06-23T14:29:01.676Z"
-}
