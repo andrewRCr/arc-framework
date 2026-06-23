@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 import {
   validateCohortPath,
   cohortLeaf,
+  cohortParent,
   COHORT_SEGMENT_CAP,
 } from "../../../src/lib/active/cohort-path.js";
 
@@ -48,6 +49,27 @@ describe("cohortLeaf — render derivation", () => {
   it("derives the leaf of a deep, real-world nested cohort", () => {
     expect(cohortLeaf("principle-anchored-core/agile-wu-lifecycle")).toBe(
       "agile-wu-lifecycle",
+    );
+  });
+});
+
+describe("cohortParent — nested-parent derivation", () => {
+  it("returns the first segment of a nested path", () => {
+    expect(cohortParent("core/sub")).toBe("core");
+  });
+
+  it("returns null for a single-segment cohort (no parent)", () => {
+    expect(cohortParent("core")).toBeNull();
+  });
+
+  it("returns null for the `[none]` sentinel and the empty string", () => {
+    expect(cohortParent("[none]")).toBeNull();
+    expect(cohortParent("  ")).toBeNull();
+  });
+
+  it("derives the parent of a real-world nested cohort", () => {
+    expect(cohortParent("agile-parallelism/concurrent-work-conventions")).toBe(
+      "agile-parallelism",
     );
   });
 });

@@ -50,18 +50,18 @@ residual surfaces for the grounded symbol/file inventory.
   Left the consistent surfaces untouched per scope — the precondition-gate `**State:**` checks (each verb
   re-guards), session-init's `sessionType`, the multiple-candidate tiebreaker, and the `gh pr view` PR-state read.
 
-### `[ ]` **1.3 Nested-parent `{NN}b` archival cascade**
+### `[x]` **1.3 Nested-parent `{NN}b` archival cascade**
 
 - _Goal:_ A nested-parent cohort archives correctly — the archive sweep applies the `{NN}b` cascade to the nested
   parent alongside the existing `{NN}a` cohort-sidecar cascade.
-- _Context:_ `archive.ts` ships `{NN}a` but has no nested-parent `{NN}b` handling (documented-but-unbuilt;
-  `lifecycle-transition-core` explicitly deferred it here). The live nested cohort `concurrent-work-conventions`
-  (under `agile-parallelism`) will exercise it.
 - **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - a nested-parent cohort archives → the nested parent is swept with the `{NN}b` suffix
-        - the existing `{NN}a` cohort-sidecar cascade is unaffected (no regression)
+- _Outcome:_ Added `isArchivalTriggeredWithDescendants` (`lifecycle-membership.ts`) — counts a parent's direct +
+  subcohort members transitively (trailing-slash prefix, so a sibling like `parent-other` doesn't false-match) —
+  and `cohortParent` (`cohort-path.ts`). `archive.ts` now gates the leaf sidecar on the descendants-aware trigger
+  (the "both paths" choice: a parent doc is never swept while a subcohort lingers) and `sweepNestedParentDoc`
+  emits the `{NN}b_cohort-<parent>` sidecar when a nested member's ship also closes the parent. `runArchive`
+  returns `nestedParentSwept`; the handler surfaces it. Suffix reads inner → outer within an `NN` (leaf `a`,
+  parent `b`).
 
 ### `[ ]` **1.4 Verify `abandon` out-of-band teardown + drain routed follow-up**
 

@@ -30,7 +30,12 @@ import type {
 } from "../../../../src/lib/work-unit/mutators/relocate-artifacts.js";
 import type { SideEffectId } from "../../../../src/lib/work-unit/lifecycle-transitions.js";
 import type { CompletedIndexFs } from "../../../../src/lib/work-unit/completed-index.js";
-import { runArchive, sweepCohortDoc, type ArchiveContext } from "../../../../src/lib/work-unit/verbs/archive.js";
+import {
+  runArchive,
+  sweepCohortDoc,
+  sweepNestedParentDoc,
+  type ArchiveContext,
+} from "../../../../src/lib/work-unit/verbs/archive.js";
 
 const CWD = "/repo";
 const WORKTREE = "/repo/../wt-foo";
@@ -249,6 +254,7 @@ describe("runArchive — the dated sweep", () => {
     expect(result.status).toBe("archived");
     if (result.status !== "archived") return;
     expect(result.cohortSwept).toBeNull();
+    expect(result.nestedParentSwept).toBeNull();
   });
 });
 
@@ -372,5 +378,89 @@ describe("sweepCohortDoc — the cohort-doc archival sweep", () => {
       },
     ]);
     expect(swept).toBe(".arc/completed/2026-q2/25a_cohort-safe-cohort/cohort-safe-cohort.md");
+  });
+
+  it("does not sweep a nested-parent doc while a subcohort member still lingers", async () => {
+    // The parent's last direct member ships, but a subcohort member is still in
+    // flight — the descendants-aware trigger holds the parent-doc sweep back.
+    const index = indexOf(
+      entry("direct", "completed", "parent", "Shipped"),
+      entry("sub", "active", "parent/sub", "Active"),
+    );
+    const { fn, calls } = relocateSpy(["cohort-parent.md"]);
+
+    const swept = await sweepCohortDoc(fn, index, { cohort: "parent", ...at });
+
+    expect(calls).toEqual([]);
+    expect(swept).toBeNull();
+  });
+});
+
+describe("sweepNestedParentDoc — the {NN}b nested-parent archival sweep", () => {
+  const at = { quarter: "2026-q2", sequence: "25" };
+
+  it("git mvs the nested parent's cohort doc to the NNb sidecar when the parent is transitively complete", async () => {
+    // A nested member ships last; both its direct siblings and the parent's other
+    // members have shipped, so the parent doc closes out at the same NN as {NN}b.
+    const index = indexOf(
+      entry("direct", "completed", "parent", "Shipped"),
+      entry("sub", "completed", "parent/sub", "Shipped"),
+    );
+    const { fn, calls } = relocateSpy(["cohort-parent.md"]);
+
+    const swept = await sweepNestedParentDoc(fn, index, { cohort: "parent/sub", ...at });
+
+    expect(calls).toEqual([
+      {
+        slug: "parent",
+        fromDir: ".arc/backlog/planned/parent",
+        toDir: ".arc/completed/2026-q2/25b_cohort-parent",
+      },
+    ]);
+    expect(swept).toBe(".arc/completed/2026-q2/25b_cohort-parent/cohort-parent.md");
+  });
+
+  it("is a no-op for a single-segment cohort (no nested parent to sweep)", async () => {
+    const index = indexOf(entry("a", "completed", "flat", "Shipped"));
+    const { fn, calls } = relocateSpy(["cohort-flat.md"]);
+
+    expect(await sweepNestedParentDoc(fn, index, { cohort: "flat", ...at })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("does not fire while another descendant of the parent remains in flight", async () => {
+    // The shipping member's own subcohort is done, but a sibling subcohort lingers.
+    const index = indexOf(
+      entry("sub-a", "completed", "parent/sub", "Shipped"),
+      entry("sub-b", "active", "parent/other", "Active"),
+    );
+    const { fn, calls } = relocateSpy(["cohort-parent.md"]);
+
+    expect(await sweepNestedParentDoc(fn, index, { cohort: "parent/sub", ...at })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("is a no-op for a standalone WU or the [none] sentinel", async () => {
+    const index = indexOf(entry("solo", "completed", null, "Shipped"));
+    const { fn, calls } = relocateSpy(["x"]);
+
+    expect(await sweepNestedParentDoc(fn, index, { cohort: null, ...at })).toBeNull();
+    expect(await sweepNestedParentDoc(fn, index, { cohort: "[none]", ...at })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("refuses to construct an escaping path from a traversal parent segment", async () => {
+    const { fn, calls } = relocateSpy(["x"]);
+    const index = indexOf(entry("a", "completed", "../escape/sub", "Shipped"));
+
+    expect(await sweepNestedParentDoc(fn, index, { cohort: "../escape/sub", ...at })).toBeNull();
+    expect(calls).toEqual([]);
+  });
+
+  it("returns null when the trigger holds but no parent doc was found to move", async () => {
+    const index = indexOf(entry("sub", "completed", "parent/sub", "Shipped"));
+    const { fn } = relocateSpy([]); // nothing matched in the parent dir
+
+    expect(await sweepNestedParentDoc(fn, index, { cohort: "parent/sub", ...at })).toBeNull();
   });
 });

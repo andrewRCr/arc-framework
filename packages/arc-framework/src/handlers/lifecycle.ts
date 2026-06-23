@@ -848,6 +848,9 @@ export async function handleArchive(slug: string | undefined, opts: ArchiveOptio
   for (const warning of result.warnings) p.log.warn(warning);
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
+  if (result.nestedParentSwept !== null) {
+    lines.push(`Cohort:    ${result.nestedParentSwept} (nested parent — last member shipped)`);
+  }
   reportOutcome("Archived", lines, result.outcome);
 }
 
