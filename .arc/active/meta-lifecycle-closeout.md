@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.1 — Errand inbox-drain provenance producer-leg
-- **Next Task:** Task 1.2 — Resolver state-query trigger rewire (line ~51)
+- **Last Completed:** Phase 1 complete (Tasks 1.1–1.4) — wiring completions verified
+- **Next Task:** Task 2.1 — Rename `graduate-work-unit.md → promote-work-unit.md` + repoint references (line ~89)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.2 — resolver state-query trigger rewire (process-task-loop)
+- **Next Action:** Begin Task 2.1 — rename `graduate-work-unit.md → promote-work-unit.md` + repoint references (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
