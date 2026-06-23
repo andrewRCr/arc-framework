@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "fix-task-template-relative-link",
-  "origin": "description",
-  "intent": "verify-work-unit pointer uses a relative-path link from movable task-list artifacts",
-  "branch": "fix/fix-task-template-relative-link",
-  "createdAt": "2026-06-23T01:16:45.338Z"
-}
