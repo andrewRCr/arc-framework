@@ -1,22 +1,22 @@
 # Metadata: lifecycle-closeout
 
-| **State**  | **Owner** | **Branch**                | **Class** | **Priority** |
-| ---------- | --------- | ------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/lifecycle-closeout` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
+| --------- | --------- | ------------------------ | --------- | ------------ |
+| `Active`  | `andrew`  | `fix/lifecycle-closeout` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
-- **Depends On:** `lifecycle-state-resolver`, `lifecycle-transition-core`, `decompose-matrix`, `errand-lattice`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-lifecycle-closeout.md`
 - **Task List:** `tasks-lifecycle-closeout.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Errand inbox-drain provenance producer-leg (line ~21)
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 — W1 errand provenance producer-leg (process-task-loop)
 
 - **PR URL:** [none]
 - **Completed:** [none]
