@@ -121,23 +121,19 @@ off of).
 _Design decisions:_ No duplicated decision tree or RGR loop survives across method and strategy; the marker
 stays a single backticked `test-first` token. (Satisfies S4, S5, S10.)
 
-### `[ ]` **4.1 Recharter `strategy-testing-methodology`** (single copy — project strategy)
+### `[x]` **4.1 Recharter `strategy-testing-methodology`** (single copy — project strategy)
 
 - _Goal:_ The strategy reads as the canonical deep-dive — rationale, the tier-map, worked examples — and cedes
   the operational rules to the methods by reference rather than restating them.
 
-- _Approach:_ Drop the generic TDD / test-after / no-test categorization (it duplicates the `test-first`
-  method's default) and the red-green-refactor loop; retain the project-specific module guidance as deep-dive
-  worked examples (reframed from a normative tree into illustrative), since this work unit authors no
-  `test-first` project override to hold it. Move the §Mocking Rules operational content (Vitest mock mechanics,
-  the concrete boundary list) into `testing-standards`'s `.arc/` override, keeping the rationale here (why mock
-  bleed produces order-dependent failures) and referencing the method. Receive the table-stakes elaboration
-  trimmed from the method.
-
-- _Note:_ Exact relocation targets for the trimmed table-stakes resolve during the edit (the spec's one open
-  item — minor placement, not a design question).
-
-- _Strategies:_ strategy-testing-methodology.md
+- _Outcome:_ Reframed the intro to a deep-dive that cedes operational rules to `test-first` / `testing-standards`
+  by reference. Recast the normative TDD decision tree into illustrative "Test-First Decisions in This Codebase"
+  worked examples; dropped the rote red-green-refactor loop (its "why vertical" rationale folded into Philosophy,
+  mechanics referenced). Slimmed § Mocking Rules to rationale (boundary fidelity, design-for-testability,
+  mock-bleed → order-dependent failures), with the concrete boundary list + Vitest mechanics ceded to the
+  method; retained "small interfaces, deep implementations" (received table-stakes). Dropped the Key Principles
+  Summary (duplicated method defaults). Kept Test Tiers / Test Naming / Quality Gates verbatim. Added
+  reference-style links to the two methods + `process-task-loop`.
 
 ### `[ ]` **4.2 Reframe the test-first marker convention** (both copies of each surface)
 

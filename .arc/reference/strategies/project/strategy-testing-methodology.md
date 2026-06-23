@@ -1,24 +1,28 @@
 # Testing Methodology Strategy
 
-Testing approach for `@arc-framework/cli` — a TypeScript CLI that manages ARC framework
-installation, updates, and session portability. This strategy codifies when and how to write
-tests, informed by the project's characteristics: pure-function core libraries, CLI commands
-with filesystem and git side effects, and a three-tier test structure.
+The canonical deep-dive for testing `@arc-framework/cli` — a TypeScript CLI that manages ARC framework
+installation, updates, and session portability. It carries the rationale, the tier map, and worked examples for
+this codebase: the place to understand the whole testing approach in one read.
+
+The operational rules live in the methods, not here — planning-time test sequencing in [`test-first`][test-first]
+and execution-time discipline (assertions, mocking, isolation) in [`testing-standards`][testing-standards]. This
+document references them rather than restating them, so each rule has a single home and this stays the deep-dive.
 
 ## Philosophy: Pragmatic TDD
 
 Test-first for core logic, test-after for glue code and CLI wiring.
 
-- **Test behavior through public interfaces** — tests verify what a module does, not how it
-  does it internally. A test that breaks when you refactor without changing behavior was testing
-  implementation, not behavior.
-- **Vertical slices, not horizontal** — write one test, make it pass, repeat. Never write all
-  tests first then all implementation. Each test responds to what the previous cycle revealed.
-- **Test our logic, not our dependencies** — don't test Commander's argument parsing, clack's
-  prompt rendering, or git's merge algorithm. Test our code that uses them.
-- **Meaningful assertions over coverage targets** — focus on critical paths and complex logic.
-  No hard coverage percentage. A well-tested `render.ts` matters more than 80% line coverage
-  across boilerplate.
+- **Test behavior through public interfaces** — tests verify what a module does, not how it does it internally.
+  A test that breaks when you refactor without changing behavior was testing implementation, not behavior.
+- **Vertical slices, not horizontal** — one test, make it pass, repeat, rather than all tests then all code.
+  Tests written in bulk test *imagined* behavior; tests written one at a time test *actual* behavior, because you
+  just wrote the code and know what matters. Horizontal slicing produces tests coupled to API shape rather than
+  observable outcomes. The execution mechanics are codified in [`testing-standards`][testing-standards] and driven
+  by the loop in [`process-task-loop`][process-task-loop].
+- **Test our logic, not our dependencies** — don't test Commander's argument parsing, clack's prompt rendering,
+  or git's merge algorithm. Test our code that uses them.
+- **Meaningful assertions over coverage targets** — focus on critical paths and complex logic. No hard coverage
+  percentage. A well-tested `render.ts` matters more than 80% line coverage across boilerplate.
 
 ## Test Tiers
 
@@ -81,103 +85,55 @@ Full CLI invocation in temporary git repos. Exercises the complete user-facing p
 - `arc session save/load/push/pull` round-trips
 - Round-trip: init → customize → update → verify
 
-## TDD Decision Tree
+## Test-First Decisions in This Codebase
 
-### Requires test-first (write tests BEFORE implementation)
+The [`test-first`][test-first] method carries the general decision; these are worked examples of how it lands for
+this project's modules — illustrative, not a normative checklist.
 
-- **Core libraries** — render, hash, manifest, recipe, merge wrapper, identity resolution
-- **Data transformations** — any function that takes input and produces transformed output
-- **Validation logic** — manifest schema validation, recipe parsing, config validation
-- **Business rules** — file classification, mode-conditional behavior, conflict detection
+**Written test-first** — clear inputs and outputs, no visual or interactive ambiguity, and bugs propagate
+silently, so writing the tests first catches design issues early and produces better interfaces:
 
-These modules have clear inputs and outputs, no visual or interactive ambiguity, and bugs
-propagate silently. TDD catches design issues early and produces better interfaces.
+- Core libraries — render, hash, manifest, recipe, merge wrapper, identity resolution
+- Data transformations — any function that takes input and produces transformed output
+- Validation logic — manifest schema validation, recipe parsing, config validation
+- Business rules — file classification, mode-conditional behavior, conflict detection
 
-### Test-after acceptable
+**Written test-after** — thin orchestration or framework-driven surfaces, where the logic worth testing lives in
+the tested modules underneath:
 
-- **CLI command wiring** — Commander subcommand registration, option parsing
-- **Interactive prompts** — clack/prompts flow (test the logic the prompts feed into, not the
-  prompt rendering itself)
-- **Console output formatting** — post-init messaging, status display, diff formatting
-- **Glue code** — thin orchestration that calls tested modules in sequence
+- CLI command wiring — Commander subcommand registration, option parsing
+- Interactive prompts — clack/prompts flow (test the logic the prompts feed, not the rendering)
+- Console output formatting — post-init messaging, status display, diff formatting
+- Glue code — thin orchestration that sequences already-tested modules
 
-### No tests needed
-
-- **Type declarations** — `types.ts` is validated by the compiler
-- **Configuration files** — `tsconfig.json`, `tsup.config.ts`, `vitest.config.ts`
-- **Re-exports and barrel files**
-
-## The Red-Green-Refactor Loop
-
-For test-first work, follow the vertical slice pattern:
-
-```text
-1. RED:    Write ONE test for ONE behavior → test fails
-2. GREEN:  Write minimal code to make it pass → test passes
-3. REPEAT: Next behavior → RED → GREEN → ...
-4. REFACTOR: After a coherent set passes, clean up — tests must still pass
-```
-
-**Rules during the loop:**
-
-- One test at a time — don't batch tests
-- Only enough code to pass the current test — don't anticipate future tests
-- Never refactor while RED — get to GREEN first, then refactor
-- Run tests after each refactor step
-
-**Why vertical, not horizontal:** Tests written in bulk test *imagined* behavior. Tests written
-one at a time test *actual* behavior, because you just wrote the code and know exactly what
-matters. Horizontal slicing (all tests → all code) produces tests coupled to API shape rather
-than observable outcomes.
+**Not tested** — validated by the compiler or carrying no logic: type declarations (`types.ts`), configuration
+files (`tsconfig.json`, `tsup.config.ts`, `vitest.config.ts`), re-exports and barrel files.
 
 ## Mocking Rules
 
-### Mock at system boundaries only
+[`testing-standards`][testing-standards] carries the operational specifics — the concrete boundary list and the
+Vitest mock mechanics. This section keeps the rationale behind them.
 
-- **Child processes** — `git` commands via `execFile` (in unit tests; integration/e2e use real
-  git)
-- **Filesystem** — `fs` operations (in unit tests; integration/e2e use temp directories)
-- **Time** — if any logic depends on timestamps
-- **Network** — npm registry checks (version comparison)
+**Mock at system boundaries, never internals.** Mock what crosses out of our code — child processes (`git` via
+`execFile`), the filesystem, time, the npm-registry check — and use the real thing for everything we own. Don't
+mock internal modules: if testing a module against a real collaborator is hard, the interface needs redesign, not
+more mocks. And a stub that returns what the real dependency never would passes against a fiction — keep mocked
+boundaries faithful, and cover response-dependent behavior at a tier that runs the real dependency.
 
-### Never mock
+**Design for testability** is what makes boundary-only mocking possible:
 
-- **Internal modules** — don't mock `render.ts` when testing `init.ts`. Use the real module.
-  If that's hard, the interface needs redesign, not more mocks.
-- **Your own classes or utilities** — if you control it, test through it
-- **Data structures** — don't mock a manifest object; create a real one
+- **Accept dependencies, don't create them** — pass `execFile` or fs functions in rather than importing them, so
+  unit testing needs no module-internal mocking.
+- **Return results, don't produce side effects** — prefer functions that return a value; when side effects are
+  necessary, separate the computation from the I/O.
+- **Small interfaces, deep implementations** — fewer public methods means fewer tests needed and a more stable
+  API surface.
+- **Bundle dependencies as they grow** — past 3–4 injected parameters, group related ones into a typed context
+  object (e.g. `IOContext{fs,git}`), so tests construct a partial context with only the mocks they need.
 
-### Design for testability
-
-- **Accept dependencies, don't create them** — pass `execFile` or fs functions in rather than
-  importing directly. This makes unit testing possible without mocking module internals.
-- **Return results, don't produce side effects** — prefer functions that return a value over
-  functions that mutate state. When side effects are necessary (writing files), separate the
-  computation from the I/O.
-- **Small interfaces, deep implementations** — fewer public methods means fewer tests needed
-  and a more stable API surface. Hide complexity behind simple interfaces.
-- **Bundle dependencies as they grow** — individual injectable parameters are clear and explicit
-  for 2-3 dependencies. When a function needs 4+, group related dependencies into a typed
-  context object (e.g., `IOContext` with `fs` and `git` fields). This keeps signatures readable
-  without sacrificing testability — tests construct a partial context with only the mocks they
-  need.
-
-### Vitest mock mechanics
-
-- **Hoist every `vi.fn()` to an external `const`.** Never inline `vi.fn()` inside a `vi.mock(...)`
-  factory return — the factory returns arrow-function forwarders to externally-declared mocks
-  instead. Without this, a test can't reset the mock's state because it holds no reference.
-- **Use `vi.resetAllMocks()` in `beforeEach`, not `vi.clearAllMocks()`.** `clearAllMocks` wipes
-  call history but preserves `.mockResolvedValue` / `.mockImplementation` across tests, silently
-  leaking state. `resetAllMocks` clears both call state and runtime overrides.
-- **Re-establish per-test overrides after reset.** `vi.resetAllMocks()` restores `vi.fn(impl)` to
-  its original implementation rather than losing construction-time defaults. Re-apply any per-test
-  behavior in `beforeEach` — preferably via a single `resetMockDefaults()` helper at the top of the
-  file.
-
-Why this matters: mock bleed across tests produces order-dependent failures that are hard to
-diagnose and easy to paper over with ad-hoc resets. The uniform rule eliminates the footgun
-class entirely.
+**Why the mock mechanics matter:** mock bleed across tests produces order-dependent failures that are hard to
+diagnose and easy to paper over with ad-hoc resets. The uniform reset discipline codified in the method
+eliminates that footgun class — the rationale for keeping tests isolated.
 
 ## Test Naming and Organization
 
@@ -223,18 +179,9 @@ Testing fits into the tiered quality gate system from DEV-RULES.PROJECT:
 
 See [QUICK-REFERENCE][quick-ref] for the exact commands at each tier.
 
-## Key Principles Summary
-
-1. **Test behavior, not implementation** — assert on what callers observe, not internal
-   mechanics
-2. **One test, one behavior** — each test verifies one logical assertion
-3. **Tests are documentation** — test descriptions should read as a specification of what the
-   module does
-4. **Fast feedback** — unit tests in milliseconds, full suite under 30 seconds
-5. **Isolated tests** — no test depends on another test's state or execution order
-6. **Mock boundaries, not internals** — mock git and filesystem at system edges; use real
-   modules for everything you control
-
 ---
 
+[test-first]: ../../../system/methods/test-first.md
+[testing-standards]: ../../../system/methods/testing-standards.md
+[process-task-loop]: ../../../system/workflows/arc/process-task-loop.md
 [quick-ref]: ../../QUICK-REFERENCE.md
