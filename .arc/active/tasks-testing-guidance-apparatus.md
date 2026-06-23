@@ -148,13 +148,15 @@ stays a single backticked `test-first` token. (Satisfies S4, S5, S10.)
   strategy (the planning-time "both surfaces" framing was slightly stale; verified against the file). §
   Verification Phase left untouched per its separate captured errand.
 
-### `[ ]` **4.3 Keep `DEV-RULES.PROJECT` § Testing a thin pointer** (single copy)
+### `[x]` **4.3 Keep `DEV-RULES.PROJECT` § Testing a thin pointer** (single copy)
 
 - _Goal:_ The project testing rule stays a thin, always-loaded pointer to the testing method(s) and strategy —
   not fattened with operational content.
 
-- _Approach:_ Add a pointer to the new `testing-standards` method alongside the existing strategy pointer; add
-  no operational rules to the rules doc itself.
+- _Outcome:_ Rewrote the § Testing methodology pointer to name both methods (`test-first` planning-time,
+  `testing-standards` execution-time) alongside the deep-dive strategy; this also corrected the now-stale
+  description (it had listed the decision tree + Vitest mock mechanics that relocated to the methods). Added the
+  two method link defs. No operational rules added to the rules doc.
 
 ## **Phase 5:** Verification
 
