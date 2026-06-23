@@ -63,14 +63,15 @@ residual surfaces for the grounded symbol/file inventory.
   returns `nestedParentSwept`; the handler surfaces it. Suffix reads inner → outer within an `NN` (leaf `a`,
   parent `b`).
 
-### `[ ]` **1.4 Verify `abandon` out-of-band teardown + drain routed follow-up**
+### `[x]` **1.4 Verify `abandon` out-of-band teardown + drain routed follow-up**
 
 - _Goal:_ No surface describes in-verb `abandon` teardown, and the routed follow-up `decompose-matrix` filed is
   drained.
-- _Context:_ W3 reclassified — already shipped at `808213c6`. `abandon@{Planning,Active}` routes branch+worktree
-  teardown out-of-band through `arc teardown --force` (`lib/work-unit/verbs/abandon.ts` deletes a branch in-verb
-  only for `parked`), and `deactivate-work-unit.md` already documents it. No code.
-- _Note:_ The `USER-INBOX` follow-up drain is slug-matched on completion.
+- _Outcome:_ Verify-only — confirmed consistent, no changes. `abandon.ts` defers started-state
+  (`planning`/`active`) branch+worktree teardown to the out-of-band `arc teardown --force` (`IN_VERB_BRANCH_DELETE`
+  is `parked`-only); `deactivate-work-unit.md` Case A-delete (both copies) documents that staged-then-`arc teardown`
+  flow with no stale in-verb prose; and the routed `abandon@{Planning,Active}` follow-up is drained from
+  `USER-INBOX` (slug-matched on the W3 ship at `808213c6`).
 
 ## **Phase 2:** Verb-register sweep + `graduate → promote` rename
 
