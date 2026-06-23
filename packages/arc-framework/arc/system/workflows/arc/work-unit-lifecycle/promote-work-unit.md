@@ -127,7 +127,7 @@ The work unit is now a startable candidate on the ready list. When work begins, 
 [`init-work-unit`][init-work-unit] — the next rung (`planned → active`), which creates the planning branch and
 relocates the subdir into `active/`.
 
-## Related Workflows
+## Related workflows
 
 - [`init-work-unit`][init-work-unit] — succeeding ceremony; promotes a planned work unit to active.
 - [`activate-work-unit`][activate-work-unit] — flips `Planning → Active` once the spec and task list exist.

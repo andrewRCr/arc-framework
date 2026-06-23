@@ -194,15 +194,17 @@ With activation complete, proceed to task execution:
 
 **→ [process-task-loop.md](../process-task-loop.md)** — Execute tasks with quality gates.
 
-## Related Workflows
+## Related workflows
 
 - [`init-work-unit.md`][init-work-unit] — preceding ceremony; creates the WU on `plan/<name>`.
 - [`integrate-work-unit.md`][integrate-work-unit] — succeeding ceremony; PR-open through merge.
+- [`deactivate-work-unit.md`][deactivate] — the inverse; Active → Planning (undo a premature activation).
 
 ---
 
 [init-work-unit]: planning/init-work-unit.md
 [integrate-work-unit]: integrate-work-unit.md
+[deactivate]: deactivate-work-unit.md
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [branch-format]: ../../../methods/branch-format.md
 [classify-work-unit]: ../../../methods/classify-work-unit.md

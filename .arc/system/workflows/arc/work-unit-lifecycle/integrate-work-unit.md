@@ -322,6 +322,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 ## Related workflows
 
+- [`reopen-work-unit.md`](reopen-work-unit.md) — the inverse; Integrating → Active (withdraw from review).
 - [`activate-work-unit.md`](activate-work-unit.md) — preceding ceremony; Planning → Active.
 - [`archive-work-unit.md`](archive-work-unit.md) — cadence-invariant archival; invoked inline under
   `with-integration` or explicitly under `manual`.

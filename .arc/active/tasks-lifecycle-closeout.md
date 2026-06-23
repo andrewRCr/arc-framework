@@ -171,20 +171,28 @@ _Purpose:_ Close verb↔ceremony coverage by giving `reopen` the judgment-half c
 has, surface the resolver state-query where agents reach for it, and correct the drifted inbox-drain prose (gated
 on Task 1.1 landing).
 
-### `[ ]` **3.1 Author `reopen-work-unit.md` + ceremony-corpus coherence**
+### `[x]` **3.1 Author `reopen-work-unit.md` + ceremony-corpus coherence**
 
 - _Goal:_ `reopen` gains the judgment-half ceremony every other lifecycle verb has, and the integrate ceremony
   names its inverse.
 
-    - `[ ]` **3.1.a Author `reopen-work-unit.md`** (both copies)
-        - Own file — the inverse of `integrate-work-unit.md` (own-file precedent: `deactivate-work-unit.md`).
-          Drives `arc reopen [--keep-pr]`; the judgment is the withdraw-vs-stay-integrating call.
+    - `[x]` **3.1.a Author `reopen-work-unit.md`** (both copies)
+        - Authored the own-file inverse of `integrate-work-unit.md`: the withdraw-vs-stay + close/`--keep-pr`-draft
+          judgment, the `arc reopen` transition (`pr-unmerged` guard, `withdraw-pr` close/draft, cleared integration
+          `Next Action`), sync push, and resume. Footer `(maintenance)` — `reopen` has no validator-accepted
+          own-marker.
 
-    - `[ ]` **3.1.b Add the integrate → reopen inverse back-link**
-        - `integrate-work-unit.md` does not currently name its own inverse; add the back-link.
+    - `[x]` **3.1.b Add the integrate → reopen inverse back-link**
+        - Added the `reopen` line to `integrate-work-unit.md` § Related workflows (both copies).
 
-    - `[ ]` **3.1.c Audit the ceremony corpus for residual symmetry gaps**
-        - Sweep for residual coverage / inverse-pair / cross-reference gaps surfaced while in the ceremony corpus.
+    - `[x]` **3.1.c Audit the ceremony corpus for residual symmetry gaps**
+        - Swept `work-unit-lifecycle/`. Fixed one inverse-pair gap: `activate-work-unit.md` did not name its inverse
+          `deactivate` (the reverse link existed) — added it. Normalized two `## Related Workflows` headings (activate,
+          promote) to the corpus-majority lowercase form.
+
+- _Outcome:_ All four inverse pairs now cross-reference symmetrically (activate⊥deactivate, integrate⊥reopen,
+  park⊥resume, promote⊥demote). The fileless inverse `demote` is documented under `promote` § Inverse by design,
+  not a coverage gap.
 
 ### `[ ]` **3.2 Surface the resolver state-query to agents**
 
