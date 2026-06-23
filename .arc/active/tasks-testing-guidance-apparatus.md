@@ -160,37 +160,45 @@ stays a single backticked `test-first` token. (Satisfies S4, S5, S10.)
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[x]` **5.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+
+- _Quality gates:_ md lint (0 errors), code lint (ts + sh), `typecheck:all`, 3218 tests (1 skipped), build —
+  all passed.
+- _Success criteria:_ 12 criteria, all met; one with a Deviation note (`template-tasks` reframed by reference —
+  no edit needed).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A `testing-standards` method exists in both copies, declared in `process-task-loop` frontmatter,
+- `[x]` A `testing-standards` method exists in both copies, declared in `process-task-loop` frontmatter,
   self-gating (inert on no-test tasks), with a universal default and an `extend` project override matching the
   S11 partition.
-- `[ ]` `process-task-loop`'s body carries two per-task gates: the marker-keyed RGR gate (repointed to
+- `[x]` `process-task-loop`'s body carries two per-task gates: the marker-keyed RGR gate (repointed to
   `testing-standards`) and a new test-touch-keyed discipline gate that fires on every test-touching task
   regardless of marker.
-- `[ ]` `test-first` no longer appears in `process-task-loop` frontmatter; its decision tree is declared in
+- `[x]` `test-first` no longer appears in `process-task-loop` frontmatter; its decision tree is declared in
   `generate-tasks` only; the RGR discipline now lives in `testing-standards`.
-- `[ ]` The method contract supports an optional `override-mode: replace | extend` (absent ⇒ `replace`),
+- `[x]` The method contract supports an optional `override-mode: replace | extend` (absent ⇒ `replace`),
   validated by `method.ts` (out-of-enum values error) with a unit test, and documented in the methods README
   and aligned in `DEV-RULES.ARC`, `strategy-configurability-architecture`, and `strategy-session-operations`.
-- `[ ]` `testing-standards`'s `.arc/` copy declares `override-mode: extend`; package source omits the field.
-- `[ ]` `strategy-testing-methodology` no longer restates the TDD decision tree or the RGR loop; it references
+- `[x]` `testing-standards`'s `.arc/` copy declares `override-mode: extend`; package source omits the field.
+- `[x]` `strategy-testing-methodology` no longer restates the TDD decision tree or the RGR loop; it references
   the operational rules in the methods and retains the deep-dive (rationale, tier-map, worked examples,
   relocated table-stakes).
-- `[ ]` `DEV-RULES.PROJECT` § Testing remains a thin pointer to the method and strategy (not fattened).
-- `[ ]` The marker convention in `strategy-task-list-formatting` § Test-First Task Structure and
+- `[x]` `DEV-RULES.PROJECT` § Testing remains a thin pointer to the method and strategy (not fattened).
+- `[x]` The marker convention in `strategy-task-list-formatting` § Test-First Task Structure and
   `template-tasks` is reframed as method-gated and keyword-decoupled from the method name, with the RGR gloss
   removed; the marker is a single backticked `test-first` token.
-- `[ ]` No duplicated TDD decision tree or RGR loop remains across the method and strategy; the partition is
+    - **Deviation:** `strategy-task-list-formatting` was reframed in both copies; `template-tasks` needed no
+      edit — it carries no marker-convention text, only a pointer to the strategy, so the reframe reaches it by
+      reference.
+- `[x]` No duplicated TDD decision tree or RGR loop remains across the method and strategy; the partition is
   non-overlapping (decision tree → `generate-tasks` method; tier definitions → strategy; tier commands →
   `quality-gate-commands`).
-- `[ ]` The two originating-defect antidotes — "don't assert on spy / call args as the outcome" and "keep mocked
+- `[x]` The two originating-defect antidotes — "don't assert on spy / call args as the outcome" and "keep mocked
   boundaries faithful" — appear verbatim in the universal default.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
 
 [verify-work-unit]: ../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
