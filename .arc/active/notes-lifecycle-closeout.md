@@ -26,8 +26,10 @@ has a byte-identical `packages/arc-framework/arc/` mirror twin that must be edit
   Subdir" headings); scattered in `activate-work-unit.md` ("graduated to PRD"), `resume-work-unit.md`,
   `park-work-unit.md` ("reverses its graduate"), `draft-design.md`, `create-spec.md` ("graduate to `active/`").
 - Additional **live durable** surfaces found at the generate-tasks grounding pass (beyond the original cluster),
-  all in-scope: `commit-footer.md`, `classify-work-unit.md`, `template-draft.md`, `strategy-team-coordination.md`,
-  `strategy-session-operations.md`, `STRATEGY-INDEX.md`, and the `arc-inbox` skill (1 hit each). **Exempt** as
+  all in-scope: `classify-work-unit.md`, `template-draft.md`, `strategy-team-coordination.md`,
+  `strategy-session-operations.md`, `STRATEGY-INDEX.md`, and the `arc-inbox` skill (1 hit each). `commit-footer.md`'s
+  only hit is the `(graduation)` footer category — handled by Task 3.4 (ceremony-footer consistency fix → fold to
+  `(maintenance)`; the fuller reconciliation is `naming-conventions`'), **not** this prose sweep. **Exempt** as
   point-in-time historical records: `adr-019` and the `reference/supplemental/research|analysis/*` snapshots.
 - KEEP "readiness ladder" (the concept): `strategy-work-organization.md` § Readiness ladder; `init-work-unit.md`
   "readiness-ladder path". False positives to leave untouched: "graduated lookup" (`session-init.md` /

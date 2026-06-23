@@ -59,8 +59,15 @@ corpus matches the model — remains a completion-time deliverable.
   not corpus repair.
 - **The `composable-workflows` fragment cut** — the workflow-shell rewrite coordinates with it; this member does
   not design the fragment substrate.
-- **Verb _naming_ register** beyond the shipped set — final naming coordinates with `idiomatic-alignment`; the
-  `(graduation)` commit-context parenthetical is `rules-restructure`'s cascade, not this member's.
+- **Verb _naming_ register** beyond the shipped set — whether `park` should be `pause`, etc. This member documents
+  and audits the _shipped_ verbs; it does not rename them. (The naming owner is unresolved — the cohort doc and an
+  earlier draft of this spec named `idiomatic-alignment`, which actually excludes internal-vocab renaming; routed
+  to `USER-INBOX` for a home.)
+- **The commit-footer meta-category _reconciliation / enhancement_** — minting legible own-markers (`(promotion)`
+  …), the `decomposition` fork, the `(activation)` init/activate split, and the method/hook/test sync — is
+  `naming-conventions`' cascade (it owns the commit-msg hook + commit conventions and already carries the concern,
+  explicitly subsuming the `(graduation)` capture), not this member's. This member does only the bounded
+  **consistency fix** so no lifecycle workflow ships a hook-rejected footer — see § A3.
 
 ## Proposed Design
 
@@ -125,6 +132,15 @@ standalone `reopen-work-unit.md` (its own file — the inverse of `integrate-wor
 `deactivate-work-unit.md`): drives `arc reopen [--keep-pr]`, judgment = the withdraw-vs-stay-integrating call.
 Add the `integrate-work-unit.md` → `reopen` inverse back-link (the integrate ceremony does not currently name its
 own inverse). While there, audit the ceremony corpus for residual coverage/symmetry/cross-reference gaps.
+
+**Ceremony commit-footer consistency.** The promote / park / resume ceremonies prescribe
+`Context: meta-{name}.md (graduation | park | resume)` footers — none of which the `commit-msg` validator accepts
+(its meta set is `handoff | activation | integration | archival | deactivation | maintenance | incidental`), so
+each hard-fails under `commit.context_footer: required` if the ceremony is ever run. Fold all three to
+`(maintenance)` (legible, already-accepted; `decompose`'s precedent) and drop the now-orphaned `(graduation)`
+bullet from `commit-footer.md` (both copies). Bounded consistency fix only — the fuller meta-category
+reconciliation (legible own-markers, the `decomposition` / `(activation)` forks, method+hook+test sync) is
+`naming-conventions`', per Non-Goals.
 
 #### A4 — Surface the resolver state-query to agents
 
@@ -270,6 +286,8 @@ transition table) vs. a one-time manual pass is an open question.
 - W2: `integrate-work-unit` resolves entry mode from the resolver, not a hand-read of meta `**State:**`.
 - W4: a nested-parent cohort archives correctly via the `{NN}b` cascade (verified by test).
 - `reopen-work-unit.md` exists and drives `arc reopen`; `integrate-work-unit.md` links its inverse.
+- No lifecycle ceremony prescribes a footer the `commit-msg` validator rejects: promote / park / resume use
+  `(maintenance)`; `commit-footer.md` carries no orphaned `(graduation)` category.
 - The certifying audit asserts — across both copies — no documented-but-unbuilt transition, no half-migrated
   mechanic, no retired-verb description; mirror parity holds. All quality gates pass.
 

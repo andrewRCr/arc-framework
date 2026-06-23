@@ -113,11 +113,14 @@ rewritten. See `notes-lifecycle-closeout.md` § A1 for the grounded hit inventor
           (`strategy-work-organization.md`, the renamed ceremony). Hits cluster in the renamed ceremony +
           `init-work-unit.md` (Path A / "Graduate Backlog Subdir" headings); scattered in `activate-work-unit.md`,
           `resume-work-unit.md`, `park-work-unit.md`, `draft-design.md`, `create-spec.md`.
-        - Sweep the live durable surfaces the original cluster missed: `commit-footer.md`, `classify-work-unit.md`,
+        - Sweep the live durable surfaces the original cluster missed: `classify-work-unit.md`,
           `template-draft.md`, `strategy-team-coordination.md`, `strategy-session-operations.md`,
           `STRATEGY-INDEX.md`, and the `arc-inbox` skill (full grounded list in `notes-lifecycle-closeout.md`
-          § A1). Exempt the dated historical records — `adr-019` and the `reference/supplemental/research|analysis`
-          snapshots are point-in-time and stay as written.
+          § A1). `commit-footer.md`'s only hit is the `(graduation)` footer category — **not** a prose-verb rewrite;
+          the ceremony-footer consistency fix (fold to `(maintenance)`) is Task 3.4, and the fuller reconciliation
+          is `naming-conventions`'. The promote / park / resume ceremony commit-message example blocks (subject
+          verb + footer) are likewise Task 3.4, not this prose sweep. Exempt the dated historical records —
+          `adr-019` and the `reference/supplemental/research|analysis` snapshots are point-in-time and stay as written.
         - Keep "readiness ladder"; leave false positives untouched (`graduated lookup`, the release-wrapper
           "confidence ladder", `draft-* → notes-*` content-promotion usage).
 
@@ -202,6 +205,29 @@ on Task 1.1 landing).
 
     - `[ ]` **3.3.b Fix the stale code comment**
         - `lib/errand/close.ts` module-doc comment (single copy — TypeScript source).
+
+### `[ ]` **3.4 Fold lifecycle-ceremony commit footers to a validator-accepted token**
+
+- _Goal:_ No lifecycle ceremony ships instructing a commit footer the `commit-msg` validator rejects. The
+  promote / park / resume ceremonies prescribe `(graduation)` / `(park)` / `(resume)` — none in the validator's
+  meta set (`handoff | activation | integration | archival | deactivation | maintenance | incidental`), so each
+  hard-fails under `commit.context_footer: required` if run.
+- _Context:_ Bounded consistency fix only. The fuller meta-category reconciliation — legible own-markers
+  (`(promotion)` …), the `decomposition` / `(activation)` forks, and the method+hook+test sync — is
+  `naming-conventions`' (routed to `USER-INBOX`; it owns the commit-msg hook + already carries the concern).
+  `(maintenance)` is the legible, already-accepted interim (`decompose`'s precedent); see DEV-RULES.ARC § Commit
+  and PR surface language for the legibility rationale (the footer must read without ARC knowledge — `(park)` /
+  `(resume)` don't nominalize, so own-markers wait on naming-conventions).
+
+    - `[ ]` **3.4.a Fold the three ceremony commit-message blocks to `(maintenance)`** (both copies)
+        - `promote-work-unit.md`, `park-work-unit.md`, `resume-work-unit.md`: set each example commit-message block
+          to the shipped verb + a `(maintenance)` footer (e.g. `chore(arc): promote {name} to planned` /
+          `Context: meta-{name}.md (maintenance)`). This is where the ceremonies' subject-verb `graduat*` tokens
+          are rewritten too (held out of Task 2.2's prose sweep).
+
+    - `[ ]` **3.4.b Drop the orphaned `(graduation)` bullet from `commit-footer.md`** (both copies)
+        - Remove the `(graduation)` meta-category bullet — no ceremony uses it after 3.4.a and the validator never
+          accepted it. Adding any new category (e.g. `(promotion)`) stays `naming-conventions`'.
 
 ## **Phase 4:** State-model vocabulary + adjacent-strategy fold-in
 
