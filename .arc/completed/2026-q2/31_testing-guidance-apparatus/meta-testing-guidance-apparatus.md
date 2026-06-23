@@ -1,8 +1,8 @@
 # Metadata: testing-guidance-apparatus
 
-| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ------------- | --------- | --------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/testing-guidance-apparatus` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/124>
+- **Completed:** 2026-06-22
 
 ---
 
