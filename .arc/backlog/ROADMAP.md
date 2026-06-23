@@ -22,6 +22,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 |------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
+| pr-decomposition             | P1       | andrew | —          | —                           |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
