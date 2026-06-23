@@ -8,10 +8,10 @@
 - **Depends On:** `lifecycle-state-resolver`, `lifecycle-transition-core`, `decompose-matrix`, `errand-lattice`
 
 - **Origin:** [internal]
-- **Design:** `draft-lifecycle-closeout.md`
+- **Design:** `spec-lifecycle-closeout.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
