@@ -81,7 +81,9 @@ package-mirror twin under `packages/arc-framework/arc/` that must be edited in l
   rung concept, deliberately reserved). Delete the now-circular self-definitions (`"Graduation" names a
   readiness-ladder promotion`) in `strategy-work-organization.md` and the renamed ceremony. Leave false positives
   untouched (`graduated lookup` in session workflows; the confidence-ladder metaphor in the release-wrapper
-  setup; content-promotion `draft-* → notes-*` colloquial usage).
+  setup; content-promotion `draft-* → notes-*` colloquial usage). Scope: the **live durable surfaces** (workflows,
+  methods, templates, strategies, skills); the **dated historical records** — ADRs and the
+  `reference/supplemental/research|analysis` snapshots — are point-in-time and exempt.
 - **Surface `demote`** — the shipped inverse of `promote` (`arc demote`, `planned → provisional`) currently has no
   doc surface. Add it as `promote`'s inverse in the renamed ceremony and the command catalog (A4); no standalone
   ceremony (a trivial backlog-tier move).
@@ -153,7 +155,10 @@ Beyond the verb residue, `strategy-work-organization.md` needs **additions** (no
 draft's "verify-landed" assumption was wrong; this is an addition, with the interim hand-render discipline), the
 `stub` required-fields policy statement, and the protection-mode ship-layer framing. The verb-rename also folds in
 **`strategy-work-planning.md` and `strategy-planning-module.md`** (carry dense `graduation`-pipeline vocabulary —
-in-scope per the same verb-rename consistency concern). Audit `arc errand cut` (legacy verb) for removal.
+in-scope per the same verb-rename consistency concern). Remove the orphaned `arc errand cut` command: `open` is
+the sole errand entry verb, so the standalone command exposes the cut half without the mandatory occupy and has no
+correct use — deregister it (CLI + handler) and reframe `strategy-work-organization`'s § The cut→occupy invariant
+around `open`'s composed `cutErrandBranch`, which stays.
 
 ### B. Targeted wiring completions
 
@@ -169,10 +174,10 @@ provenance:
 - Add an originating-entry parameter to `OpenErrandParams` (`lib/errand/open.ts`); mint
   `origin: originEntry ? "inbox" : "description"` with the conditional `originEntry` (serialize/deserialize already
   handle it).
-- Add the producer flag to `arc errand open` (the exact surface — a `--from-inbox <entry-slug>` flag vs. a
-  dedicated `arc errand adopt` seam — is an open question) and thread it from the **adoption call-sites**, all
-  confirmed origin-blind today: `drain-inbox`, `run-errand` Launch, the warm `arc-errand` skill, and session-init's
-  `--errand`/discovery adoption (`session-init.template.md` calls bare `arc errand open <slug>`).
+- Add the `--from-inbox <entry-slug>` producer flag to `arc errand open` and thread it from the **adoption
+  call-sites**, all confirmed origin-blind today: `drain-inbox`, `run-errand` Launch, the warm `arc-errand` skill,
+  and session-init's `--errand`/discovery adoption (`session-init.template.md` calls bare `arc errand open
+  <slug>`).
 - No close-side or schema work: the consumer, the contract, and the conditional serialize already ship.
 
 #### W2 — Resolver state-query trigger rewiring (single)
@@ -235,9 +240,10 @@ transition table) vs. a one-time manual pass is an open question.
 - **Testing.** The wiring completions carry unit coverage: W1 — `arc errand open --from-inbox` mints
   `origin: "inbox"` + `originEntry`, and an inbox-drained errand's capture is dropped at `close` (the end-to-end
   drain that is dead today); W2 — `integrate-work-unit` entry dispatch resolves via the resolver; W4 — a
-  nested-parent cohort archives with the `{NN}b` cascade. The doc sweep is gated by markdown lint (zero-tolerance);
-  there is no automated check that docs match the shipped verb set — the certifying audit (C) is that check, manual
-  unless it leaves a standing guard.
+  nested-parent cohort archives with the `{NN}b` cascade. The `arc errand cut` removal adds no new test — it drops
+  the command's coverage, and `cutErrandBranch`'s own unit coverage staying green proves the internal mechanic is
+  unaffected. The doc sweep is gated by markdown lint (zero-tolerance); there is no automated check that docs match
+  the shipped verb set — the certifying audit (C) is that check, manual unless it leaves a standing guard.
 - **Package-project sync.** Every doc edit touches both the `.arc/` instance and the `packages/arc-framework/arc/`
   mirror (the pre-commit two-copy discipline applies); the audit verifies mirror parity as a closeout invariant.
 - **Migration / rollout.** No data migration; this is the cohort's integration tail. The verb rename is a
@@ -255,6 +261,8 @@ transition table) vs. a one-time manual pass is an open question.
 - `strategy-work-organization` carries the `(phase, location)` model, the derived-state vocabulary, the `Parked`
   render bucket + interim hand-render discipline, the `stub` required-fields policy, and the protection-mode
   ship-layer framing; `strategy-work-planning` / `strategy-planning-module` carry no retired `graduation` vocabulary.
+- `arc errand cut` is removed from the CLI and § The cut→occupy invariant is reframed around `open`'s composed cut;
+  the internal `cutErrandBranch` mechanic is unaffected (its existing coverage stays green).
 - W1: `arc errand open` accepts an originating-capture argument that mints `origin: "inbox"` + `originEntry`; an
   inbox-drained errand's capture is dropped at `arc errand close` (verified by test).
 - W2: `integrate-work-unit` resolves entry mode from the resolver, not a hand-read of meta `**State:**`.
@@ -265,8 +273,6 @@ transition table) vs. a one-time manual pass is an open question.
 
 ## Open Questions
 
-- **W1 producer surface** — a `--from-inbox <entry-slug>` flag on `arc errand open` vs. a dedicated
-  `arc errand adopt` seam; how each adoption call-site passes it. (Implementation detail; resolved during the work.)
 - **Audit residue** — whether C leaves a standing mechanical check (a guard asserting docs match the transition
   table) or remains a one-time manual pass.
 - **Workflow-shell boundary** — how much of the lifecycle-workflow shell rewrite is this member's vs. deferred to

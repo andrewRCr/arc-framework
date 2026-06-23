@@ -25,6 +25,10 @@ has a byte-identical `packages/arc-framework/arc/` mirror twin that must be edit
 - `graduat*` rewrite hits cluster in `graduate-work-unit.md` + `init-work-unit.md` (Path A / "Graduate Backlog
   Subdir" headings); scattered in `activate-work-unit.md` ("graduated to PRD"), `resume-work-unit.md`,
   `park-work-unit.md` ("reverses its graduate"), `draft-design.md`, `create-spec.md` ("graduate to `active/`").
+- Additional **live durable** surfaces found at the generate-tasks grounding pass (beyond the original cluster),
+  all in-scope: `commit-footer.md`, `classify-work-unit.md`, `template-draft.md`, `strategy-team-coordination.md`,
+  `strategy-session-operations.md`, `STRATEGY-INDEX.md`, and the `arc-inbox` skill (1 hit each). **Exempt** as
+  point-in-time historical records: `adr-019` and the `reference/supplemental/research|analysis/*` snapshots.
 - KEEP "readiness ladder" (the concept): `strategy-work-organization.md` § Readiness ladder; `init-work-unit.md`
   "readiness-ladder path". False positives to leave untouched: "graduated lookup" (`session-init.md` /
   `session-handoff.md`); the release-wrapper "confidence ladder"; `draft-* → notes-*` content-promotion colloquial.
@@ -68,9 +72,15 @@ has a byte-identical `packages/arc-framework/arc/` mirror twin that must be edit
 - Add to `strategy-work-organization.md`: the `(phase, location)` model + `Active`/`active` disambiguation
   (§ Work Unit State); the derived-state vocabulary + the **Parked** render bucket + interim hand-render discipline
   (§ ROADMAP render / STATUS.USER — Parked is ABSENT today, an addition, not a verify); the `stub` required-fields
-  policy statement; the protection-mode ship-layer framing (§ Branch Protection Modes). Audit `arc errand cut`
-  (legacy verb) for removal.
+  policy statement; the protection-mode ship-layer framing (§ Branch Protection Modes).
 - Fold in: `strategy-work-planning.md` and `strategy-planning-module.md` (graduation-pipeline vocabulary).
+- `arc errand cut` removal (deregister, full — settled at generate-tasks grounding). The standalone command is
+  `cli.ts:269` (`.command("cut <slug>")` → `handleErrandCut`); `handleErrandCut` + its `cutErrandBranch` import
+  are in `handlers/errand.ts` (L118 / L21). The internal `cutErrandBranch`
+  (`lib/session-init/errand-branch-cut.ts`) **stays** — composed by `openErrand` (`open.ts:67`). Reframe
+  `strategy-work-organization.md` § The cut→occupy invariant (~L1289, both copies) around `open`'s composed cut;
+  drop `handleErrandCut` test coverage, keep `cutErrandBranch`'s. Out of scope: the `review-method-family` draft's
+  colloquial "errand cut" (another WU's planning artifact).
 
 ## Verb surface-inventory bucketing
 
