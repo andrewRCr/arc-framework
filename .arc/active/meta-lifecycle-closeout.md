@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.1 — `graduate-work-unit.md → promote-work-unit.md` rename + reference repoint
-- **Next Task:** Task 2.2 — Token-triage `graduat*` + surface `demote` + session-init register parity (line ~105)
+- **Last Completed:** Task 2.3 — reconcile the "no meta-less draft" position (Phase 2 complete)
+- **Next Task:** Task 3.1 — Author `reopen-work-unit.md` + ceremony-corpus coherence (line ~162)
 - **Blockers:** [none]
 
-- **Next Action:** Continue Task 2.2 — prose verb sweep of the remaining corpus; see SESSION-NOTES for triage + rules
+- **Next Action:** Start Task 3.1 — author `reopen-work-unit.md`, the inverse of `integrate-work-unit`
 
 - **PR URL:** [none]
 - **Completed:** [none]
