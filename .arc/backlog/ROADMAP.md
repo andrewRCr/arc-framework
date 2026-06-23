@@ -21,6 +21,7 @@ _No work units in flight._
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
 | lifecycle-closeout           | P1       | andrew | —          | lifecycle-state-machine     |
+| pr-decomposition             | P1       | andrew | —          | —                           |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism           |
