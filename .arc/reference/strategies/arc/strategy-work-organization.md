@@ -1048,8 +1048,10 @@ ARC defines two branch protection modes configured in `.arc/system/arc-config.ym
 Planned work units require a branch from inception (single-branch-per-WU per
 [§ Branching](#branching)) — "from inception" governs the **tracked** work unit, the one carrying a
 `meta-{name}.md`. Pre-formalization design exploration — a `draft-*` or a spec drafted on the base
-branch before a work unit is initialized — is sanctioned under partial protection: it has no planning
-branch or meta yet, and the branch is cut when the work formalizes into a tracked WU. Routine commits
+branch before a work unit is initialized — is sanctioned under partial protection: it runs without a
+planning branch, cut when the work formalizes into a tracked WU. Its lack of a `meta-{name}.md` is
+**temporal, not a protection trait** — the meta is minted at `init` under either mode; partial protection
+shapes only the ship layer (branch/PR), never the record. Routine commits
 may go directly to the base branch as documented exceptions:
 
 - Framework maintenance: documentation updates, linting fixes

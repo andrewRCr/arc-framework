@@ -147,20 +147,23 @@ rewritten. See `notes-lifecycle-closeout.md` § A1 for the grounded hit inventor
   population (a verb-less catalog can't coherently carry `demote` alone). A residual-`graduat*` audit confirms only
   intended keeps remain (content-promotion senses, `graduated lookup`, and the Task 3.4 / 4.2.a held items).
 
-### `[ ]` **2.3 Reconcile the "no meta-less draft" position**
+### `[x]` **2.3 Reconcile the "no meta-less draft" position**
 
 - _Goal:_ The corpus states one position — a draft is always meta-bearing (a provisional/planned stub or an active
   Planning WU from inception); protection mode shapes only the ship layer (branch/PR), never the record.
 - _Note:_ This governs WU artifacts, not errands (legitimately meta-less `chore/<slug>`, owned by
   `errand-lattice`) — do not over-correct errand-no-meta language.
 
-    - `[ ]` **2.3.a Fix the real contradiction**
-        - `strategy-work-organization.md` § Partially Protected — it ties meta-lessness to partial protection
-          ("no planning branch or meta yet"); decouple it.
+    - `[x]` **2.3.a Fix the real contradiction**
+        - `strategy-work-organization.md` § Partially Protected (both copies) — decoupled meta-lessness from
+          partial protection: the passage now scopes partial protection to "no planning branch" (ship layer) and
+          frames the missing `meta-{name}.md` as **temporal, not a protection trait** — minted at `init` under
+          either mode.
 
-    - `[ ]` **2.3.b Sharpen the temporal phrasing**
-        - `draft-design.md` (two spots) — pre-WU base-drafting "no meta yet"; make the "minted at `init`" temporal
-          sense explicit so it reads as no contradiction.
+    - `[x]` **2.3.b Sharpen the temporal phrasing**
+        - `draft-design.md` (both copies, two spots) — the pre-WU base-drafting "no meta yet" notes now read
+          "minted at `init`; transient, not a meta-less draft", matching the strategy doc's reconciled position.
+          Left the errand wrapper-floor and cheap-branch "no meta" language untouched (legitimately meta-less).
 
 ## **Phase 3:** Ceremony coherence + agent-facing surfacing
 
