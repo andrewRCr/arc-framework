@@ -43,7 +43,7 @@ _Purpose:_ {what this phase delivers and why this granularity}
 
 ## **Phase N:** Verification
 
-### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **N.1 Complete verification** — load and follow `verify-work-unit.md`
 
 ---
 
@@ -53,8 +53,6 @@ _Purpose:_ {what this phase delivers and why this granularity}
 - `[ ]` {Another verifiable outcome}
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
-
-[verify-work-unit]: ../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 ```
 
 Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) appear only when the work

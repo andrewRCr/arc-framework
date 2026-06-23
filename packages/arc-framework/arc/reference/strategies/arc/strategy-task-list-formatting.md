@@ -360,11 +360,11 @@ Required final phase of every task list — a single task pointing to
 ```markdown
 ## **Phase N:** Verification
 
-### `[ ]` **N.1 Complete verification** — load and follow [`verify-work-unit.md`][verify-work-unit]
+### `[ ]` **N.1 Complete verification** — load and follow `verify-work-unit.md`
 ```
 
-Include the `[verify-work-unit]` reference-link definition with other reference links at the
-task list's end.
+The pointer is a backticked filename only — task lists are relocatable, so they carry no
+relative-path links.
 
 ---
 
