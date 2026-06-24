@@ -271,31 +271,39 @@ _Design decisions:_ The `Parked` render bucket is an _addition_ (absent today) c
 discipline — not a verify-landed item. See `notes-lifecycle-closeout.md` § A6 for the section-by-section target
 map.
 
-### `[ ]` **4.1 `strategy-work-organization` model + render-bucket additions**
+### `[x]` **4.1 `strategy-work-organization` model + render-bucket additions**
 
 - _Goal:_ `strategy-work-organization` carries the state-model vocabulary readers reach for — the
   `(phase, location)` model, derived-state names, the `Parked` render bucket, the `stub` required-fields policy,
   and the protection-mode ship-layer framing.
 
-    - `[ ]` **4.1.a Add the `(phase, location)` model + `Active`/`active/` disambiguation**
-        - § Work Unit State — the two orthogonal axes (phase = meta `State`; location = `provisional` / `planned`
-          / `active` / `completed` as a logical value), sharpest in the parked case (`State: Active` while
-          physically in `backlog/planned/`).
-        - Keep distinct from § Class Model's existing `### The two axes` (the derivation / scale Class axes) — same
-          phrase, a different pair.
+    - `[x]` **4.1.a Add the `(phase, location)` model + `Active`/`active/` disambiguation**
+        - Added `### The (phase, location) model` to § Work Unit State (both copies): phase (meta `State`) ×
+          location (logical `provisional` / `planned` / `active` / `completed`) as orthogonal axes, with the parked
+          case (`State: Active` in `backlog/planned/`) as the orthogonality demonstration and an explicit
+          `Active` (phase) vs `active/` (location) disambiguation.
+        - Distinctness from § Class Model § The two axes carried by a blockquote note (same phrase, different pair).
 
-    - `[ ]` **4.1.b Add the derived-state vocabulary + `Parked` render bucket**
-        - § ROADMAP render / STATUS.USER — the derived-state names and the `Parked` bucket (absent today) with the
-          interim hand-render discipline.
+    - `[x]` **4.1.b Add the derived-state vocabulary + `Parked` render bucket**
+        - Added `### Derived state` to § ROADMAP (both copies): the full `(phase, location)` projection
+          (`nonexistent` … `parked` … `shipped`, resolved by `arc status <slug>`) and the five render-set states
+          mapped to their tiers. The render algorithm now groups **four** tiers (Parked added), § Render standard
+          carries a Parked column set (`State` constant `Active`), and § Regeneration fire-points wires park/resume.
 
-    - `[ ]` **4.1.c Add the `stub` required-fields policy statement**
-        - Once this gives `stub` a documented home, backfill the QUICK-REFERENCE § Lifecycle Verbs `stub` entry
-          (both copies): repoint its self-contained "no ceremony" note to that policy section, bringing `stub` to
-          the same "no ceremony — see X" form as the other judgment-light verbs (Task 3.2.a left it self-contained
-          to avoid a forward-reference to this then-unbuilt section).
+    - `[x]` **4.1.c Add the `stub` required-fields policy statement**
+        - Added `### Stub required fields` to § Work Unit State (both copies): the create edge requires the judgment
+          values supplied (commitment, priority; resolved `Class` at `planned`) and fabricates none. Backfilled the
+          QUICK-REFERENCE § Lifecycle Verbs `stub` entry (both copies) to the "no ceremony — see X" form, repointing
+          to the new section.
 
-    - `[ ]` **4.1.d Add the protection-mode ship-layer framing**
-        - § Branch Protection Modes — protection shapes the ship layer (branch/PR), never the record.
+    - `[x]` **4.1.d Add the protection-mode ship-layer framing**
+        - Elevated the ship-layer/record split to a general § Branch Protection Modes principle (both copies):
+          protection governs how work _ships_ (branch/PR vs. direct commit), never the `(phase, location)` record —
+          identical meta and lifecycle under either mode.
+
+- _Outcome:_ Four new subsections land the state-model vocabulary in `strategy-work-organization` (both copies),
+  with the `stub` QUICK-REFERENCE entry backfilled to match; the Parked render bucket is now part of the durable
+  render contract (algorithm, column set, and regeneration fire-points), no longer only in the cohort doc.
 
 ### `[ ]` **4.2 Adjacent-strategy verb fold-in + `arc errand cut` removal**
 

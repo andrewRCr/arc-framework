@@ -198,7 +198,7 @@ design, not a missing ceremony.
 # Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
 arc status <slug> [--json]
 
-# Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields enforced by the command)
+# Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
 arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
 
 # Start a work unit — spawn a worktree on plan/<name>, or graduate a backlog stub in place (init-work-unit.md)
