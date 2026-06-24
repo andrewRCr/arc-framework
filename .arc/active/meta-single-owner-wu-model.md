@@ -12,11 +12,11 @@
 - **Task List:** `tasks-single-owner-wu-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Reframe § Task Ownership to § Ownership keyed on the meta Owner field (line ~21)
+- **Last Completed:** Task 2.2 — Retire the `(@name)` marker convention from task-list formatting
+- **Next Task:** Task 3.1 — Split welded passages + reconcile cross-refs in `strategy-work-organization.md` (line ~138)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — start Phase 1 via process-task-loop
+- **Next Action:** Begin Task 3.1 — start Phase 3 via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
