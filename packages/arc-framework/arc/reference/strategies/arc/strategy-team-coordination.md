@@ -374,7 +374,7 @@ Mechanisms:
   checkout. Useful for ad-hoc reference but ergonomically rough as a steady-state pattern.
 - **Explicit sequencing:** If a WU pair's coupling is tight enough that planning-state drift would
   cause real downstream rework, treat that as a signal to either (a) merge the WUs into one, or
-  (b) bring the coupling to the team for explicit sequencing decision (one WU graduates to
+  (b) bring the coupling to the team for explicit sequencing decision (one WU advances to
   execution before the other begins planning).
 
 For most teams, out-of-band coordination is sufficient. Codified inter-WU sync primitives are a

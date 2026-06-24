@@ -39,10 +39,10 @@ sections, sweep + ROADMAP regen, and push the final pre-merge state.
 ### 1) Pre-conditions + entry mode (fresh vs. resume)
 
 `Integrating` is a suspendable point: a session can enter it, hand off across the review wait, and a later
-session — or machine — re-enters here. Resolve the entry mode from `active/meta-{name}.md`'s `**State:**` before
-doing anything else.
+session — or machine — re-enters here. Resolve the entry mode from the resolver — `arc status {name} --json` —
+before doing anything else: its derived `state` reads `active` for a fresh entry, `integrating` for a resume.
 
-#### Fresh entry — `**State:** Active`
+#### Fresh entry — resolver `state: active`
 
 Verify the integration context:
 
@@ -80,7 +80,7 @@ Context: meta-{name}.md (integration)
 
 Proceed to Step 2.
 
-#### Resume entry — `**State:** Integrating` (re-entry guard)
+#### Resume entry — resolver `state: integrating` (re-entry guard)
 
 The transition already ran in a prior session (or the merge landed unattended). **Skip the state transition and
 every pre-PR / PR-open step that already ran** — re-enter at the first incomplete tail step. Resolve the resume
@@ -322,6 +322,7 @@ on the auto-merge lane). The workflow continues to `## Next step` normally.
 
 ## Related workflows
 
+- [`reopen-work-unit.md`](reopen-work-unit.md) — the inverse; Integrating → Active (withdraw from review).
 - [`activate-work-unit.md`](activate-work-unit.md) — preceding ceremony; Planning → Active.
 - [`archive-work-unit.md`](archive-work-unit.md) — cadence-invariant archival; invoked inline under
   `with-integration` or explicitly under `manual`.

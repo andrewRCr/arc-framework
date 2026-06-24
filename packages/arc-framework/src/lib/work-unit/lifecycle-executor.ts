@@ -127,10 +127,21 @@ export const DEFAULT_GUARD_VALIDATORS: Partial<Record<GuardId, GuardValidator>> 
     inputs.confirmed === true
       ? { ok: true }
       : { ok: false, message: "destructive transition requires explicit confirmation — refusing (safe default)." },
-  "pr-unmerged": ({ inputs }) =>
-    inputs.prMerged === true
+  "pr-unmerged": ({ inputs }) => {
+    // Refuse unless the PR is positively confirmed unmerged — a safe default
+    // matching the other guards. An unconfirmable merge state (`gh`/remote
+    // unavailable) refuses rather than risk reopening a shipped WU: the
+    // withdraw-pr leg needs `gh` anyway, so degrading open would only flip the
+    // meta locally and strand a half-done reopen.
+    if (inputs.prMerged === false) return { ok: true };
+    return inputs.prMerged === true
       ? { ok: false, message: "the PR has already merged — back out via a new origin-linked WU, not `reopen`." }
-      : { ok: true },
+      : {
+          ok: false,
+          message:
+            "the PR's merge state can't be confirmed (`gh`/remote unavailable) — resolve it and retry; `reopen` refuses rather than reopen on an unverifiable merge state.",
+        };
+  },
 };
 
 // ---------------------------------------------------------------------------

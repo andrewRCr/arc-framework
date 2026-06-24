@@ -134,10 +134,11 @@ export function buildExecutorContext(deps: ExecutorContextDeps): ExecuteTransiti
 
   // `reopen` withdraws the WU's open PR — close it (default) or convert it back to a
   // draft (`--keep-pr`). A `gh` write: resolve the head branch from the meta, then
-  // run the op. The `pr-unmerged` guard already refused a merged PR upstream, so a
-  // failure here means `gh` is absent / unauthenticated / offline — degrade to an
-  // advisory rather than throwing, so the already-applied `Integrating → Active`
-  // flip isn't left mid-transition (the operator finishes the withdrawal by hand).
+  // run the op. The `pr-unmerged` guard already cleared this WU on a positively
+  // *unmerged* PR (so `gh` answered at guard time), so a failure here is a fresh /
+  // transient `gh` outage — degrade to an advisory rather than throwing, so the
+  // already-applied `Integrating → Active` flip isn't left mid-transition (the
+  // operator finishes the withdrawal by hand).
   const withdrawPrHandler: SideEffectHandler = async ({ slug, inputs }) => {
     const { Branch: branch } = parseMetaRecord(await io.readFile(at(`.arc/active/meta-${slug}.md`)));
     const mode = inputs.prWithdrawMode ?? "close";

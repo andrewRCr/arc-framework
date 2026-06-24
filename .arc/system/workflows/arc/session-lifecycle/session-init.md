@@ -257,7 +257,8 @@ Errand in place — no cross-worktree hop, since the primary worktree is where a
    adopt that capture as the originating entry. Launch classifies errand-vs-Work-Unit (with the stop-and-route
    exit when the work is really a Work Unit), runs the advisory `arc errand check` overlap, and resolves the
    base + relocates by opening the `chore/<slug>` branch off `branch.base` (default `main`) via
-   `arc errand open <slug>` (folds cut→occupy) in this worktree;
+   `arc errand open <slug>` (folds cut→occupy; add `--from-inbox <entry-title>` when the seed is a flagged
+   capture, so the adopted entry drops at `arc errand close`) in this worktree;
    its Execute phase runs the Errand as a normal review increment.
 4. **Orient on the Errand.** Frame the Step 6 summary on the Errand — its goal, the `chore/<slug>` branch, and
    any coordination caveat — rather than on a work unit, then continue into the Errand as the session's work.
@@ -466,7 +467,8 @@ planning session, assess readiness for the next unit:
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
 2. Check `.arc/backlog/` for existing artifacts (PRDs, `draft-*` docs) matching that item
 3. Report what exists and its readiness state in orientation
-4. Propose next steps; ask for confirmation before proceeding
+4. Propose next steps (typically `arc start` to initialize the chosen unit, or continue drafting); ask for
+   confirmation before proceeding
 
 When the surface presents more than one candidate, load [`assess-parallel-fit`][assess-parallel-fit] on-demand —
 it is deliberately **not** declared in this workflow's frontmatter, so it loads only on the arms that read overlap,
@@ -487,9 +489,9 @@ deliberately.
 ```
 
 > **Full protection (`branch.protection: full`):** Planning work requires a branch. When the user confirms
-> next steps, run [init-work-unit][init-work-unit] before creating draft documents or PRDs.
-> Under partial protection (the default), proceed directly to [create-spec.md][create-spec] — no planning
-> branch needed.
+> next steps, initialize the chosen unit via [init-work-unit][init-work-unit] (`arc start`) — scaffolding its
+> planning branch and meta — before drafting or spec work. Under partial protection (the default), proceed
+> directly to [create-spec.md][create-spec] — no planning branch needed.
 
 ## 6. Confirm Orientation
 

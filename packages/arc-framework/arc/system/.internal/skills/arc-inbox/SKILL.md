@@ -78,4 +78,4 @@ executing them is `arc-session`'s.
    - **Homeless errand-class item** — one with no determinable home still captures to `## Errand` here; it
      transits to the shared `backlog/ATOMIC-INBOX.md` at the next drain. Never write the shared inbox
      directly from a capture — it is drain-written only (write isolation). The shared inbox is
-     errand-class-only; spec-worthy work always graduates to a stub instead.
+     errand-class-only; spec-worthy work always becomes a stub instead.

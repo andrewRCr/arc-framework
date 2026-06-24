@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0d872926`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `3e566401`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,7 +12,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-_No work units in flight._
+_None in flight._
 
 ## Ready
 
@@ -20,7 +20,6 @@ _No work units in flight._
 |------------------------------|----------|--------|------------|-----------------------------|
 | coord-probe                  | P1       | andrew | —          | cross-machine-coherence     |
 | cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence     |
-| lifecycle-closeout           | P1       | andrew | —          | lifecycle-state-machine     |
 | pr-decomposition             | P1       | andrew | —          | —                           |
 | roadmap-tooling              | P1       | andrew | —          | —                           |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization  |
@@ -71,15 +70,15 @@ _No work units in flight._
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                            | Cohort                     |
-|-------------------------------|----------|--------|-------------------------------------------------------------------------------------------------------|----------------------------|
-| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry, lifecycle-closeout | agile-parallelism          |
-| unit-scoped-review            | P2       | andrew | commit-increments                                                                                     | approval-flow-refinement   |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                  | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                  | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                     | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                                                                        | Cohort                     |
+|-------------------------------|----------|--------|-----------------------------------------------------------------------------------|----------------------------|
+| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                                 | approval-flow-refinement   |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                            | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                            | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                 | release-readiness          |
 
 ### Depth 2
 

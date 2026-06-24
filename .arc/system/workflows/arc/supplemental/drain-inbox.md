@@ -172,7 +172,10 @@ write.
 ### 6. Execution transition — committed atomics → `run-errand`
 
 For each **execute-now** atomic, hand off to the [`run-errand`][run-errand] lifecycle — the drain never executes
-atomic work itself. Two explicit paths, the user's choice by context budget (never a structural gate):
+atomic work itself. The atomic's `USER-INBOX` entry is the errand's **originating capture**: pass it to
+`run-errand` so its `arc errand open --from-inbox <entry-title>` mints an `inbox`-origin record, and the entry
+drops at the errand's `close` off that back-pointer rather than being orphaned. Two explicit paths, the user's
+choice by context budget (never a structural gate):
 
 - **Same session** — transition into `run-errand`, then **return here for the next**. Run the committed atomics
   **one at a time, sequentially** (batch only when they are genuinely one concern). `run-errand`'s Launch
@@ -185,9 +188,9 @@ atomic work itself. Two explicit paths, the user's choice by context budget (nev
 - **Fresh session** — leave the execute-now atomics in place and resume each via `arc-session --errand` later;
   the drain still closes (§ 7) with those entries triaged-but-pending.
 
-**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the slug-matched
-`USER-INBOX` line is removed at the errand's **completion** (merge) — asynchronous on the auto-merge lane,
-review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
+**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the `USER-INBOX` line
+the errand record back-points to is removed at the errand's **completion** (merge) — asynchronous on the
+auto-merge lane, review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
 in-flight-errand sweep is the backstop against orphaning (an abandoned errand keeps both its line and its pushed
 branch — both swept). On an _unattended_ merge (auto-merge lane), `run-errand`'s completion does not fire
 in-session; teardown and line-removal are replayed from base context by the same-session finalize pass or, next

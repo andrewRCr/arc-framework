@@ -30,6 +30,12 @@ export interface OpenErrandParams {
   type?: ErrandBranchType;
   /** Free-text concern; defaults to the slug when omitted or blank. */
   intent?: string;
+  /**
+   * Originating `USER-INBOX` capture slug, when the errand is adopted from a
+   * drained capture. Its presence makes the record `inbox`-origin and is the
+   * back-pointer `arc errand close` drops; absent for a free-description launch.
+   */
+  originEntry?: string;
   /** ISO-8601 launch timestamp — injected so the core stays deterministic. */
   createdAt: string;
 }
@@ -54,7 +60,7 @@ export interface OpenErrandResult {
  * open always lands the session on the errand branch.
  *
  * @param io - Injected git seams and identity.
- * @param params - The errand slug, base, nature-type, intent, and launch time.
+ * @param params - The errand slug, base, nature-type, intent, originating capture, and launch time.
  * @returns The minted record, whether the branch was created, and the push outcome.
  */
 export async function openErrand(
@@ -70,13 +76,16 @@ export async function openErrand(
   );
 
   const intent = params.intent?.trim();
+  const originEntry = params.originEntry?.trim();
+  const adopted = originEntry !== undefined && originEntry !== "";
   const record: ErrandRecord = {
     version: 1,
     slug,
-    origin: "description",
+    origin: adopted ? "inbox" : "description",
     intent: intent !== undefined && intent !== "" ? intent : slug,
     branch: cut.branch,
     createdAt: params.createdAt,
+    ...(adopted ? { originEntry } : {}),
   };
   await writeErrandRecord(io, record);
   const push = await reconcileErrandPush(io);

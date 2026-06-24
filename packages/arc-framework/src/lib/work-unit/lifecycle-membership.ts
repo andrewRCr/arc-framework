@@ -86,3 +86,43 @@ export function isArchivalTriggered(index: LifecycleIndex, cohort: string): bool
   const members = cohortMembers(index, cohort);
   return members.length > 0 && members.every((entry) => entry.location === "completed");
 }
+
+/**
+ * The index entries that belong to `cohort` **transitively** — its direct
+ * members (`**Cohort:**` equals `cohort`) plus the members of any subcohort
+ * nested beneath it (`**Cohort:**` begins with `cohort/`). The trailing-slash
+ * prefix keeps a sibling that merely shares a textual prefix (`cohort-other`)
+ * out of the set. Bounded by the two-segment cohort-path cap, so the walk reaches
+ * one level of subcohort — the full descendant set of a nested-parent cohort.
+ */
+function cohortMembersWithDescendants(index: LifecycleIndex, cohort: string): LifecycleIndexEntry[] {
+  const prefix = `${cohort}/`;
+  const members: LifecycleIndexEntry[] = [];
+  for (const entry of index.values()) {
+    if (entry.cohort === null) continue;
+    if (entry.cohort === cohort || entry.cohort.startsWith(prefix)) members.push(entry);
+  }
+  return members;
+}
+
+/**
+ * Whether a (possibly nested-parent) cohort's archival trigger has fired,
+ * counting descendants transitively: a nested parent is complete only when
+ * **every** direct member *and* every subcohort member has shipped. The
+ * location-dominant, non-empty-set semantics match {@link isArchivalTriggered};
+ * for a leaf cohort with no subcohorts the two are identical (the descendant set
+ * collapses to the direct members). A pure container with only subcohorts (no
+ * direct members) still trips once its subcohorts ship.
+ *
+ * This is the trigger the nested-parent archival cascade reads — both the leaf
+ * sidecar sweep (so a parent doc is never swept while a subcohort lingers) and
+ * the `{NN}b` parent-doc sweep.
+ *
+ * @param index - The lifecycle-complete index from `buildLifecycleIndex`.
+ * @param cohort - The cohort path to test (typically a nested-parent segment).
+ * @returns Whether every transitive member of a non-empty cohort has shipped.
+ */
+export function isArchivalTriggeredWithDescendants(index: LifecycleIndex, cohort: string): boolean {
+  const members = cohortMembersWithDescendants(index, cohort);
+  return members.length > 0 && members.every((entry) => entry.location === "completed");
+}

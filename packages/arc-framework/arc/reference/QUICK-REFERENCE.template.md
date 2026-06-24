@@ -188,6 +188,63 @@ arc init --reconfigure --dry-run
 arc update
 ```
 
+### Lifecycle Verbs
+
+The complete work-unit lifecycle command set — the full verb index. The `work-unit-lifecycle/` workflow files
+cover only the judgment-bearing subset, so a verb with no workflow file (`demote`, `teardown`, `stub`) is by
+design, not a missing ceremony.
+
+```bash
+# Resolve one work unit's lifecycle state — (phase, location), derived enum, predicates, dep-edges
+arc status <slug> [--json]
+
+# Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
+arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
+
+# Start a work unit on a plan/<name> branch, fresh or from a backlog stub — spawns a worktree (--here uses the current checkout) (init-work-unit.md)
+arc start [name] [--here] [--from <pointer-or-blurb>]
+
+# Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)
+arc promote <slug>
+# Demote a planned stub back to provisional — no ceremony (see promote-work-unit.md § Inverse)
+arc demote <slug>
+
+# Activate a planning WU: Planning → Active (activate-work-unit.md)
+arc activate [slug] --type <type> --task <first task> --action <next action>
+# Deactivate a premature activation: Active → Planning (deactivate-work-unit.md)
+arc deactivate [slug]
+
+# Park a started WU off the active set (park-work-unit.md)
+arc park [slug] --reason <text>
+# Resume a parked WU's preserved branch (resume-work-unit.md)
+arc resume [slug] [--here]
+
+# Open review: Active → Integrating, marks phase entry not the merge (integrate-work-unit.md)
+arc integrate [slug] --last-completed <work> --action <next action>
+# Withdraw from review: Integrating → Active (reopen-work-unit.md)
+arc reopen [slug] [--keep-pr]
+
+# Split one WU into a cohort of members per a cut-map (decompose-work-unit.md)
+arc decompose <origin> --cut-map <file>
+
+# Abandon a pre-merge WU — artifacts, branch, worktree; prints the impact plan (deactivate-work-unit.md § Case A-delete)
+arc abandon <slug> --yes
+
+# Sweep a shipped WU to completed/ (archive-work-unit.md)
+arc archive [slug] [--pr-url <url>] [--completed <date>]
+# Post-merge cleanup — reap branch, remove worktree, prune refs — no ceremony (invoked from integrate-work-unit.md Step 13)
+arc teardown <name> [--force]
+
+# Classify the planning-entry route — committable, or redirect to start / stub / errand
+arc plan check
+
+# Errand lifecycle — chore/<slug> branch, no meta (run-errand.md)
+arc errand open <slug> [--type <fix|chore|refactor|hotfix>] [--intent <text>] [--from-inbox <entry>]
+arc errand close <slug>
+arc errand promote <slug>
+arc errand retire <slug>
+```
+
 ### Session State Portability
 
 ```bash

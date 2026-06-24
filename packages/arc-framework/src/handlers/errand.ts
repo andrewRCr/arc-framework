@@ -18,7 +18,6 @@ import * as p from "@clack/prompts";
 import { runActiveInFlight } from "../commands/active.js";
 import { detectForeignArtifactOverlap, projectInFlightToOverlapRoster } from "../lib/git/index.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
-import { cutErrandBranch } from "../lib/session-init/errand-branch-cut.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import {
@@ -106,48 +105,18 @@ export async function handleErrandCheck(opts: ErrandCheckOptions): Promise<void>
   p.outro("Done.");
 }
 
-/**
- * Cut the `chore/<slug>` errand branch off the configured `branch.base`.
- *
- * The create-side launch mechanic — the workflows (run-errand Launch, the
- * session-init errand cold-entry, drain-inbox's grooming-branch relocation)
- * invoke it instead of hand-running `git branch`. Idempotent: an existing
- * branch of that name is left as-is (no-clobber). Occupying the branch (a
- * worktree or an in-place switch) stays the caller's protection-mode dispatch.
- */
-export async function handleErrandCut(slug: string): Promise<void> {
-  p.intro("arc errand cut");
-
-  const cwd = requireArcProjectRoot();
-  if (!cwd) return;
-
-  const { settings } = await readConfigSettings(cwd);
-  const base = settings["branch.base"].trim();
-  if (base === "") {
-    p.log.error("No branch.base configured — cannot resolve the base to cut from.");
-    process.exitCode = 1;
-    return;
-  }
-
-  try {
-    const result = await cutErrandBranch({ exec: gitExec }, { slug, base });
-    if (result.created) p.log.success(`Cut ${result.branch} off ${base}.`);
-    else p.log.info(`${result.branch} already exists; left as-is (no-clobber).`);
-  } catch (err) {
-    p.log.error(`Could not cut the errand branch: ${err instanceof Error ? err.message : String(err)}`);
-    process.exitCode = 1;
-    return;
-  }
-
-  p.outro("Done.");
-}
-
 /** Options for the `arc errand open` subcommand. */
 export interface ErrandOpenOptions {
   /** Branch nature-type (`fix` / `chore` / `refactor` / `hotfix`); defaults to `chore`. */
   type?: string;
   /** Free-text statement of the errand's concern; defaults to the slug. */
   intent?: string;
+  /**
+   * Originating `USER-INBOX` capture this errand adopts (its bold title). Marks
+   * the record `inbox`-origin so `arc errand close` drops the capture; omitted
+   * for a free-description launch.
+   */
+  fromInbox?: string;
 }
 
 /**
@@ -158,6 +127,10 @@ export interface ErrandOpenOptions {
  * commit with no branch and no record, so `open` refuses there. The record push
  * is non-fatal: a failure records the errand partial-push marker (the same
  * machinery `arc sync` reconciles) rather than aborting the open.
+ *
+ * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the record is
+ * minted `inbox`-origin with the capture as its back-pointer, so `arc errand
+ * close` drops that capture instead of orphaning it.
  */
 export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): Promise<void> {
   p.intro("arc errand open");
@@ -207,7 +180,7 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   try {
     result = await openErrand(
       { exec: io.exec, execInput: io.execInput, identity },
-      { slug, base, type, intent: opts.intent, createdAt: new Date().toISOString() },
+      { slug, base, type, intent: opts.intent, originEntry: opts.fromInbox, createdAt: new Date().toISOString() },
     );
   } catch (err) {
     p.log.error(`Could not open the errand: ${err instanceof Error ? err.message : String(err)}`);
@@ -233,7 +206,12 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   }
 
   const cutVerb = result.branchCreated ? "cut" : "reused";
-  p.log.success(`Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place.`);
+  const adopted = result.record.origin === "inbox"
+    ? ` — adopted inbox capture '${result.record.originEntry ?? ""}'`
+    : "";
+  p.log.success(
+    `Opened errand '${slug}' — ${cutVerb} ${result.record.branch}, record minted, occupied in place${adopted}.`,
+  );
   p.outro("Done.");
 }
 
@@ -245,7 +223,7 @@ export interface ErrandCloseOptions {
 
 /**
  * Close an errand: reap its branch (containment-safe), remove the identity
- * record and push the removal, then drop the slug-matched inbox capture.
+ * record and push the removal, then drop the originating inbox capture.
  *
  * A full-protection verb, like `open`. The reap refuses (record kept) when the
  * branch's commits are not provably preserved, so an abandoned errand stays

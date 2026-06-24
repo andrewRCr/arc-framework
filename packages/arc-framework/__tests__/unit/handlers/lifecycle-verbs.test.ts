@@ -434,12 +434,18 @@ describe("handleReopen", () => {
     expect(process.exitCode).toBe(1);
   });
 
-  it("degrades the merge fact to undefined when gh is unavailable, still reopening", async () => {
+  it("forwards an undefined merge fact when gh is unavailable, surfacing the guard's refusal", async () => {
     mockPrSource.mockRejectedValueOnce(new Error("gh: command not found"));
+    mockRunReopen.mockResolvedValueOnce({
+      status: "rejected",
+      reason: "the PR's merge state can't be confirmed (`gh`/remote unavailable) — resolve it and retry.",
+    });
     await handleReopen("foo", {});
     expect(mockRunReopen).toHaveBeenCalledTimes(1);
     expect(mockRunReopen.mock.calls[0]?.[1]?.prMerged).toBeUndefined();
     expect(mockRunReopen.mock.calls[0]?.[1]).toMatchObject({ name: "foo", withdrawMode: "close" });
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 
   it("defaults a bare invocation to the current worktree's WU", async () => {

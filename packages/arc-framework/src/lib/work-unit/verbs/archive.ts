@@ -22,16 +22,19 @@
  *
  * When the archived member is the **last** of its cohort, the same sweep also
  * relocates the coordinating `cohort-<leaf>.md` into a `NNa_cohort-<leaf>`
- * closeout sidecar (see {@link sweepCohortDoc}). Detection is the resolver's
- * (`isArchivalTriggered`) — this verb consumes the predicate over the post-move
- * index and performs the `git mv`; it never re-derives membership.
+ * closeout sidecar (see {@link sweepCohortDoc}); and when that member is nested
+ * and the ship also closes out its parent cohort, the parent's `cohort-<parent>.md`
+ * follows into a `NNb_cohort-<parent>` sidecar (see {@link sweepNestedParentDoc}).
+ * Detection is the resolver's (`isArchivalTriggeredWithDescendants`, which counts
+ * subcohort members transitively) — this verb consumes the predicate over the
+ * post-move index and performs the `git mv`; it never re-derives membership.
  *
  * @module
  */
 
 import { join } from "node:path";
 
-import { cohortLeaf, isSafeCohortPath } from "../../active/cohort-path.js";
+import { cohortLeaf, cohortParent, isSafeCohortPath } from "../../active/cohort-path.js";
 import { parseMetaRecord, type MetaFieldName } from "../../active/meta-reader.js";
 import {
   computeArchiveDestination,
@@ -40,7 +43,7 @@ import {
   type CompletedIndexFs,
 } from "../completed-index.js";
 import { buildLifecycleIndex, type LifecycleIndex } from "../lifecycle-index.js";
-import { isArchivalTriggered } from "../lifecycle-membership.js";
+import { isArchivalTriggeredWithDescendants } from "../lifecycle-membership.js";
 import {
   executeTransition,
   type ExecuteTransitionContext,
@@ -94,6 +97,12 @@ export type ArchiveResult =
        * member, or `null` when the WU is standalone or members remain in flight.
        */
       cohortSwept: string | null;
+      /**
+       * The relocated nested-parent cohort-doc path when this archive also closed
+       * out the shipping member's nested parent (the `{NN}b` cascade), or `null`
+       * when the member is not nested or the parent has members still in flight.
+       */
+      nestedParentSwept: string | null;
       /** Non-fatal advisories (e.g. the absent-`--pr-url` backfill notice). */
       warnings: string[];
     };
@@ -172,13 +181,15 @@ export async function runArchive(ctx: ArchiveContext, params: ArchiveParams): Pr
   // predicate reads the post-move state, then sweep the cohort doc if this was the
   // last member to ship.
   const postIndex = await buildLifecycleIndex({ cwd: executor.cwd, fs: executor.indexFs });
-  const cohortSwept = await sweepCohortDoc(executor.relocateArtifacts, postIndex, {
+  const sweepArgs = {
     cohort: record.Cohort,
     quarter: destination.quarter,
     sequence: destination.sequence,
-  });
+  };
+  const cohortSwept = await sweepCohortDoc(executor.relocateArtifacts, postIndex, sweepArgs);
+  const nestedParentSwept = await sweepNestedParentDoc(executor.relocateArtifacts, postIndex, sweepArgs);
 
-  return { status: "archived", outcome, metaPath, destination, cohortSwept, warnings };
+  return { status: "archived", outcome, metaPath, destination, cohortSwept, nestedParentSwept, warnings };
 }
 
 /** The placeholder `PR URL` written when `--pr-url` is absent — a bare sentinel, backfilled later. */
@@ -221,10 +232,50 @@ export async function sweepCohortDoc(
   // (`..` traversal, a leading `/`, a backslash, or a Windows drive). No-op,
   // matching the empty/sentinel skip above — never construct the path or sweep.
   if (!isSafeCohortPath(field)) return null;
-  if (!isArchivalTriggered(index, field)) return null;
+  // Descendants-aware so a nested parent (when the member's field IS the parent)
+  // is held back until its subcohorts ship; for a leaf this is exact membership.
+  if (!isArchivalTriggeredWithDescendants(index, field)) return null;
 
   const leaf = cohortLeaf(field);
   const toDir = `.arc/completed/${quarter}/${sequence}a_cohort-${leaf}`;
   const { moved } = await relocate({ slug: leaf, fromDir: `.arc/backlog/planned/${field}`, toDir });
   return moved.length > 0 ? `${toDir}/cohort-${leaf}.md` : null;
+}
+
+/**
+ * Sweep a nested member's coordinating **parent** `cohort-<parent>.md` into a
+ * `NNb_cohort-<parent>` closeout sidecar when archiving that member also closes
+ * out its nested parent — the parent's archival trigger has fired transitively
+ * (every direct and subcohort member shipped). The `{NN}b` suffix shares the
+ * member's completion-order number, sorting just after the `{NN}a` leaf sidecar
+ * the same archive produced (inner → outer within one `NN`).
+ *
+ * A no-op when the field is standalone / the `[none]` sentinel, single-segment
+ * (no parent to sweep), unsafe to interpolate into a path, or when the parent
+ * still has members in flight. Mirrors {@link sweepCohortDoc}'s path-safety and
+ * post-move-index contract.
+ *
+ * @param relocate - The pre-bound `relocate-artifacts` mutator.
+ * @param index - The post-move lifecycle index.
+ * @param args - The archived member's cohort field and the sidecar's quarter / NN.
+ * @returns The relocated parent cohort-doc path, or `null` when the sweep did not fire.
+ */
+export async function sweepNestedParentDoc(
+  relocate: ExecuteTransitionContext["relocateArtifacts"],
+  index: LifecycleIndex,
+  args: { cohort: string | null; quarter: string; sequence: string },
+): Promise<string | null> {
+  const { cohort, quarter, sequence } = args;
+  if (cohort === null) return null;
+  const field = cohort.trim();
+  if (field === "" || field === NONE_SENTINEL) return null;
+  if (!isSafeCohortPath(field)) return null;
+
+  const parent = cohortParent(field);
+  if (parent === null) return null;
+  if (!isArchivalTriggeredWithDescendants(index, parent)) return null;
+
+  const toDir = `.arc/completed/${quarter}/${sequence}b_cohort-${parent}`;
+  const { moved } = await relocate({ slug: parent, fromDir: `.arc/backlog/planned/${parent}`, toDir });
+  return moved.length > 0 ? `${toDir}/cohort-${parent}.md` : null;
 }

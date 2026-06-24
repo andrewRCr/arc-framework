@@ -680,7 +680,7 @@ allowing legacy absence, and avoid one-off migration helpers until repeated proj
 maintenance surface.
 
 **Disposition at integration.** [`integrate-work-unit.md`][integrate-plan] routes by
-graduated / shelved: graduated leaves the file in place for `activate-work-unit` to transition;
+advanced / shelved: advanced leaves the file in place for `activate-work-unit` to transition;
 shelved removes the file (no WU follows; no pointer needed).
 
 ---

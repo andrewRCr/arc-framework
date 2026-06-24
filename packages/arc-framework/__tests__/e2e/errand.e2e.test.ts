@@ -60,47 +60,6 @@ describe("arc errand check", () => {
   });
 });
 
-describe("arc errand cut", () => {
-  let tmpDir: string;
-
-  beforeEach(async () => {
-    tmpDir = await createTempRepo();
-    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
-    expect(init.exitCode).toBe(0);
-    // The base (`main`) needs a tip to fork from. `--no-verify` skips the
-    // project hooks `arc init` installs (the fixture message is not under test).
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "init"]);
-  });
-
-  afterEach(async () => {
-    await cleanupTempDir(tmpDir);
-  });
-
-  it("cuts chore/<slug> off branch.base, at the base's tip", async () => {
-    const result = await runArc(["errand", "cut", "fix-typo"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
-    expect(await git(tmpDir, ["branch", "--list", "chore/fix-typo"])).toContain("chore/fix-typo");
-    const choreSha = (await git(tmpDir, ["rev-parse", "chore/fix-typo"])).trim();
-    const mainSha = (await git(tmpDir, ["rev-parse", "main"])).trim();
-    expect(choreSha).toBe(mainSha);
-  });
-
-  it("is a no-clobber no-op when the branch already exists — the ref is not moved", async () => {
-    await runArc(["errand", "cut", "fix-typo"], tmpDir);
-    const before = (await git(tmpDir, ["rev-parse", "chore/fix-typo"])).trim();
-    // Advance the base; a force-create would move the errand branch onto the new tip.
-    await git(tmpDir, ["commit", "--allow-empty", "--no-verify", "-m", "second"]);
-
-    const result = await runArc(["errand", "cut", "fix-typo"], tmpDir);
-
-    expect(result.exitCode).toBe(0);
-    const after = (await git(tmpDir, ["rev-parse", "chore/fix-typo"])).trim();
-    expect(after).toBe(before);
-    expect(after).not.toBe((await git(tmpDir, ["rev-parse", "main"])).trim());
-  });
-});
-
 describe("arc errand open", () => {
   let tmpDir: string;
 
@@ -209,6 +168,27 @@ describe("arc errand close", () => {
     const forced = await runArc(["errand", "close", "wip", "--force"], tmpDir);
     expect(forced.exitCode).toBe(0);
     expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
+  });
+
+  it("drops the originating capture at close when opened with --from-inbox (the producer→drain leg)", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Drain me**\n\n- _Observation:_ adopt this.\n\n---\n";
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+
+    const open = await runArc(["errand", "open", "adopt-it", "--type", "chore", "--from-inbox", "Drain me"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    // The record is inbox-origin, carrying the back-pointer the drain matches on.
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:adopt-it"]);
+    expect(record).toContain('"origin": "inbox"');
+    expect(record).toContain('"originEntry": "Drain me"');
+
+    const close = await runArc(["errand", "close", "adopt-it"], tmpDir);
+    expect(close.exitCode).toBe(0);
+    // The originating capture is dropped — the drain that was universally dead before the producer leg.
+    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Drain me**");
   });
 
   it("leaves unrelated inbox captures untouched (a description errand drops nothing)", async () => {

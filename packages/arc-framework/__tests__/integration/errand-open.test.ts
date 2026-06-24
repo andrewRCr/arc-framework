@@ -130,4 +130,17 @@ describe("openErrand", () => {
 
     expect((await readErrandRecord(io, "scoped"))?.intent).toBe("drain the stale drain-inbox capture");
   });
+
+  it("mints an inbox-origin record carrying the back-pointer when an originating entry is given", async () => {
+    await openErrand(io, {
+      slug: "adopted",
+      base: "main",
+      originEntry: "stale-capture",
+      createdAt: CREATED_AT,
+    });
+
+    const record = await readErrandRecord(io, "adopted");
+    expect(record?.origin).toBe("inbox");
+    expect(record?.originEntry).toBe("stale-capture");
+  });
 });

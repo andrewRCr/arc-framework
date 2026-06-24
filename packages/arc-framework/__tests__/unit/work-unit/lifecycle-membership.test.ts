@@ -4,6 +4,7 @@ import type { LifecycleIndex, LifecycleIndexEntry } from "../../../src/lib/work-
 import {
   buildCohortMembership,
   isArchivalTriggered,
+  isArchivalTriggeredWithDescendants,
   resolveCohortMembers,
 } from "../../../src/lib/work-unit/lifecycle-membership.js";
 import type { Location, Phase } from "../../../src/lib/work-unit/lifecycle-state.js";
@@ -152,5 +153,61 @@ describe("isArchivalTriggered — last-member-shipped detection", () => {
       entry("tail", "completed", "c", "Shipped"),
     );
     expect(isArchivalTriggered(afterLastShips, "c")).toBe(true);
+  });
+});
+
+describe("isArchivalTriggeredWithDescendants — nested-parent archival detection", () => {
+  it("matches isArchivalTriggered for a leaf cohort with no subcohorts", () => {
+    const index = indexOf(
+      entry("a", "completed", "c", "Shipped"),
+      entry("b", "completed", "c", "Shipped"),
+    );
+
+    expect(isArchivalTriggeredWithDescendants(index, "c")).toBe(true);
+  });
+
+  it("counts subcohort members as descendants — false while a subcohort member lingers", () => {
+    const index = indexOf(
+      entry("direct", "completed", "parent", "Shipped"),
+      entry("sub-a", "completed", "parent/sub", "Shipped"),
+      entry("sub-b", "active", "parent/sub", "Active"),
+    );
+
+    // The descendants-aware predicate sees the lingering subcohort member; the
+    // exact-membership predicate counts only direct members and trips early.
+    expect(isArchivalTriggeredWithDescendants(index, "parent")).toBe(false);
+    expect(isArchivalTriggered(index, "parent")).toBe(true);
+  });
+
+  it("is true when every direct and subcohort member has shipped", () => {
+    const index = indexOf(
+      entry("direct", "completed", "parent", "Shipped"),
+      entry("sub-a", "completed", "parent/sub", "Shipped"),
+      entry("sub-b", "completed", "parent/sub2", "Shipped"),
+    );
+
+    expect(isArchivalTriggeredWithDescendants(index, "parent")).toBe(true);
+  });
+
+  it("triggers for a parent that is only a container of subcohorts (no direct members)", () => {
+    const index = indexOf(entry("sub-a", "completed", "parent/sub", "Shipped"));
+
+    expect(isArchivalTriggeredWithDescendants(index, "parent")).toBe(true);
+  });
+
+  it("does not treat a sibling-prefixed cohort as a descendant", () => {
+    // `parent-other` shares a textual prefix but is not nested under `parent`.
+    const index = indexOf(
+      entry("direct", "completed", "parent", "Shipped"),
+      entry("sibling", "active", "parent-other", "Active"),
+    );
+
+    expect(isArchivalTriggeredWithDescendants(index, "parent")).toBe(true);
+  });
+
+  it("is false on an empty membership set — no descendants to trip", () => {
+    const index = indexOf(entry("solo", "completed", null, "Shipped"));
+
+    expect(isArchivalTriggeredWithDescendants(index, "parent")).toBe(false);
   });
 });

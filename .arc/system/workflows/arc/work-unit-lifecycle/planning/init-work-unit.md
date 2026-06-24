@@ -63,9 +63,9 @@ forcing in-place; the `--here` cold-start path is the one explicit in-place over
 - **Partial protection** — no planning branch: new work proceeds directly from the base checkout (the documented
   no-ceremony default), so these numbered steps don't run.
 
-Both modes share the rest of the workflow. Graduating a backlog stub (Step 3) dispatches through
+Both modes share the rest of the workflow. Initializing a backlog stub (Step 3) dispatches through
 `arc start`, which honors the same placement-mode selection (spawn by default, `--here` in-place);
-reconciling the graduated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
+reconciling the relocated meta (Step 4, Path A) and the idempotent-resume case reconcile files that
 already exist, whereas fresh scaffolding mints new ones.
 
 Promoting an errand is a separate entry path: it starts from an existing errand branch and uses
@@ -116,7 +116,7 @@ failed, surface the degraded state only when useful and continue.
 
 ### 2) Create Planning Branch — fresh WU
 
-_This step scaffolds a **fresh** work unit's branch. Graduating an existing backlog stub instead brings up
+_This step scaffolds a **fresh** work unit's branch. Initializing an existing backlog stub instead brings up
 the branch (and opens the workspace) via `arc start` in Step 3 — skip this step on that path. Worktree-creating
 mode delegates this step and Step 4 (Path B) to the spawn entry point — see [§ Execution Modes](#execution-modes);
 the commands below are the in-place path._
@@ -135,7 +135,7 @@ exists):
 arc user open {name}
 ```
 
-### 3) Graduate Backlog Subdir to Active · `arc-in-git` only
+### 3) Initialize Backlog Subdir to Active · `arc-in-git` only
 
 > **Skip this step** if `pm.mode` is `none` or `external`. Skip also if no backlog subdir exists
 > at `backlog/{planned,provisional}/{name}/` — that is the fresh-WU path (Step 2 + Step 4 Path B).
@@ -144,13 +144,13 @@ When resuming from a backlog stub, run the `start` transition to bring the work 
 per-WU subdir's artifact set (`meta-{name}.md` always, plus any `draft-*` / `notes-*` / companions) from
 `backlog/{state}/{name}/` into `active/`, births the `plan/{name}` branch, writes the meta `Branch` field, and
 opens the per-WU user workspace — one executor-dispatched transition, replacing the hand-run relocation. On the
-normal readiness-ladder path this is the `planned → active` rung; [graduate-work-unit][graduate-work-unit] has
+normal readiness-ladder path this is the `planned → active` rung; [promote-work-unit][promote-work-unit] has
 already performed `provisional → planned`.
 
 **Resolve `Class` first.** The transition's `class-resolved` guard refuses a stub whose `Class` is still
-`[TBD]`. A `planned/` graduate arrives with a resolved estimate; resolve a `provisional/` stub's `[TBD]` to a
+`[TBD]`. A stub from `planned/` arrives with a resolved estimate; resolve a `provisional/` stub's `[TBD]` to a
 best estimate (per [`classify-work-unit`][classify-work-unit]) in its backlog meta before running the
-transition. Direct `provisional/` graduation is otherwise tolerated only as a legacy / manual fallback.
+transition. Direct initialization from `provisional/` is otherwise tolerated only as a legacy / manual fallback.
 
 ```bash
 arc start {name}          # spawn a dedicated worktree (default under full protection)
@@ -159,7 +159,7 @@ arc start {name} --here   # in-place: cut the branch in the current checkout, no
 
 The placement mode follows [§ Execution Modes](#execution-modes) — worktree-creating by default, `--here` when
 spawning is unavailable or single-checkout development is wanted. The `worktree-occupancy` guard refuses an
-in-place graduate into a checkout already holding an active WU. The relocation `git mv` is staged but **not**
+in-place initialization into a checkout already holding an active WU. The relocation `git mv` is staged but **not**
 committed (the executor never commits) — it bundles into the init commit below with Step 4's reconcile edits.
 `arc start` surfaces an interim ROADMAP-regen advisory; Step 5 is where the hand-render lands.
 
@@ -173,7 +173,7 @@ See [Work Planning Strategy][work-planning] for the draft-doc lifecycle.
 
 Two paths depending on Step 3's outcome:
 
-**Path A — Graduated from backlog** (`active/meta-{name}.md` exists from Step 3):
+**Path A — Initialized from backlog** (`active/meta-{name}.md` exists from Step 3):
 
 `arc start` (Step 3) already moved the meta into `active/` and wrote the `Branch` field. Reconcile the
 remaining planning-state fields:
@@ -185,11 +185,11 @@ remaining planning-state fields:
    workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),
    which assesses against the actual draft state.
 
-**Class** was resolved before graduation (Step 3); confirm it still holds, or ratchet up to any realized
+**Class** was resolved before initialization (Step 3); confirm it still holds, or ratchet up to any realized
 floor via [`classify-work-unit`][classify-work-unit].
 
 **Preserve** `Owner`, `Origin`, `Depends On`, `Cohort`, `State: Planning`, and all other backfilled
-fields — `arc start` left them untouched. The backlog stub's intentional metadata survives graduation.
+fields — `arc start` left them untouched. The backlog stub's intentional metadata survives initialization.
 
 **Path B — Fresh WU** (no backlog meta-file):
 
@@ -213,7 +213,7 @@ Then reconcile the judgment fields the scaffold seeds at defaults:
 Remaining fields take their field-model defaults.
 
 **Idempotent.** If a meta file already exists on the branch (e.g., resuming a partial init from a
-prior session, not from backlog graduation), do not recreate it. Reconcile **Branch**, **Design**,
+prior session, not from backlog initialization), do not recreate it. Reconcile **Branch**, **Design**,
 **Current Workflow**, and **Next Action** as in Path B; preserve other field values.
 
 > [!CAUTION]
@@ -304,8 +304,9 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    Context: meta-{name}.md (activation)
    ```
 
-   When the errand was adopted from a slug-matched `USER-INBOX` entry, drop it now — the intent is a tracked WU:
-   `arc user inbox-remove {slug}` (idempotent; a no-op for a free-description errand).
+   When the errand was adopted from a `USER-INBOX` entry (recorded as the errand's origin back-pointer), drop
+   that entry now — the intent is a tracked WU: `arc user inbox-remove {origin-entry}` (idempotent; a no-op for a
+   free-description errand).
 
 5. **Push the WU branch; retire the old remote ref.**
 
@@ -348,5 +349,5 @@ unit from the base, and carry any landed errand commit as context in the new WU'
 [dev-rules-atomicity]: ../../../../../system/rules/DEV-RULES.ARC.md#atomicity
 [work-org-protection]: ../../../../../reference/strategies/arc/strategy-work-organization.md#branch-protection-modes
 [work-org-roadmap]: ../../../../../reference/strategies/arc/strategy-work-organization.md#roadmap
-[graduate-work-unit]: ../graduate-work-unit.md
+[promote-work-unit]: ../promote-work-unit.md
 [work-planning]: ../../../../../reference/strategies/arc/strategy-work-planning.md

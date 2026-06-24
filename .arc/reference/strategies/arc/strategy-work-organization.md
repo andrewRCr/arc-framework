@@ -236,7 +236,7 @@ signal, not a retrospective effort tally.
 A startable work unit carries a *resolved* `Class`. `[TBD]` is legal only in `backlog/provisional/`; entry into
 `backlog/planned/` — the [readiness-ladder](#readiness-ladder) rung the start decision reads — is the **forcing
 point**, because the weight signal must exist *before* a WU becomes a start candidate, not at activation (too late:
-the start decision precedes it). The [graduate-work-unit][graduate-work-unit] workflow performs that rung and forces
+the start decision precedes it). The [promote-work-unit][promote-work-unit] workflow performs that rung and forces
 the estimate via the [classify-work-unit][classify-work-unit] method.
 
 ### Planning depth and spec forms
@@ -510,14 +510,47 @@ Before a work unit enters the `State` lifecycle above, it climbs a **readiness l
   `**Class:**` may be `[TBD]`.
 - **`backlog/planned/`** — startable candidates on the ready list. Entry here is the **forcing point for
   `Class`**: a planned work unit carries a *resolved* `**Class:**` (`Light` / `Heavy` / `Novel`); `[TBD]` is
-  legal only in `provisional/`. The [graduate-work-unit][graduate-work-unit] workflow performs this rung and
+  legal only in `provisional/`. The [promote-work-unit][promote-work-unit] workflow performs this rung and
   forces the estimate via the [classify-work-unit][classify-work-unit] method.
 - **`active/`** — execution has a home; the `State` enum above takes over from `Planning` onward.
   [init-work-unit][init-work-unit] performs `planned → active`.
 
 The forcing rule has teeth because the start decision — read off the ready list — precedes activation, so the
-weight signal must be present before then. **"Graduation" names a readiness-ladder promotion** (the
-`provisional → planned → active` climb) and only that.
+weight signal must be present before then.
+
+### The `(phase, location)` model
+
+The State Enum and the readiness ladder are two orthogonal axes of a single model. A work unit's lifecycle position
+is the pair **(phase, location)**:
+
+- **Phase** — the meta `**State:**` value (`Planning` / `Active` / `Integrating` / `Shipped`): how far the *work*
+  itself has progressed.
+- **Location** — a logical position, `provisional` / `planned` / `active` / `completed`: where the work *lives* — its
+  backlog readiness rung, its execution home, or the archive. Location normally coincides with the directory the
+  artifacts sit in, but it is a logical value, not the path.
+
+The axes move independently. Most positions pair them predictably — the `Planning` / `Active` / `Integrating` phases
+sit in the `active` location, `Shipped` sits in `completed` — but the pairing is not fixed. The sharpest divergence is
+the **parked** position: a work unit whose execution has begun (`**State:** Active` — the phase) but which has been
+set down and relocated to `backlog/planned/` (the `planned` location). Its phase says execution is underway; its
+location says it is back on the ready list. Neither axis names that position alone; the pair does.
+
+**`Active` (phase) is not `active/` (location).** The capitalized `Active` is a `**State:**` value on the phase axis;
+the lowercase `active/` is a directory on the location axis. They coincide in the common case and diverge in the
+parked one — keeping them typographically distinct keeps that divergence legible.
+
+> This "two axes" model is distinct from the **Class** two axes (§ Class Model § The two axes): those decompose a WU's
+> *weight* (derivation / scale); these decompose its *lifecycle position*. Same phrase, different pair.
+
+### Stub required fields
+
+Creating a backlog stub (`arc stub`) is the lifecycle's create edge — it mints a WU's `meta-{name}.md` directly at a
+backlog rung, with no ceremony. "No ceremony" is not "no inputs": the command **requires the judgment values
+supplied** and fabricates none. A stub names its **commitment** (`provisional` or `planned` — the readiness rung) and
+its **priority**; a `planned` stub additionally carries a resolved `**Class:**` — the same forcing point the
+[readiness ladder](#readiness-ladder) names (`[TBD]` is legal only in `provisional`). `Origin`, `Design`, and `Cohort`
+are optional. The command owns the mechanics (path, meta scaffold, ROADMAP regen); the commitment, priority, and
+`Class` calls are judgment it will not invent.
 
 ---
 
@@ -866,6 +899,19 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 - Ceremony workflows never reach into dependents' meta files: a WU shipping flips its dependents from
   Blocked to Ready at the next regen, with no fan-out edits to shared state.
 
+### Derived state
+
+Each meta's `(phase, location)` pair (§ Work Unit State) projects to a single **derived state** — the name a reader or
+a tool reaches for instead of reciting the pair. The full projection is `nonexistent` / `provisional` / `planned` /
+`planning` / `active` / `integrating` / `parked` / `shipped`, resolved by `arc status <slug>`. The render set
+(`active/**` + `backlog/planned/**`) surfaces five of them — it excludes `nonexistent` (no meta), `provisional`
+(lives in `backlog/provisional/`, outside the scan), and `shipped` (moved to `completed/`, absent):
+
+- `planning` / `active` / `integrating` — in `active/**` → **In Flight**.
+- `planned` — in `backlog/planned/**` at `**State:** Planning` → **Ready** or **Blocked**.
+- `parked` — in `backlog/planned/**` at `**State:** Active` → **Parked**. A started WU set down on the ready list:
+  its phase is `Active`, its location `planned`.
+
 ### Render algorithm
 
 1. Walk `active/**` and `backlog/planned/**` recursively for `meta-*.md` files — the **render set**.
@@ -874,13 +920,15 @@ the target's **absence** from the `active/` + `backlog/` pipeline (a shipped WU 
 2. Parse `**State:**`, `**Owner:**`, `**Depends On:**`, `**Cohort:**`, and `**Priority:**` from each meta file.
 3. Resolve each `**Depends On:**` entry against the `active/` + `backlog/` set (planned and
    provisional): a target still present is unsatisfied; an absent target is satisfied (shipped).
-4. Group into three tiers:
+4. Group into four tiers by derived state (§ Derived state):
     - **In Flight** — located in `active/**`, regardless of `State:` (a WU is in flight from the moment it
       lands in `active/`, whether `Planning`, `Active`, or `Integrating`).
-    - **Ready** — planned work with no unsatisfied dependencies (deps all shipped, or none to begin
-      with).
-    - **Blocked** — planned work with at least one unsatisfied dependency, banded by dependency
+    - **Ready** — `planned`-state work (`backlog/planned/**`, `State: Planning`) with no unsatisfied
+      dependencies (deps all shipped, or none to begin with).
+    - **Blocked** — `planned`-state work with at least one unsatisfied dependency, banded by dependency
       depth (shallowest first) so each WU follows the deps it waits on.
+    - **Parked** — `parked`-state work: a started WU (`State: Active`) set down on the ready list in
+      `backlog/planned/**`. Held separate from Ready/Blocked (`State: Planning`).
 5. Render each tier as a markdown table per the per-table column sets and sort key in § Render standard,
    splitting **Blocked** into one table per depth band (`Depth 1`, `Depth 2`, …). Use an em-dash (`—`) for
    empty cells, and pad columns to shared widths so the raw tables align.
@@ -900,6 +948,7 @@ that is constant across that table**:
 - **Ready** — Work unit · [Priority] · Owner · Cohort (State is constant `Planning`; Depends on is constant `—`)
 - **Blocked** — Work unit · [Priority] · Owner · Depends on · Cohort (State is constant `Planning`; Depends on
   names the blocking dep)
+- **Parked** — Work unit · [Priority] · Owner · Depends on · Cohort (State is constant `Active`)
 - **`STATUS.USER` In Flight** — Work unit · State · Class · [Priority] · Depends on · Cohort (Owner is constant
   `= me`)
 - **`STATUS.USER` Ready** — Work unit · Class · [Priority] · Cohort (Owner is constant `= me`; State is constant
@@ -934,7 +983,7 @@ regeneration re-reads current state, so a regen reflects whatever changed since 
 **Ceremony-wired** — the lifecycle workflow that owns the transition carries a regenerate-ROADMAP
 step, so these need no separate discipline:
 
-- **Initialization** (`backlog/planned/<wu>/` → `active/` graduation, or a fresh meta scaffolded
+- **Initialization** (`backlog/planned/<wu>/` → `active/` relocation, or a fresh meta scaffolded
   directly into `active/`) — the WU lands in `active/` and enters In Flight.
 - **Activation** (in-place `State: Planning → Active` + branch rename; no directory move) — the WU is
   already In Flight from initialization, so tier membership doesn't change; the regen self-heals any render
@@ -945,6 +994,8 @@ step, so these need no separate discipline:
 - **Deactivation** (`active/` abandoned) — drops the WU from the render set.
 - **Decomposition** (`active/` → a cohort of `backlog/planned/<cohort>/<member>/` stubs, the origin meta
   retired) — drops the origin from In Flight and lands its members in the backlog render set.
+- **Park / resume** (`active/` ↔ `backlog/planned/`, `State: Active` preserved) — park moves the WU from In
+  Flight into Parked; resume returns it to In Flight.
 
 Because each re-renders from current state, these ceremonies also **self-heal** any manual trigger
 missed since the previous one.
@@ -952,7 +1003,7 @@ missed since the previous one.
 **Manual discipline** — these change a render input but have no ceremony workflow to carry the step,
 so re-render by hand (per § Render algorithm) when you make the change:
 
-- **Backlog membership** — graduation (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) adds a
+- **Backlog membership** — promotion (`backlog/provisional/<wu>/` → `backlog/planned/<wu>/`) adds a
   WU to the render; demotion (the reverse) and creating a stub directly in `backlog/planned/` likewise
   change the render set.
 - **Render-field edits** on a planned or active meta — a `**Depends On:**` change re-tiers the WU
@@ -1037,6 +1088,11 @@ drain packages the resulting PRs.
 ARC defines two branch protection modes configured in `.arc/system/arc-config.yml`
 (`branch.protection` setting).
 
+Protection mode governs the **ship layer** — how a change reaches the base branch (through a branch and PR, or by a
+direct commit) — never the **record**. A WU's `(phase, location)` state (§ Work Unit State) and its `meta-{name}.md`
+are identical under either mode: the meta is minted at `init` regardless, and the lifecycle runs the same states and
+transitions. Protection shapes only how the work *ships*, not what the work *is*.
+
 ### Mode Summary
 
 | Mode                              | Planned Work      | Atomic Tasks / Backlog | Direct Base Branch Commits |
@@ -1049,8 +1105,10 @@ ARC defines two branch protection modes configured in `.arc/system/arc-config.ym
 Planned work units require a branch from inception (single-branch-per-WU per
 [§ Branching](#branching)) — "from inception" governs the **tracked** work unit, the one carrying a
 `meta-{name}.md`. Pre-formalization design exploration — a `draft-*` or a spec drafted on the base
-branch before a work unit is initialized — is sanctioned under partial protection: it has no planning
-branch or meta yet, and the branch is cut when the work formalizes into a tracked WU. Routine commits
+branch before a work unit is initialized — is sanctioned under partial protection: it runs without a
+planning branch, cut when the work formalizes into a tracked WU. Its lack of a `meta-{name}.md` is
+**temporal, not a protection trait** — the meta is minted at `init` under either mode; partial protection
+shapes only the ship layer (branch/PR), never the record. Routine commits
 may go directly to the base branch as documented exceptions:
 
 - Framework maintenance: documentation updates, linting fixes
@@ -1289,11 +1347,16 @@ by an `active/` entry.
 
 ### The cut→occupy invariant
 
-Branch creation and occupancy are **separate steps with separate owners**. `arc errand cut` is creation-only by
-design — it cuts the branch off the base and stops; *occupying* it is the **caller's** protection-mode dispatch (an
-ephemeral worktree under full protection, an in-place switch otherwise). The consumer invariant: **cut creates;
-every consumer must immediately occupy per protection mode**. A consumer that cuts without occupying is left on its
-launch branch, writing the Errand's commits to the wrong place — so every cut site inlines its occupy step.
+Cutting a `chore/<slug>` branch and *occupying* it are **separate mechanics with a strict ordering** — the branch is
+cut off the base, then occupied per protection mode (an ephemeral worktree under full protection, an in-place switch
+otherwise). The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
+caller on its launch branch, writing the Errand's commits to the wrong place.
+
+`arc errand open` is the sole errand entry verb, and it **composes** the two — the internal cut mechanic
+(`cutErrandBranch`) followed by the occupy — in a single step, so the invariant holds by construction. There is no
+standalone cut command: exposing the cut half alone would let a caller create the branch and forget to occupy it,
+the exact failure the invariant forbids. Any internal site that cuts a branch carries the same obligation — cut,
+then immediately occupy.
 
 ### Entry path
 
@@ -1347,13 +1410,13 @@ patterns, merge conflict expectations, and external tracker integration.
 ## Planning Module
 
 See [Planning Module Strategy](strategy-planning-module.md) **(arc-in-git)** — what arc-in-git
-installs, routing and graduation flow, inbox routing, and scaling guidance.
+installs, routing and promotion flow, inbox routing, and scaling guidance.
 
 ---
 
 [team-coordination]: strategy-team-coordination.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
-[graduate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/graduate-work-unit.md
+[promote-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/promote-work-unit.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md
 [activate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

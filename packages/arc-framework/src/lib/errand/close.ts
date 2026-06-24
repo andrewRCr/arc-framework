@@ -11,8 +11,8 @@
  * The reap is **atomic with the record removal**: safety is checked first, so a
  * refusal never removes the record. The remote branch is never deleted (the PR
  * merge owns that); only the stale local remote-tracking ref is pruned. The
- * slug-matched inbox drop is the caller's composition (file I/O over the
- * gitignored inbox) and lands only on a successful close.
+ * inbox drop is the caller's composition (file I/O over the gitignored inbox,
+ * keyed by the record's origin back-pointer) and lands only on a successful close.
  *
  * The git seams and identity are injected (three-layer architecture).
  *

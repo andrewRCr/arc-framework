@@ -5,8 +5,8 @@ requirements. Covers the full lifecycle: idea → draft documents → specs → 
 conventions for each stage.
 
 **Layer:** Core with arc-in-git extensions. Draft documents, specs, and task lists are Core
-artifacts available in all PM modes. The backlog directory structure and graduation pipeline
-(backlog → active transitions) require `pm.mode: arc-in-git`. Sections with arc-in-git-specific
+artifacts available in all PM modes. The backlog directory structure and the backlog → active transitions
+(`provisional → planned → active`) require `pm.mode: arc-in-git`. Sections with arc-in-git-specific
 content are marked below.
 
 **Scope:** Planning artifact conventions, discovery guidance, and stage transitions. For backlog
@@ -43,7 +43,7 @@ Lifespan:  Transient     Ephemeral (deleted)    Semi-permanent        Active →
 
 > **arc-in-git mode** adds a structured first stage: backlog items in bucket files
 > (`BACKLOG-FEATURE.md`, `BACKLOG-TECHNICAL.md`) that capture and triage ideas before they enter
-> the pipeline. See [Planning Module][planning-module] for the full graduation model.
+> the pipeline. See [Planning Module][planning-module] for the full backlog → active model.
 
 **Key principle:** Each stage's documentation should match its fidelity level. Requiring spec-level
 structure in a draft is premature formalization. Leaving a spec at draft fidelity is
@@ -149,7 +149,7 @@ permanent records.
 - **arc-in-git**: `.arc/backlog/{provisional,planned}/<wu-name>/` while incubating; moves to `.arc/active/`
   when a planning branch is initialized (see [`init-work-unit.md`][init-work-unit]) and stays
   there for the duration of the planning session. Disposed at WU activation —
-  graduated path `git rm`s the draft; shelved path moves it back to `backlog/{provisional,planned}/<wu-name>/`.
+  absorbed path `git rm`s the draft; shelved path moves it back to `backlog/{provisional,planned}/<wu-name>/`.
 - **none / external**: `.arc/active/` throughout — drafts are co-located with the specs
   they feed into (no backlog directory).
 
@@ -157,7 +157,7 @@ permanent records.
 
 - Created when work needs exploration before it can become a spec
 - Evolved iteratively as understanding deepens — expect messiness, dead ends, revisions
-- Disposed at planning-branch integration — graduated → `git rm` (the spec captures what matters);
+- Disposed at planning-branch integration — absorbed → `git rm` (the spec captures what matters);
   shelved → moved back to backlog (arc-in-git) or left in active for follow-up (other modes)
 - Multiple drafts can feed a single spec (many-to-one), and a single draft can produce multiple specs
   (one-to-many) when exploration reveals natural scope boundaries within the problem space
@@ -203,7 +203,7 @@ Drafts may be accompanied by supplemental files in the same directory:
 - `research-*.md` — research synthesis (often moved to `reference/supplemental/research/` for archival)
 - `design-*.md` — design exploration documents
 
-These follow the same ephemeral convention: delete or archive after the work graduates.
+These follow the same ephemeral convention: delete or archive after the work activates.
 
 ---
 
@@ -245,7 +245,7 @@ forms.
 
 **Relationship to drafts:** The spec synthesizes and crystallizes what the draft explored. It doesn't
 preserve the exploration — it captures the conclusions. The draft is disposed at planning-branch
-integration via the graduated path (`git rm`) once all the specs it feeds are active. One draft may
+integration via the absorbed path (`git rm`) once all the specs it feeds are active. One draft may
 produce multiple specs when the explored scope splits into distinct work units with different
 deliverables, dependencies, or review boundaries.
 
@@ -286,7 +286,7 @@ that change constantly or miss the actual need. Invest in exploration first.
 **Kitchen-sink specs.** Specs that try to be both requirements and implementation detail. Requirements
 define *what* and *why*; implementation details belong in task planning.
 
-**Zombie drafts.** Draft documents that persist past planning-branch integration. The graduated path
+**Zombie drafts.** Draft documents that persist past planning-branch integration. The absorbed path
 disposes them via `git rm` once the spec is the authoritative artifact; leaving them around will only
 cause confusion alongside the spec they fed.
 

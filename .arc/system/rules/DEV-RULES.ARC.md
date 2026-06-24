@@ -295,8 +295,8 @@ commit under partial (see [strategy-work-organization][work-org] § Cheap-branch
 file or lifecycle of its own — its state is derived from its branch and PR.
 
 Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
-errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so
-an abandoned errand never orphans the intent.
+errand executes a captured item, its inbox entry is removed at **completion** — matched via its errand record's
+origin back-pointer — not at start, so an abandoned errand never orphans the intent.
 
 ### Anti-rider
 
@@ -384,6 +384,8 @@ handoff.
 - What code "probably does" — read the actual implementation
 - Task phase content or summaries — read the task list
 - Implementation approaches without understanding requirements
+- A work unit's lifecycle state — resolve it by slug with `arc status <slug>`, never infer from directory,
+  branch, or a state-blind `Depends On` edge
 
 **Clarifying questions improve outcomes.** When you mostly understand a request but see
 ambiguities, edge cases, or design alternatives that need decisions — ask.

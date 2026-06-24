@@ -686,8 +686,9 @@ export interface ReopenOptions {
  * Resolve whether the target WU's PR has merged — the `pr-unmerged` guard input.
  * Reads the WU's branch from its active meta and queries live PR disposition via
  * `gh`. Returns `undefined` (unknown) when the branch is unresolved or `gh` / the
- * remote is unavailable, so the reopen degrades open rather than blocking; only a
- * positively-merged PR (the guard's refusal) is reported as `true`.
+ * remote is unavailable; the `pr-unmerged` guard then refuses the reopen rather
+ * than risk reopening a WU whose merge state can't be confirmed. Only a
+ * positively-unmerged PR (`false`) clears the guard.
  */
 async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | undefined> {
   let branch: string | null;
@@ -708,9 +709,10 @@ async function resolvePrMerged(base: VerbBase, slug: string): Promise<boolean | 
 /**
  * `arc reopen [slug]` — withdraw an `Integrating` WU back to `Active` for more work
  * (defaults to the current WU). Resolves the PR's merge fact via `gh` (never
- * fabricated), degrading to unknown when `gh` / the remote is unavailable so the
- * reopen still proceeds; a positively-merged PR is refused — post-merge rework is a
- * new origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
+ * fabricated), degrading to unknown when `gh` / the remote is unavailable — which
+ * the `pr-unmerged` guard refuses rather than reopen on an unverifiable merge state;
+ * a positively-merged PR is likewise refused — post-merge rework is a new
+ * origin-linked WU. `--keep-pr` converts the PR to a draft instead of closing it.
  */
 export async function handleReopen(slug: string | undefined, opts: ReopenOptions): Promise<void> {
   p.intro("arc reopen");
@@ -848,6 +850,9 @@ export async function handleArchive(slug: string | undefined, opts: ArchiveOptio
   for (const warning of result.warnings) p.log.warn(warning);
   const lines = [`Work unit: ${target}`, `Archive:   ${result.destination.toDir}`];
   if (result.cohortSwept !== null) lines.push(`Cohort:    ${result.cohortSwept} (last member shipped)`);
+  if (result.nestedParentSwept !== null) {
+    lines.push(`Cohort:    ${result.nestedParentSwept} (nested parent — last member shipped)`);
+  }
   reportOutcome("Archived", lines, result.outcome);
 }
 

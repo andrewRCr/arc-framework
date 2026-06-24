@@ -187,7 +187,7 @@ sense in context or overly long compound names.
 **Save location** depends on your project's PM mode ([`arc-config.yml`][arc-config] → `pm.mode`):
 
 - **arc-in-git**: `.arc/backlog/{provisional,planned}/{name}/spec-{name}.md` — specs start in backlog and
-  graduate to `active/` during [activation][activate-work-unit]
+  relocate to `active/` during [activation][activate-work-unit]
 - **none / external**: `.arc/active/spec-{name}.md` — specs save directly to active (no backlog directory).
   Create the directory first if it doesn't exist: `mkdir -p .arc/active/`
 

@@ -53,7 +53,9 @@ never executes from an unrelated work unit's branch.
 3. **Open the errand locus** — relocate per protection mode ([§ Branch Protection Modes][branch-modes]):
 
    - **Full protection** — `arc errand open <slug>` cuts the errand branch and occupies it in place (`--type
-     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). `<slug>` is branch-safe
+     fix|chore|refactor|hotfix`, default `chore`; `--intent <text>` for the concern). When the errand adopts an
+     originating `USER-INBOX § Errand` capture, add `--from-inbox <entry-title>` — the record is minted
+     `inbox`-origin and `arc errand close` drops that capture instead of orphaning it. `<slug>` is branch-safe
      (lowercase/digits/hyphens) and is the merge key; idempotent — re-running reuses an existing branch.
    - **Partial protection** — no branch (`open` refuses here): read `arc housekeep check --json` → `baseBranch` /
      `primaryWorktreePath`, switch to that base checkout, and commit directly to base (a documented off-work-unit
@@ -160,9 +162,10 @@ follows the project's normal base-push discipline.
 On merge (full) or final commit (partial), close out:
 
 - **Full protection** — `arc errand close <slug>` reaps the branch, prunes its tracking ref, removes the record,
-  and drops the slug-matched `USER-INBOX` capture. The reap is containment-safe: if the branch's commits aren't
-  provably preserved (pushed or merged), it **refuses** and keeps the record — push/merge then retry, or `--force`
-  if you've verified it shipped. The remote PR branch is the host's to delete on merge.
+  and drops the originating `USER-INBOX` capture (the entry its record back-points to). The reap is
+  containment-safe: if the branch's commits aren't provably preserved (pushed or merged), it **refuses** and keeps
+  the record — push/merge then retry, or `--force` if you've verified it shipped. The remote PR branch is the
+  host's to delete on merge.
 - **Partial protection** — nothing to close; the errand is already a direct base commit.
 
 **Unattended merge (auto-merge lane).** If the merge lands after the session ends, `arc errand close` is replayed

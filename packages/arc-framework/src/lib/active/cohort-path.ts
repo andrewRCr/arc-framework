@@ -90,3 +90,18 @@ export function cohortLeaf(value: string): string {
   if (segments.length === 0) return value.trim();
   return segments[segments.length - 1] ?? value.trim();
 }
+
+/**
+ * Derive the nested-parent segment of a cohort path — the first segment of a
+ * two-segment `<cohort>/<subcohort>` path, or `null` when there is no parent (a
+ * single-segment cohort, the `[none]` sentinel, or empty). The dual of
+ * {@link cohortLeaf}: the parent is the grouping the subcohort nests under.
+ *
+ * @param value - The raw `**Cohort:**` value (backticks already stripped).
+ * @returns The parent segment for a nested path, or `null` when none.
+ */
+export function cohortParent(value: string): string | null {
+  const segments = cohortSegments(value);
+  if (segments.length < 2) return null;
+  return segments[0] ?? null;
+}

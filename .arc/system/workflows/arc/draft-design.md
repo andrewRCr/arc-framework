@@ -42,11 +42,11 @@ idea. Act on the emitted `route`:
   before acting — the mechanic resolved the context, but the leg is judgment:
     - **start now** — WU-worthy → `arc start <name>`, then draft on its branch.
     - **stub** — defer → `arc stub <name>` (with `--commitment provisional|planned` and `--priority`) mints the
-      backlog stub; when `draftPresent`, fold the existing draft in, then graduate via `init` (or keep drafting first).
+      backlog stub; when `draftPresent`, fold the existing draft in, then start it via `init` (or keep drafting first).
     - **errand** — atomic, off-work-unit → run it through the errand path, not a draft.
 
 **Stage pointer** — no entry write: the init scaffold seeds `Current Workflow = draft-design`, the stage this
-workflow opens. (Pre-WU drafting on the base has no meta yet — the eventual `init` scaffold sets it.)
+workflow opens. (Pre-WU drafting on the base has no meta yet — minted at `init`; transient, not a meta-less draft.)
 
 ## Resolve depth & Class
 
@@ -166,7 +166,7 @@ at the draft-capture ceremony commit.
 On a draft-producing path (`medium` / `high`) with an active planning meta, repoint `Design` to the new draft:
 `arc repoint-design draft-created` rewrites `Design: [none] → draft-{name}.md`. Skip it on the `low` path (no
 draft — `Design` repoints straight to the spec at create-spec finalization), or when drafting pre-WU on the base
-with no meta yet (the eventual `init` scaffold sets it).
+with no meta yet (minted at `init` — transient, not a meta-less draft).
 
 When the draft is formalization-ready and crosses into create-spec (the forward path — not the re-entry
 back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:

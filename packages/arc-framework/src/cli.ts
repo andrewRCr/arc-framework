@@ -18,7 +18,6 @@ import { handleJoin } from "./handlers/join.js";
 import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
-  handleErrandCut,
   handleErrandOpen,
   handleErrandClose,
   handleErrandRetire,
@@ -121,7 +120,7 @@ program
   )
   .option(
     "--here",
-    "Work in the current worktree, no spawn: cold-start a fresh WU, or graduate a backlog stub in place",
+    "Work in the current worktree, no spawn: cold-start a fresh WU, or bring up an existing backlog stub",
   )
   .option(
     "--from <pointer-or-blurb>",
@@ -266,15 +265,11 @@ errand
   .action((opts: ErrandCheckOptions) => handleErrandCheck(opts));
 
 errand
-  .command("cut <slug>")
-  .description("Cut the chore/<slug> errand branch off branch.base (idempotent — no-clobber if it exists)")
-  .action((slug: string) => handleErrandCut(slug));
-
-errand
   .command("open <slug>")
   .description("Open an errand: mint the record, cut a nature-typed branch, and occupy it in place")
   .option("--type <type>", "Branch nature-type: fix | chore | refactor | hotfix (default: chore)")
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
+  .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
 
 errand
