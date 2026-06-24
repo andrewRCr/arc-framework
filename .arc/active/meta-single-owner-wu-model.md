@@ -12,11 +12,11 @@
 - **Task List:** `tasks-single-owner-wu-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.3 — Fold the unexpanded "DRI" gloss in `strategy-work-organization.md` (closes Phase 3)
-- **Next Task:** Task 4.1 — Remove `(@name)` team-mode steps from the workflow templates (line ~198)
+- **Last Completed:** Task 4.3 — Verify the hook gates after the team-mode check removal (closes Phase 4)
+- **Next Task:** Task 5.1 — Dangling-reference sweep across the live methodology corpus (line ~285)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — start Phase 4 via process-task-loop
+- **Next Action:** Begin Task 5.1 — start Phase 5 (corpus-coherence sweep) via process-task-loop
 
 - **PR URL:** [none]
 - **Completed:** [none]
