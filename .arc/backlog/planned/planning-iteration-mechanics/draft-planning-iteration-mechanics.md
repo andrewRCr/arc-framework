@@ -52,6 +52,26 @@
   out, then implement," it is settle-able design masquerading as impl detail → resolve it into the spec (or fire the
   re-entry valve), never park it.
 
+### `[ ]` **Re-validate planning readiness at the planning→init boundary (declarations decay over time)**
+
+- _Routed from:_ USER-INBOX housekeep drain (2026-06-24); captured during `lifecycle-closeout` planning
+  (2026-06-22). A temporal-validity extension of this WU's `assess-draft-readiness` / `assess-spec-readiness`
+  lineage, adjacent to but distinct from Concern 1's buffer-drain seam.
+- _Concern:_ a draft's point-in-time readiness / forward-action declarations ("formalization-ready",
+  "Next: create-spec") and the code-owned `Current Workflow` stage pointer persist as if durable — but a backlog
+  stub is typically initialized/activated **weeks** later, once dependencies shipped and the codebase drifted.
+  Nothing re-validates them at the init/activation boundary, so a long-sitting draft can be graduated on a stale
+  "ready."
+- _Two halves:_ (a) **Draft-side guard** — don't preemptively persist forward-action as durable. PPR built half
+  (the `[begin current workflow]` `Next Action` sentinel + code-owned `Current Workflow` pointer); the missing
+  piece is a convention that the _draft itself_ not assert a standing next-stage / readiness — the meta pointer is
+  authoritative. (b) **Init-side backstop** — `init-work-unit` (and session-init resume of a long-sitting stub)
+  should **re-validate** readiness against current state, a natural **third fire-point** for
+  `assess-draft-readiness` (at init/activation), alongside its draft-design-exit and create-spec-entry firings.
+- _Scope:_ planning-readiness machinery (`assess-draft-readiness` + a new init-time fire-point), the draft
+  convention (`draft-design` / template), `init-work-unit`, and `session-init`'s resume / discovery arms; both
+  copies. Design fork (where the re-validation lives, what the staleness signal is) → reviewed lane.
+
 ---
 
 ## Problem / Motivation

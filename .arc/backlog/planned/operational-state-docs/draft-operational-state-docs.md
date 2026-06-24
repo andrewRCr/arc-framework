@@ -83,6 +83,11 @@
   pass and session-init's in-flight-errand sweep), any of which may replay it, so the structured removal
   primitive must preserve no-op-when-absent rather than erroring or double-removing. Until `_Slug:_` lands the
   backstops match by entry title (the current parser key) and stay agent-driven.
+- _Also (`--from-inbox` flag, 2026-06-24):_ `arc errand open --from-inbox <entry-title>` (landed by
+  `lifecycle-closeout`) is another title-keyed inbox consumer — it adopts a capture by its bold title (the interim
+  `H3_KEY`) and `arc errand close` drops it via the title-matched `removeInboxEntry`. When the `_Slug:_` field is
+  codified, repoint this flag's value (the `cli.ts` placeholder + the `handlers/errand.ts` producer) and the
+  close-side match onto the slug key alongside the parser.
 
 ### `[ ]` **Corpus-wide meta-schema conformance gate (validate the whole corpus, not changed-files-only)**
 

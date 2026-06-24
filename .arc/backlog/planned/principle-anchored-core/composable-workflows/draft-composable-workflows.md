@@ -188,6 +188,29 @@
   (CW's resolver) can compose the method markdown as a pure function over frontmatter — zero agent reasoning about
   which fragments to emit or in what order. Sibling of this buffer's existing `slug → artifact` resolver kernel.
 
+### `[ ]` **Consolidate config-variation mechanisms onto one resolve-then-load substrate**
+
+- *Routed from:* USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` create-spec
+  (2026-06-23). Coordinate with `plan-workflow-template-loads.md` (the `arc.templates` declared-load sibling) —
+  possibly the sharper home for the template-specific angle; decide at this WU's design.
+- *Concern:* ARC carries ~3 distinct config-variation mechanisms: (1) `arc:if` install-time `.template.md`
+  conditionals stripped by `render.ts` at `arc init` / `update` (5 workflows); (2) in-body carry-and-skip prose
+  (this WU's named judgment-tax target); (3) frontmatter declared-loads (`arc.methods` / `arc.extensions` + the
+  proposed `arc.templates`). The resolve-then-load thesis already targets (2); the additive question is whether
+  (1) folds in too, collapsing three mechanisms to one substrate.
+- *Viability:* the config-conditional **workflow** slice of `arc:if` is a clean subsumption candidate (same
+  resolve-config→emit-applicable family). Deprecate `arc:if`-for-behavior-variation in favor of composition.
+- *Caveats (not a blanket deprecate):* (a) `.template` also serves adopter-customization scaffolding
+  (token-substituted starter files) — composition does **not** subsume that, so `.template` survives for
+  scaffolding. (b) Binding time — `arc:if` resolves at install → a concrete, legible installed file; a
+  runtime-compose model trades away the "whole behavior in one place" locality that is this WU's central open
+  question — prefer install-time composition. (c) Overhead threshold — `arc:if` is cheap for ~2-3 arms;
+  composition earns its keep as variation axes multiply (tier × mode × tracker). Consolidate where inline
+  conditional load is high, not blanket-replace.
+- *Scope:* the `.template` + `render.ts` conditional mechanism, the 5 templated workflows,
+  `strategy-workflow-authoring`, and the boundary with `plan-workflow-template-loads`'s `arc.templates`; both
+  copies. Design fork (subsume vs. keep `arc:if`; binding-time model) → reviewed lane.
+
 ---
 
 ## Problem / Motivation
