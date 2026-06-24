@@ -26,6 +26,7 @@ _None in flight._
 | out-of-wu-entry              | P2       | andrew | —          | agile-parallelism          |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement   |
+| check-id-stabilization       | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions           | P2       | andrew | —          | doc-conventions            |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core    |
 | cli-substrate-adoption       | P2       | andrew | —          | —                          |

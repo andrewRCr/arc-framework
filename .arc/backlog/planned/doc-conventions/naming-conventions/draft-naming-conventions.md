@@ -212,6 +212,17 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   bullet from `commit-footer.md`. This WU owns the **enhancement**: whether promote earns `(promotion)`, the
   `decomposition` / `(activation)` forks, and the method + hook + test sync.
 
+### `[ ]` **Evaluate the meta `Owner` field → `DRI` rename**
+
+- *Routed from:* `single-owner-wu-model` create-spec, via USER-INBOX drain (2026-06-24).
+- *Concern:* "DRI" (Directly Responsible Individual) is the precise industry term for the single-owner-WU concept —
+  worth weighing as the actual meta field name versus keeping `**Owner:**` with "DRI" as the defining gloss.
+  `single-owner-wu-model` deliberately kept `Owner` (accessible, git-idiomatic, zero migration) and used "single
+  owner" / "one DRI" as the conceptual gloss; this revisits the field name itself as a deliberate call. A rename is
+  a code+data+migration concern — meta template, `meta-reader.ts` parsing, the roster probe (`identity`), the
+  ROADMAP `Owner` column render, `arc status`, and every existing meta file — so it sits within this WU's
+  rename-cascade scope.
+
 ---
 
 ## Problem / Motivation

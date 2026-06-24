@@ -11,6 +11,24 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Add `assess-cohort-fit.md` to the multi-PR coherency-pass touchpoint list**
+
+- _Routed from:_ `single-owner-wu-model` Task 3.2 (Phase 3 PR-cardinality de-weld), via USER-INBOX drain
+  (2026-06-24).
+- _Concern:_ `assess-cohort-fit.md`'s cohort/stack/delivery framing — "cohort ≈ epic, WU ≈ story", the
+  stack-vs-cohort sizing bullet, and "delivers as a stack of WUs along natural deliverable/phase boundaries" —
+  treats the WU as the delivery/merge unit. When this WU lands `1 WU = 1 branch, emitting ≥ 1 PR`, that framing
+  needs a coherency pass so WU-vs-cohort sizing and the multi-PR delivery axis read cleanly together. Add the
+  method to this WU's touchpoint list (the "Amended invariant" set currently names `§ Single branch per work
+  unit`, the spec form, `generate-tasks`, and integration — but omits this method).
+
+---
+
 ## Problem / Motivation
 
 ARC currently **welds two separable boundaries together**: the _concern_ boundary (the work unit — correctly broad
