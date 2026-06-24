@@ -128,7 +128,7 @@ export interface ErrandOpenOptions {
  * is non-fatal: a failure records the errand partial-push marker (the same
  * machinery `arc sync` reconciles) rather than aborting the open.
  *
- * `--from-inbox <entry-slug>` adopts a `USER-INBOX` capture: the record is
+ * `--from-inbox <entry-title>` adopts a `USER-INBOX` capture: the record is
  * minted `inbox`-origin with the capture as its back-pointer, so `arc errand
  * close` drops that capture instead of orphaning it.
  */
