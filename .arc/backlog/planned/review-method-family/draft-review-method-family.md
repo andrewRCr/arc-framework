@@ -38,6 +38,11 @@
   from the WORKING-MEMORY entry on gating the ARC `pre-pr-review` extension by errand _content_ (that is the
   framework extension firing); this is the CodeRabbit-app-side auto-trigger plus the post-PR-open ARC seam to manage
   it. Confirms `review-method-family` as the shared home.
+- _Interim (housekeep drain 2026-06-24):_ until this extension ships, the project workflow
+  `address-pr-review.md` carries the manual-trigger instruction directly — CR is manual-trigger on this
+  repo, so the initial review and each post-push re-review are requested via `@coderabbitai review`. When
+  the trigger extension lands it owns that decision; remove/subsume the interim instruction from
+  `address-pr-review.md` at that point.
 
 ### `[ ]` **Content/lane-gate review extensions for doc-only lifecycle ceremonies**
 

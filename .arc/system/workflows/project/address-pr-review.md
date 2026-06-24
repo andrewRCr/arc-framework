@@ -14,7 +14,14 @@ each review cycle follows the same shape until zero unresolved threads remain on
 
 **Tool baseline:** GitHub `gh` CLI for REST + GraphQL; CodeRabbit as the primary review agent.
 The cycle shape (fetch → triage → fix-now-commit → reply-for-defer/reject → completion-doc-check
-→ push → post-push verify) is tool-agnostic — adapt commands to other review tools as needed.
+→ push → request-re-review → verify) is tool-agnostic — adapt commands to other review tools as needed.
+
+**Triggering reviews on this repo.** CodeRabbit here is **manual-trigger**: a review pass does not start
+on its own when commits are pushed. Each pass is requested by posting `@coderabbitai review` as a PR
+comment — both the **initial** review after the PR is opened and **every re-review** after pushing fixes.
+Request the initial review only when the user has opted into the CodeRabbit cycle for this PR; this
+workflow then drives the response loop below. (Other review tools may auto-review on push — when adapting,
+drop the explicit re-trigger and treat the push itself as the trigger.)
 
 ---
 
@@ -25,12 +32,13 @@ For each CodeRabbit review pass:
 1. Fetch unresolved review threads — and non-inline comments (CR body/summary nitpicks, outside-diff notes)
 2. Triage findings, present dispositions to user, await approval
 3. Apply fix-now changes (atomic commits, no push yet); re-run Tier 1 quality gates
-4. Post replies + resolve threads for defer/reject (before push so CR doesn't re-raise)
+4. Post replies + resolve threads for defer/reject (before re-requesting review, so CR doesn't re-raise)
 5. Completion doc freshness check; update if needed
 6. Push
-7. Post-push verification (auto-resolution caught fix-now threads; defer/reject stayed resolved)
-8. Recommend whether another review round is warranted — return to step 1 only when remaining
-   findings justify it; otherwise resolve the fixed threads and close.
+7. Recommend whether another pass is warranted; if so, post `@coderabbitai review` to request it —
+   otherwise resolve the fixed threads and close
+8. Post-re-review verification (auto-resolution caught fix-now threads; defer/reject stayed resolved);
+   return to step 1 only when new findings justify it
 
 Final state: zero unresolved review threads on the PR — reached by addressing findings, not by an
 assumed fixed number of passes.
@@ -113,13 +121,13 @@ For fix-now and silent-fix items:
 validators; `lint:md:file`, `lint:ts`, and `test:unit` need explicit invocation. Mandatory after
 review-driven commits.
 
-**Do not push yet.** Push triggers CR's next review pass; the rest of this cycle (defer/reject
-replies, completion doc check) needs to be in place before that.
+**Do not push yet.** Finish the rest of this cycle (defer/reject replies, completion-doc check) first,
+so the branch is in a clean, fully-addressed state before you push and request the next review pass.
 
 ## 4) Post Replies for Defer / Reject
 
-For findings that result in NO code change (defer / reject), reply and resolve the thread before
-push so CR sees the resolved state and doesn't re-raise the finding on its next pass.
+For findings that result in NO code change (defer / reject), reply and resolve the thread before you
+request the next review pass, so CR sees the resolved state and doesn't re-raise the finding.
 
 **Reply** (REST API):
 
@@ -170,18 +178,35 @@ If updated, commit the completion doc edit with `(code review)` context footer.
 
 ## 6) Push
 
-Push the review-fixup commits: `origin {BRANCH_NAME}`.
+Push the review-fixup commits: `origin {BRANCH_NAME}`. The push starts no review pass on its own
+(manual-trigger — see § Triggering reviews on this repo); whether to request the next pass is the
+step 7 decision.
 
-CR's next review pass kicks off. Replies posted in step 4 are in place, so CR sees resolved
-threads for defer/reject items and doesn't re-raise them.
+## 7) Recommend and Request the Next Pass
 
-## 7) Post-Push Verification
+Another review round is not automatic — recommend one only when it earns its latency. With the cycle's
+fixes pushed and defer/reject replies in place, weigh whether a further pass is worth it, and surface a
+one-line recommendation for the user to decide:
 
-**Wait for user signal before running verification.** CR's next review pass typically takes
-5–10 minutes (occasionally 3–4, sometimes longer); polling proactively wastes effort and
-tokens. The user signals when CR has finished — at that point, run the verification below.
+- **Recommend another round** when the fix-now changes were substantive enough to plausibly introduce
+  new issues, or a prior pass left material findings a re-review would re-check. On approval, post
+  `@coderabbitai review` as a PR comment (the same command that requests the initial review) to start
+  the pass.
+- **Recommend closing** when the remaining work is cosmetic, all substantive findings are resolved, or
+  successive passes are returning only noise — resolve the fixed threads, address any non-inline
+  remainder, and move to merge. To stop any further auto-passes while closing out, post
+  `@coderabbitai pause` (see Tool-Specific Notes).
 
-After CR's next pass completes:
+The recommendation is advisory — the user decides whether to spend another round.
+
+## 8) Post-Re-Review Verification
+
+Runs only after a pass requested in step 7. **Wait for user signal before running verification.** A
+requested CR pass typically takes 5–10 minutes (occasionally 3–4, sometimes longer); polling proactively
+wastes effort and tokens. The user signals when CR has finished — at that point, run the verification
+below.
+
+After the pass completes:
 
 - **Fix-now threads:** CR auto-closes when the relevant file changed and the fix matches the
   suggestion. Manually resolve any it missed (`resolveReviewThread` mutation per step 4).
@@ -189,25 +214,8 @@ After CR's next pass completes:
   prose ("understood", etc.) without changing the resolution state — spot-check the thread.
   Manual verification fine; doesn't need automation.
 
-Then re-fetch unresolved threads (step 1). If new findings surfaced, the cycle continues. If zero
-unresolved, the PR is review-clean.
-
-## 8) Retry Recommendation
-
-Another review round is not automatic — recommend one only when it earns its latency. After a
-cycle's fixes are pushed, weigh whether a further pass is worth triggering or awaiting, and surface
-a one-line recommendation for the user to decide:
-
-- **Recommend another round** when the fix-now changes were substantive enough to plausibly
-  introduce new issues, or a prior pass left material findings a re-review would re-check.
-- **Recommend closing** when the remaining work is cosmetic, all substantive findings are resolved,
-  or successive passes are returning only noise — resolve the fixed threads, address any non-inline
-  remainder, and move to merge.
-
-Trigger a round by posting `@coderabbitai review` as a PR comment (the same command that requests
-the initial review); to stop further passes while closing out, post `@coderabbitai pause` (see
-Tool-Specific Notes). The recommendation is advisory — the user decides whether to spend another
-round.
+Then re-fetch unresolved threads (step 1). If new findings surfaced, address them and return to the
+step 7 decision. If zero unresolved, the PR is review-clean.
 
 ---
 
@@ -240,10 +248,10 @@ Output `0` → PR ready to merge.
   Don't rely on it 100% — verify in step 7.
 - **Trigger:** post `@coderabbitai review` as a PR comment to request a review pass — the initial
   review and every subsequent round are requested this way.
-- **Pause / resume:** post `@coderabbitai pause` as a PR comment to suppress auto-review on
-  subsequent pushes; `@coderabbitai resume` to re-enable. Use only when forced to push
-  intermediate state (safety backup, CI check, cross-machine handoff). Default flow doesn't need
-  this.
+- **Pause / resume:** `@coderabbitai pause` suppresses any auto-review on subsequent pushes;
+  `@coderabbitai resume` re-enables. This repo's cycle is manual-trigger already (a push starts no
+  pass), so pause is rarely needed — relevant only if auto-review is enabled and you must push
+  intermediate state (safety backup, CI check, cross-machine handoff) without inviting a review.
 - **Project-level config** (optional): `.coderabbit.yaml` at repo root —
   `auto_review.auto_pause_after_reviewed_commits: N`, `auto_review.ignore_title_keywords:
   [wip, draft]`. See CodeRabbit docs.
@@ -252,23 +260,25 @@ Output `0` → PR ready to merge.
 
 ## Anti-Patterns
 
-- **Push before all cycle findings are addressed** (code or replies). Push triggers CR re-review;
-  partial state confuses the diff and can resurface defer/reject items.
+- **Request a re-review before all cycle findings are addressed** (code or replies). Posting
+  `@coderabbitai review` on partial state confuses the diff and can resurface defer/reject items —
+  push and request the next pass only once the cycle's fixes and replies are in place.
 - **Reply to fix-now / silent-fix items.** CR auto-resolves on file change; replies just add
   noise. Save replies for items where the rationale isn't visible from the diff.
-- **Bundle multiple cycles into one push to "minimize commits".** Wrong axis. Push count =
-  re-review pass count; commit count is independent.
+- **Conflate commit or push count with review-pass count.** Wrong axis — each `@coderabbitai review`
+  you post is one pass; commit and push counts are independent. You control passes by when you
+  request them, not by batching or splitting the work.
 - **Skip the completion doc check for substantive cycles.** The completion doc IS the PR
   description; stale headline sections undermine the review it supports.
 - **Update the meta file for cycle bookkeeping** (cycle numbers, drafted replies, commit
   ranges). Cycle context lives in SESSION-NOTES, PR comments, and git log. The meta file is
   stable through the review window — see [integrate-work-unit][integrate-work-unit] Phase 2
   § Meta file discipline.
-- **Skip post-push verification.** Auto-resolution isn't reliable enough to trust without
+- **Skip post-re-review verification.** Auto-resolution isn't reliable enough to trust without
   checking. A 30-second scan catches the threads CR missed.
 - **Assume a fixed number of review rounds.** Don't loop reflexively until "CR goes quiet," nor
   stop at an arbitrary count — recommend another pass only when remaining findings justify the
-  latency (step 8).
+  latency (step 7).
 - **Triage only inline threads.** Body nitpicks and outside-diff-range notes never appear in
   `reviewThreads`; fetching threads alone silently drops them (step 1 § Non-inline comments).
 
