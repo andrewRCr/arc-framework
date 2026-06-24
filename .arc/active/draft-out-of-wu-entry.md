@@ -129,8 +129,15 @@ locus value — is what makes any future signal a one-line addition rather than 
 discipline that lets us populate conservatively now and defer the marginal signals (§ Deferred signals) without
 fear of regret.
 
-**Populated this WU:** `--errand`, `--housekeep` (design-bearing), `--plan <stub>`.
+**Populated this WU:** `--errand`, `--housekeep`, `--plan <stub>`.
 **Slot-ready, deferred:** `--new` / `--discover`, and others as demand surfaces.
+
+**Design posture — direct intent, not nudges.** The slot arms an *explicitly declared* goal and loads only
+what that goal needs; it does not surface unrequested routes. A session opened to drain, run an errand, or plan
+a stub should not first load — or be nagged about — the active WU's execution context. (This is why a Resume-arm
+housekeep *route* was rejected in favor of the `--housekeep` flag; see § Scope item 4. Reconciling the broader
+unprompted nudge-offers — the Orient-arm housekeep soft-offer, the handoff offer — is out of scope here, captured
+for separate evaluation.)
 
 A shared dispatch leaf is the likely shape: all three populated signals end in "establish the right scoped
 context → relocate/locate → run the locus workflow." The spec should DRY the no-WU Orient leaf and the new
@@ -186,11 +193,13 @@ Resume route behind one signal-dispatch path reached from either arm (see § Ope
       planning runs); PIM owns the *content* mechanics (inbound-buffer drain ceremony, sizing correction). Adjacent
       at the `assess-draft-readiness`-at-init seam; cleanly separable.
 
-4. **(Design-bearing) Symmetric `--housekeep` priming flag — evaluate.** Housekeep is doctrine-blessed mid-WU
-   (base-branch write context, not no-WU), yet `session-init` only soft-offers it on the Orient arm and has no
-   priming flag. A `--housekeep` flag symmetric to `--errand` would let a developer cold-enter or mid-WU-prime a
-   drain — short-circuit the task-execution doc loads, relocate to base, run `drain-inbox`. This is a genuine
-   design decision (see Open Questions), not a mechanical fix.
+4. **`--housekeep` priming flag — a populated signal.** Add `--housekeep` as a full member of the slot,
+   symmetric with `--errand`: it short-circuits the WU-execution doc loads, relocates to the base write context,
+   and runs `drain-inbox` — arming a drain directly, whether cold or mid-WU. Resolved against the alternative (a
+   Resume-arm soft-offer *route* + reliance on the warm `arc-housekeep` skill): that alternative only surfaces a
+   nudge — it still loads the full WU context and serves visibility, not direct intent — so it solves a different,
+   unwanted problem (§ Signal family, design posture). The warm `arc-housekeep` skill remains the execution path
+   the flag reaches; the flag adds the direct, minimal-load *entry*.
 
 5. **(Ergonomic) Pre-focus a positional backlog-WU arg on the Orient arm.** A positional arg naming a backlog WU
    is currently "surfaced, not acted on" outside cold-start — the same not-consumed theme. Let the Orient/discovery
@@ -286,17 +295,14 @@ note into `cohort-agile-parallelism.md` § Deferred resolving the dangling "rati
   winding down" spectrum, no shared mechanism. Captured to `USER-INBOX § Work Unit` (→ a `frictionless-capture`
   planned/P2 stub at the next housekeep).
 - **Severity:** the errand/housekeep core is bugfix-grade (shipped doctrine + execution exist; only entry routing
-  under-honors them); `--plan`'s backend is small-but-real; the `--housekeep` flag is design-bearing. Overall a
-  **small WU** — multi-surface plus one real design decision — with `Class: Heavy` already recorded.
+  under-honors them); `--plan`'s backend is small-but-real; `--housekeep` is a populated signal reusing the
+  errand short-circuit/relocate path. Overall a **small WU** — multi-surface, with the design forks settled — and
+  `Class: Heavy` already recorded.
 
 ---
 
 ## Open Questions
 
-- **`--housekeep` flag: build it, or rely on the warm path?** `arc-housekeep` already runs mid-WU via its warm
-  skill, and `session-init` already soft-offers housekeep on the Orient arm. Is a `--housekeep` priming flag worth
-  the symmetry, or is the right fix simply (a) un-suppress a housekeep *route* on the Resume arm and (b) lean on
-  the warm skill? Decide whether errand and housekeep should be strictly symmetric at the entry door.
 - **Precedence UX when a signal collides with a resolvable active WU.** Auto-relocate-and-enter, or
   confirm-before-relocate ("active WU `X` is checked out here; run this in an isolated locus and leave `X`
   untouched?")? Lean: confirm once, then relocate — the explicit flag signals intent, but relocating away from a
@@ -304,8 +310,6 @@ note into `cohort-agile-parallelism.md` § Deferred resolving the dangling "rati
 - **`--plan` specifics.** How is the "don't advance / stop at draft" intent carried (a session marker vs. a
   transient flag)? And does `--plan <stub>` on a Resume arm follow the same confirm-then-relocate precedence as
   the others?
-- **Bare `arc-session` (no flag) on a Resume arm — should it offer errand/housekeep/plan as routes?** Or keep the
-  flags as the only priming door so bare resume stays fast and unambiguous?
 - **One dispatch path for all signals.** Should the no-WU Orient leaf and the new Resume route share a single
   signal-dispatch leaf (§ Signal family), so the slot is genuinely one mechanism rather than per-arm duplication?
 
