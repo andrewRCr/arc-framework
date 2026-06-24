@@ -8,10 +8,10 @@
 - **Depends On:** `concurrent-work-doctrine`
 
 - **Origin:** [internal]
-- **Design:** `draft-single-owner-wu-model.md`
+- **Design:** `spec-single-owner-wu-model.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
