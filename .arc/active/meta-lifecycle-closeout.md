@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.3 — reconcile the "no meta-less draft" position (Phase 2 complete)
-- **Next Task:** Task 3.1 — Author `reopen-work-unit.md` + ceremony-corpus coherence (line ~162)
+- **Last Completed:** Task 3.4 — fold lifecycle-ceremony commit footers to a validator-accepted token (Phase 3 complete)
+- **Next Task:** Task 4.1.a — Add the `(phase, location)` model + `Active`/`active/` disambiguation (line ~280)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 3.1 — author `reopen-work-unit.md`, the inverse of `integrate-work-unit`
+- **Next Action:** Start Task 4.1.a — add the `(phase, location)` two-axis model to `strategy-work-organization`
 
 - **PR URL:** [none]
 - **Completed:** [none]
