@@ -135,24 +135,26 @@ invariant). PR-count separability is marked **once**, in the canonical home (wor
 spots simply drop the "one PR" specificity. Runs after Phase 1 (the removed team-coord set must be known). Edits
 pair across trees.
 
-### `[ ]` **3.1 Split the welded passages and reconcile cross-refs in `strategy-work-organization.md`**
+### `[x]` **3.1 Split the welded passages and reconcile cross-refs in `strategy-work-organization.md`**
 
 - _Goal:_ The one-owner claim survives while PR-count reads as a separable axis, and no cross-reference points at a
   removed or gutted team-coord section.
 
-    - `[ ]` **3.1.a § Cohorts (297–298)** — keep "self-contained, single-owner WUs, each with its own
-      meta/spec/tasks and one branch"; drop the welded "and one PR"; add one neutral seam sentence (e.g. "How many
-      PRs a work unit emits is a separate axis").
+    - `[x]` **3.1.a § Cohorts** — kept "self-contained, single-owner WUs, each with its own meta/spec/tasks and one
+      branch"; dropped the welded "and one PR"; added the neutral seam "how many PRs a work unit emits is a separate
+      axis" — the canonical PR-count-separability mark.
 
-    - `[ ]` **3.1.b Reconcile the dangling team-coord cross-refs** — re-point the stack merge/rebase discipline
-      (467–470) to `strategy-concurrent-work.md`; remove the within-WU team-sub-branch references (473; 483 — the
-      mechanism is gone); reconcile the § Team Coordination pointer description (1405–1406) to the surviving
-      surface (ownership, interlock-release, cross-WU planning, external tracker — drop "task ownership markers"
-      and "team branching patterns").
+    - `[x]` **3.1.b Reconcile the dangling team-coord cross-refs** — re-pointed the stack merge/rebase discipline to
+      `strategy-concurrent-work.md` § Branch and rebase discipline (new `[concurrent-work]` link def added); removed
+      both within-WU team-sub-branch references (the mechanism is gone); reconciled the § Team Coordination pointer
+      to the surviving surface (ownership, interlock-release coordination, cross-WU planning, external tracker).
 
-    - `[ ]` **3.1.c Verify the `**Owner:**` field gloss (872)** — confirm "single owner (per WU)" reads
-      consistently with the authoritative statement (1.1); no edit expected (no `template-meta.md` exists — the
-      meta is code-scaffolded).
+    - `[x]` **3.1.c Verify the `**Owner:**` field gloss** — confirmed "single owner (per WU)" reads consistently
+      with the authoritative single-owner statement; no edit needed.
+
+- _Outcome:_ Ownership-cardinality now reads as separable from PR-cardinality, marked once in the canonical home
+  (§ Cohorts); the one-owner claim is preserved and the `1 WU = 1 PR` invariant is left unamended (per the
+  minimal-in-place scope). Edits paired across both copies (`.arc/` + package source), byte-identical.
 
 ### `[ ]` **3.2 Split the welded passages in `assess-cohort-fit.md`**
 
