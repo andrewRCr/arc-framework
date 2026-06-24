@@ -18,72 +18,72 @@ across both trees (`.arc/**` and `packages/arc-framework/arc/**`).
 _Notes:_ See `notes-single-owner-wu-model.md` § `strategy-team-coordination.md` survivor map for the
 section-by-section keep/remove/reframe dispositions and line anchors.
 
-### `[ ]` **1.1 Reframe § Task Ownership to § Ownership keyed on the meta `**Owner:**` field**
+### `[x]` **1.1 Reframe § Task Ownership to § Ownership keyed on the meta `**Owner:**` field**
 
 - _Goal:_ The meta `**Owner:**` field is documented as the single source of assignment truth, and no `(@name)`
   marker convention remains anywhere in the doc.
 
-    - `[ ]` **1.1.a Replace § Task Ownership (70–105) with § Ownership** — the meta `**Owner:**` field as the
+    - `[x]` **1.1.a Replace § Task Ownership (70–105) with § Ownership** — the meta `**Owner:**` field as the
       assignment; non-owner contribution via PR review, pairing (`Co-authored-by:`), and handoff; expand "Directly
       Responsible Individual (DRI)" at first contact; point to the shipped self/foreign asymmetry in
       `strategy-concurrent-work.md` rather than restating it.
 
-    - `[ ]` **1.1.b Remove the residual `(@name)` references doc-wide** — the External Tracker assignment-table
+    - `[x]` **1.1.b Remove the residual `(@name)` references doc-wide** — the External Tracker assignment-table
       cell (402), the no-extension-points-for-assignment note (420–421), and § When `(@name)` Markers Are Optional
       (423–427).
 
-    - `[ ]` **1.1.c Update § Contents entry 2** — "Task Ownership — `(@name)` convention" → "Ownership — meta
+    - `[x]` **1.1.c Update § Contents entry 2** — "Task Ownership — `(@name)` convention" → "Ownership — meta
       `**Owner:**` field".
 
-### `[ ]` **1.2 Strip the within-WU apparatus from the surviving coordination sections**
+### `[x]` **1.2 Strip the within-WU apparatus from the surviving coordination sections**
 
 - _Goal:_ The sections that survive describe cross-person coordination only — no language implying multiple
   developers concurrently drive one WU's task list or share its branch.
 
-    - `[ ]` **1.2.a Workflow Adaptations table (41–66)** — drop the "One task at a time / concurrent pairs OK" and
+    - `[x]` **1.2.a Workflow Adaptations table (41–66)** — drop the "One task at a time / concurrent pairs OK" and
       "Task ownership / `(@name)` markers" rows; in the Key distinction paragraph (58–66) drop the "scanning
       `(@name)` markers" line — the meta is WU-level state owned by the single owner.
 
-    - `[ ]` **1.2.b Interlock-Release Coordination (181–226)** — remove the "Task ownership before approval" block
+    - `[x]` **1.2.b Interlock-Release Coordination (181–226)** — remove the "Task ownership before approval" block
       (187–191) and the "concurrent pairs should pull before starting or committing" sentence (202–204); keep
       Manual commit mode (193–197), the commit-on-task-approval visibility framing incl. "Push remains separate"
       (206–211), Release-wrapper opt-in per-developer (213–218), and Asymmetric setup (220–226).
 
-    - `[ ]` **1.2.c Merge Conflict Expectations — within-WU removal (285–359)** — remove § Task Lists Are Shared
+    - `[x]` **1.2.c Merge Conflict Expectations — within-WU removal (285–359)** — remove § Task Lists Are Shared
       Files (287–305); in § Session State Merge Behavior remove the within-WU team-sub-branch coordination
       (316–322); in § Concurrent Sessions remove the "Within-WU team sub-branches" para (343–358). Keep Cross-WU
       Planning Dependencies (360–382) and Configuration Notes (384–389). (The surviving cross-WU parallel-WU
       material — the 313–315 meta-file fact and the 327–341 para — is consolidated by 1.5.b.)
 
-### `[ ]` **1.3 Remove § Team Branching Patterns wholesale**
+### `[x]` **1.3 Remove § Team Branching Patterns wholesale**
 
 - _Goal:_ No within-WU branching-pattern catalog remains; the cross-WU branching model lives in
   `strategy-work-organization.md` and `strategy-concurrent-work.md`.
 
-    - `[ ]` **1.3.a Remove § Team Branching Patterns (230–284)** — all four patterns (Shared Integration Branch,
+    - `[x]` **1.3.a Remove § Team Branching Patterns (230–284)** — all four patterns (Shared Integration Branch,
       Personal Sub-Branches, Stacked PRs per Developer, Direct Shared Branch) plus the `Branch(es):`
       flat-multi-branch header-field note (236–240).
 
-    - `[ ]` **1.3.b Drop § Contents entry 5** ("Team Branching Patterns") and reconcile any in-doc cross-reference.
+    - `[x]` **1.3.b Drop § Contents entry 5** ("Team Branching Patterns") and reconcile any in-doc cross-reference.
 
-### `[ ]` **1.4 Reframe Person-to-Person Task Handoff to `Owner`-field reassignment**
+### `[x]` **1.4 Reframe Person-to-Person Task Handoff to `Owner`-field reassignment**
 
 - _Goal:_ Handoff reads as sequential single-owner reassignment via the meta `**Owner:**` field, not `(@name)`
   marker reassignment.
 
-    - `[ ]` **1.4.a Replace the `(@name)` reassignment steps** — the minimum-viable-handoff note (117), Outgoing #1
+    - `[x]` **1.4.a Replace the `(@name)` reassignment steps** — the minimum-viable-handoff note (117), Outgoing #1
       (123), and Incoming #2 (157) → meta `**Owner:**`-field reassignment; keep the git-notes namespace bootstrap
       and Async Conventions.
 
-### `[ ]` **1.5 Reframe the doc's net framing and defer parallel-WU mechanics**
+### `[x]` **1.5 Reframe the doc's net framing and defer parallel-WU mechanics**
 
 - _Goal:_ The doc frames team parallelism as multiple single-owner WUs across identities (worktrees), deferring
   parallel-WU mechanics to `strategy-concurrent-work.md` instead of duplicating them.
 
-    - `[ ]` **1.5.a Reframe the header / intro (1–25)** to the net framing; preserve the existing "deliberate
+    - `[x]` **1.5.a Reframe the header / intro (1–25)** to the net framing; preserve the existing "deliberate
       starting point, not a settled standard" validation note (21–25).
 
-    - `[ ]` **1.5.b Consolidate the cross-WU parallel-WU residual to a thin pointer** — § Session State Merge
+    - `[x]` **1.5.b Consolidate the cross-WU parallel-WU residual to a thin pointer** — § Session State Merge
       Behavior's cross-WU meta-file fact (313–315) and § Concurrent Sessions' intro + "Parallel work units on
       independent branches" para (327–341, which already defers mechanics there) collapse to one brief
       cross-identity pointer into `strategy-concurrent-work.md`.
