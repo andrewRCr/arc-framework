@@ -1,8 +1,8 @@
 # Metadata: single-owner-wu-model
 
-| **State** | **Owner** | **Branch**                       | **Class** | **Priority** |
-| --------- | --------- | -------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `refactor/single-owner-wu-model` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
+| ------------- | --------- | -------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `refactor/single-owner-wu-model` | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-single-owner-wu-model.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.3 — Verify the hook gates after the team-mode check removal (closes Phase 4)
-- **Next Task:** Task 5.1 — Dangling-reference sweep across the live methodology corpus (line ~285)
+- **Last Completed:** Task 6.1 — verification complete (Phases 1–6); apparatus removal verified clean across both trees
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
