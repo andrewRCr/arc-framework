@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "housekeep-inbox-drain",
+  "origin": "description",
+  "intent": "Drain USER-INBOX: route 3 spec-worthy captures to homes",
+  "branch": "chore/housekeep-inbox-drain",
+  "createdAt": "2026-06-24T20:13:21.179Z"
+}
