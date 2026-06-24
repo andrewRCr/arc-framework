@@ -1,8 +1,8 @@
 # Metadata: single-owner-wu-model
 
-| **State**     | **Owner** | **Branch**                       | **Class** | **Priority** |
-| ------------- | --------- | -------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `refactor/single-owner-wu-model` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism/concurrent-work-conventions`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/132>
+- **Completed:** 2026-06-24
 
 ---
 

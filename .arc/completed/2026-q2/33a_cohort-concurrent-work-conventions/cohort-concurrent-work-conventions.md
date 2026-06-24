@@ -260,3 +260,18 @@ completion-side).
   redefining write/merge semantics for the managed inboxes.
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-06-24
+- **Final member:** `single-owner-wu-model`
+- **Member archives:** `19_concurrent-work-doctrine`, `20_merge-safety-mechanism`, `21_notes-merge-coherence`,
+  `22_async-merge-lifecycle`, `23_worktree-default-start`, `33_single-owner-wu-model`
+- **Outcome:** Shipped principled multi-work-unit collaboration as a coherent whole — the conventions doctrine, the
+  merge-safety behind-base primitive, the async-merge lifecycle accommodation, the notes-merge engine correctness,
+  the worktree-default start steering, and the single-owner-WU model reconciliation that closes the stack.
+- **Follow-up:** [none] — the cross-cohort seams (`roadmap-tooling`, `cross-machine-sync-coherence`,
+  `graduation-cleanup`) remain owned by their named cohorts; the parent `agile-parallelism` cohort stays open
+  pending its remaining members.
+
+---
