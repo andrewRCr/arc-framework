@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "drain-inbox",
+  "origin": "description",
+  "intent": "Drain USER-INBOX captures to authoritative homes",
+  "branch": "chore/drain-inbox",
+  "createdAt": "2026-06-24T12:33:37.047Z"
+}
