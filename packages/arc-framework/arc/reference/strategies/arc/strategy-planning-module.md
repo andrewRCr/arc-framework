@@ -19,7 +19,7 @@ work without these artifacts.
 - [Inbox Family](#inbox-family) — per-inbox orientation: purpose, lifecycle, write discipline
 - [How Work Flows Through](#how-work-flows-through) — routing by intent, ownership, and character
 - [Shared-Inbox Write Discipline](#shared-inbox-write-discipline) — what writes the shared inbox, and when
-- [State-Dir Graduation](#state-dir-graduation) — `provisional/` → `planned/` commitment semantics
+- [State-Dir Promotion](#state-dir-promotion) — `provisional/` → `planned/` commitment semantics
 - [Cohort Wrapper Subdirs](#cohort-wrapper-subdirs) — codified sibling sets, backlog-only
 - [When to Use Arc-in-Git](#when-to-use-arc-in-git) — fit and scaling boundaries
 - [Relationship to Core ARC](#relationship-to-core-arc) — what changes without it
@@ -110,7 +110,7 @@ New work item
 
 Captures land in `USER-INBOX.md` (personal, live). The between-WUs housekeep drain routes them —
 *not* the integration ceremony: § Errand items route to their home, or flush to
-`backlog/ATOMIC-INBOX.md` if homeless; § Work Unit items route to an existing stub, or graduate to a
+`backlog/ATOMIC-INBOX.md` if homeless; § Work Unit items route to an existing stub, or scaffold a new
 *provisional* stub under `backlog/{planned,provisional}/` (there is no shared multi-step inbox).
 Atomic items execute as-is from inbox; multi-step items mature into `plan-<wu-name>.md` and (when
 ready) a `spec-<wu-name>.md`. See [Work Planning Strategy][work-planning] for the draft → spec
@@ -128,7 +128,7 @@ continuously multi-writer-edited:
 
 - **Written by the housekeep drain (between-WUs).** When `USER-INBOX` drains, genuinely homeless
   `§ Errand` items flush to `ATOMIC-INBOX`. This is the only write path, and it lives *off* the
-  integration ceremony. (`§ Work Unit` items never flush here — multi-step work graduates to a
+  integration ceremony. (`§ Work Unit` items never flush here — multi-step work is scaffolded into a
   *provisional* stub instead; there is no shared multi-step inbox.)
 - **Read at activation** — a WU pulls in shared-inbox items whose home turns out to be its domain;
   the rest stay put. Absorption *from* `USER-INBOX` is the degenerate case (empty post-housekeep).
@@ -146,7 +146,7 @@ homeless item.
 
 ---
 
-## State-Dir Graduation
+## State-Dir Promotion
 
 Backlog WUs live in one of two commitment dirs at the backlog root:
 
@@ -163,14 +163,14 @@ maintainer commitment.
 Each WU subdir carries `meta-<wu-name>.md` (always) plus `plan-<wu-name>.md` and any other
 companions when present.
 
-**Graduation:** `backlog/provisional/<wu-name>/` → `backlog/planned/<wu-name>/` fires when a
+**Promotion:** `backlog/provisional/<wu-name>/` → `backlog/planned/<wu-name>/` fires when a
 maintainer commits to the WU. The `git mv` of the WU subdir and the regenerated ROADMAP (which
 now picks up the WU via the `backlog/planned/**` walk) ride the same commit. Symmetric demotion
 is supported.
 
 ROADMAP is the **derived surface**, not the trigger — the trigger is the maintainer commitment;
 ROADMAP regen is the observable effect. The `**State:**` field on the meta file stays
-`Planning` across the graduation; commitment level lives in directory location, not in State.
+`Planning` across the promotion; commitment level lives in directory location, not in State.
 See [Work Organization Strategy][work-org] § Work Unit State for the State enum semantics.
 
 ---
@@ -243,7 +243,7 @@ Without arc-in-git (`pm.mode: none` or `external`):
   commitment-dir split
 - No `USER-INBOX.md` — for-later routing follows project convention or the external tracker
 - Atomic during-WU work still folds into the commit or spins an Errand — that's Core
-- Plan documents and PRDs (when used) live in `active/` directly; no graduation pipeline
+- Plan documents and PRDs (when used) live in `active/` directly; no backlog → active pipeline
 
 The planning module adds structure for teams that want built-in project management without
 external tools. Teams using Jira, Linear, or GitHub Issues use `pm.mode: external` — ARC

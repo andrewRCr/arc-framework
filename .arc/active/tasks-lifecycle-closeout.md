@@ -310,9 +310,11 @@ map.
 - _Goal:_ The adjacent strategies carry no retired `graduation`-pipeline vocabulary, and the orphaned
   `arc errand cut` command is gone with its invariant reframed around `open`.
 
-    - `[ ]` **4.2.a Fold the verb rename into the adjacent strategies** (both copies)
-        - `strategy-work-planning.md` and `strategy-planning-module.md` — both carry dense `graduation`-pipeline
-          vocabulary.
+    - `[x]` **4.2.a Fold the verb rename into the adjacent strategies** (both copies)
+        - `strategy-planning-module.md`: renamed § State-Dir Graduation → Promotion (heading, Contents anchor,
+          body) and the inbox→stub uses to `scaffold`. `strategy-work-planning.md`: collective "graduation
+          pipeline/model" → descriptive `backlog → active`; the draft-disposal "graduated path" → "absorbed path"
+          (pairs with the existing "shelved path"). Zero residual `graduat*` in either file.
 
     - `[ ]` **4.2.b Deregister the `arc errand cut` command**
         - Remove the `cut` command from the CLI (`cli.ts` registration + the `handleErrandCut` import) and
