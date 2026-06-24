@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "address-pr-review-trigger-awareness",
-  "origin": "inbox",
-  "intent": "Make address-pr-review aware CR PR reviews are manually triggered; general coherence pass",
-  "branch": "chore/address-pr-review-trigger-awareness",
-  "createdAt": "2026-06-24T12:57:36.721Z",
-  "originEntry": "Make `address-pr-review` comment-trigger-aware (push no longer auto-triggers a CR pass)"
-}
