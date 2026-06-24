@@ -282,36 +282,51 @@ legitimately reference the (now-removed) patterns as historical or external cont
 references); `strategy-team-coordination.md` itself (survives, `team`-gated); `strategy-concurrent-work.md` (its
 team-coord cross-refs are doc-level, verified valid).
 
-### `[ ]` **5.1 Dangling-reference sweep across the live methodology corpus**
+### `[x]` **5.1 Dangling-reference sweep across the live methodology corpus**
 
 - _Goal:_ No live methodology surface references a removed section or the retired apparatus — a scoped repo-wide
   grep returns clean (zero hits **outside the known-allowed survivors above**).
 
-    - `[ ]` **5.1.a Re-grep both trees** for `(@name)`, Personal Sub-Branches, Stacked PRs per Developer, concurrent
-      pairs, developer-agent pair, and shared-meta concurrent-write across the in-scope surfaces; the only permitted
-      hit is the allowlist (notably the single `developer-agent pair` at `strategy-work-planning.md:260`).
+    - `[x]` **5.1.a Re-grep both trees** for `(@name)`, Personal Sub-Branches, Stacked PRs per Developer, concurrent
+      pairs, developer-agent pair, and shared-meta concurrent-write — clean: every hit fell in an excluded surface
+      (this WU's `active/` artifacts, the cohort doc, `completed/**`, `supplemental/**`, ADRs, `user/`). The only
+      in-scope hits were the allowed `developer-agent pair` survivors — `strategy-work-planning.md:260` (allowlist)
+      and `strategy-team-coordination.md:92` (inside the team-gated surviving doc). The package tree carried no
+      apparatus hits, so both trees are parity-clean.
 
-    - `[ ]` **5.1.b Confirm cross-references stay valid** — verify `strategy-concurrent-work.md`'s doc-level
-      team-coord cross-refs (13, 353, 450) still resolve to surviving content (no edit expected), and that no other
-      live doc links a removed team-coord section.
+    - `[x]` **5.1.b Confirm cross-references stay valid** — `strategy-concurrent-work.md`'s team-coord cross-refs
+      (13, 353, 450) all resolve via the whole-doc `[team-coordination]` link to surviving sibling-framing and
+      ownership/handoff content; no edit needed. No live doc in either tree links a removed team-coord section anchor
+      — every reference is whole-doc (zero `strategy-team-coordination.md#…` links repo-wide).
 
-### `[ ]` **5.2 Adopter-facing leak + terminology check**
+- _Outcome:_ The team-mode `(@name)` / within-WU multi-dev apparatus is fully absent from the live corpus — the
+  scoped sweep returns clean against the allowlist and the surviving team-coord cross-refs all resolve. No
+  methodology-file edits were required; the removal landed complete in Phases 1–4.
+
+### `[x]` **5.2 Adopter-facing leak + terminology check**
 
 - _Goal:_ No adopter-facing doc names an unshipped WU; every "DRI" is expanded at first contact; the operative
   phrasing is "single owner" / "the owner".
 
-    - `[ ]` **5.2.a Forward-pointer leak check** — grep the edited adopter-facing surfaces for an unshipped-WU name
-      (`pr-decomposition`); confirm the seam wording stayed neutral.
+    - `[x]` **5.2.a Forward-pointer leak check** — grepped adopter-facing surfaces (`system/**`, `strategies/arc/**`,
+      templates, `QUICK-REFERENCE`, `AGENT-BRIEF.ARC`) for `pr-decomposition` and every unshipped cohort-member WU
+      name across both trees: zero hits. No forward-pointer leaked; the seam wording stayed neutral.
 
-    - `[ ]` **5.2.b Terminology check** — grep for bare "DRI" across adopter-facing surfaces; confirm each use is
-      expanded at first contact in its doc.
+    - `[x]` **5.2.b Terminology check** — exactly one "DRI" occurrence corpus-wide (`strategy-team-coordination.md:69`,
+      identical in both trees), expanded inline at that first-and-only contact ("one Directly Responsible Individual
+      (DRI)"). Operative phrasing is "single owner" throughout.
 
-### `[ ]` **5.3 Both-trees parity check**
+### `[x]` **5.3 Both-trees parity check**
 
 - _Goal:_ Every edited file is changed in both trees; no Package-Project sync warning fires at commit.
 
-    - `[ ]` **5.3.a Diff `.arc/**` against `packages/arc-framework/arc/**`** for each touched file; confirm parity
-      and that counterparts are staged together.
+    - `[x]` **5.3.a Diff `.arc/**` against `packages/arc-framework/arc/**`** for each touched file — all seven
+      1:1-mirrored Framework files (three `strategies/arc/` docs, `DEV-RULES.ARC`, `assess-cohort-fit`, `pre-commit`,
+      hooks `README`) are byte-identical across trees. Workflow templates follow the render rule: `session-handoff`
+      changed in both (live `.md` + `.template.md`); the `generate-tasks` / `process-task-loop` / `session-init`
+      template edits have no live-render counterpart because those renders were already team-mode-stripped (verified
+      apparatus-clean) — expected parity, not divergence. The only pending change is this task list (`active/`, not a
+      Framework file), so no sync warning fires at the upcoming commit.
 
 ## **Phase 6:** Verification
 
