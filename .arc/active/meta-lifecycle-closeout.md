@@ -16,7 +16,7 @@
 - **Next Task:** Task 5.1.a — Verify the verb-set sweep (line ~341)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 5.1.a — confirm no durable surface (both copies) names a retired transition verb
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

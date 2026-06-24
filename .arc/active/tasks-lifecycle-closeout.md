@@ -377,29 +377,34 @@ across both copies, with mirror parity asserted as a closeout invariant.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 full suite — md lint, ts lint, sh lint, typecheck (source + test), build, and the full
+  test suite (3235 passed, 1 skipped) — all green.
+- _Success criteria:_ all 12 met; none superseded or deviated. The lone consistency gap the Phase 5 audit caught
+  (`arc start` "graduate … in place") was fixed under 5.1.a before this pass.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` No durable surface (both copies) names a retired lifecycle transition verb: `graduate-work-unit.md` is
+- `[x]` No durable surface (both copies) names a retired lifecycle transition verb: `graduate-work-unit.md` is
   gone, `promote-work-unit.md` exists with title + all link-refs repointed, "readiness ladder" is preserved, and
   `--lifecycle` / slug-matched-drain language is gone
-- `[ ]` `arc status <slug>` appears in QUICK-REFERENCE § ARC CLI Commands and as an always-loaded DEV-RULES.ARC
+- `[x]` `arc status <slug>` appears in QUICK-REFERENCE § ARC CLI Commands and as an always-loaded DEV-RULES.ARC
   rule
-- `[ ]` `strategy-work-organization` carries the `(phase, location)` model, the derived-state vocabulary, the
+- `[x]` `strategy-work-organization` carries the `(phase, location)` model, the derived-state vocabulary, the
   `Parked` render bucket + interim hand-render discipline, the `stub` required-fields policy, and the
   protection-mode ship-layer framing
-- `[ ]` `strategy-work-planning` and `strategy-planning-module` carry no retired `graduation` vocabulary
-- `[ ]` `arc errand cut` is removed from the CLI and § The cut→occupy invariant is reframed around `open`'s
+- `[x]` `strategy-work-planning` and `strategy-planning-module` carry no retired `graduation` vocabulary
+- `[x]` `arc errand cut` is removed from the CLI and § The cut→occupy invariant is reframed around `open`'s
   composed cut; the internal `cutErrandBranch` mechanic is unaffected
-- `[ ]` `arc errand open` accepts an originating-capture argument that mints `origin: "inbox"` + `originEntry`, and
+- `[x]` `arc errand open` accepts an originating-capture argument that mints `origin: "inbox"` + `originEntry`, and
   an inbox-drained errand's capture is dropped at `arc errand close`
-- `[ ]` `integrate-work-unit` resolves entry mode from the resolver, not a hand-read of meta `**State:**`
-- `[ ]` A nested-parent cohort archives correctly via the `{NN}b` cascade
-- `[ ]` `reopen-work-unit.md` exists and drives `arc reopen`; `integrate-work-unit.md` links its inverse
-- `[ ]` The certifying audit asserts — across both copies — no documented-but-unbuilt transition, no half-migrated
+- `[x]` `integrate-work-unit` resolves entry mode from the resolver, not a hand-read of meta `**State:**`
+- `[x]` A nested-parent cohort archives correctly via the `{NN}b` cascade
+- `[x]` `reopen-work-unit.md` exists and drives `arc reopen`; `integrate-work-unit.md` links its inverse
+- `[x]` The certifying audit asserts — across both copies — no documented-but-unbuilt transition, no half-migrated
   mechanic, no retired-verb description; mirror parity holds
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
