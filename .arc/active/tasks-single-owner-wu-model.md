@@ -227,32 +227,43 @@ Package-Project sync check's behavior at execution. Code edits pair across both 
   cross-ref (edited in both copies); the three fully-templated workflows produced **no live `.arc/` render
   change**, confirming their renders were already team-mode-stripped.
 
-### `[ ]` **4.2 Remove the team-mode `(@name)` pre-commit check and renumber the sequence**
+### `[x]` **4.2 Remove the team-mode `(@name)` pre-commit check and renumber the sequence**
 
 - _Goal:_ The pre-commit hook no longer checks for `(@name)` markers, the check sequence stays gapless, and the
   README no longer documents the check.
 
-    - `[ ]` **4.2.a Remove the CHECK 10 block from `githooks/pre-commit` (304–325)** — the team-mode task-ownership
-      check, both trees (`.arc/system/.internal/githooks/` and `packages/arc-framework/arc/system/.internal/githooks/`).
+    - `[x]` **4.2.a Remove the CHECK 10 block from `githooks/pre-commit`** — removed the team-mode task-ownership
+      check from both trees (`.arc/system/.internal/githooks/` + `packages/arc-framework/arc/system/.internal/githooks/`);
+      trees left byte-identical.
 
-    - `[ ]` **4.2.b Renumber CHECK 11–19 → CHECK 10–18** — both trees, so the sequence stays gapless (verify no
-      test/README references a check by number before renumbering).
+    - `[~]` **4.2.b Renumber CHECK 11–19 → CHECK 10–18** — **superseded.** A full-repo sweep found the ordinal check
+      numbers referenced in ~43 live sites (hook headers + in-hook cross-refs both trees, `verify-arc-integrity.md`,
+      `verify-integrity.sh`, `src/scripts/validate-*.ts` comments, 5 test files) — far beyond the "no refs expected"
+      this subtask assumed — plus pre-existing off-by-one drift in two source comments. Renumbering would be a
+      high-churn, drift-entangled cascade for a purely cosmetic gain, so the numbering gap at CHECK 10 is left as-is.
+      Root cause (positional-ordinal brittleness) captured to `USER-INBOX` for a stable-slug-ID redesign.
 
-    - `[ ]` **4.2.c Remove the README entries (90, 119–120)** documenting the team-mode `(@name)` check — both trees.
+    - `[x]` **4.2.c Remove the README entries** documenting the team-mode `(@name)` check — dropped the warnings-list
+      bullet and the `## Team Mode Behavior` section from both `githooks/README.md` trees (the `team.mode` config-table
+      row stays — the key still exists).
 
-### `[ ]` **4.3 Verify the hook gates after the check removal**
+- _Outcome:_ Per the B decision the gapless-numbering goal is deliberately decoupled from the removal: the sequence
+  is left non-contiguous (gap at CHECK 10) rather than renumbered, since the numbers are pervasively referenced and
+  already drifted. No tombstone left in the hook; the gap's rationale lives here and in the `USER-INBOX` redesign
+  capture.
+
+### `[x]` **4.3 Verify the hook gates after the check removal**
 
 - _Goal:_ Shell quality gates and the hook test suite pass with CHECK 10 gone and the sequence renumbered.
 
-- _Note:_ Verify-only — no test asserts CHECK 10's team-mode warning (the `(@name)` test hits are the unrelated
-  worktree-ownership-marker lib), so there is no test to remove and no red-green-refactor loop. Remove or adjust a
-  test only if the removal/renumber actually breaks one.
+    - `[x]` **4.3.a Confirm no test asserts CHECK 10** — re-grepped `packages/arc-framework/__tests__/` for the
+      check's warning string / number; none found.
 
-    - `[ ]` **4.3.a Confirm no test asserts CHECK 10** — re-grep `packages/arc-framework/__tests__/` for the check's
-      warning string / number; expected none.
+    - `[x]` **4.3.b Run shell + hook gates** — `lint:sh` (shellcheck) exit 0; the `hook-integration` +
+      `pre-commit-shell-invocation` suites green (14 tests). Markdown lint clean.
 
-    - `[ ]` **4.3.b Run shell + hook gates** — `lint:sh` (shellcheck) and the hook tests
-      (`hook-integration`, `pre-commit-shell-invocation`) green.
+- _Outcome:_ Gates verified against the removal + left numbering gap (no renumber to verify, per 4.2.b's
+  supersession); all green.
 
 ## **Phase 5:** Corpus-coherence sweep
 
