@@ -12,9 +12,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit          | Priority | Owner  | Depends on | Cohort                  |
-|---------------|--------------------|----------|--------|------------|-------------------------|
-| `Integrating` | lifecycle-closeout | P1       | andrew | —          | lifecycle-state-machine |
+_None in flight._
 
 ## Ready
 
@@ -72,15 +70,15 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                                            | Cohort                     |
-|-------------------------------|----------|--------|-------------------------------------------------------------------------------------------------------|----------------------------|
-| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry, lifecycle-closeout | agile-parallelism          |
-| unit-scoped-review            | P2       | andrew | commit-increments                                                                                     | approval-flow-refinement   |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                                                | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                                                  | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                                                  | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                                                | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                                     | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                                                                        | Cohort                     |
+|-------------------------------|----------|--------|-----------------------------------------------------------------------------------|----------------------------|
+| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                                 | approval-flow-refinement   |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                            | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                            | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                 | release-readiness          |
 
 ### Depth 2
 

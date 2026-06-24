@@ -254,3 +254,17 @@ docs have landed.
   membership over.
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-06-23
+- **Final member:** `lifecycle-closeout`
+- **Member archives:** `24_lifecycle-state-resolver`, `25_lifecycle-transition-core`,
+  `27_planning-pipeline-readiness`, `29_errand-lattice`, `30_decompose-matrix`, `32_lifecycle-closeout`
+- **Outcome:** The work-unit lifecycle is now a coherent, gapless state machine — every state and transition
+  named with its inverse across the WU lattice and the adjacent errand/cohort lifecycles, with the deterministic
+  transition mechanics migrated into the CLI (B1) and the corpus certified consistent with the shipped model.
+- **Follow-up:** [none] — the forward-compat seams (further CLI-mechanic migration, history-rewrite cleanup, the
+  managed record/projection substrate) are downstream work units with their own homes, not cohort debt.
+
+---
