@@ -175,10 +175,13 @@ pair across trees.
       "natural deliverable/phase boundaries" clause); neutral, model-agnostic wording, forward-compatible without
       naming the downstream multi-PR concern.
 
-### `[ ]` **3.3 Fold the unexpanded "DRI" gloss at `strategy-work-organization.md` ~:339**
+### `[x]` **3.3 Fold the unexpanded "DRI" gloss at `strategy-work-organization.md`**
 
 - _Goal:_ The lone bare "No coordinator or DRI" (~339) reads in single-owner terminology — reword to "single
   owner" (lean) or expand "DRI" at first contact if retained.
+
+- _Outcome:_ Took the lean reword — "No coordinator or DRI" → "No coordinator or owner" — the sole bare "DRI" in
+  the file. Reads consistently with the passage's surrounding "ownerless" / "`Owner` stays WU-level" framing.
 
 ## **Phase 4:** Remove `(@name)` from workflows/templates and the team-mode code surface
 

@@ -336,7 +336,7 @@ one only when it has cross-cutting coordination to record, and a missing section
 The doc never carries a roster or status table — those render from metas. An orphan section (its WU renamed or
 removed) is caught by the cohort-consistency invariant, not by manual upkeep.
 
-**No coordinator or DRI.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
+**No coordinator or owner.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
 (each member edits only its own section), and cohort-level material is by definition ownerless — *the partition
 is the coordination mechanism, in place of an owner.* `Owner` stays WU-level; any team-scale arbitration need
 routes to the team-coordination conventions, not a role minted at the cohort.
