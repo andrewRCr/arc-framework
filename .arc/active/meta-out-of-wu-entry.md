@@ -1,16 +1,17 @@
 # Metadata: Out-of-WU Session Entry
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| **State**  | **Owner** | **Branch**             | **Class** | **Priority** |
+| ---------- | --------- | ---------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/out-of-wu-entry` | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
-- **Depends On:** [none] (upstream — errand-enablement, work-routing-discipline, in-flight-awareness — all shipped)
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `draft-out-of-wu-entry.md`
 - **Task List:** [none]
 
+- **Current Workflow:** `draft-design`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
@@ -22,5 +23,8 @@
   (`arc-session` skill / `session-init`); atomic captures carrying a stable slug (`arc-inbox`); and the
   design-bearing `--housekeep`-flag-vs-warm-path question. See `draft-out-of-wu-entry.md` § Scope and
   § Open Questions. Independently shippable — not gated on CWC/AWL.
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---
