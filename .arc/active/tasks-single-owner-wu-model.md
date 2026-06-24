@@ -330,26 +330,31 @@ team-coord cross-refs are doc-level, verified valid).
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 full suite — `lint:md`, `lint:ts`, `lint:sh`, `typecheck:all`, 3236 tests passed
+  (1 skipped), and `build` — all green.
+- _Success criteria:_ 10 criteria, all met as planned (no deviations) — the apparatus removal is complete and
+  coherent across both trees, with the `pr-decomposition` integration seam left clean and neutral.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` No live corpus surface (excluding `.arc/completed/**`) contains the `(@name)` convention or the within-WU
+- `[x]` No live corpus surface (excluding `.arc/completed/**`) contains the `(@name)` convention or the within-WU
   multi-dev apparatus; a repo-wide grep over live surfaces returns clean.
-- `[ ]` `strategy-team-coordination.md` reads as a coherent cross-person-only doc with no dangling reference to a
+- `[x]` `strategy-team-coordination.md` reads as a coherent cross-person-only doc with no dangling reference to a
   removed section and no contradiction of `strategy-concurrent-work.md`'s single-owner framing.
-- `[ ]` `DEV-RULES.ARC` § Task interlock states the interlock applies per single-owner WU, with no
+- `[x]` `DEV-RULES.ARC` § Task interlock states the interlock applies per single-owner WU, with no
   developer-agent-pair concurrency language.
-- `[ ]` The meta `**Owner:**` field is documented as the single source of assignment truth; per-task `(@name)`
+- `[x]` The meta `**Owner:**` field is documented as the single source of assignment truth; per-task `(@name)`
   markers are documented as retired.
-- `[ ]` No adopter-facing doc uses "DRI" unexpanded; operative phrasing is "single owner" / "the owner".
-- `[ ]` The welded PR-cardinality passages affirm one owner per WU while marking PR-count as a separable axis —
+- `[x]` No adopter-facing doc uses "DRI" unexpanded; operative phrasing is "single owner" / "the owner".
+- `[x]` The welded PR-cardinality passages affirm one owner per WU while marking PR-count as a separable axis —
   neutrally, with no unshipped-WU name in adopter-facing text.
-- `[ ]` The team-mode `(@name)` pre-commit check and its README documentation are removed; `lint:sh` and the hook
+- `[x]` The team-mode `(@name)` pre-commit check and its README documentation are removed; `lint:sh` and the hook
   tests pass.
-- `[ ]` Every edited file is changed in both `.arc/` and `packages/arc-framework/arc/`; no Package-Project sync
+- `[x]` Every edited file is changed in both `.arc/` and `packages/arc-framework/arc/`; no Package-Project sync
   warning fires at commit.
-- `[ ]` All Tier-1 quality gates pass (`lint:md`, `lint:sh`, and any touched-code gates).
-- `[ ]` Ready for integration.
+- `[x]` All Tier-1 quality gates pass (`lint:md`, `lint:sh`, and any touched-code gates).
+- `[x]` Ready for integration.

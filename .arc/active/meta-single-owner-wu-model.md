@@ -16,7 +16,7 @@
 - **Next Task:** Task 5.1 — Dangling-reference sweep across the live methodology corpus (line ~285)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — start Phase 5 (corpus-coherence sweep) via process-task-loop
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
