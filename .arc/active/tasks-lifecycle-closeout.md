@@ -330,13 +330,11 @@ _Purpose:_ The completion-time global-consistency pass that certifies the swept 
 model — no documented-but-unbuilt transition, no half-migrated mechanic, no doc describing the retired verb set —
 across both copies, with mirror parity asserted as a closeout invariant.
 
-### `[ ]` **5.1 Run the certifying consistency audit across both copies**
+### `[x]` **5.1 Run the certifying consistency audit across both copies**
 
 - _Goal:_ The swept substrate is certified against the model: no retired-verb description, no documented-but-
   unbuilt transition, no half-migrated mechanic — and mirror parity holds across `.arc/` and
   `packages/arc-framework/arc/`.
-- _Approach:_ Consume the grounded findings inventory (`notes-lifecycle-closeout.md`) and the verify-landed
-  checklist.
 
     - `[x]` **5.1.a Verify the verb-set sweep**
         - Verified clean across the durable corpus (both copies): `promote-work-unit.md` present /
@@ -349,17 +347,33 @@ across both copies, with mirror parity asserted as a closeout invariant.
           in place" — reworded to drop the retired verb and the misleading "in place" (the stub always relocates
           `backlog/ → active/`; only the worktree is in place).
 
-    - `[ ]` **5.1.b Verify the built edges against the model**
-        - The verify-landed checklist: W1 producer leg, W2 rewire, and W4 `{NN}b` cascade present; ADR-027
-          `Accepted`; the embedded meta-template carries `Current Workflow` + the `[begin current workflow]`
-          sentinel. No documented transition lacks substrate.
+    - `[x]` **5.1.b Verify the built edges against the model**
+        - Verify-landed checklist all confirmed against substrate: W1 producer leg (`open.ts` mints `origin` from
+          `originEntry`; `--from-inbox` flag + handler thread; four doc/skill call-sites), W2 rewire
+          (`integrate-work-unit.md` resolves entry mode via `arc status {name} --json`; precondition `**State:**`
+          checks deliberately retained), W4 `{NN}b` nested-parent cascade (`sweepNestedParentDoc` /
+          `nestedParentSwept`); ADR-027 `Accepted` (2026-06-21); the scaffold meta-template carries
+          `Current Workflow` + the `[begin current workflow]` Next-Action sentinel. No documented transition
+          lacks substrate.
 
-    - `[ ]` **5.1.c Verify mirror parity**
-        - Every edited framework-content surface matches its `packages/arc-framework/arc/` twin.
+    - `[x]` **5.1.c Verify mirror parity**
+        - Parity holds across all 25 edited framework surfaces: 21 byte-identical twins; STRATEGY-INDEX is a
+          configurable file whose framework section matches (only the by-design project-strategies section
+          diverges); the two templated pairs (QUICK-REFERENCE, session-init) carry this WU's edits identically in
+          both the `.arc/` copy and the package `.template.md`. The `graduate → promote` rename and new
+          `reopen-work-unit.md` are mirrored; `graduate-work-unit.md` is absent from both copies.
 
-    - `[ ]` **5.1.d Settle the standing-check question**
-        - Decide whether the audit leaves a standing mechanical check (a guard asserting docs match the transition
-          table) or remains a one-time manual pass.
+    - `[x]` **5.1.d Settle the standing-check question**
+        - Settled: the audit remains a **one-time manual pass**; no standing guard is built in-WU. The corpus is
+          consistent on exit (5.1.a–c), so a docs-vs-transition-table guard is additive prevention (un-enhanced,
+          not a consistency gap) — out of closeout scope by the cohort's limit-test. Routed the standing-guard idea
+          to `knowledge-lint` (its mechanical-lint tier, not `quality-gate-hooks`' adopter-stack dispatch) via
+          `USER-INBOX § Work Unit`.
+
+- _Outcome:_ The certifying audit passes: the swept substrate matches the shipped model across both copies — no
+  retired-verb description, no documented-but-unbuilt transition, no half-migrated mechanic, mirror parity intact.
+  The one drift the audit caught (`arc start` "graduate … in place") was fixed under 5.1.a; the recurrence-guard
+  question is settled as one-time-manual with the standing check routed to `knowledge-lint`.
 
 ## **Phase 6:** Verification
 
