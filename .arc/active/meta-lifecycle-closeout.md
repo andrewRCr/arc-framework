@@ -1,8 +1,8 @@
 # Metadata: lifecycle-closeout
 
-| **State** | **Owner** | **Branch**               | **Class** | **Priority** |
-| --------- | --------- | ------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/lifecycle-closeout` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**               | **Class** | **Priority** |
+| ------------- | --------- | ------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/lifecycle-closeout` | `Heavy`   | `P1`         |
 
 - **Cohort:** `lifecycle-state-machine`
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — verification complete; all phases done (Tier 3 gates green, 12/12 criteria met)
-- **Next Task:** [none] — all tasks complete
+- **Last Completed:** Task 6.1 — consistency audit verified; all phases complete (Tier 3 green, 12/12 criteria met)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
