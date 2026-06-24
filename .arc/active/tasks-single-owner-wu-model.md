@@ -94,7 +94,7 @@ _Purpose:_ Remove developer-agent-pair concurrency from the constitutional rules
 convention from task-list formatting — the two non-team-coord doc homes of the retired apparatus. Both edits pair
 across trees.
 
-### `[ ]` **2.1 Rewrite `DEV-RULES.ARC` § Task interlock to per-work-unit (drop the team-mode conditional)**
+### `[x]` **2.1 Rewrite `DEV-RULES.ARC` § Task interlock to per-work-unit (drop the team-mode conditional)**
 
 - _Goal:_ § Task interlock states the interlock applies per work unit (one owner), with no developer-agent-pair /
   concurrent-pairs language and no team-mode conditional gating the universal statement.
@@ -102,23 +102,23 @@ across trees.
 - _Note:_ Mode-agnostic decoupling per `notes-single-owner-wu-model.md` § Mode-agnostic decoupling — the
   conditional is dropped, not reframed.
 
-    - `[ ]` **2.1.a Drop the team-mode pair sentence (189)** — "In team mode, this applies per developer-agent pair
+    - `[x]` **2.1.a Drop the team-mode pair sentence (189)** — "In team mode, this applies per developer-agent pair
       — concurrent pairs may work on different tasks simultaneously" → state the interlock applies per work unit
       (one owner); cross-person parallelism is multiple WUs.
 
-    - `[ ]` **2.1.b Trim the cross-reference (190)** — keep a slim pointer to Team Coordination for cross-person
+    - `[x]` **2.1.b Trim the cross-reference (190)** — keep a slim pointer to Team Coordination for cross-person
       coordination conventions; drop "branching patterns" (§ Team Branching Patterns is removed) and the
       "task ownership" phrasing.
 
-### `[ ]` **2.2 Retire the `(@name)` Task Ownership Markers convention from `strategy-task-list-formatting.md`**
+### `[x]` **2.2 Retire the `(@name)` Task Ownership Markers convention from `strategy-task-list-formatting.md`**
 
 - _Goal:_ Nothing in the formatting strategy documents the `(@name)` marker; the § Task Ownership Markers section
   is removed.
 
-    - `[ ]` **2.2.a Remove § Task Ownership Markers (306–325)** — the section, its `team.mode` activation line, the
+    - `[x]` **2.2.a Remove § Task Ownership Markers (306–325)** — the section, its `team.mode` activation line, the
       `(@name)` format spec, and the `@alice` example.
 
-    - `[ ]` **2.2.b Reconcile the orphaned cross-references** — § Contents entry 3 (line 19), the
+    - `[x]` **2.2.b Reconcile the orphaned cross-references** — § Contents entry 3 (line 19), the
       `[team-coordination]` link definition (411, used inline only inside the removed section at 322), and the
       Related Documentation entry if it lists team-coord. (`template-tasks.md` is clean — no `(@name)` reference.)
 

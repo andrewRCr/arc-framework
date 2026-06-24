@@ -186,8 +186,9 @@ self-invoked). That is correct *scoping* of the invariant, not an exception — 
 and is never silently widened. Signals and procedure: [process-task-loop][process-task-loop] § Deferred
 review.
 
-In team mode, this applies per developer-agent pair — concurrent pairs may work on different tasks simultaneously.
-See [Team Coordination Strategy][team-coordination] for task ownership, branching patterns, and handoff conventions.
+A work unit's review increments all run under its single owner — cross-person parallelism is multiple work
+units, not multiple developers within one. See [Team Coordination Strategy][team-coordination] for
+cross-person coordination conventions.
 
 **For the full task execution protocol** (completion steps, quality gate checkpoints, mandatory
 stop, implied permission, deferred review), load the [process-task-loop workflow][process-task-loop].
