@@ -12,8 +12,8 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.2 — adjacent-strategy verb fold-in + `arc errand cut` removal (Phase 4 complete)
-- **Next Task:** Task 5.1.a — Verify the verb-set sweep (line ~341)
+- **Last Completed:** Task 6.1 — verification complete; all phases done (Tier 3 gates green, 12/12 criteria met)
+- **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
