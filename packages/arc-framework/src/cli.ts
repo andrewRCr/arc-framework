@@ -120,7 +120,7 @@ program
   )
   .option(
     "--here",
-    "Work in the current worktree, no spawn: cold-start a fresh WU, or graduate a backlog stub in place",
+    "Work in the current worktree, no spawn: cold-start a fresh WU, or bring up an existing backlog stub",
   )
   .option(
     "--from <pointer-or-blurb>",

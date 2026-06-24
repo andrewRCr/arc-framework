@@ -338,11 +338,16 @@ across both copies, with mirror parity asserted as a closeout invariant.
 - _Approach:_ Consume the grounded findings inventory (`notes-lifecycle-closeout.md`) and the verify-landed
   checklist.
 
-    - `[ ]` **5.1.a Verify the verb-set sweep**
-        - No durable surface (both copies) names a retired transition verb (`graduate`/`graduation`, the
-          `--lifecycle` flag spelling, slug-matched-drain language); `promote-work-unit.md` exists with title +
-          link-refs repointed; "readiness ladder" preserved. Resolve the `multi-increment errand → extended
-          errand` stale framing in the cohort doc.
+    - `[x]` **5.1.a Verify the verb-set sweep**
+        - Verified clean across the durable corpus (both copies): `promote-work-unit.md` present /
+          `graduate-work-unit.md` gone, CLI registers `promote`/`demote`, no `--lifecycle` spelling or retired
+          slug-matched-drain prose, "readiness ladder" preserved; residual `graduat*` / `slug-matched` hits are
+          confirmed KEEPs (`graduated lookup`, `draft-*→notes-*` colloquial, the `arc user inbox-remove` feature,
+          and the `src/` `graduate` arm — internal-vocab, a Non-Goal). Resolved the cohort-doc
+          `multi-increment → extended errand` stale framing. Fixed one missed spot the audit caught:
+          QUICK-REFERENCE (both copies) + `cli.ts` `--here` help described `arc start` as "graduate a backlog stub
+          in place" — reworded to drop the retired verb and the misleading "in place" (the stub always relocates
+          `backlog/ → active/`; only the worktree is in place).
 
     - `[ ]` **5.1.b Verify the built edges against the model**
         - The verify-landed checklist: W1 producer leg, W2 rewire, and W4 `{NN}b` cascade present; ADR-027

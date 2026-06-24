@@ -201,7 +201,7 @@ arc status <slug> [--json]
 # Create a backlog stub at a committed tier — no ceremony (judgment-light; required fields per strategy-work-organization.md § Stub required fields)
 arc stub <name> --commitment <provisional|planned> --priority <P#> [--origin <ref>] [--design <ref>] [--cohort <slug>]
 
-# Start a work unit — spawn a worktree on plan/<name>, or graduate a backlog stub in place (init-work-unit.md)
+# Start a work unit on a plan/<name> branch, fresh or from a backlog stub — spawns a worktree (--here uses the current checkout) (init-work-unit.md)
 arc start [name] [--here] [--from <pointer-or-blurb>]
 
 # Promote a provisional stub to planned, requires a resolved Class (promote-work-unit.md)

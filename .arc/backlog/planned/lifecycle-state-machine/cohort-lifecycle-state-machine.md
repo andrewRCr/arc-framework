@@ -208,7 +208,7 @@ gate, and the rewritten `decompose` workflow.
 
 _Consumes:_ the generalized post-merge `arc teardown` verb for the started-origin branch + worktree teardown
 (Phase 4.R — out-of-band, _not_ the in-verb mutator-bundle teardown legs) and the resolver's cohort-membership reads.
-Coordination seam with `errand-lattice`: whether `decompose` itself is runnable as a multi-increment errand
+Coordination seam with `errand-lattice`: whether `decompose` itself is runnable as an extended errand
 (its backlog-stub-source / heterogeneous-home arms are errand-class) keys on the character gate.
 
 ### `errand-lattice`
