@@ -44,6 +44,9 @@ plus a corpus-coherence sweep so the removal is complete rather than doc-local.
 3. **Kill the within-WU concurrent multi-dev apparatus.** Remove Personal-Sub-Branches, Stacked-PRs-per-Developer,
    the shared-meta concurrent-write handling, and "concurrent pairs on different tasks" (`DEV-RULES.ARC`
    § Task interlock). The task interlock applies per single-owner WU, not per developer-agent pair within a WU.
+   The full § Team Branching Patterns is removed wholesale — all four patterns (Shared Integration Branch and
+   Direct Shared Branch included, not only the two named above) are within-WU multi-dev; the cross-WU branching
+   model lives in `strategy-work-organization.md` + `strategy-concurrent-work.md`.
 
 4. **`strategy-team-coordination.md` survives as a gutted, cross-person-only doc** — not a thin reframe. Most of
    the doc is the apparatus being removed, but a genuine **cross-person** coordination residual remains (a
@@ -91,6 +94,19 @@ plus a corpus-coherence sweep so the removal is complete rather than doc-local.
    (DRI)"), never assuming reader familiarity. Fold the lone existing unexpanded use
    (`strategy-work-organization.md` ~:339, "No coordinator or DRI") into the coherence sweep.
 
+9. **Mode-agnostic decoupling of universal statements (forward-compat).** Where a reconciled statement is
+   *universal* — true regardless of team size or config — it **drops** any `team.mode` conditional rather than
+   reframing it. Concretely, `DEV-RULES.ARC` § Task interlock (and its `process-task-loop` mirror) states the
+   interlock applies **per work unit (one owner)**, with no "in team mode, per developer-agent pair" gating;
+   cross-person parallelism is "multiple work units," covered by `strategy-team-coordination.md`. The genuinely
+   cross-person social layer (`strategy-team-coordination.md` as a whole) stays `team`-gated — the legitimate
+   residual (consistent with the no-go below). This WU does **not** perform the `team.mode → team.enabled` rename
+   (that is `arc-modes`' in-flight scope): edits reference the shipped key only where unavoidable, prefer removing
+   the reference, and never forward-point to the unlanded rename. Grounding: `adr-020` (ARC scales by depth /
+   footprint, not by swapping shapes; team becomes a toggle, not a mode-shape) and `strategy-storage-evolution.md`
+   P6/P7/P9 (workflow logic stays mode-agnostic; team-mode is the multi-writer config the backend ultimately
+   subsumes).
+
 ## Scope boundary (No-gos)
 
 - **Does not amend the `1 WU = 1 PR` invariant, add a `Deliverable` axis, or touch `generate-tasks` /
@@ -135,7 +151,7 @@ plus a corpus-coherence sweep so the removal is complete rather than doc-local.
   coordination, cross-WU planning dependencies, external tracker integration, config notes — with no dangling
   reference to a removed section and no contradiction of `strategy-concurrent-work.md`'s single-owner framing.
 - `DEV-RULES.ARC` § Task interlock states the interlock applies per single-owner WU, with no developer-agent-pair
-  concurrency language.
+  concurrency language and no `team.mode` conditional gating the universal statement (Decision 9).
 - The meta `**Owner:**` field is documented as the single source of assignment truth; per-task `(@name)` markers
   are documented as retired.
 - No adopter-facing doc uses "DRI" unexpanded — the operative phrasing is "single owner" / "the owner," and any
@@ -152,9 +168,14 @@ plus a corpus-coherence sweep so the removal is complete rather than doc-local.
 
 ## Open items
 
-- **team-coord survivor boundary, line-by-line.** The two placement calls in decision 4 (commit-visibility note
-  location; External Tracker Integration home) are settled here as leanings; final line-by-line placement resolves
-  during the rewrite and is confirmable at review without reopening design.
-- **Exact `**Owner:**`-semantics edit sites.** Which doc(s) carry the authoritative "Owner is the single source of
-  assignment truth" statement (meta template vs. team-coord vs. work-org) resolves at task generation against the
-  grounded surfaces.
+Both items below were framed to resolve at task generation; both are now resolved in
+`tasks-single-owner-wu-model.md` (with the section-level detail in `notes-single-owner-wu-model.md`):
+
+- **team-coord survivor boundary, line-by-line** — *resolved.* The section-by-section keep / remove / reframe map
+  is captured in `notes-single-owner-wu-model.md` § team-coord survivor map. Both flagged placement calls held:
+  the cross-dev commit-visibility note stays in Interlock-Release Coordination; External Tracker Integration stays
+  in team-coord. Line-by-line confirmable at review.
+- **Exact `**Owner:**`-semantics edit sites** — *resolved.* The authoritative "single source of assignment truth"
+  statement lands in `strategy-team-coordination.md` (the cross-person assignment-layer doc); the
+  `strategy-work-organization.md` `**Owner:**` field gloss is verified consistent (no rewrite); no `template-meta.md`
+  exists — the meta is code-scaffolded — so there is no third home to write.
