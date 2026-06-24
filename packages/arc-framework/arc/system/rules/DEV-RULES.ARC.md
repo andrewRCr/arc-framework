@@ -384,6 +384,8 @@ handoff.
 - What code "probably does" — read the actual implementation
 - Task phase content or summaries — read the task list
 - Implementation approaches without understanding requirements
+- A work unit's lifecycle state — resolve it by slug with `arc status <slug>`, never infer from directory,
+  branch, or a state-blind `Depends On` edge
 
 **Clarifying questions improve outcomes.** When you mostly understand a request but see
 ambiguities, edge cases, or design alternatives that need decisions — ask.

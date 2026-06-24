@@ -194,7 +194,7 @@ on Task 1.1 landing).
   park⊥resume, promote⊥demote). The fileless inverse `demote` is documented under `promote` § Inverse by design,
   not a coverage gap.
 
-### `[ ]` **3.2 Surface the resolver state-query to agents**
+### `[x]` **3.2 Surface the resolver state-query to agents**
 
 - _Goal:_ The lifecycle verb set is discoverable where agents reach for it — the on-demand command catalog (the
   **complete** verb index, `arc status <slug>` included) and the always-loaded behavioral rule for state resolution.
@@ -210,11 +210,15 @@ on Task 1.1 landing).
           pointer). Orienting line frames the catalog as the complete index and `work-unit-lifecycle/` as the
           judgment-bearing subset. Closes the Task 2.2.b `demote` deferral.
 
-    - `[ ]` **3.2.b Add the always-loaded DEV-RULES rule** (both copies)
-        - DEV-RULES.ARC § Verification and Discovery → "Verify before assuming" — resolve a WU's lifecycle state by
-          slug via `arc status <slug>` rather than inferring from directory, branch, or a state-blind `Depends On`
-          edge. Terse statement + inline command only (always-loaded budget); the worked example, `--json` detail,
-          and rationale belong on QUICK-REFERENCE / strategy surfaces.
+    - `[x]` **3.2.b Add the always-loaded DEV-RULES rule** (both copies)
+        - Added a terse bullet to DEV-RULES.ARC § Verification and Discovery → "Verify before assuming" (both
+          copies): resolve a WU's lifecycle state by slug with `arc status <slug>`, never infer from directory,
+          branch, or a state-blind `Depends On` edge. Inline command only — no worked example / `--json` / rationale
+          (those stay on QUICK-REFERENCE / strategy surfaces) — within the always-loaded budget.
+
+- _Outcome:_ The resolver state-query is now discoverable on both surfaces agents reach for — the complete
+  on-demand catalog (3.2.a) and the always-loaded "never infer WU state" rule (3.2.b). Per the verb-inventory
+  bucketing: the full set on-demand, `arc status <slug>` the sole always-loaded entry.
 
 ### `[ ]` **3.3 Correct the drifted inbox-drain prose**
 
