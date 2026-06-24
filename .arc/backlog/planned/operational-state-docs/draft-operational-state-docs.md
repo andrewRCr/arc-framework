@@ -340,6 +340,28 @@
   silently drops wrapped or colon-less entry headers**, and **Take tombstones out of the rendered files** — same
   rendered-text-as-identity family; build the slug/record decoupling once across them.
 
+### `[ ]` **Cohort-doc presence is enforced on-touch only — grouping dirs missing their `cohort-*.md` slip through**
+
+- _Routed from:_ `single-owner-wu-model` housekeep drain (2026-06-24); surfaced live adding a member to
+  `architecture-remediation`, a five-member grouping dir that had **no** `cohort-architecture-remediation.md`.
+- _Concern:_ the cohort-consistency check (condition (b), `validate-cohort-consistency.ts`) validates a grouping
+  dir's cohort-doc presence only when the **staged delta touches** that dir. So a grouping dir created or left
+  without its constitutive `cohort-*.md` is never flagged until some commit happens to touch it —
+  `architecture-remediation` carried five members in that invalid state indefinitely, caught only because a sixth
+  member's add touched the dir. There is no proactive / standing guard asserting that **every** grouping dir
+  (across the lifecycle-complete membership universe) carries its cohort doc.
+- _Tension to reconcile:_ the cohort-doc **convention** (`cohort-agile-parallelism.md` § "Why this doc exists")
+  treats the doc as **optional** — its presence is the _signal_ that a cohort coordinates, and a browsing-bucket
+  grouping needs none. The **hook** mandates one per grouping dir regardless. `architecture-remediation` is exactly
+  the browsing-bucket case the convention says needs no doc, yet the hook forced one. Settle which rule wins:
+  mandatory-per-grouping-dir, or doc-iff-coordinating (then the hook must allow doc-less browsing buckets).
+- _Approach:_ extend the corpus-wide conformance gate (the enforcement-vehicle entry above) to assert cohort-doc
+  **presence** across all grouping dirs, not just touched ones, reusing the lifecycle-complete cohort-membership
+  resolver; pair with a one-time backfill sweep. Settle the convention/hook tension first — the gate's rule depends
+  on it.
+- _Note:_ the `architecture-remediation` instance was backfilled at this drain (its `cohort-*.md` authored as a
+  minimal browsing-bucket record); this entry is the durable guard so the class of gap can't recur silently.
+
 ---
 
 ## Purpose
