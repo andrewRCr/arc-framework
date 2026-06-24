@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-closeout.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.4 — fold lifecycle-ceremony commit footers to a validator-accepted token (Phase 3 complete)
-- **Next Task:** Task 4.1.a — Add the `(phase, location)` model + `Active`/`active/` disambiguation (line ~280)
+- **Last Completed:** Task 4.2 — adjacent-strategy verb fold-in + `arc errand cut` removal (Phase 4 complete)
+- **Next Task:** Task 5.1.a — Verify the verb-set sweep (line ~341)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.1.a — add the `(phase, location)` two-axis model to `strategy-work-organization`
+- **Next Action:** Start Task 5.1.a — confirm no durable surface (both copies) names a retired transition verb
 
 - **PR URL:** [none]
 - **Completed:** [none]
