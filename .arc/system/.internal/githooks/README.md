@@ -87,7 +87,6 @@ Enforces the commit message standard defined in
 - Debug statements (`console.log`, `debugger`, `pdb`, `breakpoint()`) in added lines
 - Modified task lists not staged (maintainer only)
 - Task list staged with completions but sibling meta file not co-staged (maintainer only)
-- Task list changes without `(@name)` ownership markers (team mode only)
 
 ### pre-push — Force-Push Safety
 
@@ -113,12 +112,6 @@ co-staging checks are active.
 **Contributor**: Maintainer-only checks are skipped with a notice. A soft warning fires if the
 contributor uses a non-`contribution` context footer pattern. Protected path warnings fire when
 staging files in `.arc/active/` or `.arc/backlog/`.
-
-## Team Mode Behavior
-
-When `team.mode: true` in `arc-config.yml`, the pre-commit hook adds a check for `(@name)`
-ownership markers in task list changes. This helps prevent coordination conflicts when multiple
-developers work on the same task list. Advisory only — does not block commits.
 
 ## Configuration (`arc-config.yml`)
 

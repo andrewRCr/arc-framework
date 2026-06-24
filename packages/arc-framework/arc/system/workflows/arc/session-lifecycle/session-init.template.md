@@ -327,19 +327,6 @@ session-state, follow the override instead.
       `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
       sufficient for reliable lookup.
 
-<!-- arc:if team.mode == true -->
-**Team mode — resolve personal next task** (after loading the task list): The active meta file shows
-work-unit state (one "Next Task"). In team mode, your personal task may differ. Scan the task list for
-`(@name)` markers matching your `{identity}`:
-
-1. Find incomplete tasks (`[ ]`) with your `(@identity)` marker — first match wins and overrides the active
-   meta file `**Next Task:**` for your orientation
-2. If no `(@name)` markers exist, fall back to the active meta file `**Next Task:**`
-3. If markers exist but none match your identity, note this in orientation — you may need to claim a task
-
-See [Team Coordination Strategy][team-coordination] § Task Ownership for the `(@name)` convention.
-<!-- arc:endif -->
-
 8. **Personal session context** — read both per-WU and cross-WU surfaces. Uses `{identity}` from
    Step 1. Read directly (no `test -f` precheck — Read tool handles missing files gracefully).
 
@@ -467,12 +454,6 @@ mention gaps in orientation if they exist.** A clean check produces no output.
 
 If the freshness gap suggests an interrupted session, run the crash-recovery routine
 ([process-task-loop § Crash Recovery][process-task-loop]).
-
-<!-- arc:if team.mode == true -->
-**Concurrent activity:** In team mode, freshness gaps may also indicate concurrent developer activity rather
-than stale session state. If the active meta file was updated by a different author since your last
-session, note this in orientation — another developer may be actively working on the same branch.
-<!-- arc:endif -->
 
 ### Next work unit discovery
 

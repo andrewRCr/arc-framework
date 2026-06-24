@@ -80,16 +80,16 @@ method consumes ([strategy-work-organization][work-org] § WU sizing standard) �
   own branch, merged in order); independent-ish pieces form a **cohort** of parallel WUs. A stack is a cohort's
   dependency-ordered delivery mode, not one WU spread across many branches.
 
-The mental model is **cohort ≈ epic, WU ≈ story / one reviewable PR** — this method fills the codified
+The mental model is **cohort ≈ epic, WU ≈ story** — this method fills the codified
 concern → WU-count mapping.
 
 ### When it fires affirmative — a cohort of self-contained WUs
 
 When a concern exceeds one WU it becomes a **cohort of self-contained, single-owner WUs** — each its own
-`meta-* + spec-* + tasks-*`, one branch, one PR — not one large WU sliced into several PRs.
+`meta-* + spec-* + tasks-*` and one branch — not one large WU sliced into smaller pieces.
 
 **Plan-grouping ≠ delivery-grouping.** One concern **plans** as a single coherent draft but **delivers** as a
-stack of PR-sized WUs along natural deliverable/phase boundaries. At decomposition the one draft becomes **N
+stack of WUs along natural deliverable/phase boundaries. At decomposition the one draft becomes **N
 self-contained WU specs + cross-WU coordination** in `cohort-{name}.md`.
 
 ### Member-slug naming

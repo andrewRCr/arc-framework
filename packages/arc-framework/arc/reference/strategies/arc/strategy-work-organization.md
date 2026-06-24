@@ -295,8 +295,8 @@ only ever a PRD-idiom traceability convenience:
 
 A **cohort** is a deliberate grouping of sibling work units — the structure a concern takes when it outgrows a
 single WU. Rather than one WU sliced into stacked PRs, the concern becomes a cohort of self-contained,
-single-owner WUs, each with its own `meta-* / spec-* / tasks-*`, one branch, and one PR. The work unit remains
-the **leaf deliverable**; the cohort is the grouping above it.
+single-owner WUs, each with its own `meta-* / spec-* / tasks-*` and one branch — how many PRs a work unit emits
+is a separate axis. The work unit remains the **leaf deliverable**; the cohort is the grouping above it.
 
 This taxonomy complements the [Class Model](#class-model): `Class` is the *weight* of one WU; a cohort is the
 *shape* a concern takes when it spans more than one. The planning-time judgment of whether a concern is one WU or
@@ -336,7 +336,7 @@ one only when it has cross-cutting coordination to record, and a missing section
 The doc never carries a roster or status table — those render from metas. An orphan section (its WU renamed or
 removed) is caught by the cohort-consistency invariant, not by manual upkeep.
 
-**No coordinator or DRI.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
+**No coordinator or owner.** A cohort needs neither. Membership is derived, per-member coordination is partitioned
 (each member edits only its own section), and cohort-level material is by definition ownerless — *the partition
 is the coordination mechanism, in place of an owner.* `Owner` stays WU-level; any team-scale arbitration need
 routes to the team-coordination conventions, not a role minted at the cohort.
@@ -467,10 +467,7 @@ delivery shapes follow from the cut:
 - **Cohort (parallel):** independent members, each with its own task list, branch, and PR.
 - **Stack (dependency-ordered):** sequentially-dependent members delivered as ordered PRs, each on its own
   branch, merged in order. The merge/rebase discipline for executing a stack is the
-  [Team Coordination Strategy][team-coordination]'s.
-
-Within-WU **team sub-branches** (multiple developers against one WU's work) are a team-collaboration mechanism,
-not a decomposition pattern — see [Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
+  [Concurrent Work Strategy][concurrent-work]'s § Branch and rebase discipline.
 
 **Branch scope:** One work unit per branch. Switching work units implies switching branches.
 
@@ -479,8 +476,7 @@ not a decomposition pattern — see [Team Coordination Strategy][team-coordinati
 [activate-work-unit][activate-work-unit] on the WU's branch and deleted by
 [archive-work-unit][archive-work-unit] at the end of the WU's lifecycle. Parallel WUs on
 independent branches carry different files — no cross-branch mutation conflict is possible at
-the meta-file layer. For within-WU team sub-branches sharing one file, see
-[Team Coordination Strategy][team-coordination] § Session State Merge Behavior.
+the meta-file layer.
 
 Archive triggers when all tasks in the task list are complete, not when any individual branch
 is merged or deleted. Branch cleanup happens independently as PRs merge.
@@ -1402,8 +1398,8 @@ Branch name and completed subdirectory share the WU identifier:
 
 ## Team Coordination
 
-See [Team Coordination Strategy][team-coordination] — task ownership markers, team branching
-patterns, merge conflict expectations, and external tracker integration.
+See [Team Coordination Strategy][team-coordination] — ownership, interlock-release coordination,
+cross-WU planning dependencies, and external tracker integration.
 
 ---
 
@@ -1415,6 +1411,7 @@ installs, routing and promotion flow, inbox routing, and scaling guidance.
 ---
 
 [team-coordination]: strategy-team-coordination.md
+[concurrent-work]: strategy-concurrent-work.md
 [init-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [promote-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/promote-work-unit.md
 [classify-work-unit]: ../../../system/methods/classify-work-unit.md

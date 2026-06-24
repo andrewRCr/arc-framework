@@ -20,20 +20,6 @@ arc:
   autonomous execution between human review points. Complete one, mark it `[x]`, report, and **stop**
   for user approval.
 
-  <!-- arc:if team.mode == true -->
-
-  In team mode, this applies per developer-agent pair — concurrent pairs may work different tasks.
-
-  **Before starting a task**, check `(@name)` ownership markers in the task list:
-
-    - If the task has your `(@identity)` marker → proceed
-    - If the task is unowned (no `(@name)` marker) → claim it by adding your marker, then proceed
-    - If the task is owned by someone else → skip to your next owned or unowned task
-
-  See [Team Coordination Strategy][team-coordination] § Task Ownership for the full convention.
-
-  <!-- arc:endif -->
-
 - **Co-development awareness:** The developer may be editing files or making commits alongside you.
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
@@ -241,16 +227,6 @@ arc:
      simple-vs-complex path decision and loads the format methods. After the commit lands, start
      the bundle's named target immediately without re-prompting. Complexity criteria bump to
      manual-with-prompt rather than invoking prepare-commits silently.
-
-     <!-- arc:if team.mode == true -->
-
-     **Shared branch concurrency:** When multiple developers commit to the same branch, pull
-     before committing to reduce merge conflicts on the meta file and the task list. If a
-     conflict occurs, resolve the meta file by updating it to reflect the current combined
-     state (not either side's version). Task list conflicts are resolved by accepting both
-     sides' checkbox changes.
-
-     <!-- arc:endif -->
 
      **Atomicity check (before staging):** Do all changes serve one logical concern? When in
      doubt, split and ask. See [Commit Discipline][dev-rules-arc].

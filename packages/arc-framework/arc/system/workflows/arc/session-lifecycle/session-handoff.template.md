@@ -94,8 +94,8 @@ follow the override instead):
 
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
 > own session), write SESSION-NOTES.md for someone with no prior context on this work and
-> reassign task ownership via `(@name)` markers. See [Team Coordination
-> Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
+> reassign the work unit via the meta `**Owner:**` field. See [Team Coordination Strategy][team-coordination]
+> § Person-to-Person Task Handoff for the full protocol.
 
 **Active-WU handoff** — active meta file and SESSION-NOTES.md session context. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).
@@ -293,16 +293,6 @@ Update session state files before ending session:
    probe-2's `head.value.hash` — that's the post-step-2 HEAD whether or not step 2 committed.
 
 **Update the active meta file** (tracked project state, if an active WU exists):
-
-<!-- arc:if team.mode == true -->
-> **Team mode:** The active meta file represents work-unit state, not personal state. "Next Task"
-> should reflect the WU's overall next incomplete task, not your personal next task (which
-> is determined by `(@name)` markers at session-init). When multiple developers are active, the
-> last committer's update wins — this is expected and resolved at session-init via `(@name)`
-> filtering. Before writing, check whether the active meta file changed since session-init
-> (`git diff <resolved-meta-file-path>`) — if another developer updated it mid-session,
-> incorporate their changes rather than silently overwriting.
-<!-- arc:endif -->
 
 ```markdown
 ## Work Unit Metadata

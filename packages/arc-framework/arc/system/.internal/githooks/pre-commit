@@ -301,28 +301,6 @@ if [ -n "$meta_project_refs" ]; then
 fi
 
 # ============================================================================
-# CHECK 10: Team mode task ownership markers (team.mode: true only)
-# ============================================================================
-# When team mode is active, task list changes should include (@name) ownership
-# markers to prevent coordination conflicts. Soft warning only.
-team_mode=$(arc_config_get "team.mode" "false")
-
-if [ "$team_mode" = "true" ]; then
-    team_task_lists=$(git diff --cached --name-only | grep -E '^\.arc/active/.*/tasks-.*\.md$' || true)
-    if [ -n "$team_task_lists" ]; then
-        # Check if staged task list diff contains ownership markers
-        # shellcheck disable=SC2086 # Intentional word splitting
-        has_ownership=$(git diff --cached -- $team_task_lists | grep -E '^\+.*\(@[a-zA-Z]' || true)
-        if [ -z "$has_ownership" ]; then
-            echo -e "${YELLOW}Warning: Task list changes lack (@name) ownership markers${NC}"
-            echo "   Team mode is active — mark task ownership to prevent conflicts"
-            echo "   Example: - [x] **3.1 Implement auth** (@alice)"
-            warnings=$((warnings + 1))
-        fi
-    fi
-fi
-
-# ============================================================================
 # CHECK 11: Frontmatter schema validation (methods / extensions)
 # ============================================================================
 # Delegates to validate-frontmatter.ts via tsx — schema logic lives in

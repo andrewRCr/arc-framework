@@ -94,8 +94,8 @@ follow the override instead):
 
 > **Person-to-person handoff:** If handing off to a different developer (not just ending your
 > own session), write SESSION-NOTES.md for someone with no prior context on this work and
-> reassign task ownership via `(@name)` markers. See [Team Coordination
-> Strategy][team-coordination] § Person-to-Person Task Handoff for the full protocol.
+> reassign the work unit via the meta `**Owner:**` field. See [Team Coordination Strategy][team-coordination]
+> § Person-to-Person Task Handoff for the full protocol.
 
 **Active-WU handoff** — active meta file and SESSION-NOTES.md session context. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).

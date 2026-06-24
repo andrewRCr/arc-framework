@@ -16,10 +16,9 @@ checklist, see [generate-tasks.md § Finalize the task list][generate-tasks].
 
 1. [Task List Headers](#task-list-headers)
 2. [Format Elements Reference](#format-elements-reference)
-3. [Task Ownership Markers](#task-ownership-markers)
-4. [Test-First Task Structure](#test-first-task-structure)
-5. [Verification Phase](#verification-phase)
-6. [Success Criteria Section](#success-criteria-section)
+3. [Test-First Task Structure](#test-first-task-structure)
+4. [Verification Phase](#verification-phase)
+5. [Success Criteria Section](#success-criteria-section)
 
 ---
 
@@ -303,27 +302,6 @@ the target file.
 
 ---
 
-## Task Ownership Markers
-
-**Applies when** `team.mode: true` — multiple developers collaborate on the same task list.
-Optional in solo mode.
-
-Format: `(@name)` at end of the checkbox line or phase header:
-
-```markdown
-- [ ] **1.1 Implement authentication flow** (@alice)
-## **Phase 3:** Auth Layer (@alice)
-```
-
-Uses the developer's `arc.identity` value. Markers are optional — unowned tasks can be claimed
-during execution. Reassignment is a text edit (change the marker, no ceremony). Identifies the
-human developer, not the AI agent. Does not appear in commit messages or branch names.
-
-See [Team Coordination Strategy § Task Ownership][team-coordination] for reassignment protocols
-and person-to-person handoff.
-
----
-
 ## Test-First Task Structure
 
 **Applies when** the [test-first method][arc-methods-tf] assessment selects test-first for this
@@ -408,5 +386,4 @@ All items must be `[x]` or `[~]` (with annotations) before running archive. Any 
 [verify-work-unit]: ../../../system/workflows/arc/work-unit-lifecycle/verify-work-unit.md
 [arc-methods-tf]: ../../../system/methods/test-first.md
 [template-tasks]: ../../templates/arc/work-unit/template-tasks.md
-[team-coordination]: strategy-team-coordination.md
 [work-org-wu-headers]: strategy-work-organization.md#wu-artifact-headers
