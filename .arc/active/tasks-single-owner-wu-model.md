@@ -156,18 +156,24 @@ pair across trees.
   (§ Cohorts); the one-owner claim is preserved and the `1 WU = 1 PR` invariant is left unamended (per the
   minimal-in-place scope). Edits paired across both copies (`.arc/` + package source), byte-identical.
 
-### `[ ]` **3.2 Split the welded passages in `assess-cohort-fit.md`**
+### `[x]` **3.2 Split the welded passages in `assess-cohort-fit.md`**
 
 - _Goal:_ The cohort-fit method affirms one owner per WU and treats PR-count as separable, without re-hardening
   one-PR-per-WU.
 
-    - `[ ]` **3.2.a Mental model + stack-vs-cohort (79–84)** — keep "each its own branch" and one-owner; drop the
-      "one reviewable PR" specificity from "WU ≈ story / one reviewable PR" (83); reconcile "not one WU spread
-      across many branches" so it doesn't assert one-PR.
+    - `[x]` **3.2.a Mental model + stack-vs-cohort** — kept "each its own branch" and one-owner; dropped the "one
+      reviewable PR" specificity, leaving "WU ≈ story". The "not one WU spread across many branches" clause asserts
+      one-branch-per-WU (a retained invariant), not one-PR — left intact, keeping the method consistent with the
+      work-org § WU sizing standard it mirrors.
 
-    - `[ ]` **3.2.b "cohort of self-contained WUs" passage (88–89)** — keep "each its own meta/spec/tasks, one
-      branch"; drop the welded "one PR" and soften "not one large WU sliced into several PRs" so PR-count stays
-      separable; neutral wording.
+    - `[x]` **3.2.b "cohort of self-contained WUs" passage** — kept "each its own meta/spec/tasks and one branch";
+      dropped the welded "one PR"; softened "not one large WU sliced into several PRs" to "sliced into smaller
+      pieces" so PR-count stays separable.
+
+    - `[x]` **3.2.c De-weld the "PR-sized WUs" delivery line** — dropped "PR-sized" from "delivers as a stack of
+      PR-sized WUs along natural deliverable/phase boundaries" (the sizing rationale is already carried by the
+      "natural deliverable/phase boundaries" clause); neutral, model-agnostic wording, forward-compatible without
+      naming the downstream multi-PR concern.
 
 ### `[ ]` **3.3 Fold the unexpanded "DRI" gloss at `strategy-work-organization.md` ~:339**
 
