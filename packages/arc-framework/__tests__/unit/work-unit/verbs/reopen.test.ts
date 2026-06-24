@@ -112,7 +112,8 @@ function buildCtx(metas: MetaSpec[]): Harness {
 
 const INTEGRATING: MetaSpec = { slug: "foo", state: "Integrating", branch: "feat/foo" };
 
-const BASE: ReopenParams = { name: "foo" };
+// A verified-unmerged PR — the only state that clears the `pr-unmerged` guard.
+const BASE: ReopenParams = { name: "foo", prMerged: false };
 
 describe("runReopen — the set-phase-only move", () => {
   it("flips Integrating back to Active with no location move and no branch rotation", async () => {
@@ -176,6 +177,20 @@ describe("runReopen — the pr-unmerged guard", () => {
     if (result.status !== "rejected") return;
     expect(result.reason).toMatch(/merg/i);
     // Guard fires before any mutation or PR withdrawal.
+    expect(calls.some((c) => c.startsWith("setPhase:") || c === "side:withdraw-pr")).toBe(false);
+  });
+
+  it("refuses when the merge state can't be confirmed (the safe default)", async () => {
+    const { ctx, calls } = buildCtx([INTEGRATING]);
+
+    // `gh`/remote unavailable → caller forwards an undefined merge fact. The guard
+    // refuses rather than reopen on an unverifiable PR.
+    const result = await runReopen(ctx, { ...BASE, prMerged: undefined });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/can't be confirmed|unverifiable|unavailable/i);
+    // No mutation or PR withdrawal on an unconfirmable merge state.
     expect(calls.some((c) => c.startsWith("setPhase:") || c === "side:withdraw-pr")).toBe(false);
   });
 });

@@ -6,8 +6,9 @@
  * location move and no branch rotation (the working branch already carries its
  * `<type>/` prefix from `activate`) — that fires the `withdraw-pr` side-effect to
  * close (or, per `inputs`, convert-to-draft) the open PR. The `pr-unmerged` guard
- * rejects a WU whose PR has already merged: backing out merged work is a new
- * origin-linked follow-up, never a same-unit reopen.
+ * clears only a positively-unmerged PR: a merged PR is refused (backing out merged
+ * work is a new origin-linked follow-up, never a same-unit reopen), and so is an
+ * unverifiable merge state (`gh`/remote unavailable) — the safe default.
  *
  * The verb stays thin — it forwards the merge fact and the withdrawal mode as
  * `inputs` and dispatches through {@link executeTransition}; the guard, the
@@ -43,8 +44,9 @@ export type ReopenResult =
 
 /**
  * Run `reopen`: flip the WU's phase `Integrating → Active` and withdraw its open
- * PR. Rejects when the PR has already merged (the `pr-unmerged` guard) or the
- * source is not an `Integrating` WU (the table's illegal-edge lookup).
+ * PR. Rejects when the PR has already merged or its merge state can't be confirmed
+ * (the `pr-unmerged` guard) or the source is not an `Integrating` WU (the table's
+ * illegal-edge lookup).
  *
  * @param ctx - The executor seams (the `withdraw-pr` handler is registered by the caller).
  * @param params - The target WU, the merge fact, and the withdrawal mode.

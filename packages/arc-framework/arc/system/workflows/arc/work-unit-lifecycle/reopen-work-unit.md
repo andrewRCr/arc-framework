@@ -60,9 +60,10 @@ The executor fires the `reopen` edge: flips `**State:** Integrating → Active`,
 side-effect — `gh pr close` (default) or `gh pr ready --undo` (`--keep-pr`). `{name}` defaults to the current
 worktree's WU.
 
-The PR's merge fact is resolved live against `gh` (never fabricated); when `gh` or the remote is unavailable the
-reopen degrades open rather than blocking — only a positively-merged PR is refused. A non-`Integrating` source falls
-to the table's illegal-edge rejection.
+The PR's merge fact is resolved live against `gh` (never fabricated); the guard clears only a positively-unmerged
+PR. A merged PR is refused, and so is an unverifiable merge state — when `gh` or the remote is unavailable the reopen
+refuses rather than reopen on an unconfirmable PR (the withdraw leg needs `gh` anyway, so degrading open would only
+flip the meta and strand a half-done reopen). A non-`Integrating` source falls to the table's illegal-edge rejection.
 
 Stage the meta edit.
 
