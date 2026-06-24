@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**             | **Class** | **Priority** |
 | ---------- | --------- | ---------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/out-of-wu-entry` | `Heavy`   | `P2`         |
+| `Planning` | `andrew`  | `plan/out-of-wu-entry` | `Light`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
