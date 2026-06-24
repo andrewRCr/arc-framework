@@ -195,25 +195,37 @@ line-97 cross-ref is unconditional, so it survived stripping). Because those pac
 render change, 5.3 (parity) must reckon with the template→render relationship rather than a 1:1 diff — confirm the
 Package-Project sync check's behavior at execution. Code edits pair across both `.internal/githooks/` trees.
 
-### `[ ]` **4.1 Remove `(@name)` team-mode steps from the workflow templates (+ the one live cross-ref)**
+### `[x]` **4.1 Remove `(@name)` team-mode steps from the workflow templates (+ the one live cross-ref)**
 
 - _Goal:_ No workflow template or live render instructs `(@name)` marker use, scanning, or claiming.
 
-    - `[ ]` **4.1.a `process-task-loop`** — package template only (`process-task-loop.template.md` ~25, 27–30, 247:
-      before-starting `(@name)` ownership check, claim-by-marker, shared-branch concurrency; live render already
-      clean). Remove the team-mode `(@name)` step and **drop** the mirrored "In team mode, this applies per
-      developer-agent pair" conditional (~25) → per work unit (one owner), matching 2.1
-      (`notes-single-owner-wu-model.md` § Mode-agnostic decoupling).
+    - `[x]` **4.1.a `process-task-loop`** — dropped both team-mode `arc:if` blocks from
+      `process-task-loop.template.md`: the before-starting `(@name)` ownership-check / claim-by-marker block and
+      the shared-branch-concurrency block. Per `notes-single-owner-wu-model.md` § Mode-agnostic decoupling, the
+      universal review-increment bullet already carries the single-owner semantics, so the blocks were **removed,
+      not reframed** — no "per work unit (one owner)" line was added (which also avoids the literal-phrasing
+      misread the landed 2.1 text was worded to kill). Live render unchanged.
 
-    - `[ ]` **4.1.b `session-init`** — package template only (`session-init.template.md` ~333–340: team-mode
-      `(@name)` next-task resolution; live render already clean).
+    - `[x]` **4.1.b `session-init`** — dropped the team-mode `(@name)` next-task resolution block from
+      `session-init.template.md`. Live render unchanged.
 
-    - `[ ]` **4.1.c `session-handoff`** — **both copies**: `session-handoff.template.md` (~97 and ~300–301) and the
-      live `session-handoff.md` (line 97 only — the unconditional person-to-person cross-ref). Remove the `(@name)`
-      reassignment and last-committer-wins-via-`(@name)` language; point to `**Owner:**`-field reassignment.
+    - `[x]` **4.1.c `session-handoff`** — both copies: repointed the unconditional person-to-person cross-ref from
+      `(@name)`-marker reassignment to the meta `**Owner:**` field (template + live render), and dropped the
+      team-mode last-committer-wins meta-update block (template only).
 
-    - `[ ]` **4.1.d `generate-tasks`** — package template only (`generate-tasks.template.md` ~224: "add `(@name)`
-      markers to task checkboxes"; live render already clean). Remove the team-mode ownership-marker instruction.
+    - `[x]` **4.1.d `generate-tasks`** — dropped the team-mode `(@name)` ownership-marker instruction from
+      `generate-tasks.template.md`, plus its now-orphaned team-gated `[team-coordination]` link definition. Live
+      render unchanged.
+
+    - `[x]` **4.1.e `session-init` Concurrent-activity block** — discovered mid-edit: a second team-mode `arc:if`
+      block in `session-init.template.md` asserting "another developer may be actively working on the same branch"
+      during the freshness check. Dead under single-owner (one WU = one branch = one owner) and uncatchable by the
+      Phase 5 grep terms, so removed here. Same concern / same file as 4.1.b; package-template-only, live render
+      unchanged.
+
+- _Outcome:_ All edits are package-`.template.md`-only except `session-handoff`'s unconditional person-to-person
+  cross-ref (edited in both copies); the three fully-templated workflows produced **no live `.arc/` render
+  change**, confirming their renders were already team-mode-stripped.
 
 ### `[ ]` **4.2 Remove the team-mode `(@name)` pre-commit check and renumber the sequence**
 
