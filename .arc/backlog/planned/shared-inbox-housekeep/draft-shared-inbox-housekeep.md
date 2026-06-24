@@ -71,6 +71,23 @@
   (shipped). This WU owns only the **shared** inbox model (the bullets above). The deterministic managed-write
   `arc inbox add` stays `operational-state-docs`'.
 
+### `[ ]` **Errand inbox-adoption assumes inbox == user-inbox — needs a discriminator if shared-inbox adoption ships**
+
+- *Routed from:* USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` Task 1.2 (2026-06-23).
+  If this WU is renamed `shared-inbox-model`, this rides the rename.
+- *Concern:* the errand inbox-adoption path is bound to the **personal** inbox in three coupled places, all
+  internally consistent today: the `--from-inbox <entry-title>` flag (help reads "Adopt a USER-INBOX capture"),
+  the errand record's `origin: "description" | "inbox"` where `"inbox"` *means* user-inbox (`lib/errand/record.ts`,
+  `version: 1`), and the close drop-leg hardwiring `runUserInboxRemove` (`handlers/errand.ts`). Correct for the
+  current model — the shared inbox is pull-consumed at WU-init by domain-match, **not** an errand-adoption source.
+- *If keep wins:* if the shared inbox is **kept** and adopting an errand directly from it joins the model, the
+  binary `origin` enum and unconditional `runUserInboxRemove` are no longer sufficient — the record must carry
+  **which** inbox it came from and close must route the drop accordingly. The `--from-inbox` flag would also need
+  qualifying (pairs with naming-conventions' `INBOX.USER` / `INBOX.PROJECT` rename). Add an inbox discriminator (a
+  new `origin` value, e.g. `"shared-inbox"`, or carry the source surface) via a forward record-version migration;
+  route the close-drop on it; qualify the flag. Nothing forecloses this today (flag additively extensible, record
+  versioned, drop-leg teachable) — no code change warranted now.
+
 ---
 
 ## Problem / Motivation

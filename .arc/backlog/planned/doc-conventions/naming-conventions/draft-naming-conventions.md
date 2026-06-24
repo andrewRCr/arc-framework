@@ -190,6 +190,28 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 - *Sequencing:* after `testing-guidance-apparatus` ships. Coordinate with `composable-workflows` if it lands the
   machine-resolvable method resolution by then.
 
+### `[ ]` **Lifecycle-ceremony footer markers + `(activation)` init/activate split**
+
+- *Routed from:* USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` Task 2.2 (2026-06-23).
+  Enriches the existing "Reconcile the commit-footer meta-category set across method, hook, and test" concern
+  (this WU owns the commit-msg hook + conventions; already subsumes the `(graduation)` capture). Two threads:
+- *Marker legibility (promote / park / resume):* the footer parenthetical must read without ARC knowledge
+  (DEV-RULES.ARC § Commit and PR surface language). activation / integration / archival / promotion / demotion are
+  legible action-nouns; `(park)` / `(resume)` don't nominalize (`parking` / `resumption` read wrong) and the verbs
+  may yet rename (park → pause — owner unresolved; the cohort doc / closeout spec mis-attribute it to
+  `idiomatic-alignment`, which excludes internal-vocab renaming). So a uniform own-marker-per-ceremony isn't right:
+  `(promotion)` stands alone, but park / resume likely fold to `(maintenance)`. Pairs with the existing
+  `decomposition`-category fork.
+- *`(activation)` init/activate split (carried from rules-restructure's buffer):* `init-work-unit` creates at
+  State Planning yet shares the single `(activation)` footer with the Planning→Active `activate` transition — same
+  meta-category-reconciliation domain; carries a fork (add a distinct init context, rename `activation`, or
+  clarify its scope — touches `commit-footer.md` both copies, the commit-msg validator's allowed-contexts list,
+  and `init-work-unit.md` commit guidance).
+- *lifecycle-closeout's stance:* it did the bounded **consistency fix** only — folded promote / park / resume
+  ceremony footers to `(maintenance)` (legible, already hook-accepted) and dropped the orphaned `(graduation)`
+  bullet from `commit-footer.md`. This WU owns the **enhancement**: whether promote earns `(promotion)`, the
+  `decomposition` / `(activation)` forks, and the method + hook + test sync.
+
 ---
 
 ## Problem / Motivation

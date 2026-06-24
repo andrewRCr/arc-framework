@@ -25,6 +25,25 @@
   that enforces it mechanically over hand-maintenance — a README-index↔directory parity check fits this WU's
   mechanical-lint remit directly.
 
+### `[ ]` **Standing guard: assert durable docs match the shipped lifecycle verb register**
+
+- *Routed from:* USER-INBOX housekeep drain (2026-06-24); captured at `lifecycle-closeout` Task 5.1.d
+  (2026-06-23). Fits this WU's mechanical-lint tier (forbidden-pattern / stale-claim checks over the `.arc/` doc
+  tree), distinct from `quality-gate-hooks`' adopter-stack gate dispatch.
+- *Concern:* nothing standing asserts the durable doc corpus matches the shipped lifecycle verb register /
+  transition table — the `lifecycle-closeout` certifying audit *was* that check, manual and one-shot. With only
+  markdown-lint (format-only) gating the corpus, a retired-verb token can silently re-enter a durable surface; the
+  audit caught exactly this live (`QUICK-REFERENCE` + `cli.ts` `--help` still reading "graduate a backlog stub in
+  place" after the `graduate → promote` sweep).
+- *Approach:* a forbidden-pattern check flagging retired transition-verb tokens (`graduate` / `graduation`
+  as-transition, the `--lifecycle` flag spelling, slug-matched-drain language) in durable surfaces, carrying the
+  known false-positive allowlist (`graduated lookup`, `draft-* → notes-*` content-promotion colloquial, the `src/`
+  internal `graduate` arm name, ADR / historical snapshots). A richer variant asserts doc verb-mentions against
+  the code transition table; the cheap variant is the token denylist + allowlist (seed already in closeout's
+  `notes-*` A1 inventory).
+- *Scope:* both copies. Verb-register-check ownership is itself unsettled (`idiomatic-alignment` excludes
+  internal-vocab renaming) — coordinate which WU owns the token set.
+
 ---
 
 ## Problem / Motivation

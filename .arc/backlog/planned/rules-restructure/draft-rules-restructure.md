@@ -12,18 +12,6 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Disambiguate the commit-footer `(activation)` context (init vs. activate)**
-
-- _Routed from:_ `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01).
-- _Concern:_ `init-work-unit` (creates the WU on a `plan/` branch at State **Planning**) and `activate-work-unit`
-  (flips Planning → **Active**, renames `plan/` → `<type>/`) are distinct ceremonies, but both land under the
-  single `(activation)` footer context — defined as the "backlog → active transition." A State-Planning init
-  commit wears activation vocabulary belonging to the State-Active flip, and history cannot distinguish init from
-  activate by the context line. No `(init)` context exists.
-- _Shape (carries a design fork):_ add a distinct init context, rename `activation`, or clarify its scope —
-  touches `commit-footer.md` (both copies), the commit-msg validator's allowed-contexts list, and
-  `init-work-unit.md` commit guidance. Quick-tier (infra-touching); triage the fork at planning.
-
 ### `[ ]` **Rebalance the Errand concept across AGENT-BRIEF.ARC / DEV-RULES.ARC (progressive disclosure)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
@@ -49,21 +37,6 @@
 - _Home:_ constitutional/doctrine surfaces (AGENT-BRIEF.ARC, DEV-RULES.ARC, `strategy-workflow-authoring`
   § Routing class tags, the `post-task-quality` extension); reviewed-lane, two-copy. (Landing here as the
   rules/doctrine home; could be a focused doctrine-cleanup pass instead — decide at integration.)
-
-### `[ ]` **Add `(graduation)` as a commit-footer context category + fix the stale template**
-
-- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-10); captured during
-  `doc-cascade-sweep` generate-tasks Phase 4 grounding audit.
-- _Concern:_ `graduate-work-unit.md`'s commit template prescribes `Context: meta-{name}.md (graduation)`, but
-  `(graduation)` is not in the `commit-msg` validator's accepted meta-context set (handoff / activation /
-  integration / archival / deactivation / maintenance / incidental). The actual manual-graduation commits
-  sidestepped it, so the template is a latent bug.
-- _Approach:_ Graduation is a named lifecycle ceremony with its own workflow — a peer of activation /
-  integration / archival — so it warrants its own `(graduation)` category rather than folding into
-  `(maintenance)` (which would inconsistently demote a named ceremony and lose the greppable signal). Add
-  `graduation` to `commit-footer.md` (both copies) plus the `commit-msg` validator's allowed-contexts list, then
-  fix `graduate-work-unit.md`'s template (both copies). Routed here because `rules-restructure` owns the
-  allowed-contexts list and `commit-footer.md`.
 
 ### `[ ]` **Testing standards resolved as a method, not a `DOMAIN-RULES.TESTING` domain**
 
