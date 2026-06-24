@@ -260,7 +260,7 @@ export interface ErrandCloseOptions {
 
 /**
  * Close an errand: reap its branch (containment-safe), remove the identity
- * record and push the removal, then drop the slug-matched inbox capture.
+ * record and push the removal, then drop the originating inbox capture.
  *
  * A full-protection verb, like `open`. The reap refuses (record kept) when the
  * branch's commits are not provably preserved, so an abandoned errand stays

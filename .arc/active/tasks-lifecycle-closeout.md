@@ -220,18 +220,23 @@ on Task 1.1 landing).
   on-demand catalog (3.2.a) and the always-loaded "never infer WU state" rule (3.2.b). Per the verb-inventory
   bucketing: the full set on-demand, `arc status <slug>` the sole always-loaded entry.
 
-### `[ ]` **3.3 Correct the drifted inbox-drain prose**
+### `[x]` **3.3 Correct the drifted inbox-drain prose**
 
 - _Goal:_ Every surface describes the shipped drain mechanism — `arc errand close` drops the inbox capture named
   by the recorded `record.originEntry` back-pointer — not a capture found by matching the errand's own slug.
-- _Context:_ Gated on Task 1.1 landing — the producer leg is what makes the back-pointer real.
 
-    - `[ ]` **3.3.a Sweep the workflow / rule surfaces** (both copies)
-        - `run-errand.md` (Complete), `drain-inbox.md`, `init-work-unit.md` (Promote path), and `DEV-RULES.ARC`
-          § Discovered Work Routing ("removed at completion (slug-matched)").
+    - `[x]` **3.3.a Sweep the workflow / rule surfaces** (both copies)
+        - Corrected the "slug-matched" drain language in `run-errand.md` (Complete), `drain-inbox.md`,
+          `init-work-unit.md` (Promote path — also fixed its `inbox-remove {slug}` → `{origin-entry}`), and
+          `DEV-RULES.ARC` § Discovered Work Routing — all now describe the originating-entry back-pointer.
 
-    - `[ ]` **3.3.b Fix the stale code comment**
-        - `lib/errand/close.ts` module-doc comment (single copy — TypeScript source).
+    - `[x]` **3.3.b Fix the stale code comment**
+        - Fixed `lib/errand/close.ts` module-doc — and the matching stale comment in `handlers/errand.ts` close
+          handler (same "slug-matched" drift; the code already drained off `record.originEntry`).
+
+- _Outcome:_ Every live surface describing the errand inbox-drain now names the `record.originEntry` back-pointer.
+  Left as-is by design: `arc user inbox-remove` (genuinely title-keyed — the back-pointer's removal key) and the
+  `completed/` + other WUs' `backlog/` artifacts that quote the old language historically.
 
 ### `[ ]` **3.4 Fold lifecycle-ceremony commit footers to a validator-accepted token**
 

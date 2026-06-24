@@ -188,9 +188,9 @@ choice by context budget (never a structural gate):
 - **Fresh session** — leave the execute-now atomics in place and resume each via `arc-session --errand` later;
   the drain still closes (§ 7) with those entries triaged-but-pending.
 
-**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the slug-matched
-`USER-INBOX` line is removed at the errand's **completion** (merge) — asynchronous on the auto-merge lane,
-review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
+**The drain does not block on merges.** `run-errand` commits and opens/arms the PR, but the `USER-INBOX` line
+the errand record back-points to is removed at the errand's **completion** (merge) — asynchronous on the
+auto-merge lane, review-gated on the reviewed lane. So a dispatched atomic's line legitimately lingers; session-init's
 in-flight-errand sweep is the backstop against orphaning (an abandoned errand keeps both its line and its pushed
 branch — both swept). On an _unattended_ merge (auto-merge lane), `run-errand`'s completion does not fire
 in-session; teardown and line-removal are replayed from base context by the same-session finalize pass or, next

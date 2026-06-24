@@ -304,8 +304,9 @@ unit from the base, and carry any landed errand commit as context in the new WU'
    Context: meta-{name}.md (activation)
    ```
 
-   When the errand was adopted from a slug-matched `USER-INBOX` entry, drop it now — the intent is a tracked WU:
-   `arc user inbox-remove {slug}` (idempotent; a no-op for a free-description errand).
+   When the errand was adopted from a `USER-INBOX` entry (recorded as the errand's origin back-pointer), drop
+   that entry now — the intent is a tracked WU: `arc user inbox-remove {origin-entry}` (idempotent; a no-op for a
+   free-description errand).
 
 5. **Push the WU branch; retire the old remote ref.**
 

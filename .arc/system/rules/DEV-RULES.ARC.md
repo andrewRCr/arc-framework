@@ -295,8 +295,8 @@ commit under partial (see [strategy-work-organization][work-org] § Cheap-branch
 file or lifecycle of its own — its state is derived from its branch and PR.
 
 Routing a multi-step note *to its stub* is not execution — the housekeep drain writes it straight in. When an
-errand executes a captured item, its inbox entry is removed at **completion** (slug-matched), not at start, so
-an abandoned errand never orphans the intent.
+errand executes a captured item, its inbox entry is removed at **completion** — matched via its errand record's
+origin back-pointer — not at start, so an abandoned errand never orphans the intent.
 
 ### Anti-rider
 
