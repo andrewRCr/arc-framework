@@ -86,7 +86,7 @@ chore(arc): resume {name}
 
 - Re-attach {name} to the active set; remove the parked pointer-record
 
-Context: meta-{name}.md (resume)
+Context: meta-{name}.md (maintenance)
 ```
 
 **ROADMAP regen · `arc-in-git` only.** Resuming is a location move: re-render `backlog/ROADMAP.md` per

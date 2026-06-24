@@ -79,12 +79,12 @@ Stage the move together with the Step 2 `**Class:**` edit.
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-chore(arc): graduate {name} to planned
+chore(arc): promote {name} to planned
 
 - Move backlog/provisional/{name}/ → backlog/planned/{name}/
 - Resolve Class: {prior} → {resolved}
 
-Context: meta-{name}.md (graduation)
+Context: meta-{name}.md (maintenance)
 ```
 
 ### 4) Regen readiness views · `arc-in-git` only
@@ -104,11 +104,11 @@ only when the render delta is trivial — see [DEV-RULES.ARC § Atomicity][dev-r
 > `commit-interlock` release — commit as `workflowCommit`:
 
 ```text
-chore(arc): refresh roadmap for {name} graduation
+chore(arc): refresh roadmap for {name} promotion
 
 - Re-render ROADMAP after {name} enters Ready
 
-Context: meta-{name}.md (graduation)
+Context: meta-{name}.md (maintenance)
 ```
 
 ---

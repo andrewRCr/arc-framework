@@ -97,7 +97,7 @@ chore(arc): park {name}
 - Shelve {name} off the active set ({park@Active: preserve branch + pointer-record | park@Planning: relocate to backlog/planned/, drop plan branch})
 - Reason: {reason}
 
-Context: meta-{name}.md (park)
+Context: meta-{name}.md (maintenance)
 ```
 
 **ROADMAP regen · `arc-in-git` only.** Parking is a location move: re-render `backlog/ROADMAP.md` per

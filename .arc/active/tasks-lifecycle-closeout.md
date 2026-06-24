@@ -238,28 +238,25 @@ on Task 1.1 landing).
   Left as-is by design: `arc user inbox-remove` (genuinely title-keyed — the back-pointer's removal key) and the
   `completed/` + other WUs' `backlog/` artifacts that quote the old language historically.
 
-### `[ ]` **3.4 Fold lifecycle-ceremony commit footers to a validator-accepted token**
+### `[x]` **3.4 Fold lifecycle-ceremony commit footers to a validator-accepted token**
 
 - _Goal:_ No lifecycle ceremony ships instructing a commit footer the `commit-msg` validator rejects. The
   promote / park / resume ceremonies prescribe `(graduation)` / `(park)` / `(resume)` — none in the validator's
   meta set (`handoff | activation | integration | archival | deactivation | maintenance | incidental`), so each
   hard-fails under `commit.context_footer: required` if run.
-- _Context:_ Bounded consistency fix only. The fuller meta-category reconciliation — legible own-markers
-  (`(promotion)` …), the `decomposition` / `(activation)` forks, and the method+hook+test sync — is
-  `naming-conventions`' (routed to `USER-INBOX`; it owns the commit-msg hook + already carries the concern).
-  `(maintenance)` is the legible, already-accepted interim (`decompose`'s precedent); see DEV-RULES.ARC § Commit
-  and PR surface language for the legibility rationale (the footer must read without ARC knowledge — `(park)` /
-  `(resume)` don't nominalize, so own-markers wait on naming-conventions).
 
-    - `[ ]` **3.4.a Fold the three ceremony commit-message blocks to `(maintenance)`** (both copies)
-        - `promote-work-unit.md`, `park-work-unit.md`, `resume-work-unit.md`: set each example commit-message block
-          to the shipped verb + a `(maintenance)` footer (e.g. `chore(arc): promote {name} to planned` /
-          `Context: meta-{name}.md (maintenance)`). This is where the ceremonies' subject-verb `graduat*` tokens
-          are rewritten too (held out of Task 2.2's prose sweep).
+    - `[x]` **3.4.a Fold the three ceremony commit-message blocks to `(maintenance)`** (both copies)
+        - Set the `promote` / `park` / `resume` commit blocks to `(maintenance)` footers, and rewrote `promote`'s
+          two `graduat*` subject tokens to `promote` / `promotion` (held out of Task 2.2's sweep). `park` / `resume`
+          subjects already used the shipped verb.
 
-    - `[ ]` **3.4.b Drop the orphaned `(graduation)` bullet from `commit-footer.md`** (both copies)
-        - Remove the `(graduation)` meta-category bullet — no ceremony uses it after 3.4.a and the validator never
-          accepted it. Adding any new category (e.g. `(promotion)`) stays `naming-conventions`'.
+    - `[x]` **3.4.b Drop the orphaned `(graduation)` bullet from `commit-footer.md`** (both copies)
+        - Removed the `(graduation)` meta-category bullet — nothing emits it after 3.4.a and the validator never
+          accepted it.
+
+- _Outcome:_ Every shipped lifecycle ceremony now prescribes a validator-accepted footer; a `system/` sweep
+  confirms no `(graduation)` / `(park)` / `(resume)` token or `graduate` subject verb survives. Legible
+  own-markers (`(promotion)` …) stay `naming-conventions`' to add with the hook.
 
 ## **Phase 4:** State-model vocabulary + adjacent-strategy fold-in
 
