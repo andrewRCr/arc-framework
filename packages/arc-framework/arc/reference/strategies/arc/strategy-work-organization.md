@@ -1347,11 +1347,16 @@ by an `active/` entry.
 
 ### The cut→occupy invariant
 
-Branch creation and occupancy are **separate steps with separate owners**. `arc errand cut` is creation-only by
-design — it cuts the branch off the base and stops; *occupying* it is the **caller's** protection-mode dispatch (an
-ephemeral worktree under full protection, an in-place switch otherwise). The consumer invariant: **cut creates;
-every consumer must immediately occupy per protection mode**. A consumer that cuts without occupying is left on its
-launch branch, writing the Errand's commits to the wrong place — so every cut site inlines its occupy step.
+Cutting a `chore/<slug>` branch and *occupying* it are **separate mechanics with a strict ordering** — the branch is
+cut off the base, then occupied per protection mode (an ephemeral worktree under full protection, an in-place switch
+otherwise). The invariant: **a cut is never left un-occupied.** A branch cut without an immediate occupy strands the
+caller on its launch branch, writing the Errand's commits to the wrong place.
+
+`arc errand open` is the sole errand entry verb, and it **composes** the two — the internal cut mechanic
+(`cutErrandBranch`) followed by the occupy — in a single step, so the invariant holds by construction. There is no
+standalone cut command: exposing the cut half alone would let a caller create the branch and forget to occupy it,
+the exact failure the invariant forbids. Any internal site that cuts a branch carries the same obligation — cut,
+then immediately occupy.
 
 ### Entry path
 

@@ -305,7 +305,7 @@ map.
   with the `stub` QUICK-REFERENCE entry backfilled to match; the Parked render bucket is now part of the durable
   render contract (algorithm, column set, and regeneration fire-points), no longer only in the cohort doc.
 
-### `[ ]` **4.2 Adjacent-strategy verb fold-in + `arc errand cut` removal**
+### `[x]` **4.2 Adjacent-strategy verb fold-in + `arc errand cut` removal**
 
 - _Goal:_ The adjacent strategies carry no retired `graduation`-pipeline vocabulary, and the orphaned
   `arc errand cut` command is gone with its invariant reframed around `open`.
@@ -316,16 +316,13 @@ map.
           pipeline/model" → descriptive `backlog → active`; the draft-disposal "graduated path" → "absorbed path"
           (pairs with the existing "shelved path"). Zero residual `graduat*` in either file.
 
-    - `[ ]` **4.2.b Deregister the `arc errand cut` command**
-        - Remove the `cut` command from the CLI (`cli.ts` registration + the `handleErrandCut` import) and
-          `handleErrandCut` (with its now-unused `cutErrandBranch` import) from `handlers/errand.ts`. `open` is the
-          sole errand entry verb; the standalone command exposes the cut half without the mandatory occupy, so it
-          has no correct use.
-        - Rewrite `strategy-work-organization.md` § The cut→occupy invariant (both copies): keep the invariant —
-          every internal cut site must occupy — but reframe it around `open`'s composed `cutErrandBranch` step,
-          not a user-facing `arc errand cut` command. The internal `cutErrandBranch` mechanic stays (composed by
-          `open`).
-        - Drop the removed command's test coverage; `cutErrandBranch`'s own coverage stays.
+    - `[x]` **4.2.b Deregister the `arc errand cut` command**
+        - Removed the `cut` command (`cli.ts` registration + `handleErrandCut` import) and `handleErrandCut`
+          (with its orphaned `cutErrandBranch` import) from `handlers/errand.ts`, plus the command's E2E coverage
+          in `errand.e2e.test.ts`. The internal `cutErrandBranch` mechanic and its own unit coverage stay.
+        - Rewrote § The cut→occupy invariant (both copies) around `open`'s composed cut-then-occupy: the invariant
+          (a cut is never left un-occupied) now holds by construction via `open`, with no standalone cut surface to
+          strand a caller.
 
 ## **Phase 5:** Certifying consistency audit
 
