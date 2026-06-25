@@ -101,20 +101,17 @@ the common case with no clock; a 14-day TTL ages out the abandoned-machine backs
 _Design decisions:_ The predicate is producer-side, so the marker's self-invalidation semantics live with the
 marker, not the consumer. The TTL is a single config value (14 days), not a new configuration axis.
 
-### `[ ]` **3.1 Liveness predicate against the notes ref**
+### `[x]` **3.1 Liveness predicate against the notes ref**
 
 - _Goal:_ Given a marker entry and origin's actual notes-ref state, the predicate returns **fulfilled** (notes for
   `intent` landed → self-invalidated) or **live** (notes ref still behind → unresolved), with no clock.
 
-- _Context:_ This is the contract surface the consumer invokes when it renders; it reads **origin's** notes-ref
-  tip (a remote read — `readRemoteRefHash` / `git ls-remote origin <ref>`, not the local `readRefTip`) and
-  compares against the entry's `intent`.
-
-    Build `test-first` (one behavior at a time):
-
-    - An entry whose `intent` the notes ref has reached reports **fulfilled**
-    - An entry whose `intent` the notes ref has not reached reports **live**
-    - The predicate reads only refs (no timestamp input) — fulfillment is purely comparison-based
+- _Outcome:_ Added `evaluateMarkerLiveness(marker, notesRefTip)` (+ `MarkerLiveness = "fulfilled" | "live"`) to
+  `lib/user-sync/sync-state-marker.ts`, co-located with the marker so its self-invalidation semantics travel with
+  the payload. Pure, clock-free ref comparison: `fulfilled` when origin's notes-ref tip equals the entry's
+  `intent`, else `live` (a `null` tip — origin has no notes ref — is `live`). Origin's tip is the caller's input
+  (resolved via `git ls-remote`), keeping the predicate git-free for testing; the abandoned-machine case it cannot
+  close is 3.2's TTL backstop. Exported from the `user-sync` barrel; 3 unit behaviors in `sync-state-marker.test.ts`.
 
 ### `[ ]` **3.2 14-day TTL aging for abandoned intent**
 

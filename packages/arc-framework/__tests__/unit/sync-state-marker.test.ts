@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import {
   serializeSyncStateMarker,
   deserializeSyncStateMarker,
+  evaluateMarkerLiveness,
   type SyncStateMarker,
 } from "../../src/lib/user-sync/sync-state-marker.js";
 
@@ -74,5 +75,27 @@ describe("sync-state marker schema", () => {
     // Right shape, wrong field types.
     expect(deserializeSyncStateMarker(JSON.stringify({ ...markerFor(), machineId: 123 }))).toBeNull();
     expect(deserializeSyncStateMarker(JSON.stringify({ ...markerFor(), attemptTimestamp: "" }))).toBeNull();
+  });
+});
+
+describe("evaluateMarkerLiveness", () => {
+  const INTENT = "f".repeat(40);
+
+  it("reports fulfilled when the notes ref has reached the entry's intent", () => {
+    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), INTENT)).toBe("fulfilled");
+  });
+
+  it("reports live when the notes ref has not reached the entry's intent", () => {
+    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), "a".repeat(40))).toBe("live");
+    // An absent remote notes ref has reached nothing.
+    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), null)).toBe("live");
+  });
+
+  it("decides purely by ref comparison — the timestamp never changes the verdict", () => {
+    const old = markerFor({ intent: INTENT, attemptTimestamp: "2000-01-01T00:00:00.000Z" });
+    const recent = markerFor({ intent: INTENT, attemptTimestamp: "2026-06-25T12:00:00.000Z" });
+
+    expect(evaluateMarkerLiveness(old, INTENT)).toBe(evaluateMarkerLiveness(recent, INTENT));
+    expect(evaluateMarkerLiveness(old, "a".repeat(40))).toBe(evaluateMarkerLiveness(recent, "a".repeat(40)));
   });
 });

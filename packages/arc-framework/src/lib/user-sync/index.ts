@@ -88,9 +88,11 @@ export {
 export {
   serializeSyncStateMarker,
   deserializeSyncStateMarker,
+  evaluateMarkerLiveness,
   readSyncStateMarker,
   writeSyncStateMarker,
   type SyncStateMarker,
+  type MarkerLiveness,
 } from "./sync-state-marker.js";
 
 export {

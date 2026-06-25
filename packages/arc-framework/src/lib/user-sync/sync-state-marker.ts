@@ -94,6 +94,39 @@ function isNonEmptyString(value: unknown): value is string {
 }
 
 /**
+ * Whether a marker's notes-push intent is still outstanding.
+ *
+ * `fulfilled` — origin's notes ref reached the entry's {@link SyncStateMarker.intent}
+ * (the push the marker recorded landed, so the marker self-invalidates); `live` —
+ * it has not (the intent is unresolved). The marker carries its own
+ * self-invalidation semantics, so this lives with the marker rather than the
+ * consumer that renders it.
+ */
+export type MarkerLiveness = "fulfilled" | "live";
+
+/**
+ * Evaluate a marker's liveness by comparing its `intent` against origin's actual
+ * notes-ref tip — no clock, purely a ref comparison.
+ *
+ * The intent is the notes-ref commit the push was advancing origin toward;
+ * fulfillment is exactly origin's tip having reached it. A `null` tip (origin
+ * has no notes ref) has reached nothing, so the intent is still `live`. The
+ * abandoned-machine case comparison cannot close — origin never reaches the
+ * intent because the machine never returned — is the TTL backstop's concern, not
+ * this predicate's.
+ *
+ * @param marker - The marker entry whose intent is evaluated.
+ * @param notesRefTip - Origin's current notes-ref commit sha, or `null` when absent.
+ * @returns `fulfilled` when the tip equals the intent, else `live`.
+ */
+export function evaluateMarkerLiveness(
+  marker: SyncStateMarker,
+  notesRefTip: string | null,
+): MarkerLiveness {
+  return notesRefTip !== null && notesRefTip === marker.intent ? "fulfilled" : "live";
+}
+
+/**
  * Read one machine's marker from the ref, or `null` when the ref, the key, or
  * the blob's shape is absent/invalid.
  *
