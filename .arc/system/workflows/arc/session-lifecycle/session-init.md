@@ -116,7 +116,10 @@ cold-start resolution on **any** arm and never clobbers the active checkout. Sig
 [Entry dispatch](#entry-dispatch) unchanged.
 
 Place it after the branch-gone precondition and ahead of the arm resolution; on the signal path the spine
-replaces the resume/orient sync-pull (the channels below) and Step 3's full context-load.
+replaces Step 3's full context-load with a universal-only load and **skips the resume/orient worktree pull** —
+relocate moves the working branch out from under the probe's worktree state. The **notes pull still applies**:
+it is branch-independent, and the loci need USER-INBOX / WORKING-MEMORY fresh (`--housekeep` drains the inbox; a
+capture-seeded `--errand` reads it).
 
 **Spine** (uniform across all signals):
 
@@ -128,8 +131,9 @@ replaces the resume/orient sync-pull (the channels below) and Step 3's full cont
 3. **Relocate** via `resolveWriteContext` — full protection → short-lived branch off `branch.base`; partial →
    direct base commit. From a linked worktree on a WU branch the relocate resolves to the **primary's** base
    context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree is never disturbed.
-4. **Load universal context only** — Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every WU-artifact read
-   (SESSION-NOTES, active task list, lifecycle workflow).
+4. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
+   worktree channel is skipped per above), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every
+   WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
 5. **Run the locus**; Step 5 / Step 6 then run in signal-leaf mode (orient on the locus, not the WU).
 
 **Per-signal locus:**
@@ -273,9 +277,10 @@ acting on the second intent. Errand mode loads **universal context only**, then 
 Errand: the spine's relocate already established a base-branch write context (in place when already on the
 primary; otherwise the primary's base, per `resolveWriteContext`), and the Errand executes there.
 
-1. **Sync, then load universal context only.** Run the conditional sync pulls above, then Step 3 items 1–6 and
-   WORKING-MEMORY (item 8.2) — the universal surfaces. **Skip every WU-artifact read:** SESSION-NOTES (item 8.1),
-   the active task list (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
+1. **Sync notes, then load universal context only.** Run the conditional sync pulls' notes channel above (the
+   worktree channel is skipped per the signal-leaf spine), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2) —
+   the universal surfaces. **Skip every WU-artifact read:** SESSION-NOTES (item 8.1), the active task list
+   (item 9), and the lifecycle workflow (item 10) — there is no work unit to orient against.
 2. **Skip Step 5 (Assess Readiness).** No handoff baseline exists to freshness-check, and the setup below
    replaces next-work-unit discovery (that is the *discovery* intent, not the Errand one).
 3. **Classify, gate, execute.** Follow the [run-errand workflow][run-errand] in Launch mode. The errand seed
