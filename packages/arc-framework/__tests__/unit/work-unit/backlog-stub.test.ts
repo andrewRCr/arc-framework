@@ -91,7 +91,17 @@ describe("resolveBacklogStub", () => {
 
     const stubs = await listBacklogStubs(root);
 
-    expect(stubs.map((s) => s.slug).sort()).toEqual(["alpha", "beta", "gamma"]);
-    expect(stubs.map((s) => s.stateDir).sort()).toEqual(["planned", "planned", "provisional"]);
+    expect(stubs.map((s) => `${s.stateDir}:${s.slug}`).sort()).toEqual([
+      "planned:alpha",
+      "planned:gamma",
+      "provisional:beta",
+    ]);
+  });
+
+  it("throws when a slug matches more than one stub within a state-dir", async () => {
+    await seedStub(["planned", "cohort-a"], "dup");
+    await seedStub(["planned", "cohort-b"], "dup");
+
+    await expect(resolveBacklogStub(root, "dup")).rejects.toThrow(/Ambiguous backlog stub "dup"/);
   });
 });

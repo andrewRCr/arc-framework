@@ -85,19 +85,31 @@ async function collectStubs(root: string, stateDir: BacklogStateDir): Promise<Ba
 }
 
 /**
- * Resolve a backlog stub by slug, searching `planned` then `provisional`.
+ * Resolve a backlog stub by slug, searching `planned` then `provisional` (that
+ * precedence resolves a slug present in both — `planned` wins).
  *
  * @param cwd - Repository root (the directory containing `.arc/`).
  * @param slug - The WU-name slug to resolve.
- * @returns The first matching stub, or `null` when no stub matches in either
+ * @returns The unique matching stub, or `null` when no stub matches in either
  *   state-dir (or the slug is blank).
+ * @throws If a slug matches more than one stub within a single state-dir — a
+ *   malformed backlog (slugs must be unique), surfaced rather than resolved
+ *   arbitrarily by traversal order.
  */
 export async function resolveBacklogStub(cwd: string, slug: string): Promise<BacklogStub | null> {
   const target = slug.trim();
   if (!target) return null;
   for (const stateDir of STATE_DIRS) {
     const stubs = await collectStubs(join(cwd, ".arc", "backlog", stateDir), stateDir);
-    const match = stubs.find((s) => s.slug === target);
+    const matches = stubs.filter((s) => s.slug === target);
+    if (matches.length > 1) {
+      throw new Error(
+        `Ambiguous backlog stub "${target}" — ${matches.length} matches under ` +
+          `backlog/${stateDir}/ (${matches.map((m) => m.dir).join(", ")}). ` +
+          `Stub slugs must be unique within a state-dir.`,
+      );
+    }
+    const [match] = matches;
     if (match) return match;
   }
   return null;
