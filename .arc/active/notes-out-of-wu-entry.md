@@ -17,9 +17,9 @@
 | Layer | Change | Weight |
 | --- | --- | --- |
 | **Doctrine** | Already correct. Realign `cohort-agile-parallelism.md` § Known gap to name the active-WU dual it under-scoped (now owned here); add the `arc-shift` disposition note. **Landed in planning** (the planning iteration), per the planning-scope call. | Light |
-| **CLI / probe** | errand/housekeep core needs none (signals are skill/workflow tokens; the probe is agnostic; errand identity is record-owned via `readErrandSlugByBranch`). `--plan` needs `resolveDraftPresent()` path-parameterized (`handlers/plan.ts`) to also find `backlog/{planned,provisional}/` drafts. No state-machine change (grooming is not a transition). | Light |
+| **CLI / probe** | errand/housekeep core needs none (signals are skill/workflow tokens; the probe is agnostic; errand identity is record-owned via `readErrandSlugByBranch`). `--plan` adds a minimal backlog-stub resolver (slug → stub dir / state-dir / draft path + a stub-listing) backing both `resolveDraftPresent()` (`handlers/plan.ts`) and `--plan` sufficiency/disambiguation — deterministic call sites, not agent-globbing of nested `backlog/{planned,provisional}/[<cohort>/]<slug>/` dirs. No state-machine change (grooming is not a transition). | Light |
 | **Workflows** | `session-init` entry dispatch — the core arm-orthogonal leaf + shared spine + two-gate confirmation; retire/rewrite "signal not consumed". `draft-design` — entry-gate-skip + an explicit groom-and-stop exit for the `--plan` locus (interim "approach A"). `run-errand` / `drain-inbox` already correct. | Medium |
-| **Skills** | `arc-session` (bare `--errand` wording; `--housekeep`; `--plan`). `arc-inbox` terminology only (no slug work). `arc-errand` already correct — the warm-path precedent. | Light–medium |
+| **Skills** | `arc-session` (bare `--errand` wording; `--housekeep`; `--plan`). `arc-inbox` needs no change — its `arc-session --errand` route reference is already consistent with arm-orthogonal entry; `_Slug:_`→title identity is OSD's. `arc-errand` already correct — the warm-path precedent. | Light |
 
 ## Design spine + per-signal locus
 
@@ -121,6 +121,9 @@ The dispatch slot is built to be extended; these are deliberately **not populate
 - **composable-workflows** *(routed out → `USER-INBOX`)* — the `--plan` gate-suppression and the signal-dispatch
   leaf are early consumers of its conditional-fragment composition. Build "approach A" interim; flag the seam so
   composable-workflows subsumes it (the gate-skip becomes a fragment skip) rather than rips out a bespoke branch.
+  The minimal backlog-stub resolver (`--plan` sufficiency + `resolveDraftPresent`) is likewise the precursor to
+  CW's canonical `slug → artifact` resolver kernel (CW Inbound Buffer's "decide at CW's design" item) — keep it
+  backlog-stub-scoped; CW absorbs and extends it.
 - **shared-inbox-housekeep** — `--housekeep` is designed scope-extensible (default user inbox) so its possible
   dual-mode `drain-inbox` (`user|shared`) lands as a parameter; do not hardwire `USER-INBOX`-only.
 - **operational-state-docs** — consume the record/identity interface (errand adoption by title → slug later,

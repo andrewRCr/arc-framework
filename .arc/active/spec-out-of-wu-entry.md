@@ -78,8 +78,12 @@ structurally cannot serve the **dual** — explicit out-of-WU intent raised whil
    **don't advance**, stub stays `planned`, resume via `--plan X`). Cross-session continuity is the **"3c" model**
    — `run-errand`'s re-enterable pattern (pause = commit + push; resume from the pushed branch, no SESSION-NOTES)
    with the **tracked draft as the continuity artifact**; the grooming branch stays open across sessions and out
-   of occupancy math; **no marker, no new durable state**. CLI surface: path-parameterize `resolveDraftPresent()`
-   (`handlers/plan.ts`) to also find a `backlog/{planned,provisional}/` draft.
+   of occupancy math; **no marker, no new durable state**. CLI surface: a minimal, reusable backlog-stub resolver
+   (slug → stub dir / state-dir / draft path, plus a stub-listing for disambiguation) backs both
+   `resolveDraftPresent()` (`handlers/plan.ts`) and `--plan`'s sufficiency / disambiguation gate — both are
+   deterministic code call sites, so the lookup is code, not agent-globbing of nested
+   `backlog/{planned,provisional}/[<cohort>/]<slug>/` dirs. Kept minimal and backlog-stub-scoped;
+   `composable-workflows`' canonical `slug → artifact` resolver later absorbs and extends it (seam note routed).
 
 5. **`--housekeep` — populated, scope-extensible.** A full slot member symmetric with `--errand`: short-circuits
    the WU-execution doc loads, relocates to the base write context, and runs `drain-inbox` — arming a drain
