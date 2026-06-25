@@ -202,22 +202,20 @@ non-interactive-safe primitive; interactivity (the retry decision) is owned by t
   Regression guarded at the `runPairedPush` boundary. The single-leg upstream-init path and the `arc release
   push` wrapper were already clean (they don't render conditions on success), so no other leak path existed.
 
-### `[ ]` **4.4 End-to-end multi-machine producer scenario**
+### `[x]` **4.4 End-to-end multi-machine producer scenario**
 
 - _Goal:_ Against temporary git repos, the full producer lifecycle holds: A partial-pushes and the marker carries
   the entry; a sibling reads the marker; A's retry self-invalidates it.
 
-- _Approach:_ E2E tier (`__tests__/e2e/`), modeled on `errand.e2e.test.ts` + `createTempRepo()` (no existing
-  multi-clone test — wire two temp repos under one identity). Exercises union-merge (Phase 2), liveness (Phase 3),
-  and push ordering (Phase 4) together. B-side rendering is out of scope (the sibling WU) — assert against the
-  marker/predicate, not a rendered surface.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - Two clones under one identity; A partial-pushes (worktree ok, notes fail) → the sync-state ref carries A's
-      entry, liveness reports live
-    - A's notes later land → liveness reports fulfilled (self-invalidated)
-    - Two machines hold outstanding intents simultaneously → union-merge, neither clobbers the other
+- _Outcome:_ New `sync-state-producer.e2e.test.ts` drives the shipped CLI across a two-clone `setupMultiClone`
+  topology under one identity. A bare-origin `update` hook rejecting only `refs/notes/arc/user/*` forces a genuine
+  partial push (worktree + sync-state ref land, the notes leg fails) — a real reproduction rather than a stubbed
+  one. Three scenarios pass: A's partial push lands a live, correctly-keyed entry whose `intent` matches its local
+  notes tip; removing the hook and re-syncing lands the notes so origin reaches that intent (fulfilled —
+  self-invalidated); and a second clone's partial push union-merges to two coexisting machine keys, neither
+  clobbering the other. Liveness is asserted at the git level (origin notes tip vs. recorded intent — the same
+  comparison the predicate makes), keeping the test source-free per the E2E tier; B-side rendering stays out of
+  scope (the sibling WU).
 
 ## **Phase 5:** Consumer register contract and arc-handoff integration
 
