@@ -51,7 +51,7 @@ the marker visible cross-clone, and shrinks it further by resolving most partial
   retry) so the cross-machine apparatus is the fallback, not the front line.
 - **"Lag, not loss" presentation.** The situation is never presented as worse than it is. A's work is safe on A;
   it just hasn't arrived. The marker specifies the registers and affordances the consumer renders against.
-- **Agent-run-safe.** `arc sync` / `arc release push` are most often agent-run during handoff; no recovery path
+- **Agent-run-safe.** `arc sync` is most often agent-run during handoff; no recovery path
   may hang on a blocking TTY prompt an agent-run invocation cannot answer.
 - **Degrade safe.** Absent the ref, or against a clone that only fetches, behavior is exactly as today.
 
@@ -147,7 +147,8 @@ writes its own entry serially, so `attemptTimestamp` + ownership already orders 
 
 ### 7. Act register — push-time recovery on A
 
-The notes leg fails inside `arc sync` / `arc release push`; resolve it there, not next session.
+The notes leg fails inside `arc sync` (the paired worktree+notes push); resolve it there, not next session.
+(`arc release push` is the worktree-leg interlock-release wrapper — it pushes no notes, so it is not an Act site.)
 
 - **Auto-retry first, with short backoff** — a couple of quick silent retries. Most blips resolve in seconds;
   prompting for those is noise.
@@ -266,7 +267,7 @@ Validated at work-unit completion:
 3. An abandoned intent ages out after the 14-day TTL.
 4. Two machines under one identity hold outstanding intents simultaneously and union-merge — neither clobbers the
    other.
-5. A notes-push failure inside `arc sync` / `arc release push` triggers auto-retry; on persistent failure the
+5. A notes-push failure inside `arc sync` triggers auto-retry; on persistent failure the
    retry surface is offered, never as a blocking TTY prompt in an agent-run invocation; on retry success the
    marker never persists.
 6. A successful upstream-init sync presents as success — **no** stray `error: Set upstream first` (or any
@@ -282,8 +283,10 @@ Validated at work-unit completion:
 
 Implementation detail, resolved during the work — no settle-able design left open:
 
-- **Auto-retry backoff schedule** — exact retry count and delays for the silent pre-surface retries (§ 7);
-  tuning, not design.
+- **Auto-retry backoff schedule** — resolved: two silent retries at ~250ms then ~750ms backoff
+  (`DEFAULT_NOTES_PUSH_RETRY`), injectable per call. Long enough to clear a transient blip, short enough that the
+  success path's added latency is unnoticeable; bounded so a persistent failure surfaces promptly. Tuning, not
+  design — adjust the constant without touching the loop.
 - **`state-ref-write-safety` CAS handshake** — the precise compare-and-swap coordination for same-machine
   inter-process writes to a machine's own key (§ 5). Build CAS-ready and align when that WU lands; the coupling
   is captured to its inbound queue. Soft cross-WU coordination, not a blocker.

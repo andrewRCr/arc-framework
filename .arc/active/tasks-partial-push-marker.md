@@ -160,41 +160,33 @@ non-interactive-safe primitive; interactivity (the retry decision) is owned by t
   opt-out was redesigned from `pm.mode: external` (ratified for retirement by ADR-020 — it would leave a dead
   gate) to structural degrade-safety; `spec-partial-push-marker.md` SC-8 + § Rollout updated to match.
 
-### `[ ]` **4.2 Act-register recovery — auto-retry then primed retry**
+### `[x]` **4.2 Act-register recovery — auto-retry then primed retry**
 
 - _Goal:_ A notes-leg failure inside `arc sync` / `arc release push` auto-retries silently a couple of times, then
   surfaces a retry defaulted to retry; on retry success the marker never persists, on deferral it persists
   knowingly — and no path blocks on a TTY prompt an agent-run invocation can't answer.
 
-- _Approach:_ The CLI primitive stays non-interactive (auto-retry, structured result, never a blocking prompt);
-  the agent/workflow layer owns the conversational retry decision. Auto-retry is safe to take readily — re-pushing
-  the same ref carries zero clobber risk (unlike the B-side force gate).
-
-- _Note:_ Auto-retry-on-transient is **net-new** — the codebase has non-fast-forward _reconcile_ (fetch+merge+
-  repush) but no transient-failure retry (`paired-push.ts` is explicit: "No automatic retry"). Build the loop;
-  there's no existing primitive to wire. Distinct from the Phase 2 nff reconcile.
-
-- _Note:_ Composes with `cli-substrate-adoption`'s queued uniform non-interactive contract — soft coordination, not
-  a hard dependency.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - `[ ]` **4.2.a Auto-retry with short backoff**
+    - `[x]` **4.2.a Auto-retry with short backoff**
         - _Goal:_ Transient blips resolve silently before any surface — a couple of quick retries.
+        - New `notes-push-retry.ts` `runNotesPushWithRetry` loops the notes-leg attempt under a bounded budget
+          (`DEFAULT_NOTES_PUSH_RETRY`: two retries at ~250ms/750ms, `sleep` injected): only a raw `failed` is
+          retried (re-push is zero-clobber); terminal outcomes (`no-remote` / `blocked` / `failed-nontty-conflict`)
+          skip straight to the offer. A success after retries resolves with no marker persisted. Retries are
+          _silent_: the paired notes leg runs `pushNotesWithReconcile` with `quiet`, so per-attempt spinners no
+          longer churn — the single final outcome is reported once by `renderPairedResult`.
 
-            Build `test-first` (one behavior at a time):
-
-            - A failure that succeeds on auto-retry never surfaces a prompt and never persists the marker
-            - Auto-retry is bounded (count/backoff exhausts to the surface path, not an infinite loop)
-
-    - `[ ]` **4.2.b Primed-retry surface and informed deferral**
+    - `[x]` **4.2.b Primed-retry surface and informed deferral**
         - _Goal:_ Persistent failure offers retry (defaulted to retry); deferral persists the marker knowingly.
+        - `runPairedPush` consumes the primitive: a resolved leg clears the marker, a still-failing leg records it
+          and returns a structured `retryOffer` (never throws, never prompts). The offer rides `PairedPushResult`
+          into the `arc sync` JSON envelope (`SyncOutcome.retryOffer`) so an agent-run invocation reads and resolves
+          it conversationally — the CLI stays a non-interactive primitive.
 
-            Build `test-first` (one behavior at a time):
-
-            - Persistent failure yields a structured retry-offer outcome, not a thrown error or silent swallow
-            - An agent-run (non-TTY) invocation never blocks — it returns the offer for the caller to resolve
-            - On deferral the marker persists (local + remote); on retry success it self-invalidates
+- _Outcome:_ The Act register lands as a non-interactive primitive plus its push-path integration: transient
+  notes-leg failures self-heal silently; a persistent one persists the marker exactly once and surfaces a
+  machine-readable primed-retry offer for the agent layer (`arc-handoff`, Phase 5) to resolve. Resolves the spec's
+  auto-retry-backoff open question (constant-tuned, loop untouched). `arc release push` needed no change — it wraps
+  only the worktree leg; the notes leg fires in `arc sync`'s paired path.
 
 ### `[ ]` **4.3 Presentation fidelity — suppress the upstream-init stderr leak**
 

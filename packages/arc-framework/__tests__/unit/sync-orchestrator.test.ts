@@ -284,6 +284,29 @@ describe("handleSync orchestrator matrix dispatch", () => {
     expect(process.exitCode).toBeUndefined();
   });
 
+  it("paired-cell notes retry-offer surfaces in the JSON envelope for the agent to resolve", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("clean");
+    mockRunPairedPush.mockResolvedValue({
+      save: {
+        status: "success",
+        result: { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] },
+      },
+      worktree: { status: "success" },
+      notes: { status: "failed", error: new Error("network timeout") },
+      conditions: [],
+      exitCode: 1,
+      retryOffer: { autoRetries: 2 },
+    });
+
+    const outcome = await captureSyncJson();
+
+    expect(outcome.retryOffer).toEqual({ autoRetries: 2 });
+    expect(outcome.exitCode).toBe(1);
+    expect(process.exitCode).toBe(1);
+  });
+
   it("paired-cell save failure reports JSON failure without a separate orchestrator save", async () => {
     setConfig("on-sync");
     setNotesPolicy("on-sync");

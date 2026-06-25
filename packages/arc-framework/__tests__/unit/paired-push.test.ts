@@ -176,6 +176,9 @@ const COMMON_OPTIONS = {
   branch: "main",
 };
 
+/** No-op delay so auto-retry tests don't wait on real backoff timers. */
+const noopSleep = async (): Promise<void> => {};
+
 describe("runPairedPush", () => {
   beforeEach(() => {
     vi.resetAllMocks();
@@ -284,7 +287,7 @@ describe("runPairedPush", () => {
     const access = buildAccess([]);
     const { pushNotes } = stubPushNotes({ status: "failed", error: notesError });
 
-    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
@@ -599,6 +602,70 @@ describe("runPairedPush", () => {
       expect(result.exitCode).toBe(0);
       expect(result.notes).toEqual({ status: "success" });
       expect(notesCalls).toHaveLength(1);
+    });
+  });
+
+  describe("notes-leg auto-retry", () => {
+    it("notes leg fails transiently then succeeds on auto-retry → success; marker cleared, no offer", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      let n = 0;
+      const pushNotes: PairedPushNotesPusher = async () => {
+        n += 1;
+        return n === 1 ? { status: "failed", error: new Error("transient blip") } : { status: "success" };
+      };
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(result.retryOffer).toBeUndefined();
+      expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+      expect(n).toBe(2);
+    });
+
+    it("notes leg persistently fails → bounded retry, offer surfaced, marker recorded; never blocks", async () => {
+      const notesError = new Error("[remote rejected] notes/arc/user/andrew");
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls } = stubPushNotes({ status: "failed", error: notesError });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep,
+        notesRetryConfig: { maxAutoRetries: 2, backoffMs: [0, 0] },
+        ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.notes).toEqual({ status: "failed", error: notesError });
+      // Structured offer (not a throw, not a silent swallow) for the caller to resolve.
+      expect(result.retryOffer).toEqual({ autoRetries: 2 });
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+      // Bounded: one initial attempt + maxAutoRetries before surfacing.
+      expect(calls).toHaveLength(3);
+    });
+
+    it("a terminal notes failure surfaces the offer without auto-retrying", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls } = stubPushNotes({ status: "no-remote" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.notes).toEqual({ status: "no-remote" });
+      expect(result.retryOffer).toEqual({ autoRetries: 0 });
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(calls).toHaveLength(1);
     });
   });
 });

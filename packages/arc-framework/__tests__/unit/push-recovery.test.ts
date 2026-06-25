@@ -70,6 +70,16 @@ describe("pushNotesWithReconcile", () => {
     expect(mockSpinnerInstance.stop).toHaveBeenCalledWith(message);
   });
 
+  it("quiet mode suppresses the spinner but still returns the outcome", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "pushed" });
+
+    const result = await pushNotesWithReconcile({ io, identity, cwd, output, quiet: true });
+
+    expect(result).toEqual({ kind: "pushed" });
+    expect(mockSpinnerInstance.start).not.toHaveBeenCalled();
+    expect(mockSpinnerInstance.stop).not.toHaveBeenCalled();
+  });
+
   it("threads worktreeBranch into the reconcile pusher", async () => {
     mockReconcileNotesPush.mockResolvedValue({ kind: "pushed" });
 

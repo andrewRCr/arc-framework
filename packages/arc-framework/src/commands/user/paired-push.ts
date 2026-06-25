@@ -42,6 +42,7 @@
 import { runPushabilityStatus } from "../../lib/git/index.js";
 import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { clearPartialPushMarker, recordPartialPushMarker } from "../../lib/user-sync/index.js";
+import { runNotesPushWithRetry } from "./notes-push-retry.js";
 import { runUserSave } from "./save-load.js";
 import type {
   PairedPushMarkerContext,
@@ -78,7 +79,7 @@ export async function runPairedPush(
 ): Promise<PairedPushResult> {
   const {
     io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
-    publishMarker, setUpstream = false,
+    publishMarker, setUpstream = false, notesRetryConfig, sleep,
   } = options;
 
   const pushability = await runPushabilityStatus({
@@ -145,13 +146,17 @@ export async function runPairedPush(
     await publishMarkerSafely(publishMarker, { io, identity, cwd, worktreeBranch: branch });
   }
 
-  const notes: PairedPushNotesOutcome = await pushNotes({
-    io,
-    identity,
-    cwd,
-    access,
-    worktreeBranch: branch,
-  });
+  // Auto-retry a transient notes-leg failure a couple of times before surfacing
+  // anything (re-pushing the same ref carries zero clobber risk). A success —
+  // first try or after retries — clears the marker; a still-failing leg records
+  // it and returns a structured retry-offer for the agent/workflow layer to
+  // resolve. Non-blocking by construction.
+  const retry = await runNotesPushWithRetry(
+    () => pushNotes({ io, identity, cwd, access, worktreeBranch: branch }),
+    notesRetryConfig,
+    sleep,
+  );
+  const notes: PairedPushNotesOutcome = retry.result;
   if (isNotesSuccess(notes)) {
     await clearPartialPushMarker(cwd, io, identity);
   } else {
@@ -159,7 +164,16 @@ export async function runPairedPush(
   }
 
   const exitCode = isNotesSuccess(notes) ? 0 : 1;
-  return { save, worktree, notes, conditions: pushability.conditions, exitCode };
+  return {
+    save,
+    worktree,
+    notes,
+    conditions: pushability.conditions,
+    exitCode,
+    ...(retry.kind === "retry-offer"
+      ? { retryOffer: { autoRetries: retry.autoRetries } }
+      : {}),
+  };
 }
 
 /**

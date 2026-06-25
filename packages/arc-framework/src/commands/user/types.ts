@@ -1,4 +1,5 @@
 import { isRefusalCondition } from "../../lib/git/index.js";
+import type { NotesPushRetryConfig, NotesPushRetryOffer } from "./notes-push-retry.js";
 import type {
   AccessFn,
   DirEntry,
@@ -352,6 +353,15 @@ export interface PairedPushResult {
   conditions: PushabilityCondition[];
   /** Worst-outcome exit code: 0 iff both legs succeeded. */
   exitCode: number;
+  /**
+   * Present only when the notes leg is still failing after auto-retry — the
+   * Primed-retry offer for the caller (agent/workflow layer) to
+   * resolve conversationally. Absent when the notes leg resolved (success,
+   * possibly after silent retries) or never fired (worktree / pre-check
+   * short-circuit). When present, the partial-push marker is already
+   * persisted: deferral is the no-op, a retry is a fresh push invocation.
+   */
+  retryOffer?: NotesPushRetryOffer;
 }
 
 /** Options for the paired-push helper. */
@@ -387,6 +397,17 @@ export interface RunPairedPushOptions {
    * {@link PairedPushMarkerPublisher}.
    */
   publishMarker?: PairedPushMarkerPublisher;
+  /**
+   * Auto-retry budget for a transient notes-leg failure. Defaults to
+   * `DEFAULT_NOTES_PUSH_RETRY` (two silent retries with short backoff) when
+   * omitted. See {@link NotesPushRetryConfig}.
+   */
+  notesRetryConfig?: NotesPushRetryConfig;
+  /**
+   * Delay primitive for auto-retry backoff. Injectable so tests run without
+   * real timers; defaults to a real `setTimeout`-backed sleep.
+   */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** Options for the fetch operation. */

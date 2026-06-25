@@ -317,6 +317,14 @@ interface SyncOutcome {
    */
   errand?: LegOutcomeRecord;
   /**
+   * Primed-retry offer — present only when the paired notes leg is
+   * still failing after auto-retry. The partial-push marker is already
+   * persisted; the agent/workflow layer reads this to surface a retry
+   * (defaulted to retry) conversationally. Omitted when the notes leg resolved
+   * or never fired.
+   */
+  retryOffer?: { autoRetries: number };
+  /**
    * State-aware top-of-Confirm-Handoff line composed from the probed worktree
    * state. Non-null for the diverged cell (`**Reconcile required:** ...`);
    * null otherwise. Workflow renders verbatim above `**Sync:**`.
@@ -656,6 +664,7 @@ async function executePaired(
     worktree: pairedLegToRecord(result.worktree, "push"),
     notes: pairedNotesToRecord(result),
     exitCode: result.exitCode,
+    ...(result.retryOffer ? { retryOffer: result.retryOffer } : {}),
   };
 }
 
@@ -696,6 +705,10 @@ async function pairedNotesAdapter(
     access: context.access,
     worktreeBranch: context.worktreeBranch,
     output,
+    // Quiet: this fires once per auto-retry attempt; a per-attempt spinner would
+    // render the silent retries as visible churn. renderPairedResult reports the
+    // single final notes outcome below.
+    quiet: true,
   });
   switch (outcome.kind) {
     case "pushed":
@@ -787,6 +800,10 @@ function renderPairedResult(
   } else if (result.worktree.reason === "blocked-by-precheck") {
     output.log.warn("Worktree push skipped: blocked by pre-check.");
   }
+  if (result.retryOffer && result.retryOffer.autoRetries > 0) {
+    const n = result.retryOffer.autoRetries;
+    output.log.info(`Auto-retried the notes push ${n} time(s) before surfacing.`);
+  }
   renderPairedNotesOutcome(result, output);
 }
 
@@ -794,8 +811,12 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
   const notes = result.notes;
   switch (notes.status) {
     case "success":
+      // The paired notes leg runs quiet (no per-attempt spinner), so report the
+      // single outcome here — mirroring the worktree leg's log line above.
+      output.log.info("Notes pushed.");
+      return;
     case "noop":
-      // pushWithInteractiveRecovery's spinner already reports the outcome.
+      output.log.info("Remote user notes already match local user notes.");
       return;
     case "ok-recovered":
       output.log.info(`Notes pushed (recovered via ${notes.via}).`);
