@@ -44,11 +44,13 @@ detection-and-pull member (`P2`).
 
 ### Soft coordination
 
-- **Shared session-init surface.** Both members edit `session-init.md` and the status probe envelope:
-  `partial-push-marker` adds the remote-marker consumption; `stale-state-detect-and-pull` adds the
-  base-ref-staleness slot (`baseBranchSync`-shaped, aligned with the shipped `baseDistance` channel), the
-  clean-arm drift surfacing, and the `plan/`-orphan sweep. Align slot/envelope conventions and sequence the
-  edits so the two don't collide on the same workflow.
+- **No session-init edit collision.** Only `stale-state-detect-and-pull` edits `session-init.md` and the status
+  probe envelope — it owns **all** B-side consumption: the base-ref-staleness slot (`baseBranchSync`-shaped,
+  aligned with the shipped `baseDistance` channel), the clean-arm drift surfacing, the `plan/`-orphan sweep, and
+  the marker's Aware-register rendering. `partial-push-marker`'s surfaces are disjoint — the push flow
+  (`arc sync` / `arc release push`), the sync-state ref write, and `arc-handoff` (the Act register). The seam is
+  the **sync-state ref schema** (see Shared contracts), not a shared workflow: align the ref/payload conventions
+  so the producer writes what the consumer's probe slot expects.
 - **One inbound-pull primitive.** `stale-state-detect-and-pull` owns the inbound pull used by _both_ the
   session-init base-ref pull and the `arc sync` bidirectional leg — built once, not per entry point.
 
