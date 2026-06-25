@@ -1,8 +1,8 @@
 # Metadata: Partial-Push Marker
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
+| ---------- | --------- | -------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/partial-push-marker` | `Heavy`   | `P1`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** `worktree-foundation`
