@@ -12,11 +12,11 @@
 - **Task List:** `tasks-partial-push-marker.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Machine-id lazy generation (line ~17)
+- **Last Completed:** Task 1.3 — Per-machine marker entry schema (Phase 1 complete)
+- **Next Task:** Task 2.1 — Union-merge marker entries by `machineId` (line ~69)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — Machine-id lazy generation
+- **Next Action:** Begin Task 2.1 — Union-merge marker entries by `machineId`
 
 - **PR URL:** [none]
 - **Completed:** [none]
