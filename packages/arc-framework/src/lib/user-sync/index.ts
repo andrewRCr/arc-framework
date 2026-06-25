@@ -85,4 +85,12 @@ export {
   type SyncStateRefReadIO,
 } from "./sync-state-ref.js";
 
+export {
+  serializeSyncStateMarker,
+  deserializeSyncStateMarker,
+  readSyncStateMarker,
+  writeSyncStateMarker,
+  type SyncStateMarker,
+} from "./sync-state-marker.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

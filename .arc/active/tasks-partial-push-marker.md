@@ -45,20 +45,18 @@ union cleanly (Phase 2). Machine-id is a random UUID, never the hostname, and li
   consumes the fetched tracking ref lands in a later phase. Curated surface exported from the `user-sync` barrel;
   7 integration behaviors in `sync-state-ref.test.ts`.
 
-### `[ ]` **1.3 Per-machine marker entry schema**
+### `[x]` **1.3 Per-machine marker entry schema**
 
 - _Goal:_ A typed marker entry carries everything the consumer surface and the liveness predicate need, and
   serializes stably to/from the ref blob.
 
-- _Shape:_ `machineId` (the writer's UUID), `lastAttemptedCommit` (the HEAD the notes push was advancing →
-  short-sha in the surface), `attemptTimestamp` (when → the TTL input), `intent` (the notes-ref target state being
-  advanced to → the self-invalidation basis).
-
-    Build `test-first` (one behavior at a time):
-
-    - An entry serializes and deserializes without loss (round-trip)
-    - A malformed or partial blob is rejected/narrowed at the parse boundary, not trusted downstream
-    - The entry validates as `unknown`-narrowed external data (no `any` at the ref boundary)
+- _Outcome:_ New `lib/user-sync/sync-state-marker.ts` (mirroring the errand record module): the `SyncStateMarker`
+  type (`version` / `machineId` / `lastAttemptedCommit` / `attemptTimestamp` / `intent`) with
+  `serializeSyncStateMarker` (normalized field order → byte-stable round-trip) and `deserializeSyncStateMarker`
+  (narrows `unknown`, returns `null` on a non-object / wrong-version / missing-or-empty field, never throws), plus
+  typed `readSyncStateMarker` / `writeSyncStateMarker` glue over the 1.2 transport for the liveness predicate and
+  push integration to consume. Schema exported from the `user-sync` barrel; 6 unit behaviors in
+  `sync-state-marker.test.ts` and 3 through-ref round-trip behaviors in `sync-state-ref.test.ts`.
 
 ## **Phase 2:** Union-merge reconciliation by machine key
 

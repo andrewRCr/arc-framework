@@ -29,8 +29,24 @@ import {
   type SyncStateRefIO,
 } from "../../src/lib/user-sync/sync-state-ref.js";
 import { readTreeEntries } from "../../src/lib/git/ref-tree.js";
+import {
+  readSyncStateMarker,
+  writeSyncStateMarker,
+  type SyncStateMarker,
+} from "../../src/lib/user-sync/sync-state-marker.js";
 
 const IDENTITY = "andrew";
+
+function markerFor(machineId: string, overrides: Partial<SyncStateMarker> = {}): SyncStateMarker {
+  return {
+    version: 1,
+    machineId,
+    lastAttemptedCommit: "a".repeat(40),
+    attemptTimestamp: "2026-06-25T12:00:00.000Z",
+    intent: "b".repeat(40),
+    ...overrides,
+  };
+}
 
 describe("sync-state ref transport primitives", () => {
   let dir: string;
@@ -119,5 +135,45 @@ describe("sync-state ref transport primitives", () => {
     expect(incomingTip.trim()).toBe(refTip.trim());
     expect(incomingTip.trim()).not.toBe(initSha.trim());
     expect([...(await readTreeEntries(io.exec, incoming)).keys()]).toEqual(["machine-a"]);
+  });
+});
+
+describe("sync-state marker over the ref", () => {
+  let dir: string;
+  let io: SyncStateRefIO;
+
+  beforeEach(async () => {
+    dir = await createTempRepo();
+    await makeCommit(dir, "init");
+    io = { exec: makeGitExec(dir), execInput: makeGitExecInput(dir), identity: IDENTITY };
+  });
+
+  afterEach(async () => {
+    try {
+      await cleanupTempDir(dir);
+    } catch {
+      // ignored
+    }
+  });
+
+  it("round-trips a typed marker written then read back by machineId", async () => {
+    const marker = markerFor("machine-a");
+    await writeSyncStateMarker(io, marker);
+
+    expect(await readSyncStateMarker(io, "machine-a")).toEqual(marker);
+  });
+
+  it("reads an absent machine's marker back as null", async () => {
+    await writeSyncStateMarker(io, markerFor("machine-a"));
+
+    expect(await readSyncStateMarker(io, "machine-b")).toBeNull();
+  });
+
+  it("writes each machine's marker under its own key without disturbing the other", async () => {
+    await writeSyncStateMarker(io, markerFor("machine-a", { intent: "a".repeat(40) }));
+    await writeSyncStateMarker(io, markerFor("machine-b", { intent: "b".repeat(40) }));
+
+    expect((await readSyncStateMarker(io, "machine-a"))?.intent).toBe("a".repeat(40));
+    expect((await readSyncStateMarker(io, "machine-b"))?.intent).toBe("b".repeat(40));
   });
 });
