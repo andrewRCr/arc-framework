@@ -36,6 +36,11 @@ detection-and-pull member (`P2`).
   consumed by `stale-state-detect-and-pull` on the B side (its drift detection reads "A attempted a push for
   HEAD X but didn't complete") and, optionally and cross-WU, by `external-coord-probe` (as a ranking signal).
   Authoritative design stays in the producer's draft; recorded here only as the seam.
+- **Recovery-presentation register contract** — `partial-push-marker` specifies the intended B-side presentation
+  registers ("lag, not loss": a calm, non-gating **Aware** one-liner at session-init, escalating to **Caution**
+  only at the force gate); `stale-state-detect-and-pull` owns the actual B-side rendering against that contract.
+  The marker payload is designed to afford it (the short-sha / when / whose, plus self-invalidation so the
+  surface falls silent on resolution).
 
 ### Soft coordination
 
@@ -69,8 +74,10 @@ The cohort archives when **both members ship** — clearing the cross-machine-co
 
 ### `partial-push-marker`
 
-- _Exposes:_ a remote sibling sync-state ref (Option A lean) making a partial notes push visible to sibling
-  clones — the cross-machine signal the other members read. (`P1`; the data-loss closer.)
+- _Exposes:_ a remote sibling sync-state ref (Option A, settled — per-machine-keyed entries, union-merged)
+  making a partial notes push visible to sibling clones, **plus** the A-side push-time recovery surface (the
+  scope widened from B-side visibility to the full partial-push lifecycle). The cross-machine signal the other
+  members read. (`P1`; the data-loss closer.)
 - _Consumes:_ nothing from the sibling; depends only on shipped `worktree-foundation`.
 
 ### `stale-state-detect-and-pull`

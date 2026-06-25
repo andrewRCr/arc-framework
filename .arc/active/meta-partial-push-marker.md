@@ -11,12 +11,12 @@
 - **Design:** draft-partial-push-marker.md
 - **Task List:** [none]
 
-- **Current Workflow:** [none]
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
