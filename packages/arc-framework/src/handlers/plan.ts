@@ -119,8 +119,14 @@ export async function resolveDraftPresent(cwd: string, name: string | undefined)
   if (!slug) return false;
   try {
     if ((await stat(join(cwd, ".arc", "active", `draft-${slug}.md`))).isFile()) return true;
-  } catch {
-    // No active/ draft — fall through to the backlog-stub lookup.
+  } catch (err) {
+    // Only an absent draft falls through to the backlog-stub lookup; real errors
+    // (EACCES, etc.) must fail fast rather than silently mis-routing `--plan`.
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    if (code !== "ENOENT") throw err;
   }
   const stub = await resolveBacklogStub(cwd, slug);
   return stub?.draftPath != null;

@@ -42,16 +42,23 @@ export interface BacklogStub {
 }
 
 /**
- * Recursively collect every stub under one backlog state-dir. A missing or
- * unreadable directory yields none — backlog state-dirs are optional. Cohort
- * docs (`cohort-*.md`) and other non-`meta-` files fall away naturally; the
- * sibling `draft-<slug>.md` is resolved from the same directory listing.
+ * Recursively collect every stub under one backlog state-dir. A missing
+ * directory yields none — backlog state-dirs are optional. Cohort docs
+ * (`cohort-*.md`) and other non-`meta-` files fall away naturally; the sibling
+ * `draft-<slug>.md` is resolved from the same directory listing.
  */
 async function collectStubs(root: string, stateDir: BacklogStateDir): Promise<BacklogStub[]> {
   let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
-  } catch {
+  } catch (err) {
+    // Only an absent state-dir yields none — backlog state-dirs are optional;
+    // real errors (EACCES, etc.) must fail fast rather than masking a problem.
+    const code =
+      typeof err === "object" && err !== null && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : undefined;
+    if (code !== "ENOENT") throw err;
     return [];
   }
 
