@@ -217,31 +217,41 @@ Sync). Full rationale: `notes-out-of-wu-entry.md` § Layer map.
 
 ## **Phase 4:** Verification
 
-### `[ ]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **4.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ md lint (402 files), code lint (ts + sh), typecheck (src + test), 3245 tests, build — all
+  passed (Tier 3 full suite).
+- _Success criteria:_ 11 criteria, all met. Criterion 7 (linked-worktree `--errand`) was verification-surfaced —
+  the original cold-entry leaf still punted the non-primary case to discovery; closed by Task 1.5 (prose
+  reconciliation, relocate mechanics pre-existing), with the path un-exercised until worktree-default.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` An explicit `--errand` / `--housekeep` / `--plan` signal on a Resume arm (active WU, primary worktree,
+- `[x]` An explicit `--errand` / `--housekeep` / `--plan` signal on a Resume arm (active WU, primary worktree,
   WU branch) routes through the override leaf and is not discarded; the "Errand signal not consumed (non-Orient
   arms)" rule is retired and replaced by an actual Resume-arm route.
-- `[ ]` Relocation preserves the active WU's checkout (the resumed branch is never clobbered) and goes through
+- `[x]` Relocation preserves the active WU's checkout (the resumed branch is never clobbered) and goes through
   `resolveWriteContext` per `branch.protection` (full → short-lived branch off base; partial → direct base).
-- `[ ]` The displacement gate fires confirm-once when an active checkout / dirty tree is present, and proceeds
+- `[x]` The displacement gate fires confirm-once when an active checkout / dirty tree is present, and proceeds
   silently when nothing is checked out.
-- `[ ]` A bare `--errand` is accepted (no arg required) and primes cold-entry loading universal context only
+- `[x]` A bare `--errand` is accepted (no arg required) and primes cold-entry loading universal context only
   (SESSION-NOTES, active task list, and `process-task-loop` skipped); the `arc-session` skill and `session-init`
   wording agree that absent-seed is supported.
-- `[ ]` `--housekeep` relocates to the base write context and runs `drain-inbox` without loading WU-execution
+- `[x]` `--housekeep` relocates to the base write context and runs `drain-inbox` without loading WU-execution
   docs; its scope is a parameter defaulting to the user inbox.
-- `[ ]` `--plan <stub>` enters `draft-design`'s content loop against a `backlog/` stub (`planned` or
+- `[x]` `--plan <stub>` enters `draft-design`'s content loop against a `backlog/` stub (`planned` or
   `provisional`) in place: the stub's `State` stays unchanged, the groom-and-stop exit does not advance the
   stage, and the session resumes via `--plan X` across sessions with the draft as the continuity artifact.
-- `[ ]` A linked-worktree `--errand` relocates to the primary's base and runs the errand rather than falling
+- `[x]` A linked-worktree `--errand` relocates to the primary's base and runs the errand rather than falling
   through to discovery.
-- `[ ]` Errand identity is read from the record (`readErrandSlugByBranch`); no code path parses the `chore/`
+    - **Deviation:** verification-surfaced — the original cold-entry leaf still punted the non-primary case to
+      discovery. Closed by Task 1.5 (prose reconciliation); the relocate mechanics (`resolveWriteContext` →
+      `relocate` verdict + `primaryWorktreePath`) pre-existed. The path stays un-exercised until worktree-default
+      (`finalize-parallelism`'s GA gate verifies it end-to-end).
+- `[x]` Errand identity is read from the record (`readErrandSlugByBranch`); no code path parses the `chore/`
   prefix.
-- `[ ]` `resolveDraftPresent` finds a backlog stub's draft under both `planned` and `provisional`.
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` `resolveDraftPresent` finds a backlog stub's draft under both `planned` and `provisional`.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.

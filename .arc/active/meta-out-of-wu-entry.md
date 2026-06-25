@@ -16,7 +16,7 @@
 - **Next Task:** Task 2.1 — Add a backlog-stub resolver backing draft-presence and `--plan` sufficiency (line ~117)
 - **Blockers:** [none]
 
-- **Next Action:** Implement Task 2.1 — backlog-stub resolver (`resolveBacklogStub`); first net-new code, `test-first`
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
