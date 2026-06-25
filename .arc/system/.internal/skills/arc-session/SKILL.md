@@ -1,6 +1,6 @@
 ---
 name: arc-session
-description: Initialize and orient an ARC session, probing repo state to resume or start a work unit, or use --errand [<slug|description>] for isolated atomic work.
+description: Initialize an ARC session — resume or start a work unit, or handle isolated work with --errand [<slug|description>], --housekeep, or --plan <stub>.
 disable-model-invocation: false
 ---
 
@@ -11,6 +11,13 @@ dispatches the entry mode — resume or start a work unit, orient when none is a
 mode — establishing session context.
 
 An optional positional argument supplies an **entry seed** — a spec pointer or description that the workflow's
-new-work arm consumes (confirmed before use). The explicit `--errand [<slug|description>]` flag instead routes
-session entry into errand mode for isolated atomic work; it is orthogonal to the positional seed. A bare
-invocation enters per the probe.
+new-work arm consumes (confirmed before use). A bare invocation enters per the probe.
+
+An **explicit-intent signal** instead routes session entry to an out-of-work-unit locus, regardless of what is
+active — the resumed work unit's checkout is preserved. Each is orthogonal to the positional seed:
+
+- `--errand [<slug|description>]` — isolated atomic work. A bare `--errand` (no slug/description) is supported:
+  the entry elicits the concern, or adopts a flagged `USER-INBOX § Errand` capture.
+- `--housekeep` — drain the user inbox to its authoritative homes (reaches the `arc-housekeep` skill).
+- `--plan <stub>` — groom a `backlog/` stub's draft (`planned` or `provisional`) in place, resumable via
+  `--plan <stub>` across sessions.

@@ -173,23 +173,25 @@ two-copy (canonical in
 harness copies under `.claude/skills/` may need a manual drift-sync (per `DEV-RULES.PROJECT` § Package-Project
 Sync). Full rationale: `notes-out-of-wu-entry.md` § Layer map.
 
-### `[ ]` **3.1 Document `--housekeep`, `--plan <stub>`, and bare `--errand` in the `arc-session` skill**
+### `[x]` **3.1 Document `--housekeep`, `--plan <stub>`, and bare `--errand` in the `arc-session` skill**
 
 - _Goal:_ The `arc-session` skill surface advertises the three populated signals and states that a bare
   `--errand` (no slug/description) is supported.
 
-    - `[ ]` **3.1.a Add `--housekeep`**
-        - Document the flag as the direct, minimal-load drain entry (relocate to base write context → run
-          `drain-inbox`), symmetric with `--errand`; the warm `arc-housekeep` skill remains the execution path
-          it reaches.
+    - `[x]` **3.1.a Add `--housekeep`**
+        - Documented as the inbox-drain entry that reaches the `arc-housekeep` skill.
 
-    - `[ ]` **3.1.b Add `--plan <stub>`**
-        - Document in-place grooming of a `backlog/` stub's draft (`planned` or `provisional`), resumable via
-          `--plan X` across sessions.
+    - `[x]` **3.1.b Add `--plan <stub>`**
+        - Documented as in-place grooming of a `backlog/` stub's draft (`planned`/`provisional`), resumable via
+          `--plan <stub>` across sessions.
 
-    - `[ ]` **3.1.c Fix the bare-`--errand` wording**
-        - State that absent-seed is explicitly supported (→ elicit the concern, or adopt a flagged
-          `USER-INBOX § Errand` capture), matching the `session-init` wording from Task 1.3.b.
+    - `[x]` **3.1.c Fix the bare-`--errand` wording**
+        - Bare `--errand` now stated as supported (elicit the concern, or adopt a flagged `USER-INBOX § Errand`
+          capture), matching the `session-init` wording.
+
+- _Outcome:_ Added an explicit-intent-signal section to the skill body (all three signals, checkout-preserving,
+  seed-orthogonal) and tightened the frontmatter `description` to enumerate the flags for model-invocation
+  routing. Landed two-copy (canonical pair) plus the gitignored `.claude/` harness copy (drift-sync).
 
 ## **Phase 4:** Verification
 
