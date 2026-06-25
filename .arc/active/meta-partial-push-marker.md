@@ -12,11 +12,12 @@
 - **Task List:** `tasks-partial-push-marker.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.1 — Marker-before-notes push ordering (remote marker publish + structural opt-out)
-- **Next Task:** Task 4.2 — Act-register recovery — auto-retry then primed retry (line ~163)
+- **Last Completed:** Task 4.4 — End-to-end multi-machine producer scenario (Phase 4 complete)
+- **Next Task:** Task 5.1 — Register/affordance contract for the B-side consumer (line ~226)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.2 — Act-register recovery (auto-retry, then primed retry, non-interactive-safe)
+- **Next Action:** Begin Task 5.1 — record the three-register (Act/Aware/Caution) affordance contract for the
+  consumer WU; doc-only, no B-side surface built here
 
 - **PR URL:** [none]
 - **Completed:** [none]
