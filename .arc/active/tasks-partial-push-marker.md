@@ -66,21 +66,18 @@ pushes retry on non-fast-forward — so no machine's outstanding intent clobbers
 _Design decisions:_ Last-writer-wins is rejected (a single LWW blob lets one machine overwrite another's intent,
 reopening the gap). Reuse the shipped errand-tree union + non-fast-forward-retry shape (`lib/errand/merge.ts`).
 
-### `[ ]` **2.1 Union-merge marker entries by `machineId`**
+### `[x]` **2.1 Union-merge marker entries by `machineId`**
 
 - _Goal:_ Merging two entry sets unions them by `machineId` — each machine's own key wins for that key, no key
   clobbers another.
 
-- _Approach:_ Mirror `mergeErrandTrees` (`lib/errand/merge.ts`) — per-key union; a machine overwriting its own key
-  is not a conflict; deletion only ever touches the deleter's own key.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-concurrent-work.md
-
-    Build `test-first` (one behavior at a time):
-
-    - Two disjoint machine entries union into a set containing both
-    - A re-write of one machine's own key replaces that entry and leaves the other untouched
-    - A machine deleting its own key removes only that entry from the union
+- _Outcome:_ New `lib/user-sync/sync-state-merge.ts` — `mergeSyncStateEntries(local, remote, ownMachineId)` unions
+  the per-machine trees from the writer's vantage point: foreign keys come from `remote` (origin is authoritative
+  for the machine that owns each), the writer's own key from `local` (set when present — a write/re-write; removed
+  when absent — the writer cleared it). The per-machine ownership model deliberately replaces errand's same-key
+  collision with a deterministic owner-wins resolution — there is no collision outcome at all, and a machine's own
+  deletion survives a remote that still carries the stale entry. Exported from the `user-sync` barrel; 3 unit
+  behaviors in `sync-state-merge.test.ts`.
 
 ### `[ ]` **2.2 Non-fast-forward reconcile-and-retry for the sync-state ref**
 

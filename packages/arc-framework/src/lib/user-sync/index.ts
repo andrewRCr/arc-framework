@@ -93,4 +93,6 @@ export {
   type SyncStateMarker,
 } from "./sync-state-marker.js";
 
+export { mergeSyncStateEntries } from "./sync-state-merge.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";
