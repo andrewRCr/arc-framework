@@ -12,11 +12,11 @@
 - **Task List:** `tasks-partial-push-marker.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.2 — 14-day TTL aging for abandoned intent (Phase 3 complete)
-- **Next Task:** Task 4.1 — Marker-before-notes push ordering (line ~139)
+- **Last Completed:** Task 4.1 — Marker-before-notes push ordering (remote marker publish + structural opt-out)
+- **Next Task:** Task 4.2 — Act-register recovery — auto-retry then primed retry (line ~163)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 — Marker-before-notes push ordering
+- **Next Action:** Begin Task 4.2 — Act-register recovery (auto-retry, then primed retry, non-interactive-safe)
 
 - **PR URL:** [none]
 - **Completed:** [none]
