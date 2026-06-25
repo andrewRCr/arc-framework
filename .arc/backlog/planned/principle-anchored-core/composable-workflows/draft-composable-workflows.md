@@ -211,6 +211,19 @@
   `strategy-workflow-authoring`, and the boundary with `plan-workflow-template-loads`'s `arc.templates`; both
   copies. Design fork (subsume vs. keep `arc:if`; binding-time model) → reviewed lane.
 
+### `[ ]` **Subsume `--plan` gate-suppression into conditional-fragment composition**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-06-25);
+  captured during `out-of-wu-entry` planning (2026-06-24).
+- *Concern:* `out-of-wu-entry`'s `--plan <stub>` signal (and the shared signal-dispatch leaf it adds to
+  `session-init`) needs `draft-design`'s content loop reached **without** firing its planning-entry gate
+  (`arc plan check`) — in-place backlog-stub grooming is a base-path grooming write, not active-WU draft
+  authoring, so the gate would wrongly redirect. `out-of-wu-entry` hand-rolls that gate-suppression as an
+  interim ("approach A").
+- *Proposed:* the proper shape is this WU's conditional-fragment composition ("approach C") — a fragment skip,
+  not a bespoke `session-init` branch. When the resolve-then-load fragment substrate lands, the signal-dispatch
+  leaf and the gate-suppressed `draft-design` entry are early real consumers it should subsume.
+
 ---
 
 ## Problem / Motivation

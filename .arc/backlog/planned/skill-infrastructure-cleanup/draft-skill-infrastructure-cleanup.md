@@ -8,6 +8,29 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Type `--plan` grooming branches so bare-landing resume routes them as grooming, not errands**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD` → routed here at drain), housekeep drain
+  (2026-06-25); captured during `out-of-wu-entry` planning (2026-06-24). Provisional.
+- _Concern:_ a paused `--plan` grooming session keeps its `chore/<slug>` branch open across sessions (the chosen
+  "3c" continuity model); intentional resume is via re-invoking `--plan <stub>`. Recovery edge: bare-landing on
+  that paused branch via plain `arc-session` (forgot to re-enter via `--plan`) trips `session-init`'s
+  errand-resume detection, which misroutes it as an _errand_ — a meta-less `chore/` branch is indistinguishable
+  from an errand branch today.
+- _Proposed:_ type the grooming branch's record (errand-lattice's record model is shipped — an available
+  extension point) so `session-init` resume detection **and** the in-flight surface route/label it as grooming,
+  not an errand. Recovery-precision only; `out-of-wu-entry` does **not** depend on it.
+- _Home note:_ routed here for the interrupted-session-detection theme (the symptom is session-init
+  resume-detection misrouting). `operational-state-docs` (owns the record substrate the fix types) is the
+  alternative home.
+
+---
+
 ## Scope (routed captures — iterate into a plan)
 
 ### Standardize ARC skill frontmatter to the agentskills.io spec
