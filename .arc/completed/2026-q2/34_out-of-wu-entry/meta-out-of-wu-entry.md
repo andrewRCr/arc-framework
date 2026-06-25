@@ -1,8 +1,8 @@
 # Metadata: Out-of-WU Session Entry
 
-| **State**     | **Owner** | **Branch**             | **Class** | **Priority** |
-| ------------- | --------- | ---------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/out-of-wu-entry` | `Light`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Light`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/134>
+- **Completed:** 2026-06-24
 
 ---
 
