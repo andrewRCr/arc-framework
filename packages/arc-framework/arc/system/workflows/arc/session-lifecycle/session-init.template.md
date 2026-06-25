@@ -108,6 +108,39 @@ Step 1 probe** so the entry dispatch below and Step 3 read against the recovered
 channels below and carry the still-gone state to Step 6's branch-gone arm. Every other state proceeds to the
 entry dispatch below.
 
+### Signal-leaf dispatch (precedence)
+
+An **explicit-intent signal** — `--errand`, `--housekeep`, or `--plan <stub>` — may accompany the invocation.
+When present, run the **spine** below before resolving the entry mode: it outranks the resume / orient /
+cold-start resolution on **any** arm and never clobbers the active checkout. Signal absent → skip to
+[Entry dispatch](#entry-dispatch) unchanged.
+
+Place it after the branch-gone precondition and ahead of the arm resolution; on the signal path the spine
+replaces the resume/orient sync-pull (the channels below) and Step 3's full context-load.
+
+**Spine** (uniform across all signals):
+
+1. **Parse** — resolve the locus (table below) and whether the signal is sufficient: `--housekeep` always is; a
+   bare `--errand` / `--plan` **elicits first** — prompt for the concern, adopt a flagged `USER-INBOX § Errand`
+   capture, or disambiguate the stub — before relocating; it never silently launches.
+2. **Displacement guard** — active WU or dirty checkout present → confirm once before relocating; nothing
+   checked out → proceed silently.
+3. **Relocate** via `resolveWriteContext` — full protection → short-lived branch off `branch.base`; partial →
+   direct base commit.
+4. **Load universal context only** — Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every WU-artifact read
+   (SESSION-NOTES, active task list, lifecycle workflow).
+5. **Run the locus**; Step 5 / Step 6 then run in signal-leaf mode (orient on the locus, not the WU).
+
+**Per-signal locus:**
+
+| Signal          | Locus workflow                      | Edits                                |
+|-----------------|-------------------------------------|--------------------------------------|
+| `--errand`      | [`run-errand`][run-errand] Launch   | the errand's target paths            |
+| `--housekeep`   | [`drain-inbox`][drain-inbox]        | the user inbox → authoritative homes |
+| `--plan <stub>` | [`draft-design`][draft-design] loop | the backlog stub's `draft-*`         |
+
+Arm only the declared goal — surface no unrequested routes, and don't nag about the active WU.
+
 ### Entry dispatch
 
 Select the entry mode from `active.value.resolution` and `worktree.value` (the probe pre-resolves both — do
@@ -117,10 +150,9 @@ An **entry seed** may accompany the invocation — an optional spec pointer or d
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
 arm it is surfaced, not acted on.
 
-An **`--errand` signal** may also accompany the invocation — an explicit token, orthogonal to the positional
-entry seed (so it never collides with cold-start's spec input). It feeds the **Orient** arm only, switching that
-arm from between-WU discovery to **errand mode** (the cold-Errand path); on every other arm it is surfaced, not
-acted on.
+An **explicit-intent signal** present at invocation is handled by
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
+here; the arms below are the **signal-absent** path.
 
 - **Errand-resume** — `errandState.value.resume.resumable === true`. The current branch is a meta-less
   `chore/<slug>` errand, not a work unit. Continue to the sync channels below, then load universal context and
@@ -132,9 +164,10 @@ acted on.
   "any arg" — the positional seed stays orthogonal); housekeep overlays either as a soft-offer when the inbox
   holds routable captures:
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
-      next-work discovery orients and awaits direction. If `errandState` carries flagged captures, in-flight
-      `chore/` branches, or materializable remote errands — or `materializableWorkUnits` carries remote-only
-      WU candidates — surface them in Step 6 as available routes.
+      next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
+      that WU with an init offer (Step 5) — confirm-only, never auto-init. If `errandState` carries flagged
+      captures, in-flight `chore/` branches, or materializable remote errands — or `materializableWorkUnits`
+      carries remote-only WU candidates — surface them in Step 6 as available routes.
     - **Errand** (`--errand <blurb|slug>` present, primary worktree): enter **errand mode** — see
       [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
       surface that an Errand runs from the primary worktree and fall through to discovery.
@@ -169,17 +202,10 @@ acted on.
 state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,
 and **Orient** continue straight to the channels below.
 
-**Seed not consumed (non-cold-start arms).** Per the entry-seed rule above, only cold-start acts on a seed.
-When one was supplied but the resolved arm is anything else, surface a one-line note in orientation (Step 6):
-the seed was not consumed; starting fresh work from it means spawning or checking out a new worktree and
-re-entering there.
-
-**Errand signal not consumed (non-Orient arms).** `--errand` feeds only the Orient arm's errand mode. On a
-Resume arm (an active WU session), out-of-WU work that surfaces mid-session follows
-[DEV-RULES.ARC § Discovered Work Routing][dev-rules-routing] — capture it to `USER-INBOX` via the
-[arc-inbox skill][arc-inbox-skill] to drain later, or run it as its own errand from the primary worktree via a
-fresh `arc-session --errand`; surface that pointer in orientation. On cold-start or materialize, note the signal
-was not consumed.
+**Seed not consumed (Resume / Errand-resume / Materialize arms).** Cold-start acts on a seed (its resolved
+disposition), and the Orient/discovery arm pre-focuses a seed that names a backlog WU (Step 5 — confirm to
+init). On the remaining arms a supplied seed is not consumed: surface a one-line note in orientation (Step 6)
+that starting fresh work from it means spawning or checking out a new worktree and re-entering there.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -427,9 +453,11 @@ If `post-context-load` appears in the active-extensions list (from Step 1), load
 
 ## 5. Assess Readiness
 
-**Errand mode** (Orient arm reached via `--errand`, or Errand-resume via `errandState`): skip this entire step —
-there is no work-unit handoff baseline to freshness-check, and errand setup/resume replaces next-work discovery.
-See [Errand cold-entry](#errand-cold-entry-orient-arm).
+**Signal-leaf / errand mode** (an explicit-intent signal routed via
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Errand-resume via `errandState`): skip
+this entire step — there is no work-unit handoff baseline to freshness-check, and the locus run replaces
+next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) /
+[Errand cold-entry](#errand-cold-entry-orient-arm).
 
 ### Freshness check
 
@@ -462,7 +490,8 @@ If the freshness gap suggests an interrupted session, run the crash-recovery rou
 list yet; the meta file's Next Action carries direction.
 
 When no active meta file was resolved, or the resolved file shows `**Task List:** [none]` outside a
-planning session, assess readiness for the next unit:
+planning session, assess readiness for the next unit. When a **positional seed** names a backlog WU,
+**pre-focus** it as the candidate and offer to init it — confirm-only, never auto-init. Absent such a seed:
 
 <!-- arc:if pm.mode == arc-in-git -->
 1. Read `.arc/backlog/ROADMAP.md` — identify the next queued or suggested item
@@ -506,9 +535,11 @@ deliberately.
 
 Produce the orientation summary.
 
-**Errand mode** (Orient arm via `--errand`, or Errand-resume via `errandState`): frame the summary on the
-Errand — its goal, the `chore/<slug>` branch, and any coordination caveat — instead of work-unit state; the
-active-work-state shape below does not apply. See [Errand cold-entry](#errand-cold-entry-orient-arm).
+**Signal-leaf / errand mode** (an explicit-intent signal routed via
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Errand-resume via `errandState`): frame
+the summary on the **locus** — the errand / drain / grooming target, its goal, branch, and any coordination
+caveat — instead of work-unit state; the active-work-state shape below does not apply. See
+[Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 **Output format:**
 
@@ -739,9 +770,9 @@ source's view with specific details and wait for explicit direction before any c
 [in-flight-scope-check]: ../work-unit-lifecycle/in-flight-scope-check.md
 [assess-parallel-fit]: ../../../methods/assess-parallel-fit.md
 [run-errand]: ../supplemental/run-errand.md
-[arc-inbox-skill]: ../../../.internal/skills/arc-inbox/SKILL.md
+[drain-inbox]: ../supplemental/drain-inbox.md
+[draft-design]: ../draft-design.md
 [arc-housekeep-skill]: ../../../.internal/skills/arc-housekeep/SKILL.md
-[dev-rules-routing]: ../../../rules/DEV-RULES.ARC.md#discovered-work-routing
 [create-spec]: ../create-spec.md
 [arc-methods-session]: ../../../methods/session-state.md
 [arc-ext-post-context-load]: ../../../extensions/post-context-load.md

@@ -21,102 +21,81 @@ adopter-facing — every edit lands in both `.arc/system/workflows/arc/session-l
 `packages/arc-framework/arc/...` mirror (package-source-first per `strategy-package-project-sync.md`). Full
 rationale: `notes-out-of-wu-entry.md` § Design spine + per-signal locus.
 
-### `[ ]` **1.1 Insert the signal leaf and shared spine into Step 2 dispatch**
+### `[x]` **1.1 Insert the signal leaf and shared spine into Step 2 dispatch**
 
 - _Goal:_ An explicit-intent signal routes to its locus on any arm — outranking and replacing the
   resume/orient/cold-start resolution — through one shared spine, with the active WU's checkout preserved.
 
-- _Approach:_ The leaf is dispatch-precedence: signal present → run the spine before resolving the implicit
-  arm; signal absent → today's arm dispatch is untouched. The spine is uniform across all three signals;
-  signals differ only in locus workflow, what they edit, and their sufficiency rule.
+    - `[x]` **1.1.a Add the signal-leaf precedence check ahead of the arm dispatch**
+        - New `### Signal-leaf dispatch (precedence)` subsection placed after the branch-gone precondition and
+          ahead of `### Entry dispatch`: signal present → run the spine; absent → fall through to the existing
+          arm resolution unchanged. Reconciled the old `--errand` intro paragraph to point at the leaf (the arms
+          below are now the signal-absent path); states that the spine's relocate + universal-only load supersede
+          the sync-pull of the current branch and the full context-load on the signal path.
 
-    - `[ ]` **1.1.a Add the signal-leaf precedence check ahead of the arm dispatch**
-        - Place the check after the branch-gone precondition (git state must be sane first) but ahead of the arm
-          resolution: signal present → spine; absent → fall through to the existing Errand-resume / Resume /
-          Orient / Cold-start / Materialize resolution unchanged.
-        - The spine's relocate + universal-context load supersedes the resume/orient sync-pull-of-current-branch
-          and full context-load on the signal path — generalizing how errand cold-entry already loads
-          universal-only, now fired on any arm.
-
-    - `[ ]` **1.1.b Define the shared spine**
-        - The five-step spine: parse signal → displacement guard (active checkout? → confirm-once) → relocate
+    - `[x]` **1.1.b Define the shared spine**
+        - Authored as one cohesive single-entry/single-exit block — parse signal → displacement guard → relocate
           via `resolveWriteContext` (full → short-lived branch off base; partial → direct base commit) → load
-          universal context only → run the locus workflow.
-        - State that relocation is uniform (the `resolveWriteContext` primitive resolves `branch.base` from
-          config, so the primary worktree need not be on `main`), not a per-signal property.
-        - Author the spine as one cohesive, single-entry/single-exit block — a clean lift for later fragment
-          extraction, not interleaved into the dispatch prose.
+          universal context only → run the locus workflow. States that relocation is uniform (the primitive
+          resolves `branch.base` from config, so the primary worktree need not be on `main`).
 
-    - `[ ]` **1.1.c Add the per-signal locus routing table**
-        - `--errand` → `run-errand` Launch (edits the errand's target paths). `--housekeep` → `drain-inbox`
-          (edits inbox → authoritative homes; leave the drain _scope_ extensible — don't hardwire
-          `USER-INBOX`-only — with the user inbox as the default behavior; the `user|shared` dual-mode is
-          `shared-inbox-housekeep`'s, no build here). `--plan <stub>` → `draft-design` content loop (edits the
-          backlog stub's `draft-*`).
-        - _Note:_ Design posture (Decision 9) is woven here — the leaf arms only the declared goal and loads
-          only what it needs; it surfaces no unrequested routes and does not nag about the active WU.
+    - `[x]` **1.1.c Add the per-signal locus routing table**
+        - Locus table: `--errand` → `run-errand` Launch; `--housekeep` → `drain-inbox` (drain scope kept
+          extensible, user inbox the default); `--plan <stub>` → `draft-design` loop. Design posture (Decision 9)
+          woven as a closing note — arm only the declared goal, surface no unrequested routes, don't nag about
+          the active WU. Added `drain-inbox` / `draft-design` reference-link definitions.
 
-### `[ ]` **1.2 Two-gate confirmation and locus-scoped acknowledgment**
+- _Outcome:_ The arm-orthogonal leaf landed in both copies (`session-init.md` + the package `.template.md`
+  mirror — byte-identical in this region; only the Step 5 `arc:if` blocks differ).
+
+### `[x]` **1.2 Two-gate confirmation and locus-scoped acknowledgment**
 
 - _Goal:_ The leaf confirms along two distinct axes — sufficiency before acting, displacement before
   relocating — and closes on a locus-scoped acknowledgment rather than the full work-unit orientation.
 
-- _Context:_ The two gates are orthogonal: sufficiency is signal-specific (does the signal carry enough to
-  act?), displacement is uniform (is an active checkout / dirty tree present?). Errand cold-entry already
-  replaces Step 6's WU orientation with a locus acknowledgment — this generalizes that to the leaf.
+    - `[x]` **1.2.a Document the sufficiency / elicitation gate**
+        - Folded into spine step 1 (Parse): `--housekeep` always sufficient; bare `--errand` / `--plan` elicit
+          first (prompt for the concern / adopt a flagged `§ Errand` capture / disambiguate the stub) before
+          relocating; never silently launches.
 
-    - `[ ]` **1.2.a Document the sufficiency / elicitation gate**
-        - `--housekeep` → always sufficient (the inbox is the input). Bare `--errand` / bare `--plan` →
-          elicit first (or adopt a flagged `§ Errand` capture / disambiguate a stub) before relocating — a
-          bare signal asks, it does not silently launch.
-        - `--plan` stub existence / disambiguation resolves through the Task 2.1 backlog-stub resolver
-          (deterministic), not agent globbing.
+    - `[x]` **1.2.b Document the displacement / precedence gate**
+        - Folded into spine step 2 (Displacement guard): active WU / dirty checkout → confirm once before
+          relocating; nothing checked out → proceed silently.
 
-    - `[ ]` **1.2.b Document the displacement / precedence gate**
-        - Active WU or dirty checkout present → confirm-once-then-relocate (one visible beat before leaving a
-          resumed WU). Nothing checked out → proceed silently. Identical across the three signals.
+    - `[x]` **1.2.c Replace the Step-6 orientation with a locus-scoped acknowledgment**
+        - Spine step 5 routes the close through "signal-leaf mode"; the Step 5 / Step 6 errand-mode gates are
+          generalized to "Signal-leaf / errand mode" (any arm) — orient on the locus, not the WU.
 
-    - `[ ]` **1.2.c Replace the Step-6 orientation with a locus-scoped acknowledgment**
-        - On the leaf, frame the close on the locus (the errand / drain / grooming target), not the WU —
-          mirroring the existing Errand cold-entry behavior; thread the leaf through the Step 5 / Step 6
-          errand-mode references so the new arm is covered.
+- _Outcome:_ The sufficiency and displacement gates and the locus-scoped close fold into the spine (steps 1, 2,
+  5); Step 5 (freshness / next-work skip) and Step 6 (orientation framing) cover the signal leaf on any arm, not
+  just the Orient `--errand` path.
 
-### `[ ]` **1.3 Retire "signal not consumed"; support bare `--errand`; read errand identity from the record**
+### `[x]` **1.3 Retire "signal not consumed"; support bare `--errand`; read errand identity from the record**
 
 - _Goal:_ The Resume arm carries an actual route for an explicit signal (not a discard), a bare `--errand` is
   explicitly supported, and any errand identity the route needs comes from the record.
 
-- _Context:_ Today's "Errand signal not consumed (non-Orient arms)" block discards the signal with circular
-  advice (re-invoke from the primary worktree → lands on the same Resume arm → discarded again). That block is
-  the bug this WU fixes.
+    - `[x]` **1.3.a Rewrite the "Errand signal not consumed (non-Orient arms)" block**
+        - Block removed entirely — the signal is consumed by the leaf on any arm, and the Entry-dispatch intro
+          already points there ("an explicit-intent signal … is handled by Signal-leaf dispatch above"). No
+          trailing caveat needed.
 
-    - `[ ]` **1.3.a Rewrite the "Errand signal not consumed (non-Orient arms)" block**
-        - Replace the discard + circular advice with a pointer into the signal leaf — the Resume arm now
-          routes the signal through the spine instead of surfacing-and-dropping it.
+    - `[x]` **1.3.b Support a bare `--errand` (absent seed)**
+        - Covered by spine step 1 (bare `--errand` elicits first) + step 4 (universal-only load) — no separate
+          cold-entry prose. (The `arc-session` skill half is Task 3.1.)
 
-    - `[ ]` **1.3.b Support a bare `--errand` (absent seed)**
-        - `session-init` wording states a bare `--errand` primes cold-entry loading universal context only
-          (SESSION-NOTES, the active task list, and `process-task-loop` skipped) → elicit the concern or adopt
-          a flagged `USER-INBOX § Errand` capture. (The `arc-session` skill half is Task 3.1.)
+    - `[x]` **1.3.c State that errand identity is record-owned**
+        - Satisfied structurally: the resume slug is the probe field `errandState.value.resume.slug` (Step 1),
+          so the agent never parses the `chore/` prefix. No added prose; Decision 7 stays recorded in the spec.
 
-    - `[ ]` **1.3.c State that errand identity is record-owned**
-        - Any errand identity is read from the record via `readErrandSlugByBranch` (`lib/errand/record.ts`),
-          never a `chore/`-prefix branch parse (retired upstream). The `--plan` grooming locus needs no errand
-          identity at all.
-
-### `[ ]` **1.4 Pre-focus a positional backlog-WU arg on the Orient arm**
+### `[x]` **1.4 Pre-focus a positional backlog-WU arg on the Orient arm**
 
 - _Goal:_ A positional arg naming a backlog WU lets the Orient/discovery arm pre-focus that WU and offer to
   init it — confirm-only, never auto-init.
 
-- _Approach:_ Extend the existing entry-seed mechanism to the discovery arm: the named WU is surfaced as the
-  pre-focused candidate with an init offer; today's "surfaced, not acted on" becomes "pre-focused, confirm to
-  act." Update the "Seed not consumed" note so it no longer claims the discovery arm ignores the arg.
-
-- _Note:_ The Orient-arm pre-focus may reference the Task 2.1 backlog-stub resolver opportunistically, but its
-  runtime stays agent-interpreted (no probe wiring) — a resolver pays off at deterministic call sites, not agent
-  discretion, and Decision 8 is the parenthetical ergonomic. Keep it light; don't expand scope to thread the
-  positional arg through the probe.
+- _Outcome:_ The Discovery arm and Step 5 now pre-focus a positional seed naming a backlog WU with a
+  confirm-only init offer (match stays agent-interpreted, no probe wiring); the "Seed not consumed" note is
+  narrowed to the Resume / Errand-resume / Materialize arms so it no longer claims discovery ignores the arg.
 
 ## **Phase 2:** `--plan` locus — in-place backlog grooming
 
