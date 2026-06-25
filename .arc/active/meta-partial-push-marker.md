@@ -12,11 +12,11 @@
 - **Task List:** `tasks-partial-push-marker.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.3 — Per-machine marker entry schema (Phase 1 complete)
-- **Next Task:** Task 2.1 — Union-merge marker entries by `machineId` (line ~69)
+- **Last Completed:** Task 3.2 — 14-day TTL aging for abandoned intent (Phase 3 complete)
+- **Next Task:** Task 4.1 — Marker-before-notes push ordering (line ~139)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — Union-merge marker entries by `machineId`
+- **Next Action:** Begin Task 4.1 — Marker-before-notes push ordering
 
 - **PR URL:** [none]
 - **Completed:** [none]
