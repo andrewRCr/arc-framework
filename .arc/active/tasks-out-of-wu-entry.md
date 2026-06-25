@@ -97,6 +97,28 @@ rationale: `notes-out-of-wu-entry.md` § Design spine + per-signal locus.
   confirm-only init offer (match stays agent-interpreted, no probe wiring); the "Seed not consumed" note is
   narrowed to the Resume / Errand-resume / Materialize arms so it no longer claims discovery ignores the arg.
 
+### `[x]` **1.5 Reconcile the Orient-arm dispatch prose with the signal-leaf precedence (verification-surfaced)**
+
+- _Goal:_ The Orient arm no longer re-routes an explicit `--errand` (the signal leaf owns it on every arm), and
+  the workflow states that a linked-worktree `--errand` relocates to the primary's base rather than falling
+  through to discovery — closing the Success-Criterion-7 contradiction the original cold-entry leaf left behind.
+
+    - `[x]` **1.5.a Make the spine's relocate explicit for a linked worktree**
+        - Spine step 3 now states a linked-worktree-on-a-WU-branch relocate resolves to the primary's base
+          context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree is never
+          disturbed.
+
+    - `[x]` **1.5.b Retire the Orient-arm `--errand` re-routing**
+        - Orient arm reframed as the signal-absent path (discovery + housekeep soft-offer); the `--errand`
+          sub-bullet and its non-primary→discovery punt removed. Errand cold-entry intro repointed to "reached via
+          the signal leaf, no active WU," reconciling its "no cross-worktree hop" line.
+
+- _Outcome:_ `--errand` is now owned solely by the signal leaf on every arm, with a linked-worktree relocate
+  resolving to the primary's base — closing the Success-Criterion-7 contradiction. Verification-surfaced: the
+  mechanics (`resolveWriteContext` relocate verdict + `primaryWorktreePath`) and doctrine
+  (`strategy-work-organization` § Entry path) already supported the behavior, so this was prose-only. Landed
+  two-copy (`.md` + `.template.md`, byte-identical in this region).
+
 ## **Phase 2:** `--plan` locus — in-place backlog grooming
 
 _Purpose:_ Complete the `--plan` signal: enter `draft-design`'s content loop against a `backlog/` stub's draft

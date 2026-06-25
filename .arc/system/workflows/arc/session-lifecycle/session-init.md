@@ -126,7 +126,8 @@ replaces the resume/orient sync-pull (the channels below) and Step 3's full cont
 2. **Displacement guard** — active WU or dirty checkout present → confirm once before relocating; nothing
    checked out → proceed silently.
 3. **Relocate** via `resolveWriteContext` — full protection → short-lived branch off `branch.base`; partial →
-   direct base commit.
+   direct base commit. From a linked worktree on a WU branch the relocate resolves to the **primary's** base
+   context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree is never disturbed.
 4. **Load universal context only** — Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every WU-artifact read
    (SESSION-NOTES, active task list, lifecycle workflow).
 5. **Run the locus**; Step 5 / Step 6 then run in signal-leaf mode (orient on the locus, not the WU).
@@ -160,17 +161,15 @@ here; the arms below are the **signal-absent** path.
 - **Resume** — `active.resolution` is `single` or `multiple`. An active work unit is present; continue to the
   sync channels below, then Step 3.
 - **Orient** — `active.resolution` is `none` and the worktree is not bare (e.g. the primary worktree between
-  units). Discovery and errand are the dispatch intents, disambiguated by the explicit `--errand` signal (never
-  "any arg" — the positional seed stays orthogonal); housekeep overlays either as a soft-offer when the inbox
-  holds routable captures:
+  units). The **signal-absent** path: discovery is the dispatch intent (the positional seed stays orthogonal —
+  never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
+  `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
+  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below).
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If `errandState` carries flagged
       captures, in-flight `chore/` branches, or materializable remote errands — or `materializableWorkUnits`
       carries remote-only WU candidates — surface them in Step 6 as available routes.
-    - **Errand** (`--errand <blurb|slug>` present, primary worktree): enter **errand mode** — see
-      [Errand cold-entry](#errand-cold-entry-orient-arm) below. If `--errand` arrives in a non-primary worktree,
-      surface that an Errand runs from the primary worktree and fall through to discovery.
     - **Housekeep** (`inboxState.value.housekeepNeeded`, primary worktree): when `USER-INBOX` holds routable
       captures, carry the housekeep intent — surfaced as a soft-offer in Step 6's orientation, never a hard
       dispatch. It overlays the discovery arm (housekeep, then discover) rather than replacing it; the developer
@@ -268,10 +267,11 @@ Worktree channel still applies.
 
 ### Errand cold-entry (Orient arm)
 
-Reached from the Orient arm when `--errand` is present in the primary worktree — a maintenance Errand arising
+Reached via the signal leaf when `--errand` resolves with **no active work unit** — a maintenance Errand arising
 with no originating session (the cold case). `arc-session` stays the one universal door; this is its no-WU path
 acting on the second intent. Errand mode loads **universal context only**, then classifies and sets up the
-Errand in place — no cross-worktree hop, since the primary worktree is where an Errand executes.
+Errand: the spine's relocate already established a base-branch write context (in place when already on the
+primary; otherwise the primary's base, per `resolveWriteContext`), and the Errand executes there.
 
 1. **Sync, then load universal context only.** Run the conditional sync pulls above, then Step 3 items 1–6 and
    WORKING-MEMORY (item 8.2) — the universal surfaces. **Skip every WU-artifact read:** SESSION-NOTES (item 8.1),
