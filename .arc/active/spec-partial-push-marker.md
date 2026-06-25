@@ -79,9 +79,13 @@ recover from. The design has nine components — the enumerable substrate the ta
 
 ### 1. The sync-state ref
 
-A sibling notes ref `refs/notes/arc/sync-state/{identity}`, paralleling the user-notes ref and namespaced by
-identity exactly as it is. It carries sync-state metadata only; it is independent of the user-notes payload and
-of any other identity's refs (per-identity refs are decoupled by namespace).
+A sibling ARC ref `refs/arc/user/{identity}/sync-state`, the cross-machine companion to the user-notes ref and
+namespaced by identity exactly as it is. It is **not** a git-notes ref: storage is the errand **tree-commit**
+model — a tree of per-machine entry blobs keyed by `machineId` (§ 3, § 5), co-located with the errand ref under
+`refs/arc/user/{identity}/` because it reuses that mechanism, not the commit-keyed git-notes machinery. The name
+sits under `refs/arc/`, not `refs/notes/`, so the namespace tells the truth about the mechanism — `git notes`
+never operates on it. It carries sync-state metadata only; it is independent of the user-notes payload and of any
+other identity's refs (per-identity refs are decoupled by namespace).
 
 ### 2. Machine-id
 
@@ -112,8 +116,10 @@ loss), B behaves exactly as today — no regression, the residual window the sev
 ### 5. Reconciliation — union-merge by key
 
 Because each machine owns its own key, concurrent cross-machine pushes have no true conflict — they union. Reuse
-the shipped `mergeErrandTrees`-style union + non-fast-forward-retry pattern (the entry-list-union model
-`WORKING-MEMORY` / `USER-INBOX` already use). A machine overwrites its own key on each attempt (no conflict);
+the shipped errand tree-commit per-key union + non-fast-forward-retry pattern (`mergeErrandTrees` /
+`reconcileErrandPush`), where the keyed tree is `machineId`-keyed exactly as the errand tree is slug-keyed — the
+same conflict-free-by-ownership model `WORKING-MEMORY` / `USER-INBOX` entry-union uses conceptually, but at the
+ref-tree level rather than within a single payload. A machine overwrites its own key on each attempt (no conflict);
 deletion only ever touches a machine's own key. **Last-writer-wins is rejected** — a single LWW blob lets one
 machine's marker overwrite another's, reopening the exact multi-machine gap this WU closes (§ Alternatives).
 
