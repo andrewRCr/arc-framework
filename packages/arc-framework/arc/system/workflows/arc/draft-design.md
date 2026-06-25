@@ -25,6 +25,9 @@ start.
 
 ## Planning-entry gate
 
+**Grooming-entry skip.** A `--plan <stub>` grooming session enters already on a committable grooming branch —
+skip this gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
+
 Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
 context and routes so a draft never lands where it can't be committed:
 
@@ -172,6 +175,12 @@ When the draft is formalization-ready and crosses into create-spec (the forward 
 back-edge), advance the stage pointer: `arc set-stage create-spec --advance` rewrites `Current Workflow:
 draft-design → create-spec` and resets `**Next Action:**` to the `[begin current workflow]` boundary sentinel,
 bundled into this capture commit — so a fresh session after handoff resumes in create-spec.
+
+**Groom-and-stop (the `--plan` grooming exit).** A `--plan <stub>` grooming session ends here without advancing —
+a complete outcome, not an incomplete forward path. Capture the draft to the grooming branch and **do not advance
+the stage pointer**: the stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`.
+The tracked `draft-*` is the continuity artifact — pausing is commit + push; write no marker and no new durable
+state.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`

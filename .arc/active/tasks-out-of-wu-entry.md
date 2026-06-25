@@ -140,29 +140,24 @@ per-signal locus (`--plan` subsections).
   `slug → artifact` resolver later absorbs it (seam in `notes-out-of-wu-entry.md` § Forward-compat seams).
   `src/`-only — not mirrored to the package.
 
-### `[ ]` **2.2 Add the `--plan` entry-gate-skip and groom-and-stop exit to `draft-design`**
+### `[x]` **2.2 Add the `--plan` entry-gate-skip and groom-and-stop exit to `draft-design`**
 
 - _Goal:_ `draft-design` enters its content loop for a `--plan` grooming session past the planning-entry gate,
   and exits via an explicit groom-and-stop outcome that captures without advancing the stage.
 
-- _Context:_ The `## Planning-entry gate` (`arc plan check`, `draft-design.md` line ~26) would `redirect` on a
-  grooming branch; the spine already established committability, so the gate is skipped for this locus.
-  `draft-design`'s advance is already conditional (line ~172: advance only when crossing into create-spec) —
-  groom-and-stop is a third, _named_ outcome alongside forward-advance and the re-entry back-edge, so a session
-  doesn't read "didn't advance" as an incomplete forward path.
+    - `[x]` **2.2.a Entry-gate-skip for the `--plan` grooming locus**
+        - Added a `**Grooming-entry skip.**` block atop `## Planning-entry gate`: a `--plan` grooming entry skips
+          the gate to **Resolve depth & Class**; the gate still runs on every other entry. The fragment-skip seam
+          stays in the notes, unmarked in the shipped workflow.
 
-    - `[ ]` **2.2.a Entry-gate-skip for the `--plan` grooming locus**
-        - Document that a `--plan` grooming entry bypasses the planning-entry gate (committability was
-          established by the spine's relocate). Scope the skip to the grooming-entry path — the entry signals the
-          grooming context to `draft-design`, so the gate still fires on every normal draft-design entry (not a
-          blanket gate removal). Structure the skip as a discrete block so a later fragment-skip is a clean
-          replacement; the "approach A" seam is recorded in the notes, not marked in the shipped workflow.
+    - `[x]` **2.2.b Named groom-and-stop exit**
+        - Added a `**Groom-and-stop**` exit beside the forward-advance and re-entry back-edge: capture to the
+          grooming branch, no stage-pointer advance, stub stays in its backlog state, resume via `--plan <stub>`;
+          the tracked `draft-*` is the continuity artifact (pause = commit + push; no marker, no new durable state).
 
-    - `[ ]` **2.2.b Named groom-and-stop exit**
-        - Add the groom-and-stop outcome: capture to the grooming branch, **do not advance** the stage pointer,
-          the stub stays in its backlog state, resume via `--plan X`. State the "3c" continuity model (pause =
-          commit + push; the tracked draft is the continuity artifact; no marker, no new durable state; the
-          grooming branch stays out of occupancy math and is swept by the existing in-flight-chore sweep).
+- _Outcome:_ Both edits landed two-copy (package source + `.arc/` mirror, byte-identical). Prose held to
+  operational-only per workflow economy — the unadvanced-is-complete framing kept (the reason the exit is
+  _named_); the gate-skip mechanism, exit taxonomy, and occupancy/sweep reassurance cut as author-facing.
 
 ## **Phase 3:** Skill-surface alignment
 
