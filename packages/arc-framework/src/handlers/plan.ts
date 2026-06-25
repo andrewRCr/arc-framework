@@ -33,6 +33,7 @@ import {
 } from "../lib/git/write-context.js";
 import { gitExec } from "../lib/io-context.js";
 import { resolveActiveWu } from "../lib/release/wu-resolution.js";
+import { resolveBacklogStub } from "../lib/work-unit/backlog-stub.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 import * as p from "@clack/prompts";
@@ -107,15 +108,22 @@ async function resolveActiveWorkUnitFacts(
   return { onPlanningBranch, activeWorkUnit };
 }
 
-/** Whether a `draft-<name>.md` already exists under `active/` — `false` when unnamed. */
-async function resolveDraftPresent(cwd: string, name: string | undefined): Promise<boolean> {
+/**
+ * Whether a `draft-<name>.md` already exists for this slug — `false` when
+ * unnamed. Checks the flat `active/` draft (a WU mid-draft in place) first, then
+ * falls back to a backlog stub's draft (a `--plan` grooming target nested under
+ * `backlog/planned` or `backlog/provisional`), via the backlog-stub resolver.
+ */
+export async function resolveDraftPresent(cwd: string, name: string | undefined): Promise<boolean> {
   const slug = name?.trim();
   if (!slug) return false;
   try {
-    return (await stat(join(cwd, ".arc", "active", `draft-${slug}.md`))).isFile();
+    if ((await stat(join(cwd, ".arc", "active", `draft-${slug}.md`))).isFile()) return true;
   } catch {
-    return false;
+    // No active/ draft — fall through to the backlog-stub lookup.
   }
+  const stub = await resolveBacklogStub(cwd, slug);
+  return stub?.draftPath != null;
 }
 
 /** Word the planning-entry route for a human, exiting non-zero on a redirect. */

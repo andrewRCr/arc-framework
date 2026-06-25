@@ -114,44 +114,31 @@ marked in the shipped `draft-design.md`). Continuity is the "3c" model (pause = 
 change (Task 2.1) is `src/`-only, not mirrored. Full rationale: `notes-out-of-wu-entry.md` § Design spine +
 per-signal locus (`--plan` subsections).
 
-### `[ ]` **2.1 Add a backlog-stub resolver backing draft-presence and `--plan` sufficiency**
+### `[x]` **2.1 Add a backlog-stub resolver backing draft-presence and `--plan` sufficiency**
 
 - _Goal:_ A minimal reusable resolver locates a backlog stub by slug — its dir, state-dir, and draft path — so
   draft-presence and `--plan`'s sufficiency / disambiguation run as deterministic code, not agent-globbing of
   nested backlog dirs.
 
-- _Context:_ `resolveDraftPresent` (`handlers/plan.ts`) currently does a single `stat` on the flat
-  `.arc/active/draft-{slug}.md`. Backlog stubs are nested at variable depth —
-  `backlog/{state}/[{cohort}/[{subcohort}/]]{name}/draft-{name}.md` — so a slug → stub lookup is a depth-aware
-  walk across both state-dirs. A small resolver (rather than a bare draft-presence boolean) gives `--plan`'s
-  sufficiency gate a real primitive instead of agent-globbing; `--plan` calls it directly, independent of
-  `arc plan check`.
+    - `[x]` **2.1.a Build the backlog-stub resolver**
+        - `resolveBacklogStub(cwd, slug)` → `{ slug, dir, stateDir, metaPath, draftPath } | null` (paths
+          absolute; `stateDir` the `planned`/`provisional` name, `planned` taking precedence) plus
+          `listBacklogStubs(cwd)` for bare-`--plan` disambiguation. Both reuse one recursive backlog-walk that
+          resolves the sibling `draft-<slug>.md` from the same directory listing. Built `test-first` (6 cases:
+          planned / provisional / cohort-nested resolution, null draft, no-match, full listing).
 
-- _Rationale:_ A resolver earns adoption at deterministic call sites (code → code), not at agent discretion —
-  so it's built for the two code consumers here, kept backlog-stub-scoped (not a general `slug → artifact`
-  subsystem, not lifecycle state). `composable-workflows`' canonical resolver later absorbs and extends it;
-  see `notes-out-of-wu-entry.md` § Forward-compat seams.
+    - `[x]` **2.1.b Back draft-presence with the resolver**
+        - `resolveDraftPresent` (`handlers/plan.ts`, now exported) checks the flat `active/draft-<slug>.md` first
+          (regression preserved), then falls back to a backlog stub's `draftPath` via the resolver — so
+          `arc plan check --name <stub>` sees a backlog stub's draft. Built `test-first` (active-path hit,
+          backlog-path hit, unnamed/absent → false).
 
-- _Strategies:_ strategy-testing-methodology.md, strategy-package-project-sync.md
-
-    - `[ ]` **2.1.a Build the backlog-stub resolver**
-        - `resolveBacklogStub(cwd, slug)` → `{ dir, stateDir, metaPath, draftPath | null } | null`, walking
-          `backlog/{planned,provisional}/` at nested WU-dir depth; a stub-listing form for bare-`--plan`
-          disambiguation. Co-locate with the existing backlog-walk pattern (`collectMetaFiles`,
-          `lib/status/ready-mine-source.ts`).
-
-        - Build `test-first` (one behavior at a time):
-            - Resolves a `backlog/planned/{name}/` stub (dir + draft path).
-            - Resolves a `backlog/provisional/{name}/` stub.
-            - Resolves a cohort-nested stub (`backlog/planned/{cohort}/{name}/`).
-            - Returns `draftPath: null` for a stub dir with no `draft-{name}.md`.
-            - Returns `null` when no stub matches the slug in either state-dir.
-            - Lists multiple matching stubs for disambiguation.
-
-    - `[ ]` **2.1.b Back draft-presence and `--plan` sufficiency with the resolver**
-        - Route `resolveDraftPresent` (or its `handlePlanCheck` caller) through the resolver so
-          `arc plan check --name <stub>` sees a backlog stub's draft; keep the `active/` draft path working
-          (regression). The `--plan` sufficiency gate (Task 1.2.a) consumes the same resolver.
+- _Outcome:_ The resolver lands as `src/lib/work-unit/backlog-stub.ts` — **not** `lib/status/` as the original
+  sub-bullet hinted: homing a `plan.ts`-consumed primitive there would have created a novel planning→status
+  import edge, whereas `work-unit/` already hosts the sibling backlog walkers (`lifecycle-index.ts`). Kept
+  backlog-stub-scoped (dir/draft facts only, no lifecycle state); `composable-workflows`' canonical
+  `slug → artifact` resolver later absorbs it (seam in `notes-out-of-wu-entry.md` § Forward-compat seams).
+  `src/`-only — not mirrored to the package.
 
 ### `[ ]` **2.2 Add the `--plan` entry-gate-skip and groom-and-stop exit to `draft-design`**
 
