@@ -72,6 +72,26 @@
   convention (`draft-design` / template), `init-work-unit`, and `session-init`'s resume / discovery arms; both
   copies. Design fork (where the re-validation lives, what the staleness signal is) → reviewed lane.
 
+### `[ ]` **Cohort-scoped grooming entry — groom a cohort doc + ≥2 member drafts on one backlog branch**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
+  (2026-06-25); surfaced grooming `cross-machine-coherence` (no cohort doc, both member drafts stale).
+- _Concern:_ no first-class entry grooms a whole cohort in one pass. `--plan <stub>` / `arc-plan` is single-stub
+  (one committable grooming branch per stub). `decompose-work-unit`'s `backlog-stub-source` arm has the right
+  branch model (short-lived `chore/decompose-<name>` off base, backlog-only, auto-merge lane, ROADMAP regen) and
+  a cohort-doc _mint_ (from `template-cohort.md`), but is gated to the one-origin→N transform and only _creates_ a
+  doc — no path to **backfill** a `cohort-*.md` onto an existing doc-less cohort, nor to re-ground multiple member
+  drafts together. Today: N separate `--plan <stub>` sessions or a hand-rolled branch.
+- _Proposed:_ a "groom cohort" entry — generalize `--plan` to accept a cohort, or a sibling signal — opening one
+  `chore/groom-<cohort>` off base, scoped to the cohort doc + named members, landing one backlog PR owned by no
+  member's WU branch. Lift the cohort-doc backfill out of `decompose-work-unit` as a shared ceremony; define the
+  ownership boundary with decompose (which owns the branch pattern + mint); reuse the cohort-consistency guard.
+- _Forward-compat:_ the shared-ceremony lift should compose with `composable-workflows`' conditional-fragment
+  composition (the same substrate the adjacent `--plan` gate-suppression entry routes to) — treat the
+  cohort-doc-author fragment as a candidate early consumer.
+- _Scope:_ Heavy — design (entry shape + decompose ownership boundary) plus multi-surface impl (session-init
+  signal-leaf, `draft-design` grooming-entry, `arc-plan` skill, a CLI surface, the backfill ceremony, tests).
+
 ---
 
 ## Problem / Motivation

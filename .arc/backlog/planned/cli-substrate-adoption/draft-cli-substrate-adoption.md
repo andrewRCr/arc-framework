@@ -115,6 +115,25 @@ post-trio architecture-remediation plans consume.
   enumerated targets (cold-start spec-input parser, branch-gone cascade union, reconcile-branch error
   classification). Once schematized, `schema-introspection-layer` can publish the cut-map contract via `arc schema`.
 
+### `[ ]` **Wire discretionary resolvers into deterministic call sites — they go unused at agent discretion**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD` → routed here at drain), housekeep drain
+  (2026-06-25); surfaced during `out-of-wu-entry` generate-tasks grounding (2026-06-24). Provisional.
+- *Concern:* discretionary CLI resolvers appear under-adopted — agents prefer manual Grep/Read at the point of
+  need (observed with the `arc status <slug>` lifecycle-state resolver, surfaced in
+  `DEV-RULES.ARC § Verify-before-assuming` but rarely invoked). At agent discretion a resolver loses to the
+  blessed "verify from source: Grep/Glob/Read" default — zero-recall, self-evidently correct, no
+  trust-the-output cost.
+- *Hypothesis:* a resolver earns adoption only when (a) wired into a deterministic path (code → code, or a
+  workflow probe that runs unconditionally), or (b) it returns what manual inspection can't cheaply produce
+  (network- or cross-WU-aggregated answers).
+- *Proposed:* audit whether `arc status <slug>` (and similar single-fact resolvers) should back ceremonies
+  deterministically rather than live as a "remember to invoke" rule; possibly reframe the
+  `DEV-RULES § Verify-before-assuming` resolver guidance. Investigation with a likely small constitutional +
+  workflow edit.
+- *Home note:* routed here as substrate-adoption territory (wiring CLI resolvers into deterministic call sites);
+  a dedicated `resolver-adoption` stub is the alternative home the capture named.
+
 ---
 
 ## Problem / Motivation

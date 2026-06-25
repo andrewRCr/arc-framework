@@ -223,6 +223,22 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   ROADMAP `Owner` column render, `arc status`, and every existing meta file — so it sits within this WU's
   rename-cascade scope.
 
+### `[ ]` **Add a `cohort-[name].md` form to the commit `Context:` footer vocabulary**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-06-25); hit
+  live committing `cohort-cross-machine-coherence.md`.
+- *Concern:* the `commit-footer` method and the `commit-msg` validator hook enumerate artifact forms for
+  `tasks-` / `draft-` / `spec-` / `meta-` (plus `standalone` / `integration` anchors) but carry **no
+  `cohort-[name].md` form** — though a cohort doc is a movable spec-shaped artifact that relocates with the WU
+  group. Committing cohort-doc grooming has no specific footer and falls back to `standalone (planning)`, losing
+  the artifact pointer.
+- *Proposed:* add `Context: cohort-[name].md (planning)` (plus any other parentheticals cohort grooming warrants
+  — `(maintenance)`, `(code review)`) to `commit-footer.md` and the `commit-msg` hook validator; mirror to
+  package source (two-copy). Small form-set design call: which parentheticals cohort supports.
+- *Coordination:* composes with the commit-msg adherence hook this WU already builds. Sibling of the
+  cohort-scoped-grooming-entry capture (`WU_Target: planning-iteration-mechanics`) — same work surfaced both,
+  different domain (footer grammar vs. grooming entry).
+
 ---
 
 ## Problem / Motivation
