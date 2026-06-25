@@ -74,6 +74,12 @@ append-only-until-integration principle) warranting their own surface. The origi
 retired; their design is distributed across the member drafts (allocation recorded in the decomposition PR). The
 cohort archives when all four members ship.
 
+**Update (2026-06-24): the four members shipped.** `concurrent-work-doctrine`, `merge-safety-mechanism`,
+`async-merge-lifecycle`, and `single-owner-wu-model` have all integrated (`completed/2026-q2/`), and the
+sub-cohort doc archived with them — so the closeout-critical merge-safety cluster has landed. Agile-parallelism
+now carries two remaining members toward closeout: `out-of-wu-entry` (active; the cold-errand-entry active-WU
+dual — see § Known gap) and `finalize-parallelism` (the GA gate). The cohort archives when both ship.
+
 ## Shared contract — WU state machine
 
 WU state is the strict 4-state machine — `Planning | Active | Integrating | Shipped`, defined by the meta
@@ -163,15 +169,17 @@ leaf instead of collapsing it into WU-discovery, and the optional `<pointer-or-b
 leaf is dispatched (not hard-wired to cold-start) — so the fill attaches without a restructure, mirroring the
 materialize seam left for In-Flight Awareness.
 
-**Update (2026-06-05) — the dual was under-scoped; see `out-of-wu-entry`.** The provisional resolution
-above (and the leaf built to it) covers only the **no-originating-session** case — it lives on
-session-init's Orient (no-active-WU) arm. The **dual** it missed: an explicit out-of-WU intent raised
-*while a WU is active* (the Resume arm), which the same errand/housekeep doctrine endorses and which
-`run-errand` / the `arc-errand` warm skill already support. session-init currently **discards** an
-explicit `--errand` on the Resume arm ("Errand signal not consumed"), and has no `--housekeep` priming
-door at all. Captured — with the bare-`--errand` short-circuit, the atomic-slug capture gap, and the
-`--housekeep`-flag question — in `out-of-wu-entry/draft-out-of-wu-entry.md` (this cohort;
-independently shippable, not gated on CWC/AWL).
+**Update (2026-06-05; design-settled 2026-06-24) — the dual is owned by `out-of-wu-entry`.** The provisional
+resolution above (and the leaf built to it) covers only the **no-originating-session** case — it lives on
+session-init's Orient (no-active-WU) arm. The **dual** it missed: an explicit out-of-WU intent raised *while a WU
+is active* (the Resume arm), which the same errand/housekeep doctrine endorses and which `run-errand` / the
+`arc-errand` warm skill already support — session-init currently **discards** an explicit `--errand` on the
+Resume arm ("Errand signal not consumed") and has no `--housekeep` priming door at all. `out-of-wu-entry` (active
+planning WU, this cohort) **takes this** — the owner the provisional resolution awaited. Its settled design
+generalizes the discarded-`--errand` bug into one **arm-orthogonal dispatch leaf** that honors an explicit signal
+regardless of arm, preserves the active checkout, and routes to the locus — populated by `--errand`,
+`--housekeep`, and `--plan <stub>` (in-place backlog-stub grooming). Independently shippable, not gated on
+CWC/AWL. See `draft-out-of-wu-entry.md`.
 
 ## Deferred — `/arc-shift`
 
@@ -179,6 +187,14 @@ The narrow in-session shift was originally in WF scope (R13/R14/R15, Phase 6) an
 of Phase 6 execution (2026-05-28). The use case is real but demand-unverified, and the wider conception this
 verb was originally sized for was absorbed by the Errand class. Preserved here for cohort-level revisit; not
 re-attempted by WF.
+
+**Disposition (2026-06-24, via `out-of-wu-entry` planning).** `arc-shift` is **not** an `out-of-wu-entry` entry
+signal: an entry signal establishes *fresh* scoped context at session entry, while `arc-shift` is a mid-session
+detour that *carries and merges* live context into another worktree's runtime — an orthogonal mechanism (a
+separate `shift-work-unit.md` verb, not a dispatch-slot case). Its premise also requires real worktrees-in-use,
+gated on `finalize-parallelism`. The **revival decision is routed to `finalize-parallelism`**, where the
+substrate it operates on becomes real and the as-built concurrent-work conventions exist to update against —
+superseding the open-ended fallback tree below for the revival call itself.
 
 ### Surviving narrow use case (preserved from WF spec)
 
