@@ -12,11 +12,11 @@
 - **Task List:** `tasks-out-of-wu-entry.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Insert the signal leaf and shared spine into Step 2 dispatch (line ~25)
+- **Last Completed:** Phase 1 (Tasks 1.1–1.4) — arm-orthogonal signal-leaf dispatch in `session-init`
+- **Next Task:** Task 2.1 — Add a backlog-stub resolver backing draft-presence and `--plan` sufficiency (line ~117)
 - **Blockers:** [none]
 
-- **Next Action:** Implement Task 1.1 — signal leaf + shared spine in session-init Step 2 dispatch
+- **Next Action:** Implement Task 2.1 — backlog-stub resolver (`resolveBacklogStub`); first net-new code, `test-first`
 
 - **PR URL:** [none]
 - **Completed:** [none]
