@@ -14,7 +14,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State    | Work unit       | Priority | Owner  | Depends on | Cohort            |
 |----------|-----------------|----------|--------|------------|-------------------|
-| Planning | out-of-wu-entry | P2       | andrew | —          | agile-parallelism |
+| Active   | out-of-wu-entry | P2       | andrew | —          | agile-parallelism |
 
 ## Ready
 
