@@ -1,20 +1,24 @@
-# Metadata: Cross-Machine Sync-State Coherence
+# Metadata: Partial-Push Marker
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Novel`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** `worktree-foundation`
 
 - **Origin:** [internal]
-- **Design:** `draft-cross-machine-sync-coherence.md`
+- **Design:** draft-partial-push-marker.md
 - **Task List:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---

@@ -1,13 +1,14 @@
-# Draft: Coordination Probe
+# Draft: External Coordination Probe
 
 **Purpose:** Establish ARC's first external-coordination integration surface — a `coord-probe` method
 backed by a CLI subcommand and pluggable adapters. Answers "where should I be working" at session-init's
 branch-gone fire point and other discovery moments where in-git state alone is insufficient. Ships in-git
 default and bundled GitHub adapter; documents custom-adapter contract for Linear / Jira / etc.
 
-- **State:** Draft — re-grounded 2026-06-25 (folded in shipped dependencies, absorbed ADR-020, drained the
-  inbound buffer, and settled the open questions against `strategy-storage-evolution.md`). Substantially
-  PRD-ready; remaining openness is spec/impl tuning (exact probe timeout, whether a read-cache earns its keep).
+- **State:** Draft — re-grounded 2026-06-25, then **relocated standalone and deferred to P3**. The branch-gone
+  correctness shipped in Worktree Foundation; what remains here is the external-tracker enhancement, not a
+  `finalize-parallelism` gate (see § Dependencies). Substantially PRD-ready as a design; remaining openness is
+  spec/impl tuning (exact probe timeout, whether a read-cache earns its keep).
 
 - **Created:** 2026-04-28
 
@@ -236,15 +237,17 @@ one additional cascade signal. User Sync UX shipped HEAD-independent notes load,
 breadcrumb is available as a signal now (not "later"), and its multi-clone test harness
 (`__tests__/helpers/multi-clone.ts`) is inheritable for branch-gone signal coverage rather than re-extracted.
 
-### Cohort sibling
+### Related work
 
-`cross-machine-sync-coherence` (same cohort). Its remote sync-state freshness is a candidate signal into this
-probe's ranking once it lands — soft, not a gate; coord-probe v1 ships with in-git + `gh` signals only. See
-`cohort-cross-machine-coherence.md` § Shared contracts.
+`partial-push-marker` (from the former cohort sibling `cross-machine-sync-coherence`, now decomposed): its
+remote sync-state freshness remains a candidate signal into this probe's ranking — soft, cross-WU, not a gate;
+v1 ships with in-git + `gh` signals only.
 
-### Downstream
+### Not a `finalize-parallelism` gate
 
-`finalize-parallelism` depends on this WU (with its cohort sibling) — this cohort is its last open gate.
+Branch-gone target resolution already ships via Worktree Foundation's in-git cascade; this WU is a follow-on
+external-tracker enhancement, not a parallelism-GA dependency. Relocated standalone and dropped from
+`finalize-parallelism`'s dependencies 2026-06-25.
 
 ### Cross-cohort — configuration
 
@@ -266,8 +269,8 @@ per-identity override, so it coordinates with the `configuration` cohort (checke
 
 ### Readiness
 
-Ready now: every upstream dependency has shipped. Parallelizable with its cohort sibling (no hard edge). Pick
-order at activation by re-grounding cost, not dependency.
+Standalone, P3, deferred. Every upstream dependency has shipped, so it is technically startable whenever
+prioritized — the deferral is a priority call (enhancement, not correctness), not a blocked state.
 
 ---
 

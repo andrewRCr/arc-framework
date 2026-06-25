@@ -18,14 +18,15 @@ _No work units in flight._
 
 | Work unit                    | Priority | Owner  | Depends on | Cohort                     |
 |------------------------------|----------|--------|------------|----------------------------|
-| coord-probe                  | P1       | andrew | —          | cross-machine-coherence    |
-| cross-machine-sync-coherence | P1       | andrew | —          | cross-machine-coherence    |
+| partial-push-marker          | P1       | andrew | —          | cross-machine-coherence    |
 | pr-decomposition             | P1       | andrew | —          | —                          |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
+| state-ref-write-safety       | P2       | andrew | —          | agile-parallelism          |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
 | interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization       | P2       | andrew | —          | architecture-remediation   |
+| stale-state-detect-and-pull  | P2       | andrew | —          | cross-machine-coherence    |
 | naming-conventions           | P2       | andrew | —          | doc-conventions            |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core    |
 | cli-substrate-adoption       | P2       | andrew | —          | —                          |
@@ -54,6 +55,7 @@ _No work units in flight._
 | cohort-cut-coherence         | P3       | andrew | —          | —                          |
 | cold-start-init-polish       | P3       | andrew | —          | —                          |
 | contributor-path             | P3       | andrew | —          | —                          |
+| external-coord-probe         | P3       | andrew | —          | —                          |
 | idiomatic-alignment          | P3       | andrew | —          | —                          |
 | inbound-routing-method       | P3       | andrew | —          | —                          |
 | knowledge-lint               | P3       | andrew | —          | —                          |
@@ -70,15 +72,15 @@ _No work units in flight._
 
 ### Depth 1
 
-| Work unit                     | Priority | Owner  | Depends on                                                                        | Cohort                     |
-|-------------------------------|----------|--------|-----------------------------------------------------------------------------------|----------------------------|
-| finalize-parallelism          | P1       | andrew | single-owner-wu-model, cross-machine-sync-coherence, coord-probe, out-of-wu-entry | agile-parallelism          |
-| unit-scoped-review            | P2       | andrew | commit-increments                                                                 | approval-flow-refinement   |
-| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                            | —                          |
-| documentation-surface-routing | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization                                                              | agent-context-optimization |
-| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                            | architecture-remediation   |
-| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                                 | release-readiness          |
+| Work unit                     | Priority | Owner  | Depends on                                                               | Cohort                     |
+|-------------------------------|----------|--------|--------------------------------------------------------------------------|----------------------------|
+| finalize-parallelism          | P1       | andrew | partial-push-marker, stale-state-detect-and-pull, state-ref-write-safety | agile-parallelism          |
+| unit-scoped-review            | P2       | andrew | commit-increments                                                        | approval-flow-refinement   |
+| operational-state-docs        | P2       | andrew | cli-substrate-adoption                                                   | —                          |
+| documentation-surface-routing | P3       | andrew | handoff-optimization                                                     | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | handoff-optimization                                                     | agent-context-optimization |
+| schema-introspection-layer    | P3       | andrew | cli-substrate-adoption                                                   | architecture-remediation   |
+| docs-content-sweep            | P3       | andrew | docs-site-refresh                                                        | release-readiness          |
 
 ### Depth 2
 
