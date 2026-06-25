@@ -16,8 +16,7 @@
 - **Next Task:** Task 5.1 — Register/affordance contract for the B-side consumer (line ~226)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — record the three-register (Act/Aware/Caution) affordance contract for the
-  consumer WU; doc-only, no B-side surface built here
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

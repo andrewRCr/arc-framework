@@ -251,29 +251,34 @@ site.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ md lint, ts lint, sh lint, typecheck (source + test), build, and the full vitest suite
+  (3298 passed, 1 skipped) — all green.
+- _Success criteria:_ 8 spec criteria, all met as planned — no deviations or supersessions; the producer
+  lifecycle, Act-register recovery, stderr-leak fix, and handoff Act behavior each trace to a shipped phase.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` After a partial push on A, the sync-state ref carries an entry for `lastAttemptedCommit` affording
+- `[x]` After a partial push on A, the sync-state ref carries an entry for `lastAttemptedCommit` affording
   short-sha / when / whose, and the liveness predicate reports the intent live against origin's notes-ref state.
-- `[ ]` Once A's notes land at origin, the liveness predicate reports the entry fulfilled (self-invalidated) with
+- `[x]` Once A's notes land at origin, the liveness predicate reports the entry fulfilled (self-invalidated) with
   no timer.
-- `[ ]` An abandoned intent ages out after the 14-day TTL.
-- `[ ]` Two machines under one identity hold outstanding intents simultaneously and union-merge — neither clobbers
+- `[x]` An abandoned intent ages out after the 14-day TTL.
+- `[x]` Two machines under one identity hold outstanding intents simultaneously and union-merge — neither clobbers
   the other.
-- `[ ]` A notes-push failure inside `arc sync` / `arc release push` triggers auto-retry; on persistent failure the
+- `[x]` A notes-push failure inside `arc sync` / `arc release push` triggers auto-retry; on persistent failure the
   retry surface is offered, never as a blocking TTY prompt in an agent-run invocation; on retry success the marker
   never persists.
-- `[ ]` A successful upstream-init sync presents as success — no stray `error: Set upstream first` (or any
+- `[x]` A successful upstream-init sync presents as success — no stray `error: Set upstream first` (or any
   pre-recovery git failure) leaks to stderr on the success path.
-- `[ ]` `arc-handoff` has a defined notes-push-failed behavior (primed retry; deferral recorded in the handoff
+- `[x]` `arc-handoff` has a defined notes-push-failed behavior (primed retry; deferral recorded in the handoff
   report).
-- `[ ]` Degrades safe: the producer adds the marker push without disturbing existing behavior when the ref is
+- `[x]` Degrades safe: the producer adds the marker push without disturbing existing behavior when the ref is
   absent or the feature is opted out, and never writes the ref from a fetch-only clone.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---
