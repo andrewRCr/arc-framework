@@ -32,6 +32,14 @@ export interface PushNotesWithReconcileOptions {
    * `@clack/prompts`.
    */
   output: SyncOutput;
+  /**
+   * Suppress the per-call spinner. Set by the paired-push flow, where this
+   * helper runs once per auto-retry attempt: a spinner per attempt would render
+   * the silent retries as visible "Pushing… / Failed." churn. The paired flow
+   * reports the single final outcome through its own renderer instead. The
+   * outcome (and the noop staleness warning) are unaffected.
+   */
+  quiet?: boolean;
 }
 
 /**
@@ -46,13 +54,20 @@ export interface PushNotesWithReconcileOptions {
 export async function pushNotesWithReconcile(
   options: PushNotesWithReconcileOptions,
 ): Promise<NotesPushOutcome> {
-  const { io, identity, cwd, access, worktreeBranch, output } = options;
+  const { io, identity, cwd, access, worktreeBranch, output, quiet } = options;
   const spinner = output.spinner();
-  spinner.start("Pushing user notes...");
+  if (!quiet) spinner.start("Pushing user notes...");
   const outcome = await reconcileNotesPush({ io, identity, cwd, access, worktreeBranch });
-  spinner.stop(notesPushStopMessage(outcome));
+  if (!quiet) spinner.stop(notesPushStopMessage(outcome));
   if (outcome.kind === "noop") {
-    await warnIfLocalNoteStaleForHead(output, { cwd, io, identity });
+    // Best-effort advisory: a stale-head read failure must never abort an
+    // already-completed notes push (which would, in the paired flow, leave the
+    // partial-push marker un-cleared after a success). Swallow any failure.
+    try {
+      await warnIfLocalNoteStaleForHead(output, { cwd, io, identity });
+    } catch {
+      // Advisory only — the push outcome stands regardless.
+    }
   }
   return outcome;
 }

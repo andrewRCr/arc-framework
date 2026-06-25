@@ -16,6 +16,8 @@ import type {
   GitExecOptions,
 } from "../../src/lib/git/index.js";
 import type {
+  PairedPushMarkerContext,
+  PairedPushMarkerPublisher,
   PairedPushNotesContext,
   PairedPushNotesPusher,
   PairedPushNotesPusherResult,
@@ -149,11 +151,33 @@ function stubPushNotes(
   return { pushNotes, calls };
 }
 
+interface PublishMarkerStub {
+  publishMarker: PairedPushMarkerPublisher;
+  calls: PairedPushMarkerContext[];
+}
+
+/**
+ * Marker-publish stub that records each invocation (and order, when an `order`
+ * sink is passed). `throws: true` exercises the best-effort isolation guard.
+ */
+function stubPublishMarker(opts?: { order?: string[]; throws?: boolean }): PublishMarkerStub {
+  const calls: PairedPushMarkerContext[] = [];
+  const publishMarker: PairedPushMarkerPublisher = async (context) => {
+    calls.push(context);
+    opts?.order?.push("marker");
+    if (opts?.throws === true) throw new Error("marker publish boom");
+  };
+  return { publishMarker, calls };
+}
+
 const COMMON_OPTIONS = {
   identity: "andrew",
   cwd: "/repo",
   branch: "main",
 };
+
+/** No-op delay so auto-retry tests don't wait on real backoff timers. */
+const noopSleep = async (): Promise<void> => {};
 
 describe("runPairedPush", () => {
   beforeEach(() => {
@@ -263,7 +287,7 @@ describe("runPairedPush", () => {
     const access = buildAccess([]);
     const { pushNotes } = stubPushNotes({ status: "failed", error: notesError });
 
-    const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+    const result = await runPairedPush({ io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS });
 
     expect(result.exitCode).toBe(1);
     expect(result.save?.status).toBe("success");
@@ -461,6 +485,27 @@ describe("runPairedPush", () => {
     expect(pushArgs).toEqual([["push", "origin", "main", "-u"]]);
   });
 
+  it("setUpstream success path does not surface the resolved no-upstream condition (no stderr leak)", async () => {
+    const responses = cleanRepoResponses();
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    const { exec } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io, access, pushNotes, ...COMMON_OPTIONS, setUpstream: true,
+    });
+
+    expect(result.exitCode).toBe(0);
+    // The no-upstream condition was auto-resolved by the `-u` push; it must not
+    // remain in the surfaced conditions, or renderPairedResult would log its
+    // "Set upstream first" guidance to stderr on a successful upstream-init sync.
+    expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
+  });
+
   it("setUpstream: false (default) with no-upstream → refuses before save fires", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_UPSTREAM] = () => {
@@ -481,5 +526,167 @@ describe("runPairedPush", () => {
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
     expect(pushArgs).toEqual([]);
+  });
+
+  describe("marker-before-notes publish", () => {
+    it("publishMarker fires after the worktree push and before the notes leg", async () => {
+      const order: string[] = [];
+      mockRunUserSave.mockImplementation(async () => {
+        order.push("save");
+        return { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] };
+      });
+      const { exec } = buildExec(cleanRepoResponses(), order);
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker({ order });
+      const notesCalls: PairedPushNotesContext[] = [];
+      const pushNotes: PairedPushNotesPusher = async (context) => {
+        notesCalls.push(context);
+        order.push("notes");
+        return { status: "success" };
+      };
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      // Worktree push, then marker, then notes — the producer ordering invariant.
+      expect(order).toEqual(["save", "push origin main", "marker", "notes"]);
+      expect(markerCalls).toEqual([
+        { io, identity: "andrew", cwd: "/repo", worktreeBranch: "main" },
+      ]);
+      expect(notesCalls).toHaveLength(1);
+    });
+
+    it("publishMarker never fires when the worktree push fails", async () => {
+      const responses = cleanRepoResponses();
+      responses["push origin main"] = () => {
+        throw new Error("error: failed to push some refs to 'origin'");
+      };
+      const { exec } = buildExec(responses);
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker();
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.worktree).toMatchObject({ status: "failed" });
+      expect(markerCalls).toEqual([]);
+      expect(notesCalls).toEqual([]);
+    });
+
+    it("publishMarker never fires when the pre-check blocks both legs", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess(["/repo/.git/rebase-merge"]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker();
+      const { pushNotes } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(markerCalls).toEqual([]);
+      expect(mockRunUserSave).not.toHaveBeenCalled();
+    });
+
+    it("a throwing publishMarker delegate never breaks the notes leg (best-effort)", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker } = stubPublishMarker({ throws: true });
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(notesCalls).toHaveLength(1);
+    });
+
+    it("absent publishMarker → notes leg proceeds unchanged (degrade-safe default)", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(notesCalls).toHaveLength(1);
+    });
+  });
+
+  describe("notes-leg auto-retry", () => {
+    it("notes leg fails transiently then succeeds on auto-retry → success; marker cleared, no offer", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      let n = 0;
+      const pushNotes: PairedPushNotesPusher = async () => {
+        n += 1;
+        return n === 1 ? { status: "failed", error: new Error("transient blip") } : { status: "success" };
+      };
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(result.retryOffer).toBeUndefined();
+      expect(mockClearPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockRecordPartialPushMarker).not.toHaveBeenCalled();
+      expect(n).toBe(2);
+    });
+
+    it("notes leg persistently fails → bounded retry, offer surfaced, marker recorded; never blocks", async () => {
+      const notesError = new Error("[remote rejected] notes/arc/user/andrew");
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls } = stubPushNotes({ status: "failed", error: notesError });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep,
+        notesRetryConfig: { maxAutoRetries: 2, backoffMs: [0, 0] },
+        ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.notes).toEqual({ status: "failed", error: notesError });
+      // Structured offer (not a throw, not a silent swallow) for the caller to resolve.
+      expect(result.retryOffer).toEqual({ autoRetries: 2 });
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(mockClearPartialPushMarker).not.toHaveBeenCalled();
+      // Bounded: one initial attempt + maxAutoRetries before surfacing.
+      expect(calls).toHaveLength(3);
+    });
+
+    it("a terminal notes failure surfaces the offer without auto-retrying", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls } = stubPushNotes({ status: "no-remote" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, sleep: noopSleep, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.notes).toEqual({ status: "no-remote" });
+      expect(result.retryOffer).toEqual({ autoRetries: 0 });
+      expect(mockRecordPartialPushMarker).toHaveBeenCalledTimes(1);
+      expect(calls).toHaveLength(1);
+    });
   });
 });

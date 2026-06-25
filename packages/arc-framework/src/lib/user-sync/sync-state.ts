@@ -14,6 +14,7 @@
  * @module
  */
 
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
 import { atomicWriteJson } from "../fs.js";
@@ -27,6 +28,15 @@ const USER_NOTES_REF = "refs/notes/arc/user";
 
 export interface LocalSyncState {
   version: 4;
+  /**
+   * This machine's stable random identifier — a UUID generated once on first
+   * need (see {@link getOrCreateMachineId}) and persisted here so a sibling
+   * sync-state marker can be keyed per machine without ever leaking the
+   * hostname. Additive and optional: records written before a machine-id was
+   * needed hydrate without it, and a machine-id may be persisted on its own
+   * (before any save/load has written a complete record).
+   */
+  machineId?: string;
   materializedManifestHash: string;
   sourceCommit: string;
   sourceOperation: "save" | "load";
@@ -109,6 +119,9 @@ export async function readLocalSyncState(
         const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
         return {
           version: 4,
+          ...(typeof record.machineId === "string" && record.machineId.length > 0
+            ? { machineId: record.machineId }
+            : {}),
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
@@ -161,6 +174,85 @@ function isProvenanceMap(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/**
+ * Resolve this machine's stable identifier, generating and persisting one on
+ * first need. Idempotent: once written, every later call returns the same
+ * UUID. The id is a random {@link randomUUID} — never the hostname or any
+ * environment value — so it can key a sync-state marker on a ref collaborators
+ * fetch without leaking machine names.
+ *
+ * The id is read and persisted independently of the full sync-state record's
+ * schema validation (see {@link readPersistedMachineId}), so it is available
+ * before any save/load has written a complete record.
+ *
+ * @returns This machine's persisted machine-id.
+ */
+export async function getOrCreateMachineId(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<string> {
+  const existing = await readPersistedMachineId(cwd, io, identity);
+  if (existing) return existing;
+
+  const machineId = randomUUID();
+  const raw = await readSyncStateRaw(cwd, io, identity);
+  const internalDir = getUserInternalDir(cwd, identity);
+  await ensureDir(internalDir, io.mkdir);
+  // Merge into any existing record so a machine-id written before a full
+  // save/load record exists is preserved when that record later lands, and
+  // vice versa.
+  await atomicWriteJson(join(internalDir, LOCAL_SYNC_STATE_FILENAME), {
+    ...(raw ?? {}),
+    machineId,
+  });
+  return machineId;
+}
+
+/**
+ * The persisted machine-id, read directly from `.sync-state.json` and bypassing
+ * the full-record schema validation — a machine-id can legitimately exist on a
+ * record that carries no save/load fields yet. Returns `null` when none is
+ * stored.
+ */
+async function readPersistedMachineId(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<string | null> {
+  const raw = await readSyncStateRaw(cwd, io, identity);
+  const machineId = raw?.machineId;
+  return typeof machineId === "string" && machineId.length > 0 ? machineId : null;
+}
+
+/** Parse `.sync-state.json` into its raw object form (internal path preferred, then legacy), or `null`. */
+async function readSyncStateRaw(
+  cwd: string,
+  io: CoreIO,
+  identity: string,
+): Promise<Record<string, unknown> | null> {
+  for (const syncStatePath of [
+    join(getUserInternalDir(cwd, identity), LOCAL_SYNC_STATE_FILENAME),
+    join(cwd, ".arc", "user", identity, LOCAL_SYNC_STATE_FILENAME),
+  ]) {
+    let raw: string;
+    try {
+      raw = await io.readFile(syncStatePath);
+    } catch {
+      continue;
+    }
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 export async function writeLocalSyncState(
   cwd: string,
   io: CoreIO,
@@ -176,11 +268,16 @@ export async function writeLocalSyncState(
   // resolves the notes partial-push condition); partialPushErrand IS carried,
   // since a notes-directory save does not resolve an errand-ref push failure.
   const prior = await readLocalSyncState(cwd, io, identity);
+  // A machine-id may have been persisted on a record with no save/load fields,
+  // which the validated read above returns as null — fall back to the raw read
+  // so the id survives the first complete record this write lands.
+  const machineId = prior?.machineId ?? (await readPersistedMachineId(cwd, io, identity)) ?? undefined;
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
     version: 4,
+    ...(machineId ? { machineId } : {}),
     materializedManifestHash,
     sourceCommit,
     sourceOperation,
@@ -233,6 +330,7 @@ export async function clearPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
+    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,
@@ -279,6 +377,7 @@ export async function clearErrandPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
+    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,

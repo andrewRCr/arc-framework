@@ -63,6 +63,7 @@ export {
 export {
   clearErrandPartialPushMarker,
   clearPartialPushMarker,
+  getOrCreateMachineId,
   getUserInternalDir,
   readLocalSyncState,
   recordErrandPartialPushMarker,
@@ -71,5 +72,43 @@ export {
   type LocalSyncState,
   type PartialPushMarker,
 } from "./sync-state.js";
+
+export {
+  syncStateRef,
+  incomingSyncStateRef,
+  readEntries,
+  readEntry,
+  writeEntry,
+  pushSyncStateRef,
+  fetchSyncStateRef,
+  type SyncStateRefIO,
+  type SyncStateRefReadIO,
+} from "./sync-state-ref.js";
+
+export {
+  serializeSyncStateMarker,
+  deserializeSyncStateMarker,
+  evaluateMarkerLiveness,
+  isMarkerExpired,
+  SYNC_STATE_MARKER_TTL_DAYS,
+  readSyncStateMarker,
+  writeSyncStateMarker,
+  type SyncStateMarker,
+  type MarkerLiveness,
+} from "./sync-state-marker.js";
+
+export {
+  mergeSyncStateEntries,
+  reconcileSyncStatePush,
+  MAX_RECONCILE_ATTEMPTS,
+  type SyncStatePushOutcome,
+} from "./sync-state-merge.js";
+
+export {
+  publishSyncStateMarker,
+  type PublishSyncStateMarkerInput,
+  type PublishSyncStateMarkerOutcome,
+  type PublishSkipReason,
+} from "./sync-state-publish.js";
 
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

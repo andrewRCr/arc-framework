@@ -36,14 +36,40 @@ detection-and-pull member (`P2`).
   consumed by `stale-state-detect-and-pull` on the B side (its drift detection reads "A attempted a push for
   HEAD X but didn't complete") and, optionally and cross-WU, by `external-coord-probe` (as a ranking signal).
   Authoritative design stays in the producer's draft; recorded here only as the seam.
+- **Recovery-presentation register contract** — `partial-push-marker` specifies the three-register model and the
+  payload-backed affordances the B-side consumer renders against; `stale-state-detect-and-pull` owns the actual
+  rendering (a producer non-goal). Authoritative design lives in the producer's `spec-partial-push-marker.md`
+  § 8 — recorded here, where the consumer reads it, as the unambiguous contract. The marker is **lag, not loss**:
+  A's work is safe on A; it simply hasn't arrived.
+
+  The consumer renders the two **B-side** registers below; **Act** (A, push-time: auto-retry → primed retry →
+  informed defer) is producer-owned (§ 7) and never consumer-rendered. Each affordance traces to a concrete
+  marker-payload field (§ 3 — `machineId`, `lastAttemptedCommit`, `attemptTimestamp`, `intent`):
+
+  | Register    | Where                | Posture              | Affordance → payload field                                                          |
+  |-------------|----------------------|----------------------|-------------------------------------------------------------------------------------|
+  | **Aware**   | B, at session-init   | lag, not loss        | short-sha ← `lastAttemptedCommit` · when ← `attemptTimestamp` · whose ← `machineId` |
+  | **Caution** | B, at the force gate | context for the call | the Aware fields **plus** "an incomplete push landed here; merge preserves both"    |
+
+    - **Aware** — a calm, non-gating one-liner in session-init's existing advisory tier (alongside base-drift and
+      local-ahead-notes). The operating agent proceeds-with-context and **never auto-resolves** — it does not
+      force-push to "fix" stale notes.
+    - **Caution** — the same payload surfaced at B's force gate as context for the destructive call; it informs the
+      choice, it does not gate it (the human owns force with full information).
+    - **Self-invalidation** — render an entry only while it is **live**. Liveness is the producer-side predicate
+      (`intent` vs. origin's actual notes-ref state): _fulfilled_ once A's notes land at origin (the surface falls
+      silent, no timer), else _live_ while the notes ref is still behind. The **14-day TTL** on `attemptTimestamp`
+      (§ 6) is the backstop that ages out an intent an abandoned machine never returned to resolve.
 
 ### Soft coordination
 
-- **Shared session-init surface.** Both members edit `session-init.md` and the status probe envelope:
-  `partial-push-marker` adds the remote-marker consumption; `stale-state-detect-and-pull` adds the
-  base-ref-staleness slot (`baseBranchSync`-shaped, aligned with the shipped `baseDistance` channel), the
-  clean-arm drift surfacing, and the `plan/`-orphan sweep. Align slot/envelope conventions and sequence the
-  edits so the two don't collide on the same workflow.
+- **No session-init edit collision.** Only `stale-state-detect-and-pull` edits `session-init.md` and the status
+  probe envelope — it owns **all** B-side consumption: the base-ref-staleness slot (`baseBranchSync`-shaped,
+  aligned with the shipped `baseDistance` channel), the clean-arm drift surfacing, the `plan/`-orphan sweep, and
+  the marker's Aware-register rendering. `partial-push-marker`'s surfaces are disjoint — the push flow
+  (`arc sync` / `arc release push`), the sync-state ref write, and `arc-handoff` (the Act register). The seam is
+  the **sync-state ref schema** (see Shared contracts), not a shared workflow: align the ref/payload conventions
+  so the producer writes what the consumer's probe slot expects.
 - **One inbound-pull primitive.** `stale-state-detect-and-pull` owns the inbound pull used by _both_ the
   session-init base-ref pull and the `arc sync` bidirectional leg — built once, not per entry point.
 
@@ -69,8 +95,10 @@ The cohort archives when **both members ship** — clearing the cross-machine-co
 
 ### `partial-push-marker`
 
-- _Exposes:_ a remote sibling sync-state ref (Option A lean) making a partial notes push visible to sibling
-  clones — the cross-machine signal the other members read. (`P1`; the data-loss closer.)
+- _Exposes:_ a remote sibling sync-state ref (Option A, settled — per-machine-keyed entries, union-merged)
+  making a partial notes push visible to sibling clones, **plus** the A-side push-time recovery surface (the
+  scope widened from B-side visibility to the full partial-push lifecycle). The cross-machine signal the other
+  members read. (`P1`; the data-loss closer.)
 - _Consumes:_ nothing from the sibling; depends only on shipped `worktree-foundation`.
 
 ### `stale-state-detect-and-pull`

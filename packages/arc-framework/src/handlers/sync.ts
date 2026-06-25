@@ -55,12 +55,14 @@ import {
   runPairedPush,
   runUserSave,
   UserSaveError,
+  type PairedPushMarkerContext,
   type PairedPushNotesContext,
   type PairedPushNotesPusherResult,
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
 import { reconcileErrandPush } from "../lib/errand/index.js";
+import { publishSyncStateMarker } from "../lib/user-sync/index.js";
 import {
   resolveAllSettings,
   type NotesPushPolicy,
@@ -314,6 +316,14 @@ interface SyncOutcome {
    * Omitted on dry-run and when the stdin git seam is unavailable.
    */
   errand?: LegOutcomeRecord;
+  /**
+   * Primed-retry offer — present only when the paired notes leg is
+   * still failing after auto-retry. The partial-push marker is already
+   * persisted; the agent/workflow layer reads this to surface a retry
+   * (defaulted to retry) conversationally. Omitted when the notes leg resolved
+   * or never fired.
+   */
+  retryOffer?: { autoRetries: number };
   /**
    * State-aware top-of-Confirm-Handoff line composed from the probed worktree
    * state. Non-null for the diverged cell (`**Reconcile required:** ...`);
@@ -646,6 +656,7 @@ async function executePaired(
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
     pushNotes: (context) => pairedNotesAdapter(context, ctx.output),
+    publishMarker: publishMarkerAdapter,
   });
   renderPairedResult(result, branch, ctx.output);
   return {
@@ -653,7 +664,28 @@ async function executePaired(
     worktree: pairedLegToRecord(result.worktree, "push"),
     notes: pairedNotesToRecord(result),
     exitCode: result.exitCode,
+    ...(result.retryOffer ? { retryOffer: result.retryOffer } : {}),
   };
+}
+
+/**
+ * Marker-publish delegate for `runPairedPush`. Publishes this machine's
+ * outstanding notes-push intent to the sibling sync-state ref ahead of the
+ * notes leg. Best-effort: it requires the stdin git seam (skipped when absent,
+ * mirroring the errand-ref reconcile) and its outcome is non-fatal — a
+ * published / reconciled / skipped / failed result all leave the sync exit code
+ * and the notes leg untouched. The opt-out is structural: this only runs inside
+ * the paired flow, which fires only when a user-notes push is actually
+ * happening — so a user who has turned off remote notes sync never reaches it.
+ */
+async function publishMarkerAdapter(context: PairedPushMarkerContext): Promise<void> {
+  if (!context.io.execInput) return;
+  await publishSyncStateMarker({
+    cwd: context.cwd,
+    io: context.io,
+    execInput: context.io.execInput,
+    identity: context.identity,
+  });
 }
 
 /**
@@ -673,6 +705,10 @@ async function pairedNotesAdapter(
     access: context.access,
     worktreeBranch: context.worktreeBranch,
     output,
+    // Quiet: this fires once per auto-retry attempt; a per-attempt spinner would
+    // render the silent retries as visible churn. renderPairedResult reports the
+    // single final notes outcome below.
+    quiet: true,
   });
   switch (outcome.kind) {
     case "pushed":
@@ -686,7 +722,11 @@ async function pairedNotesAdapter(
     case "blocked":
       return { status: "blocked", conditions: outcome.conditions };
     case "conflict":
-      return { status: "failed", error: new Error(outcome.message) };
+      // A lossless-reconcile-failed conflict is deterministic — re-pushing hits
+      // the same merge — so route it to the non-transient conflict status rather
+      // than `failed`, which the notes-push retry treats as transient and would
+      // auto-retry pointlessly (ending in a misleading primed-retry offer).
+      return { status: "failed-nontty-conflict", message: outcome.message };
     case "failed":
       return { status: "failed", error: outcome.error };
   }
@@ -764,6 +804,10 @@ function renderPairedResult(
   } else if (result.worktree.reason === "blocked-by-precheck") {
     output.log.warn("Worktree push skipped: blocked by pre-check.");
   }
+  if (result.retryOffer && result.retryOffer.autoRetries > 0) {
+    const n = result.retryOffer.autoRetries;
+    output.log.info(`Auto-retried the notes push ${n} time(s) before surfacing.`);
+  }
   renderPairedNotesOutcome(result, output);
 }
 
@@ -771,8 +815,12 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
   const notes = result.notes;
   switch (notes.status) {
     case "success":
+      // The paired notes leg runs quiet (no per-attempt spinner), so report the
+      // single outcome here — mirroring the worktree leg's log line above.
+      output.log.info("Notes pushed.");
+      return;
     case "noop":
-      // pushWithInteractiveRecovery's spinner already reports the outcome.
+      output.log.info("Remote user notes already match local user notes.");
       return;
     case "ok-recovered":
       output.log.info(`Notes pushed (recovered via ${notes.via}).`);
@@ -790,7 +838,11 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
         "Push rejected — local and remote notes conflict (both moved since common ancestor), "
         + "and the environment is non-interactive.",
       );
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(
+        notes.message
+        ?? "Resolve the conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+      );
+      output.log.warn("Partial publish recorded.");
       return;
     case "blocked":
       for (const condition of notes.conditions.filter(isRefusalCondition)) {
