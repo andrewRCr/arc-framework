@@ -223,16 +223,18 @@ _Purpose:_ Deliver the cross-WU seam — the three-register model the B-side con
 payload affording each register — and define `arc-handoff`'s notes-push-failed behavior, the highest-stakes Act
 site.
 
-### `[ ]` **5.1 Register/affordance contract for the B-side consumer**
+### `[x]` **5.1 Register/affordance contract for the B-side consumer**
 
 - _Goal:_ The consumer WU (`stale-state-detect-and-pull`) has an unambiguous, payload-backed contract for the
   three registers (Act / Aware / Caution) it renders against — each register's affordance traces to a concrete
   payload field.
 
-- _Context:_ The producer owns the contract; the consumer owns the rendering (a non-goal here). The marker payload
-  (§ 3) is designed to afford each register — short-sha / when / whose for Aware, the merge-preserves-both context
-  for Caution. Record the contract where the consumer reads it (the cohort coordination record already names this
-  seam); no B-side surface is built here.
+- _Outcome:_ Expanded the `Recovery-presentation register contract` seam in `cohort-cross-machine-coherence.md`
+  from a one-line gesture to the consumer's actionable contract: a per-register affordance→payload-field table
+  (Aware ← short-sha/when/whose; Caution ← those plus the merge-preserves-both framing), with Act marked
+  producer-owned and not consumer-rendered, plus the producer-side liveness predicate and 14-day TTL as the
+  self-invalidation basis. Authoritative design stays in `spec-partial-push-marker.md` § 8; the cohort record now
+  carries the unambiguous form where the consumer reads it. Doc-only — no B-side surface built.
 
 ### `[ ]` **5.2 `arc-handoff` notes-push-failed behavior**
 

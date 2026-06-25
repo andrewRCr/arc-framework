@@ -36,11 +36,30 @@ detection-and-pull member (`P2`).
   consumed by `stale-state-detect-and-pull` on the B side (its drift detection reads "A attempted a push for
   HEAD X but didn't complete") and, optionally and cross-WU, by `external-coord-probe` (as a ranking signal).
   Authoritative design stays in the producer's draft; recorded here only as the seam.
-- **Recovery-presentation register contract** — `partial-push-marker` specifies the intended B-side presentation
-  registers ("lag, not loss": a calm, non-gating **Aware** one-liner at session-init, escalating to **Caution**
-  only at the force gate); `stale-state-detect-and-pull` owns the actual B-side rendering against that contract.
-  The marker payload is designed to afford it (the short-sha / when / whose, plus self-invalidation so the
-  surface falls silent on resolution).
+- **Recovery-presentation register contract** — `partial-push-marker` specifies the three-register model and the
+  payload-backed affordances the B-side consumer renders against; `stale-state-detect-and-pull` owns the actual
+  rendering (a producer non-goal). Authoritative design lives in the producer's `spec-partial-push-marker.md`
+  § 8 — recorded here, where the consumer reads it, as the unambiguous contract. The marker is **lag, not loss**:
+  A's work is safe on A; it simply hasn't arrived.
+
+  The consumer renders the two **B-side** registers below; **Act** (A, push-time: auto-retry → primed retry →
+  informed defer) is producer-owned (§ 7) and never consumer-rendered. Each affordance traces to a concrete
+  marker-payload field (§ 3 — `machineId`, `lastAttemptedCommit`, `attemptTimestamp`, `intent`):
+
+  | Register    | Where                | Posture              | Affordance → payload field                                                          |
+  |-------------|----------------------|----------------------|-------------------------------------------------------------------------------------|
+  | **Aware**   | B, at session-init   | lag, not loss        | short-sha ← `lastAttemptedCommit` · when ← `attemptTimestamp` · whose ← `machineId` |
+  | **Caution** | B, at the force gate | context for the call | the Aware fields **plus** "an incomplete push landed here; merge preserves both"    |
+
+    - **Aware** — a calm, non-gating one-liner in session-init's existing advisory tier (alongside base-drift and
+      local-ahead-notes). The operating agent proceeds-with-context and **never auto-resolves** — it does not
+      force-push to "fix" stale notes.
+    - **Caution** — the same payload surfaced at B's force gate as context for the destructive call; it informs the
+      choice, it does not gate it (the human owns force with full information).
+    - **Self-invalidation** — render an entry only while it is **live**. Liveness is the producer-side predicate
+      (`intent` vs. origin's actual notes-ref state): _fulfilled_ once A's notes land at origin (the surface falls
+      silent, no timer), else _live_ while the notes ref is still behind. The **14-day TTL** on `attemptTimestamp`
+      (§ 6) is the backstop that ages out an intent an abandoned machine never returned to resolve.
 
 ### Soft coordination
 
