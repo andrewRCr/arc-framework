@@ -14,20 +14,17 @@ ref-tree rather than the commit-keyed user-notes ref — per-machine ownership i
 union cleanly (Phase 2). Machine-id is a random UUID, never the hostname, and lives in the existing
 `.sync-state.json` so sync-state stays colocated.
 
-### `[ ]` **1.1 Machine-id lazy generation**
+### `[x]` **1.1 Machine-id lazy generation**
 
 - _Goal:_ The writing machine has a stable, random identifier generated once on first need and persisted, with no
   user ceremony and no hostname leak.
 
-- _Context:_ Stored in the existing local marker `.sync-state.json` (`lib/user-sync/sync-state.ts`,
-  `LocalSyncState`), keeping sync-state colocated. Random `crypto.randomUUID()` — machine names must never reach a
-  ref collaborators can fetch.
-
-    Build `test-first` (one behavior at a time):
-
-    - First read with no stored id generates and persists a new UUID
-    - A subsequent read returns the same id (idempotent — no regeneration)
-    - The generated id is a random UUID, not derived from hostname or any environment value
+- _Outcome:_ `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) lazily mints a `randomUUID()`, persists it to
+  `.sync-state.json` as the optional `machineId` field, and is idempotent thereafter. Read and persisted via a raw
+  reader that bypasses the full-record schema gate, so a machine-id can exist on a record before any save/load
+  field does; carried forward through every record rebuild (`writeLocalSyncState`, `clearPartialPushMarker`,
+  `clearErrandPartialPushMarker`) so a later save never drops it. No hostname or environment value reaches the
+  ref. Three unit behaviors in `save-load.test.ts`.
 
 ### `[ ]` **1.2 Sync-state ref transport primitives**
 

@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { join } from "node:path";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 
 import {
   findNearestUserNote,
@@ -18,6 +18,7 @@ import {
 } from "../../src/commands/user/save-load.js";
 import {
   clearPartialPushMarker,
+  getOrCreateMachineId,
   readLocalSyncState,
   recordPartialPushMarker,
   writeLocalSyncState,
@@ -1099,5 +1100,41 @@ describe("LocalSyncState v4 schema", () => {
     const state = await readLocalSyncState(cwd, realFsIO(), identity);
     expect(Object.keys(state!.remoteMarkerProvenance!)).toEqual(["feat/a", "feat/b"]);
     expect(state!.remoteMarkerProvenance).toEqual(record.remoteMarkerProvenance);
+  });
+
+  const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  it("generates and persists a new machine-id on first need when none is stored", async () => {
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    expect(id).toMatch(UUID_V4);
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBe(id);
+  });
+
+  it("returns the same machine-id on a subsequent read (idempotent — no regeneration)", async () => {
+    const first = await getOrCreateMachineId(cwd, realFsIO(), identity);
+    const second = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    expect(second).toBe(first);
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBe(first);
+  });
+
+  it("generates a random UUID, not derived from hostname or any environment value", async () => {
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    expect(id).toMatch(UUID_V4);
+    expect(id).not.toContain(hostname());
+
+    // A separate machine (distinct sync-state home) yields a distinct id — randomness, not a derived constant.
+    const otherCwd = await mkdtemp(join(tmpdir(), "arc-machine-id-test-"));
+    await mkdir(join(otherCwd, ".arc", "user", identity, ".internal"), { recursive: true });
+    try {
+      const otherId = await getOrCreateMachineId(otherCwd, realFsIO(), identity);
+      expect(otherId).not.toBe(id);
+    } finally {
+      await rm(otherCwd, { recursive: true, force: true });
+    }
   });
 });

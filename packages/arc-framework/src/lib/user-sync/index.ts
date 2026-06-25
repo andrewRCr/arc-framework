@@ -63,6 +63,7 @@ export {
 export {
   clearErrandPartialPushMarker,
   clearPartialPushMarker,
+  getOrCreateMachineId,
   getUserInternalDir,
   readLocalSyncState,
   recordErrandPartialPushMarker,
