@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "route-inbox-captures",
-  "origin": "description",
-  "intent": "route-inbox-captures",
-  "branch": "chore/route-inbox-captures",
-  "createdAt": "2026-06-25T23:50:12.400Z"
-}
