@@ -78,6 +78,13 @@ describe("sync-state marker schema", () => {
     expect(deserializeSyncStateMarker(JSON.stringify({ ...markerFor(), machineId: 123 }))).toBeNull();
     expect(deserializeSyncStateMarker(JSON.stringify({ ...markerFor(), attemptTimestamp: "" }))).toBeNull();
   });
+
+  it("rejects a non-empty but unparseable attemptTimestamp — it would bypass the TTL otherwise", () => {
+    // A non-empty string passes a bare emptiness check but `Date.parse`s to NaN,
+    // which would read as never-expired in isMarkerExpired. Reject it at the boundary.
+    const corrupt = JSON.stringify({ ...markerFor(), attemptTimestamp: "not-a-date" });
+    expect(deserializeSyncStateMarker(corrupt)).toBeNull();
+  });
 });
 
 describe("evaluateMarkerLiveness", () => {

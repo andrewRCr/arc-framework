@@ -74,7 +74,7 @@ export function deserializeSyncStateMarker(blob: string): SyncStateMarker | null
     record.version !== 1
     || !isNonEmptyString(record.machineId)
     || !isNonEmptyString(record.lastAttemptedCommit)
-    || !isNonEmptyString(record.attemptTimestamp)
+    || !isParseableTimestamp(record.attemptTimestamp)
     || !isNonEmptyString(record.intent)
   ) {
     return null;
@@ -87,6 +87,16 @@ export function deserializeSyncStateMarker(blob: string): SyncStateMarker | null
     attemptTimestamp: record.attemptTimestamp,
     intent: record.intent,
   };
+}
+
+/**
+ * A non-empty, `Date.parse`-able ISO timestamp. Rejecting an unparseable value
+ * here keeps a corrupt `attemptTimestamp` from reaching {@link isMarkerExpired},
+ * where a `NaN` comparison would read as never-expired and let the entry linger
+ * past its TTL.
+ */
+function isParseableTimestamp(value: unknown): value is string {
+  return isNonEmptyString(value) && !Number.isNaN(Date.parse(value));
 }
 
 function isNonEmptyString(value: unknown): value is string {

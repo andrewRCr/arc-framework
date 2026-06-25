@@ -282,7 +282,7 @@ export type PairedPushNotesPusherResult =
   | { status: "ok-recovered"; via: "force" | "merge" }
   | { status: "cancelled" }
   | { status: "no-remote" }
-  | { status: "failed-nontty-conflict" }
+  | { status: "failed-nontty-conflict"; message?: string }
   | { status: "blocked"; conditions: PushabilityCondition[] }
   | { status: "failed"; error: Error };
 

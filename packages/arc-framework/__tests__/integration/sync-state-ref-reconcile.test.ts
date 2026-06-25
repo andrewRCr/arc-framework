@@ -147,4 +147,28 @@ describe("sync-state-ref reconcile-push", () => {
     expect(outcome.kind).toBe("failed");
     expect(pushCount).toBe(MAX_RECONCILE_ATTEMPTS);
   });
+
+  it("normalizes a reconcile-step failure into a failed outcome rather than throwing", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await pushSyncStateRef(ioA);
+    // Keep the local ref ahead so the first push is a genuine non-ff candidate.
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A, { lastAttemptedCommit: "c".repeat(40) }));
+
+    const realExec = makeGitExec(repoA);
+    // Push rejects non-ff (entering the reconcile path); the reconcile's fetch
+    // then throws. The loop must catch it and surface `failed` through the
+    // outcome union, never let it escape as a rejection.
+    const failingReconcileExec: GitExec = async (cmd, args) => {
+      if (args[0] === "push") throw new Error("! [rejected] (non-fast-forward)");
+      if (args[0] === "fetch") throw new Error("fatal: simulated reconcile failure");
+      return realExec(cmd, args);
+    };
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: failingReconcileExec, execInput: makeGitExecInput(repoA), identity: IDENTITY },
+      MACHINE_A,
+    );
+
+    expect(outcome.kind).toBe("failed");
+  });
 });

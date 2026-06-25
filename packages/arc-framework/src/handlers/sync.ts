@@ -722,7 +722,11 @@ async function pairedNotesAdapter(
     case "blocked":
       return { status: "blocked", conditions: outcome.conditions };
     case "conflict":
-      return { status: "failed", error: new Error(outcome.message) };
+      // A lossless-reconcile-failed conflict is deterministic — re-pushing hits
+      // the same merge — so route it to the non-transient conflict status rather
+      // than `failed`, which the notes-push retry treats as transient and would
+      // auto-retry pointlessly (ending in a misleading primed-retry offer).
+      return { status: "failed-nontty-conflict", message: outcome.message };
     case "failed":
       return { status: "failed", error: outcome.error };
   }
@@ -834,7 +838,11 @@ function renderPairedNotesOutcome(result: PairedPushResult, output: SyncOutput):
         "Push rejected — local and remote notes conflict (both moved since common ancestor), "
         + "and the environment is non-interactive.",
       );
-      output.log.warn("Partial publish recorded; recover with `arc user push` (idempotent).");
+      output.log.warn(
+        notes.message
+        ?? "Resolve the conflicting saves and retry, or `arc user push --force` to overwrite the remote.",
+      );
+      output.log.warn("Partial publish recorded.");
       return;
     case "blocked":
       for (const condition of notes.conditions.filter(isRefusalCondition)) {

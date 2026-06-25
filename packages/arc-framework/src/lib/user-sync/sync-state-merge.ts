@@ -103,7 +103,16 @@ export async function reconcileSyncStatePush(
       if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
       if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
 
-      await reconcileTrees(io, ref, ownMachineId);
+      // Keep the outcome single-channel: a fetch/read/commit failure inside the
+      // reconcile must surface as `failed`, not escape this function as a throw.
+      try {
+        await reconcileTrees(io, ref, ownMachineId);
+      } catch (reconcileErr) {
+        return {
+          kind: "failed",
+          error: reconcileErr instanceof Error ? reconcileErr : new Error(String(reconcileErr)),
+        };
+      }
       reconciledOnce = true;
     }
   }

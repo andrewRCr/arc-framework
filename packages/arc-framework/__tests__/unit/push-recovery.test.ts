@@ -130,4 +130,16 @@ describe("pushNotesWithReconcile", () => {
 
     expect(mockLog.warn).not.toHaveBeenCalled();
   });
+
+  it("a throwing staleness probe never aborts the completed no-op push", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "noop" });
+    // The best-effort staleness read fails — it must not propagate and discard
+    // the already-completed push outcome (which would, in the paired flow, leave
+    // the partial-push marker un-cleared after a success).
+    mockFindNearestUserNote.mockRejectedValue(new Error("stale-head read failed"));
+
+    const result = await pushNotesWithReconcile({ io, identity, cwd, output });
+
+    expect(result).toEqual({ kind: "noop" });
+  });
 });

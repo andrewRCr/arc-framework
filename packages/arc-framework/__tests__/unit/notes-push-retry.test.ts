@@ -101,4 +101,23 @@ describe("runNotesPushWithRetry", () => {
     expect(count()).toBe(1);
     expect(delays).toEqual([]);
   });
+
+  it("a deterministic notes conflict skips auto-retry — re-pushing hits the same merge", async () => {
+    const { attempt, count } = sequenceAttempt([
+      { status: "failed-nontty-conflict", message: "could not auto-merge" },
+    ]);
+    const { sleep, delays } = recordingSleep();
+
+    const result = await runNotesPushWithRetry(
+      attempt,
+      { maxAutoRetries: 2, backoffMs: [10, 20] },
+      sleep,
+    );
+
+    expect(result.kind).toBe("retry-offer");
+    expect(result.result).toEqual({ status: "failed-nontty-conflict", message: "could not auto-merge" });
+    expect(result.autoRetries).toBe(0);
+    expect(count()).toBe(1);
+    expect(delays).toEqual([]);
+  });
 });

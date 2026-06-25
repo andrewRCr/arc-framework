@@ -60,7 +60,14 @@ export async function pushNotesWithReconcile(
   const outcome = await reconcileNotesPush({ io, identity, cwd, access, worktreeBranch });
   if (!quiet) spinner.stop(notesPushStopMessage(outcome));
   if (outcome.kind === "noop") {
-    await warnIfLocalNoteStaleForHead(output, { cwd, io, identity });
+    // Best-effort advisory: a stale-head read failure must never abort an
+    // already-completed notes push (which would, in the paired flow, leave the
+    // partial-push marker un-cleared after a success). Swallow any failure.
+    try {
+      await warnIfLocalNoteStaleForHead(output, { cwd, io, identity });
+    } catch {
+      // Advisory only — the push outcome stands regardless.
+    }
   }
   return outcome;
 }

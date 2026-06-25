@@ -20,6 +20,7 @@
  * @module
  */
 
+import { readRefTip } from "../git/ref-tree.js";
 import { getOrCreateMachineId } from "./sync-state.js";
 import { reconcileSyncStatePush } from "./sync-state-merge.js";
 import { writeSyncStateMarker, type SyncStateMarker } from "./sync-state-marker.js";
@@ -124,13 +125,4 @@ async function readLocalNotesRefTip(exec: GitExec, identity: string): Promise<st
 /** Current HEAD commit sha, or `null` when unresolvable (detached without a commit, fresh repo). */
 async function readHead(exec: GitExec): Promise<string | null> {
   return readRefTip(exec, "HEAD");
-}
-
-async function readRefTip(exec: GitExec, ref: string): Promise<string | null> {
-  try {
-    const { stdout } = await exec("git", ["rev-parse", "--verify", ref]);
-    return stdout.trim() || null;
-  } catch {
-    return null;
-  }
 }
