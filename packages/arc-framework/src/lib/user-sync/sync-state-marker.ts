@@ -173,16 +173,23 @@ export function isMarkerExpired(
  * Read one machine's marker from the ref, or `null` when the ref, the key, or
  * the blob's shape is absent/invalid.
  *
+ * The tree key is the ownership boundary, so a blob whose embedded `machineId`
+ * disagrees with the key it was read under is treated as invalid — the ref is
+ * untrusted external data, and a key/payload mismatch would otherwise leak a
+ * cross-machine alias through the typed API.
+ *
  * @param io - Injected read seam and identity.
  * @param machineId - The machine whose entry to read.
- * @returns The parsed marker, or `null` when missing or unparseable.
+ * @returns The parsed marker, or `null` when missing, unparseable, or key-mismatched.
  */
 export async function readSyncStateMarker(
   io: SyncStateRefReadIO,
   machineId: string,
 ): Promise<SyncStateMarker | null> {
   const blob = await readEntry(io, machineId);
-  return blob === null ? null : deserializeSyncStateMarker(blob);
+  if (blob === null) return null;
+  const marker = deserializeSyncStateMarker(blob);
+  return marker !== null && marker.machineId === machineId ? marker : null;
 }
 
 /**

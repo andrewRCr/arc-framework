@@ -120,4 +120,37 @@ describe("runNotesPushWithRetry", () => {
     expect(count()).toBe(1);
     expect(delays).toEqual([]);
   });
+
+  it("normalizes a rejected attempt into a transient failure rather than throwing", async () => {
+    // A delegate that rejects (instead of returning `failed`) must not escape the
+    // primitive — otherwise it would abort the paired push after the worktree leg
+    // landed, skipping the marker cleanup. The rejection is treated as transient.
+    let calls = 0;
+    const attempt = async (): Promise<PairedPushNotesPusherResult> => {
+      calls += 1;
+      if (calls === 1) throw new Error("connection reset");
+      return { status: "success" };
+    };
+    const { sleep } = recordingSleep();
+
+    const result = await runNotesPushWithRetry(attempt, DEFAULT_NOTES_PUSH_RETRY, sleep);
+
+    expect(result.kind).toBe("resolved");
+    expect(result.result).toEqual({ status: "success" });
+    expect(result.autoRetries).toBe(1);
+    expect(calls).toBe(2);
+  });
+
+  it("a persistently rejecting attempt surfaces a retry-offer, never throwing", async () => {
+    const attempt = async (): Promise<PairedPushNotesPusherResult> => {
+      throw new Error("still down");
+    };
+    const { sleep } = recordingSleep();
+
+    const result = await runNotesPushWithRetry(attempt, { maxAutoRetries: 2, backoffMs: [1, 1] }, sleep);
+
+    expect(result.kind).toBe("retry-offer");
+    expect(result.result.status).toBe("failed");
+    expect(result.autoRetries).toBe(2);
+  });
 });

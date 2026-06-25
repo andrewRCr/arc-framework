@@ -31,6 +31,7 @@ import {
 import { readTreeEntries } from "../../src/lib/git/ref-tree.js";
 import {
   readSyncStateMarker,
+  serializeSyncStateMarker,
   writeSyncStateMarker,
   type SyncStateMarker,
 } from "../../src/lib/user-sync/sync-state-marker.js";
@@ -175,5 +176,14 @@ describe("sync-state marker over the ref", () => {
 
     expect((await readSyncStateMarker(io, "machine-a"))?.intent).toBe("a".repeat(40));
     expect((await readSyncStateMarker(io, "machine-b"))?.intent).toBe("b".repeat(40));
+  });
+
+  it("rejects a blob whose embedded machineId disagrees with its tree key", async () => {
+    // The tree key is the ownership boundary — a blob read under `machine-a`
+    // that claims to be `machine-b` is malformed untrusted data, not a valid
+    // cross-machine alias.
+    await writeEntry(io, "machine-a", serializeSyncStateMarker(markerFor("machine-b")));
+
+    expect(await readSyncStateMarker(io, "machine-a")).toBeNull();
   });
 });

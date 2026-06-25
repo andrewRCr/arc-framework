@@ -94,17 +94,36 @@ export async function runNotesPushWithRetry(
   sleep: (ms: number) => Promise<void> = defaultSleep,
 ): Promise<NotesPushRetryResult> {
   let autoRetries = 0;
-  let result = await attempt();
+  let result = await attemptOnce(attempt);
 
   while (isTransientFailure(result) && autoRetries < config.maxAutoRetries) {
     await sleep(backoffFor(config.backoffMs, autoRetries));
     autoRetries += 1;
-    result = await attempt();
+    result = await attemptOnce(attempt);
   }
 
   return isNotesSuccess(result)
     ? { kind: "resolved", result, autoRetries }
     : { kind: "retry-offer", result, autoRetries };
+}
+
+/**
+ * Run one attempt, honoring this primitive's "never throws" contract: a
+ * delegate that *rejects* (rather than returning a `failed` result) is
+ * normalized to one. Without this, a rejected attempt would propagate out of
+ * the paired push after the worktree leg already landed, skipping the
+ * marker-clear / marker-record cleanup and the retry-offer surface. A rejection
+ * is a git/network error a re-push can clear, so the normalized `failed` keeps
+ * it on the transient-retry path.
+ */
+async function attemptOnce(
+  attempt: () => Promise<PairedPushNotesPusherResult>,
+): Promise<PairedPushNotesPusherResult> {
+  try {
+    return await attempt();
+  } catch (err) {
+    return { status: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+  }
 }
 
 /** A push outcome that completed the leg — nothing to recover. */

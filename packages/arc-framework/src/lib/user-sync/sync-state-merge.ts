@@ -94,7 +94,10 @@ export async function reconcileSyncStatePush(
   if ((await readRefTip(io.exec, ref)) === null) return { kind: "noop" };
 
   let reconciledOnce = false;
-  for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
+  // Up to MAX_RECONCILE_ATTEMPTS reconciles, each followed by a retry push — so
+  // the bound is one more push than reconcile (the final iteration is the push
+  // of the last reconciled tip, never followed by another reconcile).
+  for (let attempt = 0; attempt <= MAX_RECONCILE_ATTEMPTS; attempt++) {
     try {
       await io.exec("git", ["push", "origin", ref]);
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
@@ -102,6 +105,9 @@ export async function reconcileSyncStatePush(
       const error = err instanceof Error ? err : new Error(String(err));
       if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
       if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+      if (attempt === MAX_RECONCILE_ATTEMPTS) {
+        return { kind: "failed", error: new Error("sync-state push: exceeded reconcile attempts") };
+      }
 
       // Keep the outcome single-channel: a fetch/read/commit failure inside the
       // reconcile must surface as `failed`, not escape this function as a throw.

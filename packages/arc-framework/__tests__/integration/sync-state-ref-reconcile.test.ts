@@ -145,7 +145,36 @@ describe("sync-state-ref reconcile-push", () => {
     );
 
     expect(outcome.kind).toBe("failed");
-    expect(pushCount).toBe(MAX_RECONCILE_ATTEMPTS);
+    // MAX_RECONCILE_ATTEMPTS reconciles, each followed by a retry push, plus the
+    // initial push — so the bound is one more push than reconcile.
+    expect(pushCount).toBe(MAX_RECONCILE_ATTEMPTS + 1);
+  });
+
+  it("pushes the freshly-merged ref after the final reconcile rather than bailing", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await pushSyncStateRef(ioA);
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A, { lastAttemptedCommit: "c".repeat(40) }));
+
+    const realExec = makeGitExec(repoA);
+    let pushCount = 0;
+    // Reject the first MAX_RECONCILE_ATTEMPTS pushes (each drives a reconcile),
+    // then let the final push through — the loop must attempt that post-reconcile
+    // push instead of returning failed after the last reconcile.
+    const settleOnLastExec: GitExec = async (cmd, args) => {
+      if (args[0] === "push") {
+        pushCount++;
+        if (pushCount <= MAX_RECONCILE_ATTEMPTS) throw new Error("! [rejected] (non-fast-forward)");
+      }
+      return realExec(cmd, args);
+    };
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: settleOnLastExec, execInput: makeGitExecInput(repoA), identity: IDENTITY },
+      MACHINE_A,
+    );
+
+    expect(outcome.kind).toBe("reconciled");
+    expect(pushCount).toBe(MAX_RECONCILE_ATTEMPTS + 1);
   });
 
   it("normalizes a reconcile-step failure into a failed outcome rather than throwing", async () => {
