@@ -8,10 +8,10 @@
 - **Depends On:** `worktree-foundation`
 
 - **Origin:** [internal]
-- **Design:** draft-partial-push-marker.md
+- **Design:** `spec-partial-push-marker.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
