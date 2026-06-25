@@ -362,6 +362,22 @@
 - _Note:_ the `architecture-remediation` instance was backfilled at this drain (its `cohort-*.md` authored as a
   minimal browsing-bucket record); this entry is the durable guard so the class of gap can't recur silently.
 
+### `[ ]` **Re-point ADR-022's retired `cross-machine-sync-coherence` references to `partial-push-marker`**
+
+- _Routed from:_ `USER-INBOX § Errand`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  draft-design (ADR-022 forward-compat check).
+- _Concern:_ ADR-022 § Risks (line ~202) and § Coordination (line ~257) still name the retired
+  `cross-machine-sync-coherence` as the notes-synced transport-hardening dependency. Post-decomposition
+  (2026-06-25) that dependency is `partial-push-marker`'s (the marker / partial-push owner). This WU owns the
+  ADR-022 alignment edits, so the re-point rides the propagation set rather than a standalone errand.
+- _Verified at drain:_ the capture's second premise is already stale — `draft-arc-backend.md` no longer
+  references the retired slug, so the live remainder is ADR-022 only.
+- _Adjacent (flagged, not routed here):_ ADR-027 (line ~134) and several backlog drafts
+  (`state-ref-write-safety`, `naming-conventions`, `finalize-parallelism`, `external-coord-probe`, the
+  `cross-machine-coherence` cohort, `stale-state-detect-and-pull`, `cross-wu-forward-compat`) also name the
+  retired slug; each re-points to whichever decomposition successor owns its specific dependency — a
+  per-reference design call, not a blanket rename.
+
 ---
 
 ## Purpose

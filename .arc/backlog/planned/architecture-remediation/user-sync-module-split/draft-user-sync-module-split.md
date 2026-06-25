@@ -1,5 +1,22 @@
 # Draft: User-Sync Module Split
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Account for `partial-push-marker`'s user-sync surface growth in the split**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  draft-design (scope / dependency pass).
+- _Concern:_ `partial-push-marker` grows the user-sync module — a new `sync-state` ref, push-before-notes
+  ordering, an auto-retry leg in the push flow, and marker read/write. The decomposition should account for the
+  added surface (it will likely land first, as a P1 `finalize-parallelism` gate).
+
+---
+
 ## Problem / Motivation
 
 `src/commands/user/sync-status.ts` (~1.6k lines) carries multiple responsibilities under
