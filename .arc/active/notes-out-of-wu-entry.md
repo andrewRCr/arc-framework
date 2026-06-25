@@ -16,7 +16,7 @@
 
 | Layer | Change | Weight |
 | --- | --- | --- |
-| **Doctrine** | Already correct. Realign `cohort-agile-parallelism.md` § Known gap to name the active-WU dual it under-scoped (now owned here); add the `arc-shift` disposition note. **Landed in planning** (the planning iteration), per the planning-scope call. | Light |
+| **Doctrine** | Already correct. Realign `cohort-agile-parallelism.md` § Known gap to name the active-WU dual it under-scoped (now owned here); add the `arc-shift` disposition note. | Light |
 | **CLI / probe** | errand/housekeep core needs none (signals are skill/workflow tokens; the probe is agnostic; errand identity is record-owned via `readErrandSlugByBranch`). `--plan` adds a minimal backlog-stub resolver (slug → stub dir / state-dir / draft path + a stub-listing) backing both `resolveDraftPresent()` (`handlers/plan.ts`) and `--plan` sufficiency/disambiguation — deterministic call sites, not agent-globbing of nested `backlog/{planned,provisional}/[<cohort>/]<slug>/` dirs. No state-machine change (grooming is not a transition). | Light |
 | **Workflows** | `session-init` entry dispatch — the core arm-orthogonal leaf + shared spine + two-gate confirmation; retire/rewrite "signal not consumed". `draft-design` — entry-gate-skip + an explicit groom-and-stop exit for the `--plan` locus (interim "approach A"). `run-errand` / `drain-inbox` already correct. | Medium |
 | **Skills** | `arc-session` (bare `--errand` wording; `--housekeep`; `--plan`). `arc-inbox` needs no change — its `arc-session --errand` route reference is already consistent with arm-orthogonal entry; `_Slug:_`→title identity is OSD's. `arc-errand` already correct — the warm-path precedent. | Light |
@@ -44,7 +44,7 @@ Relocation is therefore uniform across all three signals, not a per-signal prope
 | `--housekeep` | `drain-inbox` | inbox → authoritative homes | self-determining (the inbox is the input); scope-extensible |
 | `--plan <stub>` | `draft-design` content loop | the backlog stub's `draft-*` | needs a stub — bare → elicit / disambiguate |
 
-**Grounded thin (live source, 2026-06-24):** `run-errand` Launch step 3 already relocates per protection mode
+**Grounded in existing machinery:** `run-errand` Launch step 3 already relocates per protection mode
 (`arc errand open <slug>`, folding cut→occupy off base); `drain-inbox` already lists "Mid-WU on demand" with the
 `arc housekeep check` write-context guard (refuse-and-relocate off a WU branch); the `arc-session` skill already
 brackets `--errand [<slug|description>]` as optional. So the errand and housekeep routes need only `session-init`
@@ -138,7 +138,7 @@ The dispatch slot is built to be extended; these are deliberately **not populate
 
 ## Routed-out concerns
 
-Captured to `USER-INBOX § Work Unit` (2026-06-24) — drain at the next housekeep, not this WU:
+Routed to `USER-INBOX § Work Unit` — tracked there, not held here:
 
 - **composable-workflows gate-suppression seam** — the `--plan` entry-gate-skip + the signal-dispatch leaf as
   early consumers of its fragment composition (target: composable-workflows' Inbound Buffer).
