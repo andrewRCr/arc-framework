@@ -13,6 +13,8 @@ import {
   serializeSyncStateMarker,
   deserializeSyncStateMarker,
   evaluateMarkerLiveness,
+  isMarkerExpired,
+  SYNC_STATE_MARKER_TTL_DAYS,
   type SyncStateMarker,
 } from "../../src/lib/user-sync/sync-state-marker.js";
 
@@ -97,5 +99,33 @@ describe("evaluateMarkerLiveness", () => {
 
     expect(evaluateMarkerLiveness(old, INTENT)).toBe(evaluateMarkerLiveness(recent, INTENT));
     expect(evaluateMarkerLiveness(old, "a".repeat(40))).toBe(evaluateMarkerLiveness(recent, "a".repeat(40)));
+  });
+});
+
+describe("isMarkerExpired", () => {
+  const NOW = "2026-06-25T12:00:00.000Z";
+
+  it("ages out an entry older than the TTL window", () => {
+    // Attempted 20 days before NOW — past the 14-day backstop.
+    const stale = markerFor({ attemptTimestamp: "2026-06-05T12:00:00.000Z" });
+
+    expect(isMarkerExpired(stale, NOW)).toBe(true);
+  });
+
+  it("retains an entry within the TTL window", () => {
+    // Attempted 5 days before NOW — well inside the window.
+    const fresh = markerFor({ attemptTimestamp: "2026-06-20T12:00:00.000Z" });
+
+    expect(isMarkerExpired(fresh, NOW)).toBe(false);
+  });
+
+  it("reads the TTL day-count from config rather than a hardcoded call-site literal", () => {
+    expect(SYNC_STATE_MARKER_TTL_DAYS).toBe(14);
+
+    // 10 days old: retained under the default 14-day TTL, aged out under an
+    // overriding 7-day TTL — proving the day-count is sourced, not baked in.
+    const tenDaysOld = markerFor({ attemptTimestamp: "2026-06-15T12:00:00.000Z" });
+    expect(isMarkerExpired(tenDaysOld, NOW)).toBe(false);
+    expect(isMarkerExpired(tenDaysOld, NOW, 7)).toBe(true);
   });
 });

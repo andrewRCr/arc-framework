@@ -89,6 +89,8 @@ export {
   serializeSyncStateMarker,
   deserializeSyncStateMarker,
   evaluateMarkerLiveness,
+  isMarkerExpired,
+  SYNC_STATE_MARKER_TTL_DAYS,
   readSyncStateMarker,
   writeSyncStateMarker,
   type SyncStateMarker,

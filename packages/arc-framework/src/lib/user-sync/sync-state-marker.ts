@@ -127,6 +127,39 @@ export function evaluateMarkerLiveness(
 }
 
 /**
+ * Days after which an unfulfilled marker ages out — the abandoned-machine
+ * backstop for the one case {@link evaluateMarkerLiveness} cannot close (a push
+ * that failed and whose machine never returned). A single value, not a new
+ * configuration axis; 14 days comfortably outlives a normal retry-next-session
+ * cycle (which self-invalidates first by comparison) while clearing a
+ * truly-abandoned marker before it becomes noise.
+ */
+export const SYNC_STATE_MARKER_TTL_DAYS = 14;
+
+/**
+ * Whether a marker's push attempt is old enough to age out — the TTL backstop
+ * layered over the comparison predicate.
+ *
+ * `attemptTimestamp` is the input; an entry whose age relative to `now` reaches
+ * `ttlDays` has expired (the consumer stops surfacing it), while a within-window
+ * entry is retained. `now` is injected rather than read from the clock so the
+ * decision is testable and deterministic.
+ *
+ * @param marker - The marker entry whose attempt age is evaluated.
+ * @param now - ISO-8601 reference time the age is measured against.
+ * @param ttlDays - TTL window in days; defaults to {@link SYNC_STATE_MARKER_TTL_DAYS}.
+ * @returns `true` once the attempt is at least `ttlDays` old, else `false`.
+ */
+export function isMarkerExpired(
+  marker: SyncStateMarker,
+  now: string,
+  ttlDays: number = SYNC_STATE_MARKER_TTL_DAYS,
+): boolean {
+  const ttlMs = ttlDays * 24 * 60 * 60 * 1000;
+  return Date.parse(now) - Date.parse(marker.attemptTimestamp) >= ttlMs;
+}
+
+/**
  * Read one machine's marker from the ref, or `null` when the ref, the key, or
  * the blob's shape is absent/invalid.
  *

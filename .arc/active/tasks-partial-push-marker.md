@@ -113,20 +113,18 @@ marker, not the consumer. The TTL is a single config value (14 days), not a new 
   (resolved via `git ls-remote`), keeping the predicate git-free for testing; the abandoned-machine case it cannot
   close is 3.2's TTL backstop. Exported from the `user-sync` barrel; 3 unit behaviors in `sync-state-marker.test.ts`.
 
-### `[ ]` **3.2 14-day TTL aging for abandoned intent**
+### `[x]` **3.2 14-day TTL aging for abandoned intent**
 
 - _Goal:_ A marker for a machine that attempted a push and never returned ages out after 14 days
   (`attemptTimestamp` is the input) so it stops nagging, while a within-window entry stays live.
 
-- _Context:_ The one case comparison can't close (the abandoned-machine backstop). 14 days comfortably outlives a
-  normal retry-next-session cycle (which self-invalidates first via 3.1) and clears truly-stale markers before
-  they become noise. Single config value (TTL precedent: `merge.ts` tombstone TTL, `inference.ts` recency).
-
-    Build `test-first` (one behavior at a time):
-
-    - An entry older than the TTL ages out / downgrades
-    - An entry within the TTL window is retained
-    - The TTL day-count reads from config, not a hardcoded literal at the call site
+- _Outcome:_ Added `isMarkerExpired(marker, now, ttlDays)` and the `SYNC_STATE_MARKER_TTL_DAYS = 14` constant to
+  `lib/user-sync/sync-state-marker.ts` — the time-based backstop layered over 3.1's comparison. Pure and
+  clock-injected (`now` passed in, mirroring the `merge.ts` tombstone-TTL pattern): an attempt at least `ttlDays`
+  old relative to `now` is expired (the consumer stops surfacing it), a within-window entry retained. The day-count
+  defaults to the single exported constant and is overridable per call, so no literal `14` lives at a call site — a
+  single value, not a new config axis. Exported from the `user-sync` barrel; 3 unit behaviors in
+  `sync-state-marker.test.ts`.
 
 ## **Phase 4:** Push-time integration — ordering and the Act register
 
