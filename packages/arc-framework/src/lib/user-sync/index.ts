@@ -73,4 +73,16 @@ export {
   type PartialPushMarker,
 } from "./sync-state.js";
 
+export {
+  syncStateRef,
+  incomingSyncStateRef,
+  readEntries,
+  readEntry,
+  writeEntry,
+  pushSyncStateRef,
+  fetchSyncStateRef,
+  type SyncStateRefIO,
+  type SyncStateRefReadIO,
+} from "./sync-state-ref.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

@@ -26,36 +26,24 @@ union cleanly (Phase 2). Machine-id is a random UUID, never the hostname, and li
   `clearErrandPartialPushMarker`) so a later save never drops it. No hostname or environment value reaches the
   ref. Three unit behaviors in `save-load.test.ts`.
 
-### `[ ]` **1.2 Sync-state ref transport primitives**
+### `[x]` **1.2 Sync-state ref transport primitives**
 
 - _Goal:_ A round-trip read/write/push/fetch layer for `refs/arc/user/{identity}/sync-state` exists, storing a
   tree of per-machine entry blobs keyed by `machineId`.
 
-- _Approach:_ Model on the errand ref-tree (`lib/errand/ref-tree.ts` — `readTreeEntries` / `writeTreeCommit`,
-  `errandsRef` naming) — `mktree` / `commit-tree` / `update-ref` storage keyed by `machineId`, **not** the
-  commit-keyed git-notes machinery. The ref lives under `refs/arc/user/{identity}/` alongside the errand ref
-  (co-located storage family); `git notes` never touches it. New module under `lib/user-sync/`. Inject `GitExec`
-  so unit tests mock only the git boundary.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - `[ ]` **1.2.a Ref naming and entry read**
+    - `[x]` **1.2.a Ref naming and entry read**
         - _Goal:_ Resolve the per-identity ref name and read its tree into a keyed entry map.
 
-            Build `test-first` (one behavior at a time):
-
-            - The ref resolves to `refs/arc/user/{identity}/sync-state`
-            - Reading an absent ref yields an empty entry set (no throw)
-            - Reading a multi-entry tree returns each machine's entry keyed by `machineId`
-
-    - `[ ]` **1.2.b Entry write, commit, and remote transport**
+    - `[x]` **1.2.b Entry write, commit, and remote transport**
         - _Goal:_ Write/overwrite a single machine's entry, commit the tree, and push/fetch the ref to/from origin.
 
-            Build `test-first` (one behavior at a time):
-
-            - Writing an entry then reading returns it unchanged (round-trip)
-            - Writing touches only the writer's own `machineId` key — other entries are preserved
-            - Fetch force-updates a local tracking ref from origin (the reconcile input for Phase 2)
+- _Outcome:_ New `lib/user-sync/sync-state-ref.ts` keyed by `machineId` on `refs/arc/user/{identity}/sync-state`:
+  `syncStateRef` / `readEntries` / `readEntry` / `writeEntry` (overwrites only the writer's own key) /
+  `pushSyncStateRef` / `fetchSyncStateRef` (force refspec into the `__incoming` tracking ref). Uses the errand
+  ref-tree's tree-commit model (`hash-object` / `mktree` / `commit-tree` / `update-ref`), deliberately
+  self-contained and parallel to the errand ref rather than a shared substrate — the union-merge reconcile that
+  consumes the fetched tracking ref lands in a later phase. Curated surface exported from the `user-sync` barrel;
+  7 integration behaviors in `sync-state-ref.test.ts`.
 
 ### `[ ]` **1.3 Per-machine marker entry schema**
 
