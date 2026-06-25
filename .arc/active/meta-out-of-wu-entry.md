@@ -12,8 +12,8 @@
 - **Task List:** `tasks-out-of-wu-entry.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 1 (Tasks 1.1–1.4) — arm-orthogonal signal-leaf dispatch in `session-init`
-- **Next Task:** Task 2.1 — Add a backlog-stub resolver backing draft-presence and `--plan` sufficiency (line ~117)
+- **Last Completed:** All tasks complete (Phases 1–4) — verified: Tier 3 gates + 11/11 success criteria
+- **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
