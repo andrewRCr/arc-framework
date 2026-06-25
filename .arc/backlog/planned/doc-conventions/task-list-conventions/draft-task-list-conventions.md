@@ -71,6 +71,17 @@
   two-copy. Coordinate with `quality-gate-hooks`, whose draft already tracks the outbound relative-link enforcement
   catch.
 
+### `[ ]` **Soften the tight-descriptor-cluster rule to match the loose-spacing preference**
+
+- *Routed from:* `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  generate-tasks (Finalize formatting pass).
+- *Concern:* `strategy-task-list-formatting.md` § Blank-Line Discipline codifies "descriptor clusters stay tight"
+  (no blank line between `_Goal:_` and peer descriptors), but it's unenforced (no markdownlint rule) and
+  completed-file practice is mixed (`errand-lattice` tight, `release-wrappers-foundation` loose). Maintainer
+  preference is the loose form; the codified rule pulls agents to "correct" toward tight, churning files needlessly.
+- *Proposed:* soften the strategy text so loose spacing is acceptable (or the explicit default), aligning the
+  written convention with actual preference and practice.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

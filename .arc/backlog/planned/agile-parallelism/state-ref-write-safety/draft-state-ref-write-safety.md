@@ -16,6 +16,45 @@ other's record. Compare-and-swap + retry around the read-modify-write, on both r
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Extend the CAS to the new `sync-state` ref (+ the machineId-file write race)**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  draft-design (fork-3 multi-machine reconciliation), ref path + machineId race corrected at integration review
+  (CodeRabbit finding 4).
+- _Concern:_ `partial-push-marker` shipped a third identity-scoped state-ref
+  (`refs/arc/user/{identity}/sync-state`) alongside the user-notes and errand refs this WU already scopes. Its
+  write path (`sync-state-ref.ts` `writeEntry` → `writeTreeCommit`, now the shared `lib/git/ref-tree.ts`
+  mechanism) ends in the same unconditional `update-ref`, so its single-machine inter-process safety should ride
+  this WU's CAS primitive, not reinvent it.
+- _Second, distinct hazard:_ `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) does read-miss → generate
+  `randomUUID` → `atomicWriteJson` on `.sync-state.json`: two concurrent first-pushes on one machine mint
+  different machine-ids, last writer wins, so the processes disagree on machine identity. A JSON-file write race,
+  NOT an `update-ref` CAS — needs atomic create-if-absent / a lock; a separate Scope bullet.
+- _Approach:_ widen CAS + retry from two refs to three; confirm the union-merge-by-machine-id write path
+  composes with the compare-and-swap; add the machineId-file atomic-create guard.
+
+### `[ ]` **Distinguish genuine git failure from absent-ref on the reconcile read (shared ref-tree fail-open)**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-25); captured during `partial-push-marker`
+  integration review (CodeRabbit findings 1/3, rejected-with-note). Home chosen at drain: the read-path
+  complement to the CAS write-path above (same `lib/git/ref-tree.ts` substrate); `arc-backend`'s version-checked
+  substrate is the longer-horizon alternative.
+- _Concern:_ `lib/git/ref-tree.ts` `readRefTip` / `readTreeEntries` collapse every git error to absent-ref
+  (null / empty Map) — the deliberate fail-open stance for advisory orphan state-refs. One real edge: in
+  `sync-state-merge.ts` `reconcileTrees`, an _errored_ (not empty) `readTreeEntries(incoming)` after a successful
+  fetch makes the union write a tree with only this machine's key, transiently dropping siblings' marker entries
+  from origin. Self-healing (each sibling re-writes its own key next push — lag, not loss) and advisory-only, so
+  rejected for `partial-push-marker`; recorded as forward-compat.
+- _Approach:_ the read path should distinguish genuine git failure from absent-ref on the reconcile read so a
+  transient error never silently narrows the merged tree.
+
+---
+
 ## Problem / Motivation
 
 The errand orphan state-ref write (`writeTreeCommit`, `errand/ref-tree.ts:107`) ends with an **unconditional**
