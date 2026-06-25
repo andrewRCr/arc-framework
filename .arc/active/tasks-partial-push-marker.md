@@ -79,23 +79,19 @@ reopening the gap). Reuse the shipped errand-tree union + non-fast-forward-retry
   deletion survives a remote that still carries the stale entry. Exported from the `user-sync` barrel; 3 unit
   behaviors in `sync-state-merge.test.ts`.
 
-### `[ ]` **2.2 Non-fast-forward reconcile-and-retry for the sync-state ref**
+### `[x]` **2.2 Non-fast-forward reconcile-and-retry for the sync-state ref**
 
 - _Goal:_ A rejected push fetches origin, union-merges, and re-pushes — bounded retries — so a concurrent sibling
   push never loses either machine's entry.
 
-- _Approach:_ Mirror the errand reconcile loop (`lib/errand/merge.ts` `reconcileErrandPush`, bounded by
-  `MAX_RECONCILE_ATTEMPTS`); compose the 2.1 union as the merge step. Build the write path compare-and-swap-ready
-  against the writer's own key.
-
-- _Note:_ Same-machine inter-process CAS on a machine's own key is `state-ref-write-safety`'s scope, not this
-  WU's — build CAS-ready and compose when it lands (soft coordination, captured).
-
-    Build `test-first` (one behavior at a time):
-
-    - A clean push succeeds without a reconcile pass
-    - A non-fast-forward rejection triggers fetch → union-merge → re-push, preserving both machines' entries
-    - Retries are bounded; persistent rejection surfaces a definite outcome rather than looping
+- _Outcome:_ Added `reconcileSyncStatePush(io, ownMachineId)` and `MAX_RECONCILE_ATTEMPTS` to
+  `lib/user-sync/sync-state-merge.ts`, mirroring the errand reconcile loop on the shared `lib/git/ref-tree`
+  substrate already wired in `sync-state-ref.ts` (no errand plumbing re-imported): a clean push → `pushed`, a
+  non-fast-forward → fetch + `mergeSyncStateEntries` + commit-onto-both-tips + retry → `reconciled`, exhausted
+  retries → `failed`. There is no `conflict` arm — unlike errand, the per-machine union is collision-free. The
+  reconcile's union is owner-scoped to `ownMachineId`, leaving the own-key write compare-and-swap-ready for
+  `state-ref-write-safety`'s same-machine guard. Exported from the `user-sync` barrel; 4 integration behaviors in
+  `sync-state-ref-reconcile.test.ts` (clean push, no-op, two-clone union, bounded-retry exhaustion).
 
 ## **Phase 3:** Liveness predicate and TTL self-invalidation
 

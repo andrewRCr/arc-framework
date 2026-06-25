@@ -1,18 +1,33 @@
 /**
- * The per-machine union-merge for the sibling sync-state ref's tree.
+ * The per-machine union-merge for the sibling sync-state ref's tree, and the
+ * push that reconciles it around a concurrent remote.
  *
  * Each entry is keyed by `machineId` and a machine writes only its own key, so
  * concurrent cross-machine writes have no true conflict — they union. This
  * mirrors the errand per-slug tree-merge in shape, but the per-machine
- * *ownership* model replaces errand's same-key collision: the writing machine's
+ * ownership model replaces errand's same-key collision: the writing machine's
  * own key is authoritative from the local side (its latest write, or its
  * absence when the machine cleared the key), while every other machine's key is
  * taken from the remote — which `origin` holds authoritatively for the machine
  * that owns it. So no key clobbers another's, and a machine's own deletion
  * survives a remote that still carries the stale entry.
  *
+ * On a non-fast-forward push the reconcile fetches the remote into the tracking
+ * ref, unions the trees, commits the result onto both tips (so the follow-up
+ * push fast-forwards), and retries — bounded, since the union is conflict-free
+ * and a clean push always exists once the trees agree.
+ *
  * @module
  */
+
+import { readRefTip, readTreeEntries, writeTreeCommit } from "../git/ref-tree.js";
+import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
+import {
+  syncStateRef,
+  incomingSyncStateRef,
+  fetchSyncStateRef,
+  type SyncStateRefIO,
+} from "./sync-state-ref.js";
 
 /**
  * Union two per-machine entry trees from the writing machine's vantage point.
@@ -41,4 +56,90 @@ export function mergeSyncStateEntries(
     merged.set(ownMachineId, own);
   }
   return merged;
+}
+
+/** Bound on reconcile attempts before a persistently-racing push gives up. */
+export const MAX_RECONCILE_ATTEMPTS = 3;
+
+/** Discriminated outcome of {@link reconcileSyncStatePush}. */
+export type SyncStatePushOutcome =
+  | { kind: "pushed" }
+  | { kind: "noop" }
+  | { kind: "reconciled" }
+  | { kind: "no-remote" }
+  | { kind: "failed"; error: Error };
+
+/**
+ * Push this machine's sync-state ref, reconciling a concurrent-remote
+ * non-fast-forward by union.
+ *
+ * A clean push (including the first push that creates an absent remote ref)
+ * returns `pushed`. On a non-fast-forward rejection — a sibling pushed its own
+ * marker between this machine's write and push — the remote is fetched, the
+ * per-machine trees unioned ({@link mergeSyncStateEntries}, owner-scoped to
+ * `ownMachineId`), the result committed onto both tips, and the push retried
+ * (`reconciled`). Because the union has no collision outcome, the loop is
+ * bounded only by a relentlessly-racing remote; exhausting the attempts
+ * surfaces `failed` rather than looping. An absent local ref is a `noop`.
+ *
+ * @param io - Injected git seams (including the stdin-fed builder) and identity.
+ * @param ownMachineId - The writing machine's id — the one key this push owns.
+ * @returns The push outcome.
+ */
+export async function reconcileSyncStatePush(
+  io: SyncStateRefIO,
+  ownMachineId: string,
+): Promise<SyncStatePushOutcome> {
+  const ref = syncStateRef(io.identity);
+  if ((await readRefTip(io.exec, ref)) === null) return { kind: "noop" };
+
+  let reconciledOnce = false;
+  for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
+    try {
+      await io.exec("git", ["push", "origin", ref]);
+      return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
+      if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+
+      await reconcileTrees(io, ref, ownMachineId);
+      reconciledOnce = true;
+    }
+  }
+  return { kind: "failed", error: new Error("sync-state push: exceeded reconcile attempts") };
+}
+
+/**
+ * Fetch the remote ref, union it into the local tree, and commit the result
+ * onto both tips so the next push fast-forwards. The union is owner-scoped to
+ * `ownMachineId`, so the merge only ever changes this machine's own key relative
+ * to the remote — keeping the write path compare-and-swap-ready for a later
+ * same-machine guard. The tracking ref is cleaned up regardless of outcome.
+ */
+async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: string): Promise<void> {
+  const incoming = incomingSyncStateRef(ref);
+  await fetchSyncStateRef(io);
+  try {
+    const local = await readTreeEntries(io.exec, ref);
+    const remote = await readTreeEntries(io.exec, incoming);
+    const merged = mergeSyncStateEntries(local, remote, ownMachineId);
+
+    const parents = [
+      await readRefTip(io.exec, ref),
+      await readRefTip(io.exec, incoming),
+    ].filter((tip): tip is string => tip !== null);
+    await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents);
+  } finally {
+    await deleteRef(io, incoming);
+  }
+}
+
+/** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */
+async function deleteRef(io: SyncStateRefIO, ref: string): Promise<void> {
+  try {
+    await io.exec("git", ["update-ref", "-d", ref]);
+  } catch {
+    // Cleanup is best-effort.
+  }
 }
