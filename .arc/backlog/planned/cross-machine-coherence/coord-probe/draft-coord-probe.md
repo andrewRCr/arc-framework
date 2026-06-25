@@ -5,8 +5,9 @@ backed by a CLI subcommand and pluggable adapters. Answers "where should I be wo
 branch-gone fire point and other discovery moments where in-git state alone is insufficient. Ships in-git
 default and bundled GitHub adapter; documents custom-adapter contract for Linear / Jira / etc.
 
-- **State:** Draft — pre-PRD exploration captured during cross-machine resume on 2026-04-28.
-  Iteration expected before PRD promotion.
+- **State:** Draft — re-grounded 2026-06-25 (folded in shipped dependencies, absorbed ADR-020, drained the
+  inbound buffer, and settled the open questions against `strategy-storage-evolution.md`). Substantially
+  PRD-ready; remaining openness is spec/impl tuning (exact probe timeout, whether a read-cache earns its keep).
 
 - **Created:** 2026-04-28
 
@@ -19,74 +20,27 @@ default and bundled GitHub adapter; documents custom-adapter contract for Linear
 
 ---
 
-## Inbound Buffer — Pending Integration
-
-> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
-> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
-
-### `[ ]` **Sweep stale local branches whose upstream is `gone` and are merged (cross-machine + primary-worktree)**
-
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: coord-probe`), housekeep drain (2026-06-08); captured while
-  cleaning up two stale local branches left from cross-machine development of `scalable-authoring-pipeline`.
-- _Concern:_ No ARC ceremony reaps a local branch whose upstream is `gone` and which is merged to `main` when no
-  worktree backs it. Two facets surfaced live: (1) **cross-machine `plan/` orphan** — `activate-work-unit`
-  Step 5's `git branch -m plan/<name> → <type>/<name>` is a local-only ref op, so the machine that did _not_ run
-  activation keeps its stale local `plan/` forever (`origin/plan` deleted at activation → local shows `[gone]`);
-  (2) **`feat/` orphan** — `integrate-work-unit` Step 13 only runs `git branch -d <wu-branch>` on the
-  linked-worktree→`removable` arm; the primary-worktree (in-place WU) arm does _no_ branch delete, so a `feat/`
-  materialized into the primary worktree is never reaped. Session-init's stale sweep is **worktree-only** (probe
-  `sweep` field); branch-gone recovery only fires for the _current_ branch.
-- _Proposed:_ a "stale local-branch sweep" at session-init (primary worktree): detect local branches with a
-  `gone` upstream merged to `branch.base`, surface them with an interlock-gated `git branch -d` offer
-  (merged-only-safe; never `-D`) — mirroring the stale-worktree sweep. Reuse this WU's `gone`-upstream +
-  recently-active-remote-branch detection machinery rather than building a second scanner. The cross-machine
-  `plan/` orphan is structural to the local-only rename model, so a sweep is the right remedy, not a rename
-  change.
-- _Scope:_ probe surface (`sweep` sibling), session-init orientation arm, possibly a CLI primitive. The
-  `integrate-work-unit` Step 13 primary-worktree sub-gap (a `git branch -d` on the in-place arm) is **closed** in
-  `async-merge-lifecycle` (facet 2); this item narrows to facet 1, the cross-machine `plan/` orphan.
-
-### `[ ]` **Coordinate the stale-local-branch reaper with `async-merge-lifecycle`'s post-merge teardown surface**
-
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: coord-probe`), housekeep drain (2026-06-12); captured during
-  `async-merge-lifecycle` planning (cross-machine cohort adjacency check). Sibling to the § "Sweep stale local
-  branches" item above — the coordination angle on the same reaper.
-- _Concern:_ this WU's stale-local-branch reaper overlaps `async-merge-lifecycle`'s post-merge teardown surface
-  (same-session completion finalize + subdir-removal primitive + unattended-merge teardown). The same
-  `integrate-work-unit` Step 13 gap is in scope on both sides — it deletes the WU branch only on the
-  linked-worktree→`removable` arm, not the primary-worktree in-place arm.
-- _Resolved (2026-06-12, `async-merge-lifecycle` create-spec — it specced first):_ **facet split.**
-  `async-merge-lifecycle` owns the **post-merge `feat/` teardown** (the `integrate-work-unit` Step 13
-  primary-worktree branch-delete sub-gap — closed there eagerly at the ceremony, backstopped by its in-flight
-  completion sweep over owned WUs). **This WU retains the cross-machine `plan/`-orphan facet** — the stale local
-  `plan/` `[gone]` branch left on a non-activating machine by `activate-work-unit` Step 5's local-only rename (the
-  § "Sweep stale local branches" item above, facet 1), which fires at session-init on another machine and needs
-  this WU's `gone`-upstream detection. Not a double-build: different fire points, branch types, and detection
-  drivers. **The other extends:** if this WU builds a generic session-init stale-local-branch sweep surface,
-  `async-merge-lifecycle` extends it rather than re-scanning.
-- _Finalized (2026-06-13, `async-merge-lifecycle` Phase 6):_ facet 2 is built there — `integrate-work-unit`
-  Step 13 now reaps the primary-worktree `feat/` branch (merged-only-safe) with the in-flight completion sweep as
-  backstop. coord-probe's scope holds at facet 1; build it to extend that teardown surface, not re-scan.
-- _Scope:_ facet 1 (cross-machine `plan/` orphan) only — facet 2 (`feat/` teardown) is `async-merge-lifecycle`'s
-  (built; closed at its `integrate-work-unit` Step 13).
-
 ## Problem / Motivation
 
 Session-init has no answer to "given my identity, where should I be working" when in-git signals fail or
 are insufficient:
 
 - **Cross-machine resume:** the canonical case. Work continued elsewhere; this machine's branch is
-  merged-and-gone; status files in `.arc/active/` may or may not reflect current state depending on how
+  merged-and-gone; meta files in `.arc/active/` may or may not reflect current state depending on how
   recently this machine pulled.
-- **Multi-WU sessions** (post-mobility): multiple status files exist; which is primary for _this_
-  identity?
-- **Team scale** (above ~5 devs): in-git tracking has a hard staleness ceiling. Tracked status is only
+- **In-flight WUs across worktrees / machines** (post-mobility): each in-flight WU occupies its own
+  worktree with a single active meta (single-owner), and some are checked out only on another machine — so
+  the question isn't disambiguating files in one place but _which_ in-flight WU to pick up here. The shipped
+  in-flight-awareness oracle answers this for in-git signals; coord-probe adds the external-tracker signal
+  and the branch-gone target resolution it can't see.
+- **Team scale** (above ~5 devs): in-git tracking has a hard staleness ceiling. Tracked state is only
   as fresh as the most recent merge to a branch this machine has pulled. Real teams coordinate via
   issue trackers — that's where "what is @alex working on" lives, with low latency.
 
-`pm.mode: external` already exists for adopters tracking work in external tools, but it has no
-behavioral hook beyond suppressing arc-in-git artifact installation. There's no surface for "ask the
-external tracker where I'm assigned" at session-init or elsewhere.
+ARC's external-tracker integration point — historically `pm.mode: external` — has no behavioral hook beyond
+suppressing arc-in-git artifact installation. (ADR-020 collapses `pm.mode: external` into module-off +
+tracker-configured, so the activation key becomes a configured tracker pointer, not a mode value — see Design
+Decisions.) There's no surface for "ask the external tracker where I'm assigned" at session-init or elsewhere.
 
 This plan fills the gap with a contained architectural addition: one method, one CLI subcommand, three
 flat config keys, two bundled adapters (`in-git`, `gh`). Adopters using GitHub get zero-config "where am
@@ -94,10 +48,9 @@ I" detection. Adopters using other trackers get a documented custom-command cont
 
 ### Why now, why bounded
 
-- **Branch-gone detection** (`plan-worktree-foundation.md` item 3) needs target-
-  resolution signals to be useful for team-scale adopters. Without coord-probe, branch-gone
-  detection works for solo and small teams via status-file walks, then degrades to "stop and ask"
-  for larger teams.
+- **Branch-gone detection** (shipped in Worktree Foundation) needs target-resolution signals to be useful
+  for team-scale adopters. Without coord-probe, branch-gone detection works for solo and small teams via
+  meta-file walks, then degrades to "stop and ask" for larger teams.
 - **Pre-1.0 polish window** is the right time to land the architectural shape. Adding external-coord
   support post-release means adopters bake in "ARC doesn't know about my tracker" as a permanent
   expectation.
@@ -117,12 +70,11 @@ This framing keeps the probe principled:
 
 - **No autonomous resolution.** The probe never auto-switches branches or modifies state. Even with
   `coord.adapter: gh`, session-init surfaces suggestions and waits for confirm.
-- **Composable with existing signals.** Probe results merge with status-file walks, `git worktree
-  list`, and the notes-discovery breadcrumb (when `prd-user-sync-ux.md` lands
-  HEAD-independent notes load). All sources contribute candidates; recency and confidence drive
-  ordering.
+- **Composable with existing signals.** Probe results merge with meta-file walks, `git worktree
+  list`, and the notes-discovery breadcrumb (HEAD-independent notes load shipped in `user-sync-ux`). All
+  sources contribute candidates; recency and confidence drive ordering.
 - **Adapter is escape hatch, not replacement.** In-git remains the durable coordination substrate
-  (PRDs, plans, status files, ROADMAP). Probe answers ephemeral questions in-git can't. Tracked state
+  (PRDs, plans, meta files, ROADMAP). Probe answers ephemeral questions in-git can't. Tracked state
   never depends on an external system.
 
 ---
@@ -133,7 +85,7 @@ This framing keeps the probe principled:
 
 1. **Method file: `coord-probe.md`.** Contract definition: invocation, output schema (JSON candidate
    list with `branch`, `source`, `recency`, `confidence`, `title` fields), default behavior (in-git
-   status-file walk), override slot. Loaded on-demand at consuming-workflow fire points per existing
+   meta-file walk), override slot. Loaded on-demand at consuming-workflow fire points per existing
    method-loading model.
 
 2. **CLI subcommand: `arc coord probe`.** Reads `coord.adapter` from config, dispatches to bundled
@@ -141,9 +93,9 @@ This framing keeps the probe principled:
    flags. Errors gracefully when adapter unavailable (e.g., `gh` not installed, network unreachable)
    without blocking session-init.
 
-3. **Bundled `in-git` adapter (default).** Walks `.arc/active/{category}/status-*.md`, extracts
-   `**Branch:**` field, filters by `(@identity)` ownership markers (per existing team-coordination
-   conventions). Emits one candidate per matching status file.
+3. **Bundled `in-git` adapter (default).** Walks `.arc/active/meta-*.md` (flat layout), reads each meta's
+   `**Branch:**` and `**Owner:**` fields, and filters by `**Owner:**` matching the identity. Emits one
+   candidate per matching meta file.
 
 4. **Bundled `gh` adapter.** Calls `gh pr list --assignee @me --state open` and `gh issue list
    --assignee @me --state open` (with linked PR/branch JSON fields), merges results, emits candidates
@@ -160,12 +112,12 @@ This framing keeps the probe principled:
     - `coord.recency_days: <int>` (default: `14`; filters stale candidates)
 
 7. **Session-init consumption point.** Branch-gone fire point in session-init invokes the probe.
-   Cascade logic itself lives in `plan-worktree-foundation.md`'s branch-gone detection
-   scope; probe output is one signal among several into that cascade.
+   Cascade logic itself shipped in Worktree Foundation's branch-gone detection; probe output is one
+   signal among several into that cascade.
 
 8. **Documentation.** Method file documents the contract. Config keys documented in `arc-config.yml`
-   template comments. Strategy doc addition (likely [strategy-team-coordination][strategy-team]) frames
-   ARC's stance on external coord — durable state in git, ephemeral coord via adapter.
+   template comments. Strategy doc addition (likely `strategy-team-coordination.md`) frames ARC's stance
+   on external coord — durable state in git, ephemeral coord via adapter.
 
 ### Out of scope
 
@@ -178,7 +130,7 @@ This framing keeps the probe principled:
 - **Multi-tracker fan-out.** Single `coord.adapter` value at a time. Adopters with mixed setups
   configure `custom` and merge sources in their shell command.
 - **Probe results affecting tracked state.** Probe is read-only. Session-init proposes; user confirms;
-  user's confirmation drives state changes. Probe never directly modifies status files or other tracked
+  user's confirmation drives state changes. Probe never directly modifies meta files or other tracked
   state.
 
 ---
@@ -206,17 +158,16 @@ integrations to maintain).
 
 ### Probe as cascade input, not cascade driver
 
-Branch-gone detection's cascade (per `plan-worktree-foundation.md`) is: `git worktree list`
-→ status files → recent remote branches → coord probe → fall back. Probe is one signal among several.
+Branch-gone detection's cascade (shipped in Worktree Foundation) is: `git worktree list`
+→ meta files → recent remote branches → coord probe → fall back. Probe is one signal among several.
 Keeps probe results from over-driving session-init when in-git signals are clear, and from
 under-driving when probe is unavailable.
 
 ### Read-only, advisory
 
 Probe never writes. Session-init never auto-acts on probe results — always proposes, always waits for
-confirm. Higher-autonomy modes (auto-commit, auto-push from
-`plan-session-operational-flow.md`) don't extend to coord-probe-driven branch
-switching. Branch-switching is too consequential to gate on a probe.
+confirm. Higher-autonomy modes (auto-commit, auto-push, shipped in Session-Operational Flow) don't
+extend to coord-probe-driven branch switching. Branch-switching is too consequential to gate on a probe.
 
 ### Flat config preserved
 
@@ -225,48 +176,98 @@ hooks don't read coord config, so the flat-parse constraint isn't a blocking fac
 specifically. Nested structures rejected — would require revisiting hook config-read mechanism for no
 current benefit.
 
+### Activation keys off a configured tracker pointer (ADR-020)
+
+ADR-020 collapses `pm.mode: external` into module-off + tracker-configured, so `external` ceases to be a
+config value. `coord.adapter` therefore activates whenever a tracker pointer is configured, in _any_
+Planning Module state — including `module-on + tracker` (an in-git backlog whose `Origin`s link to an
+external tracker). The project-level adapter stays singular; heterogeneous per-WU trackers ride each
+`Origin`, not a second adapter.
+
+### Forward-compat with the storage-evolution target
+
+Checked against `strategy-storage-evolution.md`. Coord-probe is already its cited example of a
+forward-compat-clean external integration: **read-side and advisory** (Principle 4 — never takes ownership
+of WU artifacts; the external tool stays an integration surface, ARC's store stays canonical),
+**WU-identity-decoupled** (Principle 5 — the in-git adapter detects by path/content + ownership marker,
+never branch-name → WU), and **axis-disciplined** (Principle 9 — three flat keys under one `coord.*`
+feature namespace, not a new structural mode or storage axis). Any cache stays a local read-side
+convenience, never shared/canonical state, so the version-checked-write discipline (Principle 3) doesn't
+apply.
+
+### Probe invocation — branch-gone fire point only (v1)
+
+v1 invokes the probe at exactly one fire point: session-init's branch-gone resolution. Broader fire points
+(orientation "you have N PRs assigned", mid-session `arc status`, post-handoff hint) each add latency and
+noise; they are explicit follow-ons, not v1 scope. Keeps the probe off the common session-init path.
+
+### Per-identity adapter override
+
+`coord.adapter` is overridable per-identity via git config (`arc.coord.adapter`), mirroring the existing
+per-developer `arc.syncPush` / `user.notes_push` precedent — a developer on a shared repo points at their
+own tracker without rewriting project config. Forward-compat: this per-developer override rides the
+per-developer config substrate `config-storage-architecture` is building (git config interim →
+`config.user.yml` target); don't invent a parallel per-developer mechanism.
+
+### Versioned adapter contract from day one
+
+The adapter JSON output carries `schema_version: 1` from the first release, so the contract can evolve
+without breaking custom adapters — cheap now, and consistent with the records-carry-versions discipline.
+
+### No cache in v1; advisory failure
+
+The probe runs only at the low-frequency branch-gone fire point, so v1 ships **no cache** — the latency
+mitigations are branch-gone-only invocation and a hard timeout (order ~3s; exact value spec-time). A local
+read-side cache is a forward-compat-safe future optimization if a broader fire point lands. Adapter failure
+(network down, auth expired, `gh` absent) **never blocks** session-init: silent fallback to the in-git
+adapter, with a single one-line orientation note when a _configured_ adapter failed (so a degraded probe
+isn't invisible).
+
 ---
 
 ## Dependencies and Sequencing
 
-### Upstream
+### Upstream (all shipped)
 
-- **Session-Init Optimization** (shipped): lean session-init substrate to extend.
-- **Session-Operational Flow** (`plan-session-operational-flow.md`). No frame
-  dependency, but landing after avoids surface conflicts on session-init workflow edits.
-  Coord-probe's session-init fire point is the new branch-gone resolution step (introduced by
-  Work-Unit Mobility), not an interlock.
+Session-Init Optimization, Session-Operational Flow, Worktree Foundation, and User Sync UX have all shipped.
+Worktree Foundation built the branch-gone cascade with a hand-rolled fallback (meta-file / roster walk +
+remote-recency) and left coord-probe's consumption point as the seam to fill — this WU wires the probe in as
+one additional cascade signal. User Sync UX shipped HEAD-independent notes load, so the notes-discovery
+breadcrumb is available as a signal now (not "later"), and its multi-clone test harness
+(`__tests__/helpers/multi-clone.ts`) is inheritable for branch-gone signal coverage rather than re-extracted.
 
-### Sibling (parallelizable)
+### Cohort sibling
 
-- **User Sync UX Polish** (`prd-user-sync-ux.md`). Notes-discovery fix lives there; coord-probe consumes
-  notes-as-signal once that fix lands. Coord-probe ships v1 with in-git + gh signals; notes signal
-  joins later. Plans touch different files (CLI subcommand + adapter modules vs sync state machine +
-  load semantics) and can ship in either order. Test-infra reuse: Phase 2.R extracts a multi-clone
-  test harness at `__tests__/helpers/multi-clone.ts` (bare origin + parameterized clones with notes
-  refspec configured); coord-probe inherits it for branch-gone signal coverage and any cross-machine
-  adapter test rather than re-extracting.
-
-### Upstream-by-sequence (added 2026-05-20)
-
-- **Worktree Foundation** (`plan-worktree-foundation.md`). Per the 2026-05-20 resequence, WF ships
-  first with a hand-rolled branch-gone cascade fallback (status-file walk + remote-recency only).
-  This WU wires coord-probe in as one cascade signal source after WF lands. WF's cascade design
-  already absorbed coord-probe as a future input; this WU realizes that input. Loose coupling on
-  the WF side (WF doesn't require coord-probe to ship); for this WU, WF's cascade fire point is
-  the consumption surface.
+`cross-machine-sync-coherence` (same cohort). Its remote sync-state freshness is a candidate signal into this
+probe's ranking once it lands — soft, not a gate; coord-probe v1 ships with in-git + `gh` signals only. See
+`cohort-cross-machine-coherence.md` § Shared contracts.
 
 ### Downstream
 
-- (Coord-probe is consumed by Worktree Foundation's branch-gone cascade; under the resequence WF
-  ships first and this WU's adapter output wires into WF's existing cascade.)
+`finalize-parallelism` depends on this WU (with its cohort sibling) — this cohort is its last open gate.
 
-### Recommended sequencing
+### Cross-cohort — configuration
 
-`plan-session-operational-flow.md` (frame) → Work Organization Reform → Worktree Foundation →
-**Coord Probe** ‖ `plan-cli-substrate-adoption.md` ‖ `plan-arc-plan-conductor.md` (post-WF parallel
-candidates — pick pairs at activation time per file-scope disjoint and cognitive-load match) →
-`plan-agile-wu-lifecycle.md` → `plan-concurrent-work-conventions.md`.
+This WU adds project-level config surface (`coord.adapter` / `coord.command` / `coord.recency_days`) plus a
+per-identity override, so it coordinates with the `configuration` cohort (checked 2026-06-25):
+
+- **Read through the resolver, not raw yaml** (`config-storage-architecture`). The CLI resolves `coord.*` via
+  the config resolver (`lib/config/resolved-settings.ts`) / the planned `arc config get` probe — never a
+  hand-read of `arc-config.yml` — so it doesn't accrue the resolver-drift that WU's "flexible CLI config probe"
+  item exists to fix, and rides the per-developer substrate (`config.user.yml`) once per-developer keys move
+  there.
+- **New keys, not a rename** (`config-migration-registry`). The three keys ship with template defaults and land
+  via `arc update`'s three-way merge — coord-probe is not itself a migration trigger, but its keys are
+  candidates the registry should track if a later rename touches them.
+- **A method-as-runtime-call data point** (`customization-arch-realign`). Coord-probe is the first method whose
+  behavior is a runtime CLI call selected by config (the method/CLI/config split above) — a worked example for
+  that WU's "which mechanism for which concern" decision tree. It should not pre-empt the tree; fold it in as an
+  example when that WU codifies `strategy-configurability-architecture.md`.
+
+### Readiness
+
+Ready now: every upstream dependency has shipped. Parallelizable with its cohort sibling (no hard edge). Pick
+order at activation by re-grounding cost, not dependency.
 
 ---
 
@@ -283,8 +284,8 @@ expectation.
 
 Session-init is on a critical path; network calls slow it down. `gh pr list` typically returns in
 200–500ms; combined `pr list` + `issue list` easily hits 1s. Mitigation: probe runs only at
-branch-gone fire point (not every session-init); hard timeout (e.g., 3s); consider caching for repeat
-session-init within a short window.
+branch-gone fire point (not every session-init); hard timeout (e.g., 3s); a read-cache stays a future
+option only if a broader fire point lands (see Design Decisions § No cache in v1).
 
 ### Conflation of "assigned to me" with "what should I work on next"
 
@@ -299,52 +300,20 @@ Custom-adapter contract is a shell command emitting JSON. Adopters writing custo
 own error semantics, JSON shape, and auth. Real work for the adopter. Mitigation: ship a documented
 worked example (Linear via curl is the obvious choice) in strategy or adapter-contract docs.
 
-### Identity-marker convention drift
+### Owner-field absence in solo mode
 
-In-git adapter relies on `(@identity)` ownership markers in status files.
-[strategy-team-coordination][strategy-team] documents the convention but it's not enforced. Mitigation:
-fall back to "any active status file" when no `@identity` markers are present (typical for solo-mode);
-document the convention more visibly when team mode is enabled.
+In-git adapter filters candidates by each meta's `**Owner:**` field — structured, and more reliable than the
+old inline `(@identity)` markers, but it may be unset or `[TBD]` in solo-mode metas. Mitigation: fall back to
+"any active meta" when no `**Owner:**` resolves (the typical solo case); rely on the field once team mode
+populates it. The convention is documented in `strategy-team-coordination.md`.
 
 ---
 
-## Open Questions
+## Open Questions (residual — spec/impl tuning)
 
-### Probe invocation point — branch-gone only, or broader?
-
-Plan scopes probe invocation to session-init's branch-gone fire point. Other candidate fire points:
-orientation summary in normal sessions ("you have N PRs assigned"), `arc-status` mid-session info,
-post-handoff hint. Each adds value but also adds latency / noise. PRD decision.
-
-### Per-identity vs per-machine config
-
-Should `coord.adapter` be settable per-identity (`git config arc.coord.adapter`)? Aligns with existing
-`arc.syncPush` per-developer override pattern. PRD decision.
-
-### Adapter contract versioning
-
-Declare schema version in output (`schema_version: 1`) from day one to allow breaking changes later, or
-defer until needed? PRD decision.
-
-### Caching policy
-
-Probe results have natural recency (assignment changes, new PRs). Caching helps latency; staleness
-hurts accuracy. TTL? 60s? Per-session? Configurable? PRD decision.
-
-### Failure surfacing
-
-When adapter fails (network down, auth expired, `gh` not installed), session-init still proceeds —
-probe is advisory. How prominently is failure surfaced? Silent fallback to in-git? Brief warning? Full
-error in orientation? PRD decision.
-
-### Scalable-core alignment (ADR-020)
-
-ADR-020 collapses `pm.mode: external` into `module-off + tracker-configured` — `external` ceases to be a
-config value. `coord.adapter` therefore no longer keys off `pm.mode == external`: it activates whenever a
-tracker pointer is configured, in _any_ Planning Module state — including the newly-expressible
-`module-on + tracker` (an in-git backlog whose `Origin`s link to an external tracker). The
-single-`coord.adapter` / multi-tracker-foreclosed stance is preserved and reinforced (per-WU `Origin`
-carries heterogeneous trackers; the project-level adapter stays singular). Absorb at PRD.
+The design questions are settled in Design Decisions above. What remains is implementation tuning, not
+design: the exact probe timeout value, and — only if a broader fire point is later added — whether a local
+read-cache earns its keep over pure on-demand. Neither changes the task-list shape.
 
 ---
 
@@ -362,13 +331,9 @@ Phases (provisional):
 4. **GitHub adapter.** `gh pr list` + `gh issue list` integration, error handling for `gh`
    unavailable.
 5. **Custom adapter.** Shell exec, JSON parsing, timeout handling.
-6. **Session-init integration.** Branch-gone fire point invokes the probe; cascade itself lives in
-   `plan-worktree-foundation.md`, but the consumption-shape land here.
+6. **Session-init integration.** Wire the branch-gone fire point to invoke the probe — the cascade shipped
+   in Worktree Foundation; the consumption-shape lands here.
 7. **Documentation + tests.** Method doc, config doc, strategy doc addition, integration tests (mocked
    `gh`, real-tracker tests skipped in CI).
 
 Phases 3–5 can parallelize (independent adapters). Phase 6 depends on Phase 2.
-
----
-
-[strategy-team]: ../../../../reference/strategies/arc/strategy-team-coordination.md

@@ -5,8 +5,9 @@ the user-notes sync surface. Local partial-push markers protect the originating 
 have no signal that a push was incomplete, opening a window for stale handoffs and (in narrow cases)
 recoverable data loss. Iterate before PRD promotion when implementation comes into reach.
 
-- **State:** Draft — pre-PRD capture during a sync-surface audit on 2026-05-05. Iteration expected
-  before PRD promotion.
+- **State:** Draft — pre-PRD capture during a sync-surface audit on 2026-05-05; factually re-grounded
+  2026-06-25 (see § Re-grounding). Design forks (scope, mechanism, decomposition) still open — not yet
+  PRD-ready.
 
 - **Created:** 2026-05-05
 
@@ -20,52 +21,95 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
 
 ---
 
+## Re-grounding (2026-06-25)
+
+Verified against shipped work before reopening the design — several pieces this draft anticipated have
+landed, shrinking scope and sharpening the cuts:
+
+- **Projection bridge — shipped** (`user-sync/projection.ts`, with `sync-state.ts` / `merge.ts`). The T3
+  drift-detection layer **extends** it; it does not rebuild the comparison basis. (Supersedes the "verify
+  whether the projection builder exists" drain note in the buffer below.)
+- **Ref-distance machinery — shipped** (`git/base-distance.ts` + `countAheadBehindRef`), plus a session-init
+  `baseDistance` slot — but both measure **HEAD → `origin/<base>`** (behind-base drift). The local-base-ref
+  staleness this WU wants (**local base → `origin/<base>`**, cross-machine) is the unbuilt delta: a new
+  comparison + slot reusing that machinery, not a fresh scanner.
+
+**The stale-local-state cluster.** Re-grounding surfaces a coherent family — _machine B's local state is stale
+relative to a change machine A / origin made_ — that this WU is the natural home for:
+
+- **stale local notes** — the partial-push core; a sibling can't see an incomplete notes push;
+- **stale local base ref** — local `main` behind `origin/main` after a sibling integrated (the base-ref
+  staleness item);
+- **stale local `plan/` branch** — a `[gone]`-upstream `plan/` branch left on a non-activating machine by
+  `activate-work-unit`'s local-only rename. **Pulled in from `coord-probe` 2026-06-25**, where it only ever
+  attached via detection-reuse — and that detection shipped in Worktree Foundation, not coord-probe. Narrowed
+  to facet 1; the `feat/`-orphan facet shipped in `async-merge-lifecycle`.
+
+This cluster is the strongest decomposition candidate — a session-init "stale-local-state detection" member,
+distinct from the partial-push remote-**marker** mechanism.
+
+**Shed.** The **CAS + retry on local state-ref writes** item is confirmed real (`errand/ref-tree.ts:107`
+unconditional `update-ref`; the user-notes ref is its twin) but is **single-machine** (inter-process race),
+not cross-machine — it leaves to its own home regardless of how this WU decomposes (a standalone stub now, or
+parked toward `arc-backend`'s version-checked-writes substrate).
+
+**Design forks pending collaborative resolution** (these drive the decomposition, and the cohort's fate):
+
+1. **Narrow vs. broad scope** — partial-push visibility only, or general cross-context sync-state coherence
+   (incl. sibling-sessions)? The biggest lever; largely _is_ the decomposition decision.
+2. **Mechanism** — Option A (sibling sync-state ref) vs. the alternatives (B embed-in-notes-payload, half
+   rejected; C server-side hook, off-substrate).
+3. **Cut** — does the stale-local-state cluster split into its own member, and does the base-ref probe /
+   `arc sync` pull-leg ride with it or stand alone?
+
+---
+
 ## Inbound Buffer — Pending Integration
 
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
 ### `[ ]` **Clarify `arc sync` directionality: bidirectional capability vs. publish-only**
 
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
+- _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-02); captured during in-flight-awareness spec
   planning. (Split capture — the naming/expectation angle routed to `naming-conventions`.)
-- *Concern:* `arc sync` runs a 6-cell `push_interlock × notes_push × worktree-state` matrix with notes
+- _Concern:_ `arc sync` runs a 6-cell `push_interlock × notes_push × worktree-state` matrix with notes
   reconcile-on-conflict (lossless `git notes merge`), but the worktree leg is **push-only** — on `remote-ahead` /
   `diverged` it detects-and-blocks rather than pulling. It never runs the inbound worktree leg, so it can't
   replace `git pull` on machine arrival.
-- *Proposed (capability angle):* should `arc sync` gain an inbound / pull leg to become truly bidirectional?
+- _Proposed (capability angle):_ should `arc sync` gain an inbound / pull leg to become truly bidirectional?
   Fits this WU's cross-machine coherence surface.
-- *Scope:* M — depends on the inbound-leg design.
+- _Scope:_ M — depends on the inbound-leg design.
 
 ### `[ ]` **Session-init probe: detect local base-ref staleness vs. `origin/<base>`**
 
-- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02) — the capture self-cross-references this WU
+- _Routed from:_ `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02) — the capture self-cross-references this WU
   ("both are 'machine B unaware of machine A's state change,' different mechanism classes").
-- *Concern:* the session-init worktree probe compares only the current branch against its upstream. Local
+- _Concern:_ the session-init worktree probe compares only the current branch against its upstream. Local
   `main` (or any base ref) can fall arbitrarily behind `origin/main` when cross-machine integration lands on a
   sibling clone — the integrating machine fast-forwards local `main` as a merge side-effect, the sibling never
   does, and orientation carries no signal. Observed live: a machine's local `main` 47 commits behind
   `origin/main`. The defensive at-branch-creation check already shipped; this is the probe-side surface that
-  flags the gap *before* branch creation.
-- *Proposed:* extend the session-init probe envelope with a `baseBranchSync` slot mirroring the `worktree` slot
+  flags the gap _before_ branch creation.
+- _Proposed:_ extend the session-init probe envelope with a `baseBranchSync` slot mirroring the `worktree` slot
   (`state`, `ahead`/`behind`, `recommendedAction`, `recommendedPromptText`); new config key
   `session.init_pull.main ∈ {always, prompt, surface, skip}`. Surface in orientation when behind; probe is
   read-only (fetch + compare), pull action config-gated. Touch points: probe handler, envelope types,
   `session-init.md`, `arc-config.yml` template comments, QUICK-REFERENCE.
-- *Scope:* Quick-tier — architecturally bounded (mirrors the worktree channel); ~30-50 lines TS + tests +
+- _Scope:_ Quick-tier — architecturally bounded (mirrors the worktree channel); ~30-50 lines TS + tests +
   workflow doc updates.
 
 ### `[ ]` **Coordinate the base-branch-distance probe slot/primitive with CWC (avoid double-build)**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
   housekeep drain (2026-06-04). Directly coordinates with the "Session-init probe: detect local base-ref
   staleness" entry above — same shared core. Captured during `concurrent-work-conventions` planning (2026-06-03).
-- *Concern:* this WU's base-ref-staleness probe (proposed `baseBranchSync` slot) and CWC's integration-end
+- _Concern:_ this WU's base-ref-staleness probe (proposed `baseBranchSync` slot) and CWC's integration-end
   **behind-base detector** are the **same shared core** from two subjects: CWC computes `origin/<base>` distance
-  for the *WU branch* (reconcile-triage + real-diff overlap); this WU computes it for the *local base ref*
+  for the _WU branch_ (reconcile-triage + real-diff overlap); this WU computes it for the _local base ref_
   (`main` stale vs `origin/main`, cross-machine). Both want a session-init slot of identical shape (`state`,
   `ahead`/`behind`, `recommendedAction`, `recommendedPromptText`).
-- *Proposed:* CWC ships first and builds the **ref-parameterized `origin/<base>`-distance primitive + the probe
+- _Proposed:_ CWC ships first and builds the **ref-parameterized `origin/<base>`-distance primitive + the probe
   slot** (worktree-channel-shaped). This WU then **extends, not reimplements** — call the primitive on the local
   base ref, add `session.init_pull.main` config + the cross-machine sync-state / notes-coherence layer (T3).
   Align the **slot name** and **config namespace** across the two so they don't diverge. The
@@ -73,37 +117,37 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
 
 ### `[ ]` **`arc user open`/`close` should clear orphaned WU subdirs in `user/{identity}/`**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), agile-wu-lifecycle cohort
   housekeep drain (2026-06-04). **Folds with this draft's existing § Scope of the Concern "Retired-subdir
   detection + cleanup gaps" entry** — same cleanup story, different fire-site. Captured during
   `agile-wu-lifecycle` graduation (2026-06-03).
-- *Concern:* when a WU is integrated/retired on another machine, this clone's `user/{identity}/<wu>/` subdir
-  lingers as an orphan. `arc user open` only fires a reactive *defensive per-subdir confirm* ("Stale subdir from
+- _Concern:_ when a WU is integrated/retired on another machine, this clone's `user/{identity}/<wu>/` subdir
+  lingers as an orphan. `arc user open` only fires a reactive _defensive per-subdir confirm_ ("Stale subdir from
   prior WU. Remove?") when opening a new WU; there is no proactive sweep, and `arc user close` doesn't reconcile
   orphans either. Cross-machine integration leftovers accumulate.
-- *Proposed:* have `arc user open`/`close` proactively reconcile orphaned WU subdirs (WU shipped/retired and
+- _Proposed:_ have `arc user open`/`close` proactively reconcile orphaned WU subdirs (WU shipped/retired and
   absent from the live set), removing with the `.internal/` backup the docs already promise. Coordinate with the
   adjacent § Scope-of-the-Concern entry (session-init `retiredSubdirs` probe too time-gated; `arc user load` only
   warns, doesn't remove; `session-init.md` Step 6 claims an auto-reconcile the tool doesn't perform).
 
 ### `[ ]` **Re-ground T3 / `loadNeeded` drift-detection on the shared projection bridge**
 
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), housekeep drain (2026-06-12);
+- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: cross-machine-sync-coherence`), housekeep drain (2026-06-12);
   captured during `async-merge-lifecycle` planning (buffer-drain + cross-machine forward-compat check).
-- *Concern:* the single-machine notes-merge idempotency + projection-aware status fix landed a canonical
+- _Concern:_ the single-machine notes-merge idempotency + projection-aware status fix landed a canonical
   projection / materialized-manifest builder shared by `arc user load` and status, replacing
   `inspectDiskVsLocalSnapshot`'s raw-note comparison basis, plus tombstone-aware `appendRemovalTombstones`. This
   WU's draft already dissects that same `inspectDiskVsLocalSnapshot` / `computeSessionInitLoadNeeded` / `loadNeeded`
   path (the "Inbound from in-flight-awareness session" block), and its T3 sync-state drift-detection needs exactly
   the projection-aware comparison.
-- *Proposed:* extend the projection builder rather than rebuild; shrink T3 to the drift-surfacing layer on top.
+- _Proposed:_ extend the projection builder rather than rebuild; shrink T3 to the drift-surfacing layer on top.
   Re-ground this WU's defect-1/2 analysis once the bridge is confirmed in place — moving the comparison basis raw →
   projection changes the classifier behavior that analysis was written against. Mirrors the existing CWC
   behind-base-primitive extension relationship.
-- *Drain note (2026-06-12):* the capture framed the bridge as `async-merge-lifecycle`'s to land (option A); it was
+- _Drain note (2026-06-12):_ the capture framed the bridge as `async-merge-lifecycle`'s to land (option A); it was
   since carved out and **shipped** as the sibling `notes-merge-coherence`. Verify whether the projection builder
   already exists before planning the extension.
-- *Folded in — freshness-reporting unification (drain 2026-06-13):* routed from `USER-INBOX § Backlog`, captured
+- _Folded in — freshness-reporting unification (drain 2026-06-13):_ routed from `USER-INBOX § Backlog`, captured
   during `async-merge-lifecycle` integration. `arc user save` / `status` derive note freshness from the
   `.sync-state.json` `sourceCommit` marker, while `arc user push` inspects the physical git-note anchor — they
   disagreed post-merge (`status` reported "current with HEAD" while `push` warned "7 commit(s) behind"; reachability
@@ -112,7 +156,7 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   note to `HEAD` (`runUserSave` writes unconditionally, so the skip is in the write leg — `io.writeNote` semantics
   or a handler-layer guard, e.g. `git notes add` without `-f` over an existing note). The pruning-history facet of
   that same capture routed separately to `strategy-storage-evolution`.
-- *Folded in — manual push vs. sync divergence (drain 2026-06-14):* routed from `USER-INBOX § Backlog`, captured
+- _Folded in — manual push vs. sync divergence (drain 2026-06-14):_ routed from `USER-INBOX § Backlog`, captured
   during `lifecycle-state-resolver` post-merge cleanup. After PR #99, `npx arc user save` on `b14f352d` made
   `status --json` report `local note ahead` / `diskStatus: current`; `npx arc user push` then reported "Remote
   user notes already match local user notes" but left status at older note `8663de7b` (`git note out of date`,
@@ -121,30 +165,30 @@ recoverable data loss. Iterate before PRD promotion when implementation comes in
   comparing manual `save -> user push` with paired sync `save+push` around the idempotent no-op/recovery path, and
   align `runUserPush` / push-recovery freshness semantics with the sync path so a no-op cannot collapse status back
   to an ancestor note after a current save.
-- *Scope:* extension-on-existing; verify-then-extend.
+- _Scope:_ extension-on-existing; verify-then-extend.
 
 ### `[ ]` **CAS + retry on local state-ref writes (notes ref + errand ref) — guard same-machine inter-process races**
 
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-06-21); captured during
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-06-21); captured during
   errand-lattice integration — CodeRabbit finding on `errand/ref-tree.ts:107` (PR #116), triaged as
   defer-to-follow-up (2026-06-21).
-- *Home caveat (read first):* this concern is **single-machine** (inter-process race on one machine), distinct from
+- _Home caveat (read first):_ this concern is **single-machine** (inter-process race on one machine), distinct from
   this WU's **cross-machine** framing. The capture's own reasoning is that it **wants its own home** — recorded here
   only because this WU already parks the notes-ref twin as an open question (§ Unknowns "Sibling-sessions concern";
   § Scope broader-scope sibling-sessions). **Landing this should discharge (or explicitly hand over) that parked
   OQ.** Settle home at planning: a small standalone stub, or absorb here if the broader scope is adopted.
-- *Concern:* the errand orphan state-ref write (`writeTreeCommit` in `errand/ref-tree.ts`) ends with an
+- _Concern:_ the errand orphan state-ref write (`writeTreeCommit` in `errand/ref-tree.ts`) ends with an
   unconditional `git update-ref <ref> <sha>` over a read-modify-write (read tip → read tree → mutate → commit →
   update-ref). Two same-machine, same-identity processes can both read tip T, build on T, then update-ref — last
   writer wins, silently dropping the other's record (the branch survives; the identity record is lost). The
   cross-machine path is already safe (`reconcileErrandPush` + `mergeErrandTrees` union/reject + non-fast-forward
   retry); this is the single-machine gap.
-- *Scope:* not errand-specific — the **user-notes ref** has the identical unconditional-write shape, so this owns
+- _Scope:_ not errand-specific — the **user-notes ref** has the identical unconditional-write shape, so this owns
   CAS + retry for **both** state-refs. Full fix (not just the guard): `git update-ref <ref> <new> <old>`
   compare-and-swap plus a retry loop wrapping the read-modify-write (re-read the changed tree and rebuild on a stale
   tip), threaded through the direct writes and the reconcile's local commit. ~50 LOC + concurrency tests in the
   errand module, plus the notes-ref analog.
-- *Eventual re-home:* `arc-backend`'s version-checked-writes / optimistic-concurrency substrate (§ "Concurrency &
+- _Eventual re-home:_ `arc-backend`'s version-checked-writes / optimistic-concurrency substrate (§ "Concurrency &
   Version History"), zero-reshape.
 
 ---
@@ -295,7 +339,7 @@ decision at PRD time.
 
 **Inbound from in-flight-awareness session (2026-06-02): a live `loadNeeded` miss + retired-subdir detection
 gap — the concrete instance T3 must catch.** Session-init read the active WU's `SESSION-NOTES.md` as absent
-while the probe reported `user.state: clean` / `loadNeeded: false` — yet the git note on HEAD *contained* that
+while the probe reported `user.state: clean` / `loadNeeded: false` — yet the git note on HEAD _contained_ that
 SESSION-NOTES; it had simply never been materialized to this checkout. Root cause:
 `computeSessionInitLoadNeeded` returns `true` only for `direction === "behind"`, and
 `inspectDiskVsLocalSnapshot` returns `"behind"` only when the note descends from the materialized basis **and**
@@ -306,9 +350,9 @@ envelope carries only `loadNeeded`, so a missing active-WU SESSION-NOTES silentl
 benign drift coexists (the common case). Two defects for this WU's drift-detection layer:
 
 - **`loadNeeded` is too narrow / the divergence is never surfaced.** The `"behind"`-only trigger is right for
-  *auto*-load (don't clobber local edits), but `mixed`/`missing` should still **surface** on the clean arm
+  _auto_-load (don't clobber local edits), but `mixed`/`missing` should still **surface** on the clean arm
   (recommendedAction `surface`, not auto-load — `mixed` may carry real local edits), with a sharpened
-  high-signal sub-case: *the active WU's SESSION-NOTES is present in the note but absent on disk.* This is
+  high-signal sub-case: _the active WU's SESSION-NOTES is present in the note but absent on disk._ This is
   exactly T3's "intentional retirement at source vs. real local drift" call.
 - **Retired-subdir detection + cleanup gaps (adjacent).** session-init's `retiredSubdirs` probe returned `[]`
   for genuinely-archived subdirs (`errand-enablement`, `work-routing-discipline`) — its "absent from the
@@ -469,7 +513,7 @@ cross-contamination.
 
 ## Anti-goals
 
-What this plan should *not* try to do:
+What this plan should _not_ try to do:
 
 - **Replace local partial-push tracking.** The local marker stays — it's the originating machine's
   authoritative state. The remote mechanism is additive: a way for siblings to see what the local
