@@ -111,7 +111,10 @@ Explicit — it is the closeout:
 
 - `concurrent-work-conventions` members: `concurrent-work-doctrine` (shipped), `merge-safety-mechanism` (shipped),
   `async-merge-lifecycle`, `single-owner-wu-model`.
-- `cross-machine-coherence` members: `cross-machine-sync-coherence`, `coord-probe`.
+- `cross-machine-coherence` members: `partial-push-marker`, `stale-state-detect-and-pull` (decomposed from
+  `cross-machine-sync-coherence` 2026-06-25; `coord-probe` relocated standalone as the external-coord
+  enhancement and dropped from this gate).
+- `state-ref-write-safety` — the single-machine state-ref CAS (shed from the cross-machine WU at decomposition).
 - `out-of-wu-entry`.
 - The worktree-default flip (within `async-merge-lifecycle`'s scope).
 

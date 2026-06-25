@@ -6,8 +6,8 @@
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** `concurrent-work-doctrine`, `merge-safety-mechanism`, `async-merge-lifecycle`,
-  `worktree-default-start`, `single-owner-wu-model`, `cross-machine-sync-coherence`, `coord-probe`,
-  `out-of-wu-entry`, `lifecycle-closeout`
+  `worktree-default-start`, `single-owner-wu-model`, `partial-push-marker`, `stale-state-detect-and-pull`,
+  `state-ref-write-safety`, `out-of-wu-entry`, `lifecycle-closeout`
 
 - **Origin:** [internal]
 - **Design:** `draft-finalize-parallelism.md`
