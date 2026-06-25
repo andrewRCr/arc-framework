@@ -168,7 +168,12 @@ export async function runPairedPush(
     save,
     worktree,
     notes,
-    conditions: pushability.conditions,
+    // Post-resolution conditions: a `no-upstream-branch` resolved by the `-u`
+    // push is filtered out (see `conditionsAfterResolution`), so a successful
+    // upstream-init push never surfaces its "Set upstream first" guidance as a
+    // stray stderr error. The structured result is the source of truth for
+    // success.
+    conditions: conditionsAfterResolution,
     exitCode,
     ...(retry.kind === "retry-offer"
       ? { retryOffer: { autoRetries: retry.autoRetries } }

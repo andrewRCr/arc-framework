@@ -188,21 +188,19 @@ non-interactive-safe primitive; interactivity (the retry decision) is owned by t
   auto-retry-backoff open question (constant-tuned, loop untouched). `arc release push` needed no change — it wraps
   only the worktree leg; the notes leg fires in `arc sync`'s paired path.
 
-### `[ ]` **4.3 Presentation fidelity — suppress the upstream-init stderr leak**
+### `[x]` **4.3 Presentation fidelity — suppress the upstream-init stderr leak**
 
 - _Goal:_ A successful upstream-init sync presents as success — no stray `error: Set upstream first` (or any
   pre-recovery git failure) leaks to stderr when the `-u` re-push succeeds.
 
-- _Context:_ The upstream-init recovery (`handlers/release/push.ts` `decideUpstreamInjection`, the
-  `push-with-upstream-init` path in `handlers/sync.ts`) first fails a plain push, then re-pushes with `-u`. The
-  structured result is the single source of truth for success; the pre-recovery failure must not reach stderr.
-  This is the WU's "lag, not loss" charter applied to its own output.
-
-    Build `test-first` (one behavior at a time):
-
-    - A successful upstream-init sync emits no `error: Set upstream first` (or other pre-recovery git error) on
-      stderr — regression test for the leak
-    - The structured result reports success; a reader/agent sees no stray error line
+- _Outcome:_ Root cause was not a fail-then-retry git push (both `arc sync` and `arc release push` inject `-u`
+  up front) but a surfaced-condition leak: `runPairedPush` returned the **unfiltered** pushability conditions,
+  so the auto-resolved `no-upstream-branch` (a `caller-resolvable`, hence `isRefusalCondition`-true) still rode
+  the result — and `renderPairedResult` logged its "Set upstream first" guidance to stderr on a successful
+  upstream-init push. Fix returns the post-resolution conditions (`conditionsAfterResolution`) on the success
+  path, so the resolved condition never surfaces; the structured result (exitCode 0) stays the source of truth.
+  Regression guarded at the `runPairedPush` boundary. The single-leg upstream-init path and the `arc release
+  push` wrapper were already clean (they don't render conditions on success), so no other leak path existed.
 
 ### `[ ]` **4.4 End-to-end multi-machine producer scenario**
 

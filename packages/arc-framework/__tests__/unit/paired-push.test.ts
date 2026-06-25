@@ -485,6 +485,27 @@ describe("runPairedPush", () => {
     expect(pushArgs).toEqual([["push", "origin", "main", "-u"]]);
   });
 
+  it("setUpstream success path does not surface the resolved no-upstream condition (no stderr leak)", async () => {
+    const responses = cleanRepoResponses();
+    responses[REV_PARSE_UPSTREAM] = () => {
+      throw new Error("fatal: no upstream configured for branch 'main'");
+    };
+    const { exec } = buildExec(responses);
+    const io = buildIo(exec);
+    const access = buildAccess([]);
+    const { pushNotes } = stubPushNotes({ status: "success" });
+
+    const result = await runPairedPush({
+      io, access, pushNotes, ...COMMON_OPTIONS, setUpstream: true,
+    });
+
+    expect(result.exitCode).toBe(0);
+    // The no-upstream condition was auto-resolved by the `-u` push; it must not
+    // remain in the surfaced conditions, or renderPairedResult would log its
+    // "Set upstream first" guidance to stderr on a successful upstream-init sync.
+    expect(result.conditions.some((c) => c.kind === "no-upstream-branch")).toBe(false);
+  });
+
   it("setUpstream: false (default) with no-upstream → refuses before save fires", async () => {
     const responses = cleanRepoResponses();
     responses[REV_PARSE_UPSTREAM] = () => {
