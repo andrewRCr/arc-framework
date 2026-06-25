@@ -236,16 +236,16 @@ site.
   self-invalidation basis. Authoritative design stays in `spec-partial-push-marker.md` § 8; the cohort record now
   carries the unambiguous form where the consumer reads it. Doc-only — no B-side surface built.
 
-### `[ ]` **5.2 `arc-handoff` notes-push-failed behavior**
+### `[x]` **5.2 `arc-handoff` notes-push-failed behavior**
 
 - _Goal:_ The handoff workflow has a defined behavior for the notes-push-failed outcome — surface the primed retry;
   on deferral, record it in the handoff report so the next session inherits the context.
 
-- _Approach:_ Reuse the Phase 4 Act-register primitive at the handoff Act site; the workflow layer surfaces the
-  retry decision. Handoff is the highest-stakes Act site — the last moment before leaving A for B.
-
-- _Note:_ The handoff workflow is a two-copy Framework file — edit the package source
-  (`packages/arc-framework/arc/system/workflows/...`) and sync to `.arc/`, never the reverse.
+- _Outcome:_ `session-handoff.md` § Sync now defines the Act-site behavior on the auto-invoke arm: when the
+  `arc sync --json` envelope carries `retryOffer`, surface a primed retry defaulted to retry (re-invoke
+  `arc sync`, zero-clobber); on deferral the persisted marker is reported via a new `notes push deferred` outcome
+  in § Confirm Handoff so the next session inherits it. Reuses the Phase 4 `retryOffer` primitive — no new CLI
+  surface. Edited package source + `.arc/` copy in sync.
 
 - **Strategies:** strategy-package-project-sync.md
 

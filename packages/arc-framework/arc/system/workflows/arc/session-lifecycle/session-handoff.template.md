@@ -548,6 +548,13 @@ Strategy][session-ops] § Push Toggles for the underlying model.
   optional `reconcile`, and `recommendedSummaryLine` fields. Surface the result per § Confirm
   Handoff.
 
+  **Notes-push-failed (the Act site).** When the envelope carries `retryOffer` — the notes leg is still
+  failing after its silent auto-retries, and the partial-push marker is already persisted — surface a primed
+  retry **defaulted to retry** (re-running the push is zero-clobber). On accept, re-invoke `arc sync --json`;
+  a resolved notes leg self-invalidates the marker (nothing to record). On deferral, or a retry that still
+  fails, the marker persists knowingly — report it in § Confirm Handoff so the next session inherits it.
+  Resolve the offer conversationally; never block on a TTY prompt.
+
 - **`manual`** — skip the auto-invoke. The user runs `arc sync` (or single-leg commands) when
   ready. Probe-2's `recommendedSummaryLine` carries the unpushed / Reconcile surface (see §
   Confirm Handoff).
@@ -571,6 +578,9 @@ skip arms):
 
 - `synced to remote` — sync ran, at least one leg has `action: "push"` with
   `result: "success"` (worktree, notes, or both).
+- `notes push deferred — worktree pushed; notes still failing after auto-retry, partial-push marker
+  persisted. Re-run \`arc sync\` next session.` — the envelope carried `retryOffer` and the retry was
+  deferred or still failed.
 - `saved locally — no remote push fired` — sync ran with `exitCode: 0` but no leg pushed
   (save-only cell, notes-blocked path, or every leg `noop`/`skipped`/`blocked`).
 - `sync failed — re-run \`arc sync\` after resolving` — sync ran and returned non-zero.
