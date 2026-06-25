@@ -55,12 +55,14 @@ import {
   runPairedPush,
   runUserSave,
   UserSaveError,
+  type PairedPushMarkerContext,
   type PairedPushNotesContext,
   type PairedPushNotesPusherResult,
   type PairedPushResult,
   type UserIOContext,
 } from "../commands/user.js";
 import { reconcileErrandPush } from "../lib/errand/index.js";
+import { publishSyncStateMarker } from "../lib/user-sync/index.js";
 import {
   resolveAllSettings,
   type NotesPushPolicy,
@@ -646,6 +648,7 @@ async function executePaired(
     worktreeSyncState: ctx.worktreeState,
     setUpstream,
     pushNotes: (context) => pairedNotesAdapter(context, ctx.output),
+    publishMarker: publishMarkerAdapter,
   });
   renderPairedResult(result, branch, ctx.output);
   return {
@@ -654,6 +657,26 @@ async function executePaired(
     notes: pairedNotesToRecord(result),
     exitCode: result.exitCode,
   };
+}
+
+/**
+ * Marker-publish delegate for `runPairedPush`. Publishes this machine's
+ * outstanding notes-push intent to the sibling sync-state ref ahead of the
+ * notes leg. Best-effort: it requires the stdin git seam (skipped when absent,
+ * mirroring the errand-ref reconcile) and its outcome is non-fatal — a
+ * published / reconciled / skipped / failed result all leave the sync exit code
+ * and the notes leg untouched. The opt-out is structural: this only runs inside
+ * the paired flow, which fires only when a user-notes push is actually
+ * happening — so a user who has turned off remote notes sync never reaches it.
+ */
+async function publishMarkerAdapter(context: PairedPushMarkerContext): Promise<void> {
+  if (!context.io.execInput) return;
+  await publishSyncStateMarker({
+    cwd: context.cwd,
+    io: context.io,
+    execInput: context.io.execInput,
+    identity: context.identity,
+  });
 }
 
 /**

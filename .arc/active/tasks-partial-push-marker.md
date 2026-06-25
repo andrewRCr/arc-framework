@@ -136,27 +136,29 @@ producer scenario. The integration-heavy phase — carries the most parents by d
 _Design decisions:_ Detection, not prevention — `main` is never made contingent on the notes push. The CLI stays a
 non-interactive-safe primitive; interactivity (the retry decision) is owned by the agent/workflow layer.
 
-### `[ ]` **4.1 Marker-before-notes push ordering**
+### `[x]` **4.1 Marker-before-notes push ordering**
 
 - _Goal:_ During a paired push the sync-state marker is written and pushed **before** the user-notes leg, and the
   producer degrades safe — no ref write on opt-out or from a fetch-only clone, behavior unchanged when the ref is
   absent.
 
-- _Approach:_ Thread into the paired flow (`commands/user/paired-push.ts`, `handlers/sync.ts`). Two distinct
-  markers, distinct timing — don't conflate them: the **remote** sync-state marker writes/pushes _before_ the
-  user-notes push (paired-push.ts ~line 137, ahead of the notes push), while the existing **local**
-  `.sync-state.json` marker stays recorded _after_ the notes attempt (paired-push.ts:146/148).
+    - `[x]` **4.1.a Write-and-push the remote marker ahead of the notes leg**
+        - New `sync-state-publish.ts` composes machine-id + HEAD + local-notes-tip into the marker and
+          reconcile-pushes it; `runPairedPush` fires the injected `publishMarker` delegate between the worktree
+          push and the notes leg, so a landed marker reads "about to push notes for HEAD X". The local
+          `.sync-state.json` marker's after-the-attempt timing is unchanged.
 
-- _Note:_ Degrade-safe guard (opt-out rides the existing `pm.mode: external` axis; fetch-only clones consume but
-  never write) is the SC-8 surface — verify it here, not as a separate axis.
+    - `[x]` **4.1.b Degrade-safe guards**
+        - Opt-out is **structural**, not a config gate: the publish rides the existing notes-push gate — fires
+          only inside the paired flow, only after a successful worktree push, and is best-effort (never throws,
+          never flips the exit code). An opted-out user, an absent notes ref (skip `no-notes-ref`), no remote
+          (skip `no-remote`), and a fetch-only clone all behave as today. Integration test covers the publish
+          path + the no-write paths.
 
-    - `[ ]` **4.1.a Write-and-push the remote marker ahead of the notes leg**
-        - Push the remote sync-state marker before the notes push so a landed marker reads "about to push notes
-          for HEAD X"; the local marker's after-the-attempt timing is unchanged
-
-    - `[ ]` **4.1.b Degrade-safe guards**
-        - Skip the ref write under opt-out and from fetch-only clones; absent ref behaves exactly as today
-        - Integration test: marker-before-notes ordering, and the no-write paths
+- _Outcome:_ The producer publishes its outstanding intent ahead of the notes leg; self-invalidation falls out
+  of `intent` = local notes-ref tip (origin reaching it → `evaluateMarkerLiveness` reports fulfilled). The SC-8
+  opt-out was redesigned from `pm.mode: external` (ratified for retirement by ADR-020 — it would leave a dead
+  gate) to structural degrade-safety; `spec-partial-push-marker.md` SC-8 + § Rollout updated to match.
 
 ### `[ ]` **4.2 Act-register recovery — auto-retry then primed retry**
 

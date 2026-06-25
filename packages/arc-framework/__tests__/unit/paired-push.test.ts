@@ -16,6 +16,8 @@ import type {
   GitExecOptions,
 } from "../../src/lib/git/index.js";
 import type {
+  PairedPushMarkerContext,
+  PairedPushMarkerPublisher,
   PairedPushNotesContext,
   PairedPushNotesPusher,
   PairedPushNotesPusherResult,
@@ -147,6 +149,25 @@ function stubPushNotes(
     return typeof result === "function" ? result(context) : result;
   };
   return { pushNotes, calls };
+}
+
+interface PublishMarkerStub {
+  publishMarker: PairedPushMarkerPublisher;
+  calls: PairedPushMarkerContext[];
+}
+
+/**
+ * Marker-publish stub that records each invocation (and order, when an `order`
+ * sink is passed). `throws: true` exercises the best-effort isolation guard.
+ */
+function stubPublishMarker(opts?: { order?: string[]; throws?: boolean }): PublishMarkerStub {
+  const calls: PairedPushMarkerContext[] = [];
+  const publishMarker: PairedPushMarkerPublisher = async (context) => {
+    calls.push(context);
+    opts?.order?.push("marker");
+    if (opts?.throws === true) throw new Error("marker publish boom");
+  };
+  return { publishMarker, calls };
 }
 
 const COMMON_OPTIONS = {
@@ -481,5 +502,103 @@ describe("runPairedPush", () => {
       .map((c) => c.args)
       .filter((args) => args[0] === "push");
     expect(pushArgs).toEqual([]);
+  });
+
+  describe("marker-before-notes publish", () => {
+    it("publishMarker fires after the worktree push and before the notes leg", async () => {
+      const order: string[] = [];
+      mockRunUserSave.mockImplementation(async () => {
+        order.push("save");
+        return { identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] };
+      });
+      const { exec } = buildExec(cleanRepoResponses(), order);
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker({ order });
+      const notesCalls: PairedPushNotesContext[] = [];
+      const pushNotes: PairedPushNotesPusher = async (context) => {
+        notesCalls.push(context);
+        order.push("notes");
+        return { status: "success" };
+      };
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      // Worktree push, then marker, then notes — the producer ordering invariant.
+      expect(order).toEqual(["save", "push origin main", "marker", "notes"]);
+      expect(markerCalls).toEqual([
+        { io, identity: "andrew", cwd: "/repo", worktreeBranch: "main" },
+      ]);
+      expect(notesCalls).toHaveLength(1);
+    });
+
+    it("publishMarker never fires when the worktree push fails", async () => {
+      const responses = cleanRepoResponses();
+      responses["push origin main"] = () => {
+        throw new Error("error: failed to push some refs to 'origin'");
+      };
+      const { exec } = buildExec(responses);
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker();
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(result.worktree).toMatchObject({ status: "failed" });
+      expect(markerCalls).toEqual([]);
+      expect(notesCalls).toEqual([]);
+    });
+
+    it("publishMarker never fires when the pre-check blocks both legs", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess(["/repo/.git/rebase-merge"]);
+      const { publishMarker, calls: markerCalls } = stubPublishMarker();
+      const { pushNotes } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(1);
+      expect(markerCalls).toEqual([]);
+      expect(mockRunUserSave).not.toHaveBeenCalled();
+    });
+
+    it("a throwing publishMarker delegate never breaks the notes leg (best-effort)", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { publishMarker } = stubPublishMarker({ throws: true });
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({
+        io, access, pushNotes, publishMarker, ...COMMON_OPTIONS,
+      });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(notesCalls).toHaveLength(1);
+    });
+
+    it("absent publishMarker → notes leg proceeds unchanged (degrade-safe default)", async () => {
+      const { exec } = buildExec(cleanRepoResponses());
+      const io = buildIo(exec);
+      const access = buildAccess([]);
+      const { pushNotes, calls: notesCalls } = stubPushNotes({ status: "success" });
+
+      const result = await runPairedPush({ io, access, pushNotes, ...COMMON_OPTIONS });
+
+      expect(result.exitCode).toBe(0);
+      expect(result.notes).toEqual({ status: "success" });
+      expect(notesCalls).toHaveLength(1);
+    });
   });
 });

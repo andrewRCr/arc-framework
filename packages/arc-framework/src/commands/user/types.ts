@@ -311,6 +311,30 @@ export type PairedPushNotesPusher = (
   context: PairedPushNotesContext,
 ) => Promise<PairedPushNotesPusherResult>;
 
+/** Context handed to the injected marker-publish delegate. */
+export interface PairedPushMarkerContext {
+  io: UserIOContext;
+  identity: string;
+  cwd: string;
+  /** Worktree branch the paired flow just pushed — the HEAD the about-to-fire notes push advances for. */
+  worktreeBranch: string;
+}
+
+/**
+ * Pluggable sync-state-marker publisher injected into
+ * {@link RunPairedPushOptions}.
+ *
+ * Fires after a successful worktree push and *before* the notes leg, so a
+ * landed marker reads "about to push notes for HEAD X" to a sibling clone.
+ * Production wires the `publishSyncStateMarker` adapter; tests inject a stub
+ * (or omit it). Best-effort by contract — it must not throw, and its outcome
+ * never affects the paired exit code: a marker-publish failure leaves behavior
+ * exactly as before this leg existed.
+ */
+export type PairedPushMarkerPublisher = (
+  context: PairedPushMarkerContext,
+) => Promise<void>;
+
 /**
  * Discriminated result of a paired worktree+notes push.
  *
@@ -356,6 +380,13 @@ export interface RunPairedPushOptions {
    * lossless reconcile and idempotent-noop semantics; tests inject a stub.
    */
   pushNotes: PairedPushNotesPusher;
+  /**
+   * Optional sync-state-marker publisher, fired after a successful worktree
+   * push and before the notes leg. Absent → no marker is published
+   * (degrade-safe: behavior is exactly as before this leg existed). See
+   * {@link PairedPushMarkerPublisher}.
+   */
+  publishMarker?: PairedPushMarkerPublisher;
 }
 
 /** Options for the fetch operation. */

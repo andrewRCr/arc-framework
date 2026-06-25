@@ -104,4 +104,11 @@ export {
   type SyncStatePushOutcome,
 } from "./sync-state-merge.js";
 
+export {
+  publishSyncStateMarker,
+  type PublishSyncStateMarkerInput,
+  type PublishSyncStateMarkerOutcome,
+  type PublishSkipReason,
+} from "./sync-state-publish.js";
+
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

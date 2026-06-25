@@ -241,9 +241,16 @@ This composes with `cli-substrate-adoption`'s queued uniform non-interactive con
   detects via the marker, A's retry self-invalidates it.
 - **Migration.** Existing repos have no sibling ref; the first post-implementation push creates it. The
   consumer-side fallback (no ref → behave as today) is the default-safe path — no migration step required.
-- **Rollout / configurability.** Opt-out rides the existing `pm.mode: external` axis and the configurability
-  principles — no new per-artifact toggle. Read-only clones (fetch but never push) consume the marker without
-  writing it; confirmed safe.
+- **Rollout / configurability.** Opt-out is **structural**, not a new config gate: the marker publishes only
+  inside the paired worktree+notes push, which runs only when a user-notes push is actually firing. Anyone who
+  has turned off remote notes sync (`session.remote_sync: disabled`, or a `user.notes_push` / push-interlock
+  setting that doesn't push) never reaches the publish point — so "opted out → behaves as today" falls out of
+  the existing notes-push gate with no marker-specific toggle. (An earlier draft rode `pm.mode: external`;
+  that value is retired by ADR-020 — it decomposes into `module-off + tracker-configured` — so pinning the
+  opt-out to it would leave a dead gate once `scalable-core` ships. The notes-push gate is the durable axis.)
+  Read-only clones (fetch but never push) consume the marker without writing it: the publish fires only after a
+  successful worktree push, which a fetch-only clone never achieves, and the push itself is best-effort —
+  confirmed safe.
 - **User-facing impact.** The three registers (§ 8) frame the situation as lag, not loss. Agent-run handoff
   stays safe via the interactivity contract.
 
@@ -267,7 +274,9 @@ Validated at work-unit completion:
 7. `arc-handoff` has a defined notes-push-failed behavior (primed retry; deferral recorded in the handoff
    report).
 8. Degrades safe: the producer adds the marker push without disturbing existing behavior when the ref is absent
-   or the feature is opted out (push behaves as today), and never writes the ref from a fetch-only clone.
+   or remote notes sync is off (push behaves as today), and never publishes the ref from a fetch-only clone. The
+   opt-out is structural — the marker rides the existing notes-push gate (`session.remote_sync` / `user.notes_push`
+   / push-interlock), not a marker-specific config value (see § Rollout for why `pm.mode: external` was dropped).
 
 ## Open Questions
 

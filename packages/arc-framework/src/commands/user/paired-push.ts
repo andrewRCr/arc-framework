@@ -44,6 +44,8 @@ import { pushWorktreeBranch } from "../../lib/git/push-worktree.js";
 import { clearPartialPushMarker, recordPartialPushMarker } from "../../lib/user-sync/index.js";
 import { runUserSave } from "./save-load.js";
 import type {
+  PairedPushMarkerContext,
+  PairedPushMarkerPublisher,
   PairedPushNotesOutcome,
   PairedPushResult,
   PairedPushSaveOutcome,
@@ -76,7 +78,7 @@ export async function runPairedPush(
 ): Promise<PairedPushResult> {
   const {
     io, identity, cwd, access, branch, worktreeSyncState, pushNotes,
-    setUpstream = false,
+    publishMarker, setUpstream = false,
   } = options;
 
   const pushability = await runPushabilityStatus({
@@ -135,6 +137,14 @@ export async function runPairedPush(
     };
   }
 
+  // Marker before notes: publish this machine's outstanding notes-push intent
+  // ahead of the notes leg, so a landed marker reads "about to push notes for
+  // HEAD X" to a sibling clone. Best-effort and isolated — a publish failure
+  // (or a throwing delegate) never blocks the notes leg or flips the exit code.
+  if (publishMarker) {
+    await publishMarkerSafely(publishMarker, { io, identity, cwd, worktreeBranch: branch });
+  }
+
   const notes: PairedPushNotesOutcome = await pushNotes({
     io,
     identity,
@@ -150,6 +160,24 @@ export async function runPairedPush(
 
   const exitCode = isNotesSuccess(notes) ? 0 : 1;
   return { save, worktree, notes, conditions: pushability.conditions, exitCode };
+}
+
+/**
+ * Run the marker publisher under best-effort isolation. The publisher is
+ * contracted not to throw, but a defensive guard here keeps a misbehaving
+ * delegate from ever breaking the notes leg — a failed marker push must leave
+ * behavior exactly as it was before this leg existed (the worktree push has
+ * already landed; the notes leg and its recovery markers are unaffected).
+ */
+async function publishMarkerSafely(
+  publishMarker: PairedPushMarkerPublisher,
+  context: PairedPushMarkerContext,
+): Promise<void> {
+  try {
+    await publishMarker(context);
+  } catch {
+    // Best-effort: the marker never gates the paired push.
+  }
 }
 
 function isNotesSuccess(outcome: PairedPushNotesOutcome): boolean {

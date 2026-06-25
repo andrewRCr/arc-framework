@@ -71,6 +71,8 @@ export {
   type UserLoadWalkExhausted,
   type UserOpenOptions,
   type PairedPushLegOutcome,
+  type PairedPushMarkerContext,
+  type PairedPushMarkerPublisher,
   type PairedPushNotesContext,
   type PairedPushNotesOutcome,
   type PairedPushNotesPusher,
