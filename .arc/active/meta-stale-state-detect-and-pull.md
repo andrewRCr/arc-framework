@@ -12,11 +12,11 @@
 - **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.2 — Config-gated base-ref ff-pull + orientation surfacing (Phase 2 complete)
-- **Next Task:** Task 3.1 — Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (line ~121)
+- **Last Completed:** Task 3.1 — Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (D3)
+- **Next Task:** Task 3.2 — Drift-gated retired-subdir reconcile (D4) (line ~149)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 (Phase 3 — notes/disk drift & retired-subdir cleanup, D3; test-first)
+- **Next Action:** Begin Task 3.2 (Phase 3 — D4; design decisions pre-settled in SESSION-NOTES; test-first)
 
 - **PR URL:** [none]
 - **Completed:** [none]
