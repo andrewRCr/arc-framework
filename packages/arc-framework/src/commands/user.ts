@@ -49,6 +49,7 @@ export {
   runUserStatus,
 } from "./user/sync-status.js";
 export {
+  computeDriftingSubdirs,
   computeUnsavedDirection,
   hasUnpushedLocalDrift,
   hasUnpushedLocalDriftForScope,

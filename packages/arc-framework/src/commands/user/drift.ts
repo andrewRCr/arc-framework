@@ -18,6 +18,7 @@
 
 import type { SyncManifest } from "../../lib/git/index.js";
 import { wuNameOfPath } from "../../lib/user-sync/index.js";
+import type { RecentNote } from "../../lib/user-sync/index.js";
 
 import type { UserUnsavedDirection } from "./types.js";
 
@@ -110,6 +111,77 @@ export function hasUnpushedLocalDriftForScope(
   scope: DriftScope,
 ): boolean {
   return hasUnpushedLocalDrift(unsavedDirectionForScope(disk, note, scope));
+}
+
+/**
+ * Parse a note's serialized content into a {@link SyncManifest}, or `null` when
+ * it is not a usable manifest (bad JSON, no `files` object). Mirrors the
+ * tolerant window read elsewhere — a stray entry is skipped, not thrown over.
+ */
+function parseNoteManifest(content: string): SyncManifest | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const files = (parsed as { files?: unknown }).files;
+  if (typeof files !== "object" || files === null) return null;
+  return parsed as SyncManifest;
+}
+
+/**
+ * The drift basis for a subdir — the manifest of the most recent note in the
+ * window that still carries it. A subdir absent from the latest note (because its
+ * WU shipped and the note dropped it) but present in an earlier in-window note
+ * resolves to that earlier note: comparing disk against the *latest* note would
+ * read the present-on-disk subdir as local `edits` and wrongly flag every retired
+ * subdir as drift. `null` when no note in the window carries it (no basis).
+ *
+ * @param subdir - The per-WU subdir name.
+ * @param recentNotes - Recency-ordered notes (`[0]` most recent).
+ * @returns The basis manifest, or `null` when no note carries the subdir.
+ */
+function resolveSubdirDriftBasis(
+  subdir: string,
+  recentNotes: readonly RecentNote[],
+): SyncManifest | null {
+  for (const note of recentNotes) {
+    const parsed = parseNoteManifest(note.content);
+    if (parsed && Object.keys(parsed.files).some((path) => wuNameOfPath(path) === subdir)) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+/**
+ * The subset of `localSubdirs` carrying unpushed local drift — possible unsaved
+ * work that must not be reconciled away. Each subdir is judged against its own
+ * last-pushed basis ({@link resolveSubdirDriftBasis}); a subdir with no basis in
+ * the window does not drift (it reconciles, with the pre-load backup as the net).
+ *
+ * The per-subdir half of the D-shared drift signal, consumed by the retired-subdir
+ * removal gate. Pure — the caller supplies the disk manifest and the note window.
+ *
+ * @param input - Local subdirs, the disk manifest, and the recent-notes window.
+ * @returns The set of drifting subdir names.
+ */
+export function computeDriftingSubdirs(input: {
+  localSubdirs: readonly string[];
+  diskManifest: SyncManifest;
+  recentNotes: readonly RecentNote[];
+}): Set<string> {
+  const drifting = new Set<string>();
+  for (const subdir of input.localSubdirs) {
+    const basis = resolveSubdirDriftBasis(subdir, input.recentNotes);
+    if (basis === null) continue;
+    if (hasUnpushedLocalDriftForScope(input.diskManifest, basis, { kind: "subdir", name: subdir })) {
+      drifting.add(subdir);
+    }
+  }
+  return drifting;
 }
 
 /** Basename of the per-WU session-context file the safe auto-load sub-case keys on. */

@@ -146,50 +146,23 @@ surface (a CLI prompt) from the reconcile gate.
   safely auto-loads); a deliberately-retired file no longer false-positives — the projection basis is the
   last-sync `priorFileList`, storage-abstract per § D3. See `notes-stale-state-detect-and-pull.md` § D3.
 
-### `[ ]` **3.2 Drift-gated retired-subdir reconcile (D4)**
+### `[x]` **3.2 Drift-gated retired-subdir reconcile (D4)**
 
 - _Goal:_ A shipped WU's orphaned user subdir auto-removes (reversibly) once the index is freshened and it
   carries no unpushed drift — replacing the lossy recency-window proxy with the D-shared drift gate — so a
   non-integrating machine stops accumulating orphan-warning subdirs.
 
-- _Context:_ `planRetiredSubdirReconcile` (`lib/user-sync/retired-subdir.ts`) reconciles iff
-  `!notesWuNames.has(subdir)` AND `shipped.has(subdir)` — where `shipped` is a `ReadonlySet<string>` from
-  `readShippedWorkUnits` scanning the **working-tree** `.arc/completed/` archive (membership test; there is no
-  `isSlugShipped` symbol). On a non-integrating machine the feature branch's working tree lacks the sibling's
-  archival commit (it landed on `<base>`) → the slug is absent from `shipped` → preserve → recurring orphan
-  warning. The delete (`removeStaleUserWuSubdir`, `rm -rf`) and the pre-load `.internal/<timestamp>` backup
-  already ship — the gap is the gate.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - **Shipped read switches to `origin/<base>`, not the working tree.** Add a ref-backed shipped reader —
-      `git ls-tree -r --name-only origin/<base> -- .arc/completed/` (home it in `lib/git/ref-tree.ts` /
-      `completed-index.ts`; the recursive/path-scoped variant `readTreeEntries` lacks). The canonical "is it
-      shipped" oracle, kept fresh by the probe's existing base fetch and branch-independent. `readShippedWorkUnits`
-      (working-tree) stays for the stale-_worktree_ sweep (out of scope). This is the dominant fix for the
-      accumulation.
-
-    - The reconcile gate becomes `shipped.has(subdir) && !hasUnpushedLocalDrift(subdir)` — the
-      `!notesWuNames.has(subdir)` conjunct gives way to the D-shared per-subdir drift signal. **Drift basis is the
-      subdir's last-pushed content** — the most recent note in the window still carrying it — never the latest
-      note (against which a shipped-and-dropped subdir reads as local `edits` and would wrongly preserve every
-      retired subdir). No new backup work; frame removal as **local dematerialization of a projection**.
-
-    - **Two consumers** both take the new `origin/<base>` read + drift gate: `reconcileRetiredSubdirs`
-      (`commands/user/save-load.ts` — has `localFiles` + `recentNotes`) and `runRetiredSubdirDetection`
-      (`lib/session-init/retired-subdir-detection.ts` — the probe slot; needs a disk **content** manifest for the
-      drift gate, gated behind `shippedPresent.length > 0` to keep the cheap-probe contract).
-
-    - Build `test-first` (one behavior at a time):
-        - shipped (resolved via `origin/<base>`) AND no per-subdir drift → reconcile (remove)
-        - shipped AND per-subdir drift present → preserve (possible unsaved work)
-        - shipped AND still in the recent-notes window AND no drift → reconcile (the time-gating is gone)
-        - aged out of the window (no drift basis) AND shipped → reconcile (backup is the net)
-        - not shipped (abandoned / unknown / typo'd / renamed-away) → preserve (advisory, never auto-remove)
-
-    - Integration: reconcile + `.internal/` backup round-trip (removal recoverable).
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D4.
+- _Outcome:_ `shipped` now resolves against `origin/<base>` via a new `readShippedWorkUnitsFromRef`
+  (`completed-index.ts`, `git ls-tree -r` — branch-independent, fresh off the probe's existing base fetch); the
+  working-tree `readShippedWorkUnits` stays for the stale-worktree sweep. `planRetiredSubdirReconcile`
+  (`retired-subdir.ts`) swaps its recency conjunct for a `driftingSubdirs` set (`PreservedReason` →
+  `not-shipped` | `has-drift`), fed by a new pure `computeDriftingSubdirs` (`drift.ts`) whose basis is the most
+  recent note still carrying the subdir — never the latest note, against which a shipped-and-dropped subdir would
+  false-read as `edits`. Both consumers rewired: `reconcileRetiredSubdirs` (`save-load.ts`, resolves base from
+  config) and `runRetiredSubdirDetection` (`retired-subdir-detection.ts`, now serializes a disk content manifest
+  and takes an injected `computeDrift` so `lib/` needn't import `commands/`). Dead `collectNotesWuNames` removed.
+  Integration round-trip exercises ship-on-`origin/main` / drop-from-working-tree, proving the branch-independent
+  read + `.internal/` backup recovery. See `notes-stale-state-detect-and-pull.md` § D4.
 
 ### `[ ]` **3.3 `arc user open` non-TTY stale-subdir safety (D4)**
 

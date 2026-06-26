@@ -654,18 +654,32 @@ describe("user load — retired-subdir reconciliation", () => {
   beforeEach(async () => {
     tempDir = await initInTempRepo(DEFAULT_PROMPTS, "test-user");
     await makeCommit(tempDir, "initial commit");
+    await addBareRemote(tempDir);
   });
 
   afterEach(async () => {
     await cleanupTempDir(tempDir);
   });
 
-  /** Mark a WU shipped by materializing its `completed/<quarter>/NN_<slug>` archive dir. */
-  async function markShipped(slug: string, ordinal = "01", quarter = "2026-q2"): Promise<void> {
-    await mkdir(join(tempDir, ".arc", "completed", quarter, `${ordinal}_${slug}`), { recursive: true });
+  /**
+   * Mark a WU shipped by committing its `completed/<quarter>/NN_<slug>` archive to
+   * `origin/main` — the canonical shipped oracle the reconcile reads — then drop it
+   * from the working tree, mirroring a non-integrating machine whose local tree lags
+   * the base. Git tracks no empty dirs, so the archive carries a marker file.
+   */
+  async function markShippedOnOrigin(slug: string, ordinal = "01", quarter = "2026-q2"): Promise<void> {
+    const rel = join(".arc", "completed", quarter, `${ordinal}_${slug}`);
+    const noHooks = ["-c", "core.hooksPath=/dev/null"];
+    await mkdir(join(tempDir, rel), { recursive: true });
+    await writeFile(join(tempDir, rel, `meta-${slug}.md`), `# ${slug}`, "utf-8");
+    await execFileAsync("git", ["-C", tempDir, "add", rel]);
+    await execFileAsync("git", ["-C", tempDir, ...noHooks, "commit", "-m", `archive ${slug}`]);
+    await execFileAsync("git", ["-C", tempDir, "push", "origin", "HEAD:main"]);
+    await execFileAsync("git", ["-C", tempDir, "rm", "-r", rel]);
+    await execFileAsync("git", ["-C", tempDir, ...noHooks, "commit", "-m", `local: drop ${slug} archive`]);
   }
 
-  it("removes a shipped subdir absent from notes, leaving its content recoverable from the backup", async () => {
+  it("removes a shipped subdir with no drift, leaving its content recoverable from the backup", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -673,10 +687,11 @@ describe("user load — retired-subdir reconciliation", () => {
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
-    // A retired WU's subdir lingers locally; it never made it into a note and has shipped.
+    // A retired WU's subdir lingers locally; it never made it into a note (no drift
+    // basis) and has shipped on origin/main.
     await mkdir(join(userDir, "old-wu"), { recursive: true });
     await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
-    await markShipped("old-wu");
+    await markShippedOnOrigin("old-wu");
 
     const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
     const loaded = expectLoaded(result);
@@ -701,7 +716,7 @@ describe("user load — retired-subdir reconciliation", () => {
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
 
-    // Absent from notes but in-flight (not shipped) → must stay.
+    // Never shipped (absent from origin/main `completed/`) → must stay.
     await mkdir(join(userDir, "live-wu"), { recursive: true });
     await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
 
@@ -710,19 +725,41 @@ describe("user load — retired-subdir reconciliation", () => {
     expect(await readdir(userDir)).toContain("live-wu");
   });
 
-  it("preserves a shipped subdir still carried in the recent-notes window", async () => {
+  it("removes a shipped subdir matching its last-pushed note (in-notes no longer preserves)", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // The subdir is in the saved note (still live elsewhere) and has shipped.
+    // The subdir is carried in the saved note and matches it on disk — the recency
+    // window no longer preserves; shipped + no drift reconciles.
+    await mkdir(join(userDir, "done-wu"), { recursive: true });
+    await writeFile(join(userDir, "done-wu", "SESSION-NOTES.md"), "# Done WU", "utf-8");
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+    await markShippedOnOrigin("done-wu");
+
+    // A different current WU, so materialization can't re-create done-wu — its
+    // removal proves the reconcile acted rather than the load dropping it.
+    await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
+
+    expect(await readdir(userDir)).not.toContain("done-wu");
+  });
+
+  it("preserves a shipped subdir carrying unpushed local drift", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // Saved note is the drift basis; the subdir has shipped.
     await mkdir(join(userDir, "live-wu"), { recursive: true });
     await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await markShipped("live-wu");
+    await markShippedOnOrigin("live-wu");
 
-    // A different current WU, so materialization can't re-create live-wu — its
-    // survival proves the reconcile preserved it rather than the load restoring it.
+    // Local edit beyond the last-pushed basis → unsaved work at risk → preserve.
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU — local edit", "utf-8");
+
+    // A different current WU, so survival proves the reconcile preserved it rather
+    // than the load restoring it.
     await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
 
     expect(await readdir(userDir)).toContain("live-wu");

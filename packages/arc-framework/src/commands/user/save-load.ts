@@ -1,4 +1,4 @@
-import { readdir, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -8,7 +8,6 @@ import {
   appendRemovalTombstones,
   classifyOrphans,
   classifyUserSyncPath,
-  collectNotesWuNames,
   getUserInternalDir,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
@@ -19,7 +18,10 @@ import {
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
-import { readShippedWorkUnits } from "../../lib/work-unit/completed-index.js";
+import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
+import type { GitExec } from "../../lib/git/exec.js";
+import { computeDriftingSubdirs } from "./drift.js";
 import {
   listChangedNotePaths,
   notePathToCommit,
@@ -164,7 +166,7 @@ export async function runUserLoad(
       // just captured in the pre-load backup, so the removal is recoverable.
       // Runs before the stale-file scan so a reconciled subdir's files aren't
       // also reported as "preserved".
-      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, localFiles, recentNotes });
+      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
 
       staleWarnings = classifyOrphans({
         localFiles,
@@ -514,25 +516,33 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
 
 /**
  * Reconcile retired per-WU subdirs at load time: remove each present subdir
- * whose WU has shipped and is no longer carried in the recent-notes window.
- * Detection is {@link planRetiredSubdirReconcile}; the shipped set is the local
- * `completed/` archive. Removal is recoverable — the caller has already written
- * the pre-load backup capturing these files.
+ * whose WU has shipped (read from the `origin/<base>` `completed/` tree — the
+ * canonical, branch-independent oracle) and which carries no unpushed local
+ * drift. Detection is {@link planRetiredSubdirReconcile}; the drift gate is
+ * {@link computeDriftingSubdirs} over the disk manifest and the recent-notes
+ * window. Removal is recoverable — the caller has already written the pre-load
+ * backup capturing these files.
  *
  * @returns The set of reconciled (removed) subdir names.
  */
 async function reconcileRetiredSubdirs(params: {
   cwd: string;
   identity: string;
+  exec: GitExec;
   localFiles: Record<string, string>;
   recentNotes: RecentNote[];
 }): Promise<Set<string>> {
   const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
   if (localSubdirs.length === 0) return new Set();
 
-  const notesWuNames = collectNotesWuNames(params.recentNotes);
-  const shipped = await readShippedWorkUnits({ cwd: params.cwd, fs: { readdir } });
-  const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, notesWuNames, shipped });
+  const { settings } = await readConfigSettings(params.cwd);
+  const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
+  const driftingSubdirs = computeDriftingSubdirs({
+    localSubdirs,
+    diskManifest: { version: 2, files: params.localFiles },
+    recentNotes: params.recentNotes,
+  });
+  const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, shipped, driftingSubdirs });
 
   for (const subdir of reconcile) {
     await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });

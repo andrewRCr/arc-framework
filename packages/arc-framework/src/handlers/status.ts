@@ -45,6 +45,7 @@ import {
   runExtensionsStatus,
 } from "../commands/extensions.js";
 import {
+  computeDriftingSubdirs,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../commands/user.js";
@@ -406,13 +407,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           fs: { readdir: (path) => readdir(path) },
         });
       },
-      retiredSubdirs: (id) => runRetiredSubdirDetection({
-        cwd,
-        identity: id,
-        exec: gitExec,
-        readDir: io.readDir,
-        fs: { readdir: (path) => readdir(path) },
-      }),
+      retiredSubdirs: async (id) => {
+        const resolved = await resolvedSettingsP;
+        return runRetiredSubdirDetection({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
+          readDir: io.readDir,
+          readFile: io.readFile,
+          computeDrift: computeDriftingSubdirs,
+        });
+      },
       errandSweep: async (id) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);

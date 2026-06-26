@@ -45,7 +45,6 @@ export {
 export { projectManifest } from "./projection.js";
 
 export {
-  collectNotesWuNames,
   planRetiredSubdirReconcile,
   subdirsFromPaths,
   type PreservedReason,
