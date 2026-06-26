@@ -12,11 +12,11 @@
 - **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.2 — Inbound-pull decision primitive (Phase 1 complete)
-- **Next Task:** Task 2.1 — Local base-ref staleness probe + `baseBranchSync` slot (line ~75)
+- **Last Completed:** Task 2.2 — Config-gated base-ref ff-pull + orientation surfacing (Phase 2 complete)
+- **Next Task:** Task 3.1 — Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (line ~121)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 (Phase 2 — base-ref staleness, detect & pull, test-first)
+- **Next Action:** Begin Task 3.1 (Phase 3 — notes/disk drift & retired-subdir cleanup, D3; test-first)
 
 - **PR URL:** [none]
 - **Completed:** [none]
