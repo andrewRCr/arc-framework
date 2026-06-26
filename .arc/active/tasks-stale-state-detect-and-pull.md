@@ -154,22 +154,37 @@ surface (a CLI prompt) from the reconcile gate.
 
 - _Context:_ `planRetiredSubdirReconcile` (`lib/user-sync/retired-subdir.ts`) reconciles iff
   `!notesWuNames.has(subdir)` AND `shipped.has(subdir)` — where `shipped` is a `ReadonlySet<string>` from
-  `readShippedWorkUnits` scanning the **local** `.arc/completed/` archive (membership test; there is no
-  `isSlugShipped` symbol). A stale base ref → the slug is absent from `shipped` → preserve → recurring orphan
+  `readShippedWorkUnits` scanning the **working-tree** `.arc/completed/` archive (membership test; there is no
+  `isSlugShipped` symbol). On a non-integrating machine the feature branch's working tree lacks the sibling's
+  archival commit (it landed on `<base>`) → the slug is absent from `shipped` → preserve → recurring orphan
   warning. The delete (`removeStaleUserWuSubdir`, `rm -rf`) and the pre-load `.internal/<timestamp>` backup
   already ship — the gap is the gate.
 
 - **Strategies:** strategy-testing-methodology.md
 
+    - **Shipped read switches to `origin/<base>`, not the working tree.** Add a ref-backed shipped reader —
+      `git ls-tree -r --name-only origin/<base> -- .arc/completed/` (home it in `lib/git/ref-tree.ts` /
+      `completed-index.ts`; the recursive/path-scoped variant `readTreeEntries` lacks). The canonical "is it
+      shipped" oracle, kept fresh by the probe's existing base fetch and branch-independent. `readShippedWorkUnits`
+      (working-tree) stays for the stale-_worktree_ sweep (out of scope). This is the dominant fix for the
+      accumulation.
+
     - The reconcile gate becomes `shipped.has(subdir) && !hasUnpushedLocalDrift(subdir)` — the
-      `!notesWuNames.has(subdir)` conjunct gives way to the D-shared per-subdir drift signal, and Phase 2's
-      freshened index lets `shipped` resolve correctly (the dominant fix for the accumulation). No new backup
-      work; frame removal as **local dematerialization of a projection**, not a canonical delete.
+      `!notesWuNames.has(subdir)` conjunct gives way to the D-shared per-subdir drift signal. **Drift basis is the
+      subdir's last-pushed content** — the most recent note in the window still carrying it — never the latest
+      note (against which a shipped-and-dropped subdir reads as local `edits` and would wrongly preserve every
+      retired subdir). No new backup work; frame removal as **local dematerialization of a projection**.
+
+    - **Two consumers** both take the new `origin/<base>` read + drift gate: `reconcileRetiredSubdirs`
+      (`commands/user/save-load.ts` — has `localFiles` + `recentNotes`) and `runRetiredSubdirDetection`
+      (`lib/session-init/retired-subdir-detection.ts` — the probe slot; needs a disk **content** manifest for the
+      drift gate, gated behind `shippedPresent.length > 0` to keep the cheap-probe contract).
 
     - Build `test-first` (one behavior at a time):
-        - shipped (post-freshen) AND no per-subdir drift → reconcile (remove)
+        - shipped (resolved via `origin/<base>`) AND no per-subdir drift → reconcile (remove)
         - shipped AND per-subdir drift present → preserve (possible unsaved work)
         - shipped AND still in the recent-notes window AND no drift → reconcile (the time-gating is gone)
+        - aged out of the window (no drift basis) AND shipped → reconcile (backup is the net)
         - not shipped (abandoned / unknown / typo'd / renamed-away) → preserve (advisory, never auto-remove)
 
     - Integration: reconcile + `.internal/` backup round-trip (removal recoverable).
@@ -195,6 +210,46 @@ surface (a CLI prompt) from the reconcile gate.
         - shipped subdir → resolved by the reconcile, no prompt
         - unresolvable subdir, TTY → default option is **keep** (never default-destructive)
         - unresolvable subdir, non-TTY → auto-skip to keep (never hang, never abort-on-cancel)
+
+### `[ ]` **3.4 Session-init reconcile trigger — graceful without a manual pull (D4)**
+
+- _Goal:_ A non-integrating machine's retired subdir is reconciled at session-init under the developer's existing
+  pull policy, not only when a notes pull happens to fire — so the cleanup is graceful for the no-manual-pull path,
+  not just for notes-stale sessions.
+
+- _Context:_ The reconcile (`reconcileRetiredSubdirs`) runs only inside `runUserLoad` (`commands/user/save-load.ts`),
+  which session-init dispatches via the **notes-load** channel — gated on `loadNeeded` (a notes-driven signal). But
+  a subdir going retired is a **base** event (a sibling shipped), orthogonal to notes freshness: a machine with
+  current notes detects the candidate (the `retiredSubdirs` probe slot) and warns (Step 6), yet never pulls → never
+  reconciles → the warning recurs. The remediation is wired to the wrong channel's trigger.
+
+- **Strategies:** strategy-testing-methodology.md
+
+    - **Reuse `session.init_load.notes`** (no new config axis): `always` → auto-reconcile, `prompt` → offer,
+      `manual` → warn-only (today's behavior). Both are "may init mutate my user tree," and the reconcile already
+      runs inside `arc user load`.
+
+    - **Probe slot enrichment** — `retiredSubdirs` gains `recommendedAction` / `recommendedPromptText` mirroring the
+      notes-load channel shape (`commands/status/run.ts` slot + `lib/session-init/recommended-action.ts`), resolved
+      against `session.init_load.notes` × candidate presence.
+
+    - **Dispatch broadening** — `session-init.md` (both copies — Framework two-copy file) Step 2 notes-load dispatch
+      fires `arc user load` when `loadNeeded` **OR** retired candidates are present; Step 1 table + Step 6 updated to
+      reflect that init may now reconcile under policy (the "read-only at init, removal only at load/pull" note is
+      superseded by the policy gate).
+
+    - Build `test-first` (one behavior at a time):
+        - candidates present, policy `always`, clean tree → reconcile fires at init (via `arc user load`)
+        - candidates present, policy `always`, **dirty** tree → degrade to offer (mirror the notes-load dirty guard)
+        - candidates present, policy `prompt` → offer, no auto-run
+        - candidates present, policy `manual` → warn only (Step 6), no run
+        - no candidates → no dispatch regardless of policy
+        - `loadNeeded` already true (notes-stale) → single `arc user load` covers both (no double-run)
+
+    - Integration: session-init → base fetch → candidate detection → policy-gated reconcile → backup round-trip, on
+      a non-integrating-machine fixture with current notes.
+
+    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D4.
 
 ## **Phase 4:** `plan/`-orphan sweep (D2)
 

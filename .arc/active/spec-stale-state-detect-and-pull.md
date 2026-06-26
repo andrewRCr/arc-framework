@@ -124,9 +124,11 @@ than diverging. Surface `baseBranchSync` in orientation when behind.
   rare, a real problem) → refuse + surface, never auto-resolve;
 - dirty tree → refuse + surface (no auto-stash by default).
 
-**Side effect.** This probe **freshens the lifecycle/`completed/` index** that D4's reconcile resolves against,
-so the reconcile trusts current `shipped` state. The freshen is storage-abstract ("make the local
-materialization current"), not a baked-in `git pull origin main`.
+**Side effect.** Freshening the local `<base>` ref keeps the developer's base current (base hygiene), but it is
+**not** the mechanism D4's reconcile depends on: a base ff-pull updates the `<base>` *ref*, not the feature
+branch's working-tree `completed/`, so a working-tree scan would still read stale. D4 instead resolves `shipped`
+directly against **`origin/<base>`** (the canonical shipped oracle, already fetched by this probe) — storage-abstract,
+no working-tree dependency.
 
 #### D2. `plan/`-orphan sweep
 
@@ -179,25 +181,40 @@ removal. Built once; both consume it. This replaces D4's crude recency-window co
 `arc user load` (which `arc user pull` runs) writes a pre-load whole-manifest backup to `.internal/<timestamp>.json`
 (`save-load.ts`), then `reconcileRetiredSubdirs` removes each qualifying subdir via `removeStaleUserWuSubdir`
 (`rm -rf`) — recoverable from that backup. So neither the delete nor the backup is the gap; **the gate is.** A
-subdir is removed only when `isSlugShipped(slug)` (which reads the **local** `completed/` archive) **and** it is
-absent from the recent-notes window. It **under-removes** two ways:
+subdir is removed only when `isSlugShipped(slug)` (which reads the **working-tree** `completed/` archive) **and**
+it is absent from the recent-notes window. It **under-removes** two ways:
 
-1. **Stale local index (dominant).** `readShippedWorkUnits` scans the local `.arc/completed/` archive. On a
-   machine that does not run integrations, its local base ref is behind `origin` (D1), so its `completed/` lacks
-   the shipped WU's entry → `isSlugShipped` returns `false` → the subdir is **preserved**, and the
-   `grouped-retirement` orphan warning recurs every pull. This is the observed accumulation: a non-integrating
-   machine never resolves its retired subdirs because its archive is stale.
+1. **Stale working-tree index (dominant).** `readShippedWorkUnits` scans the **working-tree** `.arc/completed/`.
+   On a machine that does not run integrations, the feature branch's working tree lacks the sibling's archival
+   commit (it landed on `<base>`, not the branch), so `isSlugShipped` returns `false` → the subdir is
+   **preserved**, and the `grouped-retirement` orphan warning recurs every pull. The observed accumulation: a
+   non-integrating machine never resolves its retired subdirs because its working-tree archive is stale — and a
+   base ff-pull does **not** fix it (it updates the ref, not the branch's working tree).
 2. **Recency-window lag.** The `absent-from-recent-notes` conjunct holds a shipped subdir until it ages out of
    the window — a crude proxy for "no unsaved local work here."
 
-**Two changes:**
+**Three changes:**
 
-1. **Freshen the local index first** (D1's side-effect): the base-ref ff-pull brings `completed/` current so
-   `isSlugShipped` resolves correctly — the dominant fix for the accumulation above. Storage-abstract — today the
-   base pull; under the backend, the `.arc/`-store sync (do not bake `git pull origin main` into the precondition).
-2. **Replace the recency-window conjunct with D-shared's drift signal** — reconcile iff `isSlugShipped(slug)`
-   **and not** `hasUnpushedLocalDrift(subdir)`. Removes the residual time-gating while keeping the cross-machine
-   unsaved-work safety directly rather than by recency proxy.
+1. **Resolve `shipped` against `origin/<base>`, not the working tree.** Give the retired-subdir path a ref-backed
+   shipped read — `git ls-tree -r --name-only origin/<base> -- .arc/completed/` — the canonical "is it shipped"
+   oracle, kept current by the probe's existing base fetch and independent of which branch is checked out. This is
+   the dominant fix for the accumulation. The stale-*worktree* sweep keeps its working-tree read (out of scope —
+   its parallel staleness is captured separately). Storage-abstract: under the backend, the store's shipped query
+   replaces the `ls-tree` — do not bake `git pull origin main` into the precondition.
+2. **Replace the recency-window conjunct with D-shared's drift signal** — reconcile iff shipped **and not**
+   `hasUnpushedLocalDrift(subdir)`. Removes the residual time-gating while keeping the cross-machine unsaved-work
+   safety directly rather than by recency proxy. The drift basis is the subdir's **last-pushed content** — the
+   most recent note in the window still carrying it — never the latest note (against which a shipped-and-dropped
+   subdir reads as local `edits` and would wrongly preserve every retired subdir); aged out of the window → no
+   basis → reconcile (the backup is the net).
+3. **Trigger the reconcile without a manual pull.** Today the reconcile runs only inside `arc user load` / `pull`,
+   so a non-integrating machine with already-current notes *detects* the retired subdir (and warns) but never
+   removes it — the cleanup rides the *notes* channel while the staleness is driven by *base*. Broaden the
+   session-init notes-load dispatch to fire `arc user load` (which runs the reconcile + backup) when `loadNeeded`
+   **OR** retired candidates are present, under the existing `session.init_load.notes` policy (`always` →
+   auto-reconcile, `prompt` → offer, `manual` → warn-only, today's behavior). The `retiredSubdirs` probe slot
+   gains `recommendedAction` / `recommendedPromptText` mirroring the notes-load channel. Detection and remediation
+   read the same `origin/<base>` oracle, so they cannot disagree.
 
 No backup work is needed — the pre-load timestamped backup already makes removal reversible.
 
@@ -286,6 +303,17 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
 - **Drift-signal gate (chosen) vs. the recency-window conjunct** for D4. The recency window is a *proxy* for
   "no unsaved local work here" that lags reconciliation by the window length. The drift signal answers the real
   question directly and immediately, removing the time-gating while strictly preserving the unsaved-work safety.
+- **`origin/<base>` shipped oracle (chosen) vs. local `<base>` vs. the working-tree archive** for D4's `shipped`
+  read. The working-tree scan is the current bug — stale on any branch but the integrating one. Local `<base>` is
+  fresh only when something freshened it (Phase 2, config-gated), so it couples the reconcile's correctness to
+  that having run. `origin/<base>` is the canonical "is it shipped" truth and is kept current by the probe's
+  existing base fetch and any routine `git pull`, so the reconcile is correct without depending on a manual pull
+  or on Phase 2. Fails safe either way (stale/absent ref → preserve, never over-remove).
+- **Reconcile triggered at session-init (chosen) vs. notes-channel passenger only.** Leaving the reconcile to fire
+  only inside `arc user load` / `pull` couples cleanup to the *notes* channel, but a retired subdir is a *base*
+  event — so a current-notes machine warns forever and never cleans. Firing the existing load path on a
+  base-driven candidate signal (reusing `session.init_load.notes`, not a new config axis) makes the cleanup
+  graceful for the no-manual-pull path while preserving the policy semantics the dev already set.
 - **Shipped-only auto-remove + `.internal/` backup (chosen) vs. broad cleanup / no backup.** Gating on
   positively-`shipped` makes `abandoned ≡ nonexistent` resolve to advisory (never auto-removed), and the backup
   makes the auto-path reversible — the two together let the delete run eagerly without risking real work.
@@ -300,9 +328,10 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
 
 - **Security.** Consumer-side only: C1 *reads* the sync-state ref (the random-UUID `machineId` that keeps machine
   names out of a fetchable ref is the producer's concern). No new secret-bearing surface.
-- **Performance.** Detection is network-free where it can be: D4 resolution reads `completed/`; D1 adds one ref
-  comparison at init; C1 reads one ref. The inbound pull (R1) is the only network action and is config-gated /
-  agent-safe. No per-init network cost is added on the default path beyond the existing fetch.
+- **Performance.** Detection is network-free where it can be: D4 resolution reads `origin/<base>` via one
+  `ls-tree` (off the probe's existing base fetch — no added network); D1 adds one ref comparison at init; C1 reads
+  one ref. The inbound pull (R1) is the only network action and is config-gated / agent-safe. No per-init network
+  cost is added on the default path beyond the existing fetch.
 - **Testing.** Unit: the `hasUnpushedLocalDrift` predicate across the `inspectDiskVsLocalSnapshot` direction
   matrix; the `baseBranchSync` state derivation; the R1 inbound decision matrix; the `arc user open` non-TTY
   branch. Integration: the D4 reconcile + `.internal/` backup round-trip; the D3 clean-arm surface/auto-load
@@ -317,9 +346,9 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
   config-gated; none gate the session.
 - **Forward-compat (`arc-backend` / storage-evolution).** The design is read-side and projection-aware:
   detection reads projection/manifest + lifecycle state (storage-agnostic, off raw-tree assumptions); D4 removal
-  is *local dematerialization of a projection*, not a canonical delete; the "freshen the index before
-  reconciling" step is storage-abstract (today D1's base pull; under the backend, the `.arc/`-store sync — do not
-  bake `git pull origin main` into the precondition); no blind shared-state write (any notes write reuses the
+  is *local dematerialization of a projection*, not a canonical delete; `shipped` resolves against the canonical
+  base ref (`origin/<base>` today via `ls-tree`; under the backend, the store's shipped query — do not bake
+  `git pull origin main` into the precondition); no blind shared-state write (any notes write reuses the
   version-checked path). `session.init_pull.base` is a property of the existing init-pull axis, not a new one.
 - **Coordination.** Soft edges, authored to compose regardless of land-order: `sync-handler-decomposition` (R1's
   inbound leg edits the sync matrix it relocates — author as a pure matrix-outcome); `user-sync-module-split`
@@ -336,9 +365,10 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
    swept.
 3. Notes/disk `mixed` / `missing` drift **surfaces on the clean arm** (not silently discarded); the
    active-WU-`SESSION-NOTES`-absent-on-disk sub-case **auto-loads**; benign drift does not false-positive.
-4. A shipped WU's orphaned user subdir is **auto-removed** (recoverable from the pre-load backup) once the local
-   index is freshened so it resolves as shipped and it carries no unpushed drift — **no accumulation on a
-   non-integrating machine**; a non-shipped / live / unresolvable subdir is **preserved**; **no agent hang and no
+4. A shipped WU's orphaned user subdir is **auto-removed** (recoverable from the pre-load backup) when it resolves
+   as shipped against `origin/<base>` and carries no unpushed drift — **no accumulation on a non-integrating
+   machine, and without requiring a manual pull** (session-init triggers the reconcile under
+   `session.init_load.notes`); a non-shipped / live / unresolvable subdir is **preserved**; **no agent hang and no
    default-delete** on the `arc user open` path.
 5. A **live** partial-push marker renders the **Aware** one-liner at session-init from the shipped payload,
    **falling silent** once the producer's liveness predicate reports fulfilled; **absent ref → silent**. (The
