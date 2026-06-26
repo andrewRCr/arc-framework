@@ -522,13 +522,51 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
 }
 
 /**
- * Reconcile retired per-WU subdirs at load time: remove each present subdir
- * whose WU has shipped (read from the `origin/<base>` `completed/` tree — the
- * canonical, branch-independent oracle) and which carries no unpushed local
- * drift. Detection is {@link planRetiredSubdirReconcile}; the drift gate is
+ * Resolve which present per-WU subdirs are reconcilable: those whose WU has
+ * shipped (read from the `origin/<base>` `completed/` tree — the canonical,
+ * branch-independent oracle) and which carry no unpushed local drift. Detection
+ * is {@link planRetiredSubdirReconcile}; the drift gate is
  * {@link computeDriftingSubdirs} over the disk manifest and the recent-notes
- * window. Removal is recoverable — the caller has already written the pre-load
- * backup capturing these files.
+ * window. Pure planning — performs no removal, so a caller can gate its backup
+ * on a non-empty result.
+ *
+ * @returns The reconcilable subdir names, in `localFiles` subdir order.
+ */
+async function resolveReconcilableSubdirs(params: {
+  cwd: string;
+  exec: GitExec;
+  localFiles: Record<string, string>;
+  recentNotes: RecentNote[];
+}): Promise<string[]> {
+  const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
+  if (localSubdirs.length === 0) return [];
+
+  const { settings } = await readConfigSettings(params.cwd);
+  const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
+  const driftingSubdirs = computeDriftingSubdirs({
+    localSubdirs,
+    diskManifest: { version: 2, files: params.localFiles },
+    recentNotes: params.recentNotes,
+  });
+  return planRetiredSubdirReconcile({ localSubdirs, shipped, driftingSubdirs }).reconcile;
+}
+
+/** Recursively remove each reconciled subdir; returns the removed set. */
+async function removeReconciledSubdirs(params: {
+  cwd: string;
+  identity: string;
+  reconcile: readonly string[];
+}): Promise<Set<string>> {
+  for (const subdir of params.reconcile) {
+    await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
+  }
+  return new Set(params.reconcile);
+}
+
+/**
+ * Reconcile retired per-WU subdirs at load time — resolve the reconcilable set
+ * ({@link resolveReconcilableSubdirs}) and remove each. Removal is recoverable:
+ * the caller has already written the pre-load backup capturing these files.
  *
  * @returns The set of reconciled (removed) subdir names.
  */
@@ -539,33 +577,26 @@ async function reconcileRetiredSubdirs(params: {
   localFiles: Record<string, string>;
   recentNotes: RecentNote[];
 }): Promise<Set<string>> {
-  const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
-  if (localSubdirs.length === 0) return new Set();
-
-  const { settings } = await readConfigSettings(params.cwd);
-  const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
-  const driftingSubdirs = computeDriftingSubdirs({
-    localSubdirs,
-    diskManifest: { version: 2, files: params.localFiles },
+  const reconcile = await resolveReconcilableSubdirs({
+    cwd: params.cwd,
+    exec: params.exec,
+    localFiles: params.localFiles,
     recentNotes: params.recentNotes,
   });
-  const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, shipped, driftingSubdirs });
-
-  for (const subdir of reconcile) {
-    await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
-  }
-  return new Set(reconcile);
+  return removeReconciledSubdirs({ cwd: params.cwd, identity: params.identity, reconcile });
 }
 
 /**
- * Back up the local user tree, then reconcile its retired per-WU subdirs — the
- * reversible cleanup `arc user open` runs *before* its stale-subdir prompt, so a
- * shipped, drift-free subdir is removed (recoverable from the backup) with no
- * confirm: its shipped status is proof, not a decision the operator must make.
+ * Reconcile the local user tree's retired per-WU subdirs — the reversible cleanup
+ * `arc user open` runs *before* its stale-subdir prompt, so a shipped, drift-free
+ * subdir is removed (recoverable from the backup) with no confirm: its shipped
+ * status is proof, not a decision the operator must make.
  *
- * The same backup-then-reconcile the load path performs inline, minus the note
+ * The same reconcile the load path performs inline, minus the note
  * materialization — usable from any entry point that holds only `cwd` / `io` /
- * `identity`. No-ops cleanly when the user dir is absent or empty.
+ * `identity`. The pre-removal backup is written only once a removal is actually
+ * pending, so a no-op open (nothing reconcilable) leaves no snapshot behind.
+ * No-ops cleanly when the user dir is absent or empty.
  *
  * @returns Names of the reconciled (removed) subdirs; empty when nothing qualified.
  */
@@ -586,13 +617,18 @@ export async function reconcileRetiredSubdirsStandalone(params: {
   const localFiles = localManifest.files;
   if (Object.keys(localFiles).length === 0) return new Set();
 
+  const recentNotes = await readRecentUserNotes(io.exec, identity);
+  const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles, recentNotes });
+  if (reconcile.length === 0) return new Set();
+
+  // Back up only once a removal is pending: the snapshot exists to make the
+  // reconcile recoverable, so a no-op open writes nothing.
   const internalDir = getUserInternalDir(cwd, identity);
   await ensureDir(internalDir, io.mkdir);
   await io.writeFile(join(internalDir, createTimestampedBackupFilename()), JSON.stringify(localManifest));
   await pruneTimestampedBackups(internalDir, io.readDir);
 
-  const recentNotes = await readRecentUserNotes(io.exec, identity);
-  return reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
+  return removeReconciledSubdirs({ cwd, identity, reconcile });
 }
 
 /**

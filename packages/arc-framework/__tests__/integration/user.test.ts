@@ -862,6 +862,24 @@ describe("user load — retired-subdir reconciliation", () => {
     expect(reconciled.has("live-wu")).toBe(false);
     expect(await readdir(userDir)).toContain("live-wu");
   });
+
+  it("reconcileRetiredSubdirsStandalone writes no backup when nothing reconciles", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Not shipped → nothing reconciles → the recoverable-removal backup is never needed.
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+
+    const reconciled = await reconcileRetiredSubdirsStandalone({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(reconciled.size).toBe(0);
+    const backups = await listBackupFiles(userDir);
+    expect(backups.some((name) => /^\.pre-load-backup-.*\.json$/u.test(name))).toBe(false);
+  });
 });
 
 describe("user save/load — subdirectory support", () => {
