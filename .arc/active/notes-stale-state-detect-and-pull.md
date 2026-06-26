@@ -39,25 +39,26 @@ are the stable anchors (line numbers drift).
       already runs.
     - `classifyOrphans` (`lib/user-sync/orphan-classification.ts`) → `renderOrphanWarning` emits the per-subdir
       `grouped-retirement` warning — the recurring "stale subdir" message on a machine that under-removes.
-- `lib/user-sync/retired-subdir.ts` — `planRetiredSubdirReconcile`: reconcile iff `!notesWuNames.has(subdir)`
-  **and** `shipped.has(subdir)`. Today `shipped` = `readShippedWorkUnits` scanning the **working-tree**
-  `.arc/completed/` — so on a non-integrating machine the feature branch's tree lacks the sibling's archival commit
-  → the slug is absent from `shipped` → preserve → accumulation (the dominant defect).
-    - **Fix (3.2):** resolve `shipped` against **`origin/<base>`** via a ref-backed read
+- `lib/user-sync/retired-subdir.ts` — `planRetiredSubdirReconcile`: reconcile iff the drift gate (below) passes
+  **and** `shipped.has(subdir)`. The original `shipped` read scanned the **working-tree** `.arc/completed/` — so on
+  a non-integrating machine the feature branch's tree lacked the sibling's archival commit → the slug was absent
+  from `shipped` → preserve → accumulation (the defect this WU closed).
+    - **Shipped read:** `shipped` resolves against **`origin/<base>`** via a ref-backed read
       (`git ls-tree -r --name-only origin/<base> -- .arc/completed/`) — the canonical, branch-independent oracle the
       probe already fetches. A base ff-pull does **not** fix the working-tree read (it updates the ref, not the
       branch's tree), so the read must target the ref directly, not the working tree. New recursive/path-scoped
       reader homes in `lib/git/ref-tree.ts` (`readTreeEntries` is shallow) / `lib/work-unit/completed-index.ts`;
       `readShippedWorkUnits` stays for the stale-worktree sweep (out of scope).
-    - **Gate (3.2):** `!notesWuNames.has` → `!hasUnpushedLocalDriftForScope(disk, basis, {subdir})`, basis = the
+    - **Drift gate:** the recency conjunct `!notesWuNames.has` became
+      `!hasUnpushedLocalDriftForScope(disk, basis, {subdir})`, basis = the
       most recent in-window note still carrying the subdir (never the latest note). Two consumers:
       `reconcileRetiredSubdirs` and `runRetiredSubdirDetection` (the latter must serialize a disk content manifest,
       gated behind `shippedPresent.length > 0`).
 - `commands/user/open.ts` — `removeStaleUserWuSubdir`: `rm(dir, { recursive: true, force: true })`, no per-call
   backup (relies on the pre-load whole-manifest backup above). Shared by the reconcile and the `arc user open`
   prompt.
-- **Trigger (3.5):** the reconcile runs only inside `runUserLoad`, dispatched by session-init's notes-load channel
-  (`loadNeeded`-gated). Broaden the dispatch to fire `arc user load` on `loadNeeded` **OR** retired candidates,
+- **Dispatch:** the reconcile runs only inside `runUserLoad`, dispatched by session-init's notes-load channel
+  (`loadNeeded`-gated). The dispatch fires `arc user load` on `loadNeeded` **OR** retired candidates,
   under the existing `session.init_load.notes` policy — so a current-notes machine still reconciles. Slot enrichment:
   `retiredSubdirs` gains `recommendedAction` / `recommendedPromptText` (`commands/status/run.ts`,
   `lib/session-init/recommended-action.ts`); dispatch + Step 1/6 edits in `session-init.md` (both copies).
