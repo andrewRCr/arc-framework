@@ -115,25 +115,44 @@ function isNonEmptyString(value: unknown): value is string {
 export type MarkerLiveness = "fulfilled" | "live";
 
 /**
- * Evaluate a marker's liveness by comparing its `intent` against origin's actual
- * notes-ref tip — no clock, purely a ref comparison.
+ * Resolves whether `ancestor` is reachable from `descendant` in commit history —
+ * the git-ancestry primitive {@link evaluateMarkerLiveness} delegates to. Injected
+ * rather than called directly so the predicate keeps its fulfilled-vs-live decision
+ * while the git invocation stays at the IO boundary, and a unit test substitutes a
+ * deterministic fake. Production wires the existing `isContainedIn` reachability check.
+ */
+export type AncestryResolver = (ancestor: string, descendant: string) => Promise<boolean>;
+
+/**
+ * Evaluate a marker's liveness by testing whether origin's notes-ref tip has
+ * *reached* the recorded intent — the intent commit being an ancestor of, or
+ * equal to, the tip.
  *
  * The intent is the notes-ref commit the push was advancing origin toward;
- * fulfillment is exactly origin's tip having reached it. A `null` tip (origin
- * has no notes ref) has reached nothing, so the intent is still `live`. The
- * abandoned-machine case comparison cannot close — origin never reaches the
- * intent because the machine never returned — is the TTL backstop's concern, not
- * this predicate's.
+ * fulfillment is origin's tip carrying that commit in its history, not the tip
+ * matching it exactly. A later push from any machine advances the notes ref to a
+ * descendant of the intent — the intent's notes have still landed, so the marker
+ * must self-invalidate; an exact-equality test would wrongly keep it `live` until
+ * the TTL whenever a sibling pushed afterward. The exact-match fast path
+ * short-circuits the common self-case (this machine's own freshly-pulled push,
+ * tip === intent) without a git call. A `null` tip (origin has no notes ref) has
+ * reached nothing, so the intent is still `live`. The abandoned-machine case the
+ * comparison cannot close — origin never reaches the intent because the machine
+ * never returned — is the TTL backstop's concern, not this predicate's.
  *
  * @param marker - The marker entry whose intent is evaluated.
  * @param notesRefTip - Origin's current notes-ref commit sha, or `null` when absent.
- * @returns `fulfilled` when the tip equals the intent, else `live`.
+ * @param isReachable - Resolves whether the intent is reachable from the tip.
+ * @returns `fulfilled` when the tip has reached the intent, else `live`.
  */
-export function evaluateMarkerLiveness(
+export async function evaluateMarkerLiveness(
   marker: SyncStateMarker,
   notesRefTip: string | null,
-): MarkerLiveness {
-  return notesRefTip !== null && notesRefTip === marker.intent ? "fulfilled" : "live";
+  isReachable: AncestryResolver,
+): Promise<MarkerLiveness> {
+  if (notesRefTip === null) return "live";
+  if (notesRefTip === marker.intent) return "fulfilled";
+  return (await isReachable(marker.intent, notesRefTip)) ? "fulfilled" : "live";
 }
 
 /**

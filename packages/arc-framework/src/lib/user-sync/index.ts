@@ -95,6 +95,7 @@ export {
   writeSyncStateMarker,
   type SyncStateMarker,
   type MarkerLiveness,
+  type AncestryResolver,
 } from "./sync-state-marker.js";
 
 export {
