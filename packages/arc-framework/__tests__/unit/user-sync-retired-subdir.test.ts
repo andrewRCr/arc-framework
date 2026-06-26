@@ -1,9 +1,8 @@
 /**
  * Unit tests for `planRetiredSubdirReconcile` — the pure retired-subdir
- * reconciliation decision. A present per-WU subdir is reconcilable only when it
- * is absent from the recent-notes window AND its WU has shipped; the shipped
- * gate is what keeps a no-current-WU session from mass-reconciling in-flight
- * subdirs.
+ * reconciliation decision. A present per-WU subdir is reconcilable only when its
+ * WU has shipped and it carries no unpushed local drift; the shipped gate is
+ * what keeps a no-current-WU session from mass-reconciling in-flight subdirs.
  */
 
 import { describe, it, expect } from "vitest";

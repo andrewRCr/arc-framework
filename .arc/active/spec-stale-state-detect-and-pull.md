@@ -375,8 +375,8 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
   base-ref pull under each `session.init_pull.base` value.
 - **Migration / rollout.** New config key `session.init_pull.base` defaults to **`prompt`**, matching the shipped
   `session.init_pull.{worktree,notes}` defaults — no behavior change without opt-in beyond the new
-  surface-in-orientation. The `baseBranchSync` slot is additive to the probe envelope. The `.internal/` backup
-  changes the existing reconcile from irreversible to reversible — strictly safer, no migration needed.
+  surface-in-orientation. The `baseBranchSync` slot is additive to the probe envelope. The reconcile already
+  uses the pre-load `.internal/` backup, so this rollout reuses an existing recovery path and needs no migration.
 - **User-facing impact.** Orientation gains advisory lines (base-ref staleness, `plan/`-orphans, notes/disk
   drift, the Aware marker) and offers (base-ref ff-pull, `plan/ -d`, retired-subdir cleanup). All advisory or
   config-gated; none gate the session.

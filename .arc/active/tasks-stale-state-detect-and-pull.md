@@ -58,7 +58,7 @@ unit-testable functions; the impure execution shell wraps the inbound decision. 
 
 _Purpose:_ Close the silent-base-drift class: detect that local `<base>` is behind `origin/<base>` and give a
 config-gated, fast-forward-only path to current. Establishes the `baseBranchSync` envelope slot and the
-`session.init_pull.base` config channel, and triggers the `completed/`-index freshen Phase 3's D4 relies on.
+`session.init_pull.base` config channel.
 
 _Design decisions:_ `baseBranchSync` (local-`<base>`-vs-`origin/<base>`) is a sibling slot to the shipped
 `baseDistance` slot (HEAD-vs-`origin/<base>`), distinct and complementary; name and config namespace align with
@@ -105,8 +105,8 @@ the `baseDistance` channel so the two read as one family.
           (consistent with the worktree/notes channels); the `executeInboundPull` non-checkout execution seam is
           deferred to the `arc sync` leg (Phase 5). e2e covers the envelope recommendation under each
           `session.init_pull.base` value (incl. the dirty-tree refusal).
-        - _Note:_ The base-ref ff-pull is intended to **freshen the local `completed/` index** (storage-abstract);
-          Task 3.2's `shipped`-set resolution depends on this — to revisit at Phase 3.
+        - _Note:_ D4 resolves its `shipped` set directly from `origin/<base>` (no local `completed/` freshen
+          needed) — settled at Phase 3.
 
 ## **Phase 3:** Notes/disk drift & retired-subdir cleanup (D3, D4)
 
