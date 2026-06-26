@@ -13,6 +13,7 @@ import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../git/base-distance.js";
 import type { BaseBranchSyncStatusResult } from "../git/base-branch-sync.js";
+import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 
@@ -183,20 +184,23 @@ export function inferBaseDistance(
  * Compose the base-branch-sync channel recommendation — the silently-stale
  * local base advisory and its config-gated fast-forward offer.
  *
- * State × config × dirty-tree table:
- * - `remote-ahead` (behind & fast-forwardable), clean tree:
- *     - `always` → action=pull, prompt text empty (auto-fast-forward).
- *     - `prompt` → action=prompt, fast-forward offer text.
- *     - `manual` → action=surface, advisory text (no offer).
- * - `remote-ahead`, dirty tree → action=surface, dirty-refusal advisory (no
- *   auto-stash by default; the fast-forward is skipped regardless of policy).
- * - `diverged` (local base carries commits absent upstream) → action=surface,
- *   not-fast-forwardable advisory. Never auto-resolved, regardless of policy.
- * - `clean` / `local-ahead` / any degraded state → action=skip.
+ * Delegates the state × policy × dirty-tree decision to the shared
+ * {@link decideInboundPull} matrix (the one inbound-pull primitive both this
+ * channel and the `arc sync` leg route through), then maps its outcome to the
+ * session-init channel vocabulary and composes the advisory text:
  *
- * State derivation is the probe's job; this maps that state plus the config
- * policy and dirty-tree flag to an action. Returns skip when `baseBranchSync`
- * is null (slot failed to resolve).
+ * - `ff-pull` → action=pull (auto-fast-forward; `always` on a clean behind base).
+ * - `prompt` → action=prompt, with the fast-forward offer text.
+ * - `refuse` (dirty tree) → action=surface, dirty-refusal advisory.
+ * - `block` (diverged base) → action=surface, not-fast-forwardable advisory.
+ * - `surface` → action=surface with the behind advisory when the base is merely
+ *   behind under `manual`; action=skip for degraded states (no actionable text).
+ * - `no-op` (base current or only ahead) → action=skip.
+ *
+ * `isTty` is fixed `true`: the session-init agent always owns the prompt
+ * interactively, so the matrix's non-TTY auto-skip is the `arc sync` automated
+ * path's concern, not this channel's. Returns skip when `baseBranchSync` is null
+ * (slot failed to resolve).
  */
 export function inferBaseBranchSync(
   baseBranchSync: BaseBranchSyncStatusResult | null,
@@ -206,44 +210,41 @@ export function inferBaseBranchSync(
   if (baseBranchSync === null) {
     return { recommendedAction: "skip", recommendedPromptText: "" };
   }
-  switch (baseBranchSync.state) {
-    case "remote-ahead":
-      // Behind & fast-forwardable. A dirty tree refuses the fast-forward (no
-      // auto-stash); surface the staleness without an action offer.
-      if (dirty.state === "dirty") {
-        return {
-          recommendedAction: "surface",
-          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, true),
-        };
-      }
-      if (policy === "always") {
-        return { recommendedAction: "pull", recommendedPromptText: "" };
-      }
-      if (policy === "prompt") {
-        return {
-          recommendedAction: "prompt",
-          recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync, false)}\nFast-forward base?`,
-        };
-      }
+  const decision = decideInboundPull({
+    compareState: baseBranchSync.state,
+    tree: dirty.state,
+    policy,
+    isTty: true,
+  });
+  switch (decision) {
+    case "ff-pull":
+      return { recommendedAction: "pull", recommendedPromptText: "" };
+    case "prompt":
+      return {
+        recommendedAction: "prompt",
+        recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync, false)}\nFast-forward base?`,
+      };
+    case "refuse":
       return {
         recommendedAction: "surface",
-        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, false),
+        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, true),
       };
-    case "diverged":
-      // Local base carries commits absent from the remote — not
-      // fast-forwardable. Surface and refuse regardless of policy.
+    case "block":
       return {
         recommendedAction: "surface",
         recommendedPromptText: composeBaseBranchSyncDivergedText(baseBranchSync),
       };
-    case "clean":
-    case "local-ahead":
-    case "skipped":
-    case "no-upstream":
-    case "detached-head":
-    case "no-remote":
-    case "branch-gone":
-    case "remote-unavailable":
+    case "surface":
+      // A behind base under `manual` surfaces the advisory; every degraded state
+      // also resolves to `surface` here but carries no actionable staleness, so
+      // it skips.
+      return baseBranchSync.state === "remote-ahead"
+        ? {
+          recommendedAction: "surface",
+          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, false),
+        }
+        : { recommendedAction: "skip", recommendedPromptText: "" };
+    case "no-op":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }
 }

@@ -773,6 +773,86 @@ describe("runSessionInitStatus — base-distance slot", () => {
   });
 });
 
+describe("runSessionInitStatus — base-branch-sync slot", () => {
+  function configWithBasePolicy(policy: string): ConfigSessionInitResult {
+    const base = configSessionInit();
+    return { ...base, settings: { ...base.settings, "session.init_pull.base": policy } };
+  }
+
+  it("enriches a behind base with a fast-forward prompt under the default `prompt` policy", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", ahead: 0, behind: 3 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.baseBranchSync).toHaveBeenCalledTimes(1);
+    expect(result.baseBranchSync.ok).toBe(true);
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.state).toBe("remote-ahead");
+      expect(result.baseBranchSync.value.recommendedAction).toBe("prompt");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Fast-forward base?");
+    }
+  });
+
+  it("auto-fast-forwards a behind base under `always`", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("refuses the fast-forward on a dirty tree (surface, not pull)", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Working tree dirty");
+    }
+  });
+
+  it("surfaces a diverged base as not-fast-forwardable, never pull", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "diverged", ahead: 1, behind: 4 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("not fast-forwardable");
+    }
+  });
+
+  it("skips a base at parity", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "clean" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("skip");
+    }
+  });
+
+  it("preserves a probe failure as an error slot rather than rejecting the envelope", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => {
+        throw new Error("base-sync probe boom");
+      }),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseBranchSync.ok).toBe(false);
+    if (!result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.error.kind).toBe("runtime");
+    }
+  });
+});
+
 describe("runSessionInitStatus — diverged supersession downgrade", () => {
   it("downgrades the diverged reconcile to a lossless-reset offer on patch-equal supersession", async () => {
     const probes = sessionInitProbes({

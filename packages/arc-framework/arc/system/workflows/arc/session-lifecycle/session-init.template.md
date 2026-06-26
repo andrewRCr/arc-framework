@@ -33,6 +33,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state                                                                                                                                                                                                                                                          |
 | `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / branch-gone / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot. Also carries `value.identity` (`kind`: `primary` or `linked`, plus `path` when linked) — the physical worktree the session occupies, surfaced in orientation only when `linked`. In the `diverged` sub-state also carries `value.supersession` (`{superseded, supersededCommits, novelCommits}`, else `null`) — patch-equal supersession of the local-ahead commits; when `superseded`, Step 6's diverged arm renders the lossless-reset downgrade |
 | `baseDistance`              | Base-distance state vs. `origin/<base>` — HEAD vs the configured `branch.base` (`value.state` reuses the worktree enum; `value.ahead` / `value.behind` / `value.base` populated when healthy). Carries `value.overlappingPaths` (branch-vs-base changed-path intersection, only when diverged) plus `value.recommendedAction` / `value.recommendedPromptText`. Advisory: `surface` (behind-base drift) or `skip`, never `pull`/`prompt`; surfaced in Step 6, never gates                                                                                                                                                                                                                                                                                                                                              |
+| `baseBranchSync`            | Base-branch-sync state — local `<base>` vs `origin/<base>` (`value.state` reuses the worktree enum; `value.ahead` / `value.behind` / `value.base` populated when healthy). The silently-stale-local-base surface, sibling to `baseDistance` (which measures HEAD vs `origin/<base>`). Carries `value.recommendedAction` / `value.recommendedPromptText` — config-gated by `session.init_pull.base`: `pull` / `prompt` drive the fast-forward freshen (`git fetch origin <base>:<base>`), `surface` the stale / dirty-refused / diverged advisory, `skip` a current base                                                                                                                                                                                                                                               |
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -264,6 +265,22 @@ matters, re-probe to confirm.
 (parity, branch-only-ahead, or any degraded state), never `pull` / `prompt`. Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
+
+**Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
+pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`:
+
+- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. This freshens a
+  non-checked-out ref (the base isn't checked out while on a feature branch), so it is a fetch-into-ref, not the
+  worktree channel's `git pull --ff-only`; it is fast-forward-only and git refuses a non-fast-forward, so a raced
+  divergence fails safe rather than merging.
+- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`.
+- `surface` — carry the state into Step 6's stale-base section (a behind base under `manual`, a dirty-tree
+  refusal, or a diverged base); no pull.
+- `skip` — the base is current or only ahead; no action.
+
+Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
+folds into `recommendedCombinedPrompt`.
 
 **Identity absent.** When `identity.identity === null`, the notes slot resolves to
 `recommendedAction: "skip"` with no `loadNeeded` field, so notes-pull and notes-load both skip.
@@ -612,6 +629,15 @@ tracked source documents the work.
 
   ```text
   **Base drift:** {baseDistance.value.recommendedPromptText}
+  ```
+
+- `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
+  policy, blocked by a dirty tree, or diverged from `origin/<base>`. Render the precomposed
+  `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` / `prompt` actions
+  fire in Step 2's base-branch-sync channel, not here.
+
+  ```text
+  **Stale base:** {baseBranchSync.value.recommendedPromptText}
   ```
 
 - `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:

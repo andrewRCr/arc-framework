@@ -78,17 +78,11 @@ the `baseDistance` channel so the two read as one family.
   config-gated `recommendedAction` / `recommendedPromptText` enrichment is 2.2's. State derivation is
   config-independent and covered by `base-branch-sync.test.ts`.
 
-### `[ ]` **2.2 `session.init_pull.base` config-gated ff-pull + orientation surfacing (D1 remediate, R1 consumer)**
+### `[x]` **2.2 `session.init_pull.base` config-gated ff-pull + orientation surfacing (D1 remediate, R1 consumer)**
 
 - _Goal:_ A returning machine sees a base-ref-staleness advisory line in orientation and, per the new
   `session.init_pull.base` config channel, gets a fast-forward-only path to current — auto-ff, prompt, or
   surface-only — built on the Phase 1 inbound-pull primitive.
-
-- _Context:_ `session.init_pull.base` is a third channel of the existing `session.init_pull.{worktree,notes}`
-  axis (same `recommendedAction` vocabulary), default `prompt`. Named `base` because `branch.base` is the
-  configurable term.
-
-- **Strategies:** strategy-configurability-architecture.md, strategy-package-project-sync.md
 
     - `[x]` **2.2.a `session.init_pull.base` config key + action mapping**
         - `session.init_pull.base` added across the config surface (`ConfigSettings` /
@@ -100,16 +94,19 @@ the `baseDistance` channel so the two read as one family.
           (never auto-resolved); `clean` / `local-ahead` / degraded → `skip`. Pure mapping, no consumer yet
           (wired in 2.2.b); covered in `recommended-action.test.ts` and `status-reader.test.ts`.
 
-    - `[ ]` **2.2.b Orientation advisory line + config-gated ff-pull action**
-        - Render the base-ref-staleness line in session-init's existing advisory tier; on the `pull` path invoke
-          the Phase 1 primitive (ff-only / block-on-diverged / refuse-on-dirty).
-        - **Two-surface edit:** the slot/action lives in the CLI (`commands/status/run.ts` envelope, the pull
-          action); the dispatch + rendering instructions edit `session-init.md` Step 2 (sync pulls) and Step 6
-          (advisory section) — Framework file, package source + `.arc/` mirror, adopter-facing register.
-        - _Note:_ The base-ref ff-pull **freshens the local `completed/` index** (storage-abstract — "make the
-          local materialization current," not a baked-in `git pull origin main`); Task 3.2's `shipped`-set
-          resolution depends on this.
-        - e2e: session-init base-ref pull under each `session.init_pull.base` value.
+    - `[x]` **2.2.b Orientation advisory line + config-gated ff-pull action**
+        - CLI: `runSessionInitStatus` now enriches the `baseBranchSync` slot (new
+          `SessionInitBaseBranchSyncValue` + `normalizeBaseBranchSyncPolicy`) with the config-gated
+          recommendation, and `inferBaseBranchSync` was refactored to **delegate to the shared
+          `decideInboundPull` matrix** (the cohort's one-inbound-pull-primitive contract) instead of its own
+          switch. Workflow (two-copy `session-init.md` + `.template.md`): Step 1 slot table row, a Step 2
+          "Base-branch-sync channel" dispatch (`pull` / `prompt` run `git fetch origin <base>:<base>` — a
+          non-checkout, ff-only freshen), and a Step 6 **Stale base** advisory. Pull is **agent-dispatched**
+          (consistent with the worktree/notes channels); the `executeInboundPull` non-checkout execution seam is
+          deferred to the `arc sync` leg (Phase 5). e2e covers the envelope recommendation under each
+          `session.init_pull.base` value (incl. the dirty-tree refusal).
+        - _Note:_ The base-ref ff-pull is intended to **freshen the local `completed/` index** (storage-abstract);
+          Task 3.2's `shipped`-set resolution depends on this — to revisit at Phase 3.
 
 ## **Phase 3:** Notes/disk drift & retired-subdir cleanup (D3, D4)
 

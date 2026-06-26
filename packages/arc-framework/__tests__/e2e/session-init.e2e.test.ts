@@ -14,7 +14,8 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
@@ -30,6 +31,17 @@ interface SessionInitEnvelope {
       resolution: string;
       sessionType: string | null;
       path: string | null;
+    };
+  };
+  baseBranchSync?: {
+    ok: boolean;
+    value?: {
+      state: string;
+      ahead: number;
+      behind: number;
+      base: string;
+      recommendedAction: string;
+      recommendedPromptText: string;
     };
   };
 }
@@ -140,5 +152,91 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
     expect(envelope.active.value?.sessionType).toBe("integration");
+  });
+});
+
+describe("session-init E2E — base-ref pull recommendation under session.init_pull.base", () => {
+  let tmpDir: string;
+  let bareDir: string;
+
+  /**
+   * Stand up a state where the local base ref (`main`) is one commit behind
+   * `origin/main` while HEAD sits on a feature branch — the silently-stale
+   * local base the `baseBranchSync` slot detects. Pushes two commits to a bare
+   * remote, then rewinds local `main` one commit behind the pushed tip.
+   */
+  async function setupStaleLocalBase(repo: string): Promise<void> {
+    const git = (args: string[]): Promise<unknown> => execFileAsync("git", args, { cwd: repo });
+    await git(["add", "-A"]);
+    await git(["commit", "--no-verify", "-m", "init"]);
+    bareDir = await mkdtemp(join(tmpdir(), "arc-e2e-remote-"));
+    await execFileAsync("git", ["init", "--bare", "-b", "main", bareDir]);
+    await git(["remote", "add", "origin", bareDir]);
+    await git(["push", "-u", "origin", "main"]);
+    // Advance origin/main one commit beyond where local main will sit.
+    await writeFile(join(repo, "ahead.txt"), "remote-only\n");
+    await git(["add", "-A"]);
+    await git(["commit", "--no-verify", "-m", "advance base"]);
+    await git(["push", "origin", "main"]);
+    // Move onto a feature branch, then rewind local main one commit behind
+    // origin/main — local base is now stale while HEAD is elsewhere.
+    await git(["checkout", "-b", "feat/x"]);
+    await git(["branch", "-f", "main", "HEAD~1"]);
+  }
+
+  async function setBasePolicy(repo: string, value: string): Promise<void> {
+    const cfgPath = join(repo, ".arc", "system", "arc-config.yml");
+    const content = await readFile(cfgPath, "utf8");
+    const next = content.replace(/^session\.init_pull\.base:.*$/mu, `session.init_pull.base: ${value}`);
+    await writeFile(cfgPath, next);
+    // Commit the config edit on the feature branch so the working tree is clean —
+    // otherwise a dirty tree refuses the fast-forward (surface), masking the policy.
+    await execFileAsync("git", ["commit", "--no-verify", "-am", `set base policy ${value}`], { cwd: repo });
+  }
+
+  beforeEach(async () => {
+    tmpDir = await createTempRepo();
+    const init = await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+    expect(init.exitCode).toBe(0);
+    await setupStaleLocalBase(tmpDir);
+  });
+
+  afterEach(async () => {
+    await cleanupTempDir(tmpDir);
+    if (bareDir) await rm(bareDir, { recursive: true, force: true });
+  });
+
+  it("detects the behind local base as remote-ahead", async () => {
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = JSON.parse(result.stdout.trim()) as SessionInitEnvelope;
+    expect(envelope.baseBranchSync?.ok).toBe(true);
+    expect(envelope.baseBranchSync?.value?.state).toBe("remote-ahead");
+    expect(envelope.baseBranchSync?.value?.behind).toBe(1);
+    expect(envelope.baseBranchSync?.value?.base).toBe("main");
+  });
+
+  it("recommends `pull` under `always`", async () => {
+    await setBasePolicy(tmpDir, "always");
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = JSON.parse(result.stdout.trim()) as SessionInitEnvelope;
+    expect(envelope.baseBranchSync?.value?.recommendedAction).toBe("pull");
+  });
+
+  it("recommends `prompt` under `prompt` (default)", async () => {
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = JSON.parse(result.stdout.trim()) as SessionInitEnvelope;
+    expect(envelope.baseBranchSync?.value?.recommendedAction).toBe("prompt");
+    expect(envelope.baseBranchSync?.value?.recommendedPromptText).toContain("Fast-forward base?");
+  });
+
+  it("recommends `surface` (advisory only) under `manual`", async () => {
+    await setBasePolicy(tmpDir, "manual");
+    const result = await runArc(["status", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+    const envelope = JSON.parse(result.stdout.trim()) as SessionInitEnvelope;
+    expect(envelope.baseBranchSync?.value?.recommendedAction).toBe("surface");
   });
 });

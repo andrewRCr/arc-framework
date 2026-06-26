@@ -91,6 +91,18 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
 }
 
 /**
+ * Base-branch-sync slot in the session-init envelope. Extends the raw probe
+ * result (local `<base>` vs `origin/<base>`) with the config-gated action +
+ * prompt pair: `pull` / `prompt` drive the fast-forward freshen offer, `surface`
+ * the stale/diverged advisory, `skip` a current base.
+ */
+export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
+  recommendedAction: RecommendedAction;
+  /** Composed offer text when `recommendedAction ∈ {prompt, surface}`; empty string otherwise. */
+  recommendedPromptText: string;
+}
+
+/**
  * User slot in the session-init envelope. Extends the standalone probe
  * result with the same recommendation pair as the worktree slot.
  */
@@ -150,11 +162,11 @@ export interface SessionInitProbeResult {
   /**
    * Base-branch-sync slot — local `<base>` vs `origin/<base>`, the
    * silently-stale-local-base surface (sibling to `baseDistance`, which
-   * measures HEAD vs `origin/<base>`). Always present (eager, non-gated). Raw
-   * distance only at this stage; the config-gated recommendation pair that
-   * drives a fast-forward-only freshen offer is layered on by a later increment.
+   * measures HEAD vs `origin/<base>`). Always present (eager, non-gated). The
+   * recommendation pair drives the config-gated fast-forward-only freshen offer
+   * (`session.init_pull.base`).
    */
-  baseBranchSync: Probe<BaseBranchSyncStatusResult>;
+  baseBranchSync: Probe<SessionInitBaseBranchSyncValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;

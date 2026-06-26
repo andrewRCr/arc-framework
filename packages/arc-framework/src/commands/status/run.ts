@@ -27,6 +27,7 @@ import type {
   RunSessionInitStatusOptions,
   RunStatusOptions,
   SessionHandoffResult,
+  SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
   SessionInitUserValue,
@@ -41,8 +42,10 @@ import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
+  inferBaseBranchSync,
   inferBaseDistance,
   inferSessionInitRecommendations,
+  type BaseBranchSyncPullPolicy,
   type NotesPullPolicy,
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
@@ -328,6 +331,29 @@ export async function runSessionInitStatus(
     }
     : baseDistance;
 
+  // Base-branch-sync enrichment — the config-gated fast-forward freshen offer.
+  // Unlike base-distance it reads the `session.init_pull.base` policy and the
+  // dirty-tree flag (a dirty tree refuses the freshen), so the recommendation
+  // is composed from the slot, that policy, and the dirty slot.
+  const baseBranchPolicy = normalizeBaseBranchSyncPolicy(
+    config.ok ? config.value.settings["session.init_pull.base"] : "prompt",
+  );
+  const baseBranchSyncRec = inferBaseBranchSync(
+    baseBranchSync.ok ? baseBranchSync.value : null,
+    baseBranchPolicy,
+    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
+  );
+  const enrichedBaseBranchSync: SessionInitProbeResult["baseBranchSync"] = baseBranchSync.ok
+    ? {
+      ok: true,
+      value: {
+        ...baseBranchSync.value,
+        recommendedAction: baseBranchSyncRec.recommendedAction,
+        recommendedPromptText: baseBranchSyncRec.recommendedPromptText,
+      } satisfies SessionInitBaseBranchSyncValue,
+    }
+    : baseBranchSync;
+
   const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
     ? {
       ok: true,
@@ -437,7 +463,7 @@ export async function runSessionInitStatus(
     user: enrichedUser,
     worktree: enrichedWorktree,
     baseDistance: enrichedBaseDistance,
-    baseBranchSync,
+    baseBranchSync: enrichedBaseBranchSync,
     dirty,
     extensions,
     config,
@@ -495,6 +521,12 @@ function normalizeWorktreePolicy(raw: string): WorktreePullPolicy {
 }
 
 function normalizeNotesPolicy(raw: string): NotesPullPolicy {
+  if (raw === "manual") return "manual";
+  if (raw === "always") return "always";
+  return "prompt";
+}
+
+function normalizeBaseBranchSyncPolicy(raw: string): BaseBranchSyncPullPolicy {
   if (raw === "manual") return "manual";
   if (raw === "always") return "always";
   return "prompt";

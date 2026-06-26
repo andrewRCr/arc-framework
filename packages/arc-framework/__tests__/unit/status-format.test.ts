@@ -171,6 +171,8 @@ function makeSessionInitResult(
         ahead: 0,
         behind: 0,
         base: "main",
+        recommendedAction: "skip",
+        recommendedPromptText: "",
       },
     },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
