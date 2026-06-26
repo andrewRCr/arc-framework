@@ -42,9 +42,13 @@ detection-and-pull member (`P2`).
   § 8 — recorded here, where the consumer reads it, as the unambiguous contract. The marker is **lag, not loss**:
   A's work is safe on A; it simply hasn't arrived.
 
-  The consumer renders the two **B-side** registers below; **Act** (A, push-time: auto-retry → primed retry →
-  informed defer) is producer-owned (§ 7) and never consumer-rendered. Each affordance traces to a concrete
-  marker-payload field (§ 3 — `machineId`, `lastAttemptedCommit`, `attemptTimestamp`, `intent`):
+  Of the two **B-side** registers below, `stale-state-detect-and-pull` ships **Aware only**; **Caution** is
+  **parked** — ARC exposes no force-push offer to host it (`arc release push` refuses force, branch force-push is
+  raw `git`), and the push flow is the producer's surface, not session-init's. The one session-init force offer
+  (the lossless diverged-supersession `git reset --hard`) carries no notes-side decision weight. Render Caution
+  when a marker-aware force surface lands in the producer's push flow. **Act** (A, push-time: auto-retry → primed
+  retry → informed defer) is producer-owned (§ 7) and never consumer-rendered. Each affordance traces to a
+  concrete marker-payload field (§ 3 — `machineId`, `lastAttemptedCommit`, `attemptTimestamp`, `intent`):
 
   | Register    | Where                | Posture              | Affordance → payload field                                                          |
   |-------------|----------------------|----------------------|-------------------------------------------------------------------------------------|
@@ -54,8 +58,9 @@ detection-and-pull member (`P2`).
     - **Aware** — a calm, non-gating one-liner in session-init's existing advisory tier (alongside base-drift and
       local-ahead-notes). The operating agent proceeds-with-context and **never auto-resolves** — it does not
       force-push to "fix" stale notes.
-    - **Caution** — the same payload surfaced at B's force gate as context for the destructive call; it informs the
-      choice, it does not gate it (the human owns force with full information).
+    - **Caution** (parked — see above) — the same payload surfaced at B's force gate as context for the destructive
+      call; it informs the choice, it does not gate it (the human owns force with full information). Specified here
+      for when a force surface exists to host it; not rendered by `stale-state-detect-and-pull`.
     - **Self-invalidation** — render an entry only while it is **live**. Liveness is the producer-side predicate
       (`intent` vs. origin's actual notes-ref state): _fulfilled_ once A's notes land at origin (the surface falls
       silent, no timer), else _live_ while the notes ref is still behind. The **14-day TTL** on `attemptTimestamp`

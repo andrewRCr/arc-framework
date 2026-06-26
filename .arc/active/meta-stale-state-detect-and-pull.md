@@ -8,10 +8,10 @@
 - **Depends On:** `worktree-foundation`
 
 - **Origin:** [internal]
-- **Design:** draft-stale-state-detect-and-pull.md
+- **Design:** `spec-stale-state-detect-and-pull.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
