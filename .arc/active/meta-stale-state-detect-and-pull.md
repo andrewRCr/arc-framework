@@ -12,8 +12,8 @@
 - **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.2 — Bidirectional `arc sync` inbound leg (R1)
-- **Next Task:** Task 6.1 — Complete verification (line ~286)
+- **Last Completed:** Task 6.1 — Complete verification (Phase 6 — all tasks complete)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
