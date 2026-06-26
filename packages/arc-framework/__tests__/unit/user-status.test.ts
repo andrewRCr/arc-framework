@@ -2084,7 +2084,7 @@ describe("buildLoadSummary", () => {
       fileCount: 2,
       fromAncestor: true,
       ancestorDistance: 25,
-      warnings: [],
+      messages: [],
     });
 
     expect(summary).toContain("Loaded from 25 commit(s) back.");

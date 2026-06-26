@@ -75,6 +75,22 @@ export class UserLoadVerificationError extends Error {
 /** Backup filename for pre-load snapshot of local state. */
 export const BACKUP_FILENAME = ".pre-load-backup.json";
 
+/**
+ * Register governing how a load-summary message reads:
+ *
+ * - `cleanup` — a routine reconcile that ran (e.g. a retired subdir removed).
+ *   Normal operations, not a problem.
+ * - `notice` — a local file left in place for the operator to consider.
+ * - `warning` — a genuine problem (e.g. a malformed note that couldn't merge).
+ */
+export type LoadMessageLevel = "cleanup" | "notice" | "warning";
+
+/** One load-summary message, tagged with the register that governs its display. */
+export interface LoadMessage {
+  level: LoadMessageLevel;
+  text: string;
+}
+
 /** Result of a user load operation. */
 export interface UserLoadResult {
   kind: "loaded";
@@ -89,8 +105,12 @@ export interface UserLoadResult {
   noteHistoryDistance?: number;
   /** Whether the annotated commit is reachable from current HEAD. */
   reachableFromHead?: boolean;
-  /** Warnings about local files not present in the loaded manifest. */
-  warnings: string[];
+  /**
+   * Load-summary messages, each tagged with a register ({@link LoadMessageLevel})
+   * so the formatter can group routine cleanups, advisory notices, and genuine
+   * warnings under distinct headings rather than one undifferentiated block.
+   */
+  messages: LoadMessage[];
 }
 
 /** Returned when ancestor walking hit its configured cap without finding a reachable note. */

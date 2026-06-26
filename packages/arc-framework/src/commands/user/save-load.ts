@@ -43,6 +43,7 @@ import {
   type UserLoadOptions,
   type UserSaveOptions,
   type UserSaveResult,
+  type LoadMessage,
 } from "./types.js";
 
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
@@ -145,8 +146,8 @@ export async function runUserLoad(
   const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
-  let staleWarnings: string[] = [];
-  let reconcileWarnings: string[] = [];
+  let notices: LoadMessage[] = [];
+  let cleanups: LoadMessage[] = [];
   try {
     const localResult = await serialize(userDir, io.readDir, io.readFile);
     const localFiles = localResult.manifest.files;
@@ -168,17 +169,19 @@ export async function runUserLoad(
       // also reported as "preserved".
       const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
 
-      staleWarnings = classifyOrphans({
+      notices = classifyOrphans({
         localFiles,
         manifestFiles: loadManifest.files,
         reconciledSubdirs: reconciled,
         currentWuName: options.currentWuName,
-      }).map((classification) => renderOrphanWarning(classification, backupFilename));
-      reconcileWarnings = [...reconciled].map(
-        (subdir) =>
-          `Retired WU subdir "${subdir}" (shipped, absent from recent notes) — removed; ` +
-          `recoverable from .internal/${backupFilename}`,
-      );
+      }).map((classification) => ({
+        level: "notice",
+        text: renderOrphanNotice(classification, backupFilename),
+      }));
+      cleanups = [...reconciled].map((subdir) => ({
+        level: "cleanup",
+        text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupFilename}`,
+      }));
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -202,7 +205,11 @@ export async function runUserLoad(
     ancestorDistance: search.note?.ancestorDistance ?? 0,
     noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     reachableFromHead: search.note?.reachableFromHead ?? false,
-    warnings: [...staleWarnings, ...reconcileWarnings, ...mergeWarnings],
+    messages: [
+      ...cleanups,
+      ...notices,
+      ...mergeWarnings.map((text): LoadMessage => ({ level: "warning", text })),
+    ],
   };
 }
 
@@ -551,25 +558,25 @@ async function reconcileRetiredSubdirs(params: {
 }
 
 /**
- * Render one orphan classification to a user-facing load warning. The seam where
+ * Render one orphan classification to a user-facing notice string. The seam where
  * the structured classification ({@link classifyOrphans}) flattens to a string;
  * a later drift tier adds classification kinds, not new call sites.
  */
-function renderOrphanWarning(classification: OrphanClassification, backupFilename: string): string {
-  const preserved = `preserved in .internal/${backupFilename}`;
+function renderOrphanNotice(classification: OrphanClassification, backupFilename: string): string {
+  const backedUp = `backed up to .internal/${backupFilename}`;
   switch (classification.kind) {
     case "grouped-retirement":
       return (
         `User subdir "${classification.subdir}/" (${classification.files.length} file(s)) not in saved ` +
-        `manifest — left in place, ${preserved}. Remove the subdir if its work unit is retired.`
+        `manifest — left in place; ${backedUp}. Remove the subdir if its work unit is retired.`
       );
     case "rename-candidate":
       return (
         `Local file "${classification.from}" not in saved manifest — looks like a rename to ` +
-        `"${classification.to}" (content matches); ${preserved}`
+        `"${classification.to}" (content matches); ${backedUp}`
       );
     case "generic":
-      return `Local file "${classification.name}" not in saved manifest — ${preserved}`;
+      return `Local file "${classification.name}" not in saved manifest — ${backedUp}`;
   }
 }
 

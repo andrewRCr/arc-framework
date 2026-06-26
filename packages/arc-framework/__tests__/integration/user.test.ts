@@ -542,7 +542,7 @@ describe("user load — backup and stale detection", () => {
     // Load should succeed without backup (dir doesn't exist)
     const result = await runUserLoad({ cwd: tempDir, io, identity: "new-user" });
     const loadedResult = expectLoaded(result);
-    expect(loadedResult.warnings).toEqual([]);
+    expect(loadedResult.messages).toEqual([]);
 
     // Verify no backup file created
     let backupExists = true;
@@ -568,9 +568,11 @@ describe("user load — backup and stale detection", () => {
     // Load — should warn about local-only.txt
     const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
     const loadedResult = expectLoaded(result);
-    expect(loadedResult.warnings).toHaveLength(1);
-    expect(loadedResult.warnings[0]).toContain("local-only.txt");
-    expect(loadedResult.warnings[0]).toContain("not in saved manifest");
+    expect(loadedResult.messages).toHaveLength(1);
+    expect(loadedResult.messages[0]!.level).toBe("notice");
+    expect(loadedResult.messages[0]!.text).toContain("local-only.txt");
+    expect(loadedResult.messages[0]!.text).toContain("not in saved manifest");
+    expect(loadedResult.messages[0]!.text).toContain("backed up to");
   });
 
   it("backup excludes dotfiles from serialization", async () => {
@@ -706,7 +708,11 @@ describe("user load — retired-subdir reconciliation", () => {
     ) as { files: Record<string, string> };
     expect(backup.files["old-wu/SESSION-NOTES.md"]).toBe("# Old WU notes");
 
-    expect(loaded.warnings.some((w) => w.includes("old-wu") && w.includes("removed"))).toBe(true);
+    const cleanup = loaded.messages.find((m) => m.level === "cleanup" && m.text.includes("old-wu"));
+    expect(cleanup).toBeDefined();
+    expect(cleanup!.text).toContain("removed");
+    expect(cleanup!.text).toContain("backed up to");
+    expect(cleanup!.text).not.toContain("absent from recent notes");
   });
 
   it("preserves a present subdir whose WU has not shipped", async () => {

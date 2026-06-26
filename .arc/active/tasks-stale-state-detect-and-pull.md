@@ -164,7 +164,22 @@ surface (a CLI prompt) from the reconcile gate.
   Integration round-trip exercises ship-on-`origin/main` / drop-from-working-tree, proving the branch-independent
   read + `.internal/` backup recovery. See `notes-stale-state-detect-and-pull.md` § D4.
 
-### `[ ]` **3.3 `arc user open` non-TTY stale-subdir safety (D4)**
+### `[x]` **3.3 Load-summary message register — reconcile / notice / warning split (D3, D4)**
+
+- _Goal:_ `arc user load` / `pull` stops filing routine retired-subdir cleanups under `Warnings:`. The flat
+  load-result message list splits by register — a successful reconcile reads as an info-level cleanup, a
+  preserved-orphan as an advisory notice, and a malformed-merge as a true warning — and the wording drops
+  internal mechanism jargon and unifies the backup verb.
+
+- _Outcome:_ `UserLoadResult` now carries `messages: LoadMessage[]` (a `{ level, text }` register —
+  `cleanup` / `notice` / `warning`) in place of the flat `warnings: string[]`. `runUserLoad` (`save-load.ts`)
+  tags each source — reconcile → `cleanup`, orphan-preserved → `notice`, malformed-merge → `warning` — and
+  `buildLoadSummary` (`format.ts`) groups them under `Cleaned up:` / `Notices:` / `Warnings:` headings,
+  emitting a heading only for a non-empty group. Wording normalized: dropped the internal "absent from recent
+  notes" phrase and unified the backup verb to "backed up to" across the reconcile and preserve strings
+  (`renderOrphanWarning` → `renderOrphanNotice`). A routine retired-subdir cleanup no longer reads as a warning.
+
+### `[ ]` **3.4 `arc user open` non-TTY stale-subdir safety (D4)**
 
 - _Goal:_ `arc user open` never hangs or default-deletes on a lingering stale subdir: the resolver-gated
   reconcile (3.2) replaces the prompt for the shipped case, and the residual unresolvable case defaults to keep —
@@ -184,7 +199,7 @@ surface (a CLI prompt) from the reconcile gate.
         - unresolvable subdir, TTY → default option is **keep** (never default-destructive)
         - unresolvable subdir, non-TTY → auto-skip to keep (never hang, never abort-on-cancel)
 
-### `[ ]` **3.4 Session-init reconcile trigger — graceful without a manual pull (D4)**
+### `[ ]` **3.5 Session-init reconcile trigger — graceful without a manual pull (D4)**
 
 - _Goal:_ A non-integrating machine's retired subdir is reconciled at session-init under the developer's existing
   pull policy, not only when a notes pull happens to fire — so the cleanup is graceful for the no-manual-pull path,

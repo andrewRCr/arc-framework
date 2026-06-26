@@ -1,14 +1,15 @@
 /**
  * Unit tests for user-command summary formatters.
  *
- * Covers `buildLoadSummary`'s ancestor-distance line: emitted only when
- * distance > 0, using the "Loaded from N commits back" phrasing.
+ * Covers `buildLoadSummary`'s ancestor-distance line (emitted only when
+ * distance > 0) and its grouping of load messages by register — routine
+ * cleanups, advisory notices, and genuine warnings under distinct headings.
  */
 
 import { describe, it, expect } from "vitest";
 
 import { buildLoadSummary } from "../../src/commands/user/format.js";
-import type { UserLoadResult } from "../../src/commands/user/types.js";
+import type { LoadMessage, UserLoadResult } from "../../src/commands/user/types.js";
 
 function baseResult(overrides: Partial<UserLoadResult>): UserLoadResult {
   return {
@@ -18,7 +19,7 @@ function baseResult(overrides: Partial<UserLoadResult>): UserLoadResult {
     fileCount: 2,
     fromAncestor: false,
     ancestorDistance: 0,
-    warnings: [],
+    messages: [],
     ...overrides,
   };
 }
@@ -55,5 +56,67 @@ describe("buildLoadSummary — ancestor distance reporting", () => {
     expect(summary).toContain("Loaded from user-notes history");
     expect(summary).toContain("outside current HEAD ancestry");
     expect(summary).not.toContain("Loaded from 0 commit(s) back");
+  });
+});
+
+describe("buildLoadSummary — message register grouping", () => {
+  function summaryWith(messages: LoadMessage[]): string {
+    return buildLoadSummary(baseResult({ messages }));
+  }
+
+  /** Heading-scoped slice of the summary, for asserting a line falls under the right group. */
+  function section(summary: string, heading: string): string {
+    const lines = summary.split("\n");
+    const start = lines.indexOf(heading);
+    if (start === -1) return "";
+    let end = start + 1;
+    while (end < lines.length && !lines[end]!.endsWith(":")) end += 1;
+    return lines.slice(start, end).join("\n");
+  }
+
+  it("groups a routine reconcile under 'Cleaned up:', never 'Warnings:'", () => {
+    const summary = summaryWith([{ level: "cleanup", text: 'Retired WU subdir "old-wu" — removed' }]);
+
+    expect(summary).toContain("Cleaned up:");
+    expect(section(summary, "Cleaned up:")).toContain("old-wu");
+    expect(summary).not.toContain("Warnings:");
+  });
+
+  it("groups a preserved orphan under 'Notices:'", () => {
+    const summary = summaryWith([{ level: "notice", text: 'Local file "stray.txt" not in saved manifest' }]);
+
+    expect(summary).toContain("Notices:");
+    expect(section(summary, "Notices:")).toContain("stray.txt");
+    expect(summary).not.toContain("Warnings:");
+    expect(summary).not.toContain("Cleaned up:");
+  });
+
+  it("keeps a genuine warning under 'Warnings:'", () => {
+    const summary = summaryWith([{ level: "warning", text: "Malformed note skipped" }]);
+
+    expect(summary).toContain("Warnings:");
+    expect(section(summary, "Warnings:")).toContain("Malformed note skipped");
+    expect(summary).not.toContain("Cleaned up:");
+  });
+
+  it("separates registers into their own headings when all are present", () => {
+    const summary = summaryWith([
+      { level: "cleanup", text: "reconciled-line" },
+      { level: "notice", text: "notice-line" },
+      { level: "warning", text: "warning-line" },
+    ]);
+
+    expect(section(summary, "Cleaned up:")).toContain("reconciled-line");
+    expect(section(summary, "Notices:")).toContain("notice-line");
+    expect(section(summary, "Warnings:")).toContain("warning-line");
+    expect(section(summary, "Cleaned up:")).not.toContain("warning-line");
+  });
+
+  it("emits no message headings for a clean load", () => {
+    const summary = summaryWith([]);
+
+    expect(summary).not.toContain("Cleaned up:");
+    expect(summary).not.toContain("Notices:");
+    expect(summary).not.toContain("Warnings:");
   });
 });

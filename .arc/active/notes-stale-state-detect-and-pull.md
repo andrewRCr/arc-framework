@@ -56,7 +56,7 @@ are the stable anchors (line numbers drift).
 - `commands/user/open.ts` — `removeStaleUserWuSubdir`: `rm(dir, { recursive: true, force: true })`, no per-call
   backup (relies on the pre-load whole-manifest backup above). Shared by the reconcile and the `arc user open`
   prompt.
-- **Trigger (3.4):** the reconcile runs only inside `runUserLoad`, dispatched by session-init's notes-load channel
+- **Trigger (3.5):** the reconcile runs only inside `runUserLoad`, dispatched by session-init's notes-load channel
   (`loadNeeded`-gated). Broaden the dispatch to fire `arc user load` on `loadNeeded` **OR** retired candidates,
   under the existing `session.init_load.notes` policy — so a current-notes machine still reconciles. Slot enrichment:
   `retiredSubdirs` gains `recommendedAction` / `recommendedPromptText` (`commands/status/run.ts`,
