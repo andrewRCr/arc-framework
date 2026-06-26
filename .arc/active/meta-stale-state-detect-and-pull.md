@@ -12,11 +12,11 @@
 - **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — hasUnpushedLocalDrift drift predicate (D-shared)
+- **Last Completed:** Task 1.2 — Inbound-pull decision primitive (Phase 1 complete)
+- **Next Task:** Task 2.1 — Local base-ref staleness probe + `baseBranchSync` slot (line ~75)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 (Phase 1 — shared primitives, test-first)
+- **Next Action:** Begin Task 2.1 (Phase 2 — base-ref staleness, detect & pull, test-first)
 
 - **PR URL:** [none]
 - **Completed:** [none]
