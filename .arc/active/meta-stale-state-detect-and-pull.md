@@ -1,8 +1,8 @@
 # Metadata: Stale-State Detect-and-Pull
 
-| **State** | **Owner** | **Branch**                         | **Class** | **Priority** |
-| --------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/stale-state-detect-and-pull` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/stale-state-detect-and-pull` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** [none]
@@ -16,7 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]

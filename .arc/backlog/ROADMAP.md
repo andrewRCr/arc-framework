@@ -12,9 +12,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State    | Work unit                   | Priority | Owner  | Depends on | Cohort                  |
-|----------|-----------------------------|----------|--------|------------|-------------------------|
-| `Active` | stale-state-detect-and-pull | P2       | andrew | —          | cross-machine-coherence |
+| State         | Work unit                   | Priority | Owner  | Depends on | Cohort                  |
+|---------------|-----------------------------|----------|--------|------------|-------------------------|
+| `Integrating` | stale-state-detect-and-pull | P2       | andrew | —          | cross-machine-coherence |
 
 ## Ready
 
