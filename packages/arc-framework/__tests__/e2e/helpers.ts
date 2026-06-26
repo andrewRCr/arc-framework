@@ -52,7 +52,7 @@ export async function runArc(
         { cwd, timeout, env },
       )
       : await execFileAsync(
-        "node",
+        process.execPath,
         [CLI_PATH, ...args],
         { cwd, timeout, env },
       );
@@ -94,7 +94,7 @@ export async function runArcNoTty(
   const timeout = options?.timeout ?? 30_000;
   const env = { ...process.env, NO_COLOR: "1", ...options?.env };
   try {
-    const { stdout, stderr } = await execFileAsync("node", [CLI_PATH, ...args], { cwd, timeout, env });
+    const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
     return { stdout, stderr, exitCode: 0 };
   } catch (err: unknown) {
     const e = err as { stdout?: string; stderr?: string; code?: number | string };
@@ -104,7 +104,7 @@ export async function runArcNoTty(
 }
 
 function buildScriptCommand(args: string[]): string {
-  const nodeCommand = ["node", CLI_PATH, ...args].map(shellEscape).join(" ");
+  const nodeCommand = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   return `stty cols 120 rows 40; exec ${nodeCommand}`;
 }
 
