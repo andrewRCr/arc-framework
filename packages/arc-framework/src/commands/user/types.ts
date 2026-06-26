@@ -652,6 +652,33 @@ export interface UserSessionLocalNoteFreshness {
   reachableFromHead?: boolean;
 }
 
+/**
+ * Raw clean-arm notes/disk divergence signal (D3), carried so the session-init
+ * orchestrator — which knows the active WU name — can resolve the auto-load vs.
+ * surface verdict. Present only on the `clean` arm when `refState === "same"`
+ * and the disk diverges from the note (`direction !== null`); omitted otherwise.
+ */
+export interface UserSessionNotesDrift {
+  /** Whole-tree disk-vs-note direction. */
+  direction: UserUnsavedDirection;
+  /** Manifest paths present in the note and absent on disk (the missing set). */
+  missingFiles: string[];
+  /**
+   * Set on a `missing` direction: `true` when the whole missing set is deliberate
+   * local retirement (every file present at last sync), distinguishing it from
+   * real arrival drift. Lets the orchestrator suppress a benign retirement surface.
+   */
+  missingAreRetirement?: boolean;
+}
+
+/**
+ * Advisory surfaced when a clean-arm notes/disk divergence is neither a safe
+ * auto-load nor benign — rendered in session-init orientation's advisory tier.
+ */
+export interface UserSessionNotesDriftSurface {
+  direction: "mixed" | "missing";
+}
+
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
@@ -695,6 +722,13 @@ export interface UserSessionInitStatusResult {
    * symmetrically.
    */
   loadNeeded?: boolean;
+  /**
+   * Raw clean-arm notes/disk divergence signal (D3). Present only when
+   * `refState === "same"` and the disk diverges from the note; the orchestrator
+   * resolves it against the active WU name into `loadNeeded` and any
+   * `notesDriftSurface`. Omitted when there is no divergence or off the clean arm.
+   */
+  notesDrift?: UserSessionNotesDrift;
 }
 
 export interface UserSessionInitStatusOptions {

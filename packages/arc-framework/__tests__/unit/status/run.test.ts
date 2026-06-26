@@ -706,6 +706,87 @@ describe("runSessionInitStatus — orchestration", () => {
   });
 });
 
+describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
+  const activeWu = sessionInitProbes({
+    active: vi.fn(async () =>
+      activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-my-wu.md",
+        sessionType: "execution",
+      }),
+    ),
+  });
+
+  it("upgrades loadNeeded for the safe sub-case (active WU SESSION-NOTES purely missing)", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(true);
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
+  it("surfaces a mixed drift advisory without auto-loading", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "mixed", missingFiles: [] },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({ direction: "mixed" });
+    }
+  });
+
+  it("surfaces general missing drift (beyond the active WU's SESSION-NOTES)", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md", "other-wu/SESSION-NOTES.md"],
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({ direction: "missing" });
+    }
+  });
+
+  it("leaves loadNeeded and the surface untouched when no drift signal is present", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () => userSessionInit({ refState: "same" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+});
+
 describe("runSessionInitStatus — base-distance slot", () => {
   it("assembles the slot with the behind-base distance when the base has advanced", async () => {
     const probes = sessionInitProbes({

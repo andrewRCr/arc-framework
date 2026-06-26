@@ -27,6 +27,7 @@ import type {
 } from "../extensions/types.js";
 import type {
   UserSessionInitStatusResult,
+  UserSessionNotesDriftSurface,
   UserStatusResult,
 } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -109,6 +110,13 @@ export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResu
 export interface SessionInitUserValue extends UserSessionInitStatusResult {
   recommendedAction: RecommendedAction;
   recommendedPromptText: string;
+  /**
+   * Finalized clean-arm notes/disk drift advisory (D3), resolved from the raw
+   * `notesDrift` signal against the active WU name. Present only when the
+   * divergence surfaces (neither a safe auto-load nor benign); the safe sub-case
+   * is folded into `loadNeeded` instead. Rendered in orientation's advisory tier.
+   */
+  notesDriftSurface?: UserSessionNotesDriftSurface;
 }
 
 /** Git-config pointers resolved in the composite handler (not a probe). */

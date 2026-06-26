@@ -118,41 +118,33 @@ resolution depends on Phase 2's index freshen, and D3's projection-bridge extens
 classification D4 reconciles against. The `arc user open` non-TTY fix is its own parent — a distinct entry-point
 surface (a CLI prompt) from the reconcile gate.
 
-### `[ ]` **3.1 Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (D3)**
+### `[x]` **3.1 Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (D3)**
 
 - _Goal:_ Session-init's clean arm stops silently discarding computed notes/disk divergence: `mixed` / `missing`
   surface as advisory, the narrow safe sub-case auto-loads, and the projection bridge carries the prior file-list
   so the warning distinguishes intentional retirement from real local drift.
 
-- _Context:_ `computeSessionInitLoadNeeded` (`commands/user/sync-status.ts`) returns `true` only when
-  `refState === "same"` AND `unsavedDirection === "behind"`; `mixed` / `missing` collapse to no-action, so the
-  active WU's `SESSION-NOTES.md` can be in the note yet absent on disk while the probe reports clean.
+    - `[x]` **3.1.a Surface `mixed` / `missing` on the clean arm**
+        - Outcome: clean-arm verdict settled by a new pure helper `resolveCleanArmNotesVerdict` (`drift.ts`):
+          `behind` / active-WU-`SESSION-NOTES`-only-missing → auto-load (`loadNeeded`); `mixed` / general
+          `missing` → advisory surface; `edits` / `modified` / `null` → neither. The active-WU-keyed safe
+          sub-case is resolved in the orchestrator (`status/run.ts`), where the WU name is known — the user
+          probe carries a raw `notesDrift` signal (`inspectDiskVsLocalSnapshot` now also returns the
+          missing-file set), finalized into `loadNeeded` + a new `notesDriftSurface` envelope field
+          (`SessionInitUserValue`). `session-init.md` (both copies) renders it in Step 6's advisory tier.
 
-- _Note:_ Two-surface edit: the `user`-slot computation lives in the CLI (`commands/user/sync-status.ts`); the
-  clean-arm surfacing instruction edits `session-init.md` Step 2 (notes dispatch) / Step 6 (advisory tier) —
-  Framework file, package source + `.arc/` mirror.
+    - `[x]` **3.1.b Extend the projection bridge with the prior file-list**
+        - Outcome: `priorFileList` (a reserved `.sync-state.json` field, never populated until now) is captured
+          at save/load with the materialized file set, and consumed by a new pure
+          `missingFilesAreIntentionalRetirement` (`drift.ts`): a `missing` set wholly present at last sync reads
+          as deliberate local retirement (benign — suppressed), a fresh arrival as real drift (surfaced).
+          Threaded via `notesDrift.missingAreRetirement` into the verdict. Behavior-2 (local-only siblings) is
+          structurally the `mixed` case 3.1.a already surfaces, so it needs no separate gate.
 
-- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
-
-    - `[ ]` **3.1.a Surface `mixed` / `missing` on the clean arm**
-        - Consumes the D-shared **whole-tree** drift signal to decide surface-vs-load.
-        - Build `test-first` (one behavior at a time):
-            - `mixed` → `recommendedAction: surface` (not auto-load — may carry real edits)
-            - `missing` → `surface`
-            - active-WU-`SESSION-NOTES`-present-in-note-absent-on-disk → **auto-load** (pure-missing for that
-              file — safe)
-            - `behind` → unchanged (existing auto-load path)
-            - benign drift → no false-positive surface
-        - Integration: the clean-arm surface / auto-load cases.
-
-    - `[ ]` **3.1.b Extend the projection bridge with the prior file-list**
-        - Carry the prior file-list through `lib/user-sync/projection.ts` so a file gone because its WU shipped
-          reads as intentional retirement, vs. a file gone with local-only siblings as real drift.
-        - Build `test-first` (one behavior at a time):
-            - file absent because its WU shipped → intentional retirement
-            - file absent with local-only sibling content → real drift
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D3.
+- _Outcome:_ Clean-arm divergence pipeline complete end-to-end: `inspectDiskVsLocalSnapshot` → raw `notesDrift`
+  → orchestrator verdict → `loadNeeded` / `notesDriftSurface`. A genuinely stale-or-missing file surfaces (or
+  safely auto-loads); a deliberately-retired file no longer false-positives — the projection basis is the
+  last-sync `priorFileList`, storage-abstract per § D3. See `notes-stale-state-detect-and-pull.md` § D3.
 
 ### `[ ]` **3.2 Drift-gated retired-subdir reconcile (D4)**
 

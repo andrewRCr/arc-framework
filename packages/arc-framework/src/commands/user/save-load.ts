@@ -78,8 +78,10 @@ export async function runUserSave(
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
   await verifySavedNote(io, identity, commit, result.manifest);
+  const projectedSave = projectManifest(result.manifest);
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectManifest(result.manifest)), commit, "save", commit,
+    cwd, io, identity, hashSyncManifest(projectedSave), commit, "save", commit,
+    Object.keys(projectedSave.files),
   );
 
   return {
@@ -183,8 +185,10 @@ export async function runUserLoad(
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
   await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
+  const projectedLoad = projectManifest(loadManifest);
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectManifest(loadManifest)), sourceCommit, "load", sourceCommit,
+    cwd, io, identity, hashSyncManifest(projectedLoad), sourceCommit, "load", sourceCommit,
+    Object.keys(projectedLoad.files),
   );
 
   return {

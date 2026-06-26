@@ -52,7 +52,10 @@ export {
   computeUnsavedDirection,
   hasUnpushedLocalDrift,
   hasUnpushedLocalDriftForScope,
+  missingFilesAreIntentionalRetirement,
+  resolveCleanArmNotesVerdict,
   unsavedDirectionForScope,
+  type CleanArmNotesVerdict,
   type DriftScope,
 } from "./user/drift.js";
 export {

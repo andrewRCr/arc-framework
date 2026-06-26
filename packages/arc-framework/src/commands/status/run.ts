@@ -38,6 +38,7 @@ import type {
   WorktreeIdentity,
 } from "./types.js";
 import type { ActiveSessionInitResult } from "../active/types.js";
+import { resolveCleanArmNotesVerdict } from "../user/drift.js";
 import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
@@ -354,6 +355,16 @@ export async function runSessionInitStatus(
     }
     : baseBranchSync;
 
+  // Resolve the clean-arm notes/disk drift verdict (D3) here, where the active
+  // WU name is known — the raw `notesDrift` signal can't decide the safe
+  // auto-load sub-case (the active WU's missing SESSION-NOTES) without it. The
+  // verdict finalizes `loadNeeded` (the safe sub-case upgrades it) and any
+  // advisory `notesDriftSurface`.
+  const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const notesVerdict = qualifiedUser.ok && qualifiedUser.value.notesDrift
+    ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
+    : null;
+
   const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
     ? {
       ok: true,
@@ -361,6 +372,8 @@ export async function runSessionInitStatus(
         ...qualifiedUser.value,
         recommendedAction: recommendations.user.recommendedAction,
         recommendedPromptText: recommendations.user.recommendedPromptText,
+        ...(notesVerdict ? { loadNeeded: notesVerdict.loadNeeded } : {}),
+        ...(notesVerdict?.driftSurface ? { notesDriftSurface: notesVerdict.driftSurface } : {}),
       } satisfies SessionInitUserValue,
     }
     : qualifiedUser;
@@ -483,6 +496,17 @@ export async function runSessionInitStatus(
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
+}
+
+/**
+ * The active work unit's name from its meta path (`…/meta-<name>.md`), or
+ * `null` when no single active meta resolved. Keys the clean-arm notes/disk
+ * safe-load sub-case to the active WU's `SESSION-NOTES.md`.
+ */
+function metaWorkUnitNameFromActive(path: string | null): string | null {
+  if (path === null) return null;
+  const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
+  return match?.[1] ?? null;
 }
 
 /**

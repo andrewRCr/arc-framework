@@ -112,6 +112,108 @@ export function hasUnpushedLocalDriftForScope(
   return hasUnpushedLocalDrift(unsavedDirectionForScope(disk, note, scope));
 }
 
+/** Basename of the per-WU session-context file the safe auto-load sub-case keys on. */
+const SESSION_NOTES_BASENAME = "SESSION-NOTES.md";
+
+/**
+ * Whether a note-present/disk-absent file set is intentional retirement rather
+ * than real drift, judged against the file list captured at last sync.
+ *
+ * A missing file that was present at last sync (`∈ priorFileList`) was
+ * materialized on this machine and has since been removed locally — a deliberate
+ * removal (its WU shipped, its subdir retired), not unsaved work at risk. A
+ * missing file absent from that list was never materialized here (a fresh
+ * arrival in the note), which is real drift. Retirement requires *every* missing
+ * file to have been present before; a single fresh arrival makes the whole set
+ * drift. Without a prior list (never synced here) retirement cannot be proven, so
+ * the conservative answer is `false` (surface).
+ *
+ * @param input - The missing-file set and the last-sync file list (or `null`).
+ * @returns `true` only when the whole missing set is deliberate local retirement.
+ */
+export function missingFilesAreIntentionalRetirement(input: {
+  missingFiles: string[];
+  priorFileList: string[] | null;
+}): boolean {
+  const { missingFiles, priorFileList } = input;
+  if (priorFileList === null || missingFiles.length === 0) return false;
+  const prior = new Set(priorFileList);
+  return missingFiles.every((path) => prior.has(path));
+}
+
+/**
+ * The session-init clean-arm verdict over a notes/disk divergence: whether to
+ * auto-load (non-destructive, safe) or surface an advisory (possible stale or
+ * unsaved state the developer should inspect).
+ */
+export interface CleanArmNotesVerdict {
+  /**
+   * Auto-load is safe — the load only adds content the disk is missing, with no
+   * local-only work to clobber. Drives the workflow's notes-load dispatch.
+   */
+  loadNeeded: boolean;
+  /**
+   * Advisory surface when the divergence is neither a safe auto-load nor benign:
+   * `mixed` (may carry real edits) or general `missing` (could be stale arrival
+   * or — pre-retirement-distinction — intentional retirement). Absent when there
+   * is nothing to surface.
+   */
+  driftSurface?: { direction: "mixed" | "missing" };
+}
+
+/**
+ * Decide the clean-arm notes/disk verdict (D3) from the whole-tree divergence
+ * direction, the note-present/disk-absent file set, and the active work unit.
+ *
+ * - `behind` → auto-load: the note advanced past a disk that matches the
+ *   materialized basis, so loading overwrites nothing local.
+ * - `missing` → auto-load **only** the narrow safe sub-case: the sole missing
+ *   file is the active WU's `SESSION-NOTES.md` (a live WU's notes that arrived
+ *   in the note but were never materialized — pure-additive, provably not a
+ *   retired file). A broader missing set that is wholly intentional retirement
+ *   (`missingAreRetirement`) is benign — files deliberately removed locally when
+ *   their WU shipped, not stale arrivals. Anything else surfaces.
+ * - `mixed` → surface: the disk both adds and drops files, so it may carry
+ *   local-only edits a load would clobber; the retirement flag never suppresses
+ *   a `mixed` surface (the local-only siblings are themselves real drift).
+ * - `edits` / `modified` / `null` → no action: local unsaved work (not a stale
+ *   arrival D3 owns) or no divergence at all.
+ *
+ * Pure and side-effect-free. The active-WU-dependent sub-case is resolved by the
+ * caller that knows the active WU name (the session-init orchestrator).
+ *
+ * @param input - The whole-tree direction, the missing-file set (manifest paths
+ *   present in the note and absent on disk), the active WU name or `null`, and
+ *   whether the missing set is wholly intentional retirement.
+ * @returns The auto-load decision plus any advisory surface.
+ */
+export function resolveCleanArmNotesVerdict(input: {
+  direction: UserUnsavedDirection | null;
+  missingFiles: string[];
+  activeWuName: string | null;
+  missingAreRetirement?: boolean;
+}): CleanArmNotesVerdict {
+  const { direction, missingFiles, activeWuName, missingAreRetirement } = input;
+
+  if (direction === "behind") return { loadNeeded: true };
+
+  if (direction === "missing") {
+    const onlyActiveSessionNotesMissing =
+      activeWuName !== null &&
+      missingFiles.length === 1 &&
+      missingFiles[0] === `${activeWuName}/${SESSION_NOTES_BASENAME}`;
+    if (onlyActiveSessionNotesMissing) return { loadNeeded: true };
+    if (missingAreRetirement) return { loadNeeded: false };
+    return { loadNeeded: false, driftSurface: { direction: "missing" } };
+  }
+
+  if (direction === "mixed") {
+    return { loadNeeded: false, driftSurface: { direction: "mixed" } };
+  }
+
+  return { loadNeeded: false };
+}
+
 /**
  * Classify the disk-vs-note manifest difference into a single direction.
  *

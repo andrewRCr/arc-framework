@@ -261,13 +261,18 @@ export async function writeLocalSyncState(
   sourceCommit: string,
   sourceOperation: "save" | "load",
   verifiedAt?: string,
+  priorFileList?: string[],
 ): Promise<void> {
   // A save/load writes a fresh record but must not drop reserved fields a
   // downstream writer may have populated — carry them forward from the prior
   // record. partialPush is intentionally not carried (a successful save/load
   // resolves the notes partial-push condition); partialPushErrand IS carried,
   // since a notes-directory save does not resolve an errand-ref push failure.
+  // `priorFileList` is the file list this sync materialized — when supplied it
+  // refreshes the captured set (the drift tier's retirement-vs-arrival basis);
+  // otherwise the prior record's list carries forward.
   const prior = await readLocalSyncState(cwd, io, identity);
+  const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
   // A machine-id may have been persisted on a record with no save/load fields,
   // which the validated read above returns as null — fall back to the raw read
   // so the id survives the first complete record this write lands.
@@ -284,7 +289,7 @@ export async function writeLocalSyncState(
     savedAt: new Date().toISOString(),
     ...(verifiedAt ? { verifiedAt } : {}),
     ...(prior?.partialPushErrand ? { partialPushErrand: prior.partialPushErrand } : {}),
-    ...(prior?.priorFileList ? { priorFileList: prior.priorFileList } : {}),
+    ...(resolvedPriorFileList ? { priorFileList: resolvedPriorFileList } : {}),
     ...(prior?.remoteMarkerProvenance ? { remoteMarkerProvenance: prior.remoteMarkerProvenance } : {}),
   };
   await atomicWriteJson(syncStatePath, state);

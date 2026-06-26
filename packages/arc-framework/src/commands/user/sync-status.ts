@@ -14,7 +14,7 @@ import {
   type UserSyncCause,
   type UserSyncCauseConfidence,
 } from "../../lib/user-sync/index.js";
-import { computeUnsavedDirection } from "./drift.js";
+import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   findNearestUserNote,
@@ -30,6 +30,7 @@ import type {
   UserRemoteStatus,
   UserSessionInitStatusOptions,
   UserSessionInitStatusResult,
+  UserSessionNotesDrift,
   UserStatusHeadline,
   UserStatusOptions,
   UserStatusRemoteIdentity,
@@ -271,7 +272,35 @@ export async function runUserSessionInitStatus(
       refState: refInspection.state,
       unsavedDirection: diskInspection.direction,
     }),
+    notesDrift: computeSessionInitNotesDrift({
+      refState: refInspection.state,
+      direction: diskInspection.direction,
+      missingFiles: diskInspection.missingFiles,
+      missingAreRetirement: diskInspection.missingAreRetirement,
+    }),
   });
+}
+
+/**
+ * Build the raw clean-arm notes/disk divergence signal (D3) for the
+ * orchestrator. Returns `undefined` outside `refState === "same"` (the only arm
+ * with a meaningful disk-vs-note comparison) or when there is no divergence
+ * (`direction === null`), so the field is suppressed in both cases.
+ */
+function computeSessionInitNotesDrift(input: {
+  refState: UserSyncRefState | null;
+  direction: UserUnsavedDirection | null;
+  missingFiles: string[];
+  missingAreRetirement?: boolean;
+}): UserSessionNotesDrift | undefined {
+  if (input.refState !== "same" || input.direction === null) return undefined;
+  return {
+    direction: input.direction,
+    missingFiles: input.missingFiles,
+    ...(input.missingAreRetirement !== undefined
+      ? { missingAreRetirement: input.missingAreRetirement }
+      : {}),
+  };
 }
 
 /**
@@ -429,6 +458,7 @@ function buildUserSessionInitStatusResult(input: {
   comparison?: UserSyncRefInspection["comparison"];
   localNoteFreshness?: UserSessionLocalNoteFreshness;
   loadNeeded?: boolean;
+  notesDrift?: UserSessionNotesDrift;
 }): UserSessionInitStatusResult {
   const { identity, spine } = input;
   const staleNoteAction = shouldWarnStaleLocalNote(spine, input.localNoteFreshness)
@@ -470,6 +500,7 @@ function buildUserSessionInitStatusResult(input: {
         shouldPromptToPull: spine.shouldPromptToPull,
         ...(input.localNoteFreshness ? { localNoteFreshness: input.localNoteFreshness } : {}),
         ...(input.loadNeeded !== undefined ? { loadNeeded: input.loadNeeded } : {}),
+        ...(input.notesDrift ? { notesDrift: input.notesDrift } : {}),
       };
     case "remote-ahead":
       return {
@@ -1360,6 +1391,24 @@ interface DiskVsSnapshotInspection {
   state: UserSyncDiskState;
   diskStatus: UserDiskStatus;
   direction: UserUnsavedDirection | null;
+  /** Manifest paths present in the (projected) note and absent on disk. */
+  missingFiles: string[];
+  /**
+   * Set on a `missing` direction: `true` when the whole missing set is deliberate
+   * local retirement (every file was present at last sync), `false` when it
+   * carries a fresh arrival. Omitted on non-`missing` directions.
+   */
+  missingAreRetirement?: boolean;
+}
+
+/** Manifest paths the note carries that the disk does not, over projected manifests. */
+function missingNoteFiles(
+  projectedNote: SyncManifest,
+  projectedDisk: SyncManifest | null,
+): string[] {
+  return Object.keys(projectedNote.files).filter(
+    (path) => projectedDisk?.files[path] === undefined,
+  );
 }
 
 async function inspectDiskVsLocalSnapshot(
@@ -1385,6 +1434,7 @@ async function inspectDiskVsLocalSnapshot(
       state: diskManifest ? "different" : "same",
       diskStatus: diskManifest ? "local unsaved" : "current",
       direction: diskManifest ? "edits" : null,
+      missingFiles: [],
     };
   }
 
@@ -1396,6 +1446,7 @@ async function inspectDiskVsLocalSnapshot(
       state: diskManifest ? "different" : "same",
       diskStatus: diskManifest ? "local unsaved" : "current",
       direction: diskManifest ? "edits" : null,
+      missingFiles: [],
     };
   }
 
@@ -1408,21 +1459,27 @@ async function inspectDiskVsLocalSnapshot(
   const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
 
+  const priorFileList = localSyncState?.priorFileList ?? null;
+
   if (!diskManifest) {
+    const missingFiles = missingNoteFiles(projectedNote, null);
     return {
       state: "different",
       diskStatus: localSyncState?.materializedManifestHash === noteHash
         ? "local unsaved"
         : "stale",
       direction: "missing",
+      missingFiles,
+      missingAreRetirement: missingFilesAreIntentionalRetirement({ missingFiles, priorFileList }),
     };
   }
 
   const projectedDisk = projectManifest(diskManifest);
   const diskHash = hashSyncManifest(projectedDisk);
+  const missingFiles = missingNoteFiles(projectedNote, projectedDisk);
 
   if (manifestsEqual(projectedNote, projectedDisk)) {
-    return { state: "same", diskStatus: "current", direction: null };
+    return { state: "same", diskStatus: "current", direction: null, missingFiles };
   }
 
   const direction = computeUnsavedDirection(projectedDisk, projectedNote);
@@ -1432,6 +1489,7 @@ async function inspectDiskVsLocalSnapshot(
       state: "different",
       diskStatus: deriveDiskStatus("different", direction),
       direction,
+      missingFiles,
     };
   }
 
@@ -1439,13 +1497,13 @@ async function inspectDiskVsLocalSnapshot(
   if (note.commit !== localSyncState.sourceCommit) {
     const noteIsDescendant = await isAncestor(io, localSyncState.sourceCommit, note.commit);
     if (noteIsDescendant && diskHash === materializedHash) {
-      return { state: "different", diskStatus: "stale", direction: "behind" };
+      return { state: "different", diskStatus: "stale", direction: "behind", missingFiles };
     }
     // Note advanced past the materialized snapshot's baseline while disk
     // also diverged, or note moved outside the baseline's history entirely.
     // Both directions ambiguous; prefer manual reconciliation framing over
     // auto-routing to either save or load.
-    return { state: "different", diskStatus: "mixed", direction: "mixed" };
+    return { state: "different", diskStatus: "mixed", direction: "mixed", missingFiles };
   }
 
   let diskStatus: UserDiskStatus;
@@ -1461,6 +1519,10 @@ async function inspectDiskVsLocalSnapshot(
     state: "different",
     diskStatus,
     direction,
+    missingFiles,
+    ...(direction === "missing"
+      ? { missingAreRetirement: missingFilesAreIntentionalRetirement({ missingFiles, priorFileList }) }
+      : {}),
   };
 }
 
