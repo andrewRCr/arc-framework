@@ -1,5 +1,23 @@
 # Draft: Sync Handler Decomposition
 
+---
+
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Account for `stale-state-detect-and-pull`'s inbound `arc sync` leg in the decomposition**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-26); captured during
+  `stale-state-detect-and-pull` planning forward-compat sanity check (2026-06-25).
+- _Concern:_ `stale-state-detect-and-pull` (S6) makes `arc sync` bidirectional — a new inbound pull leg / matrix
+  outcome (ff-pull on `remote-ahead`, block on `diverged`, refuse on dirty) in `handlers/sync.ts` / the matrix
+  this WU extracts. Authoring it as a pure matrix-outcome + isolated execution lets the two compose regardless of
+  land-order; the decomposition should expect the added cell.
+
+---
+
 ## Problem / Motivation
 
 `src/handlers/sync.ts` blends multiple responsibilities under a single module surface:

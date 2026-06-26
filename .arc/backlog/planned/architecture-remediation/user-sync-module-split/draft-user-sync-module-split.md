@@ -15,6 +15,16 @@
   ordering, an auto-retry leg in the push flow, and marker read/write. The decomposition should account for the
   added surface (it will likely land first, as a P1 `finalize-parallelism` gate).
 
+### `[ ]` **Account for `stale-state-detect-and-pull`'s user-sync surface growth in the split**
+
+- _Routed from:_ `USER-INBOX § Work Unit`, housekeep drain (2026-06-26); captured during
+  `stale-state-detect-and-pull` planning forward-compat sanity check (2026-06-25).
+- _Concern:_ `stale-state-detect-and-pull` (S3 notes/disk-drift) edits `inspectDiskVsLocalSnapshot`, the
+  user-sync spine, and the projection bridge — the `sync-status.ts` functions this split relocates (to
+  `disk-snapshot.ts` / `spine.ts`). It also adds a shared "unpushed-local-drift" predicate its retired-subdir
+  reconcile consumes. The decomposition should account for the added/edited surface — mirrors the
+  `partial-push-marker` growth note above.
+
 ---
 
 ## Problem / Motivation
