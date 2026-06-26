@@ -41,13 +41,13 @@ unit-testable functions; the impure execution shell wraps the inbound decision. 
 
 - **Strategies:** strategy-testing-methodology.md, strategy-concurrent-work.md
 
-    - `[ ]` **1.2.a Pure inbound-pull decision matrix**
-        - Build `test-first` (one behavior at a time):
-            - `remote-ahead` + clean → ff-pull
-            - `diverged` → block (never auto-resolve)
-            - dirty tree → refuse
-            - already current / `same` → no-op
-            - non-TTY → auto-skip to surface (never auto-pull, never blocking prompt)
+    - `[x]` **1.2.a Pure inbound-pull decision matrix**
+        - _Outcome:_ New `lib/git/inbound-pull.ts` — `decideInboundPull` maps (compare-state ×
+          tree × policy × TTY) → `ff-pull` / `prompt` / `block` / `refuse` / `no-op` / `surface`.
+          A `policy` input (`manual`/`prompt`/`always`, mirroring `session.init_pull.base`) lets
+          one matrix serve both consumers: `arc sync` passes `always`, while a non-TTY downgrades a
+          `prompt`-policy fast-forward to `surface` (the agent-safe contract). Reuses
+          `WorktreeSyncState` as the compare-state input rather than minting a parallel enum.
 
     - `[ ]` **1.2.b Fetch + compare + ff-pull execution shell**
         - The thin impure wrapper around 1.2.a: fetch, ref-compare, conflict-handled ff-pull on the ff outcome;
