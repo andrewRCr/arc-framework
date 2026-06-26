@@ -34,6 +34,7 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../../lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
@@ -146,6 +147,14 @@ export interface SessionInitProbeResult {
    * placement; the recommendation fields drive the resume-time reconcile offer.
    */
   baseDistance: Probe<SessionInitBaseDistanceValue>;
+  /**
+   * Base-branch-sync slot — local `<base>` vs `origin/<base>`, the
+   * silently-stale-local-base surface (sibling to `baseDistance`, which
+   * measures HEAD vs `origin/<base>`). Always present (eager, non-gated). Raw
+   * distance only at this stage; the config-gated recommendation pair that
+   * drives a fast-forward-only freshen offer is layered on by a later increment.
+   */
+  baseBranchSync: Probe<BaseBranchSyncStatusResult>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
@@ -395,6 +404,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * handler binds the resolved `branch.base` and remote-sync flag.
    */
   baseDistance: () => Promise<BaseDistanceStatusResult>;
+  /**
+   * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
+   * (a between-WU resume is where a silently-stale local base matters). The
+   * handler binds the resolved `branch.base` and remote-sync flag, mirroring the
+   * base-distance probe.
+   */
+  baseBranchSync: () => Promise<BaseBranchSyncStatusResult>;
   /**
    * Patch-equal supersession detector — `git cherry` over the local-ahead set,
    * receiving the current branch from the orchestrator. Called ONLY when the

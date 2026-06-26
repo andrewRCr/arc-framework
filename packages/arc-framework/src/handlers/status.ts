@@ -77,6 +77,7 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { runBaseDistanceStatus } from "../lib/git/base-distance.js";
+import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
@@ -347,6 +348,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         const resolved = await resolvedSettingsP;
         const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
         return runBaseDistanceStatus({
+          exec: gitExec,
+          baseBranch: resolved.settings["branch.base"],
+          remoteSyncEnabled,
+        });
+      },
+      baseBranchSync: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runBaseBranchSyncStatus({
           exec: gitExec,
           baseBranch: resolved.settings["branch.base"],
           remoteSyncEnabled,

@@ -224,6 +224,7 @@ export async function runSessionInitStatus(
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
   const baseDistanceTask = safeProbe(() => probes.baseDistance());
+  const baseBranchSyncTask = safeProbe(() => probes.baseBranchSync());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const domainRulesTask = safeProbe(() => probes.domainRules());
@@ -246,7 +247,7 @@ export async function runSessionInitStatus(
 
   const [
     user, worktree, dirty, active, releaseRouting,
-    worktreeIdentitySlot, baseDistance, extensions, config, domainRules,
+    worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
     retiredSubdirs, errandSweep, inboxState,
   ] = await Promise.all([
     shared.user,
@@ -256,6 +257,7 @@ export async function runSessionInitStatus(
     shared.releaseRouting,
     worktreeIdentityTask,
     baseDistanceTask,
+    baseBranchSyncTask,
     extensionsTask,
     configTask,
     domainRulesTask,
@@ -435,6 +437,7 @@ export async function runSessionInitStatus(
     user: enrichedUser,
     worktree: enrichedWorktree,
     baseDistance: enrichedBaseDistance,
+    baseBranchSync,
     dirty,
     extensions,
     config,

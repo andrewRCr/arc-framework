@@ -64,33 +64,19 @@ _Design decisions:_ `baseBranchSync` (local-`<base>`-vs-`origin/<base>`) is a si
 `baseDistance` slot (HEAD-vs-`origin/<base>`), distinct and complementary; name and config namespace align with
 the `baseDistance` channel so the two read as one family.
 
-### `[ ]` **2.1 Local base-ref staleness probe + `baseBranchSync` slot (D1 detect)**
+### `[x]` **2.1 Local base-ref staleness probe + `baseBranchSync` slot (D1 detect)**
 
 - _Goal:_ Session-init computes local-`<base>`-vs-`origin/<base>` staleness and exposes it as a `baseBranchSync`
   envelope slot (mirroring the `worktree` slot shape), so a sibling clone's silently-behind base ref becomes
   visible at orientation.
 
-- _Context:_ `countAheadBehindRef` (`lib/git/worktree-sync.ts`) compares arbitrary refs but is invoked only as
-  `countAheadBehindRef(exec, "HEAD", "origin/<base>")` in `runBaseDistanceStatus` (`lib/git/base-distance.ts`).
-  The new invocation is `countAheadBehindRef(exec, "<base>", "origin/<base>")` — same primitive, new call site +
-  new slot.
-
-- _Shape:_ A **sibling** `Probe<T>` slot to `baseDistance` (not a field on it), assembled in
-  `runSessionInitStatus` (`commands/status/run.ts`); follow the `baseDistance` precedent — `inferBaseDistance`
-  (`run.ts`) enriches `recommendedAction` / `recommendedPromptText` onto the raw distance.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - Slot fields: `state`, `ahead` / `behind`, plus `recommendedAction` / `recommendedPromptText` (action
-      mapping populated in 2.2 against config).
-
-    - Build `test-first` (one behavior at a time):
-        - parity → clean / no-action state
-        - behind & fast-forwardable → `ahead: 0`, `behind: N`, behind state
-        - diverged (local `<base>` carries commits absent from `origin/<base>`) → diverged state
-        - state derivation is config-independent (the config × state → action mapping is 2.2's)
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D1.
+- _Outcome:_ `runBaseBranchSyncStatus` (`lib/git/base-branch-sync.ts`) wraps
+  `countAheadBehindRef(exec, "<base>", "origin/<base>")` — sibling to `runBaseDistanceStatus`, with no
+  `detached-head` arm (the comparison targets a named base ref, not HEAD) and a missing local base ref degrading
+  to `remote-unavailable`. Exposed as a raw, always-present `baseBranchSync` envelope slot (wired through
+  `SessionInitProbes`, the `status` handler, `runSessionInitStatus`, and `SessionInitProbeResult`); the
+  config-gated `recommendedAction` / `recommendedPromptText` enrichment is 2.2's. State derivation is
+  config-independent and covered by `base-branch-sync.test.ts`.
 
 ### `[ ]` **2.2 `session.init_pull.base` config-gated ff-pull + orientation surfacing (D1 remediate, R1 consumer)**
 

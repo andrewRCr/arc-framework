@@ -52,6 +52,7 @@ import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
@@ -181,6 +182,12 @@ function baseDistance(
   overrides: Partial<BaseDistanceStatusResult> = {},
 ): BaseDistanceStatusResult {
   return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
+}
+
+function baseBranchSync(
+  overrides: Partial<BaseBranchSyncStatusResult> = {},
+): BaseBranchSyncStatusResult {
+  return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
 }
 
 function supersessionResult(
@@ -323,6 +330,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     baseDistance: vi.fn(async () => baseDistance()),
+    baseBranchSync: vi.fn(async () => baseBranchSync()),
     supersession: vi.fn(async () => supersessionResult()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
@@ -1000,6 +1008,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
+      "baseBranchSync",
       "baseDistance",
       "config",
       "dirty",

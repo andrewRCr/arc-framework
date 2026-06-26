@@ -163,6 +163,15 @@ function makeSessionInitResult(
         recommendedPromptText: "",
       },
     },
+    baseBranchSync: {
+      ok: true,
+      value: {
+        state: "clean",
+        ahead: 0,
+        behind: 0,
+        base: "main",
+      },
+    },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
     recommendedCombinedPrompt: null,
     extensions: {
