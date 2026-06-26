@@ -41,6 +41,7 @@ import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
+import type { PlanOrphanSweepResult } from "../../lib/session-init/plan-orphan-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
@@ -220,6 +221,15 @@ export interface SessionInitProbeResult {
    * worktrees (the resume path never sweeps) and when the roster failed.
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
+  /**
+   * Pre-computed `plan/`-orphan sweep — local `plan/<name>` branches whose
+   * upstream is gone (a sibling's local-only `plan/ → <type>/` rename), each
+   * with its merged-to-base verdict. A `merged` orphan earns the
+   * interlock-gated `git branch -d` offer; an unmerged one is surfaced as
+   * not-removable (never `-D`). Present ONLY in the primary (main) worktree —
+   * branch hygiene the resume path never pays for; absent in linked worktrees.
+   */
+  planOrphanSweep?: Probe<PlanOrphanSweepResult>;
   /**
    * Pre-computed retired-subdir detection — lingering retired-WU user subdirs
    * (shipped + carrying no unpushed drift) under `user/{identity}/`. Enriched
@@ -484,6 +494,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
     roster: WorktreeRosterResult,
     worktreeIdentity: WorktreeIdentity,
   ) => Promise<StaleWorktreeSweepResult>;
+  /**
+   * `plan/`-orphan sweep resolver. Receives the session's worktree identity; the
+   * handler binds the base branch and git executor. Called ONLY in the primary
+   * worktree — it enumerates gone-upstream `plan/` branches itself (no roster
+   * dependency).
+   */
+  planOrphanSweep: (worktreeIdentity: WorktreeIdentity) => Promise<PlanOrphanSweepResult>;
   /**
    * Retired-subdir detection resolver. Receives the resolved identity and reads
    * `user/{identity}/` + `.arc/completed/` (cheap) plus a gated recent-notes

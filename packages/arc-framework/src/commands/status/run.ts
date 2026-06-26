@@ -450,6 +450,14 @@ export async function runSessionInitStatus(
     worktreeIdentity.kind === "primary" && roster?.ok
       ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
       : undefined;
+
+  // `plan/`-orphan sweep — a primary-worktree branch-hygiene check. Unlike the
+  // stale-worktree sweep it consumes no roster: it enumerates gone-upstream
+  // `plan/` branches itself, so it gates on worktree identity alone.
+  const planOrphanSweep =
+    worktreeIdentity.kind === "primary"
+      ? await safeProbe(() => probes.planOrphanSweep(worktreeIdentity))
+      : undefined;
   const errandState: RawErrandState | undefined =
     worktree.ok && active.ok
       ? await safeProbe(() => probes.errandState({
@@ -517,6 +525,7 @@ export async function runSessionInitStatus(
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
+    ...(planOrphanSweep !== undefined ? { planOrphanSweep } : {}),
     ...(enrichedRetiredSubdirs !== undefined ? { retiredSubdirs: enrichedRetiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),

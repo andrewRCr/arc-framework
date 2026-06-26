@@ -64,6 +64,7 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { runPlanOrphanSweep } from "../lib/session-init/plan-orphan-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState } from "../lib/session-init/errand-state.js";
@@ -405,6 +406,14 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           baseBranch: resolved.settings["branch.base"],
           exec: gitExec,
           fs: { readdir: (path) => readdir(path) },
+        });
+      },
+      planOrphanSweep: async (worktreeIdentity) => {
+        const resolved = await resolvedSettingsP;
+        return runPlanOrphanSweep({
+          worktreeIdentity,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
         });
       },
       retiredSubdirs: async (id) => {

@@ -216,37 +216,19 @@ surface (a CLI prompt) from the reconcile gate.
 _Purpose:_ Remove the stale `plan/<name>` branches a non-activating machine accumulates after a sibling renames
 the branch locally — branch hygiene, not WU-state inference.
 
-### `[ ]` **4.1 `plan/`-orphan detection + interlock-gated `-d` offer (D2)**
+### `[x]` **4.1 `plan/`-orphan detection + interlock-gated `-d` offer (D2)**
 
 - _Goal:_ Session-init in the primary worktree detects local `plan/<name>` branches whose upstream is `[gone]`
   and which are merged to `branch.base`, and offers an interlock-gated `git branch -d` removal — clearing the
   stale branches left after a sibling's local-only `plan/ → <type>/` rename.
 
-- _Context:_ `activate-work-unit`'s rename is local-only; the non-activating sibling keeps a `[gone]`-upstream
-  `plan/<name>` forever. This is the cross-machine `plan/`-orphan reaper — the facet `async-merge-lifecycle`
-  explicitly deferred (it owned only the `feat/` orphan, shipped as the `integrate-work-unit` Step 13 merge-time
-  teardown; this session-init sweep was punted downstream and relocated here at the cross-machine-coherence
-  restructure). No session-init orphan-**branch** sweep exists to mirror — this builds it.
-
-- _Approach:_ Compose from three shipped sources — the stale-**worktree** sweep's surface shape
-  (`lib/session-init/stale-worktree-sweep.ts`: `runStaleWorktreeSweep` / `decideWorktreeCleanup`); Worktree
-  Foundation's `gone`-upstream detection (`isBranchGoneError`, `branch-gone-cascade.ts`); and the
-  merged-only-safe `git branch -d` teardown pattern proven in `async-merge-lifecycle`'s `integrate-work-unit`
-  Step 13. Build the merged-to-base check new.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
-
-    - **Two-surface edit:** sweep computation in the CLI — a **new** `Probe<T>` slot in `runSessionInitStatus`
-      (not an extension of `sweep`, which carries worktrees); the orientation offer renders via `session-init.md`
-      Step 6 (Framework file — package source + `.arc/` mirror).
-
-    - Build `test-first` (one behavior at a time):
-        - `[gone]`-upstream + merged-to-base `plan/` branch → offered for `git branch -d`
-        - `[gone]`-upstream but NOT merged → not offered (merged-only-safe; never `-D`)
-        - live-upstream `plan/` branch → not swept
-        - non-primary worktree → sweep does not run
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D2.
+- _Outcome:_ Built the sweep from a new `lib/git/gone-upstream-branches.ts` primitive (one `for-each-ref`
+  over `refs/heads/plan/`, NUL-joined `%(upstream:track,nobracket)`, keeping only `gone`) plus a new
+  `lib/session-init/plan-orphan-sweep.ts` that flags each gone orphan's `merged` verdict via the shipped
+  `isLandedInBase` against `origin/<base>` — merged-only-safe, never `-D`. New `planOrphanSweep` envelope
+  slot in `runSessionInitStatus`, gated on primary-worktree identity alone (no roster dependency, unlike
+  `sweep`). Orientation offer renders in `session-init.md` Step 1 table + Step 6 (package template + `.arc/`
+  mirror). See `notes-stale-state-detect-and-pull.md` § D2.
 
 ## **Phase 5:** Marker rendering & bidirectional `arc sync` (C1, R1)
 
