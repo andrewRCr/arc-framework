@@ -16,8 +16,7 @@
 - **Next Task:** Task 6.1 — Complete verification (line ~286)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Phase 6 — load and follow `verify-work-unit.md`. All implementation phases (1–5)
-  complete; only verification + integration remain.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

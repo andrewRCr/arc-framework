@@ -283,24 +283,35 @@ sitting in different spec clusters (Consume vs Remediate).
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ md lint (0 errors), shell lint, `lint:ts`, `typecheck:all`, build, and 3452 tests (1 skipped)
+  — full Tier 3 suite passed.
+- _Success criteria:_ all 6 met. The marker criterion was live-verified end-to-end: the repo's own marker
+  (machine `06a53d77`) rendered a **false-positive** Aware line because the producer's liveness predicate tested
+  exact-OID equality rather than reachability — a marker whose intent origin had advanced _past_ stayed live until
+  its TTL. Fixed by switching the predicate to a reachability check (shipped separately, absorbed via base merge;
+  consumer surface rewired to the injected resolver in `a3a6249f`); the live marker now self-silences.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` A machine whose local `<base>` is behind `origin/<base>` surfaces it at session-init and (config-gated)
+- `[x]` A machine whose local `<base>` is behind `origin/<base>` surfaces it at session-init and (config-gated)
   ff-pulls current; a diverged or dirty base surfaces and refuses, never auto-resolving.
-- `[ ]` A `[gone]`-upstream, base-merged `plan/` branch is offered for `-d` removal (never `-D`); nothing else
+- `[x]` A `[gone]`-upstream, base-merged `plan/` branch is offered for `-d` removal (never `-D`); nothing else
   is swept.
-- `[ ]` Notes/disk `mixed` / `missing` drift surfaces on the clean arm; the active-WU-`SESSION-NOTES`-absent
+- `[x]` Notes/disk `mixed` / `missing` drift surfaces on the clean arm; the active-WU-`SESSION-NOTES`-absent
   sub-case auto-loads; benign drift does not false-positive.
-- `[ ]` A shipped WU's orphaned user subdir is auto-removed (recoverable from the pre-load backup) once the
+- `[x]` A shipped WU's orphaned user subdir is auto-removed (recoverable from the pre-load backup) once the
   index is freshened and it carries no unpushed drift — no accumulation on a non-integrating machine; a
   non-shipped / live / unresolvable subdir is preserved; no agent hang and no default-delete on `arc user open`.
-- `[ ]` A live partial-push marker renders the Aware one-liner at session-init from the shipped payload, falling
+- `[x]` A live partial-push marker renders the Aware one-liner at session-init from the shipped payload, falling
   silent once liveness reports fulfilled and on an absent ref.
-- `[ ]` `arc sync` is bidirectional: ff-pulls on `remote-ahead`, blocks on `diverged`, refuses on dirty —
+    - **Verified live:** the repo's own marker (machine `06a53d77`, intent reachable from the notes tip) rendered
+      as a false-positive Aware line under the original exact-OID predicate; after the reachability fix it
+      self-silences (`partialPushMarker.markers` empty at session-init).
+- `[x]` `arc sync` is bidirectional: ff-pulls on `remote-ahead`, blocks on `diverged`, refuses on dirty —
   agent-safe (no blocking TTY prompt).
-- `[ ]` All quality gates pass (tests, linting, type checking).
-- `[ ]` Ready for integration.
+- `[x]` All quality gates pass (tests, linting, type checking).
+- `[x]` Ready for integration.
