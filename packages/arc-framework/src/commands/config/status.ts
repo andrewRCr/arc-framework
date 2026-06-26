@@ -33,6 +33,7 @@ const SESSION_INIT_KEYS = [
   "session.remote_sync",
   "session.init_pull.worktree",
   "session.init_pull.notes",
+  "session.init_pull.base",
   "session.init_load.notes",
   "user.notes_push",
   "branch.protection",

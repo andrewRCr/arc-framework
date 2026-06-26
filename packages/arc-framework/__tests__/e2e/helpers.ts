@@ -52,7 +52,7 @@ export async function runArc(
         { cwd, timeout, env },
       )
       : await execFileAsync(
-        "node",
+        process.execPath,
         [CLI_PATH, ...args],
         { cwd, timeout, env },
       );
@@ -74,8 +74,37 @@ export async function runArc(
   }
 }
 
+/**
+ * Like {@link runArc}, but always invokes the CLI directly via `node` — never
+ * through `script` — so stdin and stdout are real pipes, not a pseudo-TTY. Use
+ * for regression tests that must exercise the genuine non-TTY path, where
+ * `runArc`'s Linux `script` wrapper would otherwise allocate a TTY and mask it.
+ *
+ * @param args - CLI arguments
+ * @param cwd - Working directory for the CLI process
+ * @param options - Optional timeout and env overrides
+ * @returns Captured stdout, stderr, and exit code
+ */
+export async function runArcNoTty(
+  args: string[],
+  cwd: string,
+  options?: { timeout?: number; env?: Record<string, string> },
+): Promise<RunResult> {
+  assertCliBuilt();
+  const timeout = options?.timeout ?? 30_000;
+  const env = { ...process.env, NO_COLOR: "1", ...options?.env };
+  try {
+    const { stdout, stderr } = await execFileAsync(process.execPath, [CLI_PATH, ...args], { cwd, timeout, env });
+    return { stdout, stderr, exitCode: 0 };
+  } catch (err: unknown) {
+    const e = err as { stdout?: string; stderr?: string; code?: number | string };
+    const exitCode = typeof e.code === "number" ? e.code : 1;
+    return { stdout: e.stdout ?? "", stderr: e.stderr ?? "", exitCode };
+  }
+}
+
 function buildScriptCommand(args: string[]): string {
-  const nodeCommand = ["node", CLI_PATH, ...args].map(shellEscape).join(" ");
+  const nodeCommand = [process.execPath, CLI_PATH, ...args].map(shellEscape).join(" ");
   return `stty cols 120 rows 40; exec ${nodeCommand}`;
 }
 

@@ -52,17 +52,20 @@ import type { HeadHashResult } from "../../../src/lib/git/head-hash.js";
 import type { PushabilityResult } from "../../../src/lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../../src/lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../../src/lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../../src/lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../../src/lib/session-init/stale-worktree-sweep.js";
+import type { PlanOrphanSweepResult } from "../../../src/lib/session-init/plan-orphan-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../../src/lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../../src/lib/session-init/errand-state.js";
 import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
+import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -125,7 +128,9 @@ function configResult(overrides: Partial<ConfigStatusResult> = {}): ConfigStatus
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_pull.base": "prompt",
       "session.init_load.notes": "prompt",
+      "sync.auto_pull": "false",
       "archive.cadence": "with-integration",
       "user.notes_push": "on-sync",
       "inbox.remind_after_days": "1",
@@ -183,6 +188,12 @@ function baseDistance(
   return { state: "clean", ahead: 0, behind: 0, base: "main", overlappingPaths: [], ...overrides };
 }
 
+function baseBranchSync(
+  overrides: Partial<BaseBranchSyncStatusResult> = {},
+): BaseBranchSyncStatusResult {
+  return { state: "clean", ahead: 0, behind: 0, base: "main", ...overrides };
+}
+
 function supersessionResult(
   overrides: Partial<SupersessionResult> = {},
 ): SupersessionResult {
@@ -222,6 +233,7 @@ function configSessionInit(
       "session.remote_sync": "enabled",
       "session.init_pull.worktree": "prompt",
       "session.init_pull.notes": "prompt",
+      "session.init_pull.base": "prompt",
       "session.init_load.notes": "prompt",
       "user.notes_push": "on-sync",
       "branch.protection": "partial",
@@ -323,6 +335,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     worktree: vi.fn(async () => worktreeSync()),
     worktreeIdentity: vi.fn(async () => worktreeIdentity()),
     baseDistance: vi.fn(async () => baseDistance()),
+    baseBranchSync: vi.fn(async () => baseBranchSync()),
     supersession: vi.fn(async () => supersessionResult()),
     dirty: vi.fn(async () => dirtyState()),
     extensions: vi.fn(async () => extensionsSessionInit()),
@@ -333,6 +346,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     roster: vi.fn(async () => rosterResult()),
     recovery: vi.fn(async (): Promise<CascadeResolution> => ({ kind: "main-fallback" })),
     sweep: vi.fn(async (): Promise<StaleWorktreeSweepResult> => ({ worktrees: [], warnings: [] })),
+    planOrphanSweep: vi.fn(async (): Promise<PlanOrphanSweepResult> => ({ orphans: [] })),
     retiredSubdirs: vi.fn(async (): Promise<RetiredSubdirDetectionResult> => ({ candidates: [] })),
     errandSweep: vi.fn(async (): Promise<ErrandStalenessSweepResult> => ({ stale: [] })),
     errandState: vi.fn(async (): Promise<ErrandStateResult> => errandStateResult()),
@@ -341,6 +355,9 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     ),
     workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
+    partialPushMarker: vi.fn(
+      async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
+    ),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
     ...overrides,
   };
@@ -662,6 +679,7 @@ describe("runSessionInitStatus — orchestration", () => {
         "pm.mode",
         "push.interlock",
         "session.init_load.notes",
+        "session.init_pull.base",
         "session.init_pull.notes",
         "session.init_pull.worktree",
         "session.remote_sync",
@@ -691,6 +709,87 @@ describe("runSessionInitStatus — orchestration", () => {
     if (!result.active.ok) {
       expect(result.active.error.kind).toBe("runtime");
       expect(result.active.error.message).toBe("boom");
+    }
+  });
+});
+
+describe("runSessionInitStatus — clean-arm notes/disk drift (D3)", () => {
+  const activeWu = sessionInitProbes({
+    active: vi.fn(async () =>
+      activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-my-wu.md",
+        sessionType: "execution",
+      }),
+    ),
+  });
+
+  it("upgrades loadNeeded for the safe sub-case (active WU SESSION-NOTES purely missing)", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(true);
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
+  it("surfaces a mixed drift advisory without auto-loading", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "mixed", missingFiles: [] },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({ direction: "mixed" });
+    }
+  });
+
+  it("surfaces general missing drift (beyond the active WU's SESSION-NOTES)", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: {
+            direction: "missing",
+            missingFiles: ["my-wu/SESSION-NOTES.md", "other-wu/SESSION-NOTES.md"],
+          },
+        }),
+      ),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(false);
+      expect(result.user.value.notesDriftSurface).toEqual({ direction: "missing" });
+    }
+  });
+
+  it("leaves loadNeeded and the surface untouched when no drift signal is present", async () => {
+    const probes = sessionInitProbes({
+      active: activeWu.active,
+      user: vi.fn(async () => userSessionInit({ refState: "same" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
     }
   });
 });
@@ -758,6 +857,150 @@ describe("runSessionInitStatus — base-distance slot", () => {
     expect(result.baseDistance.ok).toBe(false);
     if (!result.baseDistance.ok) {
       expect(result.baseDistance.error.kind).toBe("runtime");
+    }
+  });
+});
+
+describe("runSessionInitStatus — base-branch-sync slot", () => {
+  function configWithBasePolicy(policy: string): ConfigSessionInitResult {
+    const base = configSessionInit();
+    return { ...base, settings: { ...base.settings, "session.init_pull.base": policy } };
+  }
+
+  it("enriches a behind base with a fast-forward prompt under the default `prompt` policy", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", ahead: 0, behind: 3 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(probes.baseBranchSync).toHaveBeenCalledTimes(1);
+    expect(result.baseBranchSync.ok).toBe(true);
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.state).toBe("remote-ahead");
+      expect(result.baseBranchSync.value.recommendedAction).toBe("prompt");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Fast-forward base?");
+    }
+  });
+
+  it("auto-fast-forwards a behind base under `always`", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("refuses the fast-forward on a dirty tree (surface, not pull)", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "remote-ahead", behind: 2 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("Working tree dirty");
+    }
+  });
+
+  it("surfaces a diverged base as not-fast-forwardable, never pull", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "diverged", ahead: 1, behind: 4 })),
+      config: vi.fn(async () => configWithBasePolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("surface");
+      expect(result.baseBranchSync.value.recommendedPromptText).toContain("not fast-forwardable");
+    }
+  });
+
+  it("skips a base at parity", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => baseBranchSync({ state: "clean" })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.value.recommendedAction).toBe("skip");
+    }
+  });
+
+  it("preserves a probe failure as an error slot rather than rejecting the envelope", async () => {
+    const probes = sessionInitProbes({
+      baseBranchSync: vi.fn(async () => {
+        throw new Error("base-sync probe boom");
+      }),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.baseBranchSync.ok).toBe(false);
+    if (!result.baseBranchSync.ok) {
+      expect(result.baseBranchSync.error.kind).toBe("runtime");
+    }
+  });
+});
+
+describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
+  function configWithLoadPolicy(policy: string): ConfigSessionInitResult {
+    const base = configSessionInit();
+    return { ...base, settings: { ...base.settings, "session.init_load.notes": policy } };
+  }
+
+  it("auto-reconciles candidates under `always` on a clean tree (pull)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.retiredSubdirs?.ok).toBe(true);
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("degrades `always` to an offer on a dirty tree (prompt)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("prompt");
+      expect(result.retiredSubdirs.value.recommendedPromptText).toContain("arc user load");
+    }
+  });
+
+  it("offers under the default `prompt` policy, no auto-run", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("prompt");
+    }
+  });
+
+  it("warns only under `manual` (surface)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("manual")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("surface");
+    }
+  });
+
+  it("skips when no candidates linger, regardless of policy", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: [] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("skip");
     }
   });
 });
@@ -1000,6 +1243,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
     });
     expect(Object.keys(result).sort()).toEqual([
       "active",
+      "baseBranchSync",
       "baseDistance",
       "config",
       "dirty",
@@ -1010,6 +1254,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "identity",
       "inboxState",
       "mode",
+      "partialPushMarker",
       "recommendedCombinedPrompt",
       "releaseRouting",
       "retiredSubdirs",

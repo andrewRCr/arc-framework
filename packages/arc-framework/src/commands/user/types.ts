@@ -75,6 +75,22 @@ export class UserLoadVerificationError extends Error {
 /** Backup filename for pre-load snapshot of local state. */
 export const BACKUP_FILENAME = ".pre-load-backup.json";
 
+/**
+ * Register governing how a load-summary message reads:
+ *
+ * - `cleanup` — a routine reconcile that ran (e.g. a retired subdir removed).
+ *   Normal operations, not a problem.
+ * - `notice` — a local file left in place for the operator to consider.
+ * - `warning` — a genuine problem (e.g. a malformed note that couldn't merge).
+ */
+export type LoadMessageLevel = "cleanup" | "notice" | "warning";
+
+/** One load-summary message, tagged with the register that governs its display. */
+export interface LoadMessage {
+  level: LoadMessageLevel;
+  text: string;
+}
+
 /** Result of a user load operation. */
 export interface UserLoadResult {
   kind: "loaded";
@@ -89,8 +105,12 @@ export interface UserLoadResult {
   noteHistoryDistance?: number;
   /** Whether the annotated commit is reachable from current HEAD. */
   reachableFromHead?: boolean;
-  /** Warnings about local files not present in the loaded manifest. */
-  warnings: string[];
+  /**
+   * Load-summary messages, each tagged with a register ({@link LoadMessageLevel})
+   * so the formatter can group routine cleanups, advisory notices, and genuine
+   * warnings under distinct headings rather than one undifferentiated block.
+   */
+  messages: LoadMessage[];
 }
 
 /** Returned when ancestor walking hit its configured cap without finding a reachable note. */
@@ -652,6 +672,33 @@ export interface UserSessionLocalNoteFreshness {
   reachableFromHead?: boolean;
 }
 
+/**
+ * Raw clean-arm notes/disk divergence signal (D3), carried so the session-init
+ * orchestrator — which knows the active WU name — can resolve the auto-load vs.
+ * surface verdict. Present only on the `clean` arm when `refState === "same"`
+ * and the disk diverges from the note (`direction !== null`); omitted otherwise.
+ */
+export interface UserSessionNotesDrift {
+  /** Whole-tree disk-vs-note direction. */
+  direction: UserUnsavedDirection;
+  /** Manifest paths present in the note and absent on disk (the missing set). */
+  missingFiles: string[];
+  /**
+   * Set on a `missing` direction: `true` when the whole missing set is deliberate
+   * local retirement (every file present at last sync), distinguishing it from
+   * real arrival drift. Lets the orchestrator suppress a benign retirement surface.
+   */
+  missingAreRetirement?: boolean;
+}
+
+/**
+ * Advisory surfaced when a clean-arm notes/disk divergence is neither a safe
+ * auto-load nor benign — rendered in session-init orientation's advisory tier.
+ */
+export interface UserSessionNotesDriftSurface {
+  direction: "mixed" | "missing";
+}
+
 export interface UserSessionInitStatusResult {
   identity: string;
   state: UserSessionInitState;
@@ -695,6 +742,13 @@ export interface UserSessionInitStatusResult {
    * symmetrically.
    */
   loadNeeded?: boolean;
+  /**
+   * Raw clean-arm notes/disk divergence signal (D3). Present only when
+   * `refState === "same"` and the disk diverges from the note; the orchestrator
+   * resolves it against the active WU name into `loadNeeded` and any
+   * `notesDriftSurface`. Omitted when there is no divergence or off the clean arm.
+   */
+  notesDrift?: UserSessionNotesDrift;
 }
 
 export interface UserSessionInitStatusOptions {

@@ -27,8 +27,10 @@ import type {
   RunSessionInitStatusOptions,
   RunStatusOptions,
   SessionHandoffResult,
+  SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
+  SessionInitRetiredSubdirsValue,
   SessionInitUserValue,
   SessionInitWorktreeValue,
   SessionSharedProbes,
@@ -37,12 +39,17 @@ import type {
   WorktreeIdentity,
 } from "./types.js";
 import type { ActiveSessionInitResult } from "../active/types.js";
+import { resolveCleanArmNotesVerdict } from "../user/drift.js";
 import type { UserSessionInitStatusResult } from "../user/types.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
+  inferBaseBranchSync,
   inferBaseDistance,
+  inferRetiredSubdirs,
   inferSessionInitRecommendations,
+  type BaseBranchSyncPullPolicy,
+  type NotesLoadPolicy,
   type NotesPullPolicy,
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
@@ -220,10 +227,14 @@ export async function runSessionInitStatus(
   type RawInboxState =
     | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
     | ProbeErrorSlot;
+  type RawPartialPushMarker =
+    | { ok: true; value: import("../../lib/session-init/partial-push-marker-surface.js").PartialPushMarkerSurfaceResult }
+    | ProbeErrorSlot;
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
   const baseDistanceTask = safeProbe(() => probes.baseDistance());
+  const baseBranchSyncTask = safeProbe(() => probes.baseBranchSync());
   const extensionsTask = safeProbe(() => probes.extensions());
   const configTask = safeProbe(() => probes.config());
   const domainRulesTask = safeProbe(() => probes.domainRules());
@@ -243,11 +254,16 @@ export async function runSessionInitStatus(
   const inboxStateTask: Promise<RawInboxState | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.inboxState(identity));
+  // Partial-push-marker surface rides the same eager / identity-gated phase: the
+  // sync-state ref is identity-scoped, so it is omitted when identity is absent.
+  const partialPushMarkerTask: Promise<RawPartialPushMarker | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.partialPushMarker(identity));
 
   const [
     user, worktree, dirty, active, releaseRouting,
-    worktreeIdentitySlot, baseDistance, extensions, config, domainRules,
-    retiredSubdirs, errandSweep, inboxState,
+    worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
+    retiredSubdirs, errandSweep, inboxState, partialPushMarker,
   ] = await Promise.all([
     shared.user,
     shared.worktree,
@@ -256,12 +272,14 @@ export async function runSessionInitStatus(
     shared.releaseRouting,
     worktreeIdentityTask,
     baseDistanceTask,
+    baseBranchSyncTask,
     extensionsTask,
     configTask,
     domainRulesTask,
     retiredSubdirsTask,
     errandSweepTask,
     inboxStateTask,
+    partialPushMarkerTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -326,6 +344,67 @@ export async function runSessionInitStatus(
     }
     : baseDistance;
 
+  // Base-branch-sync enrichment — the config-gated fast-forward freshen offer.
+  // Unlike base-distance it reads the `session.init_pull.base` policy and the
+  // dirty-tree flag (a dirty tree refuses the freshen), so the recommendation
+  // is composed from the slot, that policy, and the dirty slot.
+  const baseBranchPolicy = normalizeBaseBranchSyncPolicy(
+    config.ok ? config.value.settings["session.init_pull.base"] : "prompt",
+  );
+  const baseBranchSyncRec = inferBaseBranchSync(
+    baseBranchSync.ok ? baseBranchSync.value : null,
+    baseBranchPolicy,
+    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
+  );
+  const enrichedBaseBranchSync: SessionInitProbeResult["baseBranchSync"] = baseBranchSync.ok
+    ? {
+      ok: true,
+      value: {
+        ...baseBranchSync.value,
+        recommendedAction: baseBranchSyncRec.recommendedAction,
+        recommendedPromptText: baseBranchSyncRec.recommendedPromptText,
+      } satisfies SessionInitBaseBranchSyncValue,
+    }
+    : baseBranchSync;
+
+  // Retired-subdir slot enrichment — the reconcile rides the notes-LOAD channel
+  // (`arc user load`), so it reads the `session.init_load.notes` policy and the
+  // dirty-tree flag (a dirty tree degrades `always` to an offer). The
+  // recommendation drives session-init's broadened notes-load dispatch, which
+  // fires one `arc user load` when `loadNeeded` OR retired candidates are
+  // present — so a current-notes machine still reconciles its orphan subdirs.
+  const notesLoadPolicy = normalizeNotesLoadPolicy(
+    config.ok ? config.value.settings["session.init_load.notes"] : "prompt",
+  );
+  const retiredSubdirsRec = inferRetiredSubdirs(
+    retiredSubdirs !== null && retiredSubdirs.ok ? retiredSubdirs.value : null,
+    notesLoadPolicy,
+    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
+  );
+  const enrichedRetiredSubdirs: SessionInitProbeResult["retiredSubdirs"] | undefined =
+    retiredSubdirs === null
+      ? undefined
+      : retiredSubdirs.ok
+        ? {
+          ok: true,
+          value: {
+            ...retiredSubdirs.value,
+            recommendedAction: retiredSubdirsRec.recommendedAction,
+            recommendedPromptText: retiredSubdirsRec.recommendedPromptText,
+          } satisfies SessionInitRetiredSubdirsValue,
+        }
+        : retiredSubdirs;
+
+  // Resolve the clean-arm notes/disk drift verdict (D3) here, where the active
+  // WU name is known — the raw `notesDrift` signal can't decide the safe
+  // auto-load sub-case (the active WU's missing SESSION-NOTES) without it. The
+  // verdict finalizes `loadNeeded` (the safe sub-case upgrades it) and any
+  // advisory `notesDriftSurface`.
+  const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const notesVerdict = qualifiedUser.ok && qualifiedUser.value.notesDrift
+    ? resolveCleanArmNotesVerdict({ ...qualifiedUser.value.notesDrift, activeWuName })
+    : null;
+
   const enrichedUser: SessionInitProbeResult["user"] = qualifiedUser.ok
     ? {
       ok: true,
@@ -333,6 +412,8 @@ export async function runSessionInitStatus(
         ...qualifiedUser.value,
         recommendedAction: recommendations.user.recommendedAction,
         recommendedPromptText: recommendations.user.recommendedPromptText,
+        ...(notesVerdict ? { loadNeeded: notesVerdict.loadNeeded } : {}),
+        ...(notesVerdict?.driftSurface ? { notesDriftSurface: notesVerdict.driftSurface } : {}),
       } satisfies SessionInitUserValue,
     }
     : qualifiedUser;
@@ -377,6 +458,14 @@ export async function runSessionInitStatus(
   const sweep =
     worktreeIdentity.kind === "primary" && roster?.ok
       ? await safeProbe(() => probes.sweep(roster.value, worktreeIdentity))
+      : undefined;
+
+  // `plan/`-orphan sweep — a primary-worktree branch-hygiene check. Unlike the
+  // stale-worktree sweep it consumes no roster: it enumerates gone-upstream
+  // `plan/` branches itself, so it gates on worktree identity alone.
+  const planOrphanSweep =
+    worktreeIdentity.kind === "primary"
+      ? await safeProbe(() => probes.planOrphanSweep(worktreeIdentity))
       : undefined;
   const errandState: RawErrandState | undefined =
     worktree.ok && active.ok
@@ -435,6 +524,7 @@ export async function runSessionInitStatus(
     user: enrichedUser,
     worktree: enrichedWorktree,
     baseDistance: enrichedBaseDistance,
+    baseBranchSync: enrichedBaseBranchSync,
     dirty,
     extensions,
     config,
@@ -444,16 +534,29 @@ export async function runSessionInitStatus(
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
-    ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
+    ...(planOrphanSweep !== undefined ? { planOrphanSweep } : {}),
+    ...(enrichedRetiredSubdirs !== undefined ? { retiredSubdirs: enrichedRetiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),
     ...(workUnitState !== undefined ? { workUnitState } : {}),
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
+    ...(partialPushMarker !== null ? { partialPushMarker } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
+}
+
+/**
+ * The active work unit's name from its meta path (`…/meta-<name>.md`), or
+ * `null` when no single active meta resolved. Keys the clean-arm notes/disk
+ * safe-load sub-case to the active WU's `SESSION-NOTES.md`.
+ */
+function metaWorkUnitNameFromActive(path: string | null): string | null {
+  if (path === null) return null;
+  const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
+  return match?.[1] ?? null;
 }
 
 /**
@@ -492,6 +595,18 @@ function normalizeWorktreePolicy(raw: string): WorktreePullPolicy {
 }
 
 function normalizeNotesPolicy(raw: string): NotesPullPolicy {
+  if (raw === "manual") return "manual";
+  if (raw === "always") return "always";
+  return "prompt";
+}
+
+function normalizeBaseBranchSyncPolicy(raw: string): BaseBranchSyncPullPolicy {
+  if (raw === "manual") return "manual";
+  if (raw === "always") return "always";
+  return "prompt";
+}
+
+function normalizeNotesLoadPolicy(raw: string): NotesLoadPolicy {
   if (raw === "manual") return "manual";
   if (raw === "always") return "always";
   return "prompt";

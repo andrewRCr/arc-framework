@@ -30,9 +30,10 @@ The probe returns a single JSON envelope the agent consumes:
 | Field                       | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 |-----------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `identity`                  | `{identity, role}` — either may be `null`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state                                                                                                                                                                                                                                                          |
+| `user`                      | Remote notes state (`value.state`: clean / remote-ahead / conflict / disabled / remote-unavailable). Carries `value.recommendedAction` ∈ `{pull, prompt, surface, skip}` and `value.recommendedPromptText` (composed channel-named offer text; empty string when not prompting) for Step 2's per-channel pull dispatch. The clean arm also carries `value.loadNeeded?: boolean` — `true` when refs match but disk lags behind the latest local note (cross-machine resume gap), feeding Step 2's notes-load dispatch; omitted on every non-clean spine state. The clean arm may additionally carry `value.notesDriftSurface?` (`{direction: mixed \| missing}`) — a notes/disk divergence that is neither a safe auto-load nor benign, rendered in Step 6's advisory tier (D3)                                        |
 | `worktree`                  | Worktree sync state vs. `origin/<current-branch>` (`value.state`: clean / local-ahead / remote-ahead / diverged / no-upstream / detached-head / no-remote / branch-gone / remote-unavailable / skipped; `value.ahead` and `value.behind` populated for healthy states). Carries `value.recommendedAction` / `value.recommendedPromptText` mirroring the user slot. Also carries `value.identity` (`kind`: `primary` or `linked`, plus `path` when linked) — the physical worktree the session occupies, surfaced in orientation only when `linked`. In the `diverged` sub-state also carries `value.supersession` (`{superseded, supersededCommits, novelCommits}`, else `null`) — patch-equal supersession of the local-ahead commits; when `superseded`, Step 6's diverged arm renders the lossless-reset downgrade |
 | `baseDistance`              | Base-distance state vs. `origin/<base>` — HEAD vs the configured `branch.base` (`value.state` reuses the worktree enum; `value.ahead` / `value.behind` / `value.base` populated when healthy). Carries `value.overlappingPaths` (branch-vs-base changed-path intersection, only when diverged) plus `value.recommendedAction` / `value.recommendedPromptText`. Advisory: `surface` (behind-base drift) or `skip`, never `pull`/`prompt`; surfaced in Step 6, never gates                                                                                                                                                                                                                                                                                                                                              |
+| `baseBranchSync`            | Base-branch-sync state — local `<base>` vs `origin/<base>` (`value.state` reuses the worktree enum; `value.ahead` / `value.behind` / `value.base` populated when healthy). The silently-stale-local-base surface, sibling to `baseDistance` (which measures HEAD vs `origin/<base>`). Carries `value.recommendedAction` / `value.recommendedPromptText` — config-gated by `session.init_pull.base`: `pull` / `prompt` drive the fast-forward freshen (`git fetch origin <base>:<base>`), `surface` the stale / dirty-refused / diverged advisory, `skip` a current base                                                                                                                                                                                                                                               |
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
@@ -41,7 +42,8 @@ The probe returns a single JSON envelope the agent consumes:
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                                                                                                                                                                                                                                                  |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `planOrphanSweep`           | Pre-computed `plan/`-orphan sweep; present only in the primary (main) worktree. `value.orphans`: local `plan/<name>` branches whose upstream is `gone` (a sibling's local-only `plan/ → <type>/` rename), each with a `merged` flag (commits landed in `origin/<base>`). A `merged` orphan earns the interlock-gated `git branch -d` offer in Step 6; an unmerged one is surfaced as not-removable (never `-D`). Branch hygiene; never auto-removed                                                                                                                                                                                                                                                                                                                                                                   |
+| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and carrying no unpushed local drift. Present whenever identity resolved; omitted only when identity is absent. Enriched with `recommendedAction` / `recommendedPromptText` (gated on `session.init_load.notes`): init may reconcile under policy via Step 2's notes-load dispatch (removal + `.internal/` backup inside `arc user load`); `manual` stays warn-only (Step 6)                                                                                                                                                                                                                                                                                                          |
 | `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Errand` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                                                                                                                                                                                                                                                |
 | `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved.                                                                                                                                                                                                                             |
 | `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                              |
@@ -49,6 +51,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `inFlightComposition`       | Pre-computed in-flight `Class` composition — `{novel, heavy, light}` resolved-`Class` counts over the in-flight roster slice (`[TBD]` / field-absent excluded). Present only on the no-active-WU arm when the slice is non-empty; consumed by Step 5's next-work discovery to render the concurrent-workload advisory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `cohortDocPath`             | Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md` (relative to cwd). Present only when the active meta carries a `Cohort` value and the backing doc exists under `backlog/planned/`; omitted otherwise. Read in Step 3's context-load (item 11) to surface cross-member coordination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `partialPushMarker`         | Pre-computed partial-push-marker surface — consumer of the cohort sibling's sync-state ref. `value.markers`: live, non-expired markers, each a sibling notes push not yet arrived at origin (lag, not loss), carrying `machineId`, `lastAttemptedCommit`, `attemptTimestamp`. Present whenever identity resolved; omitted only when identity is absent. Rendered as Step 6's Aware advisory line, co-located with the base-ref surface; the agent proceeds-with-context and never auto-resolves                                                                                                                                                                                                                                                                                                                       |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -230,21 +233,36 @@ alongside the pull dispatch on the clean arm.
   No prompt, no pull.
 - `skip` — no action.
 
-**Notes-load dispatch.** Independent of the pull dispatch, when `user.value.loadNeeded === true` (refs
-match but disk lags behind the latest local note — typical when a worktree pull silently advanced the
-user-notes ref on this machine), dispatch on `session.init_load.notes`:
+**Notes-load dispatch.** Independent of the pull dispatch, fire one `arc user load` when **either**
+signal calls for it — the single load satisfies both, so they never double-run:
+
+- `user.value.loadNeeded === true` — refs match but disk lags behind the latest local note (typical
+  when a worktree pull silently advanced the user-notes ref on this machine).
+- `retiredSubdirs.value.recommendedAction ∈ {pull, prompt}` — a sibling shipped, orphaning a user
+  subdir; the reconcile (removal + `.internal/` backup) runs inside `arc user load`. Fires even when
+  notes are current — a retired subdir is a *base* event, orthogonal to notes freshness.
+
+Both gate on `session.init_load.notes`, so they agree on the action — dispatch on it:
 
 - `always` — fire `arc user load` immediately, **except** when `dirty.value.state === "dirty"`. Under
   a dirty tree, `always` degrades to `prompt` with a "stash or commit local edits before loading"
   warning prepended to the offer text. The pre-load backup that ships with `arc user load` is the
   safety net for the auto-action case.
-- `prompt` — ask before running `arc user load`. Channel-named, dirty-tree-aware offer text mirrors
-  the pull-prompt convention. The agent owns the prompt.
-- `manual` — surface in Step 6 orientation only (informational line; no prompt, no run).
+- `prompt` — ask before running `arc user load` (use the firing channel's `recommendedPromptText`).
+  Dirty-tree-aware; the agent owns the prompt.
+- `manual` — surface in Step 6 orientation only (no prompt, no run); the retired-subdir slot's
+  `surface` carries to Step 6's retired-subdirs advisory.
 
-`loadNeeded` absent or `false` → no action regardless of config. Notes-pull and notes-load are
-mutually exclusive on the notes channel (pull fires when `refState ∈ {remote-ahead, conflict}`; load
-fires when `refState === "same"`), so they never co-occur there.
+Neither signal firing (`loadNeeded` falsy **and** `retiredSubdirs.value.recommendedAction ∈ {surface,
+skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the notes channel (pull fires
+when `refState ∈ {remote-ahead, diverged}`; load fires when `refState === "same"`), so they never
+co-occur there.
+
+**Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
+is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
+safe auto-load nor benign — `mixed` may carry local edits, `missing` files the note has are absent on
+disk), carry it into Step 6's advisory tier only. No pull, no load, never auto-resolves — the safe
+sub-case (a live WU's purely-missing `SESSION-NOTES.md`) already folded into `loadNeeded` upstream.
 
 **Combined prompt.** When more than one acceptance prompt would fire simultaneously, issue a single
 combined prompt with per-channel choices instead of multiple per-channel prompts. The envelope
@@ -264,6 +282,22 @@ matters, re-probe to confirm.
 (parity, branch-only-ahead, or any degraded state), never `pull` / `prompt`. Reconciling is the developer's
 call, not an init-time action, so there is no pull to fire here — on `surface`, carry it into Step 6's
 base-drift section; on `skip`, do nothing.
+
+**Base-branch-sync channel.** The `baseBranchSync` slot (local `<base>` vs `origin/<base>`) is a config-gated
+pull channel — distinct from the advisory-only base-distance channel above. Dispatch on `recommendedAction`
+(resolved against `session.init_pull.base`); `<base>` below is `baseBranchSync.value.base`:
+
+- `pull` — fast-forward the local base ref immediately with `git fetch origin <base>:<base>`. This freshens a
+  non-checked-out ref (the base isn't checked out while on a feature branch), so it is a fetch-into-ref, not the
+  worktree channel's `git pull --ff-only`; it is fast-forward-only and git refuses a non-fast-forward, so a raced
+  divergence fails safe rather than merging.
+- `prompt` — ask using `recommendedPromptText`; on accept, run the same `git fetch origin <base>:<base>`.
+- `surface` — carry the state into Step 6's stale-base section (a behind base under `manual`, a dirty-tree
+  refusal, or a diverged base); no pull.
+- `skip` — the base is current or only ahead; no action.
+
+Independent of the worktree + notes combined prompt — like base-distance, it composes its own offer and never
+folds into `recommendedCombinedPrompt`.
 
 **Identity absent.** When `identity.identity === null`, the notes slot resolves to
 `recommendedAction: "skip"` with no `loadNeeded` field, so notes-pull and notes-load both skip.
@@ -614,10 +648,41 @@ tracked source documents the work.
   **Base drift:** {baseDistance.value.recommendedPromptText}
   ```
 
+- `baseBranchSync.value.recommendedAction == "surface"`: the local base ref is stale — behind under `manual`
+  policy, blocked by a dirty tree, or diverged from `origin/<base>`. Render the precomposed
+  `baseBranchSync.value.recommendedPromptText` verbatim. Advisory, never gates — the `pull` / `prompt` actions
+  fire in Step 2's base-branch-sync channel, not here.
+
+  ```text
+  **Stale base:** {baseBranchSync.value.recommendedPromptText}
+  ```
+
+- `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an
+  incomplete push is outstanding (**lag, not loss**: the sibling's work is safe on its own machine; it simply
+  hasn't landed at origin). Render one calm, non-gating Aware line per marker, co-located with the base-ref
+  surface. Proceed with context; **never auto-resolve** — do not force-push to "fix" stale notes. Per marker,
+  `{sha}` is `markers[i].lastAttemptedCommit` shortened, `{when}` is `markers[i].attemptTimestamp`, `{whose}` is
+  `markers[i].machineId`.
+
+  ```text
+  **Notes lag:** {N} sibling notes push(es) attempted but not yet at origin (lag, not loss):
+  - `{sha}` attempted {when} by machine `{whose}` — proceed with context; don't force-push to resolve.
+  ```
+
 - `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:
 
   ```text
   **Local-ahead notes:** local user-notes ref is ahead of remote. Push (or `arc sync`) when ready; non-blocking.
+  ```
+
+- `user.value.notesDriftSurface` present (clean arm): the on-disk user tree diverges from the latest note
+  in a way that is neither a safe auto-load nor benign — `mixed` (may carry local edits) or `missing`
+  (files the note has are absent on disk). Advisory, never gates or auto-resolves; inspect with
+  `arc user status` before relying on session notes. `{direction}` is `notesDriftSurface.direction`.
+
+  ```text
+  **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
+  `arc user status` before relying on session notes — no auto-load (may carry local edits).
   ```
 
 - `worktree.value.state == "no-upstream"`:
@@ -657,13 +722,26 @@ tracked source documents the work.
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
   ```
 
-- `retiredSubdirs.value.candidates` non-empty: retired-WU user subdirs linger locally (shipped and absent
-  from the recent-notes window). They reconcile automatically — removed, with a `.internal/` backup — on the
-  next `arc user load` / `pull`; surface as a heads-up, no action needed at init.
+- `planOrphanSweep.value.orphans` non-empty (primary worktree only): local `plan/<name>` branches whose
+  upstream is `gone` linger — the stale planning branch a sibling's local-only `plan/ → <type>/` rename leaves
+  behind. Offer an interlock-gated `git branch -d` only for a `merged` orphan (commits landed in `origin/<base>`;
+  never `-D`); surface an unmerged orphan as not-removable. Branch hygiene only — never auto-removed.
 
   ```text
-  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconciled (with `.internal/` backup) on next
-  `arc user load` / `pull`:
+  **Plan-branch orphans:** {N} stale `plan/` branch(es) with a deleted upstream linger:
+  - `{branch}` — merged to base → remove? `git branch -d {branch}`
+  - `{branch}` — not merged; surfaced, not removed (never `-D`)
+  ```
+
+- `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU
+  user subdirs linger locally (shipped, no unpushed drift), but the warn-only policy fires no init reconcile.
+  Surface as a heads-up; they reconcile (removal + `.internal/` backup) at the next `arc user load` / `pull`.
+  Under `always` / `prompt` the reconcile already fired (or was offered) in Step 2's notes-load dispatch — do
+  not also surface it here.
+
+  ```text
+  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconcile with `arc user load` (warn-only under
+  the current policy):
   - `{candidate}`
   ```
 

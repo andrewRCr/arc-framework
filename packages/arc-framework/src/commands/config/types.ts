@@ -26,7 +26,9 @@ export interface ConfigSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_pull.base": string;
   "session.init_load.notes": string;
+  "sync.auto_pull": string;
   "archive.cadence": string;
   "user.notes_push": string;
   "inbox.remind_after_days": string;
@@ -49,6 +51,7 @@ export interface ConfigSessionInitSettings {
   "session.remote_sync": string;
   "session.init_pull.worktree": string;
   "session.init_pull.notes": string;
+  "session.init_pull.base": string;
   "session.init_load.notes": string;
   "user.notes_push": string;
   "branch.protection": string;

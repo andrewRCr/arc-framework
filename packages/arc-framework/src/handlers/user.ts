@@ -10,6 +10,7 @@ import * as p from "@clack/prompts";
 
 import {
   findStaleUserWuSubdirs, listUserWuSubdirContents, removeStaleUserWuSubdir,
+  reconcileRetiredSubdirsStandalone,
   runUserClose, runUserInboxRemove, runUserOpen,
   runUserSave, runUserLoad, runUserAdd, runUserPush, runUserFetch, runUserPull,
   runUserSessionInitStatus, runUserStatus,
@@ -84,9 +85,14 @@ export async function handleUserAdd(rawIdentity: string): Promise<void> {
 // --- Open ---
 
 /**
- * Open a per-WU user workspace subdir at `user/{identity}/{wuName}/`. Surfaces
- * stale subdirs from prior WUs via a defensive prompt before opening — `y`
- * removes and proceeds, `inspect` lists contents and re-prompts.
+ * Open a per-WU user workspace subdir at `user/{identity}/{wuName}/`.
+ *
+ * Shipped, drift-free retired subdirs are reconciled away up front (reversibly,
+ * via {@link reconcileRetiredSubdirsStandalone}) with no prompt — their shipped
+ * status is proof, not a decision. Any residual unresolvable subdir (not shipped,
+ * or carrying local drift) is surfaced for a keep/remove choice that defaults to
+ * the non-destructive keep and never aborts the open: under a non-interactive
+ * environment it auto-skips to keep rather than hanging on a cancellable prompt.
  */
 export async function handleUserOpen(wuName: string): Promise<void> {
   p.intro("arc user open");
@@ -104,13 +110,14 @@ export async function handleUserOpen(wuName: string): Promise<void> {
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
+  const reconciled = await reconcileRetiredSubdirsStandalone({ cwd, io, identity });
+  for (const subdir of reconciled) {
+    p.log.info(`Reconciled retired subdir user/${identity}/${subdir}/ (shipped; backed up).`);
+  }
+
   const staleSubdirs = await findStaleUserWuSubdirs({ cwd, io, identity, wuName });
   for (const stale of staleSubdirs) {
-    const resolved = await promptStaleSubdir({ cwd, io, identity, stale });
-    if (!resolved) {
-      p.log.info("Open cancelled.");
-      return;
-    }
+    await resolveResidualStaleSubdir({ cwd, io, identity, stale });
   }
 
   try {
@@ -130,27 +137,43 @@ export async function handleUserOpen(wuName: string): Promise<void> {
   p.outro("Done.");
 }
 
-async function promptStaleSubdir(options: {
+/**
+ * Decide what to do with a residual stale subdir the reconcile couldn't clear
+ * (not shipped, or carrying local drift). Never aborts the open and never
+ * default-deletes: the default is the non-destructive keep, removal is explicit,
+ * and a non-interactive environment auto-skips to keep rather than hanging on a
+ * cancellable prompt. `inspect` lists contents and re-prompts.
+ */
+async function resolveResidualStaleSubdir(options: {
   cwd: string;
   io: UserIOContext;
   identity: string;
   stale: string;
-}): Promise<boolean> {
+}): Promise<void> {
   const { cwd, io, identity, stale } = options;
-  // y removes and resolves the collision; inspect lists contents and re-prompts;
-  // cancel (ctrl-C) returns false and aborts the open.
+
+  // Non-interactive: keep silently. A clack prompt would auto-cancel here and,
+  // pre-fix, abort the whole open — so skip to the safe default instead.
+  if (isNonInteractiveEnvironment()) {
+    p.log.info(`Keeping stale subdir user/${identity}/${stale}/ (non-interactive).`);
+    return;
+  }
+
   for (;;) {
     const choice = await p.select({
-      message: `Stale subdir user/${identity}/${stale}/ from prior WU. Remove?`,
+      message: `Stale subdir user/${identity}/${stale}/ from prior WU.`,
+      initialValue: "keep",
       options: [
-        { value: "y", label: "y — remove and proceed" },
+        { value: "keep", label: "keep — leave it in place" },
+        { value: "remove", label: "remove — delete the subdir" },
         { value: "inspect", label: "inspect — list subdir contents" },
       ],
     });
-    if (p.isCancel(choice)) return false;
-    if (choice === "y") {
+    // A cancel (ctrl-C) resolves to the non-destructive default, never an abort.
+    if (p.isCancel(choice) || choice === "keep") return;
+    if (choice === "remove") {
       await removeStaleUserWuSubdir({ cwd, identity, subdir: stale });
-      return true;
+      return;
     }
     const entries = await listUserWuSubdirContents({ cwd, io, identity, subdir: stale });
     if (entries.length === 0) {

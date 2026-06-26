@@ -221,6 +221,15 @@ session.init_pull.worktree: prompt
 # See session-init.md § Conditional Sync Pulls for combined-prompt and post-pull re-probe behavior.
 session.init_pull.notes: prompt
 
+# Base-branch pull policy at session init when the local base ref (`branch.base`)
+# is behind its remote counterpart — a silently-stale local base on a returning
+# clone. Fast-forward-only; never resolves a diverged base.
+#   manual - Surface the staleness in orientation; user fast-forwards when ready.
+#   prompt - Prompt before fast-forwarding. (default)
+#   always - Fast-forward automatically when fast-forwardable (refused on a dirty tree).
+# See session-init.md § Conditional Sync Pulls for the base-ref pull behavior.
+session.init_pull.base: prompt
+
 # Notes load policy at session init when the local notes ref is current but the
 # user-directory working files are stale relative to the latest local note (the
 # cross-machine resume gap — fetch advanced the ref while disk stayed behind).
@@ -239,6 +248,18 @@ session.init_load.notes: prompt
 #   on-sync - Push user notes whenever `arc sync` runs. (default)
 # Per-developer override: `git config arc.notesPush <value>`
 user.notes_push: on-sync
+
+# --- Sync ---
+
+# Inbound fast-forward on `arc sync` when the worktree is behind origin
+# (remote-ahead). Fast-forward-only; never resolves a diverged worktree and
+# refuses a dirty tree. Interactive runs (a TTY) always fast-forward — `arc sync`
+# is the explicit invocation and the result is visible. This flag governs the
+# non-interactive (agent) path only:
+#   false - Surface the drift; do not pull. Protects an agent's working tree from
+#           a silent mid-task mutation. (default)
+#   true  - Fast-forward automatically under a non-TTY too.
+sync.auto_pull: false
 
 # --- Archival ---
 

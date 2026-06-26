@@ -12,8 +12,11 @@
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../git/base-branch-sync.js";
+import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
+import type { RetiredSubdirDetectionResult } from "./retired-subdir-detection.js";
 
 /**
  * Action verb the session-init workflow performs on a sync-pull channel.
@@ -30,6 +33,12 @@ export type NotesPullPolicy = "manual" | "prompt" | "always";
 
 /** Worktree-channel pull policy. Mirrors `session.init_pull.worktree` enum (no `always`). */
 export type WorktreePullPolicy = "manual" | "prompt";
+
+/** Base-branch-channel pull policy. Mirrors `session.init_pull.base` enum. */
+export type BaseBranchSyncPullPolicy = "manual" | "prompt" | "always";
+
+/** Notes-load channel policy. Mirrors `session.init_load.notes` enum. */
+export type NotesLoadPolicy = "manual" | "prompt" | "always";
 
 /** Per-channel recommendation. */
 export interface ChannelRecommendation {
@@ -66,6 +75,8 @@ export interface RecommendationOutput {
 }
 
 const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accepting.";
+
+const DIRTY_LOAD_WARNING = "Stash or commit local edits before loading.";
 
 /**
  * Compose the worktree channel recommendation.
@@ -173,6 +184,150 @@ export function inferBaseDistance(
     case "remote-unavailable":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }
+}
+
+/**
+ * Compose the base-branch-sync channel recommendation — the silently-stale
+ * local base advisory and its config-gated fast-forward offer.
+ *
+ * Delegates the state × policy × dirty-tree decision to the shared
+ * {@link decideInboundPull} matrix (the one inbound-pull primitive both this
+ * channel and the `arc sync` leg route through), then maps its outcome to the
+ * session-init channel vocabulary and composes the advisory text:
+ *
+ * - `ff-pull` → action=pull (auto-fast-forward; `always` on a clean behind base).
+ * - `prompt` → action=prompt, with the fast-forward offer text.
+ * - `refuse` (dirty tree) → action=surface, dirty-refusal advisory.
+ * - `block` (diverged base) → action=surface, not-fast-forwardable advisory.
+ * - `surface` → action=surface with the behind advisory when the base is merely
+ *   behind under `manual`; action=skip for degraded states (no actionable text).
+ * - `no-op` (base current or only ahead) → action=skip.
+ *
+ * `isTty` is fixed `true`: the session-init agent always owns the prompt
+ * interactively, so the matrix's non-TTY auto-skip is the `arc sync` automated
+ * path's concern, not this channel's. Returns skip when `baseBranchSync` is null
+ * (slot failed to resolve).
+ */
+export function inferBaseBranchSync(
+  baseBranchSync: BaseBranchSyncStatusResult | null,
+  policy: BaseBranchSyncPullPolicy,
+  dirty: DirtyStateResult,
+): ChannelRecommendation {
+  if (baseBranchSync === null) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  const decision = decideInboundPull({
+    compareState: baseBranchSync.state,
+    tree: dirty.state,
+    policy,
+    isTty: true,
+  });
+  switch (decision) {
+    case "ff-pull":
+      return { recommendedAction: "pull", recommendedPromptText: "" };
+    case "prompt":
+      return {
+        recommendedAction: "prompt",
+        recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync, false)}\nFast-forward base?`,
+      };
+    case "refuse":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, true),
+      };
+    case "block":
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseBranchSyncDivergedText(baseBranchSync),
+      };
+    case "surface":
+      // A behind base under `manual` surfaces the advisory; every degraded state
+      // also resolves to `surface` here but carries no actionable staleness, so
+      // it skips.
+      return baseBranchSync.state === "remote-ahead"
+        ? {
+          recommendedAction: "surface",
+          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, false),
+        }
+        : { recommendedAction: "skip", recommendedPromptText: "" };
+    case "no-op":
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+}
+
+function composeBaseBranchSyncBehindText(
+  baseBranchSync: BaseBranchSyncStatusResult,
+  dirty: boolean,
+): string {
+  const base = baseBranchSync.base;
+  const head =
+    `Local base \`${base}\` is behind \`origin/${base}\` by ` +
+    `${baseBranchSync.behind} commit(s) — fast-forward available.`;
+  return dirty ? `${head}\nWorking tree dirty; fast-forward skipped.` : head;
+}
+
+function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusResult): string {
+  const base = baseBranchSync.base;
+  return (
+    `Local base \`${base}\` has diverged from \`origin/${base}\` ` +
+    `(${baseBranchSync.ahead} ahead, ${baseBranchSync.behind} behind) — not fast-forwardable; reconcile manually.`
+  );
+}
+
+/**
+ * Compose the retired-subdir reconcile channel recommendation.
+ *
+ * The retired-subdir cleanup runs inside `arc user load`, so it rides the
+ * notes-LOAD channel and is gated on `session.init_load.notes` — distinct from
+ * the notes-PULL policy. The `pull` verb here means "fire `arc user load`" (the
+ * channel's auto-action), consistent with the per-channel dispatch rule. The
+ * session-init notes-load dispatch fires that one load when `loadNeeded` OR
+ * retired candidates are present, so a current-notes machine still reconciles.
+ *
+ * Candidate presence × policy × dirty-tree:
+ * - no candidates → skip (nothing to reconcile, regardless of policy).
+ * - `always` + clean tree → pull (auto-reconcile via `arc user load`).
+ * - `always` + dirty tree → prompt (degrade to offer — mirrors the notes-load
+ *   dirty guard; the pre-load backup protects the auto-path, but a dirty tree
+ *   defers to consent).
+ * - `prompt` → prompt (offer; no auto-run). Dirty-tree-aware offer text.
+ * - `manual` → surface (warn-only orientation; today's behavior).
+ *
+ * Returns skip when `retiredSubdirs` is null (slot absent — identity missing or
+ * probe failed) or carries no candidates.
+ */
+export function inferRetiredSubdirs(
+  retiredSubdirs: RetiredSubdirDetectionResult | null,
+  policy: NotesLoadPolicy,
+  dirty: DirtyStateResult,
+): ChannelRecommendation {
+  if (retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  const count = retiredSubdirs.candidates.length;
+  switch (policy) {
+    case "always":
+      return dirty.state === "dirty"
+        ? {
+          recommendedAction: "prompt",
+          recommendedPromptText: composeRetiredSubdirPromptText(count, true),
+        }
+        : { recommendedAction: "pull", recommendedPromptText: "" };
+    case "prompt":
+      return {
+        recommendedAction: "prompt",
+        recommendedPromptText: composeRetiredSubdirPromptText(count, dirty.state === "dirty"),
+      };
+    case "manual":
+      return { recommendedAction: "surface", recommendedPromptText: "" };
+  }
+}
+
+function composeRetiredSubdirPromptText(count: number, dirty: boolean): string {
+  const head =
+    `${count} retired-WU user subdir(s) linger from shipped work units; ` +
+    "reconcile via `arc user load` (with `.internal/` backup)?";
+  return dirty ? `${DIRTY_LOAD_WARNING}\n${head}` : head;
 }
 
 function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {

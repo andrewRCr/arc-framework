@@ -75,8 +75,13 @@ import {
   runPushabilityStatus,
   type PushabilityCondition,
 } from "../lib/git/index.js";
+import { executeInboundPull } from "../lib/git/inbound-pull.js";
 import { pushWorktreeBranch } from "../lib/git/push-worktree.js";
-import { runWorktreeSyncStatus, type WorktreeSyncState } from "../lib/git/worktree-sync.js";
+import {
+  DEFAULT_FETCH_TIMEOUT_MS,
+  runWorktreeSyncStatus,
+  type WorktreeSyncState,
+} from "../lib/git/worktree-sync.js";
 import { inferRecommendedSummaryLine } from "../lib/handoff/recommended-summary-line.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { resolveArcRoot } from "../lib/paths.js";
@@ -135,7 +140,16 @@ type WorktreeAction =
    * "manual"` — the matrix surfaces no-upstream as `caller-resolvable`, and
    * sync's policy is "auto-resolve when push is authorized to cascade."
    */
-  | { kind: "push-with-upstream-init"; branch: string };
+  | { kind: "push-with-upstream-init"; branch: string }
+  /**
+   * Inbound fast-forward the worktree from origin. Emitted only when
+   * `worktreeState === "remote-ahead"` and the inbound leg is authorized —
+   * interactively (a TTY), or under a non-TTY when `sync.auto_pull` is set.
+   * The fast-forward itself is ff-only and refuses a dirty tree at execution
+   * (the `executeInboundPull` primitive decides), so this action is a routing
+   * intent, not a guarantee.
+   */
+  | { kind: "inbound-ff-pull"; branch: string };
 
 type NotesAction =
   | { kind: "save-only" }
@@ -157,6 +171,10 @@ interface MatrixInput {
   worktreeAhead: number;
   worktreeBehind: number;
   branch: string | null;
+  /** Interactive session — a TTY auto-fast-forwards a `remote-ahead` worktree. */
+  isTty: boolean;
+  /** `sync.auto_pull` — opts a non-TTY into the inbound fast-forward. */
+  autoPull: boolean;
 }
 
 /**
@@ -224,13 +242,25 @@ const WORKTREE_PUSH_BLOCK_STATES: ReadonlySet<WorktreeSyncState> = new Set([
  */
 function decideMatrix(input: MatrixInput): MatrixDecision {
   const worktree: WorktreeAction = decideWorktree(input);
-  const notes: NotesAction = decideNotes(input);
+  const notes: NotesAction = decideNotes(input, worktree);
   return { cellName: cellNameFor(worktree, notes), worktree, notes };
 }
 
 function decideWorktree(input: MatrixInput): WorktreeAction {
   if (input.pushInterlock === "manual") {
     return { kind: "skip-not-configured" };
+  }
+  // Inbound leg: a `remote-ahead` worktree fast-forwards from origin instead of
+  // surfacing as blocked — interactively, or under a non-TTY when opted in. The
+  // ff-only / dirty-refuse / raced-block guards live in the execution primitive;
+  // this routes the intent. Placed ahead of the block-state check so it
+  // intercepts `remote-ahead` (which otherwise stays a blocked surface).
+  if (
+    input.worktreeState === "remote-ahead"
+    && input.branch !== null
+    && (input.isTty || input.autoPull)
+  ) {
+    return { kind: "inbound-ff-pull", branch: input.branch };
   }
   if (WORKTREE_PUSH_BLOCK_STATES.has(input.worktreeState) || input.branch === null) {
     return {
@@ -247,11 +277,17 @@ function decideWorktree(input: MatrixInput): WorktreeAction {
   return { kind: "push", branch: input.branch };
 }
 
-function decideNotes(input: MatrixInput): NotesAction {
+function decideNotes(input: MatrixInput, worktree: WorktreeAction): NotesAction {
   if (input.notesPush === "manual") {
     return { kind: "save-only" };
   }
-  const notesBlockedByWorktree = NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState)
+  // An inbound fast-forward makes the worktree current this run, so the
+  // `remote-ahead` notes block (which exists only because the worktree can't
+  // reach origin) no longer applies — notes proceed per policy. A raced ff-pull
+  // failure re-blocks notes at execution, not here.
+  const worktreeWillBeClean = worktree.kind === "inbound-ff-pull";
+  const notesBlockedByWorktree = !worktreeWillBeClean
+    && NOTES_BLOCK_WORKTREE_STATES.has(input.worktreeState)
     && (input.pushInterlock === "manual" || WORKTREE_PUSH_BLOCK_STATES.has(input.worktreeState));
   if (input.notesPush === "on-sync") {
     return notesBlockedByWorktree
@@ -273,6 +309,9 @@ function decideNotes(input: MatrixInput): NotesAction {
  * through to the `save-only` default if ever constructed.
  */
 function cellNameFor(worktree: WorktreeAction, notes: NotesAction): string {
+  if (worktree.kind === "inbound-ff-pull") {
+    return "inbound-pull";
+  }
   if (worktree.kind === "skip-blocked-worktree") {
     return worktree.reason === "diverged" ? "blocked-diverged" : `blocked-${worktree.reason}`;
   }
@@ -409,6 +448,9 @@ export async function handleSync(
     syncInterlock,
   };
 
+  const isTty = !isNonInteractiveEnvironment();
+  const autoPull = resolvedSettings.settings["sync.auto_pull"] === "true";
+
   const decision = decideMatrix({
     pushInterlock,
     notesPush,
@@ -416,6 +458,8 @@ export async function handleSync(
     worktreeAhead: worktree.ahead,
     worktreeBehind: worktree.behind,
     branch,
+    isTty,
+    autoPull,
   });
 
   const recommendedSummaryLine = inferRecommendedSummaryLine({
@@ -544,6 +588,10 @@ async function execute(ctx: ExecuteContext): Promise<ExecutedOutcome> {
     return executeBlockedWorktree(ctx, decision.worktree);
   }
 
+  if (decision.worktree.kind === "inbound-ff-pull") {
+    return executeInboundFfPull(ctx, decision.worktree.branch);
+  }
+
   if (
     (decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init")
     && decision.notes.kind === "save+push"
@@ -584,6 +632,9 @@ function executeRebaseBlocked(ctx: ExecuteContext): ExecutedOutcome {
 function rebaseWorktreeRecord(worktree: WorktreeAction): LegOutcomeRecord {
   if (worktree.kind === "push" || worktree.kind === "push-with-upstream-init") {
     return { action: "push", result: "blocked", detail: "rebase-in-progress" };
+  }
+  if (worktree.kind === "inbound-ff-pull") {
+    return { action: "inbound-ff-pull", result: "blocked", detail: "rebase-in-progress" };
   }
   if (worktree.kind === "skip-blocked-worktree") {
     return { action: "skip", result: "blocked", detail: worktree.reason };
@@ -900,6 +951,23 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
     }
   }
 
+  return completeNotesLeg(ctx, worktreeRecord, worktreeFailed);
+}
+
+/**
+ * Run the notes leg given an already-resolved worktree record. Shared by the
+ * single-leg push path and the inbound fast-forward path — both land on a
+ * current-or-skipped worktree and then save + push notes per policy. `save+push`
+ * here is the single-leg notes push (`pushNotesLeg`), distinct from the paired
+ * flow's consolidated push.
+ */
+async function completeNotesLeg(
+  ctx: ExecuteContext,
+  worktreeRecord: LegOutcomeRecord,
+  worktreeFailed: boolean,
+): Promise<ExecutedOutcome> {
+  const { decision } = ctx;
+
   if (decision.notes.kind === "save+notes-blocked") {
     const save = await performSave(ctx);
     ctx.output.log.warn(reconcileGuidance(decision.notes.reason));
@@ -970,8 +1038,8 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
     };
   }
 
-  // save+push without paired routing — only reachable when worktree is push-skip
-  // but notes is save+push (notes-only cell, worktree-skip not blocked).
+  // save+push without paired routing — reachable when the worktree is push-skip
+  // but notes is save+push (notes-only cell), or after a clean inbound ff-pull.
   const notesRecord = await pushNotesLeg(ctx);
   return {
     cell: decision.cellName,
@@ -979,6 +1047,122 @@ async function executeSingleLeg(ctx: ExecuteContext): Promise<ExecutedOutcome> {
     notes: notesRecord,
     exitCode: notesRecord.result === "success" || notesRecord.result === "noop" ? 0 : 1,
   };
+}
+
+/**
+ * Execute the inbound fast-forward leg, then the notes leg the same run.
+ *
+ * Delegates the ff-only / dirty-refuse / raced-block decision to the shipped
+ * `executeInboundPull` primitive (policy `always` — the matrix already gated
+ * whether to attempt the pull at all). On a clean fast-forward (or a benign
+ * no-op race where the worktree is already current), the worktree is now current
+ * and notes proceed via {@link completeNotesLeg}. On a dirty refuse, a raced
+ * divergence, or a degraded fetch, the worktree stays as it was — notes stay
+ * blocked and the run exits non-zero.
+ */
+async function executeInboundFfPull(
+  ctx: ExecuteContext,
+  branch: string,
+): Promise<ExecutedOutcome> {
+  const preHead = await resolveHeadSha(ctx.io.exec);
+  const result = await executeInboundPull({
+    exec: ctx.io.exec,
+    branch,
+    policy: "always",
+    isTty: !isNonInteractiveEnvironment(),
+    fetchTimeoutMs: DEFAULT_FETCH_TIMEOUT_MS,
+  });
+
+  if (result.decision === "ff-pull" && result.fastForwarded) {
+    await reportInboundFilesChanged(ctx, branch, result.behind, preHead);
+    return completeNotesLeg(ctx, { action: "inbound-ff-pull", result: "success" }, false);
+  }
+  if (result.decision === "no-op") {
+    // The remote was no longer ahead by execution time (a benign race); the
+    // worktree is already current, so notes proceed per policy.
+    ctx.output.log.info(`Worktree already current with origin/${branch}.`);
+    return completeNotesLeg(ctx, { action: "inbound-ff-pull", result: "noop" }, false);
+  }
+
+  // block (diverged / raced) / refuse (dirty) / surface (degraded fetch): the
+  // worktree did not become current, so notes stay blocked this run.
+  ctx.output.log.warn(inboundFailGuidance(result.decision, branch));
+  const save = await performSave(ctx);
+  return {
+    cell: ctx.decision.cellName,
+    worktree: {
+      action: "inbound-ff-pull",
+      result: result.decision === "refuse" ? "failed" : "blocked",
+      detail: result.decision,
+    },
+    save,
+    notes: inboundBlockedNotesRecord(ctx.decision.notes, result.decision, save),
+    exitCode: 1,
+  };
+}
+
+/** Resolve the current HEAD sha for the post-fast-forward files-changed diff. */
+async function resolveHeadSha(exec: UserIOContext["exec"]): Promise<string> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "HEAD"]);
+    return stdout.trim() || "HEAD";
+  } catch {
+    return "HEAD";
+  }
+}
+
+/**
+ * Emit the files-changed report after a successful inbound fast-forward so an
+ * agent can re-sync its model of the working tree. The diff is best-effort: a
+ * failure degrades to the commit-count headline alone.
+ */
+async function reportInboundFilesChanged(
+  ctx: ExecuteContext,
+  branch: string,
+  behind: number,
+  preHead: string,
+): Promise<void> {
+  ctx.output.log.info(`Fast-forwarded \`${branch}\` ${behind} commit(s) from origin.`);
+  let files: string[];
+  try {
+    const { stdout } = await ctx.io.exec("git", ["diff", "--name-only", preHead, "HEAD"]);
+    files = stdout.split("\n").map((line) => line.trim()).filter((line) => line !== "");
+  } catch {
+    return;
+  }
+  if (files.length > 0) {
+    ctx.output.note(files.join("\n"), `${files.length} file(s) changed`);
+  }
+}
+
+/** Notes record for an inbound leg that failed to make the worktree current. */
+function inboundBlockedNotesRecord(
+  notes: NotesAction,
+  decision: string,
+  save: LegOutcomeRecord,
+): LegOutcomeRecord {
+  if (notes.kind === "save-only") {
+    return {
+      action: "save",
+      result: save.result === "success" ? "success" : "failed",
+      detail: save.detail,
+    };
+  }
+  return { action: "push", result: "blocked", detail: `notes-blocked-by-inbound:${decision}` };
+}
+
+function inboundFailGuidance(decision: string, branch: string): string {
+  switch (decision) {
+    case "refuse":
+      return `Inbound fast-forward refused: working tree is dirty on \`${branch}\`. `
+        + "Commit or stash before pulling.";
+    case "block":
+      return `Inbound fast-forward blocked: \`${branch}\` diverged from origin/${branch}. `
+        + "Reconcile (rebase or merge) before pulling.";
+    default:
+      return `Inbound fast-forward skipped: origin/${branch} is unavailable. `
+        + "Retry when the remote is reachable.";
+  }
 }
 
 async function performSave(ctx: ExecuteContext): Promise<LegOutcomeRecord> {
@@ -1134,7 +1318,9 @@ function buildDryRunOutcome(
   const worktreeAction =
     decision.worktree.kind === "push" || decision.worktree.kind === "push-with-upstream-init"
       ? "push"
-      : "skip";
+      : decision.worktree.kind === "inbound-ff-pull"
+        ? "inbound-ff-pull"
+        : "skip";
   const fireSeparateSave =
     decision.worktree.kind === "skip-blocked-worktree"
     || decision.notes.kind === "save+notes-blocked";
@@ -1196,6 +1382,8 @@ function describeWorktreeAction(action: WorktreeAction): string {
       return "skip (push_interlock: manual)";
     case "skip-blocked-worktree":
       return `skip (${action.reason}: ${action.ahead} ahead, ${action.behind} behind)`;
+    case "inbound-ff-pull":
+      return `inbound fast-forward origin/${action.branch}`;
   }
 }
 

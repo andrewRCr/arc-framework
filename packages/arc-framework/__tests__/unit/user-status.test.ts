@@ -12,7 +12,13 @@ import {
   buildUserStatusResult,
   computeUserSyncSpine,
   buildUserStatusSummary,
+  computeDriftingSubdirs,
   computeUnsavedDirection,
+  hasUnpushedLocalDrift,
+  hasUnpushedLocalDriftForScope,
+  missingFilesAreIntentionalRetirement,
+  resolveCleanArmNotesVerdict,
+  unsavedDirectionForScope,
   hashSyncManifest,
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,
@@ -23,6 +29,7 @@ import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 import { projectManifest } from "../../src/lib/user-sync/index.js";
+import type { RecentNote } from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -931,6 +938,295 @@ describe("computeUnsavedDirection", () => {
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
   });
+
+  it("returns null when disk and note are identical (no difference)", () => {
+    const disk = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });
+    const note = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });
+
+    expect(computeUnsavedDirection(disk, note)).toBeNull();
+  });
+});
+
+describe("hasUnpushedLocalDrift", () => {
+  it("reads pure-behind as benign (no local-only content)", () => {
+    expect(hasUnpushedLocalDrift("behind")).toBe(false);
+  });
+
+  it("reads pure-missing as benign (no local-only content)", () => {
+    expect(hasUnpushedLocalDrift("missing")).toBe(false);
+  });
+
+  it("reads local-only edits as drift", () => {
+    expect(hasUnpushedLocalDrift("edits")).toBe(true);
+  });
+
+  it("reads local-only modifications as drift", () => {
+    expect(hasUnpushedLocalDrift("modified")).toBe(true);
+  });
+
+  it("reads mixed (local edits alongside retirement) as drift", () => {
+    expect(hasUnpushedLocalDrift("mixed")).toBe(true);
+  });
+
+  it("reads a null direction (no comparison basis) as benign", () => {
+    expect(hasUnpushedLocalDrift(null)).toBe(false);
+  });
+});
+
+describe("hasUnpushedLocalDriftForScope", () => {
+  // One basis: wu-a carries a local-only modification, wu-b is clean.
+  const disk = manifest({
+    "wu-a/SESSION-NOTES.md": "local-edit",
+    "wu-b/SESSION-NOTES.md": "saved",
+  });
+  const note = manifest({
+    "wu-a/SESSION-NOTES.md": "saved",
+    "wu-b/SESSION-NOTES.md": "saved",
+  });
+
+  it("whole-tree scope reflects drift anywhere in the tree", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "tree" })).toBe(true);
+  });
+
+  it("per-subdir scope isolates the drifting subdir", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-a" })).toBe(true);
+  });
+
+  it("per-subdir scope clears a clean subdir over the same basis", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-b" })).toBe(false);
+  });
+
+  it("returns false for a subdir with no files on either side (empty basis)", () => {
+    expect(unsavedDirectionForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBeNull();
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBe(false);
+  });
+});
+
+describe("computeDriftingSubdirs", () => {
+  function note(files: Record<string, string>): RecentNote {
+    return { historyCommit: "h", content: JSON.stringify({ version: 2, files }) };
+  }
+
+  it("flags a subdir whose disk carries local-only content beyond its last-pushed basis", () => {
+    const drifting = computeDriftingSubdirs({
+      localSubdirs: ["wu-a"],
+      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved", "wu-a/extra.md": "local" }),
+      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
+    });
+    expect([...drifting]).toEqual(["wu-a"]);
+  });
+
+  it("clears a subdir whose disk matches its last-pushed basis", () => {
+    const drifting = computeDriftingSubdirs({
+      localSubdirs: ["wu-a"],
+      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
+      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
+    });
+    expect(drifting.size).toBe(0);
+  });
+
+  it("clears a subdir carried by no note in the window (no basis → reconcile)", () => {
+    const drifting = computeDriftingSubdirs({
+      localSubdirs: ["wu-a"],
+      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
+      recentNotes: [note({ "wu-b/SESSION-NOTES.md": "saved" })],
+    });
+    expect(drifting.size).toBe(0);
+  });
+
+  it("uses the most-recent note still carrying the subdir as basis, not the latest note", () => {
+    // The latest note (index 0) has dropped wu-a (it shipped); an earlier in-window
+    // note still carries it. Disk matches that earlier content → no drift — even
+    // though wu-a absent from the latest note alone would read as a local `edits`.
+    const drifting = computeDriftingSubdirs({
+      localSubdirs: ["wu-a"],
+      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "last-pushed" }),
+      recentNotes: [
+        note({ "wu-b/SESSION-NOTES.md": "saved" }),
+        note({ "wu-a/SESSION-NOTES.md": "last-pushed", "wu-b/SESSION-NOTES.md": "saved" }),
+      ],
+    });
+    expect(drifting.size).toBe(0);
+  });
+});
+
+describe("resolveCleanArmNotesVerdict", () => {
+  const activeWuName = "stale-state-detect-and-pull";
+  const activeSessionNotes = `${activeWuName}/SESSION-NOTES.md`;
+
+  it("auto-loads on a pure-behind disk (note advanced, disk safe to overwrite)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "behind",
+      missingFiles: [],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(true);
+    expect(verdict.driftSurface).toBeUndefined();
+  });
+
+  it("auto-loads when the only missing file is the active WU's SESSION-NOTES (pure-missing, safe)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: [activeSessionNotes],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(true);
+    expect(verdict.driftSurface).toBeUndefined();
+  });
+
+  it("surfaces (not auto-loads) general missing files beyond the active WU's SESSION-NOTES", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: [activeSessionNotes, "other-wu/SESSION-NOTES.md"],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+  });
+
+  it("surfaces a missing active-WU SESSION-NOTES when no active WU is resolved (cannot prove safe)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: [activeSessionNotes],
+      activeWuName: null,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+  });
+
+  it("surfaces (not auto-loads) mixed drift — may carry real local edits", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "mixed",
+      missingFiles: [activeSessionNotes],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "mixed" });
+  });
+
+  it.each(["edits", "modified"] as const)(
+    "neither loads nor surfaces local-only %s (unsaved work, not stale arrival)",
+    (direction) => {
+      const verdict = resolveCleanArmNotesVerdict({
+        direction,
+        missingFiles: [],
+        activeWuName,
+      });
+
+      expect(verdict.loadNeeded).toBe(false);
+      expect(verdict.driftSurface).toBeUndefined();
+    },
+  );
+
+  it("neither loads nor surfaces a null direction (no divergence)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: null,
+      missingFiles: [],
+      activeWuName,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toBeUndefined();
+  });
+});
+
+describe("missingFilesAreIntentionalRetirement", () => {
+  it("reads files absent because their WU shipped (all present at last sync) as retirement", () => {
+    expect(
+      missingFilesAreIntentionalRetirement({
+        missingFiles: ["shipped-wu/SESSION-NOTES.md", "shipped-wu/scratch.md"],
+        priorFileList: ["shipped-wu/SESSION-NOTES.md", "shipped-wu/scratch.md", "live-wu/SESSION-NOTES.md"],
+      }),
+    ).toBe(true);
+  });
+
+  it("reads a file never materialized here (absent from the last-sync list) as real drift", () => {
+    expect(
+      missingFilesAreIntentionalRetirement({
+        missingFiles: ["arrived-wu/SESSION-NOTES.md"],
+        priorFileList: ["live-wu/SESSION-NOTES.md"],
+      }),
+    ).toBe(false);
+  });
+
+  it("treats a mix of retired and freshly-arrived missing files as drift (not all retirement)", () => {
+    expect(
+      missingFilesAreIntentionalRetirement({
+        missingFiles: ["shipped-wu/SESSION-NOTES.md", "arrived-wu/SESSION-NOTES.md"],
+        priorFileList: ["shipped-wu/SESSION-NOTES.md"],
+      }),
+    ).toBe(false);
+  });
+
+  it("cannot prove retirement without a prior file-list (never synced here)", () => {
+    expect(
+      missingFilesAreIntentionalRetirement({
+        missingFiles: ["some-wu/SESSION-NOTES.md"],
+        priorFileList: null,
+      }),
+    ).toBe(false);
+  });
+
+  it("reads an empty missing set as non-retirement (nothing to classify)", () => {
+    expect(
+      missingFilesAreIntentionalRetirement({ missingFiles: [], priorFileList: ["a/SESSION-NOTES.md"] }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveCleanArmNotesVerdict — retirement distinction (D3 projection bridge)", () => {
+  it("does not surface missing files that are intentional retirement (WU shipped)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: ["shipped-wu/SESSION-NOTES.md"],
+      activeWuName: "live-wu",
+      missingAreRetirement: true,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toBeUndefined();
+  });
+
+  it("surfaces missing files that are real drift (not retirement)", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: ["arrived-wu/SESSION-NOTES.md"],
+      activeWuName: "live-wu",
+      missingAreRetirement: false,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "missing" });
+  });
+
+  it("still auto-loads the safe sub-case even when the broader signal reads as retirement", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "missing",
+      missingFiles: ["live-wu/SESSION-NOTES.md"],
+      activeWuName: "live-wu",
+      missingAreRetirement: true,
+    });
+
+    expect(verdict.loadNeeded).toBe(true);
+    expect(verdict.driftSurface).toBeUndefined();
+  });
+
+  it("still surfaces mixed drift (local-only siblings) regardless of the retirement flag", () => {
+    const verdict = resolveCleanArmNotesVerdict({
+      direction: "mixed",
+      missingFiles: ["shipped-wu/SESSION-NOTES.md"],
+      activeWuName: "live-wu",
+      missingAreRetirement: true,
+    });
+
+    expect(verdict.loadNeeded).toBe(false);
+    expect(verdict.driftSurface).toEqual({ direction: "mixed" });
+  });
 });
 
 describe("inspectUserSyncState disk-vs-note direction inference", () => {
@@ -1548,12 +1844,18 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     refState: RefStateOverride;
     /** When `true`, disk content matches note content (state === "same" → loadNeeded: false). */
     diskMatchesNote?: boolean;
+    /** When `true`, the disk has no user files — the note's files are all missing on disk. */
+    diskEmpty?: boolean;
+    /** Last-sync file list carried in `.sync-state.json` (the retirement-vs-drift basis). */
+    priorFileList?: string[];
   }
 
   function buildIO(options: ProbeOptions): UserIOContext {
-    const diskFiles = options.diskMatchesNote
-      ? { "SESSION-NOTES.md": "shared-content" }
-      : { "SESSION-NOTES.md": "disk-content" };
+    const diskFiles: Record<string, string> = options.diskEmpty
+      ? {}
+      : options.diskMatchesNote
+        ? { "SESSION-NOTES.md": "shared-content" }
+        : { "SESSION-NOTES.md": "disk-content" };
     const noteFiles = options.diskMatchesNote
       ? { "SESSION-NOTES.md": "shared-content" }
       : { "SESSION-NOTES.md": "newer-from-other-machine" };
@@ -1565,6 +1867,7 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       materializedManifestHash,
       sourceCommit,
       sourceOperation: "save",
+      ...(options.priorFileList ? { priorFileList: options.priorFileList } : {}),
     });
 
     return {
@@ -1729,6 +2032,35 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       expect(result.loadNeeded).toBeUndefined();
     },
   );
+
+  it("flags a missing-on-disk note file as retirement when it was present at last sync", async () => {
+    const io = buildIO({ refState: "same", diskEmpty: true, priorFileList: ["SESSION-NOTES.md"] });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.notesDrift?.direction).toBe("missing");
+    expect(result.notesDrift?.missingFiles).toEqual(["SESSION-NOTES.md"]);
+    expect(result.notesDrift?.missingAreRetirement).toBe(true);
+  });
+
+  it("does not flag a missing-on-disk note file as retirement absent a prior file-list", async () => {
+    const io = buildIO({ refState: "same", diskEmpty: true });
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.notesDrift?.direction).toBe("missing");
+    expect(result.notesDrift?.missingAreRetirement).toBe(false);
+  });
 });
 
 describe("buildUserSessionInitStatusSummary", () => {
@@ -1759,7 +2091,7 @@ describe("buildLoadSummary", () => {
       fileCount: 2,
       fromAncestor: true,
       ancestorDistance: 25,
-      warnings: [],
+      messages: [],
     });
 
     expect(summary).toContain("Loaded from 25 commit(s) back.");

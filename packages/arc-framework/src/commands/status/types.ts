@@ -27,6 +27,7 @@ import type {
 } from "../extensions/types.js";
 import type {
   UserSessionInitStatusResult,
+  UserSessionNotesDriftSurface,
   UserStatusResult,
 } from "../user/types.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
@@ -34,14 +35,17 @@ import type { HeadHashResult } from "../../lib/git/head-hash.js";
 import type { PushabilityResult } from "../../lib/git/pushability.js";
 import type { WorktreeSyncStatusResult } from "../../lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../lib/git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../../lib/git/base-branch-sync.js";
 import type { SupersessionResult } from "../../lib/git/supersession.js";
 import type { WorktreeRosterResult } from "../../lib/git/worktree-roster.js";
 import type { WorktreeIdentity } from "../../lib/git/worktree-identity.js";
 import type { CascadeResolution } from "../../lib/session-init/branch-gone-cascade.js";
 import type { StaleWorktreeSweepResult } from "../../lib/session-init/stale-worktree-sweep.js";
+import type { PlanOrphanSweepResult } from "../../lib/session-init/plan-orphan-sweep.js";
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
@@ -90,10 +94,41 @@ export interface SessionInitBaseDistanceValue extends BaseDistanceStatusResult {
 }
 
 /**
+ * Base-branch-sync slot in the session-init envelope. Extends the raw probe
+ * result (local `<base>` vs `origin/<base>`) with the config-gated action +
+ * prompt pair: `pull` / `prompt` drive the fast-forward freshen offer, `surface`
+ * the stale/diverged advisory, `skip` a current base.
+ */
+export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResult {
+  recommendedAction: RecommendedAction;
+  /** Composed offer text when `recommendedAction ∈ {prompt, surface}`; empty string otherwise. */
+  recommendedPromptText: string;
+}
+
+/**
  * User slot in the session-init envelope. Extends the standalone probe
  * result with the same recommendation pair as the worktree slot.
  */
 export interface SessionInitUserValue extends UserSessionInitStatusResult {
+  recommendedAction: RecommendedAction;
+  recommendedPromptText: string;
+  /**
+   * Finalized clean-arm notes/disk drift advisory (D3), resolved from the raw
+   * `notesDrift` signal against the active WU name. Present only when the
+   * divergence surfaces (neither a safe auto-load nor benign); the safe sub-case
+   * is folded into `loadNeeded` instead. Rendered in orientation's advisory tier.
+   */
+  notesDriftSurface?: UserSessionNotesDriftSurface;
+}
+
+/**
+ * Retired-subdir slot in the session-init envelope. Extends the raw detection
+ * result with the config-gated reconcile recommendation (`session.init_load.notes`):
+ * `pull` fires `arc user load` (auto-reconcile), `prompt` offers it, `surface`
+ * warns only, `skip` when no candidates linger. `recommendedPromptText` carries
+ * the offer when `recommendedAction ∈ {prompt}`; empty string otherwise.
+ */
+export interface SessionInitRetiredSubdirsValue extends RetiredSubdirDetectionResult {
   recommendedAction: RecommendedAction;
   recommendedPromptText: string;
 }
@@ -146,6 +181,14 @@ export interface SessionInitProbeResult {
    * placement; the recommendation fields drive the resume-time reconcile offer.
    */
   baseDistance: Probe<SessionInitBaseDistanceValue>;
+  /**
+   * Base-branch-sync slot — local `<base>` vs `origin/<base>`, the
+   * silently-stale-local-base surface (sibling to `baseDistance`, which
+   * measures HEAD vs `origin/<base>`). Always present (eager, non-gated). The
+   * recommendation pair drives the config-gated fast-forward-only freshen offer
+   * (`session.init_pull.base`).
+   */
+  baseBranchSync: Probe<SessionInitBaseBranchSyncValue>;
   dirty: Probe<DirtyStateResult>;
   extensions: Probe<ExtensionsSessionInitResult>;
   config: Probe<ConfigSessionInitResult>;
@@ -180,13 +223,24 @@ export interface SessionInitProbeResult {
    */
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
+   * Pre-computed `plan/`-orphan sweep — local `plan/<name>` branches whose
+   * upstream is gone (a sibling's local-only `plan/ → <type>/` rename), each
+   * with its merged-to-base verdict. A `merged` orphan earns the
+   * interlock-gated `git branch -d` offer; an unmerged one is surfaced as
+   * not-removable (never `-D`). Present ONLY in the primary (main) worktree —
+   * branch hygiene the resume path never pays for; absent in linked worktrees.
+   */
+  planOrphanSweep?: Probe<PlanOrphanSweepResult>;
+  /**
    * Pre-computed retired-subdir detection — lingering retired-WU user subdirs
-   * (shipped + absent from the recent-notes window) under `user/{identity}/`.
-   * Read-only surface; the actual reconcile (with `.internal/` backup) happens
-   * at `arc user load` / `pull`. Present whenever identity resolved (a cheap
+   * (shipped + carrying no unpushed drift) under `user/{identity}/`. Enriched
+   * with the config-gated reconcile recommendation (`session.init_load.notes`):
+   * the reconcile (with `.internal/` backup) fires inside `arc user load`,
+   * triggered by session-init's notes-load dispatch when `loadNeeded` OR these
+   * candidates are present. Present whenever identity resolved (a cheap
    * always-on slot); omitted only when identity is absent.
    */
-  retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
+  retiredSubdirs?: Probe<SessionInitRetiredSubdirsValue>;
   /**
    * Pre-computed errand-staleness sweep — errands pending past the configured
    * threshold (`inbox.remind_after_days`, default 1), surfaced for
@@ -231,6 +285,17 @@ export interface SessionInitProbeResult {
    * identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
+  /**
+   * Pre-computed partial-push-marker surface — the cohort sibling's live,
+   * non-expired sync-state markers, each a notes push that has not yet arrived
+   * at origin (lag, not loss). Rendered as the Aware advisory one-liner in
+   * Step 6, co-located with the base-ref surface; the agent proceeds-with-context
+   * and never auto-resolves. Present whenever identity resolved (the ref is
+   * identity-scoped); omitted only when identity is absent. An empty `markers`
+   * array means the ref was read and nothing is live (or the ref is absent —
+   * degrade-silent).
+   */
+  partialPushMarker?: Probe<PartialPushMarkerSurfaceResult>;
   /**
    * Pre-computed plate-balance signal — the resolved `Class` composition
    * (`Novel` / `Heavy` / `Light` counts) of the in-flight work units the roster
@@ -396,6 +461,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
    */
   baseDistance: () => Promise<BaseDistanceStatusResult>;
   /**
+   * Base-branch-sync probe — local `<base>` vs `origin/<base>`. Session-init-only
+   * (a between-WU resume is where a silently-stale local base matters). The
+   * handler binds the resolved `branch.base` and remote-sync flag, mirroring the
+   * base-distance probe.
+   */
+  baseBranchSync: () => Promise<BaseBranchSyncStatusResult>;
+  /**
    * Patch-equal supersession detector — `git cherry` over the local-ahead set,
    * receiving the current branch from the orchestrator. Called ONLY when the
    * worktree slot resolved to `diverged` (a bounded read on the one state where
@@ -434,6 +506,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
     roster: WorktreeRosterResult,
     worktreeIdentity: WorktreeIdentity,
   ) => Promise<StaleWorktreeSweepResult>;
+  /**
+   * `plan/`-orphan sweep resolver. Receives the session's worktree identity; the
+   * handler binds the base branch and git executor. Called ONLY in the primary
+   * worktree — it enumerates gone-upstream `plan/` branches itself (no roster
+   * dependency).
+   */
+  planOrphanSweep: (worktreeIdentity: WorktreeIdentity) => Promise<PlanOrphanSweepResult>;
   /**
    * Retired-subdir detection resolver. Receives the resolved identity and reads
    * `user/{identity}/` + `.arc/completed/` (cheap) plus a gated recent-notes
@@ -485,6 +564,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * the eager phase whenever identity resolved; advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
+  /**
+   * Partial-push-marker surface resolver. Receives the resolved identity; the
+   * handler binds the git executor and reference time, reads the local
+   * sync-state ref, and selects the live, non-expired markers. Fired in the
+   * eager phase whenever identity resolved; read-only, network-free.
+   */
+  partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
   /**
    * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
    * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value

@@ -1,4 +1,4 @@
-import { readdir, rm } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
@@ -8,7 +8,6 @@ import {
   appendRemovalTombstones,
   classifyOrphans,
   classifyUserSyncPath,
-  collectNotesWuNames,
   getUserInternalDir,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
@@ -19,7 +18,10 @@ import {
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
-import { readShippedWorkUnits } from "../../lib/work-unit/completed-index.js";
+import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
+import type { GitExec } from "../../lib/git/exec.js";
+import { computeDriftingSubdirs } from "./drift.js";
 import {
   listChangedNotePaths,
   notePathToCommit,
@@ -41,6 +43,7 @@ import {
   type UserLoadOptions,
   type UserSaveOptions,
   type UserSaveResult,
+  type LoadMessage,
 } from "./types.js";
 
 const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
@@ -78,8 +81,10 @@ export async function runUserSave(
   const json = JSON.stringify(result.manifest);
   await io.writeNote(notesRef(identity), json, commit);
   await verifySavedNote(io, identity, commit, result.manifest);
+  const projectedSave = projectManifest(result.manifest);
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectManifest(result.manifest)), commit, "save", commit,
+    cwd, io, identity, hashSyncManifest(projectedSave), commit, "save", commit,
+    Object.keys(projectedSave.files),
   );
 
   return {
@@ -141,8 +146,8 @@ export async function runUserLoad(
   const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
-  let staleWarnings: string[] = [];
-  let reconcileWarnings: string[] = [];
+  let notices: LoadMessage[] = [];
+  let cleanups: LoadMessage[] = [];
   try {
     const localResult = await serialize(userDir, io.readDir, io.readFile);
     const localFiles = localResult.manifest.files;
@@ -162,19 +167,21 @@ export async function runUserLoad(
       // just captured in the pre-load backup, so the removal is recoverable.
       // Runs before the stale-file scan so a reconciled subdir's files aren't
       // also reported as "preserved".
-      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, localFiles, recentNotes });
+      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
 
-      staleWarnings = classifyOrphans({
+      notices = classifyOrphans({
         localFiles,
         manifestFiles: loadManifest.files,
         reconciledSubdirs: reconciled,
         currentWuName: options.currentWuName,
-      }).map((classification) => renderOrphanWarning(classification, backupFilename));
-      reconcileWarnings = [...reconciled].map(
-        (subdir) =>
-          `Retired WU subdir "${subdir}" (shipped, absent from recent notes) — removed; ` +
-          `recoverable from .internal/${backupFilename}`,
-      );
+      }).map((classification) => ({
+        level: "notice",
+        text: renderOrphanNotice(classification, backupFilename),
+      }));
+      cleanups = [...reconciled].map((subdir) => ({
+        level: "cleanup",
+        text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupFilename}`,
+      }));
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -183,8 +190,10 @@ export async function runUserLoad(
   await ensureDir(userDir, io.mkdir);
   await deserialize(userDir, loadManifest, io.writeFile, io.mkdir);
   await verifyMaterializedUserDir(userDir, io, sourceCommit, loadManifest);
+  const projectedLoad = projectManifest(loadManifest);
   await writeLocalSyncState(
-    cwd, io, identity, hashSyncManifest(projectManifest(loadManifest)), sourceCommit, "load", sourceCommit,
+    cwd, io, identity, hashSyncManifest(projectedLoad), sourceCommit, "load", sourceCommit,
+    Object.keys(projectedLoad.files),
   );
 
   return {
@@ -196,7 +205,11 @@ export async function runUserLoad(
     ancestorDistance: search.note?.ancestorDistance ?? 0,
     noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     reachableFromHead: search.note?.reachableFromHead ?? false,
-    warnings: [...staleWarnings, ...reconcileWarnings, ...mergeWarnings],
+    messages: [
+      ...cleanups,
+      ...notices,
+      ...mergeWarnings.map((text): LoadMessage => ({ level: "warning", text })),
+    ],
   };
 }
 
@@ -509,53 +522,135 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
 }
 
 /**
- * Reconcile retired per-WU subdirs at load time: remove each present subdir
- * whose WU has shipped and is no longer carried in the recent-notes window.
- * Detection is {@link planRetiredSubdirReconcile}; the shipped set is the local
- * `completed/` archive. Removal is recoverable — the caller has already written
- * the pre-load backup capturing these files.
+ * Resolve which present per-WU subdirs are reconcilable: those whose WU has
+ * shipped (read from the `origin/<base>` `completed/` tree — the canonical,
+ * branch-independent oracle) and which carry no unpushed local drift. Detection
+ * is {@link planRetiredSubdirReconcile}; the drift gate is
+ * {@link computeDriftingSubdirs} over the disk manifest and the recent-notes
+ * window. Pure planning — performs no removal, so a caller can gate its backup
+ * on a non-empty result.
+ *
+ * @returns The reconcilable subdir names, in `localFiles` subdir order.
+ */
+async function resolveReconcilableSubdirs(params: {
+  cwd: string;
+  exec: GitExec;
+  localFiles: Record<string, string>;
+  recentNotes: RecentNote[];
+}): Promise<string[]> {
+  const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
+  if (localSubdirs.length === 0) return [];
+
+  const { settings } = await readConfigSettings(params.cwd);
+  const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
+  const driftingSubdirs = computeDriftingSubdirs({
+    localSubdirs,
+    diskManifest: { version: 2, files: params.localFiles },
+    recentNotes: params.recentNotes,
+  });
+  return planRetiredSubdirReconcile({ localSubdirs, shipped, driftingSubdirs }).reconcile;
+}
+
+/** Recursively remove each reconciled subdir; returns the removed set. */
+async function removeReconciledSubdirs(params: {
+  cwd: string;
+  identity: string;
+  reconcile: readonly string[];
+}): Promise<Set<string>> {
+  for (const subdir of params.reconcile) {
+    await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
+  }
+  return new Set(params.reconcile);
+}
+
+/**
+ * Reconcile retired per-WU subdirs at load time — resolve the reconcilable set
+ * ({@link resolveReconcilableSubdirs}) and remove each. Removal is recoverable:
+ * the caller has already written the pre-load backup capturing these files.
  *
  * @returns The set of reconciled (removed) subdir names.
  */
 async function reconcileRetiredSubdirs(params: {
   cwd: string;
   identity: string;
+  exec: GitExec;
   localFiles: Record<string, string>;
   recentNotes: RecentNote[];
 }): Promise<Set<string>> {
-  const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
-  if (localSubdirs.length === 0) return new Set();
-
-  const notesWuNames = collectNotesWuNames(params.recentNotes);
-  const shipped = await readShippedWorkUnits({ cwd: params.cwd, fs: { readdir } });
-  const { reconcile } = planRetiredSubdirReconcile({ localSubdirs, notesWuNames, shipped });
-
-  for (const subdir of reconcile) {
-    await removeStaleUserWuSubdir({ cwd: params.cwd, identity: params.identity, subdir });
-  }
-  return new Set(reconcile);
+  const reconcile = await resolveReconcilableSubdirs({
+    cwd: params.cwd,
+    exec: params.exec,
+    localFiles: params.localFiles,
+    recentNotes: params.recentNotes,
+  });
+  return removeReconciledSubdirs({ cwd: params.cwd, identity: params.identity, reconcile });
 }
 
 /**
- * Render one orphan classification to a user-facing load warning. The seam where
+ * Reconcile the local user tree's retired per-WU subdirs — the reversible cleanup
+ * `arc user open` runs *before* its stale-subdir prompt, so a shipped, drift-free
+ * subdir is removed (recoverable from the backup) with no confirm: its shipped
+ * status is proof, not a decision the operator must make.
+ *
+ * The same reconcile the load path performs inline, minus the note
+ * materialization — usable from any entry point that holds only `cwd` / `io` /
+ * `identity`. The pre-removal backup is written only once a removal is actually
+ * pending, so a no-op open (nothing reconcilable) leaves no snapshot behind.
+ * No-ops cleanly when the user dir is absent or empty.
+ *
+ * @returns Names of the reconciled (removed) subdirs; empty when nothing qualified.
+ */
+export async function reconcileRetiredSubdirsStandalone(params: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+}): Promise<Set<string>> {
+  const { cwd, io, identity } = params;
+  const userDir = join(cwd, ".arc", "user", identity);
+
+  let localManifest: SyncManifest;
+  try {
+    localManifest = (await serialize(userDir, io.readDir, io.readFile)).manifest;
+  } catch {
+    return new Set();
+  }
+  const localFiles = localManifest.files;
+  if (Object.keys(localFiles).length === 0) return new Set();
+
+  const recentNotes = await readRecentUserNotes(io.exec, identity);
+  const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles, recentNotes });
+  if (reconcile.length === 0) return new Set();
+
+  // Back up only once a removal is pending: the snapshot exists to make the
+  // reconcile recoverable, so a no-op open writes nothing.
+  const internalDir = getUserInternalDir(cwd, identity);
+  await ensureDir(internalDir, io.mkdir);
+  await io.writeFile(join(internalDir, createTimestampedBackupFilename()), JSON.stringify(localManifest));
+  await pruneTimestampedBackups(internalDir, io.readDir);
+
+  return removeReconciledSubdirs({ cwd, identity, reconcile });
+}
+
+/**
+ * Render one orphan classification to a user-facing notice string. The seam where
  * the structured classification ({@link classifyOrphans}) flattens to a string;
  * a later drift tier adds classification kinds, not new call sites.
  */
-function renderOrphanWarning(classification: OrphanClassification, backupFilename: string): string {
-  const preserved = `preserved in .internal/${backupFilename}`;
+function renderOrphanNotice(classification: OrphanClassification, backupFilename: string): string {
+  const backedUp = `backed up to .internal/${backupFilename}`;
   switch (classification.kind) {
     case "grouped-retirement":
       return (
         `User subdir "${classification.subdir}/" (${classification.files.length} file(s)) not in saved ` +
-        `manifest — left in place, ${preserved}. Remove the subdir if its work unit is retired.`
+        `manifest — left in place; ${backedUp}. Remove the subdir if its work unit is retired.`
       );
     case "rename-candidate":
       return (
         `Local file "${classification.from}" not in saved manifest — looks like a rename to ` +
-        `"${classification.to}" (content matches); ${preserved}`
+        `"${classification.to}" (content matches); ${backedUp}`
       );
     case "generic":
-      return `Local file "${classification.name}" not in saved manifest — ${preserved}`;
+      return `Local file "${classification.name}" not in saved manifest — ${backedUp}`;
   }
 }
 

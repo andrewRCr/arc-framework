@@ -1,50 +1,49 @@
 /**
  * Unit tests for `runRetiredSubdirDetection` — the read-only session-init slot
  * that surfaces lingering retired-WU user subdirs. Mirrors the load-path
- * decision but never removes; follows the sweep slot's cheap-base /
- * gated-expensive discipline (the recent-notes read fires only when a shipped
- * subdir is actually present).
+ * decision (shipped against `origin/<base>`, drift-gated) but never removes;
+ * follows the sweep slot's cheap-base / gated-expensive discipline.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 
 import { runRetiredSubdirDetection } from "../../../src/lib/session-init/retired-subdir-detection.js";
-import type { DirEntry } from "../../../src/lib/git/user-sync.js";
-import type { CompletedIndexFs } from "../../../src/lib/work-unit/completed-index.js";
+import type { DirEntry, ReadFileFn } from "../../../src/lib/git/user-sync.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
+import { computeDriftingSubdirs } from "../../../src/commands/user.js";
 
 const cwd = "/repo";
 const identity = "andrew";
-const completed = `${cwd}/.arc/completed`;
+const userDir = `${cwd}/.arc/user/${identity}`;
 
 /** Recursive user-dir reader stub returning the given relative file paths. */
 function readDirOf(paths: string[]): (dirPath: string) => Promise<DirEntry[]> {
   return async () => paths.map((name) => ({ name, size: 1 }));
 }
 
-/** `.arc/completed/` reader stub from a quarter → archive-dirs map. */
-function shippedFs(quarters: Record<string, string[]>): CompletedIndexFs {
-  return {
-    readdir: async (path) => {
-      const norm = path.replace(/\/$/u, "");
-      if (norm === completed) return Object.keys(quarters);
-      const quarter = norm.slice(completed.length + 1);
-      const entry = quarters[quarter];
-      if (entry === undefined) throw new Error(`ENOENT: ${path}`);
-      return entry;
-    },
+/** File reader stub mapping a relative path under the user dir to its disk content. */
+function readFileOf(contentByRel: Record<string, string>): ReadFileFn {
+  return async (filePath: string) => {
+    const rel = filePath.startsWith(`${userDir}/`) ? filePath.slice(userDir.length + 1) : filePath;
+    return contentByRel[rel] ?? "x";
   };
 }
 
-/** Git runner stub driving `readRecentUserNotes` from a list of manifest contents. */
-function notesExec(noteContents: string[]): GitExec {
-  const history = noteContents.map((_, i) => `histcommit${i}`);
+/**
+ * Git runner stub serving both the `ls-tree` shipped read (from a list of
+ * `completed/` paths) and `readRecentUserNotes` (from a list of manifest
+ * contents, most-recent first).
+ */
+function buildExec(opts: { completed?: string[]; notes?: string[] }): GitExec {
+  const notes = opts.notes ?? [];
+  const history = notes.map((_, i) => `histcommit${i}`);
   const byHistory = new Map<string, { path: string; content: string }>();
   history.forEach((h, i) => {
     const c = i.toString(16).padStart(40, "0");
-    byHistory.set(h, { path: `${c.slice(0, 2)}/${c.slice(2)}`, content: noteContents[i]! });
+    byHistory.set(h, { path: `${c.slice(0, 2)}/${c.slice(2)}`, content: notes[i]! });
   });
   return (async (_cmd: string, args: string[]) => {
+    if (args[0] === "ls-tree") return { stdout: (opts.completed ?? []).join("\n") };
     if (args[0] === "log") return { stdout: history.join("\n") };
     if (args[0] === "diff-tree") {
       const entry = byHistory.get(args[args.length - 1] ?? "");
@@ -58,58 +57,77 @@ function notesExec(noteContents: string[]): GitExec {
   }) as unknown as GitExec;
 }
 
-function manifest(paths: string[]): string {
-  return JSON.stringify({ version: 2, files: Object.fromEntries(paths.map((p) => [p, "x"])) });
+function manifest(files: Record<string, string>): string {
+  return JSON.stringify({ version: 2, files });
 }
 
+/** A shipped `completed/` tree carrying each given slug under one quarter. */
+function shippedPaths(slugs: string[]): string[] {
+  return slugs.map((slug, i) => `.arc/completed/2026-q2/0${i + 1}_${slug}/meta-${slug}.md`);
+}
+
+const baseArgs = { cwd, identity, baseBranch: "main", computeDrift: computeDriftingSubdirs };
+
 describe("runRetiredSubdirDetection", () => {
-  it("returns no candidates and reads no notes when no per-WU subdir is present", async () => {
-    const exec = vi.fn(notesExec([]));
+  it("returns no candidates when no per-WU subdir is present", async () => {
     const result = await runRetiredSubdirDetection({
-      cwd,
-      identity,
-      exec,
+      ...baseArgs,
+      exec: buildExec({}),
       readDir: readDirOf(["SESSION-NOTES.md", "WORKING-MEMORY.md"]),
-      fs: shippedFs({}),
+      readFile: readFileOf({}),
     });
 
     expect(result.candidates).toEqual([]);
-    expect(exec).not.toHaveBeenCalled();
   });
 
-  it("returns no candidates and reads no notes when a present subdir has not shipped", async () => {
-    const exec = vi.fn(notesExec([]));
+  it("returns no candidates when a present subdir has not shipped", async () => {
     const result = await runRetiredSubdirDetection({
-      cwd,
-      identity,
-      exec,
+      ...baseArgs,
+      exec: buildExec({ completed: shippedPaths(["some-other-wu"]) }),
       readDir: readDirOf(["live-wu/SESSION-NOTES.md"]),
-      fs: shippedFs({}),
+      readFile: readFileOf({ "live-wu/SESSION-NOTES.md": "saved" }),
     });
 
     expect(result.candidates).toEqual([]);
-    expect(exec).not.toHaveBeenCalled();
   });
 
-  it("surfaces a shipped subdir absent from the recent-notes window", async () => {
+  it("surfaces a shipped subdir whose disk matches its last-pushed note (no drift)", async () => {
     const result = await runRetiredSubdirDetection({
-      cwd,
-      identity,
-      exec: notesExec([manifest(["WORKING-MEMORY.md"])]),
+      ...baseArgs,
+      exec: buildExec({
+        completed: shippedPaths(["old-wu"]),
+        notes: [manifest({ "old-wu/SESSION-NOTES.md": "saved" })],
+      }),
       readDir: readDirOf(["old-wu/SESSION-NOTES.md"]),
-      fs: shippedFs({ "2026-q2": ["01_old-wu"] }),
+      readFile: readFileOf({ "old-wu/SESSION-NOTES.md": "saved" }),
     });
 
     expect(result.candidates).toEqual(["old-wu"]);
   });
 
-  it("does not surface a shipped subdir still carried in the recent-notes window", async () => {
+  it("surfaces a shipped subdir carried by no note in the window (no basis)", async () => {
     const result = await runRetiredSubdirDetection({
-      cwd,
-      identity,
-      exec: notesExec([manifest(["live-wu/SESSION-NOTES.md"])]),
-      readDir: readDirOf(["live-wu/SESSION-NOTES.md"]),
-      fs: shippedFs({ "2026-q2": ["02_live-wu"] }),
+      ...baseArgs,
+      exec: buildExec({
+        completed: shippedPaths(["old-wu"]),
+        notes: [manifest({ "WORKING-MEMORY.md": "x" })],
+      }),
+      readDir: readDirOf(["old-wu/SESSION-NOTES.md"]),
+      readFile: readFileOf({ "old-wu/SESSION-NOTES.md": "saved" }),
+    });
+
+    expect(result.candidates).toEqual(["old-wu"]);
+  });
+
+  it("does not surface a shipped subdir carrying unpushed local drift", async () => {
+    const result = await runRetiredSubdirDetection({
+      ...baseArgs,
+      exec: buildExec({
+        completed: shippedPaths(["old-wu"]),
+        notes: [manifest({ "old-wu/SESSION-NOTES.md": "saved" })],
+      }),
+      readDir: readDirOf(["old-wu/SESSION-NOTES.md"]),
+      readFile: readFileOf({ "old-wu/SESSION-NOTES.md": "local-edit" }),
     });
 
     expect(result.candidates).toEqual([]);

@@ -11,7 +11,7 @@ import { access, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -311,5 +311,60 @@ describe("user open / close lifecycle", () => {
   it("close is idempotent — no error when the subdir is already absent", async () => {
     const result = await runArc(["user", "close", "never-opened"], tmpDir);
     expect(result.exitCode).toBe(0);
+  });
+
+  it("keeps an unresolvable stale subdir under non-TTY and still opens — never hangs or aborts", async () => {
+    const { writeFile, mkdir } = await import("node:fs/promises");
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+
+    // A prior WU's subdir that never shipped → unresolvable; pre-fix this hung the
+    // non-TTY clack prompt and aborted the open.
+    await mkdir(join(userDir, "prior-wu"), { recursive: true });
+    await writeFile(join(userDir, "prior-wu", "SESSION-NOTES.md"), "# Prior WU\n", "utf-8");
+
+    const result = await runArcNoTty(["user", "open", "feature-x"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // Non-destructive default under non-TTY: the subdir survives and the new WU opens.
+    expect(await pathExists(join(userDir, "prior-wu", "SESSION-NOTES.md"))).toBe(true);
+    expect(await pathExists(join(userDir, "feature-x", "SESSION-NOTES.md"))).toBe(true);
+  });
+
+  it("reconciles a shipped stale subdir on open — removes it recoverably, exits cleanly", async () => {
+    const { writeFile, mkdir, readdir } = await import("node:fs/promises");
+    const userDir = join(tmpDir, ".arc", "user", "test-user");
+    const noHooks = ["-c", "core.hooksPath=/dev/null"];
+
+    // A lingering subdir from a prior WU that has shipped on origin/main.
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU\n", "utf-8");
+
+    // Stand up a bare remote and publish `main`, then archive old-wu into
+    // origin/main's `completed/` tree (the shipped oracle) and drop it locally.
+    const bareDir = `${tmpDir}-bare.git`;
+    await git(["init", "--bare", bareDir], tmpDir);
+    await git(["remote", "add", "origin", bareDir], tmpDir);
+    await git(["add", "."], tmpDir);
+    await git([...noHooks, "commit", "-m", "setup"], tmpDir);
+    await git(["push", "origin", "HEAD:main"], tmpDir);
+
+    const rel = join(".arc", "completed", "2026-q2", "01_old-wu");
+    await mkdir(join(tmpDir, rel), { recursive: true });
+    await writeFile(join(tmpDir, rel, "meta-old-wu.md"), "# old-wu\n", "utf-8");
+    await git(["add", rel], tmpDir);
+    await git([...noHooks, "commit", "-m", "archive old-wu"], tmpDir);
+    await git(["push", "origin", "HEAD:main"], tmpDir);
+    await git(["rm", "-r", rel], tmpDir);
+    await git([...noHooks, "commit", "-m", "drop archive"], tmpDir);
+
+    const result = await runArc(["user", "open", "feature-x"], tmpDir);
+
+    expect(result.exitCode).toBe(0);
+    // Shipped + drift-free → reconciled away with no prompt; the new WU opens.
+    expect(await pathExists(join(userDir, "old-wu"))).toBe(false);
+    expect(await pathExists(join(userDir, "feature-x", "SESSION-NOTES.md"))).toBe(true);
+    // Removal is recoverable — a timestamped backup captured the subdir.
+    const backups = await readdir(join(userDir, ".internal"));
+    expect(backups.some((n) => /^\.pre-load-backup-.*\.json$/u.test(n))).toBe(true);
   });
 });

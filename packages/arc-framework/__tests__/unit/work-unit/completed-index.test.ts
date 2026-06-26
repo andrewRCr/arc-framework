@@ -5,8 +5,21 @@ import {
   computeArchiveDestination,
   isShippedWorkUnit,
   readShippedWorkUnits,
+  readShippedWorkUnitsFromRef,
   type CompletedIndexFs,
 } from "../../../src/lib/work-unit/completed-index.js";
+import type { GitExec } from "../../../src/lib/git/exec.js";
+
+/**
+ * A {@link GitExec} that returns fixed stdout for an `ls-tree` read and throws
+ * for any other invocation — the ref-tree reader's only git dependency.
+ */
+function buildLsTreeExec(stdout: string): GitExec {
+  return async (_cmd, args) => {
+    if (args[0] === "ls-tree") return { stdout };
+    throw new Error(`unexpected git ${args.join(" ")}`);
+  };
+}
 
 /**
  * In-memory `readdir` adapter from an explicit dir-path → children map. A path
@@ -92,6 +105,45 @@ describe("readShippedWorkUnits", () => {
     const shipped = await readShippedWorkUnits({ cwd: "/repo", fs });
 
     expect([...shipped]).toEqual(["cli-implementation"]);
+  });
+});
+
+describe("readShippedWorkUnitsFromRef", () => {
+  it("collects NN_<slug> dirs from a ref's recursive completed/ tree", async () => {
+    const exec = buildLsTreeExec(
+      [
+        ".arc/completed/2026-q2/03_decompose-matrix/SESSION-NOTES.md",
+        ".arc/completed/2026-q2/03_decompose-matrix/spec-decompose-matrix.md",
+        ".arc/completed/2026-q1/07_cli-implementation/meta-cli-implementation.md",
+      ].join("\n"),
+    );
+
+    const shipped = await readShippedWorkUnitsFromRef(exec, "origin/main");
+
+    expect([...shipped].sort()).toEqual(["cli-implementation", "decompose-matrix"]);
+  });
+
+  it("ignores cohort closeout entries", async () => {
+    const exec = buildLsTreeExec(
+      [
+        ".arc/completed/2026-q2/18_doc-cascade-sweep/meta-doc-cascade-sweep.md",
+        ".arc/completed/2026-q2/18a_cohort-agile-wu-lifecycle/cohort-agile-wu-lifecycle.md",
+      ].join("\n"),
+    );
+
+    const shipped = await readShippedWorkUnitsFromRef(exec, "origin/main");
+
+    expect([...shipped]).toEqual(["doc-cascade-sweep"]);
+  });
+
+  it("returns an empty set when the ref does not resolve", async () => {
+    const exec: GitExec = async () => {
+      throw new Error("fatal: not a valid object name origin/main");
+    };
+
+    const shipped = await readShippedWorkUnitsFromRef(exec, "origin/main");
+
+    expect(shipped.size).toBe(0);
   });
 });
 

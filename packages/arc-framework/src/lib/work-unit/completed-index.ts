@@ -22,6 +22,8 @@
 
 import { join } from "node:path";
 
+import type { GitExec } from "../git/exec.js";
+
 /** Filesystem adapter — injected for unit testability; production binds `node:fs/promises`. */
 export interface CompletedIndexFs {
   readdir(path: string): Promise<string[]>;
@@ -44,6 +46,24 @@ const COHORT_ARCHIVE_PREFIX = "cohort-";
  * cohort sidecar still contributes its number to the quarter's max.
  */
 const SEQUENCE_PREFIX_RE = /^(\d+)[a-z]?_/u;
+
+/** `.arc/completed/` path prefix the ref-tree reader strips to reach `<quarter>/<entry>/...`. */
+const COMPLETED_PATH_PREFIX = ".arc/completed/";
+
+/**
+ * The shipped WU-name slug an archive-directory name carries, or `null` when the
+ * entry is a cohort closeout (`NNa_cohort-<slug>`) or not an `NN_<slug>` archive
+ * dir at all. The one place the archive-dir → slug rule lives, shared by the
+ * filesystem scan and the ref-tree read.
+ *
+ * @param entry - An archive-directory name (`NN_<slug>`)
+ * @returns The WU-name slug, or `null` for a non-WU entry
+ */
+function slugFromArchiveDir(entry: string): string | null {
+  const slug = ARCHIVE_DIR_RE.exec(entry)?.[1];
+  if (slug === undefined || slug.startsWith(COHORT_ARCHIVE_PREFIX)) return null;
+  return slug;
+}
 
 /**
  * Scan `{cwd}/.arc/completed/<quarter>/NN_<slug>` directories into the set of
@@ -80,12 +100,49 @@ export async function readShippedWorkUnits(
       continue;
     }
     for (const entry of entries) {
-      const match = ARCHIVE_DIR_RE.exec(entry);
-      const slug = match?.[1];
-      if (slug !== undefined && !slug.startsWith(COHORT_ARCHIVE_PREFIX)) {
-        slugs.add(slug);
-      }
+      const slug = slugFromArchiveDir(entry);
+      if (slug !== null) slugs.add(slug);
     }
+  }
+  return slugs;
+}
+
+/**
+ * Scan the shipped WU-name slugs from a git ref's `.arc/completed/` tree, rather
+ * than the working tree. A non-integrating machine's feature-branch working tree
+ * lacks a sibling's archival commit (it landed on `<base>`), so the working-tree
+ * scan {@link readShippedWorkUnits} reads stale; reading the canonical
+ * `origin/<base>` ref answers "has this WU shipped?" branch-independently.
+ *
+ * Reads `git ls-tree -r --name-only <ref> -- .arc/completed/` and parses the
+ * `<quarter>/<NN_slug>/...` directory segment from each path. An unresolvable
+ * ref (absent, fetch-only clone) yields an empty set rather than throwing — the
+ * reconcile fails safe to preserve.
+ *
+ * @param exec - Git executor, pre-bound to the repository root
+ * @param ref - The ref whose `completed/` tree to read (e.g. `origin/main`)
+ * @returns The set of shipped WU-name slugs
+ */
+export async function readShippedWorkUnitsFromRef(
+  exec: GitExec,
+  ref: string,
+): Promise<Set<string>> {
+  let stdout: string;
+  try {
+    ({ stdout } = await exec("git", ["ls-tree", "-r", "--name-only", ref, "--", COMPLETED_PATH_PREFIX]));
+  } catch {
+    return new Set();
+  }
+
+  const slugs = new Set<string>();
+  for (const line of stdout.split("\n")) {
+    const path = line.trim();
+    if (!path.startsWith(COMPLETED_PATH_PREFIX)) continue;
+    // `<quarter>/<NN_slug>/<file...>` — segment 1 is the archive directory.
+    const entry = path.slice(COMPLETED_PATH_PREFIX.length).split("/")[1];
+    if (entry === undefined) continue;
+    const slug = slugFromArchiveDir(entry);
+    if (slug !== null) slugs.add(slug);
   }
   return slugs;
 }

@@ -18,6 +18,7 @@ export {
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
+  reconcileRetiredSubdirsStandalone,
   runUserLoad,
   runUserSave,
 } from "./user/save-load.js";
@@ -43,12 +44,22 @@ export {
   runUserSessionInitStatus,
   buildUserStatusResult,
   computeUserSyncSpine,
-  computeUnsavedDirection,
   formatWorktreeQualifierLine,
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,
   runUserStatus,
 } from "./user/sync-status.js";
+export {
+  computeDriftingSubdirs,
+  computeUnsavedDirection,
+  hasUnpushedLocalDrift,
+  hasUnpushedLocalDriftForScope,
+  missingFilesAreIntentionalRetirement,
+  resolveCleanArmNotesVerdict,
+  unsavedDirectionForScope,
+  type CleanArmNotesVerdict,
+  type DriftScope,
+} from "./user/drift.js";
 export {
   buildLoadSummary,
   buildSaveSummary,

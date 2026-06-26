@@ -518,6 +518,15 @@ describe("runUserSave — save verification", () => {
     });
     expect(typeof onDisk.savedAt).toBe("string");
   });
+
+  it("captures the materialized file list as the prior-file-list basis for drift detection", async () => {
+    const io = mockSaveIO();
+
+    await runUserSave({ cwd, io, identity: "andrew" });
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.priorFileList).toEqual(["SESSION-NOTES.md"]);
+  });
 });
 
 interface SaveNotesMockConfig {

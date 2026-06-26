@@ -1,4 +1,6 @@
 import type {
+  LoadMessage,
+  LoadMessageLevel,
   UserLoadResult,
   UserSaveResult,
   UserSessionInitStatusResult,
@@ -44,15 +46,30 @@ export function buildLoadSummary(result: UserLoadResult): string {
     lines.push(`Loaded from ${result.ancestorDistance} commit(s) back.`);
   }
 
-  if (result.warnings.length > 0) {
-    lines.push("");
-    lines.push("Warnings:");
-    for (const w of result.warnings) {
-      lines.push(`  - ${w}`);
-    }
-  }
+  appendMessageGroup(lines, result.messages, "cleanup", "Cleaned up:");
+  appendMessageGroup(lines, result.messages, "notice", "Notices:");
+  appendMessageGroup(lines, result.messages, "warning", "Warnings:");
 
   return lines.join("\n");
+}
+
+/**
+ * Append one register's messages under a heading, skipping the group entirely
+ * when empty so a routine load surfaces no headings at all.
+ */
+function appendMessageGroup(
+  lines: string[],
+  messages: LoadMessage[],
+  level: LoadMessageLevel,
+  heading: string,
+): void {
+  const group = messages.filter((m) => m.level === level);
+  if (group.length === 0) return;
+  lines.push("");
+  lines.push(heading);
+  for (const m of group) {
+    lines.push(`  - ${m.text}`);
+  }
 }
 
 /**

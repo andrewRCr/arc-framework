@@ -45,6 +45,7 @@ import {
   runExtensionsStatus,
 } from "../commands/extensions.js";
 import {
+  computeDriftingSubdirs,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../commands/user.js";
@@ -63,12 +64,14 @@ import {
   RECOVERY_RECENCY_DAYS,
 } from "../lib/session-init/branch-gone-recovery.js";
 import { runStaleWorktreeSweep } from "../lib/session-init/stale-worktree-sweep.js";
+import { runPlanOrphanSweep } from "../lib/session-init/plan-orphan-sweep.js";
 import { runRetiredSubdirDetection } from "../lib/session-init/retired-subdir-detection.js";
 import { runErrandStalenessSweep } from "../lib/session-init/errand-staleness-sweep.js";
 import { runErrandState } from "../lib/session-init/errand-state.js";
 import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
+import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -77,6 +80,7 @@ import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { runBaseDistanceStatus } from "../lib/git/base-distance.js";
+import { runBaseBranchSyncStatus } from "../lib/git/base-branch-sync.js";
 import { detectSupersession } from "../lib/git/supersession.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
 import { deriveRestateCandidates } from "../lib/handoff/restate-candidates.js";
@@ -352,6 +356,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           remoteSyncEnabled,
         });
       },
+      baseBranchSync: async () => {
+        const resolved = await resolvedSettingsP;
+        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+        return runBaseBranchSyncStatus({
+          exec: gitExec,
+          baseBranch: resolved.settings["branch.base"],
+          remoteSyncEnabled,
+        });
+      },
       supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
       dirty: () => runDirtyStateStatus({ exec: gitExec }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
@@ -396,13 +409,26 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           fs: { readdir: (path) => readdir(path) },
         });
       },
-      retiredSubdirs: (id) => runRetiredSubdirDetection({
-        cwd,
-        identity: id,
-        exec: gitExec,
-        readDir: io.readDir,
-        fs: { readdir: (path) => readdir(path) },
-      }),
+      planOrphanSweep: async (worktreeIdentity) => {
+        const resolved = await resolvedSettingsP;
+        return runPlanOrphanSweep({
+          worktreeIdentity,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
+        });
+      },
+      retiredSubdirs: async (id) => {
+        const resolved = await resolvedSettingsP;
+        return runRetiredSubdirDetection({
+          cwd,
+          identity: id,
+          baseBranch: resolved.settings["branch.base"],
+          exec: gitExec,
+          readDir: io.readDir,
+          readFile: io.readFile,
+          computeDrift: computeDriftingSubdirs,
+        });
+      },
       errandSweep: async (id) => {
         const resolved = await resolvedSettingsP;
         const thresholdDays = parsePositiveInteger(resolved.settings["inbox.remind_after_days"], 1);
@@ -460,6 +486,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+      partialPushMarker: (id) => runPartialPushMarkerSurface({
+        exec: gitExec,
+        identity: id,
+        now: new Date().toISOString(),
+      }),
       cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
         cwd,
         activeMetaPath,

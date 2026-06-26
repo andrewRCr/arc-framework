@@ -201,6 +201,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -210,6 +211,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    planOrphanSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -220,6 +222,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -257,6 +260,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -270,6 +274,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    planOrphanSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -280,6 +285,7 @@ function makeResolvedReleaseModeSessionInitProbes(
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
@@ -493,6 +499,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       worktree: async () => ({ state: "skipped", ahead: 0, behind: 0, branch: "main" }),
       worktreeIdentity: async () => ({ kind: "primary" }),
       baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+      baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
       supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
       dirty: async () => ({ state: "clean", fileCount: 0 }),
       extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -503,6 +510,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       roster: async () => ({ entries: [], warnings: [] }),
       recovery: async () => ({ kind: "main-fallback" as const }),
       sweep: async () => ({ worktrees: [], warnings: [] }),
+      planOrphanSweep: async () => ({ orphans: [] }),
       retiredSubdirs: async () => ({ candidates: [] }),
       errandSweep: async () => ({ stale: [] }),
       errandState: async () => stubErrandState(),
@@ -513,6 +521,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       warnings: [],
     }),
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+      partialPushMarker: async () => ({ markers: [] }),
       cohortDoc: async () => null,
       releaseRouting: async () =>
         resolveReleaseRouting({
@@ -667,6 +676,7 @@ function makeRealWorktreeProbes(
       }),
     worktreeIdentity: async () => ({ kind: "primary" }),
     baseDistance: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main", overlappingPaths: [] }),
+    baseBranchSync: async () => ({ state: "skipped", ahead: 0, behind: 0, base: "main" }),
     supersession: async () => ({ superseded: false, supersededCommits: [], novelCommits: [] }),
     dirty: async () => ({ state: "clean", fileCount: 0 }),
     extensions: () => runExtensionsSessionInitStatus({ cwd: fixture.root }),
@@ -676,6 +686,7 @@ function makeRealWorktreeProbes(
     roster: async () => ({ entries: [], warnings: [] }),
     recovery: async () => ({ kind: "main-fallback" as const }),
     sweep: async () => ({ worktrees: [], warnings: [] }),
+    planOrphanSweep: async () => ({ orphans: [] }),
     retiredSubdirs: async () => ({ candidates: [] }),
     errandSweep: async () => ({ stale: [] }),
     errandState: async () => stubErrandState(),
@@ -686,6 +697,7 @@ function makeRealWorktreeProbes(
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () =>
       resolveReleaseRouting({
