@@ -1,8 +1,8 @@
 # Metadata: Stale-State Detect-and-Pull
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
+| **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
+| ---------- | --------- | ---------------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/stale-state-detect-and-pull` | `Heavy`   | `P2`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** `worktree-foundation`
