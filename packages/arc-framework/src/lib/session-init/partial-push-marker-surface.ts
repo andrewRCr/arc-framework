@@ -18,6 +18,7 @@
  * @module
  */
 
+import { isContainedIn } from "../git/branch-containment.js";
 import { readRefTip } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
 import {
@@ -25,6 +26,7 @@ import {
   isMarkerExpired,
   readSyncStateMarker,
   SYNC_STATE_MARKER_TTL_DAYS,
+  type AncestryResolver,
   type SyncStateMarker,
 } from "../user-sync/sync-state-marker.js";
 import { readEntries } from "../user-sync/sync-state-ref.js";
@@ -63,26 +65,39 @@ export interface SelectAwareMarkersInput {
   now: string;
   /** TTL window in days; defaults to the producer's {@link SYNC_STATE_MARKER_TTL_DAYS}. */
   ttlDays?: number;
+  /**
+   * Resolves whether a marker's intent is reachable from the notes-ref tip — the
+   * predicate's git-ancestry input. Wired to the `isContainedIn` reachability
+   * primitive in production, substituted by a fake in unit tests.
+   */
+  isReachable: AncestryResolver;
 }
 
 /**
  * Select the markers that render an Aware line: still `live` by the producer's
- * comparison predicate and within the TTL backstop. A `fulfilled` marker (its
+ * reachability predicate and within the TTL backstop. A `fulfilled` marker (its
  * intent reached at origin) and an aged-out one both drop to silence.
  *
- * @param input - The read markers, origin's notes-ref tip, the reference time, and the TTL.
+ * The TTL filter runs first so an aged-out marker never spends a git ancestry
+ * call on the reachability check.
+ *
+ * @param input - The read markers, origin's notes-ref tip, the reference time, the TTL, and the reachability resolver.
  * @returns The markers to surface; empty when none qualify.
  */
-export function selectAwareMarkers(input: SelectAwareMarkersInput): PartialPushMarkerSurfaceResult {
-  const { markers, notesRefTip, now, ttlDays = SYNC_STATE_MARKER_TTL_DAYS } = input;
-  const selected = markers
-    .filter((marker) => evaluateMarkerLiveness(marker, notesRefTip) === "live")
-    .filter((marker) => !isMarkerExpired(marker, now, ttlDays))
-    .map((marker) => ({
+export async function selectAwareMarkers(
+  input: SelectAwareMarkersInput,
+): Promise<PartialPushMarkerSurfaceResult> {
+  const { markers, notesRefTip, now, ttlDays = SYNC_STATE_MARKER_TTL_DAYS, isReachable } = input;
+  const selected: AwareMarkerEntry[] = [];
+  for (const marker of markers) {
+    if (isMarkerExpired(marker, now, ttlDays)) continue;
+    if ((await evaluateMarkerLiveness(marker, notesRefTip, isReachable)) !== "live") continue;
+    selected.push({
       machineId: marker.machineId,
       lastAttemptedCommit: marker.lastAttemptedCommit,
       attemptTimestamp: marker.attemptTimestamp,
-    }));
+    });
+  }
   return { markers: selected };
 }
 
@@ -120,5 +135,10 @@ export async function runPartialPushMarkerSurface(
   ).filter((marker): marker is SyncStateMarker => marker !== null);
 
   const notesRefTip = await readRefTip(exec, `${USER_NOTES_REF}/${identity}`);
-  return selectAwareMarkers({ markers, notesRefTip, now });
+  return selectAwareMarkers({
+    markers,
+    notesRefTip,
+    now,
+    isReachable: (ancestor, descendant) => isContainedIn(exec, ancestor, descendant),
+  });
 }
