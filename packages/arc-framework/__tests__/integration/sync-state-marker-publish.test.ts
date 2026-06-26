@@ -31,7 +31,9 @@ import {
 import {
   readSyncStateMarker,
   evaluateMarkerLiveness,
+  type AncestryResolver,
 } from "../../src/lib/user-sync/sync-state-marker.js";
+import { isContainedIn } from "../../src/lib/git/branch-containment.js";
 import { getOrCreateMachineId } from "../../src/lib/user-sync/sync-state.js";
 
 const IDENTITY = "andrew";
@@ -113,10 +115,27 @@ describe("publishSyncStateMarker", () => {
         intent: notesTip,
       });
 
+      // Liveness reads reachability against origin's real notes ref via isContainedIn —
+      // the production primitive the session-init consumer wires in.
+      const isReachable: AncestryResolver = (ancestor, descendant) =>
+        isContainedIn(io.exec, ancestor, descendant);
+
       // Notes have not landed at origin yet → the intent is live (unfulfilled).
-      expect(evaluateMarkerLiveness(marker!, null)).toBe("live");
+      expect(await evaluateMarkerLiveness(marker!, null, isReachable)).toBe("live");
       // Once origin's notes ref reaches the recorded intent → fulfilled (self-invalidated).
-      expect(evaluateMarkerLiveness(marker!, notesTip)).toBe("fulfilled");
+      expect(await evaluateMarkerLiveness(marker!, notesTip, isReachable)).toBe("fulfilled");
+
+      // A later notes push advances origin's ref to a *descendant* of the recorded intent.
+      // The intent's notes have still landed, so the marker stays fulfilled — reachability,
+      // not exact-tip equality (the case exact equality wrongly kept live until the TTL).
+      await execFileAsync(
+        "git",
+        ["notes", `--ref=${NOTES_REF}`, "append", "-m", "a later note", "HEAD"],
+        { cwd: repo },
+      );
+      const advancedTip = await revParse(repo, NOTES_REF);
+      expect(advancedTip).not.toBe(notesTip);
+      expect(await evaluateMarkerLiveness(marker!, advancedTip, isReachable)).toBe("fulfilled");
     } finally {
       await cleanupTempDir(remoteDir);
     }

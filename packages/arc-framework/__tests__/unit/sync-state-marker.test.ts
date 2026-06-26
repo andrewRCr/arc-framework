@@ -7,7 +7,7 @@
  * trusted downstream).
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 import {
   serializeSyncStateMarker,
@@ -89,23 +89,47 @@ describe("sync-state marker schema", () => {
 
 describe("evaluateMarkerLiveness", () => {
   const INTENT = "f".repeat(40);
+  const TIP = "a".repeat(40);
 
-  it("reports fulfilled when the notes ref has reached the entry's intent", () => {
-    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), INTENT)).toBe("fulfilled");
+  it("reports fulfilled when the notes tip equals the intent — without a git call", async () => {
+    const isReachable = vi.fn().mockResolvedValue(false);
+
+    expect(await evaluateMarkerLiveness(markerFor({ intent: INTENT }), INTENT, isReachable)).toBe("fulfilled");
+    // The exact-match fast path short-circuits before the ancestry resolver.
+    expect(isReachable).not.toHaveBeenCalled();
   });
 
-  it("reports live when the notes ref has not reached the entry's intent", () => {
-    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), "a".repeat(40))).toBe("live");
-    // An absent remote notes ref has reached nothing.
-    expect(evaluateMarkerLiveness(markerFor({ intent: INTENT }), null)).toBe("live");
+  it("reports fulfilled when the notes tip has advanced past the intent (a sibling pushed after)", async () => {
+    // The notes ref moved to a descendant of the intent — the recorded notes have
+    // landed at origin, so the marker self-invalidates. An exact-equality test missed this.
+    const isReachable = vi.fn().mockResolvedValue(true);
+
+    expect(await evaluateMarkerLiveness(markerFor({ intent: INTENT }), TIP, isReachable)).toBe("fulfilled");
+    expect(isReachable).toHaveBeenCalledWith(INTENT, TIP);
   });
 
-  it("decides purely by ref comparison — the timestamp never changes the verdict", () => {
+  it("reports live when the notes tip has not reached the intent", async () => {
+    const isReachable = vi.fn().mockResolvedValue(false);
+
+    expect(await evaluateMarkerLiveness(markerFor({ intent: INTENT }), TIP, isReachable)).toBe("live");
+    // An absent remote notes ref has reached nothing — short-circuits before the resolver.
+    expect(await evaluateMarkerLiveness(markerFor({ intent: INTENT }), null, isReachable)).toBe("live");
+    expect(isReachable).toHaveBeenCalledTimes(1);
+  });
+
+  it("decides purely by ref reachability — the timestamp never changes the verdict", async () => {
     const old = markerFor({ intent: INTENT, attemptTimestamp: "2000-01-01T00:00:00.000Z" });
     const recent = markerFor({ intent: INTENT, attemptTimestamp: "2026-06-25T12:00:00.000Z" });
 
-    expect(evaluateMarkerLiveness(old, INTENT)).toBe(evaluateMarkerLiveness(recent, INTENT));
-    expect(evaluateMarkerLiveness(old, "a".repeat(40))).toBe(evaluateMarkerLiveness(recent, "a".repeat(40)));
+    const reachable = vi.fn().mockResolvedValue(true);
+    expect(await evaluateMarkerLiveness(old, TIP, reachable)).toBe(
+      await evaluateMarkerLiveness(recent, TIP, reachable),
+    );
+
+    const unreachable = vi.fn().mockResolvedValue(false);
+    expect(await evaluateMarkerLiveness(old, TIP, unreachable)).toBe(
+      await evaluateMarkerLiveness(recent, TIP, unreachable),
+    );
   });
 });
 
