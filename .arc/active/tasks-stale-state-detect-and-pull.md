@@ -29,17 +29,11 @@ unit-testable functions; the impure execution shell wraps the inbound decision. 
   the pure `computeUnsavedDirection` out of `sync-status.ts` into `drift.ts` so the shared primitive's dependency
   stays one-way and no consumer import cycle forms when D3/D4 wire in later phases.
 
-### `[ ]` **1.2 Inbound-pull decision primitive (R1 core)**
+### `[x]` **1.2 Inbound-pull decision primitive (R1 core)**
 
 - _Goal:_ A pure decision maps (fetch/compare state × tree state × TTY) to an inbound-pull outcome — ff-pull /
   block-on-diverged / refuse-on-dirty / surface — that both the `arc sync` worktree leg and the D1 base-ref pull
   consume, so inbound-pull policy lives in one tested place.
-
-- _Approach:_ Author the decision as a **pure matrix-outcome** (composes with the in-flight
-  `sync-handler-decomposition`); the impure fetch + ff-pull execution wraps it. Any notes-ref write reuses the
-  existing notes path, never a parallel write.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-concurrent-work.md
 
     - `[x]` **1.2.a Pure inbound-pull decision matrix**
         - _Outcome:_ New `lib/git/inbound-pull.ts` — `decideInboundPull` maps (compare-state ×
@@ -49,18 +43,16 @@ unit-testable functions; the impure execution shell wraps the inbound decision. 
           `prompt`-policy fast-forward to `surface` (the agent-safe contract). Reuses
           `WorktreeSyncState` as the compare-state input rather than minting a parallel enum.
 
-    - `[ ]` **1.2.b Fetch + compare + ff-pull execution shell**
-        - The thin impure wrapper around 1.2.a: fetch, ref-compare, conflict-handled ff-pull on the ff outcome;
-          surfaces otherwise. Reuse `boundedFetch` (`lib/git/exec.ts`) for the fetch leg; no `git pull --ff-only`
-          helper exists yet, so build the ff-pull execution alongside it.
-        - Integration (temp repo) — cover the shell directly, not only through consumers: it is shared and
-          side-effecting, so a direct test localizes failures and asserts the destructive-op safety at the
-          primitive:
-            - `remote-ahead` + clean → local ref fast-forwarded to the remote tip
-            - `diverged` → no mutation, returns block
-            - dirty tree → no mutation, refuses
-            - ff-only enforced — never produces a merge commit
-        - Consumer e2e (Phase 2 / Phase 5) still exercises the wired path; this is the primitive-level guard.
+    - `[x]` **1.2.b Fetch + compare + ff-pull execution shell**
+        - _Outcome:_ `executeInboundPull` in `lib/git/inbound-pull.ts` — the impure wrapper: `boundedFetch`,
+          `countAheadBehindRef` compare, `runDirtyStateStatus`, then `decideInboundPull`; on `ff-pull` it runs
+          `git merge --ff-only` (a raced fast-forward is caught and downgraded to `block`, never auto-merged).
+          Only `ff-pull` mutates. Direct temp-repo integration tests (via `setupMultiClone`) assert the
+          fast-forward to the remote tip, no merge commit, and no mutation on `block` / `refuse`.
+
+- _Outcome:_ Phase 1's two shared primitives are in place: the drift signal (1.1) and the inbound-pull
+  decision + execution (1.2), the latter split into a pure matrix (`decideInboundPull`) and the side-effecting
+  shell (`executeInboundPull`) that wraps it. Phases 2–5 wire to these rather than reimplementing.
 
 ## **Phase 2:** Base-ref staleness — detect & pull (D1)
 
