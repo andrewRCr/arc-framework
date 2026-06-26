@@ -90,17 +90,15 @@ the `baseDistance` channel so the two read as one family.
 
 - **Strategies:** strategy-configurability-architecture.md, strategy-package-project-sync.md
 
-    - `[ ]` **2.2.a `session.init_pull.base` config key + action mapping**
-        - Add to `lib/config/status-reader.ts`: `DEFAULTS` (`"session.init_pull.base": "prompt"`) and
-          `ENUM_VALIDATORS` (`["manual", "prompt", "always"]`, mirroring the notes channel — `always` = auto-ff
-          when fast-forwardable).
-        - Build `test-first` (one behavior at a time):
-            - unset → default `prompt`
-            - `always` + behind & ff-able → auto-ff (`pull`)
-            - `prompt` + behind & ff-able → `prompt`
-            - `manual` → `surface` only
-            - diverged → `surface` + refuse (never auto-resolve)
-            - dirty tree → `surface` + refuse (no auto-stash by default)
+    - `[x]` **2.2.a `session.init_pull.base` config key + action mapping**
+        - `session.init_pull.base` added across the config surface (`ConfigSettings` /
+          `ConfigSessionInitSettings` types, `status-reader.ts` `DEFAULTS` = `"prompt"` + `ENUM_VALIDATORS` =
+          `["manual","prompt","always"]`, the session-init scoped-key list, and both `arc-config.yml` copies with
+          inline docs). New `inferBaseBranchSync(slot, policy, dirty)` (`recommended-action.ts`) maps state ×
+          policy × dirty → action: `remote-ahead` + `always` → `pull`, + `prompt` → `prompt` (with the
+          fast-forward offer), + `manual` → `surface`; `diverged` and any dirty tree → `surface` + refuse
+          (never auto-resolved); `clean` / `local-ahead` / degraded → `skip`. Pure mapping, no consumer yet
+          (wired in 2.2.b); covered in `recommended-action.test.ts` and `status-reader.test.ts`.
 
     - `[ ]` **2.2.b Orientation advisory line + config-gated ff-pull action**
         - Render the base-ref-staleness line in session-init's existing advisory tier; on the `pull` path invoke

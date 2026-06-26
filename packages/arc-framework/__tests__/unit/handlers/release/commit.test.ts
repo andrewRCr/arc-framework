@@ -92,6 +92,7 @@ function buildSettings(overrides: SettingsOverrides = {}): ResolvedSettingsResul
     "session.remote_sync": "enabled",
     "session.init_pull.worktree": "prompt",
     "session.init_pull.notes": "prompt",
+    "session.init_pull.base": "prompt",
     "session.init_load.notes": "prompt",
     "archive.cadence": "with-integration",
     "user.notes_push": "on-sync",

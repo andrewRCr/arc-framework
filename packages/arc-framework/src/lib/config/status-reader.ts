@@ -45,6 +45,7 @@ const DEFAULTS: ConfigSettings = {
   "session.remote_sync": "enabled",
   "session.init_pull.worktree": "prompt",
   "session.init_pull.notes": "prompt",
+  "session.init_pull.base": "prompt",
   "session.init_load.notes": "prompt",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
@@ -61,6 +62,7 @@ const DEFAULTS: ConfigSettings = {
 const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> = {
   "session.init_pull.worktree": ["manual", "prompt"],
   "session.init_pull.notes": ["manual", "prompt", "always"],
+  "session.init_pull.base": ["manual", "prompt", "always"],
   "session.init_load.notes": ["manual", "prompt", "always"],
   "archive.cadence": ["with-integration", "manual"],
 };

@@ -12,6 +12,7 @@
 import type { DirtyStateResult } from "../git/dirty-state.js";
 import type { WorktreeSyncStatusResult } from "../git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../git/base-distance.js";
+import type { BaseBranchSyncStatusResult } from "../git/base-branch-sync.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
 
@@ -30,6 +31,9 @@ export type NotesPullPolicy = "manual" | "prompt" | "always";
 
 /** Worktree-channel pull policy. Mirrors `session.init_pull.worktree` enum (no `always`). */
 export type WorktreePullPolicy = "manual" | "prompt";
+
+/** Base-branch-channel pull policy. Mirrors `session.init_pull.base` enum. */
+export type BaseBranchSyncPullPolicy = "manual" | "prompt" | "always";
 
 /** Per-channel recommendation. */
 export interface ChannelRecommendation {
@@ -173,6 +177,94 @@ export function inferBaseDistance(
     case "remote-unavailable":
       return { recommendedAction: "skip", recommendedPromptText: "" };
   }
+}
+
+/**
+ * Compose the base-branch-sync channel recommendation — the silently-stale
+ * local base advisory and its config-gated fast-forward offer.
+ *
+ * State × config × dirty-tree table:
+ * - `remote-ahead` (behind & fast-forwardable), clean tree:
+ *     - `always` → action=pull, prompt text empty (auto-fast-forward).
+ *     - `prompt` → action=prompt, fast-forward offer text.
+ *     - `manual` → action=surface, advisory text (no offer).
+ * - `remote-ahead`, dirty tree → action=surface, dirty-refusal advisory (no
+ *   auto-stash by default; the fast-forward is skipped regardless of policy).
+ * - `diverged` (local base carries commits absent upstream) → action=surface,
+ *   not-fast-forwardable advisory. Never auto-resolved, regardless of policy.
+ * - `clean` / `local-ahead` / any degraded state → action=skip.
+ *
+ * State derivation is the probe's job; this maps that state plus the config
+ * policy and dirty-tree flag to an action. Returns skip when `baseBranchSync`
+ * is null (slot failed to resolve).
+ */
+export function inferBaseBranchSync(
+  baseBranchSync: BaseBranchSyncStatusResult | null,
+  policy: BaseBranchSyncPullPolicy,
+  dirty: DirtyStateResult,
+): ChannelRecommendation {
+  if (baseBranchSync === null) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  switch (baseBranchSync.state) {
+    case "remote-ahead":
+      // Behind & fast-forwardable. A dirty tree refuses the fast-forward (no
+      // auto-stash); surface the staleness without an action offer.
+      if (dirty.state === "dirty") {
+        return {
+          recommendedAction: "surface",
+          recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, true),
+        };
+      }
+      if (policy === "always") {
+        return { recommendedAction: "pull", recommendedPromptText: "" };
+      }
+      if (policy === "prompt") {
+        return {
+          recommendedAction: "prompt",
+          recommendedPromptText: `${composeBaseBranchSyncBehindText(baseBranchSync, false)}\nFast-forward base?`,
+        };
+      }
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseBranchSyncBehindText(baseBranchSync, false),
+      };
+    case "diverged":
+      // Local base carries commits absent from the remote — not
+      // fast-forwardable. Surface and refuse regardless of policy.
+      return {
+        recommendedAction: "surface",
+        recommendedPromptText: composeBaseBranchSyncDivergedText(baseBranchSync),
+      };
+    case "clean":
+    case "local-ahead":
+    case "skipped":
+    case "no-upstream":
+    case "detached-head":
+    case "no-remote":
+    case "branch-gone":
+    case "remote-unavailable":
+      return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+}
+
+function composeBaseBranchSyncBehindText(
+  baseBranchSync: BaseBranchSyncStatusResult,
+  dirty: boolean,
+): string {
+  const base = baseBranchSync.base;
+  const head =
+    `Local base \`${base}\` is behind \`origin/${base}\` by ` +
+    `${baseBranchSync.behind} commit(s) — fast-forward available.`;
+  return dirty ? `${head}\nWorking tree dirty; fast-forward skipped.` : head;
+}
+
+function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusResult): string {
+  const base = baseBranchSync.base;
+  return (
+    `Local base \`${base}\` has diverged from \`origin/${base}\` ` +
+    `(${baseBranchSync.ahead} ahead, ${baseBranchSync.behind} behind) — not fast-forwardable; reconcile manually.`
+  );
 }
 
 function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
