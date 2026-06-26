@@ -45,6 +45,7 @@ import type { PlanOrphanSweepResult } from "../../lib/session-init/plan-orphan-s
 import type { RetiredSubdirDetectionResult } from "../../lib/session-init/retired-subdir-detection.js";
 import type { ErrandStalenessSweepResult } from "../../lib/session-init/errand-staleness-sweep.js";
 import type { ErrandStateResult } from "../../lib/session-init/errand-state.js";
+import type { PartialPushMarkerSurfaceResult } from "../../lib/session-init/partial-push-marker-surface.js";
 import type { MaterializableWorkUnitsResult } from "../../lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../lib/session-init/inbox-state.js";
@@ -284,6 +285,17 @@ export interface SessionInitProbeResult {
    * identity is absent.
    */
   inboxState?: Probe<InboxStateResult>;
+  /**
+   * Pre-computed partial-push-marker surface — the cohort sibling's live,
+   * non-expired sync-state markers, each a notes push that has not yet arrived
+   * at origin (lag, not loss). Rendered as the Aware advisory one-liner in
+   * Step 6, co-located with the base-ref surface; the agent proceeds-with-context
+   * and never auto-resolves. Present whenever identity resolved (the ref is
+   * identity-scoped); omitted only when identity is absent. An empty `markers`
+   * array means the ref was read and nothing is live (or the ref is absent —
+   * degrade-silent).
+   */
+  partialPushMarker?: Probe<PartialPushMarkerSurfaceResult>;
   /**
    * Pre-computed plate-balance signal — the resolved `Class` composition
    * (`Novel` / `Heavy` / `Light` counts) of the in-flight work units the roster
@@ -552,6 +564,13 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * the eager phase whenever identity resolved; advisory, read-only.
    */
   inboxState: (identity: string) => Promise<InboxStateResult>;
+  /**
+   * Partial-push-marker surface resolver. Receives the resolved identity; the
+   * handler binds the git executor and reference time, reads the local
+   * sync-state ref, and selects the live, non-expired markers. Fired in the
+   * eager phase whenever identity resolved; read-only, network-free.
+   */
+  partialPushMarker: (identity: string) => Promise<PartialPushMarkerSurfaceResult>;
   /**
    * Active-WU cohort-doc resolver. Receives the resolved active meta path; the
    * handler binds the cwd and filesystem ops. Reads the meta's `Cohort` value

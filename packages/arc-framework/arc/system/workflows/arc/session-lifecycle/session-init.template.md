@@ -51,6 +51,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `inFlightComposition`       | Pre-computed in-flight `Class` composition — `{novel, heavy, light}` resolved-`Class` counts over the in-flight roster slice (`[TBD]` / field-absent excluded). Present only on the no-active-WU arm when the slice is non-empty; consumed by Step 5's next-work discovery to render the concurrent-workload advisory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `cohortDocPath`             | Pre-resolved path to the active WU's coordinating `cohort-<leaf>.md` (relative to cwd). Present only when the active meta carries a `Cohort` value and the backing doc exists under `backlog/planned/`; omitted otherwise. Read in Step 3's context-load (item 11) to surface cross-member coordination                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `inboxState`                | Pre-computed inbox-state probe. `value.routableCount`: count of routable (well-formed) `USER-INBOX` entries; `value.housekeepNeeded`: true when that count > 0. Present whenever identity resolved (the source is identity-scoped); omitted only when identity is absent. Read by the Orient arm's housekeep intent (Step 2) and surfaced as the Step 6 soft-offer                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `partialPushMarker`         | Pre-computed partial-push-marker surface — consumer of the cohort sibling's sync-state ref. `value.markers`: live, non-expired markers, each a sibling notes push not yet arrived at origin (lag, not loss), carrying `machineId`, `lastAttemptedCommit`, `attemptTimestamp`. Present whenever identity resolved; omitted only when identity is absent. Rendered as Step 6's Aware advisory line, co-located with the base-ref surface; the agent proceeds-with-context and never auto-resolves                                                                                                                                                                                                                                                                                                                       |
 
 **Raw notes-ref topology on `user.value.refState?`**: The notes spine's 5-state `value.state` enum encodes
 pull-direction dispatch and collapses `same` and `local-ahead` into `clean` (both mean "no pull needed"). The
@@ -654,6 +655,18 @@ tracked source documents the work.
 
   ```text
   **Stale base:** {baseBranchSync.value.recommendedPromptText}
+  ```
+
+- `partialPushMarker.value.markers` non-empty: a cohort sibling's notes push has not yet arrived at origin — an
+  incomplete push is outstanding (**lag, not loss**: the sibling's work is safe on its own machine; it simply
+  hasn't landed at origin). Render one calm, non-gating Aware line per marker, co-located with the base-ref
+  surface. Proceed with context; **never auto-resolve** — do not force-push to "fix" stale notes. Per marker,
+  `{sha}` is `markers[i].lastAttemptedCommit` shortened, `{when}` is `markers[i].attemptTimestamp`, `{whose}` is
+  `markers[i].machineId`.
+
+  ```text
+  **Notes lag:** {N} sibling notes push(es) attempted but not yet at origin (lag, not loss):
+  - `{sha}` attempted {when} by machine `{whose}` — proceed with context; don't force-push to resolve.
   ```
 
 - `user.value.state == "clean"` AND `user.value.refState == "local-ahead"`:

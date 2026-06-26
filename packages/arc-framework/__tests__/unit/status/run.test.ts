@@ -65,6 +65,7 @@ import type { ErrandStateResult } from "../../../src/lib/session-init/errand-sta
 import type { MaterializableWorkUnitsResult } from "../../../src/lib/session-init/materializable-work-units.js";
 import type { WorkUnitStateResult } from "../../../src/lib/session-init/work-unit-state.js";
 import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state.js";
+import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
 
@@ -353,6 +354,9 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     ),
     workUnitState: vi.fn(async (): Promise<WorkUnitStateResult> => workUnitStateResult()),
     inboxState: vi.fn(async (): Promise<InboxStateResult> => ({ routableCount: 0, housekeepNeeded: false })),
+    partialPushMarker: vi.fn(
+      async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
+    ),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
     ...overrides,
   };
@@ -1249,6 +1253,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "identity",
       "inboxState",
       "mode",
+      "partialPushMarker",
       "recommendedCombinedPrompt",
       "releaseRouting",
       "retiredSubdirs",

@@ -222,6 +222,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () =>
       resolveReleaseRouting({
@@ -284,6 +285,7 @@ function makeResolvedReleaseModeSessionInitProbes(
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
@@ -519,6 +521,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       warnings: [],
     }),
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+      partialPushMarker: async () => ({ markers: [] }),
       cohortDoc: async () => null,
       releaseRouting: async () =>
         resolveReleaseRouting({
@@ -694,6 +697,7 @@ function makeRealWorktreeProbes(
       warnings: [],
     }),
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
+    partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
     releaseRouting: async () =>
       resolveReleaseRouting({

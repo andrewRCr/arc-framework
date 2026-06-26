@@ -71,6 +71,7 @@ import { runErrandState } from "../lib/session-init/errand-state.js";
 import { runWorkUnitState } from "../lib/session-init/work-unit-state.js";
 import { createGhWorkUnitPrSource } from "../lib/session-init/work-unit-pr-source.js";
 import { runInboxState } from "../lib/session-init/inbox-state.js";
+import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-marker-surface.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
@@ -485,6 +486,11 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
+      partialPushMarker: (id) => runPartialPushMarkerSurface({
+        exec: gitExec,
+        identity: id,
+        now: new Date().toISOString(),
+      }),
       cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
         cwd,
         activeMetaPath,

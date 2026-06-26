@@ -227,6 +227,9 @@ export async function runSessionInitStatus(
   type RawInboxState =
     | { ok: true; value: import("../../lib/session-init/inbox-state.js").InboxStateResult }
     | ProbeErrorSlot;
+  type RawPartialPushMarker =
+    | { ok: true; value: import("../../lib/session-init/partial-push-marker-surface.js").PartialPushMarkerSurfaceResult }
+    | ProbeErrorSlot;
 
   const shared = buildSessionSharedSlots({ identity, role, probes });
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
@@ -251,11 +254,16 @@ export async function runSessionInitStatus(
   const inboxStateTask: Promise<RawInboxState | null> = identity === null
     ? Promise.resolve(null)
     : safeProbe(() => probes.inboxState(identity));
+  // Partial-push-marker surface rides the same eager / identity-gated phase: the
+  // sync-state ref is identity-scoped, so it is omitted when identity is absent.
+  const partialPushMarkerTask: Promise<RawPartialPushMarker | null> = identity === null
+    ? Promise.resolve(null)
+    : safeProbe(() => probes.partialPushMarker(identity));
 
   const [
     user, worktree, dirty, active, releaseRouting,
     worktreeIdentitySlot, baseDistance, baseBranchSync, extensions, config, domainRules,
-    retiredSubdirs, errandSweep, inboxState,
+    retiredSubdirs, errandSweep, inboxState, partialPushMarker,
   ] = await Promise.all([
     shared.user,
     shared.worktree,
@@ -271,6 +279,7 @@ export async function runSessionInitStatus(
     retiredSubdirsTask,
     errandSweepTask,
     inboxStateTask,
+    partialPushMarkerTask,
   ]);
 
   // Worktree identity is non-critical and always-on: a failed probe degrades
@@ -532,6 +541,7 @@ export async function runSessionInitStatus(
     ...(workUnitState !== undefined ? { workUnitState } : {}),
     ...(materializableWorkUnits !== undefined ? { materializableWorkUnits } : {}),
     ...(inboxState !== null ? { inboxState } : {}),
+    ...(partialPushMarker !== null ? { partialPushMarker } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,

@@ -239,39 +239,21 @@ _Design decisions:_ Both parents are thin "consume an existing substrate" wiring
 sync-state ref; R1's sync leg reuses the Phase 1 inbound-pull primitive), so they pair into one phase despite
 sitting in different spec clusters (Consume vs Remediate).
 
-### `[ ]` **5.1 Partial-push marker Aware-register rendering (C1)**
+### `[x]` **5.1 Partial-push marker Aware-register rendering (C1)**
 
 - _Goal:_ A live partial-push marker renders a calm, non-gating Aware one-liner at session-init —
   `short-sha ← lastAttemptedCommit · when ← attemptTimestamp · whose ← machineId` — co-located with D1's
   base-ref surface, falling silent once liveness reports fulfilled and on an absent ref; the agent
   proceeds-with-context and never auto-resolves.
 
-- _Context:_ The producer (`partial-push-marker`, shipped) owns `refs/arc/user/{identity}/sync-state`, the
-  `SyncStateMarker` payload, and `evaluateMarkerLiveness(marker, notesRefTip) → "fulfilled" | "live"`
-  (`lib/user-sync/sync-state-ref.ts`, `sync-state-marker.ts`). Rendering the B-side surface is its explicit
-  non-goal.
-
-- _Shape:_ A **new** envelope slot (e.g. `partialPushMarker`), not folded into the `user` slot; the rendered
-  line co-locates with the base-ref surface in Step 6.
-
-- _Note:_ The Caution force-gate register is **parked** (out of scope) — this WU ships **Aware only**. Invoke
-  `evaluateMarkerLiveness` (a pure ref-compare — **clock-free**); the 14-day TTL is a separate constant
-  (`SYNC_STATE_MARKER_TTL_DAYS`) the **consumer** applies against `attemptTimestamp`. Do not reimplement
-  self-invalidation.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
-
-    - **Two-surface edit:** ref read + liveness/TTL evaluation in the CLI envelope (new slot); the Aware
-      one-liner renders via `session-init.md` Step 6 (Framework file — package source + `.arc/` mirror), in the
-      existing advisory tier.
-
-    - Build `test-first` (one behavior at a time):
-        - live marker → Aware one-liner rendered from payload fields
-        - liveness `fulfilled` → silent (no timer)
-        - `attemptTimestamp` older than the 14-day TTL backstop → aged out (silent)
-        - absent ref (fetch-only clone / remote sync off) → degrade silent
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § C1.
+- _Outcome:_ New identity-gated `partialPushMarker` envelope slot — `partial-push-marker-surface.ts`
+  pairs a pure `selectAwareMarkers` (live-and-within-TTL filter) with an IO `runPartialPushMarkerSurface`
+  that reads the local sync-state ref; wired through `status` types / `run.ts` / handler, with the Aware
+  advisory rendered in Step 6 of both `session-init` copies (plus the Step 1 slot row). Liveness and TTL
+  invoke the producer's `evaluateMarkerLiveness` / `isMarkerExpired` — no self-invalidation reimplemented.
+  Passing the local notes-ref tip as origin's network-free proxy makes the current machine's own marker
+  self-silence (`fulfilled`) while a sibling's unfulfilled marker surfaces — no machine-id exclusion
+  needed, validated live against the repo's real two-entry ref. Caution register stays parked (Aware only).
 
 ### `[ ]` **5.2 Bidirectional `arc sync` inbound leg (R1)**
 
