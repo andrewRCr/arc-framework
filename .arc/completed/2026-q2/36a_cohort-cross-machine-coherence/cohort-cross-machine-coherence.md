@@ -119,3 +119,15 @@ The cohort archives when **both members ship** — clearing the cross-machine-co
   `partial-push-marker`'s transport hardening.
 
 ---
+
+## Closeout
+
+- **Closed:** 2026-06-26
+- **Final member:** `stale-state-detect-and-pull`
+- **Member archives:** `35_partial-push-marker`, `36_stale-state-detect-and-pull`
+- **Outcome:** Both halves of the cross-machine staleness concern shipped — the marker makes an incomplete push
+  visible (push side), and the B-side detect-and-pull cluster gets a stale machine current (arrival side) —
+  clearing the cross-machine-coherence portion of `finalize-parallelism`'s dependencies.
+- **Follow-up:** [none]
+
+---

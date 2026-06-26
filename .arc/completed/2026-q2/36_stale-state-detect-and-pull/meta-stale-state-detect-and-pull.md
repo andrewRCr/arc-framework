@@ -1,8 +1,8 @@
 # Metadata: Stale-State Detect-and-Pull
 
-| **State**     | **Owner** | **Branch**                         | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/stale-state-detect-and-pull` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `cross-machine-coherence`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/140>
+- **Completed:** 2026-06-26
 
 ---
 
