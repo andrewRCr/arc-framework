@@ -3,6 +3,8 @@
 ## Contents
 
 - Verified current-state grounding (per surface)
+- Session-init rendering surface (two-copy)
+- Grounding refinements (task-generation audit)
 
 ## Verified current-state grounding
 
@@ -39,8 +41,8 @@ are the stable anchors (line numbers drift).
       `grouped-retirement` warning — the recurring "stale subdir" message on a machine that under-removes.
 - `lib/user-sync/retired-subdir.ts` — `planRetiredSubdirReconcile`: reconcile iff `!notesWuNames.has(subdir)`
   **and** `shipped.has(subdir)`. `shipped` = `readShippedWorkUnits` scanning **local** `.arc/completed/` — so a
-  stale local archive → `isSlugShipped` false → preserve → accumulation (the dominant defect; D1's index-freshen
-  is the fix).
+  stale local archive → the slug is absent from `shipped` → preserve → accumulation (the dominant defect;
+  D1's index-freshen is the fix).
 - `commands/user/open.ts` — `removeStaleUserWuSubdir`: `rm(dir, { recursive: true, force: true })`, no per-call
   backup (relies on the pre-load whole-manifest backup above). Shared by the reconcile and the `arc user open`
   prompt.
@@ -54,8 +56,29 @@ are the stable anchors (line numbers drift).
 
 ### R1 — `arc sync` inbound leg
 
-- `handlers/sync.ts` — `decideWorktree`: `WORKTREE_PUSH_BLOCK_STATES = { diverged, remote-ahead, detached-head,
-  no-remote }` returns `skip-blocked-worktree` (push-only; no inbound pull today).
+- `handlers/sync.ts:231` — `decideWorktree`: `WORKTREE_PUSH_BLOCK_STATES = { diverged, remote-ahead,
+  detached-head, no-remote, branch-gone, remote-unavailable }` (6 states) returns `skip-blocked-worktree`
+  (push-only; no inbound pull today). The inbound leg converts only `remote-ahead → ff-pull`; the rest stay
+  blocked.
+
+### D2 — `plan/`-orphan sweep (facet lineage)
+
+No session-init orphan-*branch* sweep exists to mirror; this is built new from three shipped sources:
+
+- **Surface shape** — `lib/session-init/stale-worktree-sweep.ts` (`runStaleWorktreeSweep`, `decideWorktreeCleanup`,
+  `StaleWorktreeReport`). The `plan/`-orphan sweep mirrors this shape on a **new** envelope slot (not the `sweep`
+  slot, which carries worktrees).
+- **Gone-upstream detection** — `isBranchGoneError` (`lib/git/worktree-sync.ts`) + `branch-gone-cascade.ts`
+  (shipped in Worktree Foundation).
+- **Merged-only `git branch -d` pattern** — proven in `async-merge-lifecycle`'s `integrate-work-unit` Step 13
+  primary-worktree teardown (merged-only-safe, never `-D`); the merged-to-base check itself is new.
+
+**Facet lineage.** `async-merge-lifecycle` § reaper-facet-split owned **facet 2** (`feat/` orphan), shipped as the
+merge-time teardown above — *not* a session-init sweep. It explicitly deferred **facet 1** (cross-machine `plan/`
+orphan) to the future owner of "a generic session-init stale-local-branch sweep surface." Facet 1 was punted to
+`coord-probe`, which dissolved at the 2026-06-25 cross-machine-coherence restructure (its branch-gone correctness
+had shipped in Worktree Foundation); the `plan/`-orphan sweep relocated here as D2. So the spec's "the
+`feat/`-orphan facet shipped" is true but names the *other* facet, and a teardown rather than a sweep.
 
 ### Caution force-gate context (parked)
 
@@ -66,3 +89,33 @@ are the stable anchors (line numbers drift).
 - `lib/release/destructive-flags.ts` + `handlers/release/push.ts` — `arc release push` **refuses** force
   (`force-push-required` always-refuse advisory). No ARC force-push offer exists to host the Caution register;
   hence parked.
+
+## Session-init rendering surface (two-copy)
+
+Every detection/render feature splits across the CLI envelope and the `session-init.md` workflow (a Framework
+file — edits land in the package source `packages/arc-framework/arc/system/.../session-init.md` AND the `.arc/`
+mirror). The CLI envelope is assembled in `runSessionInitStatus` (`commands/status/run.ts`), each slot a
+`Probe<T>`; the `baseDistance` precedent enriches `recommendedAction` via `inferBaseDistance` (`run.ts`). Config
+keys live in `lib/config/status-reader.ts` (`DEFAULTS` + `ENUM_VALIDATORS`).
+
+| Feature                 | CLI slot (`run.ts`)          | `session-init.md` touchpoint                                                      |
+|-------------------------|------------------------------|-----------------------------------------------------------------------------------|
+| D1 base-ref (2.2)       | new `baseBranchSync` slot    | Step 1 table · Step 2 sync pulls (new `session.init_pull.base`) · Step 6 advisory |
+| D2 `plan/`-orphan (4.1) | new sweep slot               | Step 1 table · Step 6 sweep-style offer                                           |
+| D3 drift (3.1)          | extends `user` slot          | Step 2 notes dispatch · Step 6 clean-arm advisory                                 |
+| C1 marker (5.1)         | new `partialPushMarker` slot | Step 1 table · Step 6 advisory (co-located with base-ref)                         |
+
+## Grounding refinements (task-generation audit)
+
+Confirmed against current code during task generation; deltas from the spec-crystallization anchors above:
+
+- **No `isSlugShipped` symbol** — the shipped gate is `ReadonlySet<string>` membership (`shipped.has(slug)`),
+  `shipped` from `readShippedWorkUnits`. D4's gate becomes `shipped.has(subdir) && !hasUnpushedLocalDrift(subdir)`,
+  replacing the `!notesWuNames.has(subdir)` conjunct.
+- **`evaluateMarkerLiveness` is clock-free** (pure `notesRefTip === marker.intent` compare). The 14-day TTL is a
+  separate constant `SYNC_STATE_MARKER_TTL_DAYS` the consumer applies against `attemptTimestamp` — C1 owns that
+  check.
+- **No `git pull --ff-only` helper** — `boundedFetch` (`lib/git/exec.ts`) covers the fetch leg under a timeout;
+  the ff-pull execution (1.2.b) is new.
+- **`session.init_pull` enum** — siblings are `worktree: ["manual","prompt"]`, `notes: ["manual","prompt",
+  "always"]`; `session.init_pull.base` takes `["manual","prompt","always"]` (`always` = auto-ff).

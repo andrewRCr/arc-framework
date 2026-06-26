@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-stale-state-detect-and-pull.md`
-- **Task List:** [none]
+- **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

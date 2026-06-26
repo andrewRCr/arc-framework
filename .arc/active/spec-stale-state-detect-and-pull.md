@@ -135,9 +135,13 @@ keeps a stale local `plan/<name>` whose upstream is `[gone]`.
 
 **Add.** At session-init **in the primary worktree**, detect local branches whose upstream is `gone` **and** which
 are merged to `branch.base`, with an interlock-gated `git branch -d` offer (merged-only-safe; **never `-D`**).
-Mirror the existing stale-worktree sweep's surface shape; reuse Worktree Foundation's gone-upstream +
-recently-active-remote-branch detection. Narrowed to the **`plan/` facet** (the `feat/`-orphan facet shipped in
-`async-merge-lifecycle`). This is branch *hygiene*, not WU-state inference.
+No session-init orphan-*branch* sweep exists to mirror — build it, composing three shipped sources: the
+stale-*worktree* sweep's surface shape (`stale-worktree-sweep.ts`), Worktree Foundation's `gone`-upstream
+detection (`isBranchGoneError` / `branch-gone-cascade.ts`), and the merged-only-safe `git branch -d` teardown
+pattern proven in `async-merge-lifecycle`'s `integrate-work-unit` Step 13. The merged-to-base check is new. This
+is the cross-machine **`plan/`-orphan facet** (facet 1) that `async-merge-lifecycle` explicitly deferred: it
+owned only the **`feat/`-orphan facet** (facet 2), shipped as the `integrate-work-unit` merge-time teardown — not
+a session-init sweep. This is branch *hygiene*, not WU-state inference.
 
 #### D3. Notes/disk drift detection (clean-arm fix)
 
