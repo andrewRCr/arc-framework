@@ -13,6 +13,9 @@ import {
   computeUserSyncSpine,
   buildUserStatusSummary,
   computeUnsavedDirection,
+  hasUnpushedLocalDrift,
+  hasUnpushedLocalDriftForScope,
+  unsavedDirectionForScope,
   hashSyncManifest,
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,
@@ -930,6 +933,61 @@ describe("computeUnsavedDirection", () => {
     const note = manifest({ "SESSION-NOTES.md": "aaa" });
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
+  });
+});
+
+describe("hasUnpushedLocalDrift", () => {
+  it("reads pure-behind as benign (no local-only content)", () => {
+    expect(hasUnpushedLocalDrift("behind")).toBe(false);
+  });
+
+  it("reads pure-missing as benign (no local-only content)", () => {
+    expect(hasUnpushedLocalDrift("missing")).toBe(false);
+  });
+
+  it("reads local-only edits as drift", () => {
+    expect(hasUnpushedLocalDrift("edits")).toBe(true);
+  });
+
+  it("reads local-only modifications as drift", () => {
+    expect(hasUnpushedLocalDrift("modified")).toBe(true);
+  });
+
+  it("reads mixed (local edits alongside retirement) as drift", () => {
+    expect(hasUnpushedLocalDrift("mixed")).toBe(true);
+  });
+
+  it("reads a null direction (no comparison basis) as benign", () => {
+    expect(hasUnpushedLocalDrift(null)).toBe(false);
+  });
+});
+
+describe("hasUnpushedLocalDriftForScope", () => {
+  // One basis: wu-a carries a local-only modification, wu-b is clean.
+  const disk = manifest({
+    "wu-a/SESSION-NOTES.md": "local-edit",
+    "wu-b/SESSION-NOTES.md": "saved",
+  });
+  const note = manifest({
+    "wu-a/SESSION-NOTES.md": "saved",
+    "wu-b/SESSION-NOTES.md": "saved",
+  });
+
+  it("whole-tree scope reflects drift anywhere in the tree", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "tree" })).toBe(true);
+  });
+
+  it("per-subdir scope isolates the drifting subdir", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-a" })).toBe(true);
+  });
+
+  it("per-subdir scope clears a clean subdir over the same basis", () => {
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-b" })).toBe(false);
+  });
+
+  it("returns false for a subdir with no files on either side (empty basis)", () => {
+    expect(unsavedDirectionForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBeNull();
+    expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBe(false);
   });
 });
 

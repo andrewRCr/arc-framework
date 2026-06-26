@@ -14,6 +14,7 @@ import {
   type UserSyncCause,
   type UserSyncCauseConfidence,
 } from "../../lib/user-sync/index.js";
+import { computeUnsavedDirection } from "./drift.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   findNearestUserNote,
@@ -1461,44 +1462,6 @@ async function inspectDiskVsLocalSnapshot(
     diskStatus,
     direction,
   };
-}
-
-export function computeUnsavedDirection(
-  diskManifest: SyncManifest,
-  noteManifest: SyncManifest,
-): UserUnsavedDirection {
-  const diskKeys = new Set(Object.keys(diskManifest.files));
-  const noteKeys = new Set(Object.keys(noteManifest.files));
-
-  let hasExtraFiles = false;
-  let hasModifiedFiles = false;
-  for (const key of diskKeys) {
-    const noteValue = noteManifest.files[key];
-    if (noteValue === undefined) {
-      hasExtraFiles = true;
-      continue;
-    }
-    if (noteValue !== diskManifest.files[key]) {
-      hasModifiedFiles = true;
-    }
-  }
-
-  let diskMissing = false;
-  for (const key of noteKeys) {
-    if (!diskKeys.has(key)) {
-      diskMissing = true;
-      break;
-    }
-  }
-
-  const mismatchKinds = [hasExtraFiles, diskMissing, hasModifiedFiles]
-    .filter(Boolean)
-    .length;
-
-  if (mismatchKinds > 1) return "mixed";
-  if (hasExtraFiles) return "edits";
-  if (hasModifiedFiles) return "modified";
-  return "missing";
 }
 
 export function deriveRemoteStatus(

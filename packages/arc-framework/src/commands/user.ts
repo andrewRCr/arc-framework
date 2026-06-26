@@ -43,12 +43,18 @@ export {
   runUserSessionInitStatus,
   buildUserStatusResult,
   computeUserSyncSpine,
-  computeUnsavedDirection,
   formatWorktreeQualifierLine,
   inspectUserSyncRefsDetailed,
   inspectUserSyncState,
   runUserStatus,
 } from "./user/sync-status.js";
+export {
+  computeUnsavedDirection,
+  hasUnpushedLocalDrift,
+  hasUnpushedLocalDriftForScope,
+  unsavedDirectionForScope,
+  type DriftScope,
+} from "./user/drift.js";
 export {
   buildLoadSummary,
   buildSaveSummary,

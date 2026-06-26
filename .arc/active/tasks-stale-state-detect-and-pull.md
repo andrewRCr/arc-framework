@@ -15,30 +15,19 @@ D3 and D4; the inbound-pull decision by D1's base-ref pull and R1's `arc sync` l
 unit-testable functions; the impure execution shell wraps the inbound decision. Full rationale in
 `notes-stale-state-detect-and-pull.md`.
 
-### `[ ]` **1.1 `hasUnpushedLocalDrift` drift predicate (D-shared)**
+### `[x]` **1.1 `hasUnpushedLocalDrift` drift predicate (D-shared)**
 
 - _Goal:_ A single predicate answers "does this scope carry local-only content not represented in the pushed
   note basis?" — `false` for benign behind/missing, `true` for real edits — so D3 and D4 both gate on
   unsaved-work safety directly instead of by recency proxy.
 
-- _Context:_ Built over the `inspectDiskVsLocalSnapshot` direction matrix (`behind | missing | mixed | edits |
-  modified | null`) in `lib/user-sync/projection.ts` (+ `sync-state.ts` / `merge.ts`); no such predicate exists
-  today.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - Two scopes: **whole-tree** (drives D3's clean-arm surface-vs-load decision) and **per-subdir** (gates D4's
-      removal). Built once; both consume it.
-
-    - Build `test-first` (one behavior at a time):
-        - pure-behind / pure-missing (no local-only content) → `false`
-        - local-only `edits` → `true`
-        - local-only `modified` → `true`
-        - `mixed` (local edits alongside retirement) → `true`
-        - `null` / empty comparison basis → `false`
-        - whole-tree vs per-subdir scoping return the correct result over the same basis
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D3.
+- _Outcome:_ New `commands/user/drift.ts`: `hasUnpushedLocalDrift` maps the disk-vs-basis direction matrix
+  (`edits`/`modified`/`mixed` → drift; `behind`/`missing`/`null` → benign), with `unsavedDirectionForScope` +
+  `hasUnpushedLocalDriftForScope` adding whole-tree (D3) and per-subdir (D4) scoping over a shared basis.
+  The predicate maps the **sync-state-aware** direction rather than re-deriving from a raw manifest diff — a
+  raw diff can't tell a benign `behind` (disk older than an advanced note) from real local `modified`. Relocated
+  the pure `computeUnsavedDirection` out of `sync-status.ts` into `drift.ts` so the shared primitive's dependency
+  stays one-way and no consumer import cycle forms when D3/D4 wire in later phases.
 
 ### `[ ]` **1.2 Inbound-pull decision primitive (R1 core)**
 
