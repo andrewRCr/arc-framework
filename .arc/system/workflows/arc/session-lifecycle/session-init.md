@@ -42,7 +42,7 @@ The probe returns a single JSON envelope the agent consumes:
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                                                                                                                                                                                                                                                  |
 | `sweep`                     | Pre-computed stale-worktree sweep; present only in the primary (main) worktree, and only when `roster` resolved. `value.worktrees`: lingering worktrees whose WU has shipped (against `completed/`), each with `worktreePath`, `branch`, and a marker-gated `decision` (`removable`; `blocked` with `reason` `uncommitted` or `unmerged`; or `external`). Surfaced in Step 6; never auto-removed                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Read-only surface (Step 6) — the reconcile (removal with a `.internal/` backup) runs at `arc user load` / `pull`, not at init                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `retiredSubdirs`            | Pre-computed retired-subdir detection. `value.candidates`: retired-WU user subdirs lingering under `user/{identity}/` — shipped and absent from the recent-notes window. Present whenever identity resolved; omitted only when identity is absent. Enriched with `recommendedAction` / `recommendedPromptText` (gated on `session.init_load.notes`): init may reconcile under policy via Step 2's notes-load dispatch (removal + `.internal/` backup inside `arc user load`); `manual` stays warn-only (Step 6)                                                                                                                                                                                                                                                                                                       |
 | `errandSweep`               | Pre-computed reminder sweep. `value.stale`: `_Remind:_`-flagged `§ Errand` `USER-INBOX` entries pending past `inbox.remind_after_days` (default 1), each with `slug`, `created`, and `ageDays`. Present whenever identity resolved (the inbox is identity-scoped — not worktree-gated, unlike `sweep`); omitted only when identity is absent. Read-only advisory surfaced in Step 6 as a once-per-calendar-day batched nudge — drain via housekeep; never auto-removed                                                                                                                                                                                                                                                                                                                                                |
 | `errandState`               | Pre-computed errand-state probe. `value.resume`: current-branch resume signal (`resumable`, `slug`) on meta-less `chore/` branches. `value.inFlight.errands`: Orient-only advisory over local/remote `chore/` branches (`in-progress` / `awaiting-merge` / `merged-cleanup` / `stale`). `value.materializable.candidates`: remote-only `chore/` branches with no local worktree and no backing meta. `value.nudge`: once-per-calendar-day marker state (`shouldNudge`, `markerPath`, `today`) shared by reminder and stale-errand surfaces. Present if worktree + active probes resolved.                                                                                                                                                                                                                             |
 | `materializableWorkUnits`   | Pre-computed materialize-candidate set. `value.candidates`: the operator's remote-only in-flight work units (branch + committed meta on the remote, no local worktree), each `{name, branch}` — the discovery surface the Materialize arm offers for cross-machine pickup. Present ONLY on the no-active-WU arm (`active.resolution === "none"`), where the oracle's network slice fires; the resume path omits it (zero oracle cost). An empty list means the oracle ran and found none (or the remote was unreachable)                                                                                                                                                                                                                                                                                              |
@@ -231,21 +231,30 @@ alongside the pull dispatch on the clean arm.
   No prompt, no pull.
 - `skip` — no action.
 
-**Notes-load dispatch.** Independent of the pull dispatch, when `user.value.loadNeeded === true` (refs
-match but disk lags behind the latest local note — typical when a worktree pull silently advanced the
-user-notes ref on this machine), dispatch on `session.init_load.notes`:
+**Notes-load dispatch.** Independent of the pull dispatch, fire one `arc user load` when **either**
+signal calls for it — the single load satisfies both, so they never double-run:
+
+- `user.value.loadNeeded === true` — refs match but disk lags behind the latest local note (typical
+  when a worktree pull silently advanced the user-notes ref on this machine).
+- `retiredSubdirs.value.recommendedAction ∈ {pull, prompt}` — a sibling shipped, orphaning a user
+  subdir; the reconcile (removal + `.internal/` backup) runs inside `arc user load`. Fires even when
+  notes are current — a retired subdir is a *base* event, orthogonal to notes freshness.
+
+Both gate on `session.init_load.notes`, so they agree on the action — dispatch on it:
 
 - `always` — fire `arc user load` immediately, **except** when `dirty.value.state === "dirty"`. Under
   a dirty tree, `always` degrades to `prompt` with a "stash or commit local edits before loading"
   warning prepended to the offer text. The pre-load backup that ships with `arc user load` is the
   safety net for the auto-action case.
-- `prompt` — ask before running `arc user load`. Channel-named, dirty-tree-aware offer text mirrors
-  the pull-prompt convention. The agent owns the prompt.
-- `manual` — surface in Step 6 orientation only (informational line; no prompt, no run).
+- `prompt` — ask before running `arc user load` (use the firing channel's `recommendedPromptText`).
+  Dirty-tree-aware; the agent owns the prompt.
+- `manual` — surface in Step 6 orientation only (no prompt, no run); the retired-subdir slot's
+  `surface` carries to Step 6's retired-subdirs advisory.
 
-`loadNeeded` absent or `false` → no action regardless of config. Notes-pull and notes-load are
-mutually exclusive on the notes channel (pull fires when `refState ∈ {remote-ahead, conflict}`; load
-fires when `refState === "same"`), so they never co-occur there.
+Neither signal firing (`loadNeeded` falsy **and** `retiredSubdirs.value.recommendedAction ∈ {surface,
+skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the notes channel (pull fires
+when `refState ∈ {remote-ahead, conflict}`; load fires when `refState === "same"`), so they never
+co-occur there.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
 is present (clean arm; the on-disk user tree diverges from the latest note in a way that is neither a
@@ -690,13 +699,15 @@ tracked source documents the work.
   - `{branch}` — externally-managed (no ARC marker); remove manually if desired
   ```
 
-- `retiredSubdirs.value.candidates` non-empty: retired-WU user subdirs linger locally (shipped and absent
-  from the recent-notes window). They reconcile automatically — removed, with a `.internal/` backup — on the
-  next `arc user load` / `pull`; surface as a heads-up, no action needed at init.
+- `retiredSubdirs.value.recommendedAction === "surface"` (`session.init_load.notes: manual`): retired-WU
+  user subdirs linger locally (shipped, no unpushed drift), but the warn-only policy fires no init reconcile.
+  Surface as a heads-up; they reconcile (removal + `.internal/` backup) at the next `arc user load` / `pull`.
+  Under `always` / `prompt` the reconcile already fired (or was offered) in Step 2's notes-load dispatch — do
+  not also surface it here.
 
   ```text
-  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconciled (with `.internal/` backup) on next
-  `arc user load` / `pull`:
+  **Retired subdirs:** {N} shipped-WU user subdir(s) linger; reconcile with `arc user load` (warn-only under
+  the current policy):
   - `{candidate}`
   ```
 

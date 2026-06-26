@@ -10,13 +10,16 @@ import { describe, it, expect } from "vitest";
 import {
   inferBaseBranchSync,
   inferBaseDistance,
+  inferRetiredSubdirs,
   inferSessionInitRecommendations,
   type BaseBranchSyncPullPolicy,
+  type NotesLoadPolicy,
   type NotesPullPolicy,
   type RecommendationInput,
   type WorktreePullPolicy,
 } from "../../../src/lib/session-init/recommended-action.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
+import type { RetiredSubdirDetectionResult } from "../../../src/lib/session-init/retired-subdir-detection.js";
 import type { WorktreeSyncStatusResult } from "../../../src/lib/git/worktree-sync.js";
 import type { BaseDistanceStatusResult } from "../../../src/lib/git/base-distance.js";
 import type { BaseBranchSyncStatusResult } from "../../../src/lib/git/base-branch-sync.js";
@@ -520,5 +523,68 @@ describe("inferBaseBranchSync — config-gated base-ref freshen", () => {
 
   it("null slot (probe failed) → skip", () => {
     expect(inferBaseBranchSync(null, policy("prompt"), dirty("clean")).recommendedAction).toBe("skip");
+  });
+});
+
+describe("inferRetiredSubdirs — config-gated retired-subdir reconcile", () => {
+  function retiredSubdirs(
+    overrides: Partial<RetiredSubdirDetectionResult> = {},
+  ): RetiredSubdirDetectionResult {
+    return { candidates: ["old-wu"], ...overrides };
+  }
+
+  const policy = (p: NotesLoadPolicy): NotesLoadPolicy => p;
+
+  it("candidates + always + clean → pull (auto-reconcile via arc user load)", () => {
+    const result = inferRetiredSubdirs(retiredSubdirs(), policy("always"), dirty("clean"));
+    expect(result.recommendedAction).toBe("pull");
+    expect(result.recommendedPromptText).toBe("");
+  });
+
+  it("candidates + always + dirty → prompt (degrade to offer with the load warning)", () => {
+    const result = inferRetiredSubdirs(retiredSubdirs(), policy("always"), dirty("dirty"));
+    expect(result.recommendedAction).toBe("prompt");
+    expect(result.recommendedPromptText).toContain("before loading");
+    expect(result.recommendedPromptText).toContain("arc user load");
+  });
+
+  it("candidates + prompt → prompt (offer, no auto-run)", () => {
+    const result = inferRetiredSubdirs(retiredSubdirs(), policy("prompt"), dirty("clean"));
+    expect(result.recommendedAction).toBe("prompt");
+    expect(result.recommendedPromptText).toContain("arc user load");
+    expect(result.recommendedPromptText).not.toContain("before loading");
+  });
+
+  it("candidates + prompt + dirty → dirty-tree-aware offer", () => {
+    const result = inferRetiredSubdirs(retiredSubdirs(), policy("prompt"), dirty("dirty"));
+    expect(result.recommendedAction).toBe("prompt");
+    expect(result.recommendedPromptText).toContain("before loading");
+  });
+
+  it("candidates + manual → surface (warn-only orientation, no run)", () => {
+    const result = inferRetiredSubdirs(retiredSubdirs(), policy("manual"), dirty("clean"));
+    expect(result.recommendedAction).toBe("surface");
+    expect(result.recommendedPromptText).toBe("");
+  });
+
+  it("no candidates → skip regardless of policy", () => {
+    for (const p of ["always", "prompt", "manual"] as const) {
+      expect(
+        inferRetiredSubdirs(retiredSubdirs({ candidates: [] }), policy(p), dirty("clean")).recommendedAction,
+      ).toBe("skip");
+    }
+  });
+
+  it("null slot (identity missing / probe failed) → skip", () => {
+    expect(inferRetiredSubdirs(null, policy("always"), dirty("clean")).recommendedAction).toBe("skip");
+  });
+
+  it("names the candidate count in the offer text", () => {
+    const result = inferRetiredSubdirs(
+      retiredSubdirs({ candidates: ["a", "b"] }),
+      policy("prompt"),
+      dirty("clean"),
+    );
+    expect(result.recommendedPromptText).toContain("2");
   });
 });

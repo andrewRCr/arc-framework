@@ -195,45 +195,21 @@ surface (a CLI prompt) from the reconcile gate.
   e2e (real-CLI `arc user open` reconciles a shipped subdir and keeps an unresolvable one without hanging — the
   destructive-removal proof). See `notes-stale-state-detect-and-pull.md` § D4.
 
-### `[ ]` **3.5 Session-init reconcile trigger — graceful without a manual pull (D4)**
+### `[x]` **3.5 Session-init reconcile trigger — graceful without a manual pull (D4)**
 
 - _Goal:_ A non-integrating machine's retired subdir is reconciled at session-init under the developer's existing
   pull policy, not only when a notes pull happens to fire — so the cleanup is graceful for the no-manual-pull path,
   not just for notes-stale sessions.
 
-- _Context:_ The reconcile (`reconcileRetiredSubdirs`) runs only inside `runUserLoad` (`commands/user/save-load.ts`),
-  which session-init dispatches via the **notes-load** channel — gated on `loadNeeded` (a notes-driven signal). But
-  a subdir going retired is a **base** event (a sibling shipped), orthogonal to notes freshness: a machine with
-  current notes detects the candidate (the `retiredSubdirs` probe slot) and warns (Step 6), yet never pulls → never
-  reconciles → the warning recurs. The remediation is wired to the wrong channel's trigger.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - **Reuse `session.init_load.notes`** (no new config axis): `always` → auto-reconcile, `prompt` → offer,
-      `manual` → warn-only (today's behavior). Both are "may init mutate my user tree," and the reconcile already
-      runs inside `arc user load`.
-
-    - **Probe slot enrichment** — `retiredSubdirs` gains `recommendedAction` / `recommendedPromptText` mirroring the
-      notes-load channel shape (`commands/status/run.ts` slot + `lib/session-init/recommended-action.ts`), resolved
-      against `session.init_load.notes` × candidate presence.
-
-    - **Dispatch broadening** — `session-init.md` (both copies — Framework two-copy file) Step 2 notes-load dispatch
-      fires `arc user load` when `loadNeeded` **OR** retired candidates are present; Step 1 table + Step 6 updated to
-      reflect that init may now reconcile under policy (the "read-only at init, removal only at load/pull" note is
-      superseded by the policy gate).
-
-    - Build `test-first` (one behavior at a time):
-        - candidates present, policy `always`, clean tree → reconcile fires at init (via `arc user load`)
-        - candidates present, policy `always`, **dirty** tree → degrade to offer (mirror the notes-load dirty guard)
-        - candidates present, policy `prompt` → offer, no auto-run
-        - candidates present, policy `manual` → warn only (Step 6), no run
-        - no candidates → no dispatch regardless of policy
-        - `loadNeeded` already true (notes-stale) → single `arc user load` covers both (no double-run)
-
-    - Integration: session-init → base fetch → candidate detection → policy-gated reconcile → backup round-trip, on
-      a non-integrating-machine fixture with current notes.
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § D4.
+- _Outcome:_ The `retiredSubdirs` probe slot is enriched with `recommendedAction` / `recommendedPromptText` via a
+  new pure `inferRetiredSubdirs` (`recommended-action.ts`), gated on `session.init_load.notes` × candidate presence
+  × dirty: `always`+clean → `pull`, `always`+dirty → `prompt`, `prompt` → `prompt`, `manual` → `surface`, no
+  candidates → `skip`. Wired in `status/run.ts` (new `normalizeNotesLoadPolicy`; `SessionInitRetiredSubdirsValue` in
+  `status/types.ts`). `session-init.md` (both copies) Step 2 notes-load dispatch now fires one `arc user load` on
+  `loadNeeded` **OR** retired candidates (single load — no double-run); Step 1 table + Step 6 reframed to the policy
+  gate (Step 6 surfaces only the warn-only `surface` case, since `pull` / `prompt` fire in Step 2). Integration
+  round-trip on a non-integrating fixture (sibling shipped on `origin/main`, notes current) proves detection →
+  `pull` recommendation → reconcile + `.internal/` backup. See `notes-stale-state-detect-and-pull.md` § D4.
 
 ## **Phase 4:** `plan/`-orphan sweep (D2)
 

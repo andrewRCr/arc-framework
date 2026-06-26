@@ -119,6 +119,18 @@ export interface SessionInitUserValue extends UserSessionInitStatusResult {
   notesDriftSurface?: UserSessionNotesDriftSurface;
 }
 
+/**
+ * Retired-subdir slot in the session-init envelope. Extends the raw detection
+ * result with the config-gated reconcile recommendation (`session.init_load.notes`):
+ * `pull` fires `arc user load` (auto-reconcile), `prompt` offers it, `surface`
+ * warns only, `skip` when no candidates linger. `recommendedPromptText` carries
+ * the offer when `recommendedAction ∈ {prompt}`; empty string otherwise.
+ */
+export interface SessionInitRetiredSubdirsValue extends RetiredSubdirDetectionResult {
+  recommendedAction: RecommendedAction;
+  recommendedPromptText: string;
+}
+
 /** Git-config pointers resolved in the composite handler (not a probe). */
 export interface StatusIdentity {
   /** `git config arc.identity` value; empty and absent normalize to `null`. */
@@ -210,12 +222,14 @@ export interface SessionInitProbeResult {
   sweep?: Probe<StaleWorktreeSweepResult>;
   /**
    * Pre-computed retired-subdir detection — lingering retired-WU user subdirs
-   * (shipped + absent from the recent-notes window) under `user/{identity}/`.
-   * Read-only surface; the actual reconcile (with `.internal/` backup) happens
-   * at `arc user load` / `pull`. Present whenever identity resolved (a cheap
+   * (shipped + carrying no unpushed drift) under `user/{identity}/`. Enriched
+   * with the config-gated reconcile recommendation (`session.init_load.notes`):
+   * the reconcile (with `.internal/` backup) fires inside `arc user load`,
+   * triggered by session-init's notes-load dispatch when `loadNeeded` OR these
+   * candidates are present. Present whenever identity resolved (a cheap
    * always-on slot); omitted only when identity is absent.
    */
-  retiredSubdirs?: Probe<RetiredSubdirDetectionResult>;
+  retiredSubdirs?: Probe<SessionInitRetiredSubdirsValue>;
   /**
    * Pre-computed errand-staleness sweep — errands pending past the configured
    * threshold (`inbox.remind_after_days`, default 1), surfaced for

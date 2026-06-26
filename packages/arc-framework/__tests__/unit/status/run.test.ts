@@ -934,6 +934,70 @@ describe("runSessionInitStatus — base-branch-sync slot", () => {
   });
 });
 
+describe("runSessionInitStatus — retired-subdir reconcile slot", () => {
+  function configWithLoadPolicy(policy: string): ConfigSessionInitResult {
+    const base = configSessionInit();
+    return { ...base, settings: { ...base.settings, "session.init_load.notes": policy } };
+  }
+
+  it("auto-reconciles candidates under `always` on a clean tree (pull)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    expect(result.retiredSubdirs?.ok).toBe(true);
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("pull");
+    }
+  });
+
+  it("degrades `always` to an offer on a dirty tree (prompt)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+      dirty: vi.fn(async () => dirtyState({ state: "dirty", fileCount: 2 })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("prompt");
+      expect(result.retiredSubdirs.value.recommendedPromptText).toContain("arc user load");
+    }
+  });
+
+  it("offers under the default `prompt` policy, no auto-run", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("prompt");
+    }
+  });
+
+  it("warns only under `manual` (surface)", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: ["old-wu"] })),
+      config: vi.fn(async () => configWithLoadPolicy("manual")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("surface");
+    }
+  });
+
+  it("skips when no candidates linger, regardless of policy", async () => {
+    const probes = sessionInitProbes({
+      retiredSubdirs: vi.fn(async () => ({ candidates: [] })),
+      config: vi.fn(async () => configWithLoadPolicy("always")),
+    });
+    const result = await runSessionInitStatus({ identity: "andrew", role: "maintainer", probes });
+    if (result.retiredSubdirs?.ok) {
+      expect(result.retiredSubdirs.value.recommendedAction).toBe("skip");
+    }
+  });
+});
+
 describe("runSessionInitStatus — diverged supersession downgrade", () => {
   it("downgrades the diverged reconcile to a lossless-reset offer on patch-equal supersession", async () => {
     const probes = sessionInitProbes({

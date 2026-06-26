@@ -23,9 +23,12 @@ import {
 } from "../helpers/integration.js";
 import { serialize } from "../../src/lib/git/index.js";
 import { hashSyncManifest } from "../../src/commands/user/save-load.js";
+import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";
+import { inferRetiredSubdirs } from "../../src/lib/session-init/recommended-action.js";
 import {
   runUserSave,
   runUserLoad,
+  computeDriftingSubdirs,
   runUserAdd,
   runUserClose,
   runUserOpen,
@@ -715,6 +718,52 @@ describe("user load — retired-subdir reconciliation", () => {
     expect(cleanup!.text).toContain("backed up to");
     expect(cleanup!.text).not.toContain("absent from recent notes");
   });
+
+  it(
+    "session-init recommends reconcile on a non-integrating machine with current notes, " +
+      "and the load round-trips the removal",
+    async () => {
+      const io = makeUserIO(tempDir);
+      const userDir = join(tempDir, ".arc", "user", "test-user");
+
+      // Current notes: the cross-WU file is saved and unchanged on disk, so the
+      // notes-load signal (`loadNeeded`) would not fire — isolating the
+      // retired-subdir signal as the sole reconcile trigger.
+      await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+      await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+      // A sibling shipped on origin/main; its user subdir lingers locally with no
+      // drift basis — the non-integrating-machine accumulation case.
+      await mkdir(join(userDir, "old-wu"), { recursive: true });
+      await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
+      await markShippedOnOrigin("old-wu");
+
+      // Detection (the session-init probe slot) resolves the candidate off origin/main.
+      const detection = await runRetiredSubdirDetection({
+        cwd: tempDir,
+        identity: "test-user",
+        baseBranch: "main",
+        exec: io.exec,
+        readDir: io.readDir,
+        readFile: io.readFile,
+        computeDrift: computeDriftingSubdirs,
+      });
+      expect(detection.candidates).toContain("old-wu");
+
+      // Under `always` on a clean tree the slot recommends firing `arc user load`
+      // even though notes are current — the broadened notes-load dispatch trigger.
+      const rec = inferRetiredSubdirs(detection, "always", { state: "clean", fileCount: 0 });
+      expect(rec.recommendedAction).toBe("pull");
+
+      // The dispatch's action: the load reconciles the subdir and backs it up.
+      const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+      const loaded = expectLoaded(result);
+      expect(await readdir(userDir)).not.toContain("old-wu");
+      const backups = await listBackupFiles(userDir);
+      expect(backups.some((name) => /^\.pre-load-backup-.*\.json$/u.test(name))).toBe(true);
+      expect(loaded.messages.some((m) => m.level === "cleanup" && m.text.includes("old-wu"))).toBe(true);
+    },
+  );
 
   it("preserves a present subdir whose WU has not shipped", async () => {
     const io = makeUserIO(tempDir);

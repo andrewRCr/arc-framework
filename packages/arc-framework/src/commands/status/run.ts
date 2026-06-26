@@ -30,6 +30,7 @@ import type {
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
   SessionInitProbeResult,
+  SessionInitRetiredSubdirsValue,
   SessionInitUserValue,
   SessionInitWorktreeValue,
   SessionSharedProbes,
@@ -45,8 +46,10 @@ import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import {
   inferBaseBranchSync,
   inferBaseDistance,
+  inferRetiredSubdirs,
   inferSessionInitRecommendations,
   type BaseBranchSyncPullPolicy,
+  type NotesLoadPolicy,
   type NotesPullPolicy,
   type WorktreePullPolicy,
 } from "../../lib/session-init/recommended-action.js";
@@ -355,6 +358,34 @@ export async function runSessionInitStatus(
     }
     : baseBranchSync;
 
+  // Retired-subdir slot enrichment — the reconcile rides the notes-LOAD channel
+  // (`arc user load`), so it reads the `session.init_load.notes` policy and the
+  // dirty-tree flag (a dirty tree degrades `always` to an offer). The
+  // recommendation drives session-init's broadened notes-load dispatch, which
+  // fires one `arc user load` when `loadNeeded` OR retired candidates are
+  // present — so a current-notes machine still reconciles its orphan subdirs.
+  const notesLoadPolicy = normalizeNotesLoadPolicy(
+    config.ok ? config.value.settings["session.init_load.notes"] : "prompt",
+  );
+  const retiredSubdirsRec = inferRetiredSubdirs(
+    retiredSubdirs !== null && retiredSubdirs.ok ? retiredSubdirs.value : null,
+    notesLoadPolicy,
+    dirty.ok ? dirty.value : { state: "clean", fileCount: 0 },
+  );
+  const enrichedRetiredSubdirs: SessionInitProbeResult["retiredSubdirs"] | undefined =
+    retiredSubdirs === null
+      ? undefined
+      : retiredSubdirs.ok
+        ? {
+          ok: true,
+          value: {
+            ...retiredSubdirs.value,
+            recommendedAction: retiredSubdirsRec.recommendedAction,
+            recommendedPromptText: retiredSubdirsRec.recommendedPromptText,
+          } satisfies SessionInitRetiredSubdirsValue,
+        }
+        : retiredSubdirs;
+
   // Resolve the clean-arm notes/disk drift verdict (D3) here, where the active
   // WU name is known — the raw `notesDrift` signal can't decide the safe
   // auto-load sub-case (the active WU's missing SESSION-NOTES) without it. The
@@ -486,7 +517,7 @@ export async function runSessionInitStatus(
     ...(roster !== undefined ? { roster } : {}),
     ...(recovery !== undefined ? { recovery } : {}),
     ...(sweep !== undefined ? { sweep } : {}),
-    ...(retiredSubdirs !== null ? { retiredSubdirs } : {}),
+    ...(enrichedRetiredSubdirs !== undefined ? { retiredSubdirs: enrichedRetiredSubdirs } : {}),
     ...(errandSweep !== null ? { errandSweep } : {}),
     ...(errandState !== undefined ? { errandState } : {}),
     ...(workUnitState !== undefined ? { workUnitState } : {}),
@@ -551,6 +582,12 @@ function normalizeNotesPolicy(raw: string): NotesPullPolicy {
 }
 
 function normalizeBaseBranchSyncPolicy(raw: string): BaseBranchSyncPullPolicy {
+  if (raw === "manual") return "manual";
+  if (raw === "always") return "always";
+  return "prompt";
+}
+
+function normalizeNotesLoadPolicy(raw: string): NotesLoadPolicy {
   if (raw === "manual") return "manual";
   if (raw === "always") return "always";
   return "prompt";

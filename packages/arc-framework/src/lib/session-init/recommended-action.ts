@@ -16,6 +16,7 @@ import type { BaseBranchSyncStatusResult } from "../git/base-branch-sync.js";
 import { decideInboundPull } from "../git/inbound-pull.js";
 import type { SupersessionResult } from "../git/supersession.js";
 import type { UserSessionInitStatusResult } from "../../commands/user/types.js";
+import type { RetiredSubdirDetectionResult } from "./retired-subdir-detection.js";
 
 /**
  * Action verb the session-init workflow performs on a sync-pull channel.
@@ -35,6 +36,9 @@ export type WorktreePullPolicy = "manual" | "prompt";
 
 /** Base-branch-channel pull policy. Mirrors `session.init_pull.base` enum. */
 export type BaseBranchSyncPullPolicy = "manual" | "prompt" | "always";
+
+/** Notes-load channel policy. Mirrors `session.init_load.notes` enum. */
+export type NotesLoadPolicy = "manual" | "prompt" | "always";
 
 /** Per-channel recommendation. */
 export interface ChannelRecommendation {
@@ -71,6 +75,8 @@ export interface RecommendationOutput {
 }
 
 const DIRTY_TREE_WARNING = "Working tree dirty — stash or commit before accepting.";
+
+const DIRTY_LOAD_WARNING = "Stash or commit local edits before loading.";
 
 /**
  * Compose the worktree channel recommendation.
@@ -266,6 +272,62 @@ function composeBaseBranchSyncDivergedText(baseBranchSync: BaseBranchSyncStatusR
     `Local base \`${base}\` has diverged from \`origin/${base}\` ` +
     `(${baseBranchSync.ahead} ahead, ${baseBranchSync.behind} behind) — not fast-forwardable; reconcile manually.`
   );
+}
+
+/**
+ * Compose the retired-subdir reconcile channel recommendation.
+ *
+ * The retired-subdir cleanup runs inside `arc user load`, so it rides the
+ * notes-LOAD channel and is gated on `session.init_load.notes` — distinct from
+ * the notes-PULL policy. The `pull` verb here means "fire `arc user load`" (the
+ * channel's auto-action), consistent with the per-channel dispatch rule. The
+ * session-init notes-load dispatch fires that one load when `loadNeeded` OR
+ * retired candidates are present, so a current-notes machine still reconciles.
+ *
+ * Candidate presence × policy × dirty-tree:
+ * - no candidates → skip (nothing to reconcile, regardless of policy).
+ * - `always` + clean tree → pull (auto-reconcile via `arc user load`).
+ * - `always` + dirty tree → prompt (degrade to offer — mirrors the notes-load
+ *   dirty guard; the pre-load backup protects the auto-path, but a dirty tree
+ *   defers to consent).
+ * - `prompt` → prompt (offer; no auto-run). Dirty-tree-aware offer text.
+ * - `manual` → surface (warn-only orientation; today's behavior).
+ *
+ * Returns skip when `retiredSubdirs` is null (slot absent — identity missing or
+ * probe failed) or carries no candidates.
+ */
+export function inferRetiredSubdirs(
+  retiredSubdirs: RetiredSubdirDetectionResult | null,
+  policy: NotesLoadPolicy,
+  dirty: DirtyStateResult,
+): ChannelRecommendation {
+  if (retiredSubdirs === null || retiredSubdirs.candidates.length === 0) {
+    return { recommendedAction: "skip", recommendedPromptText: "" };
+  }
+  const count = retiredSubdirs.candidates.length;
+  switch (policy) {
+    case "always":
+      return dirty.state === "dirty"
+        ? {
+          recommendedAction: "prompt",
+          recommendedPromptText: composeRetiredSubdirPromptText(count, true),
+        }
+        : { recommendedAction: "pull", recommendedPromptText: "" };
+    case "prompt":
+      return {
+        recommendedAction: "prompt",
+        recommendedPromptText: composeRetiredSubdirPromptText(count, dirty.state === "dirty"),
+      };
+    case "manual":
+      return { recommendedAction: "surface", recommendedPromptText: "" };
+  }
+}
+
+function composeRetiredSubdirPromptText(count: number, dirty: boolean): string {
+  const head =
+    `${count} retired-WU user subdir(s) linger from shipped work units; ` +
+    "reconcile via `arc user load` (with `.internal/` backup)?";
+  return dirty ? `${DIRTY_LOAD_WARNING}\n${head}` : head;
 }
 
 function composeBaseDistancePromptText(baseDistance: BaseDistanceStatusResult): string {
