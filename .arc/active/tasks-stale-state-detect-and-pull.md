@@ -179,25 +179,21 @@ surface (a CLI prompt) from the reconcile gate.
   notes" phrase and unified the backup verb to "backed up to" across the reconcile and preserve strings
   (`renderOrphanWarning` → `renderOrphanNotice`). A routine retired-subdir cleanup no longer reads as a warning.
 
-### `[ ]` **3.4 `arc user open` non-TTY stale-subdir safety (D4)**
+### `[x]` **3.4 `arc user open` non-TTY stale-subdir safety (D4)**
 
 - _Goal:_ `arc user open` never hangs or default-deletes on a lingering stale subdir: the resolver-gated
   reconcile (3.2) replaces the prompt for the shipped case, and the residual unresolvable case defaults to keep —
   under non-TTY, auto-skip to keep rather than clack's abort-on-cancel.
 
-- _Context:_ `promptStaleSubdir` (`handlers/user.ts`) fires a clack `select` whose default/first option (`y —
-  remove and proceed`) deletes the subdir; under non-TTY the select cancels and `p.isCancel` aborts the whole
-  `arc user open` (observed to hang an agent invocation).
-
-- _Note:_ Narrow interim instance of `cli-substrate-adoption`'s uniform non-interactive contract — cross-ref its
-  inbound buffer; do not absorb the whole contract.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - Build `test-first` (one behavior at a time):
-        - shipped subdir → resolved by the reconcile, no prompt
-        - unresolvable subdir, TTY → default option is **keep** (never default-destructive)
-        - unresolvable subdir, non-TTY → auto-skip to keep (never hang, never abort-on-cancel)
+- _Outcome:_ `handleUserOpen` (`handlers/user.ts`) now runs a new `reconcileRetiredSubdirsStandalone`
+  (`commands/user/save-load.ts` — serialize + timestamped backup + the shared `reconcileRetiredSubdirs`) up
+  front: a shipped, drift-free subdir is removed reversibly with no prompt. `promptStaleSubdir` became
+  `resolveResidualStaleSubdir` — non-interactive (`isNonInteractiveEnvironment`) auto-skips to keep; interactive
+  offers `keep` (default, `initialValue`) / `remove` / `inspect`, and a cancel resolves to keep, so the open
+  never aborts and never default-deletes. Covered at three tiers: handler unit (reconcile-no-prompt, default-keep,
+  non-TTY auto-skip, cancel-keeps), integration (the standalone helper removes shipped / preserves unshipped), and
+  e2e (real-CLI `arc user open` reconciles a shipped subdir and keeps an unresolvable one without hanging — the
+  destructive-removal proof). See `notes-stale-state-detect-and-pull.md` § D4.
 
 ### `[ ]` **3.5 Session-init reconcile trigger — graceful without a manual pull (D4)**
 

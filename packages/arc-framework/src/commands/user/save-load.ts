@@ -558,6 +558,44 @@ async function reconcileRetiredSubdirs(params: {
 }
 
 /**
+ * Back up the local user tree, then reconcile its retired per-WU subdirs — the
+ * reversible cleanup `arc user open` runs *before* its stale-subdir prompt, so a
+ * shipped, drift-free subdir is removed (recoverable from the backup) with no
+ * confirm: its shipped status is proof, not a decision the operator must make.
+ *
+ * The same backup-then-reconcile the load path performs inline, minus the note
+ * materialization — usable from any entry point that holds only `cwd` / `io` /
+ * `identity`. No-ops cleanly when the user dir is absent or empty.
+ *
+ * @returns Names of the reconciled (removed) subdirs; empty when nothing qualified.
+ */
+export async function reconcileRetiredSubdirsStandalone(params: {
+  cwd: string;
+  io: UserIOContext;
+  identity: string;
+}): Promise<Set<string>> {
+  const { cwd, io, identity } = params;
+  const userDir = join(cwd, ".arc", "user", identity);
+
+  let localManifest: SyncManifest;
+  try {
+    localManifest = (await serialize(userDir, io.readDir, io.readFile)).manifest;
+  } catch {
+    return new Set();
+  }
+  const localFiles = localManifest.files;
+  if (Object.keys(localFiles).length === 0) return new Set();
+
+  const internalDir = getUserInternalDir(cwd, identity);
+  await ensureDir(internalDir, io.mkdir);
+  await io.writeFile(join(internalDir, createTimestampedBackupFilename()), JSON.stringify(localManifest));
+  await pruneTimestampedBackups(internalDir, io.readDir);
+
+  const recentNotes = await readRecentUserNotes(io.exec, identity);
+  return reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
+}
+
+/**
  * Render one orphan classification to a user-facing notice string. The seam where
  * the structured classification ({@link classifyOrphans}) flattens to a string;
  * a later drift tier adds classification kinds, not new call sites.

@@ -18,6 +18,7 @@ export {
   findNearestUserNote,
   hashSyncManifest,
   listBackupFiles,
+  reconcileRetiredSubdirsStandalone,
   runUserLoad,
   runUserSave,
 } from "./user/save-load.js";

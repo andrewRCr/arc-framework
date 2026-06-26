@@ -42,6 +42,7 @@ const mockRunUserClose = vi.fn();
 const mockFindStaleUserWuSubdirs = vi.fn();
 const mockListUserWuSubdirContents = vi.fn();
 const mockRemoveStaleUserWuSubdir = vi.fn();
+const mockReconcileRetiredSubdirsStandalone = vi.fn();
 const mockRunUserStatus = vi.fn();
 const mockRunUserSessionInitStatus = vi.fn();
 const mockHasLocalNotes = vi.fn();
@@ -68,6 +69,7 @@ vi.mock("../../src/commands/user.js", () => ({
   findStaleUserWuSubdirs: (...args: unknown[]) => mockFindStaleUserWuSubdirs(...args),
   listUserWuSubdirContents: (...args: unknown[]) => mockListUserWuSubdirContents(...args),
   removeStaleUserWuSubdir: (...args: unknown[]) => mockRemoveStaleUserWuSubdir(...args),
+  reconcileRetiredSubdirsStandalone: (...args: unknown[]) => mockReconcileRetiredSubdirsStandalone(...args),
   runUserPush: (...args: unknown[]) => mockRunUserPush(...args),
   runUserFetch: (...args: unknown[]) => mockRunUserFetch(...args),
   runUserPull: (...args: unknown[]) => mockRunUserPull(...args),
@@ -722,6 +724,7 @@ describe("handleUserOpen", () => {
     vi.resetAllMocks();
     resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
+    mockReconcileRetiredSubdirsStandalone.mockResolvedValue(new Set());
     mockFindStaleUserWuSubdirs.mockResolvedValue([]);
     mockRunUserOpen.mockResolvedValue(undefined);
     process.exitCode = undefined;
@@ -737,16 +740,48 @@ describe("handleUserOpen", () => {
     );
   });
 
-  it("fires the defensive prompt when a stale subdir for a different WU exists", async () => {
+  it("reconciles a shipped retired subdir up front, with no prompt", async () => {
+    // The reconcile clears the shipped subdir; nothing residual remains to prompt over.
+    mockReconcileRetiredSubdirsStandalone.mockResolvedValue(new Set(["shipped-wu"]));
+    mockFindStaleUserWuSubdirs.mockResolvedValue([]);
+
+    await handleUserOpen("feature-x");
+
+    expect(mockReconcileRetiredSubdirsStandalone).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew" }),
+    );
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).toHaveBeenCalled();
+  });
+
+  it("surfaces a residual unresolvable subdir with a default-keep, non-destructive prompt", async () => {
     mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
-    mockSelect.mockResolvedValue("y");
+    mockSelect.mockResolvedValue("keep");
 
     await handleUserOpen("feature-x");
 
     expect(mockSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         message: expect.stringContaining("Stale subdir user/andrew/prior-wu/"),
+        initialValue: "keep",
       }),
+    );
+    // Default keep is non-destructive: the subdir survives and the open proceeds.
+    expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).toHaveBeenCalled();
+  });
+
+  it("auto-skips to keep under a non-interactive environment — no prompt, no removal, no abort", async () => {
+    mockIsNonInteractive.mockReturnValue(true);
+    mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
+
+    await handleUserOpen("feature-x");
+
+    expect(mockSelect).not.toHaveBeenCalled();
+    expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).toHaveBeenCalledWith(
+      expect.objectContaining({ identity: "andrew", wuName: "feature-x" }),
     );
   });
 
@@ -755,7 +790,7 @@ describe("handleUserOpen", () => {
     mockListUserWuSubdirContents.mockResolvedValue([
       { name: "SESSION-NOTES.md", size: 123 },
     ]);
-    mockSelect.mockResolvedValueOnce("inspect").mockResolvedValueOnce("y");
+    mockSelect.mockResolvedValueOnce("inspect").mockResolvedValueOnce("remove");
 
     await handleUserOpen("feature-x");
 
@@ -773,9 +808,9 @@ describe("handleUserOpen", () => {
     expect(mockRunUserOpen).toHaveBeenCalled();
   });
 
-  it("`y` removes the stale subdir and proceeds to runUserOpen", async () => {
+  it("`remove` deletes the residual stale subdir and proceeds to runUserOpen", async () => {
     mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
-    mockSelect.mockResolvedValue("y");
+    mockSelect.mockResolvedValue("remove");
 
     await handleUserOpen("feature-x");
 
@@ -785,6 +820,17 @@ describe("handleUserOpen", () => {
     expect(mockRunUserOpen).toHaveBeenCalledAfter(
       mockRemoveStaleUserWuSubdir as unknown as Mock,
     );
+  });
+
+  it("a cancelled prompt keeps the subdir and still opens — never aborts", async () => {
+    mockFindStaleUserWuSubdirs.mockResolvedValue(["prior-wu"]);
+    mockSelect.mockResolvedValue(Symbol("cancel"));
+    mockIsCancel.mockReturnValue(true);
+
+    await handleUserOpen("feature-x");
+
+    expect(mockRemoveStaleUserWuSubdir).not.toHaveBeenCalled();
+    expect(mockRunUserOpen).toHaveBeenCalled();
   });
 
   it("surfaces a clear error when identity is missing", async () => {

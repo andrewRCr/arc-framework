@@ -32,6 +32,7 @@ import {
   findStaleUserWuSubdirs,
   listUserWuSubdirContents,
   removeStaleUserWuSubdir,
+  reconcileRetiredSubdirsStandalone,
   runUserPush,
   runUserPull,
   runUserSessionInitStatus,
@@ -768,6 +769,48 @@ describe("user load — retired-subdir reconciliation", () => {
     // than the load restoring it.
     await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
 
+    expect(await readdir(userDir)).toContain("live-wu");
+  });
+
+  it("reconcileRetiredSubdirsStandalone removes a shipped subdir and backs it up (the open entry point)", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU notes", "utf-8");
+    await markShippedOnOrigin("old-wu");
+
+    const reconciled = await reconcileRetiredSubdirsStandalone({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(reconciled.has("old-wu")).toBe(true);
+    expect(await readdir(userDir)).not.toContain("old-wu");
+
+    const backups = await listBackupFiles(userDir);
+    const preLoad = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+    expect(preLoad).toBeDefined();
+    const backup = JSON.parse(
+      await readFile(join(userDir, ".internal", preLoad!), "utf-8"),
+    ) as { files: Record<string, string> };
+    expect(backup.files["old-wu/SESSION-NOTES.md"]).toBe("# Old WU notes");
+  });
+
+  it("reconcileRetiredSubdirsStandalone preserves an unresolvable (not-shipped) subdir", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // Never shipped on origin/main → unresolvable → must survive (the prompt's residual case).
+    await mkdir(join(userDir, "live-wu"), { recursive: true });
+    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+
+    const reconciled = await reconcileRetiredSubdirsStandalone({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(reconciled.has("live-wu")).toBe(false);
     expect(await readdir(userDir)).toContain("live-wu");
   });
 });
