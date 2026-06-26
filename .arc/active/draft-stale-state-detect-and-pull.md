@@ -1,9 +1,11 @@
 # Draft: Stale-State Detect-and-Pull
 
 **Purpose:** Cross-machine **arrival coherence** — when machine B returns to work, detect that its local state
-is stale relative to a change machine A / origin made, *and* give B a one-command path to get current. The two
-halves: **detect** (local base ref behind `origin`, `plan/`-orphan branches, notes/disk drift, retired
-subdirs) and **remediate** (an inbound pull leg at session-init and in `arc sync`).
+is stale relative to a change machine A / origin made, render the cohort sibling's partial-push marker on the B
+side, *and* give B a one-command path to get current. Three facets: **detect** (local base ref behind `origin`,
+`plan/`-orphan branches, notes/disk drift, retired subdirs), **consume/render** (the shipped `partial-push-marker`
+sync-state ref — Aware at session-init, Caution at the force gate), and **remediate** (an inbound pull leg at
+session-init and in `arc sync`).
 
 - **State:** Draft — split from `cross-machine-sync-coherence` at its 2026-06-25 decomposition (the B-side
   detection cluster + the folded-in `arc sync` pull-leg). Much of this **extends shipped machinery** rather than
@@ -70,9 +72,23 @@ Verified 2026-06-25:
    retired and absent from the live set), removing with the `.internal/` backup the docs already promise. Same
    prior-file-list surface as (3).
 
+### Consume (marker rendering)
+
+5. **Partial-push marker rendering (B-side registers).** The shipped sibling `partial-push-marker` produces the
+   remote sync-state ref (`refs/arc/user/{identity}/sync-state` — an errand tree-commit of per-machine entries
+   keyed by `machineId`; payload `lastAttemptedCommit` / `attemptTimestamp` / `intent`) **plus a producer-side
+   liveness predicate**; rendering the B-side surface is the producer's explicit non-goal and this WU's
+   deliverable. Render the two B-side registers (`spec-partial-push-marker.md` § 8): **Aware** — a calm,
+   non-gating session-init one-liner in the existing advisory tier (short-sha ← `lastAttemptedCommit` · when ←
+   `attemptTimestamp` · whose ← `machineId`), proceed-with-context, never auto-resolve; **Caution** — the same
+   payload surfaced at B's force gate as context for the destructive call (informs, never gates). **Invoke** the
+   producer's liveness predicate to decide live-vs-fulfilled — do *not* reimplement self-invalidation — and honor
+   the 14-day TTL backstop. Degrade silent when the ref is absent (fetch-only clone, or remote sync off). The
+   Aware surface co-locates with surface 1 (base-ref staleness) in session-init's advisory tier.
+
 ### Remediate (inbound pull)
 
-5. **Bidirectional `arc sync` + session-init pull leg.** `arc sync` today is **push-only** on the worktree leg:
+6. **Bidirectional `arc sync` + session-init pull leg.** `arc sync` today is **push-only** on the worktree leg:
    on `remote-ahead` / `diverged` it detects-and-blocks rather than pulling, so it can't replace `git pull` on
    machine arrival. Add an **inbound pull leg** so `arc sync` becomes truly bidirectional, and a session-init
    pull action for the base-ref case (`session.init_pull.main ∈ {always, prompt, surface, skip}`). Both share
@@ -81,8 +97,9 @@ Verified 2026-06-25:
 
 ### Out of scope
 
-- The **remote partial-push marker** — `partial-push-marker` (cohort sibling) owns producing it; this WU
-  consumes its freshness on the B side.
+- **Producing the partial-push marker** — `partial-push-marker` (cohort sibling, shipped) owns the sync-state
+  ref write, the push-time Act register, and the liveness predicate. Only *production* is out of scope; this WU
+  *consumes and renders* the marker (surface 5).
 - **Single-machine inter-process ref races** — `state-ref-write-safety` (agile-parallelism).
 
 ---
@@ -94,7 +111,10 @@ Verified 2026-06-25:
 - **`notes-merge-coherence`** (shipped) — the projection bridge (3) extends.
 - **`concurrent-work-conventions`** (shipped) — the `origin/<base>`-distance primitive (1) extends to the
   local-base comparison.
-- **`partial-push-marker`** (cohort sibling) — produces the marker this WU's detection consumes. No hard edge.
+- **`partial-push-marker`** (cohort sibling, **shipped** 2026-06-25) — produces the sync-state ref
+  (`refs/arc/user/{identity}/sync-state`) + liveness predicate this WU consumes and renders (surface 5). Soft
+  edge: the consumer degrades silent without it. The register/affordance contract is `spec-partial-push-marker.md`
+  § 8; the cohort doc records the consumer-facing seam.
 
 ## Forward-compat
 
@@ -106,9 +126,11 @@ materialization current." Keep detection off raw-tree assumptions so it lifts to
 
 ## Scope Estimate
 
-**Heavy** by breadth — five surfaces (base-ref probe, `plan/`-orphan sweep, T3 drift, retired-subdir cleanup,
-bidirectional sync), several of them shipped-machinery extensions (Quick-tier individually). May sub-decompose
-at spec time if the detection cluster and the pull-leg prove independently large; held as one coherent
-"arrival coherence" concern for now.
+**Heavy** by breadth — six surfaces (base-ref probe, `plan/`-orphan sweep, T3 drift, retired-subdir cleanup,
+marker rendering, bidirectional sync), several of them shipped-machinery extensions (Quick-tier individually).
+Now **three clusters**, not two — **detect** (1-4), **consume/render** (5), **remediate** (6) — which sharpens
+the sub-decomposition question: the marker-rendering surface could ride either the detect cluster (it surfaces at
+session-init) or split with the pull-leg. May sub-decompose at spec time if the clusters prove independently
+large; held as one coherent "arrival coherence" concern for now.
 
 ---
