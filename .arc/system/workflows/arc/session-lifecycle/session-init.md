@@ -255,7 +255,7 @@ Both gate on `session.init_load.notes`, so they agree on the action — dispatch
 
 Neither signal firing (`loadNeeded` falsy **and** `retiredSubdirs.value.recommendedAction ∈ {surface,
 skip}`) → no load. Notes-pull and notes-load are mutually exclusive on the notes channel (pull fires
-when `refState ∈ {remote-ahead, conflict}`; load fires when `refState === "same"`), so they never
+when `refState ∈ {remote-ahead, diverged}`; load fires when `refState === "same"`), so they never
 co-occur there.
 
 **Notes/disk drift surface.** Independent of both dispatches above, when `user.value.notesDriftSurface`
