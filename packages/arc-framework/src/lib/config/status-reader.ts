@@ -47,6 +47,7 @@ const DEFAULTS: ConfigSettings = {
   "session.init_pull.notes": "prompt",
   "session.init_pull.base": "prompt",
   "session.init_load.notes": "prompt",
+  "sync.auto_pull": "false",
   "archive.cadence": "with-integration",
   "user.notes_push": "on-sync",
   "inbox.remind_after_days": "1",
@@ -64,6 +65,7 @@ const ENUM_VALIDATORS: Partial<Record<keyof ConfigSettings, readonly string[]>> 
   "session.init_pull.notes": ["manual", "prompt", "always"],
   "session.init_pull.base": ["manual", "prompt", "always"],
   "session.init_load.notes": ["manual", "prompt", "always"],
+  "sync.auto_pull": ["true", "false"],
   "archive.cadence": ["with-integration", "manual"],
 };
 

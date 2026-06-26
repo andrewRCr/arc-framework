@@ -71,6 +71,12 @@ vi.mock("../../src/lib/config/resolved-settings.js", () => ({
 const mockRunWorktreeSyncStatus = vi.fn();
 vi.mock("../../src/lib/git/worktree-sync.js", () => ({
   runWorktreeSyncStatus: (opts: unknown) => mockRunWorktreeSyncStatus(opts),
+  DEFAULT_FETCH_TIMEOUT_MS: 3000,
+}));
+
+const mockExecuteInboundPull = vi.fn();
+vi.mock("../../src/lib/git/inbound-pull.js", () => ({
+  executeInboundPull: (opts: unknown) => mockExecuteInboundPull(opts),
 }));
 
 const mockPushWithRecovery = vi.fn();
@@ -127,6 +133,7 @@ interface ResolvedSettingsState {
   pushInterlock: "manual" | "on-sync";
   syncInterlock: "manual" | "on-handoff";
   notesPush: "on-sync" | "prompt" | "manual";
+  autoPull: boolean;
   pushSource: "git-config" | "yaml" | "default";
   syncSource: "git-config" | "yaml" | "default";
   notesSource: "git-config" | "yaml" | "default";
@@ -136,6 +143,7 @@ const resolvedState: ResolvedSettingsState = {
   pushInterlock: "manual",
   syncInterlock: "on-handoff",
   notesPush: "on-sync",
+  autoPull: false,
   pushSource: "default",
   syncSource: "default",
   notesSource: "default",
@@ -146,6 +154,7 @@ function syncResolvedSettingsMock(): void {
     settings: {
       "user.notes_push": resolvedState.notesPush,
       "session.remote_sync": "enabled",
+      "sync.auto_pull": resolvedState.autoPull ? "true" : "false",
     },
     resolved: {
       commitInterlock: { value: "manual", source: "default" },
@@ -176,10 +185,16 @@ function setNotesPolicy(policy: "on-sync" | "prompt" | "manual") {
   syncResolvedSettingsMock();
 }
 
+function setAutoPull(enabled: boolean) {
+  resolvedState.autoPull = enabled;
+  syncResolvedSettingsMock();
+}
+
 function resetResolvedState(): void {
   resolvedState.pushInterlock = "manual";
   resolvedState.syncInterlock = "on-handoff";
   resolvedState.notesPush = "on-sync";
+  resolvedState.autoPull = false;
   resolvedState.pushSource = "default";
   resolvedState.syncSource = "default";
   resolvedState.notesSource = "default";
@@ -493,7 +508,6 @@ describe("handleSync orchestrator matrix dispatch", () => {
   });
 
   it.each([
-    ["remote-ahead", 0, 3, "main"],
     ["remote-unavailable", 0, 0, "main"],
     ["branch-gone", 0, 0, "main"],
     ["detached-head", 0, 0, null],
@@ -1248,7 +1262,6 @@ describe("audit-log integration", () => {
 
   it.each([
     ["diverged", 1, 2, "main"],
-    ["remote-ahead", 0, 3, "main"],
     ["detached-head", 0, 0, null],
     ["no-remote", 0, 0, "main"],
     ["remote-unavailable", 0, 0, "main"],
@@ -1714,6 +1727,196 @@ describe("audit-log integration > success cells", () => {
         notes: "push:success",
         exitCode: 0,
       },
+    });
+  });
+});
+
+describe("handleSync inbound fast-forward leg", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    resetMockDefaults();
+    resetResolvedState();
+    mockResolveUserIdentity.mockResolvedValue("andrew");
+    process.exitCode = undefined;
+  });
+
+  it("TTY + remote-ahead + clean → inbound-ff-pull executes; files-changed report emitted", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("manual");
+    setWorktree("remote-ahead", 0, 3, "main");
+    mockIsNonInteractive.mockReturnValue(false);
+    mockExecuteInboundPull.mockResolvedValue({
+      decision: "ff-pull",
+      fastForwarded: true,
+      ahead: 0,
+      behind: 3,
+    });
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    mockGitExec.mockImplementation(async (_cmd: unknown, args: unknown) => {
+      if (Array.isArray(args)) {
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") return { stdout: "main", stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: "oldsha", stderr: "" };
+        if (args[0] === "diff" && args[1] === "--name-only") {
+          return { stdout: "src/a.ts\nsrc/b.ts\n", stderr: "" };
+        }
+      }
+      return { stdout: "", stderr: "" };
+    });
+
+    await handleSync();
+
+    expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
+    expect(mockExecuteInboundPull).toHaveBeenCalledWith(expect.objectContaining({
+      branch: "main",
+      policy: "always",
+      isTty: true,
+    }));
+    const infoLines = mockLog.info.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(infoLines.some((l) => /fast-forward/i.test(l) && l.includes("3"))).toBe(true);
+    const noteCalls = mockNote.mock.calls.map((c) => String(c[0] ?? ""));
+    expect(noteCalls.some((c) => c.includes("src/a.ts") && c.includes("src/b.ts"))).toBe(true);
+    expect(process.exitCode).toBeUndefined();
+  });
+
+  it("TTY + remote-ahead + clean + on-sync notes → notes push the same run after the ff-pull", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("remote-ahead", 0, 2, "main");
+    mockIsNonInteractive.mockReturnValue(false);
+    mockExecuteInboundPull.mockResolvedValue({
+      decision: "ff-pull",
+      fastForwarded: true,
+      ahead: 0,
+      behind: 2,
+    });
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+    mockPushWithRecovery.mockResolvedValue({ kind: "pushed" });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
+    expect(mockRunPairedPush).not.toHaveBeenCalled();
+    expect(mockPushWithRecovery).toHaveBeenCalledTimes(1);
+    expect(outcome).toMatchObject({
+      cell: "inbound-pull",
+      worktree: { action: "inbound-ff-pull", result: "success" },
+      notes: { action: "push", result: "success" },
+      exitCode: 0,
+    });
+  });
+
+  it("non-TTY + remote-ahead + sync.auto_pull false (default) → surface; no inbound pull fires", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("remote-ahead", 0, 3, "main");
+    mockIsNonInteractive.mockReturnValue(true);
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).not.toHaveBeenCalled();
+    expect(pushedBranchInvocations()).toEqual([]);
+    expect(outcome).toMatchObject({
+      cell: "blocked-remote-ahead",
+      worktree: { action: "skip", result: "blocked", detail: "remote-ahead" },
+      notes: { action: "push", result: "blocked", detail: "notes-blocked-by-worktree:remote-ahead" },
+      exitCode: 1,
+    });
+  });
+
+  it("non-TTY + remote-ahead + sync.auto_pull true → inbound-ff-pull fires", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("manual");
+    setAutoPull(true);
+    setWorktree("remote-ahead", 0, 3, "main");
+    mockIsNonInteractive.mockReturnValue(true);
+    mockExecuteInboundPull.mockResolvedValue({
+      decision: "ff-pull",
+      fastForwarded: true,
+      ahead: 0,
+      behind: 3,
+    });
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
+    expect(mockExecuteInboundPull).toHaveBeenCalledWith(expect.objectContaining({
+      branch: "main",
+      policy: "always",
+      isTty: false,
+    }));
+    expect(outcome).toMatchObject({
+      cell: "inbound-pull",
+      worktree: { action: "inbound-ff-pull", result: "success" },
+      exitCode: 0,
+    });
+  });
+
+  it("remote-ahead but dirty tree → inbound refuse; notes stay blocked, exit 1", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("remote-ahead", 0, 3, "main");
+    mockIsNonInteractive.mockReturnValue(false);
+    mockExecuteInboundPull.mockResolvedValue({
+      decision: "refuse",
+      fastForwarded: false,
+      ahead: 0,
+      behind: 3,
+    });
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({
+      cell: "inbound-pull",
+      worktree: { action: "inbound-ff-pull", result: "failed", detail: "refuse" },
+      notes: { action: "push", result: "blocked", detail: "notes-blocked-by-inbound:refuse" },
+      exitCode: 1,
+    });
+  });
+
+  it("diverged worktree → stays blocked; no inbound pull attempted", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("diverged", 1, 2, "main");
+    mockIsNonInteractive.mockReturnValue(false);
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({
+      cell: "blocked-diverged",
+      worktree: { action: "skip", result: "blocked", detail: "diverged" },
+      exitCode: 1,
+    });
+  });
+
+  it("remote-ahead races to diverged at execute → block; notes stay blocked, exit 1", async () => {
+    setConfig("on-sync");
+    setNotesPolicy("on-sync");
+    setWorktree("remote-ahead", 0, 3, "main");
+    mockIsNonInteractive.mockReturnValue(false);
+    mockExecuteInboundPull.mockResolvedValue({
+      decision: "block",
+      fastForwarded: false,
+      ahead: 1,
+      behind: 3,
+    });
+    mockRunUserSave.mockResolvedValue({ identity: "andrew", commit: "abc1234", fileCount: 1, warnings: [] });
+
+    const outcome = await captureSyncJson();
+
+    expect(mockExecuteInboundPull).toHaveBeenCalledTimes(1);
+    expect(mockPushWithRecovery).not.toHaveBeenCalled();
+    expect(outcome).toMatchObject({
+      cell: "inbound-pull",
+      worktree: { action: "inbound-ff-pull", result: "blocked", detail: "block" },
+      notes: { action: "push", result: "blocked", detail: "notes-blocked-by-inbound:block" },
+      exitCode: 1,
     });
   });
 });

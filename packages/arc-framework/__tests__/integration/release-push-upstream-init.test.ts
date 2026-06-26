@@ -82,6 +82,7 @@ function buildSettings(pushInterlock: PushInterlock): ResolvedSettingsResult {
     "session.init_pull.notes": "prompt",
     "session.init_pull.base": "prompt",
     "session.init_load.notes": "prompt",
+    "sync.auto_pull": "false",
     "archive.cadence": "with-integration",
     "user.notes_push": "on-sync",
   };

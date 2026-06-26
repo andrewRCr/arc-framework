@@ -255,7 +255,7 @@ sitting in different spec clusters (Consume vs Remediate).
   self-silence (`fulfilled`) while a sibling's unfulfilled marker surfaces — no machine-id exclusion
   needed, validated live against the repo's real two-entry ref. Caution register stays parked (Aware only).
 
-### `[ ]` **5.2 Bidirectional `arc sync` inbound leg (R1)**
+### `[x]` **5.2 Bidirectional `arc sync` inbound leg (R1)**
 
 - _Goal:_ `arc sync` becomes truly bidirectional — its worktree leg ff-pulls on `remote-ahead`, blocks on
   `diverged`, refuses on dirty — by wiring the shipped `decideInboundPull` / `executeInboundPull` primitive into
@@ -263,40 +263,23 @@ sitting in different spec clusters (Consume vs Remediate).
   prompt); non-TTY surfaces by default, auto-ffs only under `sync.auto_pull: true`; the auto-ff path emits a
   files-changed report. The CLI never blocks on a prompt.
 
-- _Context:_ `decideWorktree` (`handlers/sync.ts:231`) returns `skip-blocked-worktree` for all of
-  `WORKTREE_PUSH_BLOCK_STATES` (`diverged`, `remote-ahead`, `detached-head`, `no-remote`, `branch-gone`,
-  `remote-unavailable`) today — push-only. The inbound leg converts only **`remote-ahead`** to an inbound action;
-  the rest stay blocked. The shipped `decideInboundPull` (pure) + `executeInboundPull` (fetch + ff-only merge) in
-  `lib/git/inbound-pull.ts` already cover ff-pull / block / refuse / surface and have unit + integration coverage.
-
-- _Design (settled at design, see `spec § R1` + Alternatives):_
-    - New boolean config `sync.auto_pull` (default `false`) — register in `lib/config/status-reader.ts`
-      (`DEFAULTS` + validator) and resolve via `resolveAllSettings`.
-    - `decideWorktree` gains the worktree `isTty` (and the resolved `sync.auto_pull`) so the `remote-ahead` arm
-      routes to a new `inbound-ff-pull` `WorktreeAction` (interactive, or non-TTY + opt-in) vs the existing
-      `skip-blocked-worktree` surface (non-TTY default). `remote-ahead` stays in `WORKTREE_PUSH_BLOCK_STATES` /
-      `NOTES_BLOCK_WORKTREE_STATES` (intercepted earlier) so the surface + notes paths are unchanged elsewhere.
-    - **Notes after a successful ff-pull:** `decideNotes` treats an `inbound-ff-pull` worktree as will-be-clean
-      (not blocked) → notes push the same run per policy; on a raced ff-pull failure (diverged/dirty at execute),
-      notes stay blocked, exit 1. Reuses the existing single-leg notes path (`pushNotesLeg`).
-    - Executor + `cellNameFor` (`inbound-pull` cell, not in `REFUSED_SYNC_CELLS`) + dry-run prediction + audit +
-      the files-changed stdout report.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-concurrent-work.md
-
-    - Build `test-first` (one behavior at a time):
-        - TTY + `remote-ahead` + clean → `inbound-ff-pull`; executes ff-pull + files-changed report
-        - TTY + `remote-ahead` + clean + `on-sync` notes → notes push the **same run** after the ff-pull
-        - non-TTY + `remote-ahead`, `sync.auto_pull: false` (default) → surface (no pull, no mutation)
-        - non-TTY + `remote-ahead`, `sync.auto_pull: true` → `inbound-ff-pull`
-        - dirty → refuse · `diverged` → block · raced-diverged at execute → block + notes stay blocked (exit 1)
-
-    - e2e: `arc sync` bidirectionality (ff-pull / block / refuse, + the `sync.auto_pull` non-TTY gate) against
-      real temp repos.
-
-    - _Notes:_ See `notes-stale-state-detect-and-pull.md` § R1; `spec § R1` carries the settled interactivity /
-      config contract and the push/pull asymmetry rationale. The `inbound-pull.ts` module doc is already
-      reconciled to this design.
+- _Outcome:_ New boolean `sync.auto_pull` (default `false`) registered in `status-reader.ts`
+  (`DEFAULTS` + `ENUM_VALIDATORS`), `ConfigSettings`, both `arc-config.yml` copies, and both
+  `validate-config.sh` copies. `decideWorktree` gained an `inbound-ff-pull` `WorktreeAction` gated on
+  `remote-ahead && (isTty || autoPull)` — placed ahead of the block-state check and behind the
+  `pushInterlock: manual` short-circuit, so `remote-ahead` only diverts to inbound when push is authorized.
+  `decideNotes` now reads the resolved worktree action and treats `inbound-ff-pull` as will-be-clean (notes
+  proceed the same run via the single-leg `pushNotesLeg`); a raced block/refuse at execute re-blocks notes
+  (`notes-blocked-by-inbound:*`, exit 1). Execution routes through a new `executeInboundFfPull` calling
+  `executeInboundPull` with `policy: "always"`; the notes tail of `executeSingleLeg` was extracted to a shared
+  `completeNotesLeg`. Single `inbound-pull` cell (proceeded, not in `REFUSED_SYNC_CELLS`); dry-run + audit +
+  files-changed stdout report wired. `isTty` derives from `!isNonInteractiveEnvironment()` (the `--json` flag
+  does not force non-TTY). Two `sync-orchestrator.test.ts` blocked-cell parameterizations dropped their
+  `remote-ahead` row (now the inbound cell under the interactive default); 7 full-`ConfigSettings` fixtures
+  gained the new key. Covered by 7 new orchestrator unit cases + 4 `arc sync` e2e cases (ff-pull / surface /
+  refuse / block) against real temp repos. Also closed a pre-existing Phase 2 gap found while editing the shell
+  validator: `session.init_pull.base` was absent from `validate-config.sh`'s `known_keys` + `validate_enum`
+  (tripped an "unknown key" warning) — registered in both copies alongside `sync.auto_pull`.
 
 ## **Phase 6:** Verification
 

@@ -249,6 +249,18 @@ session.init_load.notes: prompt
 # Per-developer override: `git config arc.notesPush <value>`
 user.notes_push: on-sync
 
+# --- Sync ---
+
+# Inbound fast-forward on `arc sync` when the worktree is behind origin
+# (remote-ahead). Fast-forward-only; never resolves a diverged worktree and
+# refuses a dirty tree. Interactive runs (a TTY) always fast-forward — `arc sync`
+# is the explicit invocation and the result is visible. This flag governs the
+# non-interactive (agent) path only:
+#   false - Surface the drift; do not pull. Protects an agent's working tree from
+#           a silent mid-task mutation. (default)
+#   true  - Fast-forward automatically under a non-TTY too.
+sync.auto_pull: false
+
 # --- Archival ---
 
 # Work-unit archival cadence after merge.

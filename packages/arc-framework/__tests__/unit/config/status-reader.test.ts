@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 21 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(21);
+  it("enumerates the 22 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(22);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -134,6 +134,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "session.init_pull.notes: always",
       "session.init_pull.base: always",
       "session.init_load.notes: always",
+      "sync.auto_pull: true",
       "archive.cadence: manual",
       "user.notes_push: manual",
       "inbox.remind_after_days: 7",
@@ -151,6 +152,7 @@ describe("readConfigSettings — user-supplied values", () => {
     expect(result.settings["session.init_pull.notes"]).toBe("always");
     expect(result.settings["session.init_pull.base"]).toBe("always");
     expect(result.settings["session.init_load.notes"]).toBe("always");
+    expect(result.settings["sync.auto_pull"]).toBe("true");
     expect(result.settings["archive.cadence"]).toBe("manual");
     expect(result.settings["inbox.remind_after_days"]).toBe("7");
     expect(result.settings["integration.stale_after_days"]).toBe("5");
@@ -244,6 +246,32 @@ describe("readConfigSettings — session.init_pull channels", () => {
     expect(message).toContain("session.init_pull.base");
     expect(message).toContain("'bogus'");
     expect(message).toContain("always");
+  });
+
+  it("applies 'false' default for sync.auto_pull when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["sync.auto_pull"]).toBe("false");
+    expect(result.defaultsApplied).toContain("sync.auto_pull");
+  });
+
+  it("accepts true | false for sync.auto_pull", async () => {
+    for (const value of ["true", "false"]) {
+      await writeFile(fixture.configPath, `sync.auto_pull: ${value}\n`);
+      const result = await readConfigSettings(fixture.root);
+      expect(result.settings["sync.auto_pull"]).toBe(value);
+      expect(result.warnings).toHaveLength(0);
+    }
+  });
+
+  it("rejects unknown values for sync.auto_pull with an error naming the valid set", async () => {
+    await writeFile(fixture.configPath, "sync.auto_pull: bogus\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["sync.auto_pull"]).toBe("false");
+    expect(result.warnings).toHaveLength(1);
+    const message = result.warnings[0] ?? "";
+    expect(message).toContain("sync.auto_pull");
+    expect(message).toContain("'bogus'");
   });
 
   it("accepts manual | prompt for worktree", async () => {
