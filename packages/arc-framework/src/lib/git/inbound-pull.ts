@@ -5,11 +5,16 @@
  * state, the working-tree state, the pull policy, and interactivity, it names
  * the safe action to take — without performing it.
  *
- * The policy is what lets one matrix serve both: `arc sync` passes `always`
- * (it fast-forwards whenever safe), while the base-ref pull passes the
- * `session.init_pull.base` config. Interactivity only narrows the prompt
- * policy: under a non-TTY a would-be prompt auto-skips to `surface` rather than
- * blocking or silently pulling — the agent-safe contract.
+ * The policy is what lets one matrix serve multiple consumers. The session-init
+ * base-ref pull passes the `session.init_pull.base` config (manual/prompt/always)
+ * with `isTty` fixed true — the agent owns the prompt interactively. The `arc
+ * sync` worktree inbound leg instead passes a real `isTty` and gates auto-
+ * fast-forward on the `sync.auto_pull` config: it auto-ffs interactively, and
+ * under a non-TTY surfaces by default — opting into auto-ff there only when
+ * `sync.auto_pull` is set — so automation never silently mutates the working
+ * tree. Interactivity narrows the `prompt` policy: under a non-TTY a would-be
+ * prompt auto-skips to `surface` rather than blocking or silently pulling — the
+ * agent-safe contract.
  *
  * Side-effect-free and exhaustive over {@link WorktreeSyncState}; the impure
  * fetch + fast-forward execution wraps this.

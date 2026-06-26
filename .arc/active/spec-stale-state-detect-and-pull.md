@@ -275,11 +275,30 @@ flow. This WU ships **Aware only**.
    `diverged`, refuse on dirty;
 2. the **D1 session-init base-ref pull action**, config-gated by `session.init_pull.base`.
 
-**Semantics:** ff-only / block-on-diverged / refuse-on-dirty / **agent-safe** (no blocking TTY prompt; under
-non-TTY **auto-skip to surface**, never auto-pull — matching `partial-push-marker`'s interactivity contract). The
-probe is read-only; the pull action is config-gated. Author the inbound *decision* as a **pure matrix-outcome**
-(composes with `sync-handler-decomposition`); any notes-ref write **reuses the existing notes path** (the one
-`state-ref-write-safety` CAS-guards), never a parallel write.
+**Core semantics:** ff-only / block-on-diverged / refuse-on-dirty. The probe is read-only; the pull action is
+config-gated. The CLI never blocks on a TTY prompt (it stays a non-interactive-safe primitive). Author the inbound
+*decision* as a **pure matrix-outcome** over the shipped `decideInboundPull` primitive (composes with
+`sync-handler-decomposition`, which relocates this matrix); any notes-ref write **reuses the existing notes path**
+(the one `state-ref-write-safety` CAS-guards), never a parallel write.
+
+**Interactivity & config contract (settled at Task 5.2 design).** Behavior splits on interactivity, gated by a
+new boolean `sync.auto_pull` (default `false`):
+
+- **Interactive (TTY):** auto-fast-forward when safe — no prompt. `arc sync` is the explicit sync invocation and
+  the human sees the result.
+- **Non-TTY / agent:** **surface only** by default (never auto-pull); when `sync.auto_pull: true`, auto-ff there
+  too. The default protects an agent's working tree from a silent mid-task mutation.
+- The auto-ff path (TTY, or opted-in non-TTY) emits an explicit **files-changed report** on stdout so an agent
+  can re-sync its model of the working tree.
+
+The session-init base-ref pull (D1) stays config-gated by `session.init_pull.base` (manual/prompt/always, agent
+owns the prompt, `isTty` fixed true); `arc sync`'s inbound passes a real `isTty` and the `sync.auto_pull` boolean
+— a different surface (non-interactive primitive vs agent-owned prompt), so a different config shape is deliberate.
+
+**Notes after a successful ff-pull.** On a run where the worktree ff-pulls, the worktree is now current, so the
+notes leg **proceeds the same run** — the `remote-ahead` notes block existed only because the worktree couldn't
+reach origin, and the ff-pull removes that reason. If the ff-pull races a divergence / dirty tree at execution
+and fails, notes stay blocked that run (exit 1). Reuses the existing notes path, never a parallel one.
 
 ## Alternatives & Rationale
 
@@ -295,6 +314,23 @@ refuses-to-overwrite; jj op-log + conflicts-as-data) and non-interactive CLI con
 - **`session.init_pull.base` as a third channel of the existing axis (chosen) vs. a new config axis.** It maps
   exactly onto the `session.init_pull.{worktree,notes}` `recommendedAction` vocabulary, so it is a property of the
   existing init-pull axis, not a new one. Named `base` (not `main`) because `branch.base` is the configurable term.
+- **`arc sync` inbound: config-gated, default surface-under-non-TTY (chosen) vs. always-auto-ff vs.
+  never-auto-pull.** Prior art (git `pull.ff=only` as the most-conservative sanctioned mode — git's *default* is
+  ff-or-merge, not ff-only; `hg pull -u` refusing a dirty tree; jj snapshot-before-mutate; clig.dev's "require an
+  explicit trigger for a consequential non-TTY action"; terraform `-input=false`) converges on: a working-tree
+  mutation should not fire silently under automation without an explicit opt-in. So the non-TTY default is
+  **surface**, with `sync.auto_pull: true` the explicit opt-in; TTY auto-ffs (the human invoked sync and sees the
+  change). A **boolean**, not a tri-state, because `prompt` is meaningless under non-TTY (it collapses to "never")
+  and mature tools favor safe-default-plus-opt-in over a tri-state enum.
+- **Push/pull asymmetry — auto-push but default-no-auto-pull is consistent, not contradictory.** Two reasons.
+  (1) *Same pattern:* the worktree auto-push is already config-gated and default-off — `pushInterlock` defaults to
+  `manual` (no push); auto-push fires only once opted into `on-sync` / `on-workflow`. `sync.auto_pull` is the
+  identical default-off-opt-in shape. (2) *Orthogonal risk:* a push mutates **remote / published** state
+  downstream of a decision already made and never touches the local working files an agent is reasoning about; an
+  ff-pull rewrites those files. The agent-safety rule that bites mid-task is "don't silently change the state I'm
+  reasoning over" — push doesn't, pull does. On pure reversibility an ff-pull is in fact *easier* to undo than a
+  push (reflog vs force-retract), so the asymmetry is about model-invalidation, not data-loss. (The push/pull
+  split is a reasoned synthesis, not a citable named doctrine — see the Task 5.2 design research.)
 - **One WU, layered spec (chosen) vs. a cohort of sibling WUs.** The clusters are separately formalizable but
   **not orthogonal**: they share the session-init probe surface, the D-shared drift signal, and the R1 inbound
   primitive, and the cohort coordination already assigns *all* B-side session-init consumption to one owner
