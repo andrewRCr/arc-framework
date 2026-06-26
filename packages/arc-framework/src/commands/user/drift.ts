@@ -291,18 +291,19 @@ export function resolveCleanArmNotesVerdict(input: {
  *
  * Pure manifest diff: counts whether disk carries extra files, whether it
  * modifies a shared file, and whether it is missing files the note has. More
- * than one mismatch kind is `mixed`; otherwise the single kind names the
- * direction. Never returns `behind` — that distinction needs sync-state context
- * the manifests alone don't carry and is supplied by the caller.
+ * than one mismatch kind is `mixed`, no mismatch at all is `null` (identical
+ * manifests), otherwise the single kind names the direction. Never returns
+ * `behind` — that distinction needs sync-state context the manifests alone don't
+ * carry and is supplied by the caller.
  *
  * @param diskManifest - The disk-side manifest.
  * @param noteManifest - The note-side manifest.
- * @returns The disk-vs-note direction.
+ * @returns The disk-vs-note direction, or `null` when the manifests are identical.
  */
 export function computeUnsavedDirection(
   diskManifest: SyncManifest,
   noteManifest: SyncManifest,
-): UserUnsavedDirection {
+): UserUnsavedDirection | null {
   const diskKeys = new Set(Object.keys(diskManifest.files));
   const noteKeys = new Set(Object.keys(noteManifest.files));
 
@@ -332,6 +333,7 @@ export function computeUnsavedDirection(
     .length;
 
   if (mismatchKinds > 1) return "mixed";
+  if (mismatchKinds === 0) return null;
   if (hasExtraFiles) return "edits";
   if (hasModifiedFiles) return "modified";
   return "missing";

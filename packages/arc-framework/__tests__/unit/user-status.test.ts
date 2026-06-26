@@ -938,6 +938,13 @@ describe("computeUnsavedDirection", () => {
 
     expect(computeUnsavedDirection(disk, note)).toBe("mixed");
   });
+
+  it("returns null when disk and note are identical (no difference)", () => {
+    const disk = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });
+    const note = manifest({ "SESSION-NOTES.md": "aaa", "scratch.md": "bbb" });
+
+    expect(computeUnsavedDirection(disk, note)).toBeNull();
+  });
 });
 
 describe("hasUnpushedLocalDrift", () => {
