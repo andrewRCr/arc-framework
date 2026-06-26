@@ -70,6 +70,22 @@
   new code or design — the primitive and the reconcile doctrine both shipped; this is pure wiring. *Micro-fork to
   settle at authoring:* placement (entry vs. pre-merge) and strength (advisory surface vs. hard interlock).
 
+### `[ ]` **Give the stale-worktree sweep a base-ref-backed shipped index**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-06-26); captured during
+  `stale-state-detect-and-pull` Task 3.2 (D4) design — the index-refresh fork that scoped the base-ref read to
+  the retired-subdir path.
+- *Concern:* `runStaleWorktreeSweep` (`lib/session-init/stale-worktree-sweep.ts`) resolves the shipped-WU set via
+  `readShippedWorkUnits` (`lib/work-unit/completed-index.ts`), which scans the **working-tree** `.arc/completed/`.
+  When the primary worktree sits on a feature branch — the current `arc start --here` default until this WU flips
+  worktree-by-default — its `completed/` lags `origin/main`, so the sweep can under-detect a lingering worktree
+  whose WU has already shipped (the same staleness D4 fixed for retired subdirs).
+- *Proposed:* mirror the D4 fix onto the sweep — give it the same base-ref-backed shipped read (`completed/`
+  resolved from `<base>`, freshened by the session-init base-ref ff) so it resolves correctly regardless of the
+  primary worktree's branch. D4 added that base-ref read for the retired-subdir path only, deliberately leaving
+  the sweep on its working-tree read to stay in scope. Files: `lib/session-init/stale-worktree-sweep.ts`,
+  `lib/work-unit/completed-index.ts`.
+
 ---
 
 ## Problem / Motivation
