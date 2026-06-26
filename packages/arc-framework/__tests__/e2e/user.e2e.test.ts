@@ -11,7 +11,7 @@ import { access, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
+import { runArc, runArcNoTty, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -322,7 +322,7 @@ describe("user open / close lifecycle", () => {
     await mkdir(join(userDir, "prior-wu"), { recursive: true });
     await writeFile(join(userDir, "prior-wu", "SESSION-NOTES.md"), "# Prior WU\n", "utf-8");
 
-    const result = await runArc(["user", "open", "feature-x"], tmpDir);
+    const result = await runArcNoTty(["user", "open", "feature-x"], tmpDir);
 
     expect(result.exitCode).toBe(0);
     // Non-destructive default under non-TTY: the subdir survives and the new WU opens.
