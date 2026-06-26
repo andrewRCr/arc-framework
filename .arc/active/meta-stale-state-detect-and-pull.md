@@ -12,11 +12,11 @@
 - **Task List:** `tasks-stale-state-detect-and-pull.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.1 — Clean-arm notes/disk drift surfacing + projection-bridge prior-file-list (D3)
-- **Next Task:** Task 3.2 — Drift-gated retired-subdir reconcile (D4) (line ~149)
+- **Last Completed:** Task 3.2 — Drift-gated retired-subdir reconcile (D4)
+- **Next Task:** Task 3.3 — `arc user open` non-TTY stale-subdir safety (D4) (line ~167)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.2 (Phase 3 — D4; design decisions pre-settled in SESSION-NOTES; test-first)
+- **Next Action:** Begin Task 3.3 (Phase 3 — D4; test-first)
 
 - **PR URL:** [none]
 - **Completed:** [none]
