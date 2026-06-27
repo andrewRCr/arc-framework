@@ -20,7 +20,7 @@
  * @module
  */
 
-import { readRefTip, readTreeEntries, writeTreeCommit } from "../git/ref-tree.js";
+import { MAX_RECONCILE_ATTEMPTS, readRefTip, readTreeEntries, writeTreeCommit } from "../git/ref-tree.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
 import {
   syncStateRef,
@@ -58,8 +58,10 @@ export function mergeSyncStateEntries(
   return merged;
 }
 
-/** Bound on reconcile attempts before a persistently-racing push gives up. */
-export const MAX_RECONCILE_ATTEMPTS = 3;
+// Re-exported from the shared tree-ref chokepoint so same-machine retry and
+// cross-machine reconcile share one bound; consumers importing it from here are
+// unaffected by the relocation.
+export { MAX_RECONCILE_ATTEMPTS };
 
 /** Discriminated outcome of {@link reconcileSyncStatePush}. */
 export type SyncStatePushOutcome =

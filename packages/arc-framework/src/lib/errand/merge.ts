@@ -17,6 +17,7 @@
  * @module
  */
 
+import { MAX_RECONCILE_ATTEMPTS } from "../git/ref-tree.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   errandsRef,
@@ -25,9 +26,6 @@ import {
   writeTreeCommit,
   type ErrandRecordIO,
 } from "./ref-tree.js";
-
-/** Bound on reconcile attempts before a persistently-racing push gives up. */
-const MAX_RECONCILE_ATTEMPTS = 3;
 
 /** The temp tracking ref a remote errand ref is fetched into before merging. */
 export function incomingErrandRef(ref: string): string {

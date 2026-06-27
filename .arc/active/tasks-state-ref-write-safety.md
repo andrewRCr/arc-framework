@@ -28,26 +28,21 @@ cross-machine reconcile share one bound.
   CAS is active; a rejection surfaces as a raw git error until the retry frame lands in 1.2/1.3. Real-git CAS
   behavior covered by `ref-tree-cas.test.ts`.
 
-### `[ ]` **1.2 Bounded CAS-retry frame, with rejection discrimination**
+### `[x]` **1.2 Bounded CAS-retry frame, with rejection discrimination**
 
 - _Goal:_ A losing same-machine writer re-reads the fresh tip and tree, rebuilds its mutation on that state, and
   retries — bounded, surfacing a typed failure on exhaustion rather than looping or dropping.
 
-    Build `test-first` (one behavior at a time):
-
-    - a CAS rejection triggers a re-read of tip + tree and a rebuilt mutation applied on the fresh state, then a
-      successful retry
-    - a non-CAS git error (anything other than an old-value mismatch) surfaces immediately, never retried
-    - a relentlessly-racing write exhausts at `MAX_RECONCILE_ATTEMPTS` (3) and returns a typed failure (mirroring
-      `reconcileSyncStatePush`'s `{ kind: "failed" }`), never an unbounded loop
-
-    - add a CAS-rejection discriminator beside `isNonFastForwardError` / `isRemoteUnavailableError`
-      (`lib/user-sync/notes-merge.ts`), matching git's old-value-mismatch `update-ref` message
-    - implement a retry wrapper around the full read-modify-write (read tip → read tree → mutate →
-      `writeTreeCommit`) that takes the per-caller mutation as a closure and reuses the exported
-      `MAX_RECONCILE_ATTEMPTS` bound from `lib/user-sync/sync-state-merge.ts`
-- _Note:_ This task owns the deterministic rejection / retry / exhaustion assertions (Success Criteria 1–2);
-  Phase 5 adds the true-race e2e backstop.
+- _Outcome:_ Added `writeTreeWithCasRetry` (`lib/user-sync/cas-retry.ts`), wrapping read tip → read tree →
+  mutate → `writeTreeCommit`: a CAS rejection re-reads and rebuilds the mutation closure on the fresh state and
+  retries, bounded by `MAX_RECONCILE_ATTEMPTS`, returning a typed `{ kind: "written" | "failed" }` (mirroring the
+  reconcile push); a non-CAS git error surfaces immediately. Added the `isCasRejectionError` discriminator
+  (`lib/user-sync/notes-merge.ts`) matching git's two CAS shapes (`but expected`, `reference already exists`).
+  Relocated `MAX_RECONCILE_ATTEMPTS` to the shared `lib/git/ref-tree.ts` (re-exported from `sync-state-merge.ts`;
+  errand's duplicate `const` dropped) so same-machine retry and cross-machine reconcile share one bound and the
+  frame carries no upward dependency — which also removes the latent `sync-state-ref ↔ sync-state-merge` import
+  cycle 1.3's wiring would otherwise form. The frame is not yet wired into the direct writes (that is 1.3); its
+  `mutate` closure doubles as the deterministic interleave seam the tests inject through.
 
 ### `[ ]` **1.3 Route the direct write legs through the retry frame**
 

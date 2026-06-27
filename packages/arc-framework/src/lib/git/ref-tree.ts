@@ -19,6 +19,16 @@
 
 import type { GitExec, GitExecInput } from "./exec.js";
 
+/**
+ * The shared bound on tree-ref reconcile / retry attempts before a persistently
+ * losing writer gives up. One value governs both the cross-machine reconcile
+ * push (`reconcileSyncStatePush` / `reconcileErrandPush`) and the same-machine
+ * compare-and-swap retry (`writeTreeWithCasRetry`), so the two contention guards
+ * share one cap. Lives here, the lowest tier both consumers already depend on, to
+ * keep that single source of truth free of an upward dependency.
+ */
+export const MAX_RECONCILE_ATTEMPTS = 3;
+
 /** The injected git seams a tree-commit *write* runs over — reads plus the stdin-fed builder. */
 export interface RefTreeWriteIO {
   /** Standard executor for reads and ref moves (`rev-parse`, `ls-tree`, `commit-tree`, `update-ref`). */

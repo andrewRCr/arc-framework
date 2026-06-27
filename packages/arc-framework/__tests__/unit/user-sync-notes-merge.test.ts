@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 import {
   incomingFetchRefspec,
   incomingNotesRef,
+  isCasRejectionError,
   isNonFastForwardError,
   isResolvedNoteValid,
   notesMergeArgs,
@@ -38,6 +39,17 @@ describe("notes-merge pure helpers", () => {
     expect(isNonFastForwardError(" ! [rejected]    refs/notes/x -> refs/notes/x")).toBe(true);
     expect(isNonFastForwardError("Updates were rejected (non-fast-forward)")).toBe(true);
     expect(isNonFastForwardError("fatal: 'origin' does not appear to be a git repository")).toBe(false);
+  });
+
+  it("isCasRejectionError matches update-ref old-value mismatch and create-collision only", () => {
+    // The two shapes git's update-ref CAS check emits.
+    expect(
+      isCasRejectionError("cannot lock ref 'refs/arc/x': is at 51d75cd but expected 41e433c"),
+    ).toBe(true);
+    expect(isCasRejectionError("cannot lock ref 'refs/arc/x': reference already exists")).toBe(true);
+    // A non-CAS git failure — and a push non-fast-forward — must not be read as a CAS rejection.
+    expect(isCasRejectionError("fatal: update_ref failed: some unrelated git error")).toBe(false);
+    expect(isCasRejectionError(" ! [rejected] (non-fast-forward)")).toBe(false);
   });
 
   describe("isResolvedNoteValid", () => {
