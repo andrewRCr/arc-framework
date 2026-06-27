@@ -12,11 +12,11 @@
 - **Task List:** `tasks-state-ref-write-safety.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Thread an expected-tip compare-and-swap through writeTreeCommit
+- **Last Completed:** Task 1.3 — Route the direct write legs through the retry frame (Phase 1 / D1 complete)
+- **Next Task:** Task 2.1 — Add a discriminating ref/tree read (line ~79)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 (Phase 1 — D1: CAS + retry at the tree-commit chokepoint)
+- **Next Action:** Begin Task 2.1 (Phase 2 — D2: Reconcile-read failure discrimination)
 
 - **PR URL:** [none]
 - **Completed:** [none]
