@@ -27,6 +27,7 @@ import {
   type ErrandRecord,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 
 const IDENTITY = "andrew";
 
@@ -145,5 +146,35 @@ describe("errand orphan state-ref primitives", () => {
 
     const { stdout } = await io.exec("git", ["rev-parse", "--verify", errandsRef(IDENTITY)]);
     expect(stdout.trim()).toMatch(/^[0-9a-f]{40}$/u);
+  });
+
+  it("survives a same-machine writer that advances the ref mid-write (CAS retry)", async () => {
+    await writeErrandRecord(io, recordFor("seed"));
+
+    // Instrument the executor so that, on our write's update-ref, a sibling
+    // process first writes a different slug — advancing the ref between our read
+    // and our write and forcing the CAS rejection the retry frame must recover.
+    const realExec = makeGitExec(dir);
+    let raced = false;
+    const racingExec: GitExec = async (cmd, args) => {
+      if (!raced && args[0] === "update-ref" && args[1] === errandsRef(IDENTITY)) {
+        raced = true;
+        await writeErrandRecord(
+          { exec: realExec, execInput: io.execInput, identity: IDENTITY },
+          recordFor("sibling"),
+        );
+      }
+      return realExec(cmd, args);
+    };
+    const racingIo: ErrandRecordIO = { exec: racingExec, execInput: io.execInput, identity: IDENTITY };
+
+    await writeErrandRecord(racingIo, recordFor("ours"));
+
+    // The retry re-read the sibling's entry and rebuilt on it — neither record is dropped.
+    expect((await listErrandRecords(io)).map((r) => r.slug).sort()).toEqual([
+      "ours",
+      "seed",
+      "sibling",
+    ]);
   });
 });

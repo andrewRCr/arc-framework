@@ -17,17 +17,16 @@
  * @module
  */
 
+import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   errandsRef,
   readRefTip,
-  readTreeEntries,
+  readTreeEntriesDiscriminating,
   writeTreeCommit,
   type ErrandRecordIO,
 } from "./ref-tree.js";
-
-/** Bound on reconcile attempts before a persistently-racing push gives up. */
-const MAX_RECONCILE_ATTEMPTS = 3;
+import type { GitExec } from "../git/exec.js";
 
 /** The temp tracking ref a remote errand ref is fetched into before merging. */
 export function incomingErrandRef(ref: string): string {
@@ -94,7 +93,10 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
   if ((await readRefTip(io.exec, ref)) === null) return { kind: "noop" };
 
   let reconciledOnce = false;
-  for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
+  // Up to MAX_RECONCILE_ATTEMPTS reconciles, each followed by a retry push — so the
+  // bound is one more push than reconcile (the final iteration pushes the last
+  // reconciled tip and is never itself followed by another reconcile).
+  for (let attempt = 0; attempt <= MAX_RECONCILE_ATTEMPTS; attempt++) {
     try {
       await io.exec("git", ["push", "origin", ref]);
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
@@ -102,8 +104,22 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       const error = err instanceof Error ? err : new Error(String(err));
       if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
       if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+      if (attempt === MAX_RECONCILE_ATTEMPTS) {
+        return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts") };
+      }
 
-      const reconcile = await reconcileTrees(io, ref);
+      // Keep the outcome single-channel: a fetch/read/commit failure inside the
+      // reconcile — including a same-machine CAS rejection in the local-commit leg
+      // — must surface as `failed`, not escape this function as a throw.
+      let reconcile: ErrandTreeMerge;
+      try {
+        reconcile = await reconcileTrees(io, ref);
+      } catch (reconcileErr) {
+        return {
+          kind: "failed",
+          error: reconcileErr instanceof Error ? reconcileErr : new Error(String(reconcileErr)),
+        };
+      }
       if (reconcile.kind === "collision") {
         return { kind: "conflict", slugs: reconcile.slugs };
       }
@@ -119,23 +135,46 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
  * untouched and returns the collision on a divergent same-slug entry.
  */
 async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTreeMerge> {
-  const incoming = incomingErrandRef(ref);
+  // Per-reconcile-unique tracking ref: a shared identity-scoped one lets a concurrent
+  // same-machine reconcile's cleanup delete it before this one resolves incomingTip,
+  // which would then read the remote side as empty and CAS-write a narrowed tree.
+  const incoming = `${incomingErrandRef(ref)}__${uniqueRefToken()}`;
   await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
   try {
-    const local = await readTreeEntries(io.exec, ref);
-    const remote = await readTreeEntries(io.exec, incoming);
+    // Resolve both tips first and read each tree at that exact commit, so the merge
+    // input and the compare-and-swap base are bound to one snapshot. Reading the
+    // local tree by ref name before resolving its tip would let a same-machine
+    // writer advance `ref` in between — the CAS would then pass against the fresher
+    // tip while committing a merge built on the stale tree, silently dropping the
+    // racer's slug.
+    const localTip = await readRefTip(io.exec, ref);
+    const incomingTip = await readRefTip(io.exec, incoming);
+    const local = localTip ? await readErrandReconcileTree(io.exec, localTip) : new Map<string, string>();
+    const remote = incomingTip ? await readErrandReconcileTree(io.exec, incomingTip) : new Map<string, string>();
     const result = mergeErrandTrees(local, remote);
     if (result.kind === "collision") return result;
 
-    const parents = [
-      await readRefTip(io.exec, ref),
-      await readRefTip(io.exec, incoming),
-    ].filter((tip): tip is string => tip !== null);
-    await writeTreeCommit(io, result.entries, "merge errand records", parents);
+    const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
+    await writeTreeCommit(io, result.entries, "merge errand records", parents, localTip);
     return result;
   } finally {
     await deleteRef(io, incoming);
   }
+}
+
+/**
+ * Read a reconcile input, treating a legitimately absent ref as empty but a genuine
+ * read failure as fatal. The fail-open `readTreeEntries` would collapse an errored
+ * `ls-tree` to an empty map, so a transient read of `localTip` / `incomingTip` could
+ * commit a merge built from an artificially empty side — dropping the other side's
+ * slugs under the compare-and-swap bound to `localTip`. Throwing aborts the reconcile,
+ * which {@link reconcileErrandPush} surfaces through its single `failed` channel; an
+ * absent ref still unions normally as empty. Mirrors the sync-state reconcile reader.
+ */
+async function readErrandReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
+  const result = await readTreeEntriesDiscriminating(exec, ref);
+  if (result.kind === "error") throw result.error;
+  return result.kind === "entries" ? result.entries : new Map();
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */

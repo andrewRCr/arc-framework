@@ -15,13 +15,13 @@
 
 import {
   errandsRef,
-  readRefTip,
   readTreeEntries,
+  readTreeEntriesDiscriminating,
   hashBlob,
-  writeTreeCommit,
   type ErrandRecordIO,
   type ErrandRecordReadIO,
 } from "./ref-tree.js";
+import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
 
 import type { GitExec } from "../git/exec.js";
 
@@ -193,10 +193,16 @@ export async function writeErrandRecord(
   record: ErrandRecord,
 ): Promise<void> {
   const blobSha = await hashBlob(io.execInput, serializeErrandRecord(record));
-  const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
-  entries.set(record.slug, blobSha);
-  const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: write ${record.slug}`, tip ? [tip] : []);
+  const outcome = await writeTreeWithCasRetry(
+    io,
+    errandsRef(io.identity),
+    `errand record: write ${record.slug}`,
+    (entries) => {
+      entries.set(record.slug, blobSha);
+      return entries;
+    },
+  );
+  if (outcome.kind === "failed") throw outcome.error;
 }
 
 /**
@@ -208,9 +214,18 @@ export async function writeErrandRecord(
  * @param slug - The slug to drop from the ref's tree.
  */
 export async function removeErrandRecord(io: ErrandRecordIO, slug: string): Promise<void> {
-  const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
-  if (!entries.has(slug)) return;
-  entries.delete(slug);
-  const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: remove ${slug}`, tip ? [tip] : []);
+  const ref = errandsRef(io.identity);
+  // Pre-check the no-op case so an absent slug never writes a redundant commit;
+  // the retry frame re-reads the tree, so the delete still applies to fresh state.
+  // Discriminate a genuine read failure from a legitimately absent ref — a fail-open
+  // read would treat an errored tree as empty and return success without removing an
+  // existing record.
+  const precheck = await readTreeEntriesDiscriminating(io.exec, ref);
+  if (precheck.kind === "error") throw precheck.error;
+  if (precheck.kind === "absent" || !precheck.entries.has(slug)) return;
+  const outcome = await writeTreeWithCasRetry(io, ref, `errand record: remove ${slug}`, (entries) => {
+    entries.delete(slug);
+    return entries;
+  });
+  if (outcome.kind === "failed") throw outcome.error;
 }

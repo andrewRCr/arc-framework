@@ -10,12 +10,13 @@
 import {
   readRefTip,
   readTreeEntries,
+  readTreeEntriesDiscriminating,
   hashBlob,
   writeTreeCommit as writeRefTreeCommit,
 } from "../git/ref-tree.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 
-export { readRefTip, readTreeEntries, hashBlob };
+export { readRefTip, readTreeEntries, readTreeEntriesDiscriminating, hashBlob };
 export type { GitExecInput };
 
 /** Orphan state-ref namespace for errand records; `{identity}` is appended. */
@@ -43,7 +44,8 @@ export interface ErrandRecordIO extends ErrandRecordReadIO {
 /**
  * Build a tree from the given slug→blob entries, commit it onto `parents`, and
  * move the identity's errand ref to the new commit — the shared tree-commit
- * mechanism bound to {@link errandsRef}.
+ * mechanism bound to {@link errandsRef}. `expectedOldTip` threads the
+ * compare-and-swap (the tip the caller read, or `null` to require an absent ref).
  *
  * @returns The new commit sha.
  */
@@ -52,6 +54,7 @@ export async function writeTreeCommit(
   entries: Map<string, string>,
   message: string,
   parents: string[],
+  expectedOldTip: string | null,
 ): Promise<string> {
-  return writeRefTreeCommit(io, errandsRef(io.identity), entries, message, parents);
+  return writeRefTreeCommit(io, errandsRef(io.identity), entries, message, parents, expectedOldTip);
 }

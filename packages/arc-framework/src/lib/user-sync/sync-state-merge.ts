@@ -20,7 +20,14 @@
  * @module
  */
 
-import { readRefTip, readTreeEntries, writeTreeCommit } from "../git/ref-tree.js";
+import {
+  MAX_RECONCILE_ATTEMPTS,
+  readRefTip,
+  readTreeEntriesDiscriminating,
+  uniqueRefToken,
+  writeTreeCommit,
+} from "../git/ref-tree.js";
+import type { GitExec } from "../git/exec.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
 import {
   syncStateRef,
@@ -58,8 +65,10 @@ export function mergeSyncStateEntries(
   return merged;
 }
 
-/** Bound on reconcile attempts before a persistently-racing push gives up. */
-export const MAX_RECONCILE_ATTEMPTS = 3;
+// Re-exported from the shared tree-ref chokepoint so same-machine retry and
+// cross-machine reconcile share one bound; consumers importing it from here are
+// unaffected by the relocation.
+export { MAX_RECONCILE_ATTEMPTS };
 
 /** Discriminated outcome of {@link reconcileSyncStatePush}. */
 export type SyncStatePushOutcome =
@@ -133,21 +142,49 @@ export async function reconcileSyncStatePush(
  * same-machine guard. The tracking ref is cleaned up regardless of outcome.
  */
 async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: string): Promise<void> {
-  const incoming = incomingSyncStateRef(ref);
-  await fetchSyncStateRef(io);
+  // Per-reconcile-unique tracking ref: a shared identity-scoped one lets a concurrent
+  // same-machine reconcile's cleanup delete it before this one resolves incomingTip,
+  // which would then read the remote side as empty and CAS-write a narrowed tree.
+  const incoming = `${incomingSyncStateRef(ref)}__${uniqueRefToken()}`;
+  await fetchSyncStateRef(io, incoming);
   try {
-    const local = await readTreeEntries(io.exec, ref);
-    const remote = await readTreeEntries(io.exec, incoming);
+    // Resolve both tips first and read each tree at that exact commit, so the merge
+    // input and the compare-and-swap base are bound to one snapshot. Reading a tree
+    // by ref name before resolving its tip would let a writer advance the ref in
+    // between — the CAS would then pass against the fresher tip while committing a
+    // merge built on the stale tree, silently dropping the racer's entry. The incoming
+    // side is bound too: the tracking ref is keyed by identity, not process, so a
+    // concurrent same-machine reconcile can re-fetch it underneath this one. An absent
+    // tip (the ref never resolved) reads as empty; readReconcileTree still aborts on a
+    // genuine read error.
+    const localTip = await readRefTip(io.exec, ref);
+    const incomingTip = await readRefTip(io.exec, incoming);
+    const local = localTip ? await readReconcileTree(io.exec, localTip) : new Map<string, string>();
+    const remote = incomingTip ? await readReconcileTree(io.exec, incomingTip) : new Map<string, string>();
     const merged = mergeSyncStateEntries(local, remote, ownMachineId);
 
-    const parents = [
-      await readRefTip(io.exec, ref),
-      await readRefTip(io.exec, incoming),
-    ].filter((tip): tip is string => tip !== null);
-    await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents);
+    const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
+    await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents, localTip);
   } finally {
     await deleteRef(io, incoming);
   }
+}
+
+/**
+ * Read a reconcile input, treating a legitimately absent ref as empty but a
+ * genuine read failure as fatal.
+ *
+ * The advisory {@link module:lib/git/ref-tree.readTreeEntries} collapses both to
+ * empty — fine for fail-open reads, but here an *errored* read after a successful
+ * fetch would union a tree narrowed to this machine's own key, dropping siblings'
+ * entries. Throwing on `error` aborts the reconcile, which
+ * {@link reconcileSyncStatePush} surfaces through its single `{ kind: "failed" }`
+ * channel; an absent ref still unions normally as empty.
+ */
+async function readReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
+  const result = await readTreeEntriesDiscriminating(exec, ref);
+  if (result.kind === "error") throw result.error;
+  return result.kind === "entries" ? result.entries : new Map();
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */

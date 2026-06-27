@@ -26,6 +26,7 @@ export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js
 export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./notes-ref.js";
 
 export {
+  isCasRejectionError,
   isNonFastForwardError,
   isRemoteUnavailableError,
   isResolvedNoteValid,
@@ -112,5 +113,15 @@ export {
   type PublishSyncStateMarkerOutcome,
   type PublishSkipReason,
 } from "./sync-state-publish.js";
+
+export {
+  acquireAdvisoryLock,
+  releaseAdvisoryLock,
+  getNotesLockPath,
+  AdvisoryLockTimeoutError,
+  type AdvisoryLockHandle,
+  type AdvisoryLockOptions,
+  type IsProcessAliveFn,
+} from "./notes-lock.js";
 
 export type { CrossWuEntry, CrossWuShape, EntryParse } from "./types.js";

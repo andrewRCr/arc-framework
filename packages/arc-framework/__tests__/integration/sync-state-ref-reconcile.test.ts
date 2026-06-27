@@ -27,6 +27,7 @@ import {
 } from "../../src/lib/user-sync/sync-state-merge.js";
 import {
   syncStateRef,
+  incomingSyncStateRef,
   pushSyncStateRef,
   type SyncStateRefIO,
 } from "../../src/lib/user-sync/sync-state-ref.js";
@@ -41,6 +42,28 @@ const IDENTITY = "andrew";
 const REF = syncStateRef(IDENTITY);
 const MACHINE_A = "machine-a";
 const MACHINE_B = "machine-b";
+
+/**
+ * A reconcile-path exec that fails the incoming-tree read. The reconcile fetches into
+ * a per-call-unique `__incoming` ref and reads each tree by its resolved tip SHA, so
+ * this captures the incoming tip from that ref's rev-parse, then throws `errorMessage`
+ * on the `ls-tree` of exactly that tip — isolating the incoming read from the local
+ * one without needing to precompute the (unique) ref name.
+ */
+function makeIncomingReadFailExec(realExec: GitExec, errorMessage: string): GitExec {
+  let incomingTip: string | null = null;
+  return async (cmd, args) => {
+    if (args[0] === "rev-parse" && typeof args[2] === "string" && args[2].includes("__incoming")) {
+      const result = await realExec(cmd, args);
+      incomingTip = result.stdout.trim() || null;
+      return result;
+    }
+    if (args[0] === "ls-tree" && incomingTip !== null && args[1] === incomingTip) {
+      throw new Error(errorMessage);
+    }
+    return realExec(cmd, args);
+  };
+}
 
 function markerFor(machineId: string, overrides: Partial<SyncStateMarker> = {}): SyncStateMarker {
   return {
@@ -199,5 +222,85 @@ describe("sync-state-ref reconcile-push", () => {
     );
 
     expect(outcome.kind).toBe("failed");
+  });
+
+  it("aborts on a genuine post-fetch read error instead of writing a tree narrowed to this machine", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await reconcileSyncStatePush(ioA, MACHINE_A);
+
+    // repoB writes its own marker over a divergent root — its push is a genuine
+    // non-fast-forward that drives the reconcile.
+    await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
+
+    const realExec = makeGitExec(repoB);
+    // Push rejects non-ff (entering reconcile); the fetch succeeds, but the post-fetch
+    // read of the incoming tree then fails for a reason other than an absent ref — so
+    // the reconcile must abort rather than union a tree that drops machine A's entry.
+    const failingReadExec = makeIncomingReadFailExec(realExec, "fatal: unable to read tree object (simulated)");
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: failingReadExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
+      MACHINE_B,
+    );
+
+    expect(outcome.kind).toBe("failed");
+    // Machine A's entry survives on the remote — no narrowed tree was pushed.
+    expect(await remoteKeys(repoB)).toEqual([MACHINE_A]);
+  });
+
+  it("treats a legitimately-absent post-fetch read as empty and unions rather than aborting", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await reconcileSyncStatePush(ioA, MACHINE_A);
+
+    await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
+
+    const realExec = makeGitExec(repoB);
+    // The incoming tree reads as a legitimately absent ref (git's "Not a valid object
+    // name"). Absence is not a failure: the reconcile unions it as empty and completes
+    // rather than surfacing a failed abort. This isolates the absent branch from the
+    // errored branch above. (The remote union legitimately omits machine A here — the
+    // synthetic absent read contributes nothing; the union-preservation guarantee is
+    // covered by the errored-read test above, which leaves A intact.)
+    const absentIncomingExec = makeIncomingReadFailExec(realExec, "fatal: Not a valid object name (simulated)");
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: absentIncomingExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
+      MACHINE_B,
+    );
+
+    expect(outcome.kind).toBe("reconciled");
+  });
+
+  it("fetches into a per-reconcile-unique incoming ref and cleans it up", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await reconcileSyncStatePush(ioA, MACHINE_A);
+    await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
+
+    const realExec = makeGitExec(repoB);
+    const fetchedRefs: string[] = [];
+    const spyExec: GitExec = async (cmd, args) => {
+      if (args[0] === "fetch") {
+        // refspec is the last arg, `+<ref>:<incoming>`.
+        const incoming = String(args[args.length - 1]).split(":")[1];
+        if (incoming) fetchedRefs.push(incoming);
+      }
+      return realExec(cmd, args);
+    };
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: spyExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
+      MACHINE_B,
+    );
+
+    expect(outcome.kind).toBe("reconciled");
+    // The tracking ref is per-reconcile-unique — the shared base plus a token suffix —
+    // so two concurrent reconciles never fetch into (or delete) the same ref.
+    expect(fetchedRefs).toHaveLength(1);
+    const incoming = fetchedRefs[0] ?? "";
+    expect(incoming.startsWith(`${incomingSyncStateRef(REF)}__`)).toBe(true);
+    expect(incoming).not.toBe(incomingSyncStateRef(REF));
+    // And it is cleaned up — no incoming ref leaks afterward.
+    const { stdout } = await realExec("git", ["for-each-ref", "--format=%(refname)", `${incomingSyncStateRef(REF)}*`]);
+    expect(stdout.trim()).toBe("");
   });
 });

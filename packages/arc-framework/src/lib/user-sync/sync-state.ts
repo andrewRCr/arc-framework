@@ -17,11 +17,13 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import { atomicWriteJson } from "../fs.js";
+import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
 import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
+/** Dedicated canonical machine-id store — a bare UUID, raced via exclusive create. */
+const MACHINE_ID_FILENAME = ".machine-id";
 const USER_INTERNAL_DIRNAME = ".internal";
 /** Notes ref prefix; mirrors the notes-ref module's internal `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
@@ -29,12 +31,11 @@ const USER_NOTES_REF = "refs/notes/arc/user";
 export interface LocalSyncState {
   version: 4;
   /**
-   * This machine's stable random identifier — a UUID generated once on first
-   * need (see {@link getOrCreateMachineId}) and persisted here so a sibling
-   * sync-state marker can be keyed per machine without ever leaking the
-   * hostname. Additive and optional: records written before a machine-id was
-   * needed hydrate without it, and a machine-id may be persisted on its own
-   * (before any save/load has written a complete record).
+   * Legacy machine-id field — the canonical store is now the dedicated
+   * `.machine-id` file (see {@link getOrCreateMachineId}). No longer written by
+   * any current writer, nor surfaced by the validated {@link readLocalSyncState}
+   * read; retained on the type solely so a pre-`.machine-id` record stays
+   * parseable for the one-time migration adopt, which reads it via the raw read.
    */
   machineId?: string;
   materializedManifestHash: string;
@@ -84,6 +85,11 @@ export function getUserInternalDir(cwd: string, identity: string): string {
   return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
 }
 
+/** Absolute path to the dedicated `.machine-id` store (the canonical machine identity). */
+function getMachineIdPath(cwd: string, identity: string): string {
+  return join(getUserInternalDir(cwd, identity), MACHINE_ID_FILENAME);
+}
+
 export async function readLocalSyncState(
   cwd: string,
   io: CoreIO,
@@ -119,9 +125,6 @@ export async function readLocalSyncState(
         const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
         return {
           version: 4,
-          ...(typeof record.machineId === "string" && record.machineId.length > 0
-            ? { machineId: record.machineId }
-            : {}),
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
@@ -174,55 +177,138 @@ function isProvenanceMap(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Exclusive-create seam — defaults to the real filesystem primitive. */
+export type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
+
+/** Read-back attempts for the lost-race branch (see {@link getOrCreateMachineId}). */
+const MACHINE_ID_READBACK_ATTEMPTS = 50;
+const MACHINE_ID_READBACK_DELAY_MS = 2;
+
 /**
- * Resolve this machine's stable identifier, generating and persisting one on
- * first need. Idempotent: once written, every later call returns the same
- * UUID. The id is a random {@link randomUUID} — never the hostname or any
- * environment value — so it can key a sync-state marker on a ref collaborators
- * fetch without leaking machine names.
+ * Resolve this machine's stable identifier from the dedicated `.machine-id`
+ * store under `user/{identity}/.internal/`, creating one on first need.
  *
- * The id is read and persisted independently of the full sync-state record's
- * schema validation (see {@link readPersistedMachineId}), so it is available
- * before any save/load has written a complete record.
+ * The id is a random {@link randomUUID} — never the hostname or any environment
+ * value — so it can key a sync-state marker on a ref collaborators fetch
+ * without leaking machine names. The first write uses an exclusive create
+ * ({@link exclusiveCreateFile}, `O_CREAT | O_EXCL`): concurrent first-callers
+ * race it, exactly one wins, and every loser adopts the winner's id via an
+ * `EEXIST` read-back — so two first-callers on one machine converge on a single
+ * id rather than each minting a different one. On a first write, an id already
+ * established under the legacy `.sync-state.json` field is adopted rather than
+ * minted (preserving an existing identity); that field is read-tolerated only,
+ * never written back. Idempotent: once written, every later call returns the
+ * persisted id without minting.
  *
+ * @param exclusiveCreate - Exclusive-create seam, defaulting to the real
+ *   filesystem primitive; injectable so a test can force the lost-race branch.
  * @returns This machine's persisted machine-id.
  */
 export async function getOrCreateMachineId(
   cwd: string,
   io: CoreIO,
   identity: string,
+  exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
 ): Promise<string> {
-  const existing = await readPersistedMachineId(cwd, io, identity);
+  const machineIdPath = getMachineIdPath(cwd, identity);
+
+  const existing = await readMachineIdFile(io, machineIdPath);
   if (existing) return existing;
 
-  const machineId = randomUUID();
-  const raw = await readSyncStateRaw(cwd, io, identity);
-  const internalDir = getUserInternalDir(cwd, identity);
-  await ensureDir(internalDir, io.mkdir);
-  // Merge into any existing record so a machine-id written before a full
-  // save/load record exists is preserved when that record later lands, and
-  // vice versa.
-  await atomicWriteJson(join(internalDir, LOCAL_SYNC_STATE_FILENAME), {
-    ...(raw ?? {}),
-    machineId,
-  });
-  return machineId;
+  // On a fresh `.machine-id`, adopt an id already established under the legacy
+  // `.sync-state.json` field before minting — so a machine that already has an
+  // identity keeps it rather than orphaning its sync-state marker key. The
+  // legacy field is read-tolerated only; nothing writes it back. Routed through
+  // the same exclusive create so concurrent migrators still converge on one.
+  const adopted = await readLegacyMachineId(cwd, io, identity);
+  const candidate = adopted ?? randomUUID();
+  try {
+    await exclusiveCreate(machineIdPath, candidate);
+    return candidate;
+  } catch (err) {
+    if (!isEexistError(err)) throw err;
+    // Lost the create race: a concurrent first-caller already wrote the
+    // canonical id. Adopt it so both callers converge. The winner's exclusive
+    // create can momentarily precede its content write, so the read-back
+    // tolerates a brief empty window before giving up.
+    for (let attempt = 0; attempt < MACHINE_ID_READBACK_ATTEMPTS; attempt++) {
+      const winner = await readMachineIdFile(io, machineIdPath);
+      if (winner) return winner;
+      await delay(MACHINE_ID_READBACK_DELAY_MS);
+    }
+    throw err;
+  }
 }
 
 /**
- * The persisted machine-id, read directly from `.sync-state.json` and bypassing
- * the full-record schema validation — a machine-id can legitimately exist on a
- * record that carries no save/load fields yet. Returns `null` when none is
- * stored.
+ * Read the bare UUID from the `.machine-id` store, or `null` when the file is
+ * absent or empty. Only a genuine `ENOENT` reads as absent; any other read failure
+ * (a permission error, an unreadable store) rethrows rather than masquerading as
+ * "no id yet" — masking it would mint a second identity and orphan this machine's
+ * sync-state marker key.
  */
-async function readPersistedMachineId(
+async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = await io.readFile(machineIdPath);
+  } catch (err) {
+    if (isEnoentError(err)) return null;
+    throw err;
+  }
+  const id = raw.trim();
+  // Require the full UUID shape, not just non-empty: the winner's exclusiveCreateFile
+  // creates the file before its body is fully written, so an EEXIST loser's read-back
+  // can observe a partial id. Rejecting a partial keeps it in the retry/fail-closed
+  // path instead of adopting a truncated id.
+  return isMachineId(id) ? id : null;
+}
+
+/** Whether a string is a canonical machine id — the randomUUID shape getOrCreateMachineId mints. */
+function isMachineId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
+}
+
+/** Whether an error is a filesystem `EEXIST` (the lost-race signal). */
+function isEexistError(err: unknown): boolean {
+  return isErrnoCode(err, "EEXIST");
+}
+
+/** Whether an error is a filesystem `ENOENT` (the legitimately-absent signal). */
+function isEnoentError(err: unknown): boolean {
+  return isErrnoCode(err, "ENOENT");
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
+  return (
+    typeof err === "object"
+    && err !== null
+    && (err as { code?: unknown }).code === code
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * The legacy machine-id, read directly from the pre-`.machine-id`
+ * `.sync-state.json` field and bypassing full-record schema validation. Used
+ * solely by {@link getOrCreateMachineId}'s one-time migration adopt — no current
+ * writer persists this field. Returns `null` when none is stored.
+ */
+async function readLegacyMachineId(
   cwd: string,
   io: CoreIO,
   identity: string,
 ): Promise<string | null> {
   const raw = await readSyncStateRaw(cwd, io, identity);
   const machineId = raw?.machineId;
-  return typeof machineId === "string" && machineId.length > 0 ? machineId : null;
+  if (typeof machineId !== "string") return null;
+  // Adopt only a well-formed legacy id: a partial or malformed value would be written
+  // to .machine-id, returned once, then read back as invalid (readMachineIdFile rejects
+  // it) and fail the exclusive-create read-back with EEXIST. Anything else → mint instead.
+  const trimmed = machineId.trim();
+  return isMachineId(trimmed) ? trimmed : null;
 }
 
 /** Parse `.sync-state.json` into its raw object form (internal path preferred, then legacy), or `null`. */
@@ -273,16 +359,11 @@ export async function writeLocalSyncState(
   // otherwise the prior record's list carries forward.
   const prior = await readLocalSyncState(cwd, io, identity);
   const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
-  // A machine-id may have been persisted on a record with no save/load fields,
-  // which the validated read above returns as null — fall back to the raw read
-  // so the id survives the first complete record this write lands.
-  const machineId = prior?.machineId ?? (await readPersistedMachineId(cwd, io, identity)) ?? undefined;
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
     version: 4,
-    ...(machineId ? { machineId } : {}),
     materializedManifestHash,
     sourceCommit,
     sourceOperation,
@@ -335,7 +416,6 @@ export async function clearPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
-    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,
@@ -382,7 +462,6 @@ export async function clearErrandPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
-    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,

@@ -44,6 +44,25 @@ export async function atomicWriteJson(targetPath: string, data: unknown): Promis
 }
 
 /**
+ * Create a file exclusively, failing if it already exists.
+ *
+ * Uses the `wx` open flag (`O_CREAT | O_EXCL`): the create is atomic against
+ * concurrent callers — exactly one writer wins, and every other gets an
+ * `EEXIST` rejection. The parent directory is created if missing. Unlike
+ * {@link atomicWriteJson}, this never overwrites — the existence check and the
+ * create are one indivisible step, making it the primitive for
+ * create-if-absent races (e.g. a converged machine identity).
+ *
+ * @param targetPath - Absolute path to create
+ * @param content - File content to write
+ * @throws A `NodeJS.ErrnoException` with `code === "EEXIST"` when the path already exists
+ */
+export async function exclusiveCreateFile(targetPath: string, content: string): Promise<void> {
+  await mkdir(dirname(targetPath), { recursive: true });
+  await writeFile(targetPath, content, { flag: "wx" });
+}
+
+/**
  * Normalize a path to use forward slashes regardless of platform.
  *
  * Used to ensure manifest keys and serialized paths are consistent across

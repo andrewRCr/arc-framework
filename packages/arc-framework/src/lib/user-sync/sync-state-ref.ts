@@ -14,12 +14,8 @@
  * @module
  */
 
-import {
-  hashBlob,
-  readRefTip,
-  readTreeEntries,
-  writeTreeCommit,
-} from "../git/ref-tree.js";
+import { hashBlob, readTreeEntries } from "../git/ref-tree.js";
+import { writeTreeWithCasRetry } from "./cas-retry.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 
 export type { GitExec, GitExecInput };
@@ -33,9 +29,10 @@ export function syncStateRef(identity: string): string {
 }
 
 /**
- * The temp tracking ref the remote sync-state ref is fetched into before a
- * reconcile reads it — kept distinct from the local ref so a fetch never
- * disturbs this machine's own writes.
+ * The base name for the temp tracking ref the remote sync-state ref is fetched
+ * into before a reconcile reads it — kept distinct from the local ref so a fetch
+ * never disturbs this machine's own writes. A reconcile appends a per-call
+ * {@link uniqueRefToken} so concurrent same-machine reconciles never share one.
  */
 export function incomingSyncStateRef(ref: string): string {
   return `${ref}__incoming`;
@@ -96,10 +93,12 @@ export async function writeEntry(
 ): Promise<string> {
   const ref = syncStateRef(io.identity);
   const blobSha = await hashBlob(io.execInput, content);
-  const entries = await readTreeEntries(io.exec, ref);
-  entries.set(machineId, blobSha);
-  const tip = await readRefTip(io.exec, ref);
-  return writeTreeCommit(io, ref, entries, `sync-state: write ${machineId}`, tip ? [tip] : []);
+  const outcome = await writeTreeWithCasRetry(io, ref, `sync-state: write ${machineId}`, (entries) => {
+    entries.set(machineId, blobSha);
+    return entries;
+  });
+  if (outcome.kind === "failed") throw outcome.error;
+  return outcome.sha;
 }
 
 /**
@@ -114,13 +113,20 @@ export async function pushSyncStateRef(io: SyncStateRefReadIO): Promise<void> {
 }
 
 /**
- * Fetch origin's sync-state ref into the local tracking ref, force-updating it.
+ * Fetch origin's sync-state ref into the given tracking ref, force-updating it.
  * The orphan ref's tips share no ancestry across machines, so the force refspec
- * is required; the tracking ref is the reconcile input a later phase merges.
+ * is required; the tracking ref is the reconcile input the merge reads. The
+ * caller supplies the tracking ref so a reconcile can pass a per-call unique one.
  *
  * @param io - Injected git seams and identity.
+ * @param incoming - The tracking ref to fetch into.
  */
-export async function fetchSyncStateRef(io: SyncStateRefReadIO): Promise<void> {
+export async function fetchSyncStateRef(io: SyncStateRefReadIO, incoming: string): Promise<void> {
   const ref = syncStateRef(io.identity);
-  await io.exec("git", ["fetch", "origin", `+${ref}:${incomingSyncStateRef(ref)}`]);
+  // Never let the destination be the live ref — a `+ref:ref` refspec would force-reset
+  // this machine's own sync-state. Reconcile callers pass a per-call unique tracking ref.
+  if (incoming === ref) {
+    throw new Error(`fetchSyncStateRef: refusing to fetch into the live ref ${ref}`);
+  }
+  await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
 }

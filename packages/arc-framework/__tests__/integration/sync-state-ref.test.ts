@@ -29,6 +29,7 @@ import {
   type SyncStateRefIO,
 } from "../../src/lib/user-sync/sync-state-ref.js";
 import { readTreeEntries } from "../../src/lib/git/ref-tree.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 import {
   readSyncStateMarker,
   serializeSyncStateMarker,
@@ -116,6 +117,30 @@ describe("sync-state ref transport primitives", () => {
     expect(await readEntry(io, "machine-b")).toBe("b-original");
   });
 
+  it("survives a same-machine writer that advances the ref mid-write (CAS retry)", async () => {
+    await writeEntry(io, "machine-a", "a-first");
+
+    // On our write's update-ref, a sibling first writes its own key — advancing
+    // the ref between our read and our write, forcing the CAS rejection the retry
+    // frame must recover from rather than clobbering the sibling's entry.
+    const realExec = makeGitExec(dir);
+    let raced = false;
+    const racingExec: GitExec = async (cmd, args) => {
+      if (!raced && args[0] === "update-ref" && args[1] === syncStateRef(IDENTITY)) {
+        raced = true;
+        await writeEntry({ exec: realExec, execInput: io.execInput, identity: IDENTITY }, "machine-b", "b-sib");
+      }
+      return realExec(cmd, args);
+    };
+    const racingIo: SyncStateRefIO = { exec: racingExec, execInput: io.execInput, identity: IDENTITY };
+
+    await writeEntry(racingIo, "machine-a", "a-second");
+
+    // Both writers' keys survive — the retry rebuilt our entry on the sibling's fresh tree.
+    expect(await readEntry(io, "machine-a")).toBe("a-second");
+    expect(await readEntry(io, "machine-b")).toBe("b-sib");
+  });
+
   it("fetch force-updates the local tracking ref from origin", async () => {
     await addBareRemote(dir);
     await writeEntry(io, "machine-a", "alpha");
@@ -129,7 +154,7 @@ describe("sync-state ref transport primitives", () => {
     const { stdout: initSha } = await io.exec("git", ["rev-parse", "HEAD"]);
     await io.exec("git", ["update-ref", incoming, initSha.trim()]);
 
-    await fetchSyncStateRef(io);
+    await fetchSyncStateRef(io, incoming);
 
     const { stdout: refTip } = await io.exec("git", ["rev-parse", ref]);
     const { stdout: incomingTip } = await io.exec("git", ["rev-parse", incoming]);

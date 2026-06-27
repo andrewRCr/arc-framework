@@ -22,6 +22,19 @@ export function isRemoteUnavailableError(message: string): boolean {
   return message.includes("Could not read from remote") || message.includes("No such remote");
 }
 
+/**
+ * True when an `update-ref` failure is a compare-and-swap rejection — the ref's
+ * old value did not match what the caller expected. Git emits one of two shapes:
+ * `is at <sha> but expected <sha>` when the ref moved under the writer, and
+ * `reference already exists` when a create-from-absent (empty old value) lost to
+ * a concurrent create. Only these retry under the same-machine CAS frame; every
+ * other git error surfaces. Sibling to {@link isNonFastForwardError} (the
+ * cross-machine push twin) and {@link isRemoteUnavailableError}.
+ */
+export function isCasRejectionError(message: string): boolean {
+  return message.includes("but expected") || message.includes("reference already exists");
+}
+
 /** Temp tracking ref a remote notes ref is fetched into before merging. */
 export function incomingNotesRef(fullNotesRef: string): string {
   return `${fullNotesRef}__incoming`;

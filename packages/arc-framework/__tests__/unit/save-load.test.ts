@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 
@@ -18,6 +18,7 @@ import {
 } from "../../src/commands/user/save-load.js";
 import {
   clearPartialPushMarker,
+  getNotesLockPath,
   getOrCreateMachineId,
   readLocalSyncState,
   recordPartialPushMarker,
@@ -148,7 +149,7 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       const content = files[name];
       if (content === undefined) {
         throw new Error(`unexpected file read: ${filePath}`);
@@ -529,6 +530,115 @@ describe("runUserSave — save verification", () => {
   });
 });
 
+/** Records concurrent occupancy of `runUserSave`'s note-write critical section. */
+interface CriticalSectionRecorder {
+  active: number;
+  maxActive: number;
+  commits: string[];
+}
+
+/**
+ * Save IO whose `writeNote` reports critical-section occupancy into a shared
+ * recorder and holds the section open briefly — so two unserialized peers would
+ * be caught overlapping (`maxActive > 1`). The lock keeps `maxActive` at 1.
+ */
+function concurrentSaveIO(
+  head: string,
+  recorder: CriticalSectionRecorder,
+  config: { writeNoteThrows?: boolean } = {},
+): UserIOContext {
+  const files = { "SESSION-NOTES.md": "# Notes" };
+  let writtenNote: string | null = null;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = basename(filePath);
+      const content = files[name as keyof typeof files];
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string, commit?: string) => {
+      recorder.active += 1;
+      recorder.maxActive = Math.max(recorder.maxActive, recorder.active);
+      // Hold the section open so an unserialized peer would overlap here.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (config.writeNoteThrows) {
+        recorder.active -= 1;
+        throw new Error("write failed");
+      }
+      writtenNote = content;
+      recorder.commits.push(commit ?? "");
+      recorder.active -= 1;
+    }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+}
+
+describe("runUserSave — note-write serialization (advisory lock)", () => {
+  let cwd: string;
+  const headA = "aa".padEnd(40, "0");
+  const headB = "bb".padEnd(40, "0");
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-save-lock-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("serializes two racing note writes so both land without collapsing to one", async () => {
+    const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
+
+    await Promise.all([
+      runUserSave({ cwd, io: concurrentSaveIO(headA, recorder), identity: "andrew" }),
+      runUserSave({ cwd, io: concurrentSaveIO(headB, recorder), identity: "andrew" }),
+    ]);
+
+    // The lock keeps the two note writes from overlapping...
+    expect(recorder.maxActive).toBe(1);
+    // ...and both writes land — neither is silently dropped.
+    expect([...recorder.commits].sort()).toEqual([headA, headB].sort());
+  });
+
+  it("releases the lock when the note write throws, so the next save proceeds", async () => {
+    const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
+
+    await expect(
+      runUserSave({
+        cwd,
+        io: concurrentSaveIO(headA, recorder, { writeNoteThrows: true }),
+        identity: "andrew",
+      }),
+    ).rejects.toThrow("write failed");
+
+    // The lock was released in `finally` despite the throw — no orphaned lockfile.
+    expect(await exists(getNotesLockPath(cwd, "andrew"))).toBe(false);
+
+    // A subsequent save acquires cleanly rather than deadlocking on a stuck lock.
+    const result = await runUserSave({
+      cwd,
+      io: concurrentSaveIO(headB, recorder),
+      identity: "andrew",
+    });
+    expect(result.fileCount).toBe(1);
+  });
+});
+
 interface SaveNotesMockConfig {
   head?: string;
   /** Current on-disk files being saved. */
@@ -564,7 +674,7 @@ function mockSaveIOWithNotes(
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       const content = config.files[name];
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
@@ -659,7 +769,7 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       if (Object.hasOwn(readback, name)) {
         const content = readback[name];
         if (content === undefined) {
@@ -1113,12 +1223,12 @@ describe("LocalSyncState v4 schema", () => {
 
   const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  it("generates and persists a new machine-id on first need when none is stored", async () => {
+  it("generates and persists a new machine-id to .machine-id on first need when none is stored", async () => {
     const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(id).toMatch(UUID_V4);
-    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.machineId).toBe(id);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(id);
   });
 
   it("returns the same machine-id on a subsequent read (idempotent — no regeneration)", async () => {
@@ -1126,8 +1236,8 @@ describe("LocalSyncState v4 schema", () => {
     const second = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(second).toBe(first);
-    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.machineId).toBe(first);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(first);
   });
 
   it("generates a random UUID, not derived from hostname or any environment value", async () => {
@@ -1145,5 +1255,94 @@ describe("LocalSyncState v4 schema", () => {
     } finally {
       await rm(otherCwd, { recursive: true, force: true });
     }
+  });
+
+  it("adopts the winner's id when it loses the exclusive-create race (EEXIST read-back)", async () => {
+    const winnerId = "99999999-9999-4999-8999-999999999999";
+    // Force the lost-race branch: the injected create models a concurrent
+    // first-caller that already wrote the canonical id, so our create collides.
+    const losingCreate = vi.fn(async (path: string) => {
+      await writeFile(path, winnerId, "utf-8");
+      const err: NodeJS.ErrnoException = new Error("EEXIST: file already exists");
+      err.code = "EEXIST";
+      throw err;
+    });
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity, losingCreate);
+
+    expect(id).toBe(winnerId);
+    expect(losingCreate).toHaveBeenCalledOnce();
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(winnerId);
+  });
+
+  it("rethrows a non-ENOENT read error rather than minting a second identity", async () => {
+    // A permission error reading .machine-id is not "no id yet": masking it would
+    // mint a fresh id and orphan this machine's sync-state marker key.
+    const eacces: NodeJS.ErrnoException = new Error("EACCES: permission denied");
+    eacces.code = "EACCES";
+    const io = { ...realFsIO(), readFile: vi.fn(async () => Promise.reject(eacces)) };
+
+    await expect(getOrCreateMachineId(cwd, io, identity)).rejects.toThrow("EACCES");
+    // The error aborted before any create — no id was written behind it.
+    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+  });
+
+  it("adopts a legacy .sync-state.json machineId into .machine-id instead of minting fresh", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    await writeFile(syncStatePath, `${JSON.stringify({ machineId: legacyId }, null, 2)}\n`, "utf-8");
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    // The established identity migrates, rather than a fresh mint orphaning its marker key.
+    expect(id).toBe(legacyId);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(legacyId);
+  });
+
+  it("read-tolerates the legacy .sync-state.json machineId — never writes it back", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    const before = `${JSON.stringify({ machineId: legacyId, materializedManifestHash: "x" }, null, 2)}\n`;
+    await writeFile(syncStatePath, before, "utf-8");
+
+    await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    // The adopt is a one-way read: the legacy record is left byte-identical.
+    expect(await readFile(syncStatePath, "utf-8")).toBe(before);
+  });
+
+  it("drops the machineId field from records it writes, even when a prior record carried one", async () => {
+    const priorRecord = {
+      version: 4,
+      machineId: "abcdef01-1234-4abc-89ab-001122334455",
+      materializedManifestHash: "old",
+      sourceCommit: "a".repeat(40),
+      sourceOperation: "save" as const,
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(priorRecord, null, 2)}\n`, "utf-8");
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "ab".repeat(8), "b".repeat(40), "save");
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBeUndefined();
+    expect(onDisk.sourceCommit).toBe("b".repeat(40));
+  });
+
+  it("drops the legacy machineId field when clearing a partial-push marker", async () => {
+    const priorRecord = {
+      version: 4,
+      machineId: "abcdef01-1234-4abc-89ab-001122334455",
+      materializedManifestHash: "h",
+      sourceCommit: "a".repeat(40),
+      sourceOperation: "save" as const,
+      partialPush: { localRefHash: "d".repeat(40), sourceCommit: "a".repeat(40) },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(priorRecord, null, 2)}\n`, "utf-8");
+
+    await clearPartialPushMarker(cwd, realFsIO(), identity);
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBeUndefined();
+    expect(onDisk.partialPush).toBeUndefined();
   });
 });
