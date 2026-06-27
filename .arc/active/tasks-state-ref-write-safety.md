@@ -196,19 +196,25 @@ _Purpose:_ Add the hybrid harness's empirical tier — a bounded number of round
 against a temp git repo, per guard — and confirm the exclusive-create / lock / liveness primitives behave across
 the Windows / WSL / Mac CI matrix.
 
-### `[ ]` **5.1 Bounded true-race e2e harness and per-guard smokes**
+### `[x]` **5.1 Bounded true-race e2e harness and per-guard smokes**
 
 - _Goal:_ Real concurrent processes racing each guard against a temp git repo land both writes (and agree on the
   machine-id), giving the empirical backstop the deterministic interleave tests can't.
 
-    - `[ ]` **5.1.a True-race harness**
-        - an e2e helper spawning a fixed, bounded number of rounds of real concurrent writers against a temp git
-          repo; bounded so the suite stays fast and flake-free
+    - `[x]` **5.1.a True-race harness**
+        - `true-race.ts` spawns the round's workers, holds them at a shared file barrier until all are set up, then
+          releases together so the contended writes overlap; `race-worker.ts` is one process performing one guarded
+          write, run via `node --import tsx` so it imports the guard primitives from source
 
-    - `[ ]` **5.1.b Per-guard smokes**
-        - errand ref and sync-state ref: both racing writes land, no silent drop (D1)
-        - two racing `runUserSave` note writes both land (D4)
-        - two machine-id first-callers agree on a single id (D3)
+    - `[x]` **5.1.b Per-guard smokes**
+        - errand ref and sync-state ref: two distinct-key writes both land in the ref tree, no silent drop (D1)
+        - two notes for two commits both land under the advisory lock (D4)
+        - two first-callers converge on a single persisted machine-id (D3)
+- _Outcome:_ Added `__tests__/e2e/{race-worker,true-race,state-ref-race.e2e.test}.ts`. The worker races the genuine
+  guard primitives (`writeEntry` / `writeErrandRecord`, the lock + `git notes add`, `getOrCreateMachineId`) as real
+  OS processes — the in-process interleave tests prove the catch; this proves real processes race clean. Worker
+  loads source via the already-present `tsx` devDep (no new dependency, no extra build step). 5 bounded rounds ×
+  2 racers per guard; ~3.3s total.
 - _Strategies:_ strategy-testing-methodology.md
 
 ### `[ ]` **5.2 Add an OS-matrixed CI job for the concurrency/portability suite**
