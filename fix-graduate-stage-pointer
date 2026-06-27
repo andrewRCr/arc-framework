@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "fix-graduate-stage-pointer",
+  "origin": "inbox",
+  "intent": "arc start graduate sets Current Workflow stage pointer",
+  "branch": "fix/fix-graduate-stage-pointer",
+  "createdAt": "2026-06-27T00:03:37.173Z",
+  "originEntry": "`arc start` graduate leaves stage-pointer fields unset (`Current Workflow` `[none]`, `Next Action` `—`)"
+}
