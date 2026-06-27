@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "notes-drift-shipped-oracle",
-  "origin": "description",
-  "intent": "Migrate clean-arm notes-drift retirement classification to the shipped-set oracle so a note-only SESSION-NOTES ghost of a shipped WU is recognized as benign retirement (unfinished half of PR #145)",
-  "branch": "fix/notes-drift-shipped-oracle",
-  "createdAt": "2026-06-27T14:54:32.704Z"
-}
