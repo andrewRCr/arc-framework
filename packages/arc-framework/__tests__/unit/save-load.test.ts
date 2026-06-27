@@ -7,7 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 
@@ -149,7 +149,7 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       const content = files[name];
       if (content === undefined) {
         throw new Error(`unexpected file read: ${filePath}`);
@@ -558,7 +558,7 @@ function concurrentSaveIO(
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       const content = files[name as keyof typeof files];
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
@@ -674,7 +674,7 @@ function mockSaveIOWithNotes(
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       const content = config.files[name];
       if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
       return content;
@@ -769,7 +769,7 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
     }),
     readFile: vi.fn(async (filePath: string) => {
-      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const name = basename(filePath);
       if (Object.hasOwn(readback, name)) {
         const content = readback[name];
         if (content === undefined) {
