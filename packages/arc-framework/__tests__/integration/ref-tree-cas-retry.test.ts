@@ -97,6 +97,11 @@ describe("writeTreeWithCasRetry", () => {
 
     expect(outcome.kind).toBe("failed");
     expect(updateRefCalls).toBe(1);
+    // The original non-CAS error is preserved, not collapsed into the generic
+    // exhaustion failure — the frame surfaces a typed, distinguishable outcome.
+    if (outcome.kind === "failed") {
+      expect(outcome.error.message).toContain("some unrelated git error");
+    }
   });
 
   it("exhausts at MAX_RECONCILE_ATTEMPTS against a relentless racer and returns a typed failure", async () => {
@@ -118,5 +123,9 @@ describe("writeTreeWithCasRetry", () => {
     expect(outcome.kind).toBe("failed");
     expect(races).toBe(MAX_RECONCILE_ATTEMPTS);
     expect((await readTreeEntries(io.exec, REF)).has("ours")).toBe(false);
+    // Exhaustion surfaces its own typed failure, distinct from a non-CAS error.
+    if (outcome.kind === "failed") {
+      expect(outcome.error.message).toContain("exceeded retry attempts");
+    }
   });
 });

@@ -26,8 +26,19 @@ import {
   hashBlob,
   type RefTreeWriteIO,
 } from "../../src/lib/git/ref-tree.js";
+import { isCasRejectionError } from "../../src/lib/user-sync/notes-merge.js";
 
 const REF = "refs/arc/test/cas";
+
+/** Run a write expected to reject, returning its error so the rejection shape can be asserted. */
+async function captureRejection(p: Promise<unknown>): Promise<Error> {
+  try {
+    await p;
+  } catch (err) {
+    return err instanceof Error ? err : new Error(String(err));
+  }
+  throw new Error("expected the write to reject, but it resolved");
+}
 
 describe("writeTreeCommit compare-and-swap", () => {
   let dir: string;
@@ -73,10 +84,12 @@ describe("writeTreeCommit compare-and-swap", () => {
     // A concurrent writer advances the ref underneath us, CAS-correct.
     const current = await writeTreeCommit(io, REF, await entriesFor("k", "second"), "concurrent", [stale!], stale);
 
-    // Our write still expects `stale` — git's old-value check must reject it.
-    await expect(
+    // Our write still expects `stale` — git's old-value check must reject it, and the
+    // rejection must be the CAS shape the retry frame keys on, not just any throw.
+    const rejection = await captureRejection(
       writeTreeCommit(io, REF, await entriesFor("k", "clobber"), "loser", [stale!], stale),
-    ).rejects.toThrow();
+    );
+    expect(isCasRejectionError(rejection.message)).toBe(true);
 
     // Canonical is unchanged — the concurrent writer's commit and content survive.
     expect(await readRefTip(io.exec, REF)).toBe(current);
@@ -88,10 +101,12 @@ describe("writeTreeCommit compare-and-swap", () => {
     expect(await readRefTip(io.exec, REF)).toBe(created);
 
     // A second create-from-absent (expected old tip null → empty old value) must
-    // fail because the ref now exists, rather than overwriting it.
-    await expect(
+    // fail because the ref now exists, rather than overwriting it — and reject with
+    // the CAS shape, not just any throw.
+    const rejection = await captureRejection(
       writeTreeCommit(io, REF, await entriesFor("k", "again"), "recreate", [], null),
-    ).rejects.toThrow();
+    );
+    expect(isCasRejectionError(rejection.message)).toBe(true);
 
     expect(await readRefTip(io.exec, REF)).toBe(created);
   });
