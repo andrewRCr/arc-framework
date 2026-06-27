@@ -16,6 +16,7 @@
 import {
   errandsRef,
   readTreeEntries,
+  readTreeEntriesDiscriminating,
   hashBlob,
   type ErrandRecordIO,
   type ErrandRecordReadIO,
@@ -216,7 +217,12 @@ export async function removeErrandRecord(io: ErrandRecordIO, slug: string): Prom
   const ref = errandsRef(io.identity);
   // Pre-check the no-op case so an absent slug never writes a redundant commit;
   // the retry frame re-reads the tree, so the delete still applies to fresh state.
-  if (!(await readTreeEntries(io.exec, ref)).has(slug)) return;
+  // Discriminate a genuine read failure from a legitimately absent ref — a fail-open
+  // read would treat an errored tree as empty and return success without removing an
+  // existing record.
+  const precheck = await readTreeEntriesDiscriminating(io.exec, ref);
+  if (precheck.kind === "error") throw precheck.error;
+  if (precheck.kind === "absent" || !precheck.entries.has(slug)) return;
   const outcome = await writeTreeWithCasRetry(io, ref, `errand record: remove ${slug}`, (entries) => {
     entries.delete(slug);
     return entries;

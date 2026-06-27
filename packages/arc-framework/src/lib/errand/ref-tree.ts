@@ -10,12 +10,13 @@
 import {
   readRefTip,
   readTreeEntries,
+  readTreeEntriesDiscriminating,
   hashBlob,
   writeTreeCommit as writeRefTreeCommit,
 } from "../git/ref-tree.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 
-export { readRefTip, readTreeEntries, hashBlob };
+export { readRefTip, readTreeEntries, readTreeEntriesDiscriminating, hashBlob };
 export type { GitExecInput };
 
 /** Orphan state-ref namespace for errand records; `{identity}` is appended. */

@@ -71,19 +71,29 @@ export async function writeTreeWithCasRetry(
   mutate: TreeMutation,
 ): Promise<CasWriteOutcome> {
   for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
+    let tip: string | null;
+    let mutated: Map<string, string>;
     try {
-      const tip = await readRefTip(io.exec, ref);
+      tip = await readRefTip(io.exec, ref);
       const read = await readTreeEntriesDiscriminating(io.exec, ref);
       if (read.kind === "error") return { kind: "failed", error: read.error };
       const entries = read.kind === "entries" ? read.entries : new Map<string, string>();
-      const mutated = await mutate(entries);
+      mutated = await mutate(entries);
+    } catch (err) {
+      // A read or mutate failure is never a CAS conflict — surface it immediately
+      // rather than risk misclassifying a message that happens to match the CAS shape
+      // and burning a retry on it.
+      return { kind: "failed", error: err instanceof Error ? err : new Error(String(err)) };
+    }
+
+    try {
       const sha = await writeTreeCommit(io, ref, mutated, message, tip ? [tip] : [], tip);
       return { kind: "written", sha };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       // A genuine CAS rejection means the ref moved underneath us — re-read and
-      // rebuild. Anything else (a read, mutate, or non-CAS git failure) is
-      // unexpected and surfaces as a typed failure rather than escaping the frame.
+      // rebuild. Any other (non-CAS) git failure surfaces as a typed failure rather
+      // than escaping the frame.
       if (!isCasRejectionError(error.message)) return { kind: "failed", error };
     }
   }
