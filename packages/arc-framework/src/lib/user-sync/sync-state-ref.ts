@@ -29,9 +29,10 @@ export function syncStateRef(identity: string): string {
 }
 
 /**
- * The temp tracking ref the remote sync-state ref is fetched into before a
- * reconcile reads it — kept distinct from the local ref so a fetch never
- * disturbs this machine's own writes.
+ * The base name for the temp tracking ref the remote sync-state ref is fetched
+ * into before a reconcile reads it — kept distinct from the local ref so a fetch
+ * never disturbs this machine's own writes. A reconcile appends a per-call
+ * {@link uniqueRefToken} so concurrent same-machine reconciles never share one.
  */
 export function incomingSyncStateRef(ref: string): string {
   return `${ref}__incoming`;
@@ -112,13 +113,15 @@ export async function pushSyncStateRef(io: SyncStateRefReadIO): Promise<void> {
 }
 
 /**
- * Fetch origin's sync-state ref into the local tracking ref, force-updating it.
+ * Fetch origin's sync-state ref into the given tracking ref, force-updating it.
  * The orphan ref's tips share no ancestry across machines, so the force refspec
- * is required; the tracking ref is the reconcile input a later phase merges.
+ * is required; the tracking ref is the reconcile input the merge reads. The
+ * caller supplies the tracking ref so a reconcile can pass a per-call unique one.
  *
  * @param io - Injected git seams and identity.
+ * @param incoming - The tracking ref to fetch into.
  */
-export async function fetchSyncStateRef(io: SyncStateRefReadIO): Promise<void> {
+export async function fetchSyncStateRef(io: SyncStateRefReadIO, incoming: string): Promise<void> {
   const ref = syncStateRef(io.identity);
-  await io.exec("git", ["fetch", "origin", `+${ref}:${incomingSyncStateRef(ref)}`]);
+  await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
 }

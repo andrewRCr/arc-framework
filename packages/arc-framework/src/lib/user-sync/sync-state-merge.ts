@@ -24,6 +24,7 @@ import {
   MAX_RECONCILE_ATTEMPTS,
   readRefTip,
   readTreeEntriesDiscriminating,
+  uniqueRefToken,
   writeTreeCommit,
 } from "../git/ref-tree.js";
 import type { GitExec } from "../git/exec.js";
@@ -141,8 +142,11 @@ export async function reconcileSyncStatePush(
  * same-machine guard. The tracking ref is cleaned up regardless of outcome.
  */
 async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: string): Promise<void> {
-  const incoming = incomingSyncStateRef(ref);
-  await fetchSyncStateRef(io);
+  // Per-reconcile-unique tracking ref: a shared identity-scoped one lets a concurrent
+  // same-machine reconcile's cleanup delete it before this one resolves incomingTip,
+  // which would then read the remote side as empty and CAS-write a narrowed tree.
+  const incoming = `${incomingSyncStateRef(ref)}__${uniqueRefToken()}`;
+  await fetchSyncStateRef(io, incoming);
   try {
     // Resolve both tips first and read each tree at that exact commit, so the merge
     // input and the compare-and-swap base are bound to one snapshot. Reading a tree

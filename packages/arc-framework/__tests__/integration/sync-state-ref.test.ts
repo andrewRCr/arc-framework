@@ -154,7 +154,7 @@ describe("sync-state ref transport primitives", () => {
     const { stdout: initSha } = await io.exec("git", ["rev-parse", "HEAD"]);
     await io.exec("git", ["update-ref", incoming, initSha.trim()]);
 
-    await fetchSyncStateRef(io);
+    await fetchSyncStateRef(io, incoming);
 
     const { stdout: refTip } = await io.exec("git", ["rev-parse", ref]);
     const { stdout: incomingTip } = await io.exec("git", ["rev-parse", incoming]);

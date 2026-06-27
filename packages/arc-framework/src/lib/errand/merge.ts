@@ -17,7 +17,7 @@
  * @module
  */
 
-import { MAX_RECONCILE_ATTEMPTS } from "../git/ref-tree.js";
+import { MAX_RECONCILE_ATTEMPTS, uniqueRefToken } from "../git/ref-tree.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/index.js";
 import {
   errandsRef,
@@ -135,7 +135,10 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
  * untouched and returns the collision on a divergent same-slug entry.
  */
 async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTreeMerge> {
-  const incoming = incomingErrandRef(ref);
+  // Per-reconcile-unique tracking ref: a shared identity-scoped one lets a concurrent
+  // same-machine reconcile's cleanup delete it before this one resolves incomingTip,
+  // which would then read the remote side as empty and CAS-write a narrowed tree.
+  const incoming = `${incomingErrandRef(ref)}__${uniqueRefToken()}`;
   await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
   try {
     // Resolve both tips first and read each tree at that exact commit, so the merge

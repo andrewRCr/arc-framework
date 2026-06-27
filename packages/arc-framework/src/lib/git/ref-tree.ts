@@ -37,6 +37,19 @@ export interface RefTreeWriteIO {
   execInput: GitExecInput;
 }
 
+let refTokenCounter = 0;
+
+/**
+ * A token that makes a temp ref unique per call — `pid` for cross-process
+ * distinctness, a process-local counter for concurrent calls within one process.
+ * Used to give each reconcile its own incoming tracking ref, so a concurrent
+ * reconcile can never fetch into (or delete) the ref another is mid-read on.
+ */
+export function uniqueRefToken(): string {
+  refTokenCounter += 1;
+  return `${process.pid}-${refTokenCounter}`;
+}
+
 /** Current commit a ref points at, or `null` when it does not resolve. */
 export async function readRefTip(exec: GitExec, ref: string): Promise<string | null> {
   try {
