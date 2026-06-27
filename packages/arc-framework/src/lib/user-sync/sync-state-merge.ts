@@ -20,7 +20,13 @@
  * @module
  */
 
-import { MAX_RECONCILE_ATTEMPTS, readRefTip, readTreeEntries, writeTreeCommit } from "../git/ref-tree.js";
+import {
+  MAX_RECONCILE_ATTEMPTS,
+  readRefTip,
+  readTreeEntriesDiscriminating,
+  writeTreeCommit,
+} from "../git/ref-tree.js";
+import type { GitExec } from "../git/exec.js";
 import { isNonFastForwardError, isRemoteUnavailableError } from "./notes-merge.js";
 import {
   syncStateRef,
@@ -138,8 +144,8 @@ async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: str
   const incoming = incomingSyncStateRef(ref);
   await fetchSyncStateRef(io);
   try {
-    const local = await readTreeEntries(io.exec, ref);
-    const remote = await readTreeEntries(io.exec, incoming);
+    const local = await readReconcileTree(io.exec, ref);
+    const remote = await readReconcileTree(io.exec, incoming);
     const merged = mergeSyncStateEntries(local, remote, ownMachineId);
 
     const localTip = await readRefTip(io.exec, ref);
@@ -151,6 +157,23 @@ async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: str
   } finally {
     await deleteRef(io, incoming);
   }
+}
+
+/**
+ * Read a reconcile input, treating a legitimately absent ref as empty but a
+ * genuine read failure as fatal.
+ *
+ * The advisory {@link module:lib/git/ref-tree.readTreeEntries} collapses both to
+ * empty — fine for fail-open reads, but here an *errored* read after a successful
+ * fetch would union a tree narrowed to this machine's own key, dropping siblings'
+ * entries. Throwing on `error` aborts the reconcile, which
+ * {@link reconcileSyncStatePush} surfaces through its single `{ kind: "failed" }`
+ * channel; an absent ref still unions normally as empty.
+ */
+async function readReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
+  const result = await readTreeEntriesDiscriminating(exec, ref);
+  if (result.kind === "error") throw result.error;
+  return result.kind === "entries" ? result.entries : new Map();
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */

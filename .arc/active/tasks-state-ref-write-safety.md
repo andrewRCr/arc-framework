@@ -90,20 +90,19 @@ own key — without disturbing the fail-open advisory callers.
 - _Outcome:_ Chose a new sibling reader over mutating the existing one (spec Open Question), keeping the
   discrimination opt-in at the future reconcile call site; the fail-open advisory callers are untouched.
 
-### `[ ]` **2.2 Abort the reconcile on a discriminated read error**
+### `[x]` **2.2 Abort the reconcile on a discriminated read error**
 
 - _Goal:_ A transient errored read inside the sync-state reconcile aborts it instead of writing a union tree
   narrowed to this machine's own key.
 
-    Build `test-first` (one behavior at a time):
-
-    - a post-fetch read error in `reconcileTrees` aborts before `writeTreeCommit` and surfaces through
-      `reconcileSyncStatePush`'s single `{ kind: "failed" }` channel — no narrowed tree is written
-    - a genuinely-absent ref still unions normally (absence is not an error)
-
-    - swap the reconcile reads in `reconcileTrees` (`lib/user-sync/sync-state-merge.ts`) to the discriminating
-      read; on an `error` result abort, propagating to the existing `{ kind: "failed" }` outcome. The errand
-      reconcile is out of scope — D2 is the sync-state reconcile only
+    - swapped `reconcileTrees`' two tree reads (`lib/user-sync/sync-state-merge.ts`) to a `readReconcileTree`
+      helper over `readTreeEntriesDiscriminating`: an `error` result throws (aborting before `writeTreeCommit`),
+      an `absent` result unions as empty, `entries` unions as read
+    - the thrown abort propagates through `reconcileSyncStatePush`'s existing reconcile-step catch to its single
+      `{ kind: "failed" }` channel — no new outcome variant
+    - the errand reconcile (`lib/errand/merge.ts`) is left on the fail-open reader — out of scope per D2
+- _Outcome:_ Closes the D2 narrowing window: a post-fetch read failure now fails the push rather than silently
+  dropping siblings' entries from the union, while a genuine absence still unions normally.
 
 ## **Phase 3:** D3 — Machine-id exclusive create-if-absent
 

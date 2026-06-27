@@ -27,6 +27,7 @@ import {
 } from "../../src/lib/user-sync/sync-state-merge.js";
 import {
   syncStateRef,
+  incomingSyncStateRef,
   pushSyncStateRef,
   type SyncStateRefIO,
 } from "../../src/lib/user-sync/sync-state-ref.js";
@@ -199,5 +200,59 @@ describe("sync-state-ref reconcile-push", () => {
     );
 
     expect(outcome.kind).toBe("failed");
+  });
+
+  it("aborts on a genuine post-fetch read error instead of writing a tree narrowed to this machine", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await reconcileSyncStatePush(ioA, MACHINE_A);
+
+    // repoB writes its own marker over a divergent root — its push is a genuine
+    // non-fast-forward that drives the reconcile.
+    await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
+
+    const realExec = makeGitExec(repoB);
+    // Push rejects non-ff (entering reconcile); the fetch succeeds, but the
+    // post-fetch tree read then fails for a reason other than an absent ref. The
+    // reconcile must abort rather than union a tree that drops machine A's entry.
+    const failingReadExec: GitExec = async (cmd, args) => {
+      if (args[0] === "ls-tree") throw new Error("fatal: unable to read tree object (simulated)");
+      return realExec(cmd, args);
+    };
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: failingReadExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
+      MACHINE_B,
+    );
+
+    expect(outcome.kind).toBe("failed");
+    // Machine A's entry survives on the remote — no narrowed tree was pushed.
+    expect(await remoteKeys(repoB)).toEqual([MACHINE_A]);
+  });
+
+  it("treats a legitimately-absent post-fetch read as empty and unions rather than aborting", async () => {
+    await writeSyncStateMarker(ioA, markerFor(MACHINE_A));
+    await reconcileSyncStatePush(ioA, MACHINE_A);
+
+    await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
+
+    const realExec = makeGitExec(repoB);
+    const incoming = incomingSyncStateRef(REF);
+    // The incoming tracking ref reads as a legitimately absent ref (git's "Not a
+    // valid object name"). Absence is not a failure — the reconcile unions it as
+    // empty and completes rather than surfacing a failed abort. This isolates the
+    // absent branch from the errored branch above.
+    const absentIncomingExec: GitExec = async (cmd, args) => {
+      if (args[0] === "ls-tree" && args[1] === incoming) {
+        throw new Error(`fatal: Not a valid object name ${incoming}`);
+      }
+      return realExec(cmd, args);
+    };
+
+    const outcome = await reconcileSyncStatePush(
+      { exec: absentIncomingExec, execInput: makeGitExecInput(repoB), identity: IDENTITY },
+      MACHINE_B,
+    );
+
+    expect(outcome.kind).toBe("reconciled");
   });
 });
