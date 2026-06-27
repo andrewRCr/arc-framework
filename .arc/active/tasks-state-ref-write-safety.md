@@ -251,8 +251,9 @@ the Windows / WSL / Mac CI matrix.
   unbounded loop, no silent drop (D1)
 - `[x]` A transient (errored, not absent) reconcile read aborts the reconcile with a typed failure instead of a
   narrowed union; the genuinely-absent case still unions; the advisory fail-open callers are unchanged (D2)
-- `[x]` Two racing `runUserSave` note writes both land under the advisory lock; a held lock from a dead pid (or
-  past the mtime ceiling) is detected stale and reclaimed; a thrown note-write releases the lock (D4)
+- `[x]` Two racing `runUserSave` note writes both land under the advisory lock; a held lock from a dead pid or a
+  corrupt record is detected stale and reclaimed (age is not a trigger — a live holder is never evicted); a
+  thrown note-write releases the lock (D4)
 - `[x]` Two concurrent machine-id first-callers converge on a single id; an existing `.sync-state.json`
   `machineId` is adopted into `.machine-id` on first run (no re-mint, no orphaned marker key) (D3)
 - `[x]` The exclusive-create, lock, and liveness primitives pass on the `ubuntu` / `windows` / `macos` matrixed
