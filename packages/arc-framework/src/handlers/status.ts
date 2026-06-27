@@ -45,7 +45,6 @@ import {
   runExtensionsStatus,
 } from "../commands/extensions.js";
 import {
-  computeDriftingSubdirs,
   runUserSessionInitStatus,
   runUserStatus,
 } from "../commands/user.js";
@@ -426,7 +425,6 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           exec: gitExec,
           readDir: io.readDir,
           readFile: io.readFile,
-          computeDrift: computeDriftingSubdirs,
         });
       },
       errandSweep: async (id) => {
