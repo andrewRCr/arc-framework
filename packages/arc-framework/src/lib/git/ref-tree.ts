@@ -49,13 +49,55 @@ export async function readRefTip(exec: GitExec, ref: string): Promise<string | n
 
 /** key → blob-sha entries in a ref's tree, or empty when the ref is absent. */
 export async function readTreeEntries(exec: GitExec, ref: string): Promise<Map<string, string>> {
-  const entries = new Map<string, string>();
+  try {
+    const { stdout } = await exec("git", ["ls-tree", ref]);
+    return parseTreeEntries(stdout);
+  } catch {
+    return new Map();
+  }
+}
+
+/**
+ * A discriminating tree read — present entries, a legitimately absent ref, or a
+ * genuine git read failure — as opposed to {@link readTreeEntries}, which collapses
+ * the latter two into an empty map.
+ */
+export type TreeReadResult =
+  | { kind: "entries"; entries: Map<string, string> }
+  | { kind: "absent" }
+  | { kind: "error"; error: Error };
+
+/**
+ * Read a ref's tree, distinguishing a legitimately absent ref from a genuine git
+ * read failure.
+ *
+ * {@link readTreeEntries} collapses both an absent ref and a failed read to an
+ * empty map — the right fail-open stance for advisory orphan-state reads. The
+ * sync-state reconcile cannot afford that conflation: an *errored* read after a
+ * successful fetch would otherwise union a tree narrowed to this machine's own
+ * key, transiently dropping siblings' entries. This reader returns a tagged result
+ * so that one call site can abort on `error` while still unioning normally on
+ * `absent`. The discrimination is opt-in there; the fail-open readers are unchanged.
+ *
+ * @param exec - Standard executor for the `ls-tree` read.
+ * @param ref - The ref whose tree to read.
+ * @returns `entries` with the key → blob-sha map, `absent` when the ref does not
+ *   resolve, or `error` carrying the underlying git failure.
+ */
+export async function readTreeEntriesDiscriminating(exec: GitExec, ref: string): Promise<TreeReadResult> {
   let stdout: string;
   try {
     ({ stdout } = await exec("git", ["ls-tree", ref]));
-  } catch {
-    return entries;
+  } catch (err) {
+    const error = err instanceof Error ? err : new Error(String(err));
+    return isAbsentRefError(error.message) ? { kind: "absent" } : { kind: "error", error };
   }
+  return { kind: "entries", entries: parseTreeEntries(stdout) };
+}
+
+/** Parse `git ls-tree` stdout into key → blob-sha entries. */
+function parseTreeEntries(stdout: string): Map<string, string> {
+  const entries = new Map<string, string>();
   for (const line of stdout.split("\n")) {
     // `<mode> SP <type> SP <sha> TAB <name>`
     const match = /^\d{6} blob ([0-9a-f]{40}|[0-9a-f]{64})\t(.+)$/u.exec(line.trimEnd());
@@ -65,6 +107,17 @@ export async function readTreeEntries(exec: GitExec, ref: string): Promise<Map<s
     }
   }
   return entries;
+}
+
+/**
+ * True when an `ls-tree` failure means the ref simply does not resolve — git's
+ * "Not a valid object name" for a ref that was never created. Every other read
+ * failure (a non-tree object, a corrupt object store, an unavailable repo) is a
+ * genuine error, not a clean absence. Sibling in spirit to the user-sync push
+ * discriminators (`isNonFastForwardError` / `isRemoteUnavailableError`).
+ */
+function isAbsentRefError(message: string): boolean {
+  return message.includes("Not a valid object name");
 }
 
 /** Hash content into the object store as a blob, returning its sha. */

@@ -76,22 +76,19 @@ _Purpose:_ Give the sync-state reconcile a read that distinguishes a genuine git
 absent ref, so a transient errored read aborts the reconcile instead of writing a tree narrowed to this machine's
 own key — without disturbing the fail-open advisory callers.
 
-### `[ ]` **2.1 Add a discriminating ref/tree read**
+### `[x]` **2.1 Add a discriminating ref/tree read**
 
 - _Goal:_ The reconcile can tell a genuine git read failure apart from a legitimately absent ref, while every
   existing advisory caller keeps its fail-open null / empty-on-error behavior.
 
-    Build `test-first` (one behavior at a time):
-
-    - the discriminating read reports a genuinely absent ref distinctly from a present ref with entries
-    - a git read _failure_ (not an absent ref) is reported as an error, not collapsed to empty
-    - the existing `readRefTip` / `readTreeEntries` advisory callers are unchanged (still null / empty on error)
-
-    - add a discriminating reader beside `readTreeEntries` (`lib/git/ref-tree.ts`) — a tagged result
-      (`{ kind: "absent" | "entries" | "error" }`) or an exception-throwing variant; the discrimination is opt-in
-      at the reconcile call site, not a global change to the fail-open readers
-- _Note:_ Whether this ships as a new sibling reader or a tagged-result variant of the existing reader is a
-  local-structure choice settled here (spec Open Question); the behavior — distinguish error from absent — is fixed.
+    - added `readTreeEntriesDiscriminating` (`lib/git/ref-tree.ts`) returning a tagged
+      `{ kind: "absent" | "entries" | "error" }`, beside the unchanged fail-open `readTreeEntries`
+    - absence is keyed off git's "Not a valid object name" message via a local `isAbsentRefError` discriminator
+      (sibling in spirit to `isNonFastForwardError`); every other read failure surfaces as `error`
+    - shared `ls-tree` parsing extracted to a `parseTreeEntries` helper, so the new reader and `readTreeEntries`
+      stay one parse
+- _Outcome:_ Chose a new sibling reader over mutating the existing one (spec Open Question), keeping the
+  discrimination opt-in at the future reconcile call site; the fail-open advisory callers are untouched.
 
 ### `[ ]` **2.2 Abort the reconcile on a discriminated read error**
 
