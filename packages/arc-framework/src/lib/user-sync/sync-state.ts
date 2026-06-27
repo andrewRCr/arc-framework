@@ -256,7 +256,16 @@ async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<str
     throw err;
   }
   const id = raw.trim();
-  return id.length > 0 ? id : null;
+  // Require the full UUID shape, not just non-empty: the winner's exclusiveCreateFile
+  // creates the file before its body is fully written, so an EEXIST loser's read-back
+  // can observe a partial id. Rejecting a partial keeps it in the retry/fail-closed
+  // path instead of adopting a truncated id.
+  return isMachineId(id) ? id : null;
+}
+
+/** Whether a string is a canonical machine id — the randomUUID shape getOrCreateMachineId mints. */
+function isMachineId(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu.test(value);
 }
 
 /** Whether an error is a filesystem `EEXIST` (the lost-race signal). */
@@ -295,11 +304,11 @@ async function readLegacyMachineId(
   const raw = await readSyncStateRaw(cwd, io, identity);
   const machineId = raw?.machineId;
   if (typeof machineId !== "string") return null;
-  // Trim before adopting: readMachineIdFile trims on read-back, so a whitespace-only
-  // legacy value written verbatim would be returned once, then read as absent and
-  // fail the exclusive-create read-back with EEXIST. Empty after trim → mint instead.
+  // Adopt only a well-formed legacy id: a partial or malformed value would be written
+  // to .machine-id, returned once, then read back as invalid (readMachineIdFile rejects
+  // it) and fail the exclusive-create read-back with EEXIST. Anything else → mint instead.
   const trimmed = machineId.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return isMachineId(trimmed) ? trimmed : null;
 }
 
 /** Parse `.sync-state.json` into its raw object form (internal path preferred, then legacy), or `null`. */

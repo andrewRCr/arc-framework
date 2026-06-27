@@ -277,12 +277,14 @@ async function readHolder(
 }
 
 /**
- * Read the holder, tolerating the winner's create-before-write window: an
- * observed-empty lockfile is re-read a bounded number of times before being
- * reported as `corrupt` (an abandoned husk, breakable). Any non-empty result —
- * a parsed holder, `absent`, `unreadable`, or a genuinely `corrupt` file —
- * returns at once. The injected `sleep` keeps the read-back deterministic under
- * test.
+ * Read the holder, tolerating the winner's create-before-write window. The lock is
+ * created (`exclusiveCreateFile`, `wx`) before its JSON body is fully written, so a
+ * contender can observe it blank (`empty`) or mid-write (`corrupt`). Both are
+ * re-read a bounded number of times before the file is declared `corrupt` (an
+ * abandoned husk, breakable) — so a partially-written live holder is never broken
+ * mid-write, while a genuinely abandoned husk stays corrupt across the retries. A
+ * settled result — a parsed holder, `absent`, or `unreadable` — returns at once.
+ * The injected `sleep` keeps the read-back deterministic under test.
  */
 async function readHolderSettled(
   readFile: (path: string) => Promise<string>,
@@ -291,7 +293,7 @@ async function readHolderSettled(
 ): Promise<LockHolder | "absent" | "corrupt" | "unreadable"> {
   for (let attempt = 0; attempt < EMPTY_READBACK_ATTEMPTS; attempt++) {
     const holder = await readHolder(readFile, lockPath);
-    if (holder !== "empty") return holder;
+    if (holder !== "empty" && holder !== "corrupt") return holder;
     await sleep(EMPTY_READBACK_DELAY_MS);
   }
   return "corrupt";
