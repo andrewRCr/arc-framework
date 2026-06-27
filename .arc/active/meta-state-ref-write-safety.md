@@ -12,11 +12,11 @@
 - **Task List:** `tasks-state-ref-write-safety.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.3 — Retire the record's legacy machine-id field (Phase 3 / D3 complete)
-- **Next Task:** Task 4.1 — Portable per-identity advisory lock primitive (line ~171)
+- **Last Completed:** Task 4.2 — Serialize `runUserSave`'s note-write critical section under the lock (Phase 4 / D4 complete)
+- **Next Task:** Task 5.1 — Bounded true-race e2e harness and per-guard smokes (line ~199)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 4.1 (Phase 4 — D4: User-notes write lock)
+- **Next Action:** Begin Task 5.1 (Phase 5 — True-race e2e smoke & cross-platform portability)
 
 - **PR URL:** [none]
 - **Completed:** [none]
