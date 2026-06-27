@@ -93,7 +93,10 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
   if ((await readRefTip(io.exec, ref)) === null) return { kind: "noop" };
 
   let reconciledOnce = false;
-  for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
+  // Up to MAX_RECONCILE_ATTEMPTS reconciles, each followed by a retry push — so the
+  // bound is one more push than reconcile (the final iteration pushes the last
+  // reconciled tip and is never itself followed by another reconcile).
+  for (let attempt = 0; attempt <= MAX_RECONCILE_ATTEMPTS; attempt++) {
     try {
       await io.exec("git", ["push", "origin", ref]);
       return reconciledOnce ? { kind: "reconciled" } : { kind: "pushed" };
@@ -101,6 +104,9 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       const error = err instanceof Error ? err : new Error(String(err));
       if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
       if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
+      if (attempt === MAX_RECONCILE_ATTEMPTS) {
+        return { kind: "failed", error: new Error("errand push: exceeded reconcile attempts") };
+      }
 
       // Keep the outcome single-channel: a fetch/read/commit failure inside the
       // reconcile — including a same-machine CAS rejection in the local-commit leg
