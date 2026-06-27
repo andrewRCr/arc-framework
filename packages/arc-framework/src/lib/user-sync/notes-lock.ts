@@ -8,14 +8,16 @@
  * serialization that closes that race: an exclusive-create lockfile (the same
  * `O_EXCL` primitive the machine-id store rests on) under
  * `user/{identity}/.internal/`, recording the holder's pid, acquisition time,
- * and a per-acquisition token. A stale lock — left by a crashed or hung holder —
- * is reclaimed by a pid-liveness check (`process.kill(pid, 0)`), with a generous
- * age ceiling as the pid-reuse backstop. Breaking a stale lock re-races the same
+ * and a per-acquisition token. A lock is reclaimed only when it is provably
+ * abandoned — the recorded pid is no longer alive (`process.kill(pid, 0)`), or the
+ * lockfile is malformed. A live holder, or one whose lockfile is momentarily
+ * unreadable, is waited on rather than broken; the bounded wait deadline then
+ * surfaces a timeout instead of evicting a process that may still be in the
+ * critical section — so a reused pid that merely reads as alive costs a safe
+ * timeout, never a forced break. Breaking an abandoned lock re-races the same
  * exclusive create, so concurrent breakers converge on one holder; release
  * verifies ownership — pid and token — so it never drops another holder's lock,
- * including a same-pid sibling's. Every contention path is bounded by one wait
- * deadline, so a lock that can never be cleared times out rather than spinning
- * forever.
+ * including a same-pid sibling's.
  *
  * Cross-platform: the `wx` create flag and `process.kill(pid, 0)` liveness
  * behave on Windows / WSL / Mac.
@@ -33,13 +35,6 @@ import { getUserInternalDir, type ExclusiveCreateFn } from "./sync-state.js";
 
 /** Notes write lockfile name under `user/{identity}/.internal/`. */
 const NOTES_LOCK_FILENAME = ".notes.lock";
-
-/**
- * Generous staleness ceiling. A held lock older than this is reclaimed even if
- * its pid still looks alive (the pid-reuse / cross-platform-liveness backstop).
- * Far longer than any real notes write, which is a cold, human-invoked path.
- */
-const DEFAULT_STALE_CEILING_MS = 60_000;
 
 /** Total bounded wait for a held-and-live lock before surfacing a timeout. */
 const DEFAULT_MAX_WAIT_MS = 10_000;
@@ -63,6 +58,11 @@ const EMPTY_READBACK_DELAY_MS = 2;
 /** A held lock's recorded acquirer — the lockfile's parsed content. */
 interface LockHolder {
   pid: number;
+  /**
+   * Acquisition time, recorded for diagnostics. The reclaim decision no longer
+   * reads it (age is not a reclaim trigger); it is still required for a record to
+   * parse as well-formed, so a partial or legacy lockfile reads as breakable.
+   */
   acquiredAt: number;
   /**
    * Per-acquisition token, distinguishing two acquisitions that share a pid (two
@@ -108,8 +108,6 @@ export interface AdvisoryLockOptions {
   pid?: number;
   /** This acquirer's token; defaults to a fresh {@link randomUUID}. Injectable for deterministic tests. */
   token?: string;
-  /** Staleness ceiling in ms; defaults to {@link DEFAULT_STALE_CEILING_MS}. */
-  staleCeilingMs?: number;
   /** Total bounded wait in ms; defaults to {@link DEFAULT_MAX_WAIT_MS}. */
   maxWaitMs?: number;
 }
@@ -135,14 +133,16 @@ export function getNotesLockPath(cwd: string, identity: string): string {
  * it is held, reclaimed-as-stale, or the wait times out.
  *
  * Concurrent first-callers race an exclusive create; exactly one wins and the
- * rest contend. A contender inspects the current holder: if its pid is dead, or
- * the lock is older than the stale ceiling, it removes the lockfile (and re-races
- * the create, so concurrent breakers still converge on one holder); otherwise it
- * backs off and retries. An observed-empty lockfile is re-read briefly before
- * being judged an abandoned husk, so the winner's create-before-write window does
- * not invite a contender to break a freshly-taken lock. The whole loop — break,
- * back-off, and re-race alike — is bounded by a single wait deadline, so even a
- * lockfile that can never be removed surfaces a timeout rather than spinning.
+ * rest contend. A contender reclaims the current holder only when it is provably
+ * abandoned — a dead recorded pid or a malformed lockfile — removing it and
+ * re-racing the create (so concurrent breakers still converge on one holder). A
+ * live holder, or a lockfile that is momentarily unreadable, is waited on, never
+ * broken. An observed-empty lockfile is re-read briefly before being judged an
+ * abandoned husk, so the winner's create-before-write window does not invite a
+ * contender to break a freshly-taken lock. The whole loop — break, back-off, and
+ * re-race alike — is bounded by a single wait deadline, so a lock that cannot be
+ * acquired (a live holder that never frees it, or one that can never be read or
+ * removed) surfaces a timeout rather than spinning.
  *
  * @returns A handle to pass to {@link releaseAdvisoryLock}.
  * @throws {AdvisoryLockTimeoutError} when the lock cannot be acquired within the wait.
@@ -159,7 +159,6 @@ export async function acquireAdvisoryLock(
   const sleep = options.sleep ?? defaultSleep;
   const pid = options.pid ?? process.pid;
   const token = options.token ?? randomUUID();
-  const staleCeilingMs = options.staleCeilingMs ?? DEFAULT_STALE_CEILING_MS;
   const maxWaitMs = options.maxWaitMs ?? DEFAULT_MAX_WAIT_MS;
 
   const deadline = now() + maxWaitMs;
@@ -186,14 +185,17 @@ export async function acquireAdvisoryLock(
       continue;
     }
 
-    const stale =
-      holder === "corrupt"
-      || !isProcessAlive(holder.pid)
-      || now() - holder.acquiredAt > staleCeilingMs;
-    if (stale) {
-      // Drop the husk; the re-race of the exclusive create at the top of the loop
-      // — not the remove — is what makes concurrent breakers converge on one
-      // holder. Back off first so a lockfile that resists removal can't busy-spin.
+    // Reclaim only a holder we can prove is gone: a malformed lockfile (no live
+    // writer it could represent) or a recorded pid that is no longer alive. A live
+    // holder — or one whose lockfile is momentarily unreadable (a transient
+    // EACCES/EBUSY rather than an absent file) — is never broken; we wait, and the
+    // deadline above surfaces a timeout instead of risking eviction of a process
+    // still in the critical section. Age is deliberately not a reclaim trigger: a
+    // slow-but-live holder must not be evicted, and a dead one is already caught by
+    // the liveness check. The re-race of the create at the top of the loop — not
+    // the remove — is what makes concurrent breakers converge on one holder.
+    const breakable = holder === "corrupt" || (holder !== "unreadable" && !isProcessAlive(holder.pid));
+    if (breakable) {
       await tolerantRemove(removeFile, lockPath);
     }
 
@@ -218,7 +220,7 @@ export async function releaseAdvisoryLock(
   const removeFile = options.removeFile ?? defaultRemoveFile;
 
   const holder = await readHolder(readFile, handle.path);
-  if (holder === "absent" || holder === "corrupt" || holder === "empty") return;
+  if (holder === "absent" || holder === "corrupt" || holder === "empty" || holder === "unreadable") return;
   if (holder.pid !== handle.pid) return;
   // A tokenless holder (an older lockfile) falls back to the pid match above; a
   // tokened one must match exactly, so a same-pid sibling never drops our lock.
@@ -231,18 +233,19 @@ export async function releaseAdvisoryLock(
  *
  * @returns the parsed holder; `"absent"` when the file does not exist; `"empty"`
  *   when present but blank (the holder's create-before-write window — re-read
- *   before judging); `"corrupt"` when present and non-blank but unreadable or
- *   malformed (treated as breakable).
+ *   before judging); `"unreadable"` when the read itself fails for a reason other
+ *   than absence (a transient EACCES/EBUSY — waited on, never broken); `"corrupt"`
+ *   when present and non-blank but malformed (treated as breakable).
  */
 async function readHolder(
   readFile: (path: string) => Promise<string>,
   lockPath: string,
-): Promise<LockHolder | "absent" | "corrupt" | "empty"> {
+): Promise<LockHolder | "absent" | "corrupt" | "empty" | "unreadable"> {
   let raw: string;
   try {
     raw = await readFile(lockPath);
   } catch (err) {
-    return isEnoentError(err) ? "absent" : "corrupt";
+    return isEnoentError(err) ? "absent" : "unreadable";
   }
   if (raw.trim().length === 0) return "empty";
   try {
@@ -271,14 +274,15 @@ async function readHolder(
  * Read the holder, tolerating the winner's create-before-write window: an
  * observed-empty lockfile is re-read a bounded number of times before being
  * reported as `corrupt` (an abandoned husk, breakable). Any non-empty result —
- * a parsed holder, `absent`, or a genuinely `corrupt` file — returns at once. The
- * injected `sleep` keeps the read-back deterministic under test.
+ * a parsed holder, `absent`, `unreadable`, or a genuinely `corrupt` file —
+ * returns at once. The injected `sleep` keeps the read-back deterministic under
+ * test.
  */
 async function readHolderSettled(
   readFile: (path: string) => Promise<string>,
   sleep: (ms: number) => Promise<void>,
   lockPath: string,
-): Promise<LockHolder | "absent" | "corrupt"> {
+): Promise<LockHolder | "absent" | "corrupt" | "unreadable"> {
   for (let attempt = 0; attempt < EMPTY_READBACK_ATTEMPTS; attempt++) {
     const holder = await readHolder(readFile, lockPath);
     if (holder !== "empty") return holder;

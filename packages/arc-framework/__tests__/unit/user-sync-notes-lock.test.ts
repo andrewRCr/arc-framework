@@ -1,10 +1,11 @@
 /**
  * Unit tests for the portable per-identity advisory lock primitive.
  *
- * Covers exclusive-create acquisition, bounded-backoff contention, stale-lock
- * reclamation (dead pid + age ceiling), concurrent stale-break convergence,
- * the deadline-bounded unremovable-lock path, the create-before-write empty
- * read-back, and token-verified release (including a same-pid sibling). Time and
+ * Covers exclusive-create acquisition, bounded-backoff contention, abandoned-lock
+ * reclamation (dead pid / malformed), the live- and unreadable-holder wait paths
+ * (never evicted, bounded by a timeout), concurrent stale-break convergence, the
+ * deadline-bounded unremovable-lock path, the create-before-write empty read-back,
+ * and token-verified release (including a same-pid sibling). Time and
  * process-liveness are injected so the assertions stay deterministic; the
  * exclusive-create / read / remove path runs against a real temp-dir filesystem
  * (the faithful boundary).
@@ -121,18 +122,55 @@ describe("acquireAdvisoryLock", () => {
     expect((await readHolder(lockPath)).pid).toBe(2);
   });
 
-  it("reclaims a lock past the generous mtime ceiling even when its pid is still alive", async () => {
-    await writeFile(lockPath, JSON.stringify({ pid: 1, acquiredAt: 0 }), "utf-8");
+  it("never evicts a live holder on age alone — waits, then times out", async () => {
+    // A holder whose pid is still alive but whose lock is arbitrarily old. Age is
+    // not a reclaim trigger: evicting a slow-but-live holder could let two writers
+    // overlap in the critical section, so the contender waits and the bounded wait
+    // surfaces a timeout instead.
+    await writeFile(lockPath, JSON.stringify({ pid: 1, acquiredAt: 0, token: "held" }), "utf-8");
+    const removeFile = vi.fn(async () => {});
 
-    const handle = await acquireAdvisoryLock(lockPath, {
-      pid: 2,
-      now: () => 2000,
-      isProcessAlive: () => true,
-      staleCeilingMs: 1000,
-    });
+    let clock = 0;
+    await expect(
+      acquireAdvisoryLock(lockPath, {
+        pid: 2,
+        now: () => (clock += 1000),
+        isProcessAlive: () => true,
+        removeFile,
+        sleep: async () => {},
+        maxWaitMs: 50,
+      }),
+    ).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
 
-    expect(handle.pid).toBe(2);
-    expect((await readHolder(lockPath)).pid).toBe(2);
+    // The live holder's lock was never broken.
+    expect(removeFile).not.toHaveBeenCalled();
+    expect((await readHolder(lockPath)).pid).toBe(1);
+  });
+
+  it("waits on an unreadable lockfile rather than breaking it", async () => {
+    // The lockfile exists but the read itself fails for a reason other than
+    // absence (a transient EACCES/EBUSY — plausible on Windows while a live holder
+    // has it open). An unverifiable holder must not be broken; the contender waits
+    // and times out rather than evicting a possibly-live writer.
+    await writeFile(lockPath, JSON.stringify({ pid: 1, acquiredAt: 0, token: "held" }), "utf-8");
+    const eacces = Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" });
+    const readFile = async (): Promise<string> => Promise.reject(eacces);
+    const removeFile = vi.fn(async () => {});
+
+    let clock = 0;
+    await expect(
+      acquireAdvisoryLock(lockPath, {
+        pid: 2,
+        now: () => (clock += 20),
+        isProcessAlive: () => true,
+        readFile,
+        removeFile,
+        sleep: async () => {},
+        maxWaitMs: 100,
+      }),
+    ).rejects.toBeInstanceOf(AdvisoryLockTimeoutError);
+
+    expect(removeFile).not.toHaveBeenCalled();
   });
 
   it("converges two concurrent stale-breakers on a single holder", async () => {
@@ -201,7 +239,6 @@ describe("acquireAdvisoryLock", () => {
         pid: 2,
         now: () => (clock += 20),
         isProcessAlive: () => true,
-        staleCeilingMs: 1_000_000,
         readFile,
         removeFile,
         sleep: async () => {},
