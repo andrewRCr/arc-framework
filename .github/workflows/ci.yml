@@ -77,9 +77,35 @@ jobs:
     - run: npm run test:integration
     - run: npm run test:e2e
 
+  # Cross-platform confirmation for the same-machine write-safety guards. The
+  # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
+  # liveness), and CAS primitives — and the bounded true-race smoke that spawns
+  # real concurrent writers — are OS-sensitive in a way the ubuntu-only jobs
+  # above can't confirm. The rest of the pipeline stays ubuntu-only by design;
+  # only this suite fans out across the three GitHub-hosted runner OSes (WSL is
+  # Linux syscalls, covered by the ubuntu leg).
+  portability:
+    name: Portability (concurrency guards)
+    needs: classify
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v5
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 'lts/*'
+        cache: 'npm'
+    - run: npm ci
+    - run: npm run build
+    - run: npm run test:portability
+
   merge-ok:
     name: merge-ok
-    needs: [classify, quality, full-suite]
+    needs: [classify, quality, full-suite, portability]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:

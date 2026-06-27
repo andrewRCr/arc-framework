@@ -217,18 +217,18 @@ the Windows / WSL / Mac CI matrix.
   2 racers per guard; ~3.3s total.
 - _Strategies:_ strategy-testing-methodology.md
 
-### `[ ]` **5.2 Add an OS-matrixed CI job for the concurrency/portability suite**
+### `[x]` **5.2 Add an OS-matrixed CI job for the concurrency/portability suite**
 
 - _Goal:_ The exclusive-create, lock, and liveness primitives — and the true-race smoke — are confirmed on
   `ubuntu` / `windows` / `macos`, so the `wx` / `O_EXCL`, `mkdir`, and `process.kill(pid, 0)` choices are
   CI-verified rather than assumed.
 
-    - add a dedicated matrixed job to `.github/workflows/ci.yml` running the new deterministic and true-race
-      suites across `ubuntu-latest` / `windows-latest` / `macos-latest`
-    - resolve any platform-specific behavior in the primitives, not by narrowing assertions
-- _Note:_ The existing CI jobs stay `ubuntu`-only — generalizing the OS matrix across the whole pipeline is out of
-  this WU's scope. GitHub-hosted runners are `ubuntu` / `windows` / `macos`; WSL is Linux syscalls,
-  covered-by-proxy by the `ubuntu` runner — the load-bearing axis is `windows` vs `ubuntu`.
+- _Outcome:_ Added a `portability` matrix job (`ubuntu` / `windows` / `macos`, `fail-fast: false`) to
+  `.github/workflows/ci.yml`, gated to the reviewed PR lane and rolled into `merge-ok`; the rest of the pipeline
+  stays `ubuntu`-only (WSL = Linux syscalls, covered by the `ubuntu` leg — noted in the job comment). It runs a
+  new `test:portability` script (root + package) selecting the lock/liveness, D1 CAS, and true-race suites — the
+  real-process smoke is what confirms exclusive-create and machine-id convergence on each OS. Cross-OS
+  confirmation lands when this WU's PR runs (Windows / macOS aren't reproducible locally).
 
 ## **Phase 6:** Verification
 
