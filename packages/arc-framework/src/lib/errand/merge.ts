@@ -131,16 +131,20 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   const incoming = incomingErrandRef(ref);
   await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
   try {
-    const local = await readTreeEntries(io.exec, ref);
-    const remote = await readTreeEntries(io.exec, incoming);
+    // Resolve both tips first and read each tree at that exact commit, so the merge
+    // input and the compare-and-swap base are bound to one snapshot. Reading the
+    // local tree by ref name before resolving its tip would let a same-machine
+    // writer advance `ref` in between — the CAS would then pass against the fresher
+    // tip while committing a merge built on the stale tree, silently dropping the
+    // racer's slug.
+    const localTip = await readRefTip(io.exec, ref);
+    const incomingTip = await readRefTip(io.exec, incoming);
+    const local = localTip ? await readTreeEntries(io.exec, localTip) : new Map<string, string>();
+    const remote = incomingTip ? await readTreeEntries(io.exec, incomingTip) : new Map<string, string>();
     const result = mergeErrandTrees(local, remote);
     if (result.kind === "collision") return result;
 
-    const localTip = await readRefTip(io.exec, ref);
-    const parents = [
-      localTip,
-      await readRefTip(io.exec, incoming),
-    ].filter((tip): tip is string => tip !== null);
+    const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
     await writeTreeCommit(io, result.entries, "merge errand records", parents, localTip);
     return result;
   } finally {

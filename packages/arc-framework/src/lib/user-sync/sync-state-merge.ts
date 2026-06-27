@@ -144,20 +144,21 @@ async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: str
   const incoming = incomingSyncStateRef(ref);
   await fetchSyncStateRef(io);
   try {
-    // Resolve the local tip first and read its tree at that exact commit, so the
-    // merge input and the compare-and-swap base are bound to one snapshot. Reading
-    // the local tree by ref name before resolving the tip would let a same-machine
-    // writer advance `ref` in between — the CAS would then pass against the fresher
-    // tip while committing a merge built on the stale tree, silently dropping the
-    // racer's entry. The incoming tracking ref is read by name: it was just fetched
-    // and has no concurrent writer, so binding it to a tip buys nothing, while the
-    // by-name read keeps the absent-vs-errored discrimination meaningful.
+    // Resolve both tips first and read each tree at that exact commit, so the merge
+    // input and the compare-and-swap base are bound to one snapshot. Reading a tree
+    // by ref name before resolving its tip would let a writer advance the ref in
+    // between — the CAS would then pass against the fresher tip while committing a
+    // merge built on the stale tree, silently dropping the racer's entry. The incoming
+    // side is bound too: the tracking ref is keyed by identity, not process, so a
+    // concurrent same-machine reconcile can re-fetch it underneath this one. An absent
+    // tip (the ref never resolved) reads as empty; readReconcileTree still aborts on a
+    // genuine read error.
     const localTip = await readRefTip(io.exec, ref);
+    const incomingTip = await readRefTip(io.exec, incoming);
     const local = localTip ? await readReconcileTree(io.exec, localTip) : new Map<string, string>();
-    const remote = await readReconcileTree(io.exec, incoming);
+    const remote = incomingTip ? await readReconcileTree(io.exec, incomingTip) : new Map<string, string>();
     const merged = mergeSyncStateEntries(local, remote, ownMachineId);
 
-    const incomingTip = await readRefTip(io.exec, incoming);
     const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
     await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents, localTip);
   } finally {

@@ -43,6 +43,21 @@ const REF = syncStateRef(IDENTITY);
 const MACHINE_A = "machine-a";
 const MACHINE_B = "machine-b";
 
+/**
+ * Resolve a ref's tip SHA via the given executor, or `null` when it does not yet
+ * resolve (e.g. before the reconcile fetch creates the incoming tracking ref). The
+ * reconcile reads each tree by its resolved commit SHA rather than by ref name, so a
+ * mock that wants to fail the incoming-tree read keys on the incoming *tip*.
+ */
+async function resolveTip(exec: GitExec, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["rev-parse", "--verify", ref]);
+    return stdout.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 function markerFor(machineId: string, overrides: Partial<SyncStateMarker> = {}): SyncStateMarker {
   return {
     version: 1,
@@ -214,11 +229,12 @@ describe("sync-state-ref reconcile-push", () => {
     const incoming = incomingSyncStateRef(REF);
     // Push rejects non-ff (entering reconcile); the fetch succeeds, but the
     // post-fetch read of the incoming tree then fails for a reason other than an
-    // absent ref. Scope the failure to the incoming ref so the local read still
-    // succeeds — the reconcile must abort on the incoming-read error rather than
-    // union a tree that drops machine A's entry.
+    // absent ref. The reconcile reads each tree by its resolved tip SHA, so scope the
+    // failure to the incoming tip — the local read still succeeds, and the reconcile
+    // must abort on the incoming-read error rather than union a tree that drops
+    // machine A's entry.
     const failingReadExec: GitExec = async (cmd, args) => {
-      if (args[0] === "ls-tree" && args[1] === incoming) {
+      if (args[0] === "ls-tree" && args[1] === (await resolveTip(realExec, incoming))) {
         throw new Error("fatal: unable to read tree object (simulated)");
       }
       return realExec(cmd, args);
@@ -242,13 +258,16 @@ describe("sync-state-ref reconcile-push", () => {
 
     const realExec = makeGitExec(repoB);
     const incoming = incomingSyncStateRef(REF);
-    // The incoming tracking ref reads as a legitimately absent ref (git's "Not a
-    // valid object name"). Absence is not a failure — the reconcile unions it as
-    // empty and completes rather than surfacing a failed abort. This isolates the
-    // absent branch from the errored branch above.
+    // The incoming tree reads as a legitimately absent ref (git's "Not a valid object
+    // name") — the reconcile reads it by its resolved tip SHA, so scope the absent
+    // read to that tip. Absence is not a failure: the reconcile unions it as empty and
+    // completes rather than surfacing a failed abort. This isolates the absent branch
+    // from the errored branch above. (The remote union legitimately omits machine A
+    // here — the synthetic absent read contributes nothing; the union-preservation
+    // guarantee is covered by the errored-read test above, which leaves A intact.)
     const absentIncomingExec: GitExec = async (cmd, args) => {
-      if (args[0] === "ls-tree" && args[1] === incoming) {
-        throw new Error(`fatal: Not a valid object name ${incoming}`);
+      if (args[0] === "ls-tree" && args[1] === (await resolveTip(realExec, incoming))) {
+        throw new Error(`fatal: Not a valid object name ${args[1]}`);
       }
       return realExec(cmd, args);
     };
