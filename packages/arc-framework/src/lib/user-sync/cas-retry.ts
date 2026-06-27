@@ -22,7 +22,7 @@
 import {
   MAX_RECONCILE_ATTEMPTS,
   readRefTip,
-  readTreeEntries,
+  readTreeEntriesDiscriminating,
   writeTreeCommit,
   type RefTreeWriteIO,
 } from "../git/ref-tree.js";
@@ -51,8 +51,12 @@ export type CasWriteOutcome =
  * and commits with that tip as the CAS expected-old value. A losing CAS — the ref
  * advanced under a same-machine sibling between this read and the write — re-reads
  * and rebuilds on the fresh state and retries, bounded by {@link
- * MAX_RECONCILE_ATTEMPTS}. Any non-CAS git error surfaces immediately as `failed`
- * (never retried). Exhausting the bound returns `failed` rather than looping.
+ * MAX_RECONCILE_ATTEMPTS}. The tree is read through the discriminating reader so a
+ * genuine `ls-tree` failure aborts as `failed` rather than fail-opening to an empty
+ * map and committing a tree stripped of every sibling entry; only a legitimately
+ * absent ref reads as the empty tree. Any non-CAS git error (including a read or
+ * mutate failure) surfaces immediately as `failed` (never retried). Exhausting the
+ * bound returns `failed` rather than looping.
  *
  * @param io - Injected git seams (reads plus the stdin-fed builder).
  * @param ref - The ref to read-modify-write.
@@ -67,16 +71,19 @@ export async function writeTreeWithCasRetry(
   mutate: TreeMutation,
 ): Promise<CasWriteOutcome> {
   for (let attempt = 0; attempt < MAX_RECONCILE_ATTEMPTS; attempt++) {
-    const tip = await readRefTip(io.exec, ref);
-    const entries = await readTreeEntries(io.exec, ref);
-    const mutated = await mutate(entries);
     try {
+      const tip = await readRefTip(io.exec, ref);
+      const read = await readTreeEntriesDiscriminating(io.exec, ref);
+      if (read.kind === "error") return { kind: "failed", error: read.error };
+      const entries = read.kind === "entries" ? read.entries : new Map<string, string>();
+      const mutated = await mutate(entries);
       const sha = await writeTreeCommit(io, ref, mutated, message, tip ? [tip] : [], tip);
       return { kind: "written", sha };
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
       // A genuine CAS rejection means the ref moved underneath us — re-read and
-      // rebuild. Anything else is an unexpected git failure and surfaces as-is.
+      // rebuild. Anything else (a read, mutate, or non-CAS git failure) is
+      // unexpected and surfaces as a typed failure rather than escaping the frame.
       if (!isCasRejectionError(error.message)) return { kind: "failed", error };
     }
   }
