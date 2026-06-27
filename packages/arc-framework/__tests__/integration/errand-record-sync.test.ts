@@ -152,8 +152,10 @@ describe("errand-ref reconcile-push", () => {
     await writeErrandRecord(ioB, recordFor("from-b"));
 
     const realExec = makeGitExec(repoB);
+    let casHits = 0;
     const failingExec: GitExec = async (cmd, args) => {
       if (args[0] === "update-ref" && args[1] === REF) {
+        casHits += 1;
         throw new Error(`fatal: cannot lock ref '${REF}': is at aaa but expected bbb`);
       }
       return realExec(cmd, args);
@@ -164,6 +166,13 @@ describe("errand-ref reconcile-push", () => {
       identity: IDENTITY,
     };
 
-    expect((await reconcileErrandPush(ioFail)).kind).toBe("failed");
+    const outcome = await reconcileErrandPush(ioFail);
+    // Prove the injected CAS rejection actually fired, so a generic push/reconcile
+    // failure can't pass this off as the local-commit-leg case under test.
+    expect(casHits).toBeGreaterThan(0);
+    expect(outcome.kind).toBe("failed");
+    if (outcome.kind === "failed") {
+      expect(outcome.error.message).toContain("cannot lock ref");
+    }
   });
 });

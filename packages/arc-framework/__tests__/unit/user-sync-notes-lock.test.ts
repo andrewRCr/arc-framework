@@ -195,6 +195,9 @@ describe("acquireAdvisoryLock", () => {
     // the exclusive create, not the remove, is what makes them converge.
     expect(fulfilled).toHaveLength(1);
     expect(rejected).toHaveLength(1);
+    // The loser fails specifically by timing out on the live winner — not via some
+    // other error that would also satisfy a bare rejected-count check.
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(AdvisoryLockTimeoutError);
 
     const winnerPid = (fulfilled[0] as PromiseFulfilledResult<{ pid: number }>).value.pid;
     expect([101, 102]).toContain(winnerPid);
