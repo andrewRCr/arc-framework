@@ -1088,92 +1088,88 @@ describe("resolveCleanArmNotesVerdict", () => {
 });
 
 describe("missingFilesAreIntentionalRetirement", () => {
-  it("reads files absent because their WU shipped (all present at last sync) as retirement", () => {
+  it("reads files absent because their WU shipped (every missing WU in the shipped set) as retirement", () => {
     expect(
       missingFilesAreIntentionalRetirement({
         missingFiles: ["shipped-wu/SESSION-NOTES.md", "shipped-wu/scratch.md"],
-        priorFileList: ["shipped-wu/SESSION-NOTES.md", "shipped-wu/scratch.md", "live-wu/SESSION-NOTES.md"],
+        shippedWuNames: new Set(["shipped-wu", "other-shipped-wu"]),
       }),
     ).toBe(true);
   });
 
-  it("reads a file never materialized here (absent from the last-sync list) as real drift", () => {
+  it("reads a file whose WU has not shipped as real drift", () => {
     expect(
       missingFilesAreIntentionalRetirement({
         missingFiles: ["arrived-wu/SESSION-NOTES.md"],
-        priorFileList: ["live-wu/SESSION-NOTES.md"],
+        shippedWuNames: new Set(["shipped-wu"]),
       }),
     ).toBe(false);
   });
 
-  it("treats a mix of retired and freshly-arrived missing files as drift (not all retirement)", () => {
+  it("treats a mix of shipped and not-shipped missing files as drift (not all retirement)", () => {
     expect(
       missingFilesAreIntentionalRetirement({
         missingFiles: ["shipped-wu/SESSION-NOTES.md", "arrived-wu/SESSION-NOTES.md"],
-        priorFileList: ["shipped-wu/SESSION-NOTES.md"],
+        shippedWuNames: new Set(["shipped-wu"]),
       }),
     ).toBe(false);
   });
 
-  it("cannot prove retirement without a prior file-list (never synced here)", () => {
+  it("treats a missing top-level (non-per-WU) file as drift, never retirement", () => {
     expect(
       missingFilesAreIntentionalRetirement({
-        missingFiles: ["some-wu/SESSION-NOTES.md"],
-        priorFileList: null,
+        missingFiles: ["STATUS.USER.md"],
+        shippedWuNames: new Set(["shipped-wu"]),
       }),
     ).toBe(false);
+  });
+
+  it("recognizes a note-only ghost of a WU shipped before this machine's last sync", () => {
+    // The file was never materialized here (so a last-sync-file-list heuristic
+    // would miss it), but its WU is in the shipped set — authoritative retirement.
+    expect(
+      missingFilesAreIntentionalRetirement({
+        missingFiles: ["pre-sync-shipped-wu/SESSION-NOTES.md"],
+        shippedWuNames: new Set(["pre-sync-shipped-wu"]),
+      }),
+    ).toBe(true);
   });
 
   it("reads an empty missing set as non-retirement (nothing to classify)", () => {
     expect(
-      missingFilesAreIntentionalRetirement({ missingFiles: [], priorFileList: ["a/SESSION-NOTES.md"] }),
+      missingFilesAreIntentionalRetirement({ missingFiles: [], shippedWuNames: new Set(["shipped-wu"]) }),
     ).toBe(false);
   });
 });
 
-describe("resolveCleanArmNotesVerdict — retirement distinction (D3 projection bridge)", () => {
-  it("does not surface missing files that are intentional retirement (WU shipped)", () => {
-    const verdict = resolveCleanArmNotesVerdict({
-      direction: "missing",
-      missingFiles: ["shipped-wu/SESSION-NOTES.md"],
-      activeWuName: "live-wu",
-      missingAreRetirement: true,
-    });
-
-    expect(verdict.loadNeeded).toBe(false);
-    expect(verdict.driftSurface).toBeUndefined();
-  });
-
-  it("surfaces missing files that are real drift (not retirement)", () => {
+describe("resolveCleanArmNotesVerdict — missing-direction handling", () => {
+  it("surfaces a genuine missing arrival as drift", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "missing",
       missingFiles: ["arrived-wu/SESSION-NOTES.md"],
       activeWuName: "live-wu",
-      missingAreRetirement: false,
     });
 
     expect(verdict.loadNeeded).toBe(false);
     expect(verdict.driftSurface).toEqual({ direction: "missing" });
   });
 
-  it("still auto-loads the safe sub-case even when the broader signal reads as retirement", () => {
+  it("auto-loads the safe sub-case — only the active WU's SESSION-NOTES missing", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "missing",
       missingFiles: ["live-wu/SESSION-NOTES.md"],
       activeWuName: "live-wu",
-      missingAreRetirement: true,
     });
 
     expect(verdict.loadNeeded).toBe(true);
     expect(verdict.driftSurface).toBeUndefined();
   });
 
-  it("still surfaces mixed drift (local-only siblings) regardless of the retirement flag", () => {
+  it("surfaces mixed drift (local-only siblings)", () => {
     const verdict = resolveCleanArmNotesVerdict({
       direction: "mixed",
-      missingFiles: ["shipped-wu/SESSION-NOTES.md"],
+      missingFiles: ["some-wu/SESSION-NOTES.md"],
       activeWuName: "live-wu",
-      missingAreRetirement: true,
     });
 
     expect(verdict.loadNeeded).toBe(false);
@@ -1800,8 +1796,10 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     diskMatchesNote?: boolean;
     /** When `true`, the disk has no user files — the note's files are all missing on disk. */
     diskEmpty?: boolean;
-    /** Last-sync file list carried in `.sync-state.json` (the retirement-vs-drift basis). */
-    priorFileList?: string[];
+    /** Override the note-side manifest files (default: a single top-level `SESSION-NOTES.md`). */
+    noteFiles?: Record<string, string>;
+    /** WU slugs the shipped-set oracle (`git ls-tree origin/<base> -- completed/`) reports as shipped. */
+    shippedWus?: string[];
   }
 
   function buildIO(options: ProbeOptions): UserIOContext {
@@ -1810,9 +1808,10 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       : options.diskMatchesNote
         ? { "SESSION-NOTES.md": "shared-content" }
         : { "SESSION-NOTES.md": "disk-content" };
-    const noteFiles = options.diskMatchesNote
-      ? { "SESSION-NOTES.md": "shared-content" }
-      : { "SESSION-NOTES.md": "newer-from-other-machine" };
+    const noteFiles = options.noteFiles
+      ?? (options.diskMatchesNote
+        ? { "SESSION-NOTES.md": "shared-content" }
+        : { "SESSION-NOTES.md": "newer-from-other-machine" });
     const noteJSON = JSON.stringify({ version: 2, files: noteFiles });
     const materializedManifest: SyncManifest = { version: 2, files: diskFiles };
     const materializedManifestHash = hashSyncManifest(materializedManifest);
@@ -1821,8 +1820,10 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       materializedManifestHash,
       sourceCommit,
       sourceOperation: "save",
-      ...(options.priorFileList ? { priorFileList: options.priorFileList } : {}),
     });
+    const shippedTreeOutput = (options.shippedWus ?? [])
+      .map((slug, index) => `.arc/completed/2026-q2/${String(index + 1).padStart(2, "0")}_${slug}/meta-${slug}.md`)
+      .join("\n");
 
     return {
       exec: async (cmd, args) => {
@@ -1902,6 +1903,9 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
           && args[3] === noteCommit
         ) {
           return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "ls-tree" && args.includes("origin/main")) {
+          return { stdout: shippedTreeOutput, stderr: "" };
         }
         throw new Error(`unexpected git call: ${args.join(" ")}`);
       },
@@ -1987,8 +1991,13 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     },
   );
 
-  it("flags a missing-on-disk note file as retirement when it was present at last sync", async () => {
-    const io = buildIO({ refState: "same", diskEmpty: true, priorFileList: ["SESSION-NOTES.md"] });
+  it("suppresses notes-drift for a note-only ghost of a shipped WU (benign retirement)", async () => {
+    const io = buildIO({
+      refState: "same",
+      diskEmpty: true,
+      noteFiles: { "shipped-wu/SESSION-NOTES.md": "ghost" },
+      shippedWus: ["shipped-wu"],
+    });
 
     const result = await runUserSessionInitStatus({
       cwd: "/repo",
@@ -1997,13 +2006,19 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
       remoteSyncEnabled: true,
     });
 
-    expect(result.notesDrift?.direction).toBe("missing");
-    expect(result.notesDrift?.missingFiles).toEqual(["SESSION-NOTES.md"]);
-    expect(result.notesDrift?.missingAreRetirement).toBe(true);
+    // The shipped WU's per-WU file lingers in the note but is gone from disk —
+    // the divergence collapses to no divergence, so nothing surfaces.
+    expect(result.state).toBe("clean");
+    expect(result.notesDrift).toBeUndefined();
   });
 
-  it("does not flag a missing-on-disk note file as retirement absent a prior file-list", async () => {
-    const io = buildIO({ refState: "same", diskEmpty: true });
+  it("surfaces notes-drift for a missing file whose WU has not shipped", async () => {
+    const io = buildIO({
+      refState: "same",
+      diskEmpty: true,
+      noteFiles: { "live-wu/SESSION-NOTES.md": "arrival" },
+      shippedWus: [],
+    });
 
     const result = await runUserSessionInitStatus({
       cwd: "/repo",
@@ -2013,7 +2028,7 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
     });
 
     expect(result.notesDrift?.direction).toBe("missing");
-    expect(result.notesDrift?.missingAreRetirement).toBe(false);
+    expect(result.notesDrift?.missingFiles).toEqual(["live-wu/SESSION-NOTES.md"]);
   });
 });
 

@@ -117,28 +117,36 @@ const SESSION_NOTES_BASENAME = "SESSION-NOTES.md";
 
 /**
  * Whether a note-present/disk-absent file set is intentional retirement rather
- * than real drift, judged against the file list captured at last sync.
+ * than real drift, judged against the authoritative shipped-WU oracle.
  *
- * A missing file that was present at last sync (`∈ priorFileList`) was
- * materialized on this machine and has since been removed locally — a deliberate
- * removal (its WU shipped, its subdir retired), not unsaved work at risk. A
- * missing file absent from that list was never materialized here (a fresh
- * arrival in the note), which is real drift. Retirement requires *every* missing
- * file to have been present before; a single fresh arrival makes the whole set
- * drift. Without a prior list (never synced here) retirement cannot be proven, so
- * the conservative answer is `false` (surface).
+ * A missing file whose work unit has shipped (its slug `∈ shippedWuNames`, read
+ * from the `completed/` tree on `origin/<base>`) was deliberately retired when
+ * that WU closed: its per-WU subdir is gone from disk while a not-yet-rewritten
+ * note still carries it — benign, not unsaved work at risk. A missing file whose
+ * WU has not shipped, or a non-per-WU top-level file (whose `wuNameOfPath` is
+ * `null`), is a real divergence to surface. Retirement requires *every* missing
+ * file to belong to a shipped WU; a single live-WU or top-level file makes the
+ * whole set drift.
  *
- * @param input - The missing-file set and the last-sync file list (or `null`).
- * @returns `true` only when the whole missing set is deliberate local retirement.
+ * This reads the same shipped-set oracle the retired-subdir reconcile uses, so
+ * detection and remediation cannot disagree — including for a note-only ghost of
+ * a WU that shipped before this machine's last sync, which the prior
+ * last-sync-file-list heuristic could not recognize. Pure: the caller supplies
+ * the shipped set.
+ *
+ * @param input - The missing-file set and the shipped-WU slug set.
+ * @returns `true` only when every missing file belongs to a shipped work unit.
  */
 export function missingFilesAreIntentionalRetirement(input: {
   missingFiles: string[];
-  priorFileList: string[] | null;
+  shippedWuNames: ReadonlySet<string>;
 }): boolean {
-  const { missingFiles, priorFileList } = input;
-  if (priorFileList === null || missingFiles.length === 0) return false;
-  const prior = new Set(priorFileList);
-  return missingFiles.every((path) => prior.has(path));
+  const { missingFiles, shippedWuNames } = input;
+  if (missingFiles.length === 0) return false;
+  return missingFiles.every((path) => {
+    const wu = wuNameOfPath(path);
+    return wu !== null && shippedWuNames.has(wu);
+  });
 }
 
 /**
@@ -154,9 +162,8 @@ export interface CleanArmNotesVerdict {
   loadNeeded: boolean;
   /**
    * Advisory surface when the divergence is neither a safe auto-load nor benign:
-   * `mixed` (may carry real edits) or general `missing` (could be stale arrival
-   * or — pre-retirement-distinction — intentional retirement). Absent when there
-   * is nothing to surface.
+   * `mixed` (may carry real edits) or a genuine `missing` arrival the developer
+   * should inspect. Absent when there is nothing to surface.
    */
   driftSurface?: { direction: "mixed" | "missing" };
 }
@@ -169,13 +176,12 @@ export interface CleanArmNotesVerdict {
  *   materialized basis, so loading overwrites nothing local.
  * - `missing` → auto-load **only** the narrow safe sub-case: the sole missing
  *   file is the active WU's `SESSION-NOTES.md` (a live WU's notes that arrived
- *   in the note but were never materialized — pure-additive, provably not a
- *   retired file). A broader missing set that is wholly intentional retirement
- *   (`missingAreRetirement`) is benign — files deliberately removed locally when
- *   their WU shipped, not stale arrivals. Anything else surfaces.
+ *   in the note but were never materialized — pure-additive). Anything else is a
+ *   genuine arrival and surfaces. Benign retirement (a note-only ghost of a
+ *   shipped WU) never reaches here — it is resolved upstream against the
+ *   shipped-set oracle, where such a divergence collapses to no divergence.
  * - `mixed` → surface: the disk both adds and drops files, so it may carry
- *   local-only edits a load would clobber; the retirement flag never suppresses
- *   a `mixed` surface (the local-only siblings are themselves real drift).
+ *   local-only edits a load would clobber.
  * - `edits` / `modified` / `null` → no action: local unsaved work (not a stale
  *   arrival D3 owns) or no divergence at all.
  *
@@ -183,17 +189,15 @@ export interface CleanArmNotesVerdict {
  * caller that knows the active WU name (the session-init orchestrator).
  *
  * @param input - The whole-tree direction, the missing-file set (manifest paths
- *   present in the note and absent on disk), the active WU name or `null`, and
- *   whether the missing set is wholly intentional retirement.
+ *   present in the note and absent on disk), and the active WU name or `null`.
  * @returns The auto-load decision plus any advisory surface.
  */
 export function resolveCleanArmNotesVerdict(input: {
   direction: UserUnsavedDirection | null;
   missingFiles: string[];
   activeWuName: string | null;
-  missingAreRetirement?: boolean;
 }): CleanArmNotesVerdict {
-  const { direction, missingFiles, activeWuName, missingAreRetirement } = input;
+  const { direction, missingFiles, activeWuName } = input;
 
   if (direction === "behind") return { loadNeeded: true };
 
@@ -203,7 +207,6 @@ export function resolveCleanArmNotesVerdict(input: {
       missingFiles.length === 1 &&
       missingFiles[0] === `${activeWuName}/${SESSION_NOTES_BASENAME}`;
     if (onlyActiveSessionNotesMissing) return { loadNeeded: true };
-    if (missingAreRetirement) return { loadNeeded: false };
     return { loadNeeded: false, driftSurface: { direction: "missing" } };
   }
 
