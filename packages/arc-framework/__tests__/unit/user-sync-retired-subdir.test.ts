@@ -72,13 +72,21 @@ describe("planRetiredSubdirReconcile", () => {
 });
 
 describe("stashedFilesInSubdir", () => {
-  it("returns the non-ARC basenames a subdir carries", () => {
+  it("returns non-ARC files by their within-subdir path", () => {
     const stashed = stashedFilesInSubdir(
       ["old-wu/SESSION-NOTES.md", "old-wu/scratch.py", "old-wu/notes/query.sql", "other-wu/x.txt"],
       "old-wu",
     );
 
-    expect(stashed).toEqual(["scratch.py", "query.sql"]);
+    expect(stashed).toEqual(["scratch.py", "notes/query.sql"]);
+  });
+
+  it("treats a nested SESSION-NOTES.md as stashed content, not ARC's own", () => {
+    // ARC owns only the top-level <wu>/SESSION-NOTES.md; the nested copy is the
+    // operator's, matched on the within-subdir path rather than the basename.
+    expect(stashedFilesInSubdir(["old-wu/notes/SESSION-NOTES.md"], "old-wu")).toEqual([
+      "notes/SESSION-NOTES.md",
+    ]);
   });
 
   it("is empty when the subdir holds only ARC's own SESSION-NOTES", () => {

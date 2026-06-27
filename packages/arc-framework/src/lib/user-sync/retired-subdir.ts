@@ -99,21 +99,25 @@ export function subdirsFromPaths(paths: Iterable<string>): string[] {
 export const ARC_PER_WU_FILENAMES: ReadonlySet<string> = new Set(["SESSION-NOTES.md"]);
 
 /**
- * The operator-stashed (non-ARC) basenames a subdir carries, drawn from a set of
- * manifest-relative paths. Empty when the subdir holds only ARC's own files —
- * the signal that a retired-subdir removal is routine rather than worth a louder
- * "you stashed files here" notice.
+ * The operator-stashed (non-ARC) files a subdir carries, named by their path
+ * within the subdir, drawn from a set of manifest-relative paths. ARC ownership
+ * is matched against the *within-subdir* path, so only `<wu>/SESSION-NOTES.md`
+ * counts as ARC's own — a nested `<wu>/notes/SESSION-NOTES.md` is operator
+ * content and reported as `notes/SESSION-NOTES.md`. Empty when the subdir holds
+ * only ARC's own files — the signal that a retired-subdir removal is routine
+ * rather than worth a louder "you stashed files here" notice.
  *
  * @param paths - Manifest-relative paths under `user/{identity}/`.
  * @param subdir - The per-WU subdir name to inspect.
- * @returns The stashed basenames, in `paths` iteration order.
+ * @returns The stashed within-subdir paths, in `paths` iteration order.
  */
 export function stashedFilesInSubdir(paths: Iterable<string>, subdir: string): string[] {
+  const prefix = `${subdir}/`;
   const stashed: string[] = [];
   for (const path of paths) {
     if (wuNameOfPath(path) !== subdir) continue;
-    const base = path.slice(path.lastIndexOf("/") + 1);
-    if (!ARC_PER_WU_FILENAMES.has(base)) stashed.push(base);
+    const rel = path.slice(prefix.length);
+    if (!ARC_PER_WU_FILENAMES.has(rel)) stashed.push(rel);
   }
   return stashed;
 }
