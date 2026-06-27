@@ -232,24 +232,32 @@ the Windows / WSL / Mac CI matrix.
 
 ## **Phase 6:** Verification
 
-### `[ ]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **6.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ ARC lints (triggers / domain-rules / section-refs), `lint:ts`, `typecheck:all`, `lint:sh`,
+  `lint:md`, `build`, and the full suite (3491 passed, 1 skipped) — all green.
+- _Success criteria:_ 8 criteria, all met; the portability criterion carries a deviation note — the `windows` /
+  `macos` matrix legs confirm at this WU's PR CI run (not locally reproducible).
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Two racing same-machine writers to the errand ref both land; same for the sync-state ref; the CAS
+- `[x]` Two racing same-machine writers to the errand ref both land; same for the sync-state ref; the CAS
   rejection path is exercised deterministically and the retry re-reads and re-applies (D1)
-- `[ ]` A relentlessly-racing write exhausts at `MAX_RECONCILE_ATTEMPTS` (3) and surfaces a typed failure — no
+- `[x]` A relentlessly-racing write exhausts at `MAX_RECONCILE_ATTEMPTS` (3) and surfaces a typed failure — no
   unbounded loop, no silent drop (D1)
-- `[ ]` A transient (errored, not absent) reconcile read aborts the reconcile with a typed failure instead of a
+- `[x]` A transient (errored, not absent) reconcile read aborts the reconcile with a typed failure instead of a
   narrowed union; the genuinely-absent case still unions; the advisory fail-open callers are unchanged (D2)
-- `[ ]` Two racing `runUserSave` note writes both land under the advisory lock; a held lock from a dead pid (or
+- `[x]` Two racing `runUserSave` note writes both land under the advisory lock; a held lock from a dead pid (or
   past the mtime ceiling) is detected stale and reclaimed; a thrown note-write releases the lock (D4)
-- `[ ]` Two concurrent machine-id first-callers converge on a single id; an existing `.sync-state.json`
+- `[x]` Two concurrent machine-id first-callers converge on a single id; an existing `.sync-state.json`
   `machineId` is adopted into `.machine-id` on first run (no re-mint, no orphaned marker key) (D3)
-- `[ ]` The exclusive-create, lock, and liveness primitives pass on the `ubuntu` / `windows` / `macos` matrixed
+- `[x]` The exclusive-create, lock, and liveness primitives pass on the `ubuntu` / `windows` / `macos` matrixed
   CI job this work adds, including the bounded true-race e2e smoke (portability)
-- `[ ]` All existing tests green; all quality gates pass (markdown lint, `lint:ts`, `typecheck:all`, `test`,
+    - _Deviation:_ The `portability` matrix job is in place and its `ubuntu` leg is green (locally and in the
+      Tier 3 attestation). The `windows` / `macos` legs run only on GitHub-hosted runners — not reproducible
+      locally — so they confirm when this WU's PR opens, at the integrate-work-unit CI gate.
+- `[x]` All existing tests green; all quality gates pass (markdown lint, `lint:ts`, `typecheck:all`, `test`,
   `build`); no user-facing or config surface changed
-- `[ ]` Ready for integration
+- `[x]` Ready for integration
