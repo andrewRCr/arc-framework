@@ -134,6 +134,35 @@ post-trio architecture-remediation plans consume.
 - *Home note:* routed here as substrate-adoption territory (wiring CLI resolvers into deterministic call sites);
   a dedicated `resolver-adoption` stub is the alternative home the capture named.
 
+### `[ ]` **Add a `--class` flag to `arc start` for inline class resolution**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-06-27); captured during `state-ref-write-safety`
+  init (2026-06-26).
+- *Concern:* initializing a `backlog/planned/` stub whose meta still carries `Class: [TBD]` is blocked by the
+  `class-resolved` guard, forcing a hand-edit of the backlog meta before `arc start` even when the draft already
+  documents the estimate. A `--class <light|heavy|novel>` flag would resolve it inline at init, staged into the
+  init commit just like the hand-edit. Parallels the existing `arc errand promote --class` flag.
+- *Approach:* add the Commander option to `arc start`, thread it into the start handler to write the meta's
+  `Class` before the `class-resolved` guard fires; validate against the three values. Consider whether it should
+  also seed the fresh-WU (cold-start) scaffold's `[TBD]`. Touches the `init-work-unit` workflow doc (the
+  resolve-class-first guard) and QUICK-REFERENCE's `arc start` synopsis — a mild infra touch.
+- *Drain note (2026-06-27):* verified the flag does not yet exist — only the `class-resolved` guard is present in
+  `start.ts`. Routed here over a standalone errand per the capture's own CLI-surface-fit suggestion.
+
+### `[ ]` **Remove the dead `priorFileList` field from the `.sync-state.json` schema**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: cli-substrate-adoption`), housekeep drain (2026-06-27);
+  captured during the `notes-drift-shipped-oracle` errand (PR #146), 2026-06-27.
+- *Concern:* since the shipped-set-oracle retirement fix (PR #146), `priorFileList` is no longer read by any
+  logic (retirement is judged via `readShippedWorkUnitsFromRef`). It remains round-tripped/validated in
+  `lib/user-sync/sync-state.ts` (the `priorFileList?` field, the `isPriorFileList` validator, the write-fn param,
+  and the spread sites) — write-only dead state.
+- *Approach:* drop the field with its validator, write-fn param, and spread sites. Backward-compatible (optional
+  field; the reader tolerates unknown/missing keys), so no sync-state version bump — old files keep it harmlessly
+  until rewritten. Best folded in when this WU formalizes the sync-state schema in zod, to avoid double-churn.
+- *Drain note (2026-06-27):* verified narrower than captured — the `save-load.ts` write-site is already gone; the
+  field now lives only in `sync-state.ts` (+ a `save-load.test.ts` reference). The dead-schema cleanup stands.
+
 ---
 
 ## Problem / Motivation

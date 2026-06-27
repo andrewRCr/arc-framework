@@ -19,16 +19,6 @@ Optimization WU.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Backstop stale git-state claims in SESSION-NOTES**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
-  `class-model-foundation` Task 5.1 kickoff.
-- *Concern:* handoff can write git-state prose into SESSION-NOTES, then the handoff push changes the real state
-  and leaves the prose stale. A later session-init can echo the stale note and contradict the live probe.
-- *Approach:* prefer making session-init source git facts only from the probe and never from SESSION-NOTES prose;
-  also consider a write-time backstop that derives any handoff git-state summary from a fresh probe at compose /
-  commit time so the note stays honest for human readers.
-
 ### `[ ]` **SESSION-NOTES post-WOR model cleanup**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
@@ -45,6 +35,17 @@ Optimization WU.
 - *Coordination:* work-routing-discipline's between-WUs `session-handoff` path defines *when* SESSION-NOTES
   is/isn't written; same file, adjacent concern — one coordinated sweep (its notes § Coordination write-back
   specifics names this WU as the owner).
+
+### `[ ]` **Give session-handoff a codified lightweight path for errand/housekeep sessions**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-06-27);
+  captured 2026-06-26, between-WUs reflection.
+- *Concern:* the between-WUs / errand-session handoff paths work today, but the agent must exercise judgment to
+  abstain from the heavier active-WU steps (meta-file commit, SESSION-NOTES write, etc.). A more intentionally
+  lightweight path — resolve-then-load only the applicable fragments, rather than carrying every branch inline and
+  instructing the agent to skip the inapplicable ones — would remove that judgment load.
+- *Approach:* fits this WU's purpose (reduce agent-reasoning load in handoff); the enabling mechanism is
+  `composable-workflows` (resolve-then-load composition). Cross-reference both at iteration.
 
 ---
 

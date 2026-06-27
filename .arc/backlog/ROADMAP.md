@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `480c8304`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `1fcf3104`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -29,12 +29,13 @@ _None currently in flight._
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core    |
 | cli-substrate-adoption       | P2       | andrew | —          | —                          |
 | cross-wu-coordination        | P2       | andrew | —          | —                          |
-| foreign-write-self-exclusion | P2       | andrew | —          | —                          |
 | frictionless-capture         | P2       | andrew | —          | —                          |
 | goal-aware-direction         | P2       | andrew | —          | —                          |
 | graduation-cleanup           | P2       | andrew | —          | —                          |
+| lifecycle-ux-polish          | P2       | andrew | —          | —                          |
 | compaction-recovery          | P3       | andrew | —          | agent-context-optimization |
 | handoff-optimization         | P3       | andrew | —          | agent-context-optimization |
+| ci-cross-platform-hardening  | P3       | andrew | —          | architecture-remediation   |
 | cli-test-hardening           | P3       | andrew | —          | architecture-remediation   |
 | lib-layer-type-extraction    | P3       | andrew | —          | architecture-remediation   |
 | sync-handler-decomposition   | P3       | andrew | —          | architecture-remediation   |
