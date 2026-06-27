@@ -1,8 +1,8 @@
 # Metadata: state-ref-write-safety
 
-| **State** | **Owner** | **Branch**                   | **Class** | **Priority** |
-| --------- | --------- | ---------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/state-ref-write-safety` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
+| ------------- | --------- | ---------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/state-ref-write-safety` | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-state-ref-write-safety.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — Complete verification (Phase 6; all tasks done, Tier 3 green, 8 criteria met)
-- **Next Task:** [none] — all tasks complete
+- **Last Completed:** Task 6.1 — verification complete (Tier 3 green, 8 acceptance criteria met)
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
