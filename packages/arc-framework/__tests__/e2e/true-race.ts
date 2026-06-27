@@ -108,17 +108,30 @@ function spawnWorker(args: string[]): Promise<WorkerResult> {
     child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
     child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
     child.on("error", reject);
-    child.on("close", (code) => {
-      resolveResult({ stdout, stderr, exitCode: code ?? 0 });
+    child.on("close", (code, signal) => {
+      // A worker killed by a signal exits with a null code; coercing that to 0
+      // would pass it off as a clean run. Treat a signalled exit as a failure and
+      // annotate the captured stderr so the cause is visible in the assertion.
+      const exitCode = code ?? (signal ? 1 : 0);
+      const annotatedStderr = signal
+        ? `${stderr}\n[worker terminated by signal ${signal}]`
+        : stderr;
+      resolveResult({ stdout, stderr: annotatedStderr, exitCode });
     });
   });
 }
 
 /**
- * Block until every worker has dropped its `ready.<i>` marker, or has exited
- * early (a setup failure that will never ready), or the bounded wait elapses —
- * then return so the caller releases the barrier regardless. A worker that
- * failed before the barrier surfaces as a non-zero result, not a deadlock.
+ * Block until every worker is accounted for — each has either dropped its
+ * `ready.<i>` marker or exited early (a setup failure that will never ready) —
+ * then return so the caller releases the barrier. A worker that failed before the
+ * barrier is accounted (via `done`) and surfaces as a non-zero result, not a
+ * deadlock.
+ *
+ * If the bounded wait elapses while any worker is still neither ready nor exited,
+ * the round never reached a true contended window — releasing the barrier anyway
+ * would let the smoke pass hollowly. Throw instead, naming the stragglers, so the
+ * round fails loudly rather than silently under-racing.
  */
 async function waitForReady(
   barrierDir: string,
@@ -130,10 +143,18 @@ async function waitForReady(
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     let accounted = 0;
+    const missing: number[] = [];
     for (let i = 0; i < count; i++) {
       if (done[i] || existsSync(join(barrierDir, `ready.${String(i)}`))) accounted++;
+      else missing.push(i);
     }
-    if (accounted === count || Date.now() >= deadline) return;
+    if (accounted === count) return;
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `true-race barrier timed out after ${String(timeoutMs)}ms: `
+        + `worker(s) ${missing.join(", ")} never reached the barrier (no ready marker, not exited)`,
+      );
+    }
     await new Promise((r) => setTimeout(r, pollMs));
   }
 }
