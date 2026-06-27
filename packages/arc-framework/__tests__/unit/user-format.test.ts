@@ -45,17 +45,31 @@ describe("buildLoadSummary — ancestor distance reporting", () => {
     expect(summary).not.toContain("behind HEAD");
   });
 
-  it("surfaces note-history loads outside current HEAD ancestry", () => {
+  it("names the current branch for a note loaded off its history", () => {
     const summary = buildLoadSummary(baseResult({
       ancestorDistance: 0,
       fromAncestor: false,
       reachableFromHead: false,
       noteHistoryDistance: 0,
+      currentBranch: "fix/state-ref-write-safety",
     }));
 
-    expect(summary).toContain("Loaded from user-notes history");
-    expect(summary).toContain("outside current HEAD ancestry");
+    expect(summary).toContain("not in branch `fix/state-ref-write-safety`'s history");
+    expect(summary).toContain("continued or integrated on another branch or machine");
+    expect(summary).not.toContain("outside current HEAD ancestry");
     expect(summary).not.toContain("Loaded from 0 commit(s) back");
+  });
+
+  it("falls back to a detached-HEAD phrasing when no branch is named", () => {
+    const summary = buildLoadSummary(baseResult({
+      ancestorDistance: 0,
+      fromAncestor: false,
+      reachableFromHead: false,
+      currentBranch: null,
+    }));
+
+    expect(summary).toContain("not in this checkout's history (detached HEAD)");
+    expect(summary).not.toContain("branch `");
   });
 });
 

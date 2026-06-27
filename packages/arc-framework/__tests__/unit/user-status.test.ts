@@ -119,7 +119,7 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
   });
 
-  it("renders note-history reachability when the local user note is outside HEAD ancestry", () => {
+  it("names the current branch when the local user note is off its history", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -130,12 +130,14 @@ describe("buildUserStatusResult", () => {
       ancestorDistance: 0,
       noteHistoryDistance: 2,
       savedReachableFromHead: false,
+      currentBranch: "fix/state-ref-write-safety",
       backupFiles: [],
       remoteIdentities: [],
     });
 
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
+      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
     );
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
@@ -1526,6 +1528,7 @@ describe("user sync spine", () => {
       ancestorDistance: 0,
       noteHistoryDistance: 2,
       savedReachableFromHead: false,
+      currentBranch: "fix/state-ref-write-safety",
       savedAtRelative: "11 hours ago",
       backupFiles: [],
       remoteIdentities: [],
@@ -1534,7 +1537,8 @@ describe("user sync spine", () => {
     expect(result.spineState).toBe("remote-ahead");
     expect(result.detailLines).toContain("Saved 11 hours ago.");
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
+      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
     );
   });
 

@@ -1,3 +1,4 @@
+import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import type {
   LoadMessage,
   LoadMessageLevel,
@@ -41,7 +42,7 @@ export function buildLoadSummary(result: UserLoadResult): string {
   lines.push(`Identity: ${result.identity}`);
 
   if (result.reachableFromHead === false) {
-    lines.push("Loaded from user-notes history; annotated commit is outside current HEAD ancestry.");
+    lines.push(`This note is ${noteOffBranchHistoryClause(result.currentBranch ?? null)}.`);
   } else if (result.ancestorDistance > 0) {
     lines.push(`Loaded from ${result.ancestorDistance} commit(s) back.`);
   }

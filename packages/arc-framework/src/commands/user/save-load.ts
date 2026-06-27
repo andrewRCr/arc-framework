@@ -2,7 +2,9 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import {
+  deserialize, getCurrentBranch, isSafeManifestPath, serialize, shortHash, type SyncManifest,
+} from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
   appendRemovalTombstones,
@@ -204,7 +206,12 @@ export async function runUserLoad(
     fromAncestor,
     ancestorDistance: search.note?.ancestorDistance ?? 0,
     noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
-    reachableFromHead: search.note?.reachableFromHead ?? false,
+    // A cross-WU-only load (no per-WU note resolved — e.g. a brand-new WU loading
+    // shared context before its first save) has no annotated commit to be off-
+    // ancestry, so leave `reachableFromHead` undefined rather than defaulting it
+    // false and firing the off-ancestry summary line spuriously.
+    reachableFromHead: search.note?.reachableFromHead,
+    currentBranch: search.note?.reachableFromHead === false ? await getCurrentBranch(io.exec) : null,
     messages: [
       ...cleanups,
       ...notices,
