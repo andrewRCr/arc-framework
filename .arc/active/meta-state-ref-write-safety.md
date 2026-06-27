@@ -11,14 +11,14 @@
 - **Design:** `spec-state-ref-write-safety.md`
 - **Task List:** `tasks-state-ref-write-safety.md`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 6.1 — verification complete (Tier 3 green, 8 acceptance criteria met)
+- **Current Workflow:** integrate-work-unit
+- **Last Completed:** PR #147 opened; pre-PR + re-review CodeRabbit findings (12 + 4) all fixed, pushed, CI green
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** integrate-work-unit Step 4 — triage CodeRabbit's PR review on #147, then Phase 2 (compose + sweep + ship)
 
-- **PR URL:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/147>
 - **Completed:** [none]
 
 ---
