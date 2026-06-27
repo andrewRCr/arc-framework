@@ -1276,6 +1276,18 @@ describe("LocalSyncState v4 schema", () => {
     expect(onDisk).toBe(winnerId);
   });
 
+  it("rethrows a non-ENOENT read error rather than minting a second identity", async () => {
+    // A permission error reading .machine-id is not "no id yet": masking it would
+    // mint a fresh id and orphan this machine's sync-state marker key.
+    const eacces: NodeJS.ErrnoException = new Error("EACCES: permission denied");
+    eacces.code = "EACCES";
+    const io = { ...realFsIO(), readFile: vi.fn(async () => Promise.reject(eacces)) };
+
+    await expect(getOrCreateMachineId(cwd, io, identity)).rejects.toThrow("EACCES");
+    // The error aborted before any create — no id was written behind it.
+    expect(await exists(join(internalDir, ".machine-id"))).toBe(false);
+  });
+
   it("adopts a legacy .sync-state.json machineId into .machine-id instead of minting fresh", async () => {
     const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
     await writeFile(syncStatePath, `${JSON.stringify({ machineId: legacyId }, null, 2)}\n`, "utf-8");

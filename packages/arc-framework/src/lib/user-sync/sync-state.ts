@@ -240,13 +240,20 @@ export async function getOrCreateMachineId(
   }
 }
 
-/** Read the bare UUID from the `.machine-id` store, or `null` when absent or empty. */
+/**
+ * Read the bare UUID from the `.machine-id` store, or `null` when the file is
+ * absent or empty. Only a genuine `ENOENT` reads as absent; any other read failure
+ * (a permission error, an unreadable store) rethrows rather than masquerading as
+ * "no id yet" — masking it would mint a second identity and orphan this machine's
+ * sync-state marker key.
+ */
 async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<string | null> {
   let raw: string;
   try {
     raw = await io.readFile(machineIdPath);
-  } catch {
-    return null;
+  } catch (err) {
+    if (isEnoentError(err)) return null;
+    throw err;
   }
   const id = raw.trim();
   return id.length > 0 ? id : null;
@@ -254,10 +261,19 @@ async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<str
 
 /** Whether an error is a filesystem `EEXIST` (the lost-race signal). */
 function isEexistError(err: unknown): boolean {
+  return isErrnoCode(err, "EEXIST");
+}
+
+/** Whether an error is a filesystem `ENOENT` (the legitimately-absent signal). */
+function isEnoentError(err: unknown): boolean {
+  return isErrnoCode(err, "ENOENT");
+}
+
+function isErrnoCode(err: unknown, code: string): boolean {
   return (
     typeof err === "object"
     && err !== null
-    && (err as { code?: unknown }).code === "EEXIST"
+    && (err as { code?: unknown }).code === code
   );
 }
 
