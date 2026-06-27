@@ -23,6 +23,7 @@ import {
 } from "../helpers/integration.js";
 import { serialize } from "../../src/lib/git/index.js";
 import { hashSyncManifest } from "../../src/commands/user/save-load.js";
+import { buildLoadSummary } from "../../src/commands/user/format.js";
 import { runRetiredSubdirDetection } from "../../src/lib/session-init/retired-subdir-detection.js";
 import { inferRetiredSubdirs } from "../../src/lib/session-init/recommended-action.js";
 import {
@@ -951,6 +952,35 @@ describe("user save/load — subdirectory support", () => {
     expect(await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8")).toBe("# X");
     expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory");
     await expect(readFile(join(userDir, "feature-y", "SESSION-NOTES.md"), "utf-8")).rejects.toThrow();
+  });
+
+  it("does not surface an off-ancestry line on a cross-WU-only load (new WU, no per-WU note)", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    // An existing note carries only another WU's subdir plus the cross-WU flat
+    // file — nothing for the brand-new WU we're about to load.
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await rm(userDir, { recursive: true, force: true });
+
+    // Load scoped to a WU no note carries: the per-WU walk resolves to nothing,
+    // so only the cross-WU flat file restores — there is no annotated commit to
+    // be off-ancestry, and the summary must not claim one.
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "brand-new-wu",
+    });
+    const loadedResult = expectLoaded(loadResult);
+
+    expect(loadedResult.reachableFromHead).toBeUndefined();
+    const summary = buildLoadSummary(loadedResult);
+    expect(summary).not.toContain("not in");
+    expect(summary).not.toContain("detached HEAD");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory");
   });
 
   it("merges a cross-WU entry from an older note while restoring the current WU's subdir", async () => {
