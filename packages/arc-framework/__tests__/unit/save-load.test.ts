@@ -18,6 +18,7 @@ import {
 } from "../../src/commands/user/save-load.js";
 import {
   clearPartialPushMarker,
+  getNotesLockPath,
   getOrCreateMachineId,
   readLocalSyncState,
   recordPartialPushMarker,
@@ -526,6 +527,115 @@ describe("runUserSave — save verification", () => {
 
     const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
     expect(onDisk.priorFileList).toEqual(["SESSION-NOTES.md"]);
+  });
+});
+
+/** Records concurrent occupancy of `runUserSave`'s note-write critical section. */
+interface CriticalSectionRecorder {
+  active: number;
+  maxActive: number;
+  commits: string[];
+}
+
+/**
+ * Save IO whose `writeNote` reports critical-section occupancy into a shared
+ * recorder and holds the section open briefly — so two unserialized peers would
+ * be caught overlapping (`maxActive > 1`). The lock keeps `maxActive` at 1.
+ */
+function concurrentSaveIO(
+  head: string,
+  recorder: CriticalSectionRecorder,
+  config: { writeNoteThrows?: boolean } = {},
+): UserIOContext {
+  const files = { "SESSION-NOTES.md": "# Notes" };
+  let writtenNote: string | null = null;
+
+  return {
+    exec: vi.fn(async (cmd: string, args: string[]) => {
+      if (cmd === "git" && args[0] === "rev-parse" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+    }),
+    readFile: vi.fn(async (filePath: string) => {
+      const name = filePath.slice(filePath.lastIndexOf("/") + 1);
+      const content = files[name as keyof typeof files];
+      if (content === undefined) throw new Error(`unexpected file read: ${filePath}`);
+      return content;
+    }),
+    writeFile: vi.fn(async () => undefined),
+    readDir: vi.fn(async () => (
+      Object.entries(files).map(([name, content]) => ({
+        name,
+        size: Buffer.byteLength(content, "utf-8"),
+      }))
+    )),
+    mkdir: vi.fn(async () => undefined),
+    writeNote: vi.fn(async (_ref: string, content: string, commit?: string) => {
+      recorder.active += 1;
+      recorder.maxActive = Math.max(recorder.maxActive, recorder.active);
+      // Hold the section open so an unserialized peer would overlap here.
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      if (config.writeNoteThrows) {
+        recorder.active -= 1;
+        throw new Error("write failed");
+      }
+      writtenNote = content;
+      recorder.commits.push(commit ?? "");
+      recorder.active -= 1;
+    }),
+    readNote: vi.fn(async () => writtenNote),
+  };
+}
+
+describe("runUserSave — note-write serialization (advisory lock)", () => {
+  let cwd: string;
+  const headA = "aa".padEnd(40, "0");
+  const headB = "bb".padEnd(40, "0");
+
+  beforeEach(async () => {
+    cwd = await mkdtemp(join(tmpdir(), "arc-save-lock-test-"));
+  });
+
+  afterEach(async () => {
+    await rm(cwd, { recursive: true, force: true });
+  });
+
+  it("serializes two racing note writes so both land without collapsing to one", async () => {
+    const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
+
+    await Promise.all([
+      runUserSave({ cwd, io: concurrentSaveIO(headA, recorder), identity: "andrew" }),
+      runUserSave({ cwd, io: concurrentSaveIO(headB, recorder), identity: "andrew" }),
+    ]);
+
+    // The lock keeps the two note writes from overlapping...
+    expect(recorder.maxActive).toBe(1);
+    // ...and both writes land — neither is silently dropped.
+    expect([...recorder.commits].sort()).toEqual([headA, headB].sort());
+  });
+
+  it("releases the lock when the note write throws, so the next save proceeds", async () => {
+    const recorder: CriticalSectionRecorder = { active: 0, maxActive: 0, commits: [] };
+
+    await expect(
+      runUserSave({
+        cwd,
+        io: concurrentSaveIO(headA, recorder, { writeNoteThrows: true }),
+        identity: "andrew",
+      }),
+    ).rejects.toThrow("write failed");
+
+    // The lock was released in `finally` despite the throw — no orphaned lockfile.
+    expect(await exists(getNotesLockPath(cwd, "andrew"))).toBe(false);
+
+    // A subsequent save acquires cleanly rather than deadlocking on a stuck lock.
+    const result = await runUserSave({
+      cwd,
+      io: concurrentSaveIO(headB, recorder),
+      identity: "andrew",
+    });
+    expect(result.fileCount).toBe(1);
   });
 });
 

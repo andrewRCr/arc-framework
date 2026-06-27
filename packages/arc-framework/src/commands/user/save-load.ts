@@ -7,10 +7,13 @@ import {
 } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
+  acquireAdvisoryLock,
   appendRemovalTombstones,
   classifyOrphans,
   classifyUserSyncPath,
+  getNotesLockPath,
   getUserInternalDir,
+  releaseAdvisoryLock,
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
   projectManifest,
@@ -77,11 +80,21 @@ export async function runUserSave(
     throw new UserSaveError("No eligible files found in user directory to save.");
   }
 
-  const recentNotes = await readRecentUserNotes(io.exec, identity);
-  applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());
+  // `git notes add` does its own unguarded read-modify-write on the notes tree,
+  // so two same-identity saves racing this span silently collapse to one note.
+  // Serialize the smallest span containing that RMW — the recent-notes read,
+  // tombstone apply, and the write — under a per-identity advisory lock,
+  // releasing in `finally` so a thrown write still frees it for the next caller.
+  const lock = await acquireAdvisoryLock(getNotesLockPath(cwd, identity));
+  try {
+    const recentNotes = await readRecentUserNotes(io.exec, identity);
+    applyRemovalTombstones(result.manifest, recentNotes, new Date().toISOString());
 
-  const json = JSON.stringify(result.manifest);
-  await io.writeNote(notesRef(identity), json, commit);
+    const json = JSON.stringify(result.manifest);
+    await io.writeNote(notesRef(identity), json, commit);
+  } finally {
+    await releaseAdvisoryLock(lock);
+  }
   await verifySavedNote(io, identity, commit, result.manifest);
   const projectedSave = projectManifest(result.manifest);
   await writeLocalSyncState(

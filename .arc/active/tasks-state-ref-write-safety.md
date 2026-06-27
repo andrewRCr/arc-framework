@@ -180,21 +180,15 @@ format; only the write is serialized.
   bounded wait, then surfaces `AdvisoryLockTimeoutError`. Tuning settled against the test matrix: stale ceiling
   60s, max wait 10s, backoff 10→250ms; lockfile encodes `{pid, acquiredAt}`. Exported via the user-sync barrel.
 
-### `[ ]` **4.2 Serialize `runUserSave`'s note-write critical section under the lock**
+### `[x]` **4.2 Serialize `runUserSave`'s note-write critical section under the lock**
 
 - _Goal:_ Two racing same-machine `runUserSave` note writes both land instead of one silently overwriting the
   other, with the lock released even when the note write throws.
-
-    Build `test-first` (one behavior at a time):
-
-    - two racing `runUserSave` writes for different commits both produce notes (no collapse to one)
-    - a thrown note write releases the lock (acquired in a `try`, released in `finally`) so the next acquirer
-      proceeds
-
-    - wrap the smallest span of `runUserSave` (`commands/user/save-load.ts`) that contains the `git notes add`
-      read-modify-write — the recent-notes read, removal-tombstone apply, and `io.writeNote` — in
-      acquire / `finally`-release
-- _Note:_ The lock guards only the cold, human-invoked save path; no measurable cost on the common automatic paths.
+- _Outcome:_ `runUserSave` (`commands/user/save-load.ts`) now wraps the recent-notes read → tombstone apply →
+  `io.writeNote` span in `acquireAdvisoryLock` / `finally`-`releaseAdvisoryLock` keyed on `getNotesLockPath`.
+  Deterministic-interleave tests assert the critical section never overlaps (`maxActive === 1`, both writes land)
+  and that a thrown write still frees the lock so the next save proceeds — guarding only the cold, human-invoked
+  save path. The true-race e2e proof of both notes landing against real git is Phase 5.
 
 ## **Phase 5:** True-race e2e smoke & cross-platform portability
 
