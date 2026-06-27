@@ -87,10 +87,16 @@ interface ReconcileCall {
   overrides: MetaFieldOverrides;
 }
 
+interface StageWrite {
+  metaPath: string;
+  stage: string;
+}
+
 interface Harness {
   ctx: ExecuteTransitionContext;
   calls: string[];
   reconcileCalls: ReconcileCall[];
+  stageWrites: StageWrite[];
 }
 
 function buildCtx(
@@ -100,6 +106,7 @@ function buildCtx(
 ): Harness {
   const calls: string[] = [];
   const reconcileCalls: ReconcileCall[] = [];
+  const stageWrites: StageWrite[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -127,12 +134,16 @@ function buildCtx(
         : { mutation: "teardown", worktreePath: "", locusHopped: false };
     },
     writeBranchField: async () => {},
-    writeCurrentWorkflowField: async () => {},
+    writeCurrentWorkflowField: async (metaPath, stage) => {
+      calls.push("stage-write");
+      stageWrites.push({ metaPath, stage });
+    },
     writeDesignField: async () => {},
     writeSoftFields: async (path, updates) => {
       calls.push(`soft:${Object.keys(updates).join(",")}`);
     },
     reconcileMeta: async (metaPath, overrides) => {
+      calls.push("reconcile-meta");
       reconcileCalls.push({ metaPath, overrides });
       return reconcileBackfill;
     },
@@ -143,7 +154,7 @@ function buildCtx(
     },
   };
 
-  return { ctx, calls, reconcileCalls };
+  return { ctx, calls, reconcileCalls, stageWrites };
 }
 
 const BASE = {
@@ -264,5 +275,26 @@ describe("runGraduate — backlog stub onto its branch", () => {
     if (result.status !== "graduated") return;
     expect(result.backfilled).toEqual([]);
     expect(result.notice).toBeNull();
+  });
+
+  it("sets the planning-entry stage pointer even when reconcile no-ops on a present `[none]`", async () => {
+    // The bug this guards: a stub-minted meta carries a present `Current Workflow:
+    // [none]`, so the insert-absent-only reconcile can't advance it — `backfilled`
+    // is empty, yet the dedicated stage write must still set the planning entry.
+    const { ctx, calls, stageWrites } = buildCtx(
+      [{ slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Heavy" }],
+      /* occupancyOk */ true,
+      /* reconcileBackfill */ [],
+    );
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Heavy" });
+
+    expect(result.status).toBe("graduated");
+    if (result.status !== "graduated") return;
+    expect(result.backfilled).toEqual([]);
+    expect(stageWrites).toEqual([{ metaPath: ".arc/active/meta-widget.md", stage: "draft-design" }]);
+    // Ordering is load-bearing: the stage write is fail-loud on an absent bullet, so
+    // it must run *after* the reconcile inserts a missing field (pre-field meta case).
+    expect(calls.indexOf("reconcile-meta")).toBeLessThan(calls.indexOf("stage-write"));
   });
 });
