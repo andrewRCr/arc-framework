@@ -1,8 +1,8 @@
 # Metadata: state-ref-write-safety
 
-| **State**     | **Owner** | **Branch**                   | **Class** | **Priority** |
-| ------------- | --------- | ---------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/state-ref-write-safety` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 4 — triage CodeRabbit's PR review on #147, then Phase 2 (compose + sweep + ship)
+- **Next Action:** [none]
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/147>
-- **Completed:** [none]
+- **Completed:** 2026-06-27
 
 ---
 

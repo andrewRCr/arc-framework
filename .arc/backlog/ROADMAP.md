@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `9a9e0463`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `480c8304`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -12,14 +12,13 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ## In Flight
 
-| State         | Work unit              | Priority | Owner  | Depends on | Cohort            |
-|---------------|------------------------|----------|--------|------------|-------------------|
-| `Integrating` | state-ref-write-safety | P2       | andrew | —          | agile-parallelism |
+_None currently in flight._
 
 ## Ready
 
 | Work unit                    | Priority | Owner  | Depends on | Cohort                     |
 |------------------------------|----------|--------|------------|----------------------------|
+| finalize-parallelism         | P1       | andrew | —          | agile-parallelism          |
 | pr-decomposition             | P1       | andrew | —          | —                          |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
@@ -74,7 +73,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | Work unit                     | Priority | Owner  | Depends on             | Cohort                     |
 |-------------------------------|----------|--------|------------------------|----------------------------|
-| finalize-parallelism          | P1       | andrew | state-ref-write-safety | agile-parallelism          |
 | unit-scoped-review            | P2       | andrew | commit-increments      | approval-flow-refinement   |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
