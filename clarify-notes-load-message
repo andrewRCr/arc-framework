@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "clarify-notes-load-message",
+  "origin": "description",
+  "intent": "Clarify the user-notes load/status 'outside HEAD ancestry' message — name HEAD's branch, drop git-plumbing jargon",
+  "branch": "fix/clarify-notes-load-message",
+  "createdAt": "2026-06-27T12:58:07.267Z"
+}
