@@ -17,11 +17,13 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 
-import { atomicWriteJson } from "../fs.js";
+import { atomicWriteJson, exclusiveCreateFile } from "../fs.js";
 import { ensureDir } from "../template/index.js";
 import type { CoreIO } from "../types.js";
 
 const LOCAL_SYNC_STATE_FILENAME = ".sync-state.json";
+/** Dedicated canonical machine-id store — a bare UUID, raced via exclusive create. */
+const MACHINE_ID_FILENAME = ".machine-id";
 const USER_INTERNAL_DIRNAME = ".internal";
 /** Notes ref prefix; mirrors the notes-ref module's internal `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
@@ -82,6 +84,11 @@ export interface PartialPushMarker {
 /** Absolute path to the user's `.internal/` bookkeeping directory. */
 export function getUserInternalDir(cwd: string, identity: string): string {
   return join(cwd, ".arc", "user", identity, USER_INTERNAL_DIRNAME);
+}
+
+/** Absolute path to the dedicated `.machine-id` store (the canonical machine identity). */
+function getMachineIdPath(cwd: string, identity: string): string {
+  return join(getUserInternalDir(cwd, identity), MACHINE_ID_FILENAME);
 }
 
 export async function readLocalSyncState(
@@ -174,39 +181,83 @@ function isProvenanceMap(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** Exclusive-create seam — defaults to the real filesystem primitive. */
+export type ExclusiveCreateFn = (path: string, content: string) => Promise<void>;
+
+/** Read-back attempts for the lost-race branch (see {@link getOrCreateMachineId}). */
+const MACHINE_ID_READBACK_ATTEMPTS = 50;
+const MACHINE_ID_READBACK_DELAY_MS = 2;
+
 /**
- * Resolve this machine's stable identifier, generating and persisting one on
- * first need. Idempotent: once written, every later call returns the same
- * UUID. The id is a random {@link randomUUID} — never the hostname or any
- * environment value — so it can key a sync-state marker on a ref collaborators
- * fetch without leaking machine names.
+ * Resolve this machine's stable identifier from the dedicated `.machine-id`
+ * store under `user/{identity}/.internal/`, creating one on first need.
  *
- * The id is read and persisted independently of the full sync-state record's
- * schema validation (see {@link readPersistedMachineId}), so it is available
- * before any save/load has written a complete record.
+ * The id is a random {@link randomUUID} — never the hostname or any environment
+ * value — so it can key a sync-state marker on a ref collaborators fetch
+ * without leaking machine names. The first write uses an exclusive create
+ * ({@link exclusiveCreateFile}, `O_CREAT | O_EXCL`): concurrent first-callers
+ * race it, exactly one wins, and every loser adopts the winner's id via an
+ * `EEXIST` read-back — so two first-callers on one machine converge on a single
+ * id rather than each minting a different one. Idempotent: once written, every
+ * later call returns the persisted id without minting.
  *
+ * @param exclusiveCreate - Exclusive-create seam, defaulting to the real
+ *   filesystem primitive; injectable so a test can force the lost-race branch.
  * @returns This machine's persisted machine-id.
  */
 export async function getOrCreateMachineId(
   cwd: string,
   io: CoreIO,
   identity: string,
+  exclusiveCreate: ExclusiveCreateFn = exclusiveCreateFile,
 ): Promise<string> {
-  const existing = await readPersistedMachineId(cwd, io, identity);
+  const machineIdPath = getMachineIdPath(cwd, identity);
+
+  const existing = await readMachineIdFile(io, machineIdPath);
   if (existing) return existing;
 
-  const machineId = randomUUID();
-  const raw = await readSyncStateRaw(cwd, io, identity);
-  const internalDir = getUserInternalDir(cwd, identity);
-  await ensureDir(internalDir, io.mkdir);
-  // Merge into any existing record so a machine-id written before a full
-  // save/load record exists is preserved when that record later lands, and
-  // vice versa.
-  await atomicWriteJson(join(internalDir, LOCAL_SYNC_STATE_FILENAME), {
-    ...(raw ?? {}),
-    machineId,
-  });
-  return machineId;
+  const minted = randomUUID();
+  try {
+    await exclusiveCreate(machineIdPath, minted);
+    return minted;
+  } catch (err) {
+    if (!isEexistError(err)) throw err;
+    // Lost the create race: a concurrent first-caller already wrote the
+    // canonical id. Adopt it so both callers converge. The winner's exclusive
+    // create can momentarily precede its content write, so the read-back
+    // tolerates a brief empty window before giving up.
+    for (let attempt = 0; attempt < MACHINE_ID_READBACK_ATTEMPTS; attempt++) {
+      const winner = await readMachineIdFile(io, machineIdPath);
+      if (winner) return winner;
+      await delay(MACHINE_ID_READBACK_DELAY_MS);
+    }
+    throw err;
+  }
+}
+
+/** Read the bare UUID from the `.machine-id` store, or `null` when absent or empty. */
+async function readMachineIdFile(io: CoreIO, machineIdPath: string): Promise<string | null> {
+  let raw: string;
+  try {
+    raw = await io.readFile(machineIdPath);
+  } catch {
+    return null;
+  }
+  const id = raw.trim();
+  return id.length > 0 ? id : null;
+}
+
+/** Whether an error is a filesystem `EEXIST` (the lost-race signal). */
+function isEexistError(err: unknown): boolean {
+  return (
+    typeof err === "object"
+    && err !== null
+    && (err as { code?: unknown }).code === "EEXIST"
+  );
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

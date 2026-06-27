@@ -1113,12 +1113,12 @@ describe("LocalSyncState v4 schema", () => {
 
   const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-  it("generates and persists a new machine-id on first need when none is stored", async () => {
+  it("generates and persists a new machine-id to .machine-id on first need when none is stored", async () => {
     const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(id).toMatch(UUID_V4);
-    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.machineId).toBe(id);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(id);
   });
 
   it("returns the same machine-id on a subsequent read (idempotent — no regeneration)", async () => {
@@ -1126,8 +1126,8 @@ describe("LocalSyncState v4 schema", () => {
     const second = await getOrCreateMachineId(cwd, realFsIO(), identity);
 
     expect(second).toBe(first);
-    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
-    expect(onDisk.machineId).toBe(first);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(first);
   });
 
   it("generates a random UUID, not derived from hostname or any environment value", async () => {
@@ -1145,5 +1145,24 @@ describe("LocalSyncState v4 schema", () => {
     } finally {
       await rm(otherCwd, { recursive: true, force: true });
     }
+  });
+
+  it("adopts the winner's id when it loses the exclusive-create race (EEXIST read-back)", async () => {
+    const winnerId = "99999999-9999-4999-8999-999999999999";
+    // Force the lost-race branch: the injected create models a concurrent
+    // first-caller that already wrote the canonical id, so our create collides.
+    const losingCreate = vi.fn(async (path: string) => {
+      await writeFile(path, winnerId, "utf-8");
+      const err: NodeJS.ErrnoException = new Error("EEXIST: file already exists");
+      err.code = "EEXIST";
+      throw err;
+    });
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity, losingCreate);
+
+    expect(id).toBe(winnerId);
+    expect(losingCreate).toHaveBeenCalledOnce();
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(winnerId);
   });
 });

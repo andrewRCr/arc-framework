@@ -64,10 +64,10 @@ async function readMarker(
 
 /** This clone's persisted machine-id (assigned on the first marker publish). */
 async function machineId(clone: string): Promise<string> {
-  const path = join(clone, ".arc", "user", IDENTITY, ".internal", ".sync-state.json");
-  const record = JSON.parse(await readFile(path, "utf-8")) as { machineId?: string };
-  if (!record.machineId) throw new Error("machine-id not persisted");
-  return record.machineId;
+  const path = join(clone, ".arc", "user", IDENTITY, ".internal", ".machine-id");
+  const id = (await readFile(path, "utf-8")).trim();
+  if (!id) throw new Error("machine-id not persisted");
+  return id;
 }
 
 /**

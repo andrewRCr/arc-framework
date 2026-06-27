@@ -110,25 +110,23 @@ _Purpose:_ Replace `getOrCreateMachineId`'s read→generate→write TOCTOU with 
 exclusive-create file, so concurrent first-callers converge on one id; adopt a legacy `.sync-state.json`
 `machineId` once so an established machine identity is never orphaned.
 
-### `[ ]` **3.1 Dedicated `.machine-id` exclusive-create store with EEXIST read-back**
+### `[x]` **3.1 Dedicated `.machine-id` exclusive-create store with EEXIST read-back**
 
 - _Goal:_ Concurrent first-callers on one machine converge on a single machine-id — the create winner's — instead
   of each minting and persisting a different UUID.
 
-    Build `test-first` (one behavior at a time):
-
-    - a first-caller with no `.machine-id` mints a `randomUUID()` and persists it via an exclusive create
-    - a concurrent caller that loses the exclusive create (`EEXIST`) reads the file and returns the winner's id —
-      both callers return the same id
-    - a later call returns the persisted id without minting (idempotent)
-
-    - add a dedicated `.machine-id` file under `user/{identity}/.internal/` holding the bare UUID; first-write
-      uses Node `writeFile` with the `wx` flag (`O_CREAT | O_EXCL`)
-    - on `EEXIST`, read the file to adopt the winner's id
-- _Strategies:_ strategy-storage-evolution.md
-- _Note:_ The `wx` create needs a net-new write seam — the existing `atomicWriteJson` (temp-then-rename) and
-  `io.writeFile` can't express `O_EXCL`, so this adds a direct exclusive-create path (likely a new `CoreIO`
-  method). The `.machine-id` filename is a naming particular settled here (spec Open Question); the behavior is fixed.
+    - added a `.machine-id` store under `user/{identity}/.internal/` holding the bare UUID, written via a new
+      `exclusiveCreateFile` primitive (`lib/fs.ts`, Node `writeFile` `wx` flag — `O_CREAT | O_EXCL`), beside the
+      overwrite-style `atomicWriteJson`
+    - repointed `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) at `.machine-id`: a read-hit returns the
+      persisted id; a miss mints and exclusive-creates; an `EEXIST` reads back the winner's id so losers converge.
+      The create is an injectable seam (defaulting to the real primitive) so the lost-race branch tests deterministically
+    - read-back tolerates the brief winner-created-but-not-yet-written window via a bounded retry, then surfaces
+      the `EEXIST` rather than minting a divergent id
+- _Outcome:_ Chose a direct `fs.ts` exclusive-create helper over a new `CoreIO` method — matching the existing
+  direct-`atomicWriteJson` write path and avoiding threading the seam through ~20 IO fakes. The legacy
+  `.sync-state.json` `machineId` is left untouched here: its one-time adopt is Task 3.2, and the
+  `readPersistedMachineId` / `writeLocalSyncState` repoint and stop-write are Task 3.3.
 
 ### `[ ]` **3.2 One-time migration adopt of a legacy `.sync-state.json` `machineId`**
 
