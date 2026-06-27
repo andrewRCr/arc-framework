@@ -202,12 +202,18 @@ export async function runGraduate(
   if (outcome.status !== "ok") return { status: "rejected", reason: outcome.message };
 
   // Heal the relocated meta against the code field model — a stub minted before a
-  // field existed graduates missing it. `Current Workflow` takes the planning-entry
-  // stage (not the template's `[none]`); every other absent field its declared
-  // default. Warn-and-backfill: the count surfaces as a ceremony notice.
+  // field existed graduates missing it; reconcile inserts each absent bullet at its
+  // declared default. Warn-and-backfill: the count surfaces as a ceremony notice.
   const metaPath = `${ACTIVE_DIR}/meta-${params.name}.md`;
   const backfilled =
     (await ctx.reconcileMeta?.(metaPath, { "Current Workflow": PLANNING_WORKFLOWS[0] })) ?? [];
+  // Set the planning-entry stage pointer explicitly, mirroring the fresh scaffold.
+  // The backfill above only *inserts* absent bullets, but every stub-minted meta
+  // already carries a present `Current Workflow: [none]`, so it can't advance the
+  // sentinel — this dedicated write overwrites it. Runs after the backfill so the
+  // bullet is guaranteed present (the write is fail-loud on an absent field), and
+  // is idempotent with the absent-meta case (both target the planning-entry stage).
+  await ctx.writeCurrentWorkflowField(metaPath, PLANNING_WORKFLOWS[0]);
   const notice =
     backfilled.length > 0
       ? `Backfilled ${backfilled.length} meta field(s) against the code field model: ${backfilled.join(", ")}.`

@@ -179,8 +179,8 @@ Two paths depending on Step 3's outcome:
 remaining planning-state fields:
 
 1. **Design** → backticked `draft-{name}.md` filename when one exists; otherwise leave as-is
-2. **Current Workflow** → `draft-design`, the entry planning stage (the executor writes this on the
-   `arc start` path; set it by hand only when reconciling a meta that predates the field)
+2. **Current Workflow** → `draft-design`, the entry planning stage (`arc start` sets this on the
+   graduate path — no hand-set needed)
 3. **Next Action** → a within-stage planning note or the `[begin current workflow]` sentinel — never a
    workflow pointer. Leave the spec-readiness call to the consuming session (`arc-plan` → `draft-design`),
    which assesses against the actual draft state.
