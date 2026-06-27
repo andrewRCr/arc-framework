@@ -174,11 +174,13 @@ format; only the write is serialized.
   dead or hung process without deadlocking or dropping a live holder's lock.
 - _Outcome:_ New `lib/user-sync/notes-lock.ts` exposes `acquireAdvisoryLock` / `releaseAdvisoryLock` over an
   exclusive-create `.notes.lock` (reuses `exclusiveCreateFile`, the same `O_EXCL` seam as D3's `.machine-id`).
-  Stale reclaim is pid-liveness primary (`process.kill(pid, 0)`, treating `EPERM` as alive) with an mtime-ceiling
-  backstop; a stale break re-races the exclusive create so concurrent breakers converge; release verifies the
-  on-disk pid before removing so it never drops another holder's lock; held-and-live contention backs off to a
-  bounded wait, then surfaces `AdvisoryLockTimeoutError`. Tuning settled against the test matrix: stale ceiling
-  60s, max wait 10s, backoff 10→250ms; lockfile encodes `{pid, acquiredAt}`. Exported via the user-sync barrel.
+  Reclaim is liveness-only: a held lock is broken only when provably abandoned — a corrupt record, or a recorded
+  pid no longer alive (`process.kill(pid, 0)`, treating `EPERM` as alive-but-not-ours). Age is deliberately not a
+  reclaim trigger, so a live holder is never evicted. A stale break re-races the exclusive create so concurrent
+  breakers converge; release verifies the on-disk pid before removing so it never drops another holder's lock;
+  held-and-live contention backs off to a bounded wait, then surfaces `AdvisoryLockTimeoutError`. Tuning settled
+  against the test matrix: max wait 10s, backoff 10→250ms; lockfile encodes `{pid, acquiredAt}`. Exported via the
+  user-sync barrel.
 
 ### `[x]` **4.2 Serialize `runUserSave`'s note-write critical section under the lock**
 
