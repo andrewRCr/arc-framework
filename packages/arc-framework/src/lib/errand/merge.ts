@@ -22,10 +22,11 @@ import { isNonFastForwardError, isRemoteUnavailableError } from "../user-sync/in
 import {
   errandsRef,
   readRefTip,
-  readTreeEntries,
+  readTreeEntriesDiscriminating,
   writeTreeCommit,
   type ErrandRecordIO,
 } from "./ref-tree.js";
+import type { GitExec } from "../git/exec.js";
 
 /** The temp tracking ref a remote errand ref is fetched into before merging. */
 export function incomingErrandRef(ref: string): string {
@@ -139,8 +140,8 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
     // racer's slug.
     const localTip = await readRefTip(io.exec, ref);
     const incomingTip = await readRefTip(io.exec, incoming);
-    const local = localTip ? await readTreeEntries(io.exec, localTip) : new Map<string, string>();
-    const remote = incomingTip ? await readTreeEntries(io.exec, incomingTip) : new Map<string, string>();
+    const local = localTip ? await readErrandReconcileTree(io.exec, localTip) : new Map<string, string>();
+    const remote = incomingTip ? await readErrandReconcileTree(io.exec, incomingTip) : new Map<string, string>();
     const result = mergeErrandTrees(local, remote);
     if (result.kind === "collision") return result;
 
@@ -150,6 +151,21 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
   } finally {
     await deleteRef(io, incoming);
   }
+}
+
+/**
+ * Read a reconcile input, treating a legitimately absent ref as empty but a genuine
+ * read failure as fatal. The fail-open `readTreeEntries` would collapse an errored
+ * `ls-tree` to an empty map, so a transient read of `localTip` / `incomingTip` could
+ * commit a merge built from an artificially empty side — dropping the other side's
+ * slugs under the compare-and-swap bound to `localTip`. Throwing aborts the reconcile,
+ * which {@link reconcileErrandPush} surfaces through its single `failed` channel; an
+ * absent ref still unions normally as empty. Mirrors the sync-state reconcile reader.
+ */
+async function readErrandReconcileTree(exec: GitExec, ref: string): Promise<Map<string, string>> {
+  const result = await readTreeEntriesDiscriminating(exec, ref);
+  if (result.kind === "error") throw result.error;
+  return result.kind === "entries" ? result.entries : new Map();
 }
 
 /** Best-effort delete of the temp tracking ref; a failed cleanup never masks the outcome. */
