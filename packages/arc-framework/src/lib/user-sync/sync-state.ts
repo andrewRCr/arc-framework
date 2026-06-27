@@ -31,12 +31,11 @@ const USER_NOTES_REF = "refs/notes/arc/user";
 export interface LocalSyncState {
   version: 4;
   /**
-   * This machine's stable random identifier — a UUID generated once on first
-   * need (see {@link getOrCreateMachineId}) and persisted here so a sibling
-   * sync-state marker can be keyed per machine without ever leaking the
-   * hostname. Additive and optional: records written before a machine-id was
-   * needed hydrate without it, and a machine-id may be persisted on its own
-   * (before any save/load has written a complete record).
+   * Legacy machine-id field — the canonical store is now the dedicated
+   * `.machine-id` file (see {@link getOrCreateMachineId}). No longer written by
+   * any current writer, nor surfaced by the validated {@link readLocalSyncState}
+   * read; retained on the type solely so a pre-`.machine-id` record stays
+   * parseable for the one-time migration adopt, which reads it via the raw read.
    */
   machineId?: string;
   materializedManifestHash: string;
@@ -126,9 +125,6 @@ export async function readLocalSyncState(
         const partialPushErrand = parsePartialPushMarker(record.partialPushErrand);
         return {
           version: 4,
-          ...(typeof record.machineId === "string" && record.machineId.length > 0
-            ? { machineId: record.machineId }
-            : {}),
           materializedManifestHash: record.materializedManifestHash,
           sourceCommit: record.sourceCommit,
           sourceOperation: record.sourceOperation,
@@ -224,7 +220,7 @@ export async function getOrCreateMachineId(
   // identity keeps it rather than orphaning its sync-state marker key. The
   // legacy field is read-tolerated only; nothing writes it back. Routed through
   // the same exclusive create so concurrent migrators still converge on one.
-  const adopted = await readPersistedMachineId(cwd, io, identity);
+  const adopted = await readLegacyMachineId(cwd, io, identity);
   const candidate = adopted ?? randomUUID();
   try {
     await exclusiveCreate(machineIdPath, candidate);
@@ -270,12 +266,12 @@ function delay(ms: number): Promise<void> {
 }
 
 /**
- * The persisted machine-id, read directly from `.sync-state.json` and bypassing
- * the full-record schema validation — a machine-id can legitimately exist on a
- * record that carries no save/load fields yet. Returns `null` when none is
- * stored.
+ * The legacy machine-id, read directly from the pre-`.machine-id`
+ * `.sync-state.json` field and bypassing full-record schema validation. Used
+ * solely by {@link getOrCreateMachineId}'s one-time migration adopt — no current
+ * writer persists this field. Returns `null` when none is stored.
  */
-async function readPersistedMachineId(
+async function readLegacyMachineId(
   cwd: string,
   io: CoreIO,
   identity: string,
@@ -333,16 +329,11 @@ export async function writeLocalSyncState(
   // otherwise the prior record's list carries forward.
   const prior = await readLocalSyncState(cwd, io, identity);
   const resolvedPriorFileList = priorFileList ?? prior?.priorFileList;
-  // A machine-id may have been persisted on a record with no save/load fields,
-  // which the validated read above returns as null — fall back to the raw read
-  // so the id survives the first complete record this write lands.
-  const machineId = prior?.machineId ?? (await readPersistedMachineId(cwd, io, identity)) ?? undefined;
   const internalDir = getUserInternalDir(cwd, identity);
   const syncStatePath = join(internalDir, LOCAL_SYNC_STATE_FILENAME);
   await ensureDir(internalDir, io.mkdir);
   const state: LocalSyncState = {
     version: 4,
-    ...(machineId ? { machineId } : {}),
     materializedManifestHash,
     sourceCommit,
     sourceOperation,
@@ -395,7 +386,6 @@ export async function clearPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
-    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,
@@ -442,7 +432,6 @@ export async function clearErrandPartialPushMarker(
 
   await writeLocalSyncStateRecord(cwd, io, identity, {
     version: state.version,
-    ...(state.machineId ? { machineId: state.machineId } : {}),
     materializedManifestHash: state.materializedManifestHash,
     sourceCommit: state.sourceCommit,
     sourceOperation: state.sourceOperation,

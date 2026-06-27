@@ -1188,4 +1188,39 @@ describe("LocalSyncState v4 schema", () => {
     // The adopt is a one-way read: the legacy record is left byte-identical.
     expect(await readFile(syncStatePath, "utf-8")).toBe(before);
   });
+
+  it("drops the machineId field from records it writes, even when a prior record carried one", async () => {
+    const priorRecord = {
+      version: 4,
+      machineId: "abcdef01-1234-4abc-89ab-001122334455",
+      materializedManifestHash: "old",
+      sourceCommit: "a".repeat(40),
+      sourceOperation: "save" as const,
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(priorRecord, null, 2)}\n`, "utf-8");
+
+    await writeLocalSyncState(cwd, realFsIO(), identity, "ab".repeat(8), "b".repeat(40), "save");
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBeUndefined();
+    expect(onDisk.sourceCommit).toBe("b".repeat(40));
+  });
+
+  it("drops the legacy machineId field when clearing a partial-push marker", async () => {
+    const priorRecord = {
+      version: 4,
+      machineId: "abcdef01-1234-4abc-89ab-001122334455",
+      materializedManifestHash: "h",
+      sourceCommit: "a".repeat(40),
+      sourceOperation: "save" as const,
+      partialPush: { localRefHash: "d".repeat(40), sourceCommit: "a".repeat(40) },
+    };
+    await writeFile(syncStatePath, `${JSON.stringify(priorRecord, null, 2)}\n`, "utf-8");
+
+    await clearPartialPushMarker(cwd, realFsIO(), identity);
+
+    const onDisk = JSON.parse(await readFile(syncStatePath, "utf-8")) as Record<string, unknown>;
+    expect(onDisk.machineId).toBeUndefined();
+    expect(onDisk.partialPush).toBeUndefined();
+  });
 });

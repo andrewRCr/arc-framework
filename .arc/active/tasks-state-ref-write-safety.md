@@ -141,20 +141,26 @@ exclusive-create file, so concurrent first-callers converge on one id; adopt a l
     - the legacy field is read-tolerated only — `getOrCreateMachineId` no longer writes `.sync-state.json` at all,
       so the adopt leaves the legacy record byte-identical
 
-### `[ ]` **3.3 Repoint the machine-id schema; stop writing `machineId` to the sync-state record**
+### `[x]` **3.3 Repoint the machine-id schema; stop writing `machineId` to the sync-state record**
 
 - _Goal:_ `.machine-id` is the single canonical store — the sync-state record stops carrying the id on write,
   while old records stay parseable for the one-time adopt.
 
-    - `[ ]` **3.3.a Repoint the readers/writers at `.machine-id`**
-        - point `getOrCreateMachineId`, `readPersistedMachineId`, and the `machineId` carry-forward in
-          `writeLocalSyncState` (`lib/user-sync/sync-state.ts`) at `.machine-id`
+    - `[x]` **3.3.a Repoint the readers/writers at `.machine-id`**
+        - the canonical reader is already `.machine-id` (`readMachineIdFile`, from Task 3.1); narrowed the legacy
+          `.sync-state.json` reader to migration-only (renamed `readPersistedMachineId` → `readLegacyMachineId`,
+          sole caller the adopt) and dropped the `machineId` carry-forward from `writeLocalSyncState`
+          (`lib/user-sync/sync-state.ts`)
 
-    - `[ ]` **3.3.b Stop writing the `LocalSyncState.machineId` field**
-        - drop `machineId` from records written by `writeLocalSyncState` / `clearPartialPushMarker` /
-          `clearErrandPartialPushMarker`; keep it parseable on read solely for the migration adopt. No version
-          bump — the field was additive / optional, and its absence on new writes is already tolerated
-- _Strategies:_ strategy-storage-evolution.md
+    - `[x]` **3.3.b Stop writing the `LocalSyncState.machineId` field**
+        - stopped `readLocalSyncState` surfacing `machineId`, so every record writer (`writeLocalSyncState`,
+          `clearPartialPushMarker` / `clearErrandPartialPushMarker`, and the `record*` spreads) omits it; dropped
+          the now-dead explicit field from the `clear*` records. The type keeps `machineId?` parseable on read
+          (raw-read path) for the adopt; no version bump — the field was additive/optional
+- _Outcome:_ Realized 3.3.a's "repoint readers" against the as-built split — the `.machine-id` canonical read
+  (Task 3.1) plus a renamed legacy-only reader — rather than repointing one shared accessor. Dropped the field at
+  the `readLocalSyncState` boundary so the `record*` markers stop carrying it too, not just the three named
+  writers; the migration adopt is unaffected (it reads via the raw read).
 
 ## **Phase 4:** D4 — User-notes write lock
 
