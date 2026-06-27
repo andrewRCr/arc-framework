@@ -16,6 +16,8 @@ import {
   type UserSyncCauseConfidence,
 } from "../../lib/user-sync/index.js";
 import { computeUnsavedDirection, missingFilesAreIntentionalRetirement } from "./drift.js";
+import { readConfigSettings } from "../../lib/config/status-reader.js";
+import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { formatRelativeTime } from "./relative-time.js";
 import {
   findNearestUserNote,
@@ -278,7 +280,6 @@ export async function runUserSessionInitStatus(
       refState: refInspection.state,
       direction: diskInspection.direction,
       missingFiles: diskInspection.missingFiles,
-      missingAreRetirement: diskInspection.missingAreRetirement,
     }),
   });
 }
@@ -293,15 +294,11 @@ function computeSessionInitNotesDrift(input: {
   refState: UserSyncRefState | null;
   direction: UserUnsavedDirection | null;
   missingFiles: string[];
-  missingAreRetirement?: boolean;
 }): UserSessionNotesDrift | undefined {
   if (input.refState !== "same" || input.direction === null) return undefined;
   return {
     direction: input.direction,
     missingFiles: input.missingFiles,
-    ...(input.missingAreRetirement !== undefined
-      ? { missingAreRetirement: input.missingAreRetirement }
-      : {}),
   };
 }
 
@@ -1403,12 +1400,6 @@ interface DiskVsSnapshotInspection {
   direction: UserUnsavedDirection | null;
   /** Manifest paths present in the (projected) note and absent on disk. */
   missingFiles: string[];
-  /**
-   * Set on a `missing` direction: `true` when the whole missing set is deliberate
-   * local retirement (every file was present at last sync), `false` when it
-   * carries a fresh arrival. Omitted on non-`missing` directions.
-   */
-  missingAreRetirement?: boolean;
 }
 
 /** Manifest paths the note carries that the disk does not, over projected manifests. */
@@ -1419,6 +1410,27 @@ function missingNoteFiles(
   return Object.keys(projectedNote.files).filter(
     (path) => projectedDisk?.files[path] === undefined,
   );
+}
+
+/**
+ * Whether every note-present/disk-absent file belongs to a shipped work unit —
+ * the authoritative benign-retirement verdict, read against the same shipped-set
+ * oracle the retired-subdir reconcile uses. Resolves the base branch from config
+ * and reads the `completed/` tree on `origin/<base>`. Called only with a
+ * non-empty missing set, so a clean comparison never pays for the ref read.
+ */
+async function missingSetIsBenignRetirement(
+  cwd: string,
+  io: UserIOContext,
+  missingFiles: string[],
+): Promise<boolean> {
+  if (missingFiles.length === 0) return false;
+  const { settings } = await readConfigSettings(cwd);
+  const shippedWuNames = await readShippedWorkUnitsFromRef(
+    io.exec,
+    `origin/${settings["branch.base"]}`,
+  );
+  return missingFilesAreIntentionalRetirement({ missingFiles, shippedWuNames });
 }
 
 async function inspectDiskVsLocalSnapshot(
@@ -1469,10 +1481,11 @@ async function inspectDiskVsLocalSnapshot(
   const noteHash = hashSyncManifest(projectedNote);
   const localSyncState = await readLocalSyncState(cwd, io, identity);
 
-  const priorFileList = localSyncState?.priorFileList ?? null;
-
   if (!diskManifest) {
     const missingFiles = missingNoteFiles(projectedNote, null);
+    if (await missingSetIsBenignRetirement(cwd, io, missingFiles)) {
+      return { state: "same", diskStatus: "current", direction: null, missingFiles };
+    }
     return {
       state: "different",
       diskStatus: localSyncState?.materializedManifestHash === noteHash
@@ -1480,7 +1493,6 @@ async function inspectDiskVsLocalSnapshot(
         : "stale",
       direction: "missing",
       missingFiles,
-      missingAreRetirement: missingFilesAreIntentionalRetirement({ missingFiles, priorFileList }),
     };
   }
 
@@ -1493,6 +1505,16 @@ async function inspectDiskVsLocalSnapshot(
   }
 
   const direction = computeUnsavedDirection(projectedDisk, projectedNote);
+
+  // A note-only ghost of a shipped WU — a retired WU's per-WU file the note
+  // still carries while disk has correctly dropped it — is benign, not drift:
+  // disk is current and the stale note self-heals at the next save. Resolve it
+  // against the shipped-set oracle here, ahead of any sync-state branch, so every
+  // downstream surface (session-init notes-drift and `arc user status` alike)
+  // reads one authoritative verdict and never recommends a no-op load.
+  if (direction === "missing" && (await missingSetIsBenignRetirement(cwd, io, missingFiles))) {
+    return { state: "same", diskStatus: "current", direction: null, missingFiles };
+  }
 
   if (!localSyncState) {
     return {
@@ -1530,9 +1552,6 @@ async function inspectDiskVsLocalSnapshot(
     diskStatus,
     direction,
     missingFiles,
-    ...(direction === "missing"
-      ? { missingAreRetirement: missingFilesAreIntentionalRetirement({ missingFiles, priorFileList }) }
-      : {}),
   };
 }
 
