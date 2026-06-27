@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "handoff-notes-post-state",
+  "origin": "inbox",
+  "intent": "Handoff SESSION-NOTES reflects post-handoff state, not probe-owned volatile git state",
+  "branch": "fix/handoff-notes-post-state",
+  "createdAt": "2026-06-27T00:19:28.806Z",
+  "originEntry": "Stop handoff from recording about-to-be-stale, probe-owned git state in SESSION-NOTES"
+}
