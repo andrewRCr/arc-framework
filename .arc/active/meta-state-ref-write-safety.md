@@ -1,8 +1,8 @@
 # Metadata: state-ref-write-safety
 
-| **State**  | **Owner** | **Branch** | **Class** | **Priority** |
-| ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| **State**  | **Owner** | **Branch**                    | **Class** | **Priority** |
+| ---------- | --------- | ----------------------------- | --------- | ------------ |
+| `Planning` | `andrew`  | `plan/state-ref-write-safety` | `Light`   | `P2`         |
 
 - **Cohort:** `agile-parallelism`
 - **Depends On:** [none]
