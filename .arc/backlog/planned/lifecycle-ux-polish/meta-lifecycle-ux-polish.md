@@ -1,4 +1,4 @@
-# Metadata: foreign-write-self-exclusion
+# Metadata: lifecycle-ux-polish
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-lifecycle-ux-polish.md`
 - **Task List:** [none]
 
 - **Current Workflow:** [none]
@@ -16,7 +16,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** —
+- **Next Action:** Activate and iterate the draft toward a spec; resolve `Class`, confirm the lobe split, then
+  land the doc lobe (facets 1–4) as a Light increment ahead of the reviewed-lane code lobe (facets 5–6).
 
 - **PR URL:** [none]
 - **Completed:** [none]

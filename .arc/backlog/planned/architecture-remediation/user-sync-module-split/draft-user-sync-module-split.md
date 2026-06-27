@@ -25,6 +25,21 @@
   reconcile consumes. The decomposition should account for the added/edited surface — mirrors the
   `partial-push-marker` growth note above.
 
+### `[ ]` **Scope the user-load `try/catch` so reconcile/backup errors propagate**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: user-sync-module-split`), housekeep drain (2026-06-27);
+  captured during the `reconcile-shipped-subdirs` errand — CodeRabbit Finding 2, 2026-06-27.
+- _Concern:_ in `commands/user/save-load.ts` the load path's `try/catch` (around `serialize` → backup write →
+  `reconcileRetiredSubdirs` → notice tiering; catch ~line 201) is over-broad. Its "user dir doesn't exist yet"
+  comment only justifies the `serialize` throw, but a git/exec failure in the shipped-set read or a removal
+  failure in `removeStaleUserWuSubdir` is silently swallowed and the load proceeds to `deserialize`, masking
+  diagnostics.
+- _Approach:_ scope the catch to the `serialize` call alone (the only expected dir-absent throw) so reconcile and
+  backup failures surface instead of being absorbed.
+- _Scope:_ pre-existing (the reconcile already sat inside this catch before the `reconcile-shipped-subdirs`
+  errand); no data-loss risk (the pre-load backup is written before reconcile); minor. Folds with this WU since
+  it relocates exactly these `save-load.ts` / `sync-status.ts` surfaces.
+
 ---
 
 ## Problem / Motivation

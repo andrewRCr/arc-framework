@@ -154,6 +154,28 @@ atomic companion and the personal atomic inbox.
 - *Provenance:* the approval-provenance-state concept (this WU's watch item + `commit-increments` § Unknowns)
   composes with its WU-scoped batch authorization. See `cohort-approval-flow-refinement.md`.
 
+### `[ ]` **Audit integration-time interlock stacking — collapse over-conservative stops**
+
+- *Routed from:* `lifecycle-ux-polish` housekeep-drain discussion (2026-06-27) — raised as a session/WU-lifecycle
+  friction item, then routed here as cohort-core rather than a lifecycle-polish quick-win.
+- *Concern:* integration carries more interlock stops than the work warrants, for both errands and WUs. The
+  conservative default stacks stops (increment/workflow approval → integration-interlock → per-leg
+  commit/push/merge/delete) where a single approved increment is already the complete shipping diff; in practice a
+  few should collapse (2→1, 3→2). Parallelism is starting up soon and the friction compounds across concurrent
+  sessions.
+- *Coordination:* the **errand** half is this WU's existing *"Errand approval-collapse: one increment-approval
+  releases the full tail"* buffer item — this is its WU-scope sibling. The **WU** half neighbors
+  `unit-scoped-review`, which today widens the review increment to WU scope but **deliberately stops at validation
+  (the integration interlock holds; it does not collapse the merge)** — so this proposes *evaluating* whether the
+  integration stop itself can fold, which is a cohort design call against that current stance, not a given.
+- *Constraint:* the integration-interlock is constitutionally **always-stop** (`DEV-RULES.ARC` — merge approval may
+  never be inferred). Any collapse must preserve an explicit merge authorization and keep CI / `pre-merge-review`
+  gating; likely opt-in + self-review-scoped (team integration still carries cross-owner review weight).
+- *Cheap tail:* once the lines are drawn, the realization is small — markdown edits to the two workflows' interlock
+  callouts. The design (where to draw them, what still gates) is the work, and it is this cohort's, not a
+  `lifecycle-ux-polish` quick-win. Candidate for the same ahead-of-cohort extraction pattern this WU used for the
+  no-active-WU wrapper fix, given the parallelism motivation.
+
 ---
 
 ## Problem / Motivation
