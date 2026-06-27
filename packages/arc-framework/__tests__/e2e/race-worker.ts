@@ -50,6 +50,15 @@ const FIXED_CREATED_AT = "2026-01-01T00:00:00.000Z";
 /** Poll interval while waiting for the barrier's `go` file. */
 const BARRIER_POLL_MS = 3;
 
+/**
+ * Backstop wait for the barrier release. The harness reaps workers it abandons
+ * (e.g. on its own readiness timeout), but if that reap is ever missed, this cap
+ * lets a stranded worker self-terminate instead of spinning on `go` forever. Set
+ * comfortably above the harness's readiness timeout so a healthy round is never
+ * cut short here.
+ */
+const BARRIER_WAIT_TIMEOUT_MS = 30_000;
+
 /** `execFile`-backed git executor bound to `cwd` (reads: rev-parse, ls-tree, cat-file). */
 function makeExec(cwd: string): GitExec {
   return async (cmd, args) => {
@@ -84,7 +93,13 @@ function delay(ms: number): Promise<void> {
 /** Block until the harness drops the `go` file, releasing every worker at once. */
 async function awaitGo(barrierDir: string): Promise<void> {
   const goPath = join(barrierDir, "go");
-  while (!existsSync(goPath)) await delay(BARRIER_POLL_MS);
+  const deadline = Date.now() + BARRIER_WAIT_TIMEOUT_MS;
+  while (!existsSync(goPath)) {
+    if (Date.now() >= deadline) {
+      throw new Error("race-worker: barrier release ('go') never arrived; abandoning round");
+    }
+    await delay(BARRIER_POLL_MS);
+  }
 }
 
 /** Require a positional argument, failing loudly when the harness omitted it. */

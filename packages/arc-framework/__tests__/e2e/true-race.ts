@@ -17,7 +17,7 @@
  * @module
  */
 
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -74,35 +74,51 @@ export async function runRound(
   const pollMs = options.pollMs ?? DEFAULT_POLL_MS;
   const barrierDir = await mkdtemp(join(tmpdir(), "arc-race-barrier-"));
 
+  const children: ChildProcess[] = [];
+  const results: Promise<WorkerResult>[] = [];
   try {
     const done = new Array<boolean>(workers.length).fill(false);
-    const results = workers.map((args, index) => {
+    workers.forEach((args, index) => {
       // args is [guard, repoDir, identity, ...extra]; inject the shared barrier
       // dir and per-worker id after the identity. Slices stay string[] (no
       // indexed access) so this type-checks under noUncheckedIndexedAccess.
       const fullArgs = [...args.slice(0, 3), barrierDir, String(index), ...args.slice(3)];
-      return spawnWorker(fullArgs).then((result) => {
-        done[index] = true;
-        return result;
-      });
+      const { child, result } = spawnWorker(fullArgs);
+      children.push(child);
+      // Account on settle either way — a worker that fails during setup (a rejected
+      // spawn) must still count as done, so the readiness wait surfaces its failure
+      // through Promise.all rather than mistaking it for a never-arriving straggler.
+      results.push(result.finally(() => { done[index] = true; }));
     });
 
     await waitForReady(barrierDir, workers.length, done, readyTimeoutMs, pollMs);
     await writeFile(join(barrierDir, "go"), "1", "utf-8");
     return await Promise.all(results);
   } finally {
+    // Reap any worker still running. A barrier timeout (or an early bail) leaves
+    // workers spinning on `awaitGo`, and removing barrierDir below would strand
+    // them — the `go` file can never appear. Kill first, then drain every
+    // settlement so a killed worker on the bail path is not an unhandled rejection.
+    for (const child of children) {
+      if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    }
+    await Promise.allSettled(results);
     await rm(barrierDir, { recursive: true, force: true });
   }
 }
 
-/** Spawn one `node --import tsx race-worker.ts …` process and capture its output. */
-function spawnWorker(args: string[]): Promise<WorkerResult> {
-  return new Promise((resolveResult, reject) => {
-    const child = spawn(
-      process.execPath,
-      ["--import", "tsx", WORKER_PATH, ...args],
-      { cwd: PACKAGE_ROOT, stdio: ["ignore", "pipe", "pipe"] },
-    );
+/**
+ * Spawn one `node --import tsx race-worker.ts …` process. Returns the live child
+ * handle (so the harness can reap it on a bail-out) alongside the promise of its
+ * captured output.
+ */
+function spawnWorker(args: string[]): { child: ChildProcess; result: Promise<WorkerResult> } {
+  const child = spawn(
+    process.execPath,
+    ["--import", "tsx", WORKER_PATH, ...args],
+    { cwd: PACKAGE_ROOT, stdio: ["ignore", "pipe", "pipe"] },
+  );
+  const result = new Promise<WorkerResult>((resolveResult, reject) => {
     let stdout = "";
     let stderr = "";
     child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString(); });
@@ -119,6 +135,7 @@ function spawnWorker(args: string[]): Promise<WorkerResult> {
       resolveResult({ stdout, stderr: annotatedStderr, exitCode });
     });
   });
+  return { child, result };
 }
 
 /**
