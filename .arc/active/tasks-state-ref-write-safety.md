@@ -168,28 +168,17 @@ _Purpose:_ The notes ref can't take a CAS, so serialize instead — a portable p
 smallest span of `runUserSave` that contains the `git notes add` read-modify-write. Git keeps owning the notes
 format; only the write is serialized.
 
-### `[ ]` **4.1 Portable per-identity advisory lock primitive**
+### `[x]` **4.1 Portable per-identity advisory lock primitive**
 
 - _Goal:_ A cross-platform advisory lock serializes a per-identity critical section, reclaiming a lock held by a
   dead or hung process without deadlocking or dropping a live holder's lock.
-
-    Build `test-first` (one behavior at a time):
-
-    - acquiring an uncontended lock creates the lockfile recording the holder's pid and mtime
-    - a second acquirer retries with bounded backoff while the lock is held-and-live, then proceeds once it frees
-    - a lock whose recorded pid is no longer alive (`process.kill(pid, 0)` throws `ESRCH`) is detected stale and
-      reclaimed; a lock past the generous mtime ceiling is likewise reclaimed (pid-reuse / liveness-edge backstop)
-    - two processes breaking a stale lock concurrently converge on one holder (the break is itself raced through
-      the same exclusive create)
-    - release frees the lock, and a release verifies ownership so it never drops another holder's lock
-
-    - implement an exclusive-create lockfile (Node `wx` / `O_EXCL`, or `mkdir`-based) under
-      `user/{identity}/.internal/` (e.g. `.notes.lock`), recording the holder pid + write mtime
-    - stale detection: pid-liveness primary (`process.kill(pid, 0)`), mtime-ceiling backstop
-- _Note:_ The `O_EXCL` create here is the same primitive D3's `.machine-id` create rests on — reuse the
-  exclusive-create seam from that task rather than reimplementing it. The concrete mtime ceiling, acquire-backoff
-  timing, and lockfile encoding are tuning / format particulars settled at implementation against the test matrix
-  (spec Open Questions), not design decisions.
+- _Outcome:_ New `lib/user-sync/notes-lock.ts` exposes `acquireAdvisoryLock` / `releaseAdvisoryLock` over an
+  exclusive-create `.notes.lock` (reuses `exclusiveCreateFile`, the same `O_EXCL` seam as D3's `.machine-id`).
+  Stale reclaim is pid-liveness primary (`process.kill(pid, 0)`, treating `EPERM` as alive) with an mtime-ceiling
+  backstop; a stale break re-races the exclusive create so concurrent breakers converge; release verifies the
+  on-disk pid before removing so it never drops another holder's lock; held-and-live contention backs off to a
+  bounded wait, then surfaces `AdvisoryLockTimeoutError`. Tuning settled against the test matrix: stale ceiling
+  60s, max wait 10s, backoff 10→250ms; lockfile encodes `{pid, acquiredAt}`. Exported via the user-sync barrel.
 
 ### `[ ]` **4.2 Serialize `runUserSave`'s note-write critical section under the lock**
 
