@@ -2,7 +2,9 @@ import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 
-import { deserialize, isSafeManifestPath, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import {
+  deserialize, getCurrentBranch, isSafeManifestPath, serialize, shortHash, type SyncManifest,
+} from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
   appendRemovalTombstones,
@@ -205,6 +207,7 @@ export async function runUserLoad(
     ancestorDistance: search.note?.ancestorDistance ?? 0,
     noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     reachableFromHead: search.note?.reachableFromHead ?? false,
+    currentBranch: search.note?.reachableFromHead === false ? await getCurrentBranch(io.exec) : null,
     messages: [
       ...cleanups,
       ...notices,

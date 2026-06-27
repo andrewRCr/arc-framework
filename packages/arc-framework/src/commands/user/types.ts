@@ -106,6 +106,12 @@ export interface UserLoadResult {
   /** Whether the annotated commit is reachable from current HEAD. */
   reachableFromHead?: boolean;
   /**
+   * The branch HEAD is on at load time — names the recognizable anchor when the
+   * note was loaded from a commit off the current branch's history. `null` on a
+   * detached HEAD.
+   */
+  currentBranch?: string | null;
+  /**
    * Load-summary messages, each tagged with a register ({@link LoadMessageLevel})
    * so the formatter can group routine cleanups, advisory notices, and genuine
    * warnings under distinct headings rather than one undifferentiated block.
@@ -670,6 +676,12 @@ export interface UserSessionLocalNoteFreshness {
   ancestorDistance: number;
   noteHistoryDistance?: number;
   reachableFromHead?: boolean;
+  /**
+   * The branch HEAD is on — names the recognizable anchor for the
+   * `outside-head-ancestry` state. `null` on a detached HEAD; omitted for the
+   * states that don't surface ancestry context.
+   */
+  currentBranch?: string | null;
 }
 
 /**

@@ -275,6 +275,7 @@ describe("user save and load", () => {
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.reachableFromHead).toBe(false);
     expect(loadedResult.noteHistoryDistance).toBe(0);
+    expect(loadedResult.currentBranch).toBe("main");
 
     const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Side session note");
