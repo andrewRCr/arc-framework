@@ -123,5 +123,10 @@ export async function pushSyncStateRef(io: SyncStateRefReadIO): Promise<void> {
  */
 export async function fetchSyncStateRef(io: SyncStateRefReadIO, incoming: string): Promise<void> {
   const ref = syncStateRef(io.identity);
+  // Never let the destination be the live ref — a `+ref:ref` refspec would force-reset
+  // this machine's own sync-state. Reconcile callers pass a per-call unique tracking ref.
+  if (incoming === ref) {
+    throw new Error(`fetchSyncStateRef: refusing to fetch into the live ref ${ref}`);
+  }
   await io.exec("git", ["fetch", "origin", `+${ref}:${incoming}`]);
 }
