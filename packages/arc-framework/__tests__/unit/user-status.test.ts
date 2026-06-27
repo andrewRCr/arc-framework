@@ -12,7 +12,6 @@ import {
   buildUserStatusResult,
   computeUserSyncSpine,
   buildUserStatusSummary,
-  computeDriftingSubdirs,
   computeUnsavedDirection,
   hasUnpushedLocalDrift,
   hasUnpushedLocalDriftForScope,
@@ -29,7 +28,6 @@ import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 import { projectManifest } from "../../src/lib/user-sync/index.js";
-import type { RecentNote } from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -119,7 +117,7 @@ describe("buildUserStatusResult", () => {
     expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
   });
 
-  it("renders note-history reachability when the local user note is outside HEAD ancestry", () => {
+  it("names the current branch when the local user note is off its history", () => {
     const result = buildUserStatusResult({
       identity: "andrew",
       diskState: "same",
@@ -130,12 +128,14 @@ describe("buildUserStatusResult", () => {
       ancestorDistance: 0,
       noteHistoryDistance: 2,
       savedReachableFromHead: false,
+      currentBranch: "fix/state-ref-write-safety",
       backupFiles: [],
       remoteIdentities: [],
     });
 
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
+      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
     );
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
@@ -1002,54 +1002,6 @@ describe("hasUnpushedLocalDriftForScope", () => {
   });
 });
 
-describe("computeDriftingSubdirs", () => {
-  function note(files: Record<string, string>): RecentNote {
-    return { historyCommit: "h", content: JSON.stringify({ version: 2, files }) };
-  }
-
-  it("flags a subdir whose disk carries local-only content beyond its last-pushed basis", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved", "wu-a/extra.md": "local" }),
-      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
-    });
-    expect([...drifting]).toEqual(["wu-a"]);
-  });
-
-  it("clears a subdir whose disk matches its last-pushed basis", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
-      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
-    });
-    expect(drifting.size).toBe(0);
-  });
-
-  it("clears a subdir carried by no note in the window (no basis → reconcile)", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
-      recentNotes: [note({ "wu-b/SESSION-NOTES.md": "saved" })],
-    });
-    expect(drifting.size).toBe(0);
-  });
-
-  it("uses the most-recent note still carrying the subdir as basis, not the latest note", () => {
-    // The latest note (index 0) has dropped wu-a (it shipped); an earlier in-window
-    // note still carries it. Disk matches that earlier content → no drift — even
-    // though wu-a absent from the latest note alone would read as a local `edits`.
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "last-pushed" }),
-      recentNotes: [
-        note({ "wu-b/SESSION-NOTES.md": "saved" }),
-        note({ "wu-a/SESSION-NOTES.md": "last-pushed", "wu-b/SESSION-NOTES.md": "saved" }),
-      ],
-    });
-    expect(drifting.size).toBe(0);
-  });
-});
-
 describe("resolveCleanArmNotesVerdict", () => {
   const activeWuName = "stale-state-detect-and-pull";
   const activeSessionNotes = `${activeWuName}/SESSION-NOTES.md`;
@@ -1526,6 +1478,7 @@ describe("user sync spine", () => {
       ancestorDistance: 0,
       noteHistoryDistance: 2,
       savedReachableFromHead: false,
+      currentBranch: "fix/state-ref-write-safety",
       savedAtRelative: "11 hours ago",
       backupFiles: [],
       remoteIdentities: [],
@@ -1534,7 +1487,8 @@ describe("user sync spine", () => {
     expect(result.spineState).toBe("remote-ahead");
     expect(result.detailLines).toContain("Saved 11 hours ago.");
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, outside current HEAD ancestry (2 note update(s) back).",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
+      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
     );
   });
 

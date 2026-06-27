@@ -1,6 +1,7 @@
 import { join } from "node:path";
 
-import { serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import { getCurrentBranch, serialize, shortHash, type SyncManifest } from "../../lib/git/index.js";
+import { noteOffBranchHistoryClause } from "./ancestry-message.js";
 import {
   DEFAULT_FETCH_TIMEOUT_MS,
   runWorktreeSyncStatus,
@@ -150,6 +151,7 @@ export async function runUserStatus(
     ancestorDistance: note?.ancestorDistance ?? 0,
     noteHistoryDistance: note?.noteHistoryDistance,
     savedReachableFromHead: note?.reachableFromHead,
+    currentBranch: note && !note.reachableFromHead ? await getCurrentBranch(io.exec) : null,
     savedAtRelative,
     unsavedDirection: diskInspection.direction,
     backupFiles,
@@ -349,7 +351,7 @@ async function inspectSessionLocalNoteFreshness(input: {
   };
 
   if (!note.reachableFromHead) {
-    return { state: "outside-head-ancestry", ...base };
+    return { state: "outside-head-ancestry", ...base, currentBranch: await getCurrentBranch(input.io.exec) };
   }
   if (note.ancestorDistance > 0) {
     return { state: "ancestor", ...base };
@@ -592,7 +594,8 @@ function renderSessionLocalNoteFreshness(
         ? ""
         : ` (${freshness.noteHistoryDistance} note update(s) back)`;
       return [
-        `Latest local user note is from ${freshness.commitShort}, outside current HEAD ancestry${historyDetail}.`,
+        `Latest local user note is from ${freshness.commitShort}, ` +
+        `${noteOffBranchHistoryClause(freshness.currentBranch ?? null, historyDetail)}.`,
       ];
     }
   }
@@ -611,6 +614,8 @@ interface BuildUserStatusInput {
   ancestorDistance?: number;
   noteHistoryDistance?: number;
   savedReachableFromHead?: boolean;
+  /** Branch HEAD is on — names the anchor when the saved note is off the current branch's history. */
+  currentBranch?: string | null;
   savedAtRelative?: string | null;
   unsavedDirection?: UserUnsavedDirection | null;
   backupFiles: string[];
@@ -669,6 +674,7 @@ export function buildUserStatusResult(
   const ancestorDistance = input.ancestorDistance ?? 0;
   const noteHistoryDistance = input.noteHistoryDistance;
   const savedReachableFromHead = input.savedReachableFromHead ?? true;
+  const currentBranch = input.currentBranch ?? null;
   const savedAtRelative = input.savedAtRelative ?? null;
   const unsavedDirection = input.unsavedDirection ?? null;
 
@@ -714,6 +720,7 @@ export function buildUserStatusResult(
       remoteChecked,
       savedCommit,
       savedReachableFromHead,
+      currentBranch,
       ancestorDistance,
       noteHistoryDistance,
       diskState,
@@ -949,6 +956,7 @@ interface VerboseDetailInput {
   remoteChecked: boolean;
   savedCommit: string | null;
   savedReachableFromHead: boolean;
+  currentBranch: string | null;
   ancestorDistance: number;
   noteHistoryDistance: number | undefined;
   diskState: UserSyncDiskState;
@@ -968,6 +976,7 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
     remoteChecked,
     savedCommit,
     savedReachableFromHead,
+    currentBranch,
     ancestorDistance,
     noteHistoryDistance,
     diskState,
@@ -1021,7 +1030,8 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
       ? ""
       : ` (${noteHistoryDistance} note update(s) back)`;
     detailLines.push(
-      `Latest local user note is from ${savedCommit}, outside current HEAD ancestry${historyDetail}.`,
+      `Latest local user note is from ${savedCommit}, ` +
+      `${noteOffBranchHistoryClause(currentBranch, historyDetail)}.`,
     );
   } else if (!savedCommit && diskState === "different") {
     detailLines.push("No local user note exists yet for this identity.");
