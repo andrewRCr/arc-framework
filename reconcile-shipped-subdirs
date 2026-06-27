@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "reconcile-shipped-subdirs",
-  "origin": "description",
-  "intent": "Reconcile a shipped per-WU user subdir despite drift; tier the cleanup notice on stashed non-ARC content",
-  "branch": "fix/reconcile-shipped-subdirs",
-  "createdAt": "2026-06-27T13:32:52.186Z"
-}
