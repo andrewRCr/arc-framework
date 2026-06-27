@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "housekeep-drain",
-  "origin": "description",
-  "intent": "Drain USER-INBOX to authoritative homes (2026-06-27)",
-  "branch": "chore/housekeep-drain",
-  "createdAt": "2026-06-27T23:33:39.429Z"
-}
