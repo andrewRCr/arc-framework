@@ -146,16 +146,18 @@ async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: str
   try {
     // Resolve the local tip first and read its tree at that exact commit, so the
     // merge input and the compare-and-swap base are bound to one snapshot. Reading
-    // the tree by ref name before resolving the tip would let a same-machine writer
-    // advance `ref` in between — the CAS would then pass against the fresher tip
-    // while committing a merge built on the stale tree, silently dropping the
-    // racer's entry. The incoming tracking ref is read the same way for symmetry.
+    // the local tree by ref name before resolving the tip would let a same-machine
+    // writer advance `ref` in between — the CAS would then pass against the fresher
+    // tip while committing a merge built on the stale tree, silently dropping the
+    // racer's entry. The incoming tracking ref is read by name: it was just fetched
+    // and has no concurrent writer, so binding it to a tip buys nothing, while the
+    // by-name read keeps the absent-vs-errored discrimination meaningful.
     const localTip = await readRefTip(io.exec, ref);
-    const incomingTip = await readRefTip(io.exec, incoming);
     const local = localTip ? await readReconcileTree(io.exec, localTip) : new Map<string, string>();
-    const remote = incomingTip ? await readReconcileTree(io.exec, incomingTip) : new Map<string, string>();
+    const remote = await readReconcileTree(io.exec, incoming);
     const merged = mergeSyncStateEntries(local, remote, ownMachineId);
 
+    const incomingTip = await readRefTip(io.exec, incoming);
     const parents = [localTip, incomingTip].filter((tip): tip is string => tip !== null);
     await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents, localTip);
   } finally {

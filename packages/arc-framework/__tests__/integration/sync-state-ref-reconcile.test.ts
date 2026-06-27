@@ -211,11 +211,16 @@ describe("sync-state-ref reconcile-push", () => {
     await writeSyncStateMarker(ioB, markerFor(MACHINE_B));
 
     const realExec = makeGitExec(repoB);
+    const incoming = incomingSyncStateRef(REF);
     // Push rejects non-ff (entering reconcile); the fetch succeeds, but the
-    // post-fetch tree read then fails for a reason other than an absent ref. The
-    // reconcile must abort rather than union a tree that drops machine A's entry.
+    // post-fetch read of the incoming tree then fails for a reason other than an
+    // absent ref. Scope the failure to the incoming ref so the local read still
+    // succeeds — the reconcile must abort on the incoming-read error rather than
+    // union a tree that drops machine A's entry.
     const failingReadExec: GitExec = async (cmd, args) => {
-      if (args[0] === "ls-tree") throw new Error("fatal: unable to read tree object (simulated)");
+      if (args[0] === "ls-tree" && args[1] === incoming) {
+        throw new Error("fatal: unable to read tree object (simulated)");
+      }
       return realExec(cmd, args);
     };
 
