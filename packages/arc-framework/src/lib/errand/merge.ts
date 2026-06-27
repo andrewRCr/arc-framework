@@ -101,7 +101,18 @@ export async function reconcileErrandPush(io: ErrandRecordIO): Promise<ErrandPus
       if (isRemoteUnavailableError(error.message)) return { kind: "no-remote" };
       if (!isNonFastForwardError(error.message)) return { kind: "failed", error };
 
-      const reconcile = await reconcileTrees(io, ref);
+      // Keep the outcome single-channel: a fetch/read/commit failure inside the
+      // reconcile — including a same-machine CAS rejection in the local-commit leg
+      // — must surface as `failed`, not escape this function as a throw.
+      let reconcile: ErrandTreeMerge;
+      try {
+        reconcile = await reconcileTrees(io, ref);
+      } catch (reconcileErr) {
+        return {
+          kind: "failed",
+          error: reconcileErr instanceof Error ? reconcileErr : new Error(String(reconcileErr)),
+        };
+      }
       if (reconcile.kind === "collision") {
         return { kind: "conflict", slugs: reconcile.slugs };
       }

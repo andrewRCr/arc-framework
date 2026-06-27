@@ -14,12 +14,8 @@
  * @module
  */
 
-import {
-  hashBlob,
-  readRefTip,
-  readTreeEntries,
-  writeTreeCommit,
-} from "../git/ref-tree.js";
+import { hashBlob, readTreeEntries } from "../git/ref-tree.js";
+import { writeTreeWithCasRetry } from "./cas-retry.js";
 import type { GitExec, GitExecInput } from "../git/exec.js";
 
 export type { GitExec, GitExecInput };
@@ -96,10 +92,12 @@ export async function writeEntry(
 ): Promise<string> {
   const ref = syncStateRef(io.identity);
   const blobSha = await hashBlob(io.execInput, content);
-  const entries = await readTreeEntries(io.exec, ref);
-  entries.set(machineId, blobSha);
-  const tip = await readRefTip(io.exec, ref);
-  return writeTreeCommit(io, ref, entries, `sync-state: write ${machineId}`, tip ? [tip] : [], tip);
+  const outcome = await writeTreeWithCasRetry(io, ref, `sync-state: write ${machineId}`, (entries) => {
+    entries.set(machineId, blobSha);
+    return entries;
+  });
+  if (outcome.kind === "failed") throw outcome.error;
+  return outcome.sha;
 }
 
 /**

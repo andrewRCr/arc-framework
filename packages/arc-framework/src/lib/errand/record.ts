@@ -15,13 +15,12 @@
 
 import {
   errandsRef,
-  readRefTip,
   readTreeEntries,
   hashBlob,
-  writeTreeCommit,
   type ErrandRecordIO,
   type ErrandRecordReadIO,
 } from "./ref-tree.js";
+import { writeTreeWithCasRetry } from "../user-sync/cas-retry.js";
 
 import type { GitExec } from "../git/exec.js";
 
@@ -193,10 +192,16 @@ export async function writeErrandRecord(
   record: ErrandRecord,
 ): Promise<void> {
   const blobSha = await hashBlob(io.execInput, serializeErrandRecord(record));
-  const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
-  entries.set(record.slug, blobSha);
-  const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: write ${record.slug}`, tip ? [tip] : [], tip);
+  const outcome = await writeTreeWithCasRetry(
+    io,
+    errandsRef(io.identity),
+    `errand record: write ${record.slug}`,
+    (entries) => {
+      entries.set(record.slug, blobSha);
+      return entries;
+    },
+  );
+  if (outcome.kind === "failed") throw outcome.error;
 }
 
 /**
@@ -208,9 +213,13 @@ export async function writeErrandRecord(
  * @param slug - The slug to drop from the ref's tree.
  */
 export async function removeErrandRecord(io: ErrandRecordIO, slug: string): Promise<void> {
-  const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
-  if (!entries.has(slug)) return;
-  entries.delete(slug);
-  const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: remove ${slug}`, tip ? [tip] : [], tip);
+  const ref = errandsRef(io.identity);
+  // Pre-check the no-op case so an absent slug never writes a redundant commit;
+  // the retry frame re-reads the tree, so the delete still applies to fresh state.
+  if (!(await readTreeEntries(io.exec, ref)).has(slug)) return;
+  const outcome = await writeTreeWithCasRetry(io, ref, `errand record: remove ${slug}`, (entries) => {
+    entries.delete(slug);
+    return entries;
+  });
+  if (outcome.kind === "failed") throw outcome.error;
 }

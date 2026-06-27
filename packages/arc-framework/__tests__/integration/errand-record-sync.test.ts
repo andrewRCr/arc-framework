@@ -27,6 +27,7 @@ import {
   type ErrandRecord,
   type ErrandRecordIO,
 } from "../../src/lib/errand/index.js";
+import type { GitExec } from "../../src/lib/git/exec.js";
 
 const IDENTITY = "andrew";
 const REF = errandsRef(IDENTITY);
@@ -138,5 +139,31 @@ describe("errand-ref reconcile-push", () => {
     // Remote keeps A's version; B's local ref is left intact.
     expect(await remoteSlugs(repoB)).toEqual(["clash"]);
     expect((await listErrandRecords(ioB))[0]?.intent).toBe("the B version");
+  });
+
+  it("folds a CAS rejection in the reconcile local-commit leg into a failed outcome rather than throwing", async () => {
+    await writeErrandRecord(ioA, recordFor("from-a"));
+    await reconcileErrandPush(ioA);
+
+    // repoB's divergent write makes its push a genuine non-fast-forward, entering
+    // the reconcile path. Instrument so the reconcile's local-commit update-ref
+    // hits a CAS rejection (a concurrent same-machine writer moved the ref); it
+    // must surface through the outcome union, never escape as a raw rejection.
+    await writeErrandRecord(ioB, recordFor("from-b"));
+
+    const realExec = makeGitExec(repoB);
+    const failingExec: GitExec = async (cmd, args) => {
+      if (args[0] === "update-ref" && args[1] === REF) {
+        throw new Error(`fatal: cannot lock ref '${REF}': is at aaa but expected bbb`);
+      }
+      return realExec(cmd, args);
+    };
+    const ioFail: ErrandRecordIO = {
+      exec: failingExec,
+      execInput: makeGitExecInput(repoB),
+      identity: IDENTITY,
+    };
+
+    expect((await reconcileErrandPush(ioFail)).kind).toBe("failed");
   });
 });

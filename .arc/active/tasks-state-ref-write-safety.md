@@ -44,27 +44,31 @@ cross-machine reconcile share one bound.
   cycle 1.3's wiring would otherwise form. The frame is not yet wired into the direct writes (that is 1.3); its
   `mutate` closure doubles as the deterministic interleave seam the tests inject through.
 
-### `[ ]` **1.3 Route the direct write legs through the retry frame**
+### `[x]` **1.3 Route the direct write legs through the retry frame**
 
 - _Goal:_ Every direct ref write that can lose a same-machine race runs under the retry frame, so neither
   consumer can silently clobber a concurrent writer; the reconcile legs' rejections fold into their existing push
   loops.
 
-    - `[ ]` **1.3.a Errand direct writes**
-        - wrap `writeErrandRecord` and `removeErrandRecord` (`lib/errand/record.ts`) in the retry frame; the
-          mutation closures are the per-slug `entries.set` / `entries.delete`
+    - `[x]` **1.3.a Errand direct writes**
+        - Routed `writeErrandRecord` / `removeErrandRecord` (`lib/errand/record.ts`) through
+          `writeTreeWithCasRetry`; a `failed` outcome re-throws, preserving the `void` contract. `removeErrandRecord`
+          keeps a pre-check so an absent slug stays a no-op (no redundant commit).
 
-    - `[ ]` **1.3.b Sync-state direct write**
-        - wrap `writeEntry` (`lib/user-sync/sync-state-ref.ts`) in the retry frame; the mutation closure is the
-          per-`machineId` `entries.set`
+    - `[x]` **1.3.b Sync-state direct write**
+        - Routed `writeEntry` (`lib/user-sync/sync-state-ref.ts`) through the frame; `failed` re-throws, success
+          returns the sha — the `Promise<string>` contract is unchanged.
 
-    - `[ ]` **1.3.c Confirm reconcile-leg rejections fold into the existing push loops**
-        - verify a CAS rejection in each `reconcileTrees` local-commit leg surfaces into the surrounding
-          `reconcileSyncStatePush` / `reconcileErrandPush` retry loop (already bounded by
-          `MAX_RECONCILE_ATTEMPTS`) rather than needing a fresh wrapper
-        - each leg keeps its own outcome contract: the errand reconcile carries a `{ kind: "collision" }` /
-          `conflict` shape, the sync-state reconcile a `{ kind: "failed" }` shape — a CAS rejection maps into the
-          leg's existing shape, not a single shared one
+    - `[x]` **1.3.c Confirm reconcile-leg rejections fold into the existing push loops**
+        - sync-state's `reconcileSyncStatePush` already wraps its `reconcileTrees` call into `{ kind: "failed" }`
+          (covered by an existing test). Errand's `reconcileErrandPush` did **not** — fixed it to mirror that wrap,
+          so a CAS rejection in the local-commit leg folds into `{ kind: "failed" }` rather than escaping as a throw.
+          Each leg keeps its own shape (errand `conflict` / `failed`, sync-state `failed`); no fresh wrapper needed.
+
+- _Outcome:_ All direct tree-ref writes (errand records, sync-state entries) now recover from a same-machine CAS
+  loss by re-reading and retrying instead of throwing, and the reconcile legs fold their rejections into their
+  existing bounded push loops. Closes Phase 1 / D1 — the deterministic CAS rejection / retry / exhaustion and
+  no-clobber assertions hold (Success Criteria 1–2); the true-race e2e backstop lands in Phase 5.
 
 ## **Phase 2:** D2 — Reconcile-read failure discrimination
 
