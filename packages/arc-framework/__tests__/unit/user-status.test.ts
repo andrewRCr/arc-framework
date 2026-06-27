@@ -12,7 +12,6 @@ import {
   buildUserStatusResult,
   computeUserSyncSpine,
   buildUserStatusSummary,
-  computeDriftingSubdirs,
   computeUnsavedDirection,
   hasUnpushedLocalDrift,
   hasUnpushedLocalDriftForScope,
@@ -29,7 +28,6 @@ import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
 import { projectManifest } from "../../src/lib/user-sync/index.js";
-import type { RecentNote } from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -999,54 +997,6 @@ describe("hasUnpushedLocalDriftForScope", () => {
   it("returns false for a subdir with no files on either side (empty basis)", () => {
     expect(unsavedDirectionForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBeNull();
     expect(hasUnpushedLocalDriftForScope(disk, note, { kind: "subdir", name: "wu-z" })).toBe(false);
-  });
-});
-
-describe("computeDriftingSubdirs", () => {
-  function note(files: Record<string, string>): RecentNote {
-    return { historyCommit: "h", content: JSON.stringify({ version: 2, files }) };
-  }
-
-  it("flags a subdir whose disk carries local-only content beyond its last-pushed basis", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved", "wu-a/extra.md": "local" }),
-      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
-    });
-    expect([...drifting]).toEqual(["wu-a"]);
-  });
-
-  it("clears a subdir whose disk matches its last-pushed basis", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
-      recentNotes: [note({ "wu-a/SESSION-NOTES.md": "saved" })],
-    });
-    expect(drifting.size).toBe(0);
-  });
-
-  it("clears a subdir carried by no note in the window (no basis → reconcile)", () => {
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "saved" }),
-      recentNotes: [note({ "wu-b/SESSION-NOTES.md": "saved" })],
-    });
-    expect(drifting.size).toBe(0);
-  });
-
-  it("uses the most-recent note still carrying the subdir as basis, not the latest note", () => {
-    // The latest note (index 0) has dropped wu-a (it shipped); an earlier in-window
-    // note still carries it. Disk matches that earlier content → no drift — even
-    // though wu-a absent from the latest note alone would read as a local `edits`.
-    const drifting = computeDriftingSubdirs({
-      localSubdirs: ["wu-a"],
-      diskManifest: manifest({ "wu-a/SESSION-NOTES.md": "last-pushed" }),
-      recentNotes: [
-        note({ "wu-b/SESSION-NOTES.md": "saved" }),
-        note({ "wu-a/SESSION-NOTES.md": "last-pushed", "wu-b/SESSION-NOTES.md": "saved" }),
-      ],
-    });
-    expect(drifting.size).toBe(0);
   });
 });
 

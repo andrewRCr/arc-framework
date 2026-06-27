@@ -28,7 +28,6 @@ import { inferRetiredSubdirs } from "../../src/lib/session-init/recommended-acti
 import {
   runUserSave,
   runUserLoad,
-  computeDriftingSubdirs,
   runUserAdd,
   runUserClose,
   runUserOpen,
@@ -746,7 +745,6 @@ describe("user load — retired-subdir reconciliation", () => {
         exec: io.exec,
         readDir: io.readDir,
         readFile: io.readFile,
-        computeDrift: computeDriftingSubdirs,
       });
       expect(detection.candidates).toContain("old-wu");
 
@@ -800,25 +798,62 @@ describe("user load — retired-subdir reconciliation", () => {
     expect(await readdir(userDir)).not.toContain("done-wu");
   });
 
-  it("preserves a shipped subdir carrying unpushed local drift", async () => {
+  it("removes a shipped subdir despite local edits to SESSION-NOTES (drift no longer preserves)", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
-    // Saved note is the drift basis; the subdir has shipped.
-    await mkdir(join(userDir, "live-wu"), { recursive: true });
-    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU", "utf-8");
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU", "utf-8");
     await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
-    await markShippedOnOrigin("live-wu");
+    await markShippedOnOrigin("old-wu");
 
-    // Local edit beyond the last-pushed basis → unsaved work at risk → preserve.
-    await writeFile(join(userDir, "live-wu", "SESSION-NOTES.md"), "# Live WU — local edit", "utf-8");
+    // Local edit beyond the last-pushed note — once drift-preserved, now reconciled
+    // (the WU is shipped and the removal is backed up). Only SESSION-NOTES, so the
+    // removal is a quiet cleanup, not a stashed-content notice.
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU — local edit", "utf-8");
 
-    // A different current WU, so survival proves the reconcile preserved it rather
-    // than the load restoring it.
-    await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user", currentWuName: "current-wu" });
+    const loaded = expectLoaded(result);
 
-    expect(await readdir(userDir)).toContain("live-wu");
+    expect(await readdir(userDir)).not.toContain("old-wu");
+    expect(loaded.messages.some((m) => m.level === "cleanup" && m.text.includes("old-wu"))).toBe(true);
+    expect(loaded.messages.some((m) => m.level === "notice" && m.text.includes("old-wu"))).toBe(false);
+  });
+
+  it("removes a shipped subdir holding stashed files with a loud recover-from-backup notice", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Cross-WU", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    // The operator stashed a non-ARC file in the subdir before the WU shipped.
+    await mkdir(join(userDir, "old-wu"), { recursive: true });
+    await writeFile(join(userDir, "old-wu", "SESSION-NOTES.md"), "# Old WU", "utf-8");
+    await writeFile(join(userDir, "old-wu", "scratch.py"), "print('keep me')", "utf-8");
+    await markShippedOnOrigin("old-wu");
+
+    const result = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loaded = expectLoaded(result);
+
+    expect(await readdir(userDir)).not.toContain("old-wu");
+
+    // The stashed file makes the removal a loud notice that names it and points at
+    // the recoverable backup, rather than a quiet cleanup.
+    const notice = loaded.messages.find((m) => m.level === "notice" && m.text.includes("old-wu"));
+    expect(notice).toBeDefined();
+    expect(notice!.text).toContain("scratch.py");
+    expect(notice!.text).toContain("recover from .internal/");
+    expect(loaded.messages.some((m) => m.level === "cleanup" && m.text.includes("old-wu"))).toBe(false);
+
+    // The stashed content is recoverable from the pre-load backup.
+    const backups = await listBackupFiles(userDir);
+    const preLoad = backups.find((name) => /^\.pre-load-backup-.*\.json$/u.test(name));
+    const backup = JSON.parse(
+      await readFile(join(userDir, ".internal", preLoad!), "utf-8"),
+    ) as { files: Record<string, string> };
+    expect(backup.files["old-wu/scratch.py"]).toBe("print('keep me')");
   });
 
   it("reconcileRetiredSubdirsStandalone removes a shipped subdir and backs it up (the open entry point)", async () => {

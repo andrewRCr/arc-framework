@@ -5,26 +5,26 @@
  * classifies.
  *
  * A per-WU user subdir under `user/{identity}/` is *retired* — reconcilable —
- * only when both of these hold:
- *
- * - its WU has shipped (its slug is in the shipped set, read from `origin/<base>`),
- * - it carries no unpushed local drift (no unsaved work at risk).
+ * exactly when its WU has shipped (its slug is in the shipped set, read from
+ * `origin/<base>`). Removal is recoverable (the caller writes an `.internal/`
+ * backup first) and a shipped WU is closed, so a shipped subdir reconciles
+ * unconditionally — there is no unsaved-work-at-risk gate. Whether the operator
+ * stashed extra files in the subdir governs only how loudly the removal is
+ * announced ({@link stashedFilesInSubdir}), not whether it happens.
  *
  * The shipped gate is load-bearing for the no-current-WU path (an errand or
  * `main` session): there, every local subdir looks "not the current WU", so
  * without the shipped gate the reconcile would sweep every in-flight WU's
  * workspace. Gating on shipped confines it to genuinely-retired subdirs without
- * needing a current-WU input. The drift gate replaces the former recency-window
- * proxy — it answers "is there unsaved local work here?" directly rather than by
- * how recently a note carried the subdir.
+ * needing a current-WU input.
  *
  * @module
  */
 
 import { wuNameOfPath } from "./classifier.js";
 
-/** Why a present subdir was spared from reconciliation. */
-export type PreservedReason = "not-shipped" | "has-drift";
+/** Why a present subdir was spared from reconciliation — only a live (not-shipped) WU is. */
+export type PreservedReason = "not-shipped";
 
 /** A present subdir kept in place, with the condition that spared it. */
 export interface PreservedSubdir {
@@ -34,7 +34,7 @@ export interface PreservedSubdir {
 
 /** The reconcile/preserve partition of the present per-WU subdirs. */
 export interface RetiredSubdirPlan {
-  /** Subdirs to reconcile — shipped AND carrying no unpushed local drift. */
+  /** Subdirs to reconcile — every shipped subdir present locally. */
   reconcile: string[];
   /** Present subdirs spared, each tagged with the condition that spared it. */
   preserved: PreservedSubdir[];
@@ -45,20 +45,16 @@ export interface RetiredSubdirPlanInput {
   localSubdirs: readonly string[];
   /** Shipped WU-name slugs (read from the `origin/<base>` `completed/` tree). */
   shipped: ReadonlySet<string>;
-  /** Subdirs carrying unpushed local drift (possible unsaved work) — preserved. */
-  driftingSubdirs: ReadonlySet<string>;
 }
 
 /**
  * Partition present per-WU subdirs into reconcile vs. preserve.
  *
  * Pure and total over the input — no I/O, no current-WU input. Output preserves
- * `localSubdirs` iteration order. The shipped check precedes the drift check, so
- * a not-shipped subdir is preserved as `not-shipped` regardless of incidental
- * drift — a live WU's workspace is never reconciled, and the dominant gate names
- * the reason.
+ * `localSubdirs` iteration order. A shipped subdir reconciles unconditionally; a
+ * not-shipped one (a live WU's workspace) is always preserved.
  *
- * @param input - Local subdirs plus the shipped and drifting reference sets.
+ * @param input - Local subdirs plus the shipped reference set.
  * @returns The reconcile/preserve partition.
  */
 export function planRetiredSubdirReconcile(
@@ -68,12 +64,10 @@ export function planRetiredSubdirReconcile(
   const preserved: PreservedSubdir[] = [];
 
   for (const subdir of input.localSubdirs) {
-    if (!input.shipped.has(subdir)) {
-      preserved.push({ subdir, reason: "not-shipped" });
-    } else if (input.driftingSubdirs.has(subdir)) {
-      preserved.push({ subdir, reason: "has-drift" });
-    } else {
+    if (input.shipped.has(subdir)) {
       reconcile.push(subdir);
+    } else {
+      preserved.push({ subdir, reason: "not-shipped" });
     }
   }
 
@@ -95,4 +89,31 @@ export function subdirsFromPaths(paths: Iterable<string>): string[] {
     if (wu !== null) subdirs.add(wu);
   }
   return [...subdirs];
+}
+
+/**
+ * Basenames ARC itself writes into a per-WU user subdir. Anything else under
+ * `<wu>/` is operator-stashed content — ARC permits arbitrary text files there —
+ * which is what makes a retired-subdir removal worth announcing loudly.
+ */
+export const ARC_PER_WU_FILENAMES: ReadonlySet<string> = new Set(["SESSION-NOTES.md"]);
+
+/**
+ * The operator-stashed (non-ARC) basenames a subdir carries, drawn from a set of
+ * manifest-relative paths. Empty when the subdir holds only ARC's own files —
+ * the signal that a retired-subdir removal is routine rather than worth a louder
+ * "you stashed files here" notice.
+ *
+ * @param paths - Manifest-relative paths under `user/{identity}/`.
+ * @param subdir - The per-WU subdir name to inspect.
+ * @returns The stashed basenames, in `paths` iteration order.
+ */
+export function stashedFilesInSubdir(paths: Iterable<string>, subdir: string): string[] {
+  const stashed: string[] = [];
+  for (const path of paths) {
+    if (wuNameOfPath(path) !== subdir) continue;
+    const base = path.slice(path.lastIndexOf("/") + 1);
+    if (!ARC_PER_WU_FILENAMES.has(base)) stashed.push(base);
+  }
+  return stashed;
 }

@@ -12,6 +12,7 @@ import {
   mergeCrossWuFile,
   planRetiredSubdirReconcile,
   projectManifest,
+  stashedFilesInSubdir,
   subdirsFromPaths,
   writeLocalSyncState,
   wuNameOfPath,
@@ -21,7 +22,6 @@ import {
 import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index.js";
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
-import { computeDriftingSubdirs } from "./drift.js";
 import {
   listChangedNotePaths,
   notePathToCommit,
@@ -147,7 +147,7 @@ export async function runUserLoad(
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
   let notices: LoadMessage[] = [];
-  let cleanups: LoadMessage[] = [];
+  const cleanups: LoadMessage[] = [];
   try {
     const localResult = await serialize(userDir, io.readDir, io.readFile);
     const localFiles = localResult.manifest.files;
@@ -162,12 +162,11 @@ export async function runUserLoad(
       );
       await pruneTimestampedBackups(internalDir, io.readDir);
 
-      // Retired-subdir reconcile: a per-WU subdir that has shipped and is no
-      // longer carried in the recent-notes window is removed. Its files were
-      // just captured in the pre-load backup, so the removal is recoverable.
-      // Runs before the stale-file scan so a reconciled subdir's files aren't
-      // also reported as "preserved".
-      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles, recentNotes });
+      // Retired-subdir reconcile: every shipped per-WU subdir is removed. Its
+      // files were just captured in the pre-load backup, so the removal is
+      // recoverable. Runs before the stale-file scan so a reconciled subdir's
+      // files aren't also reported as "preserved".
+      const reconciled = await reconcileRetiredSubdirs({ cwd, identity, exec: io.exec, localFiles });
 
       notices = classifyOrphans({
         localFiles,
@@ -178,10 +177,26 @@ export async function runUserLoad(
         level: "notice",
         text: renderOrphanNotice(classification, backupFilename),
       }));
-      cleanups = [...reconciled].map((subdir) => ({
-        level: "cleanup",
-        text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupFilename}`,
-      }));
+
+      // Tier the removal announcement by content: a subdir holding only ARC's
+      // own SESSION-NOTES is a routine cleanup; one the operator stashed extra
+      // files in earns a louder notice naming them and the recoverable backup.
+      for (const subdir of reconciled) {
+        const stashed = stashedFilesInSubdir(Object.keys(localFiles), subdir);
+        if (stashed.length === 0) {
+          cleanups.push({
+            level: "cleanup",
+            text: `Retired WU subdir "${subdir}" (shipped) — removed; backed up to .internal/${backupFilename}`,
+          });
+        } else {
+          notices.push({
+            level: "notice",
+            text:
+              `Retired WU subdir "${subdir}" (shipped) — removed; it held file(s) you added ` +
+              `(${stashed.join(", ")}); recover from .internal/${backupFilename} if you still need them`,
+          });
+        }
+      }
     }
   } catch {
     // User dir doesn't exist yet — nothing to back up, skip gracefully
@@ -524,11 +539,9 @@ function noteManifestContainsWu(noteContent: string, wuName: string): boolean {
 /**
  * Resolve which present per-WU subdirs are reconcilable: those whose WU has
  * shipped (read from the `origin/<base>` `completed/` tree — the canonical,
- * branch-independent oracle) and which carry no unpushed local drift. Detection
- * is {@link planRetiredSubdirReconcile}; the drift gate is
- * {@link computeDriftingSubdirs} over the disk manifest and the recent-notes
- * window. Pure planning — performs no removal, so a caller can gate its backup
- * on a non-empty result.
+ * branch-independent oracle). Partitioning is {@link planRetiredSubdirReconcile}.
+ * Pure planning — performs no removal, so a caller can gate its backup on a
+ * non-empty result.
  *
  * @returns The reconcilable subdir names, in `localFiles` subdir order.
  */
@@ -536,19 +549,13 @@ async function resolveReconcilableSubdirs(params: {
   cwd: string;
   exec: GitExec;
   localFiles: Record<string, string>;
-  recentNotes: RecentNote[];
 }): Promise<string[]> {
   const localSubdirs = subdirsFromPaths(Object.keys(params.localFiles));
   if (localSubdirs.length === 0) return [];
 
   const { settings } = await readConfigSettings(params.cwd);
   const shipped = await readShippedWorkUnitsFromRef(params.exec, `origin/${settings["branch.base"]}`);
-  const driftingSubdirs = computeDriftingSubdirs({
-    localSubdirs,
-    diskManifest: { version: 2, files: params.localFiles },
-    recentNotes: params.recentNotes,
-  });
-  return planRetiredSubdirReconcile({ localSubdirs, shipped, driftingSubdirs }).reconcile;
+  return planRetiredSubdirReconcile({ localSubdirs, shipped }).reconcile;
 }
 
 /** Recursively remove each reconciled subdir; returns the removed set. */
@@ -575,13 +582,11 @@ async function reconcileRetiredSubdirs(params: {
   identity: string;
   exec: GitExec;
   localFiles: Record<string, string>;
-  recentNotes: RecentNote[];
 }): Promise<Set<string>> {
   const reconcile = await resolveReconcilableSubdirs({
     cwd: params.cwd,
     exec: params.exec,
     localFiles: params.localFiles,
-    recentNotes: params.recentNotes,
   });
   return removeReconciledSubdirs({ cwd: params.cwd, identity: params.identity, reconcile });
 }
@@ -617,8 +622,7 @@ export async function reconcileRetiredSubdirsStandalone(params: {
   const localFiles = localManifest.files;
   if (Object.keys(localFiles).length === 0) return new Set();
 
-  const recentNotes = await readRecentUserNotes(io.exec, identity);
-  const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles, recentNotes });
+  const reconcile = await resolveReconcilableSubdirs({ cwd, exec: io.exec, localFiles });
   if (reconcile.length === 0) return new Set();
 
   // Back up only once a removal is pending: the snapshot exists to make the

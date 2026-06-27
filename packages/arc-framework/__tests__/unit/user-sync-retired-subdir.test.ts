@@ -1,89 +1,88 @@
 /**
  * Unit tests for `planRetiredSubdirReconcile` — the pure retired-subdir
- * reconciliation decision. A present per-WU subdir is reconcilable only when its
- * WU has shipped and it carries no unpushed local drift; the shipped gate is
- * what keeps a no-current-WU session from mass-reconciling in-flight subdirs.
+ * reconciliation decision. A present per-WU subdir is reconcilable exactly when
+ * its WU has shipped; the shipped gate is what keeps a no-current-WU session from
+ * mass-reconciling in-flight subdirs. Removal is recoverable (the caller backs up
+ * first), so a shipped subdir reconciles unconditionally — drift no longer gates.
  */
 
 import { describe, it, expect } from "vitest";
 
 import {
   planRetiredSubdirReconcile,
+  stashedFilesInSubdir,
   subdirsFromPaths,
 } from "../../src/lib/user-sync/index.js";
 
 describe("planRetiredSubdirReconcile", () => {
-  it("reconciles a present subdir that is shipped and carries no drift", () => {
+  it("reconciles a present subdir that is shipped", () => {
     const plan = planRetiredSubdirReconcile({
       localSubdirs: ["old-wu"],
       shipped: new Set(["old-wu"]),
-      driftingSubdirs: new Set(),
     });
 
     expect(plan.reconcile).toEqual(["old-wu"]);
     expect(plan.preserved).toEqual([]);
   });
 
-  it("preserves a shipped subdir that carries unpushed local drift", () => {
+  it("reconciles a shipped subdir unconditionally — local content does not spare it", () => {
+    // A shipped WU is closed and removal is backed up, so even a subdir the
+    // operator edited or stashed files in is reconciled (the backup is the net).
     const plan = planRetiredSubdirReconcile({
       localSubdirs: ["old-wu"],
       shipped: new Set(["old-wu"]),
-      driftingSubdirs: new Set(["old-wu"]),
     });
 
-    expect(plan.reconcile).toEqual([]);
-    expect(plan.preserved).toEqual([{ subdir: "old-wu", reason: "has-drift" }]);
+    expect(plan.reconcile).toEqual(["old-wu"]);
+    expect(plan.preserved).toEqual([]);
   });
 
   it("preserves a present subdir whose WU has not shipped", () => {
     const plan = planRetiredSubdirReconcile({
       localSubdirs: ["live-wu"],
       shipped: new Set(),
-      driftingSubdirs: new Set(),
     });
 
     expect(plan.reconcile).toEqual([]);
     expect(plan.preserved).toEqual([{ subdir: "live-wu", reason: "not-shipped" }]);
   });
 
-  it("preserves a not-shipped subdir as not-shipped even if it also drifts", () => {
-    // Not-shipped is the stronger guard — a live WU's subdir is never reconciled,
-    // and the reason reflects the dominant gate rather than incidental drift.
-    const plan = planRetiredSubdirReconcile({
-      localSubdirs: ["live-wu"],
-      shipped: new Set(),
-      driftingSubdirs: new Set(["live-wu"]),
-    });
-
-    expect(plan.preserved).toEqual([{ subdir: "live-wu", reason: "not-shipped" }]);
-  });
-
-  it("reconciles only shipped, drift-free subdirs when no current WU is resolved", () => {
+  it("reconciles every shipped subdir, preserving only not-shipped, with no current WU", () => {
     // Errand / main session: every local subdir looks "not the current WU". The
-    // shipped gate confines the reconcile to genuinely-retired subdirs; the drift
-    // gate spares one that still carries unpushed work.
+    // shipped gate confines the reconcile to genuinely-retired subdirs; a live WU
+    // (not shipped) is preserved.
     const plan = planRetiredSubdirReconcile({
-      localSubdirs: ["shipped-clean", "shipped-dirty", "active-wu"],
-      shipped: new Set(["shipped-clean", "shipped-dirty"]),
-      driftingSubdirs: new Set(["shipped-dirty"]),
+      localSubdirs: ["shipped-a", "shipped-b", "active-wu"],
+      shipped: new Set(["shipped-a", "shipped-b"]),
     });
 
-    expect(plan.reconcile).toEqual(["shipped-clean"]);
-    expect(plan.preserved).toEqual([
-      { subdir: "shipped-dirty", reason: "has-drift" },
-      { subdir: "active-wu", reason: "not-shipped" },
-    ]);
+    expect(plan.reconcile).toEqual(["shipped-a", "shipped-b"]);
+    expect(plan.preserved).toEqual([{ subdir: "active-wu", reason: "not-shipped" }]);
   });
 
   it("returns an empty plan for no local subdirs", () => {
     const plan = planRetiredSubdirReconcile({
       localSubdirs: [],
       shipped: new Set(["anything"]),
-      driftingSubdirs: new Set(),
     });
 
     expect(plan.reconcile).toEqual([]);
     expect(plan.preserved).toEqual([]);
+  });
+});
+
+describe("stashedFilesInSubdir", () => {
+  it("returns the non-ARC basenames a subdir carries", () => {
+    const stashed = stashedFilesInSubdir(
+      ["old-wu/SESSION-NOTES.md", "old-wu/scratch.py", "old-wu/notes/query.sql", "other-wu/x.txt"],
+      "old-wu",
+    );
+
+    expect(stashed).toEqual(["scratch.py", "query.sql"]);
+  });
+
+  it("is empty when the subdir holds only ARC's own SESSION-NOTES", () => {
+    expect(stashedFilesInSubdir(["old-wu/SESSION-NOTES.md"], "old-wu")).toEqual([]);
   });
 });
 

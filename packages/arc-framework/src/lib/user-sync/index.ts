@@ -45,7 +45,9 @@ export {
 export { projectManifest } from "./projection.js";
 
 export {
+  ARC_PER_WU_FILENAMES,
   planRetiredSubdirReconcile,
+  stashedFilesInSubdir,
   subdirsFromPaths,
   type PreservedReason,
   type PreservedSubdir,
