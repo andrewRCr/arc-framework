@@ -1165,4 +1165,27 @@ describe("LocalSyncState v4 schema", () => {
     const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
     expect(onDisk).toBe(winnerId);
   });
+
+  it("adopts a legacy .sync-state.json machineId into .machine-id instead of minting fresh", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    await writeFile(syncStatePath, `${JSON.stringify({ machineId: legacyId }, null, 2)}\n`, "utf-8");
+
+    const id = await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    // The established identity migrates, rather than a fresh mint orphaning its marker key.
+    expect(id).toBe(legacyId);
+    const onDisk = (await readFile(join(internalDir, ".machine-id"), "utf-8")).trim();
+    expect(onDisk).toBe(legacyId);
+  });
+
+  it("read-tolerates the legacy .sync-state.json machineId — never writes it back", async () => {
+    const legacyId = "abcdef01-1234-4abc-89ab-001122334455";
+    const before = `${JSON.stringify({ machineId: legacyId, materializedManifestHash: "x" }, null, 2)}\n`;
+    await writeFile(syncStatePath, before, "utf-8");
+
+    await getOrCreateMachineId(cwd, realFsIO(), identity);
+
+    // The adopt is a one-way read: the legacy record is left byte-identical.
+    expect(await readFile(syncStatePath, "utf-8")).toBe(before);
+  });
 });

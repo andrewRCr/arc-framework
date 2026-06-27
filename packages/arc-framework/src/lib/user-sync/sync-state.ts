@@ -198,8 +198,11 @@ const MACHINE_ID_READBACK_DELAY_MS = 2;
  * ({@link exclusiveCreateFile}, `O_CREAT | O_EXCL`): concurrent first-callers
  * race it, exactly one wins, and every loser adopts the winner's id via an
  * `EEXIST` read-back — so two first-callers on one machine converge on a single
- * id rather than each minting a different one. Idempotent: once written, every
- * later call returns the persisted id without minting.
+ * id rather than each minting a different one. On a first write, an id already
+ * established under the legacy `.sync-state.json` field is adopted rather than
+ * minted (preserving an existing identity); that field is read-tolerated only,
+ * never written back. Idempotent: once written, every later call returns the
+ * persisted id without minting.
  *
  * @param exclusiveCreate - Exclusive-create seam, defaulting to the real
  *   filesystem primitive; injectable so a test can force the lost-race branch.
@@ -216,10 +219,16 @@ export async function getOrCreateMachineId(
   const existing = await readMachineIdFile(io, machineIdPath);
   if (existing) return existing;
 
-  const minted = randomUUID();
+  // On a fresh `.machine-id`, adopt an id already established under the legacy
+  // `.sync-state.json` field before minting — so a machine that already has an
+  // identity keeps it rather than orphaning its sync-state marker key. The
+  // legacy field is read-tolerated only; nothing writes it back. Routed through
+  // the same exclusive create so concurrent migrators still converge on one.
+  const adopted = await readPersistedMachineId(cwd, io, identity);
+  const candidate = adopted ?? randomUUID();
   try {
-    await exclusiveCreate(machineIdPath, minted);
-    return minted;
+    await exclusiveCreate(machineIdPath, candidate);
+    return candidate;
   } catch (err) {
     if (!isEexistError(err)) throw err;
     // Lost the create race: a concurrent first-caller already wrote the

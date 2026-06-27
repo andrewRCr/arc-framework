@@ -128,20 +128,18 @@ exclusive-create file, so concurrent first-callers converge on one id; adopt a l
   `.sync-state.json` `machineId` is left untouched here: its one-time adopt is Task 3.2, and the
   `readPersistedMachineId` / `writeLocalSyncState` repoint and stop-write are Task 3.3.
 
-### `[ ]` **3.2 One-time migration adopt of a legacy `.sync-state.json` `machineId`**
+### `[x]` **3.2 One-time migration adopt of a legacy `.sync-state.json` `machineId`**
 
 - _Goal:_ A machine that already minted an id under the old `.sync-state.json` keeps it — the existing id migrates
   into `.machine-id` rather than a fresh mint orphaning its sync-state marker key.
 
-    Build `test-first` (one behavior at a time):
-
-    - on a `.machine-id` miss, an existing `.sync-state.json` `machineId` is adopted and written into
-      `.machine-id` (via the same exclusive-create race), not re-minted
-    - with neither store present, a fresh id is minted exactly as today
-    - after migration the `.sync-state.json` `machineId` is read-tolerated only — never written back
-
-    - perform the migration read before minting in `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`); route
-      the adopted id through the same exclusive-create path so concurrent migrators converge on one
+    - `getOrCreateMachineId` (`lib/user-sync/sync-state.ts`) now reads the legacy `.sync-state.json` `machineId`
+      (via the existing `readPersistedMachineId`) on a `.machine-id` miss, before minting: an established id is
+      adopted as the create candidate, only an absent legacy id mints fresh
+    - the adopted id routes through the same `exclusiveCreateFile` path as a fresh mint, so concurrent migrators
+      converge on one and a lost migration race still reads back the winner
+    - the legacy field is read-tolerated only — `getOrCreateMachineId` no longer writes `.sync-state.json` at all,
+      so the adopt leaves the legacy record byte-identical
 
 ### `[ ]` **3.3 Repoint the machine-id schema; stop writing `machineId` to the sync-state record**
 
