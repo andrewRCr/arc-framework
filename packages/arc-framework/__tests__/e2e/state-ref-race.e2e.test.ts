@@ -90,6 +90,7 @@ describe("true-race smokes — same-machine write-safety guards", () => {
   it("sync-state ref (D1): two racing machine-keyed writes both land", async () => {
     const dir = await createTempRepo("arc-race-syncstate-");
     try {
+      const expectedKeys: string[] = [];
       for (let round = 0; round < ROUNDS; round++) {
         const keyA = `machine-${round}-a`;
         const keyB = `machine-${round}-b`;
@@ -98,8 +99,12 @@ describe("true-race smokes — same-machine write-safety guards", () => {
           ["sync-state", dir, IDENTITY, keyB],
         ]);
         expectAllOk(results, round);
+        expectedKeys.push(keyA, keyB);
+        // Exact cumulative match: every key from this and all prior rounds is still
+        // present, so a regression that clobbered an earlier round's entry is caught
+        // — not just that the current round's two writes landed.
         const keys = await refTreeKeys(dir, SYNC_STATE_REF);
-        expect(keys, `round ${round}`).toEqual(expect.arrayContaining([keyA, keyB]));
+        expect(keys, `round ${round}`).toEqual([...expectedKeys].sort());
       }
     } finally {
       await cleanupTempDir(dir);
@@ -109,6 +114,7 @@ describe("true-race smokes — same-machine write-safety guards", () => {
   it("errand ref (D1): two racing record writes both land", async () => {
     const dir = await createTempRepo("arc-race-errand-");
     try {
+      const expectedSlugs: string[] = [];
       for (let round = 0; round < ROUNDS; round++) {
         const slugA = `errand-${round}-a`;
         const slugB = `errand-${round}-b`;
@@ -117,8 +123,11 @@ describe("true-race smokes — same-machine write-safety guards", () => {
           ["errand", dir, IDENTITY, slugB],
         ]);
         expectAllOk(results, round);
+        expectedSlugs.push(slugA, slugB);
+        // Exact cumulative match — an earlier round's record clobbered by a later
+        // write would fail here, where an arrayContaining check would not.
         const keys = await refTreeKeys(dir, ERRANDS_REF);
-        expect(keys, `round ${round}`).toEqual(expect.arrayContaining([slugA, slugB]));
+        expect(keys, `round ${round}`).toEqual([...expectedSlugs].sort());
       }
     } finally {
       await cleanupTempDir(dir);
@@ -128,6 +137,7 @@ describe("true-race smokes — same-machine write-safety guards", () => {
   it("user-notes (D4): two racing note writes both land under the lock", async () => {
     const dir = await createTempRepo("arc-race-notes-");
     try {
+      const noted: string[] = [];
       for (let round = 0; round < ROUNDS; round++) {
         const commitA = await emptyCommit(dir, `note-round-${round}-a`);
         const commitB = await emptyCommit(dir, `note-round-${round}-b`);
@@ -136,10 +146,13 @@ describe("true-race smokes — same-machine write-safety guards", () => {
           ["notes", dir, IDENTITY, commitB],
         ]);
         expectAllOk(results, round);
-        // Both notes survive — the lock prevented the unguarded `git notes add`
-        // RMW from collapsing the two writes to one.
-        expect(await noteShow(dir, commitA), `round ${round} note A`).toContain(`note for ${commitA}`);
-        expect(await noteShow(dir, commitB), `round ${round} note B`).toContain(`note for ${commitB}`);
+        noted.push(commitA, commitB);
+        // Every note ever written still resolves — the lock kept the unguarded
+        // `git notes add` RMW from collapsing concurrent writes, and no later round
+        // silently dropped an earlier round's note.
+        for (const commit of noted) {
+          expect(await noteShow(dir, commit), `round ${round} note ${commit}`).toContain(`note for ${commit}`);
+        }
       }
     } finally {
       await cleanupTempDir(dir);
