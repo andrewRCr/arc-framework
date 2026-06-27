@@ -294,7 +294,12 @@ async function readLegacyMachineId(
 ): Promise<string | null> {
   const raw = await readSyncStateRaw(cwd, io, identity);
   const machineId = raw?.machineId;
-  return typeof machineId === "string" && machineId.length > 0 ? machineId : null;
+  if (typeof machineId !== "string") return null;
+  // Trim before adopting: readMachineIdFile trims on read-back, so a whitespace-only
+  // legacy value written verbatim would be returned once, then read as absent and
+  // fail the exclusive-create read-back with EEXIST. Empty after trim → mint instead.
+  const trimmed = machineId.trim();
+  return trimmed.length > 0 ? trimmed : null;
 }
 
 /** Parse `.sync-state.json` into its raw object form (internal path preferred, then legacy), or `null`. */
