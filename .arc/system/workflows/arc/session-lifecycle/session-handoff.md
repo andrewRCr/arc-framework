@@ -434,6 +434,12 @@ Markers:
   upcoming-task summaries, "things NOT to re-do" lists).
 - Process narration (debugging steps, mid-task discoveries, tooling gotchas). Codify durable
   lessons in a strategy or QUICK-REFERENCE — not here.
+- Probe-owned volatile git state — unpushed-commit counts, ahead/behind numbers, dirty file counts.
+  The next session-init recomputes these fresh from git, and this handoff's own sync leg (§ Sync)
+  drives the unpushed count to zero, so a recorded count reads false at next load. SESSION-NOTES
+  reflects *post-handoff* state, not the moment-of-writing snapshot. Intentionally-left uncommitted
+  work is the exception — record it under Uncommitted Work above; it's working context visible only
+  in `git diff`, not a transient count the sync leg erases.
 - Explanatory paragraphs where the template expects whitespace. Empty sections stay empty.
 
 (Restating tracked content is the most common failure but already excluded by Pass 1 — see the
