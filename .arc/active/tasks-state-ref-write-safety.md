@@ -227,8 +227,8 @@ the Windows / WSL / Mac CI matrix.
   `.github/workflows/ci.yml`, gated to the reviewed PR lane and rolled into `merge-ok`; the rest of the pipeline
   stays `ubuntu`-only (WSL = Linux syscalls, covered by the `ubuntu` leg — noted in the job comment). It runs a
   new `test:portability` script (root + package) selecting the lock/liveness, D1 CAS, and true-race suites — the
-  real-process smoke is what confirms exclusive-create and machine-id convergence on each OS. Cross-OS
-  confirmation lands when this WU's PR runs (Windows / macOS aren't reproducible locally).
+  real-process smoke is what confirms exclusive-create and machine-id convergence on each OS. All three legs —
+  `ubuntu` / `windows` / `macos` — run green on the PR's CI (Windows / macOS aren't reproducible locally).
 
 ## **Phase 6:** Verification
 
@@ -255,9 +255,9 @@ the Windows / WSL / Mac CI matrix.
   `machineId` is adopted into `.machine-id` on first run (no re-mint, no orphaned marker key) (D3)
 - `[x]` The exclusive-create, lock, and liveness primitives pass on the `ubuntu` / `windows` / `macos` matrixed
   CI job this work adds, including the bounded true-race e2e smoke (portability)
-    - _Deviation:_ The `portability` matrix job is in place and its `ubuntu` leg is green (locally and in the
-      Tier 3 attestation). The `windows` / `macos` legs run only on GitHub-hosted runners — not reproducible
-      locally — so they confirm when this WU's PR opens, at the integrate-work-unit CI gate.
+    - _Verified:_ The `portability` matrix job is in place and all three legs — `ubuntu` / `windows` / `macos` —
+      run green on the PR's CI (the `windows` / `macos` legs only on GitHub-hosted runners, not reproducible
+      locally; the `ubuntu` leg also green locally and in the Tier 3 attestation).
 - `[x]` All existing tests green; all quality gates pass (markdown lint, `lint:ts`, `typecheck:all`, `test`,
   `build`); no user-facing or config surface changed
 - `[x]` Ready for integration
