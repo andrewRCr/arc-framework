@@ -127,11 +127,12 @@ async function reconcileTrees(io: ErrandRecordIO, ref: string): Promise<ErrandTr
     const result = mergeErrandTrees(local, remote);
     if (result.kind === "collision") return result;
 
+    const localTip = await readRefTip(io.exec, ref);
     const parents = [
-      await readRefTip(io.exec, ref),
+      localTip,
       await readRefTip(io.exec, incoming),
     ].filter((tip): tip is string => tip !== null);
-    await writeTreeCommit(io, result.entries, "merge errand records", parents);
+    await writeTreeCommit(io, result.entries, "merge errand records", parents, localTip);
     return result;
   } finally {
     await deleteRef(io, incoming);

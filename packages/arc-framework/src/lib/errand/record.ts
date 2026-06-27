@@ -196,7 +196,7 @@ export async function writeErrandRecord(
   const entries = await readTreeEntries(io.exec, errandsRef(io.identity));
   entries.set(record.slug, blobSha);
   const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: write ${record.slug}`, tip ? [tip] : []);
+  await writeTreeCommit(io, entries, `errand record: write ${record.slug}`, tip ? [tip] : [], tip);
 }
 
 /**
@@ -212,5 +212,5 @@ export async function removeErrandRecord(io: ErrandRecordIO, slug: string): Prom
   if (!entries.has(slug)) return;
   entries.delete(slug);
   const tip = await readRefTip(io.exec, errandsRef(io.identity));
-  await writeTreeCommit(io, entries, `errand record: remove ${slug}`, tip ? [tip] : []);
+  await writeTreeCommit(io, entries, `errand record: remove ${slug}`, tip ? [tip] : [], tip);
 }

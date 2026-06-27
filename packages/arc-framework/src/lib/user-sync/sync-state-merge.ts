@@ -140,11 +140,12 @@ async function reconcileTrees(io: SyncStateRefIO, ref: string, ownMachineId: str
     const remote = await readTreeEntries(io.exec, incoming);
     const merged = mergeSyncStateEntries(local, remote, ownMachineId);
 
+    const localTip = await readRefTip(io.exec, ref);
     const parents = [
-      await readRefTip(io.exec, ref),
+      localTip,
       await readRefTip(io.exec, incoming),
     ].filter((tip): tip is string => tip !== null);
-    await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents);
+    await writeTreeCommit(io, ref, merged, `sync-state: reconcile ${ownMachineId}`, parents, localTip);
   } finally {
     await deleteRef(io, incoming);
   }

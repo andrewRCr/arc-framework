@@ -15,28 +15,18 @@ the final `update-ref`; a rejected CAS is distinguished by message (sibling of t
 discriminator); the retry frame reuses the exported `MAX_RECONCILE_ATTEMPTS` so same-machine retry and
 cross-machine reconcile share one bound.
 
-### `[ ]` **1.1 Thread an expected-tip compare-and-swap through `writeTreeCommit`**
+### `[x]` **1.1 Thread an expected-tip compare-and-swap through `writeTreeCommit`**
 
 - _Goal:_ `writeTreeCommit`'s final ref move rejects when the ref advanced since the caller read its tip, instead
   of unconditionally overwriting it.
 
-    Build `test-first` (one behavior at a time):
-
-    - a write whose expected old tip still matches canonical succeeds and moves the ref to the new commit
-    - a write whose expected old tip is stale (the ref moved underneath) is rejected by `git update-ref` and
-      surfaces the failure rather than clobbering
-    - the create-from-absent case uses git's zero-old-value form (`update-ref <ref> <new> ""`) and fails if the
-      ref already exists
-
-    - add an explicit expected-old-tip parameter to `writeTreeCommit` (`lib/git/ref-tree.ts`); the existing
-      `parents` argument is unchanged
-    - issue `git update-ref <ref> <new> <old>` for the update case and the empty-old-value form for the
-      root / absent case (sentinel: an absent tip maps to the empty old value)
-    - update all five call sites to pass the tip they already read as the expected old value — errand
-      `writeErrandRecord` / `removeErrandRecord` / `reconcileTrees` (`lib/errand/record.ts`, `lib/errand/merge.ts`)
-      and sync-state `writeEntry` / `reconcileTrees` (`lib/user-sync/sync-state-ref.ts`,
-      `lib/user-sync/sync-state-merge.ts`). CAS is now active; a rejection surfaces as a raw error until the retry
-      frame lands in 1.3
+- _Outcome:_ `writeTreeCommit` (`lib/git/ref-tree.ts`) gained an `expectedOldTip: string | null` parameter threaded
+  to `git update-ref <ref> <new> <old>`; a `null` tip maps to git's empty old-value form, so create-from-absent
+  fails if the ref already exists. Threaded through the errand wrapper (`lib/errand/ref-tree.ts`) and all five call
+  sites — errand `writeErrandRecord` / `removeErrandRecord` / `reconcileTrees`, sync-state `writeEntry` /
+  `reconcileTrees` — each passing the tip it already read (the reconcile legs now capture the local tip explicitly).
+  CAS is active; a rejection surfaces as a raw git error until the retry frame lands in 1.2/1.3. Real-git CAS
+  behavior covered by `ref-tree-cas.test.ts`.
 
 ### `[ ]` **1.2 Bounded CAS-retry frame, with rejection discrimination**
 

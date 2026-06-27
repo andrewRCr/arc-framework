@@ -99,7 +99,7 @@ export async function writeEntry(
   const entries = await readTreeEntries(io.exec, ref);
   entries.set(machineId, blobSha);
   const tip = await readRefTip(io.exec, ref);
-  return writeTreeCommit(io, ref, entries, `sync-state: write ${machineId}`, tip ? [tip] : []);
+  return writeTreeCommit(io, ref, entries, `sync-state: write ${machineId}`, tip ? [tip] : [], tip);
 }
 
 /**

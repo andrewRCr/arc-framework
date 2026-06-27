@@ -70,11 +70,21 @@ export async function hashBlob(execInput: GitExecInput, content: string): Promis
  * fetched-remote tip for a reconcile so the follow-up push fast-forwards. An
  * empty `parents` mints the ref's first (root) commit.
  *
+ * The final ref move is a **compare-and-swap**: `expectedOldTip` is the tip the
+ * caller read at the start of its read-modify-write, threaded through to git's
+ * `update-ref <ref> <new> <old>` old-value check. The move rejects (git errors)
+ * if canonical advanced since that read, so a same-machine writer racing the same
+ * ref cannot silently overwrite the other's commit. A `null` `expectedOldTip`
+ * uses git's zero-old-value form (`update-ref <ref> <new> ""`) — the ref must not
+ * yet exist, so the create-from-absent case fails rather than clobbering a ref a
+ * concurrent writer just minted.
+ *
  * @param io - Injected git seams (reads plus the stdin-fed builder).
  * @param ref - The ref to move to the new commit.
  * @param entries - The key → blob-sha entries the tree carries.
  * @param message - The commit message.
  * @param parents - The new commit's parents (empty for the root commit).
+ * @param expectedOldTip - The tip the ref is expected to hold for the CAS, or `null` to require an absent ref.
  * @returns The new commit sha.
  */
 export async function writeTreeCommit(
@@ -83,6 +93,7 @@ export async function writeTreeCommit(
   entries: Map<string, string>,
   message: string,
   parents: string[],
+  expectedOldTip: string | null,
 ): Promise<string> {
   const treeLines = [...entries.entries()].map(([key, sha]) => `100644 blob ${sha}\t${key}`);
   // Empty entries (the last record removed) must feed `mktree` zero bytes — a lone
@@ -100,6 +111,9 @@ export async function writeTreeCommit(
   const { stdout: commitSha } = await io.exec("git", commitArgs);
   const sha = commitSha.trim();
 
-  await io.exec("git", ["update-ref", ref, sha]);
+  // Compare-and-swap: an absent expected tip maps to git's empty old-value form,
+  // which requires the ref not to exist; otherwise the move requires the ref to
+  // still hold the tip the caller read. Either mismatch rejects with a git error.
+  await io.exec("git", ["update-ref", ref, sha, expectedOldTip ?? ""]);
   return sha;
 }
