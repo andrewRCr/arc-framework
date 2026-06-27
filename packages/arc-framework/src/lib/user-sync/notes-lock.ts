@@ -250,19 +250,25 @@ async function readHolder(
   if (raw.trim().length === 0) return "empty";
   try {
     const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object"
-      && parsed !== null
-      && typeof (parsed as { pid?: unknown }).pid === "number"
-      && typeof (parsed as { acquiredAt?: unknown }).acquiredAt === "number"
-    ) {
-      const record = parsed as LockHolder;
+    if (typeof parsed === "object" && parsed !== null) {
+      const pidValue = (parsed as { pid?: unknown }).pid;
+      const acquiredAtValue = (parsed as { acquiredAt?: unknown }).acquiredAt;
       const tokenValue = (parsed as { token?: unknown }).token;
-      return {
-        pid: record.pid,
-        acquiredAt: record.acquiredAt,
-        ...(typeof tokenValue === "string" ? { token: tokenValue } : {}),
-      };
+      // A holder pid must be a real OS pid — a positive safe integer. Rejecting 0,
+      // negatives, NaN, fractions, and unsafe integers keeps a corrupted record from
+      // reading as a live holder (and from reaching process.kill(pid, 0) as garbage).
+      if (
+        typeof pidValue === "number"
+        && Number.isSafeInteger(pidValue)
+        && pidValue > 0
+        && typeof acquiredAtValue === "number"
+      ) {
+        return {
+          pid: pidValue,
+          acquiredAt: acquiredAtValue,
+          ...(typeof tokenValue === "string" ? { token: tokenValue } : {}),
+        };
+      }
     }
   } catch {
     // fall through to corrupt
