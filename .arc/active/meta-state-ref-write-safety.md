@@ -9,14 +9,14 @@
 
 - **Origin:** [internal]
 - **Design:** `spec-state-ref-write-safety.md`
-- **Task List:** [none]
+- **Task List:** `tasks-state-ref-write-safety.md`
 
 - **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** Task list finalized — ready to activate
 
 - **PR URL:** [none]
 - **Completed:** [none]

@@ -230,7 +230,9 @@ Per-fork rationale for the three discovery decisions:
   `.sync-state.json` `machineId` into `.machine-id` on first run of the new code; thereafter the JSON field is
   ignored. Records without a legacy id mint fresh exactly as today.
 - **Cross-platform.** The exclusive-create (`wx` / `O_EXCL`) and `mkdir` lock primitives, and `process.kill(pid,
-  0)` liveness, all behave on Windows / WSL / Mac. The true-race e2e smoke runs on the CI matrix to confirm.
+  0)` liveness, all behave on Windows / WSL / Mac. The true-race e2e smoke runs on an `ubuntu` / `windows` /
+  `macos` matrixed CI job this work adds for the concurrency suite (CI is `ubuntu`-only today; WSL is Linux
+  syscalls, covered-by-proxy by the `ubuntu` runner).
 - **Forward-compat.** This is the git-native interim of `arc-backend`'s version-checked-writes /
   optimistic-concurrency substrate. CAS-on-`update-ref` is the same shape (read version, write-if-unchanged,
   reconcile-on-reject), so the tree-ref guards lift in with zero reshape; the cross-machine twin (the
@@ -258,8 +260,9 @@ Validated at work-unit completion — the per-guard race matrix is the acceptanc
 5. **Machine-id (D3).** Two concurrent first-callers on one machine converge on a single id. An existing
    `.sync-state.json` `machineId` is adopted into `.machine-id` on first run (no re-mint, no orphaned marker
    key).
-6. **Portability.** The exclusive-create, lock, and liveness primitives pass on the Windows / WSL / Mac CI
-   matrix, including the bounded true-race e2e smoke.
+6. **Portability.** The exclusive-create, lock, and liveness primitives pass on an `ubuntu` / `windows` / `macos`
+   CI matrix — a dedicated matrixed job this work adds for the concurrency suite (CI is `ubuntu`-only today) —
+   including the bounded true-race e2e smoke. WSL is Linux syscalls, covered-by-proxy by the `ubuntu` runner.
 7. **No regression.** All existing tests green; all quality gates (markdown lint, `lint:ts`, `typecheck:all`,
    `test`, `build`) pass; no user-facing or config surface changed.
 
