@@ -695,12 +695,6 @@ export interface UserSessionNotesDrift {
   direction: UserUnsavedDirection;
   /** Manifest paths present in the note and absent on disk (the missing set). */
   missingFiles: string[];
-  /**
-   * Set on a `missing` direction: `true` when the whole missing set is deliberate
-   * local retirement (every file present at last sync), distinguishing it from
-   * real arrival drift. Lets the orchestrator suppress a benign retirement surface.
-   */
-  missingAreRetirement?: boolean;
 }
 
 /**
