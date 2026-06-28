@@ -32,6 +32,20 @@
   recognition scope.
 - *Scope:* small for the rename; medium if the self-scaffold path is taken.
 
+### `[ ]` **Gate `arc-recover` skill installation per-harness / opt-in**
+
+- *Routed from:* `compaction-recovery` create-spec coordination (2026-06-28).
+- *Concern:* `compaction-recovery` ships an `arc-recover` skill (the manual recovery fallback). Installed
+  unconditionally, it lands in every harness's skill registry — including CC/Codex users who recover via the hook
+  path and never invoke it manually. Unwanted registry clutter for the majority hook-path case.
+- *Proposed:* gate `arc-recover` generation on harness / opt-in at `arc init` / `arc join` — the per-harness
+  skill-generation surface this WU owns (`detectExistingSkillDirs` + the tools/harness prompt reframe above).
+  Compose with that reframe rather than treating it separately. `compaction-recovery`'s MVP ships it by default;
+  this WU decides the gate.
+- *Home note:* routed here (owns per-harness skill generation + init/join harness selection).
+  `skill-infrastructure-cleanup` (skill-inventory placement) is the adjacent home.
+- *Scope:* small (one generation gate, composes with the prompt reframe).
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

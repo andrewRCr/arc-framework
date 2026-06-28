@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-compaction-recovery.md`
+- **Design:** `spec-compaction-recovery.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Draft re-synthesized to formalization-ready — open design items settled (seed path,
   audit-baseline, `loadSet` slice, ADR-002 amendment) and the four reciprocal forward-compat notes routed.
 - **Next Task:** [none]
