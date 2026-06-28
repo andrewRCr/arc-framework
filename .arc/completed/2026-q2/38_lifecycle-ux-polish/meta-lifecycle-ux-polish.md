@@ -1,8 +1,8 @@
 # Metadata: lifecycle-ux-polish
 
-| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
-| ------------- | --------- | -------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `feat/lifecycle-ux-polish` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 4 — review iteration
+- **Next Action:** [none]
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/149>
-- **Completed:** [none]
+- **Completed:** 2026-06-28
 
 ---
 
