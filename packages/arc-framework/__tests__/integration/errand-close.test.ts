@@ -194,6 +194,24 @@ describe("closeErrand", () => {
     expect(await remoteSlugs(dir)).toEqual(["needs-force"]);
   });
 
+  it("propagates unexpected branch-existence lookup failures", async () => {
+    const opened = await openErrand(io, { slug: "lookup-fails", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    const brokenIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        if (args[0] === "show-ref" && args.at(-1) === `refs/heads/${opened.record.branch}`) {
+          throw Object.assign(new Error("git show-ref exploded"), { code: 128 });
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    await expect(closeErrand(brokenIo, { slug: "lookup-fails", base: "main", force: true }))
+      .rejects.toThrow("git show-ref exploded");
+    expect(await readErrandRecord(io, "lookup-fails")).not.toBeNull();
+  });
+
   it("is a no-op when no record exists for the slug", async () => {
     expect(await closeErrand(io, { slug: "ghost", base: "main" })).toEqual({
       kind: "no-record",

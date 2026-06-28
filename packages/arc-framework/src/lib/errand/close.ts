@@ -122,7 +122,9 @@ async function localBranchExists(exec: GitExec, branch: string): Promise<boolean
   try {
     await exec("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    if (code === 1) return false;
+    throw err;
   }
 }

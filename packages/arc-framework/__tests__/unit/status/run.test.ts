@@ -2174,6 +2174,33 @@ describe("runSessionHandoffStatus — orchestration", () => {
     }
   });
 
+  it("uses the active WU name for the handoff safe missing SESSION-NOTES sub-case", async () => {
+    const probes = sessionHandoffProbes({
+      active: vi.fn(async () => activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-my-wu.md",
+      })),
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+        }),
+      ),
+    });
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(true);
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
   it.each([
     { direction: "mixed" as const, missingFiles: [] },
     { direction: "missing" as const, missingFiles: ["old-wu/SESSION-NOTES.md"] },

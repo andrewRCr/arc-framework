@@ -653,8 +653,9 @@ export async function runSessionHandoffStatus(
   ]);
 
   const branch = worktree.ok ? worktree.value.branch : null;
+  const handoffActiveWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
   const handoffNotesVerdict = user.ok && user.value.notesDrift
-    ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: null })
+    ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: handoffActiveWuName })
     : null;
   const enrichedUser: SessionHandoffResult["user"] = user.ok
     ? {

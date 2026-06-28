@@ -102,7 +102,7 @@ export async function detectForeignArtifactOverlap(
     (entry) =>
       isInFlight(entry) &&
       entry.worktreePath !== originatingWorktreePath &&
-      entry.metaFilePath !== originatingMetaPath,
+      (originatingMetaPath === undefined || entry.metaFilePath !== originatingMetaPath),
   );
 
   const overlaps: ForeignArtifactOverlap[] = [];

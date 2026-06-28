@@ -594,14 +594,15 @@ skip arms):
 **Next session:** [Task list pointer (on-task-list), freeform (off-task-list), materialize/resume `chore/<slug>`
 for errand-session, or `session-init discovery / user direction` between WUs]
 
-**Conditional top-level sections** — prepend each applicable surface above `**Sync:**`:
+**Conditional top-level sections** — prepend each applicable surface above the current result block (`**Sync:**`
+or `**Errand:**`):
 
 - `recommendedSummaryLine` non-null: prepend it verbatim. Read from `arc sync --json`'s envelope when sync ran
   (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from probe-2 otherwise
   (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or dispatch.
-- `user.value.notesDriftSurface` present and the sync result did not report the notes leg saved or pushed
-  successfully: render the advisory below. Suppress it when `arc sync --json` shows notes save/push success; the
-  sync already captured the drift.
+- `identity` present, `user.value.notesDriftSurface` present, and the sync result did not report the notes leg
+  saved or pushed successfully: render the advisory below. Suppress it when `arc sync --json` shows notes
+  save/push success; the sync already captured the drift.
 
   ```text
   **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
