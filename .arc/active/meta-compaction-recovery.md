@@ -12,17 +12,15 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `draft-design`
-- **Last Completed:** [none]
+- **Last Completed:** Draft holistically rewritten from the session-decoupling reframe + harness hook research,
+  and captured (`Class` Heavy → Novel).
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Begin `draft-design` from the session-decoupling reframe (settled 2026-06-28) — the ARC
-  session decouples from the harness session and compaction becomes a first-class re-hydration event (lean seed,
-  hook-deterministic recovery, `clear → session-init` / `compact → recover`), not the draft's original
-  emergency-bridge framing. Scope grows to an ADR-002 amendment + `strategy-session-operations § Auto-Compaction`
-  rewrite. Reassess `Class` (Heavy → possibly Novel). Two planning deliverables: author Coordination sections, and
-  route reciprocal forward-compat notes to the downstream inbound buffers (`composable-workflows`,
-  `operational-state-docs`, `cli-substrate-adoption`) so each owns its end of the seam.
+- **Next Action:** Continue `draft-design` — resolve the draft's Open items (seed storage path, final seed-field
+  list, load-set declaration form, validation harness, ADR shape) and route the four reciprocal forward-compat
+  notes (`composable-workflows`, `operational-state-docs`, `cli-substrate-adoption`, `unit-scoped-review`) into
+  their inbound buffers **before** advancing to `create-spec`. Stay in `draft-design` until those settle.
 
 - **PR URL:** [none]
 - **Completed:** [none]
