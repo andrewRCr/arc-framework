@@ -63,19 +63,13 @@ never-synced boundary — no new exclusion list. The canonical seed stays invoca
 field — a dev-only field would be both an audience leak and a mis-set hazard). The embedded `loadSet` is the
 recovery-audit baseline, not a re-load shortcut.
 
-### `[ ]` **2.1 Define the `CompactionSeed` schema**
+### `[x]` **2.1 Define the `CompactionSeed` schema**
 
 - _Goal:_ A versioned, invocation-neutral seed shape captures everything recovery needs to re-hydrate and audit —
   environment, WU state pointers, the embedded load-set baseline, and the uncommitted-file list.
-- _Note:_ The schema + emit/read helpers live in a `src/lib/compaction-seed/` module importing the
-  `src/lib/load-set/` types (1.1), so the embedded `LoadSetManifest` is the same type, not a copy.
-
-    - `schemaVersion` (forward-compatible parsing) + `emittedAt` (ISO-8601, audit/debug only, never
-      load-bearing).
-    - Environment: `repoRoot`, `branch`, `head`, `dirty`.
-    - WU state pointers: `activeWorkUnit`, `metaPath`, `sessionType`, `currentWorkflow`, `currentTask`
-      (`{ id; title; lineHint }`, null in planning).
-    - Recovery baseline: `loadSet` (the embedded `LoadSetManifest` from 1.1) + `uncommittedFiles`.
+- _Outcome:_ Added `src/lib/compaction-seed/schema.ts` with schema-v1 `CompactionSeed` types, shared
+  `LoadSetManifest` embedding, runtime validation, JSON parse/stringify helpers, and unit coverage for valid,
+  null-pointer, malformed, mismatched, and invalid-shape payloads.
 
 ### `[ ]` **2.2 Implement the seed `--write` emitter**
 
