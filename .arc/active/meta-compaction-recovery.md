@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                 | **Class** | **Priority** |
 | ---------- | --------- | -------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/compaction-recovery` | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | `plan/compaction-recovery` | `Novel`   | `P3`         |
 
 - **Cohort:** `agent-context-optimization`
 - **Depends On:** [none]
