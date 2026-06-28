@@ -285,18 +285,51 @@ slices recovery needs and **skips the dispatch-only oracles**:
   `inFlightComposition`, `inboxState`, `partialPushMarker`, `recommendedCombinedPrompt`, `recovery`, and the
   sync-advisory `baseDistance` / `baseBranchSync` channels. `domainRules` stays load-on-demand.
 
-### Constitutional change
+### Constitutional change + doc cascade
 
-- **Amend `adr-002`** (Tier-2, append-only — confirmed amend-only, no new ADR). It owns the session model + the
-  context-preservation / agent-compatibility envelope; the decoupling **evolves** that same envelope, it does not
-  reverse it. The amendment records: compaction is a **recoverable discontinuity** ARC owns the recovery for, not
-  a black box to disable; bounded sessions remain a scope/review discipline; the **long-session-viability**
-  consequence; and the **disableability-gone** fact (the old "disable where possible" guidance assumed a
-  capability the harnesses no longer offer).
-- **Rewrite `strategy-session-operations` § Auto-Compaction** (adopter-facing — keep it adopter-clean): from
-  "disable auto-compaction" to "compaction is a recoverable event; `clear` re-bootstraps via `session-init`,
-  `compact` recovers; install the hook recipe to make recovery deterministic." Include the **clear-vs-compact**
-  user guidance.
+The reframe is a stance change, and the stance is encoded across several **adopter-facing** surfaces, not just
+§ Auto-Compaction. Every edit below stays adopter-clean.
+
+**The disambiguation, applied uniformly.** The current surfaces conflate two triggers for resetting context; the
+reframe separates them:
+
+- **Boundary-driven reset** (at a mode transition or phase/WU completion) → **handoff** stays the recommendation,
+  unchanged. It is a *judgment* call (attention, trackability, a clean next-mode baseline), never a
+  context-preservation *correctness* necessity.
+- **Pressure-driven reset** (the window fills *between* natural boundaries) → no longer forces an early handoff;
+  the session **compacts and recovers**. This replaces the old "bound sessions or lose context" correctness claim.
+
+**Why handoff survives at boundaries (the rationale to record).** Post-recovery, both paths restore the *identical
+procedural floor* — the meta is the durable pointer, so recovery and a fresh re-init resolve the same load-set. The
+sole delta is **episodic**: handoff + `clear` + re-init delivers a *curated-minimal* episodic baseline, while
+compaction carries the harness's *opaque auto-summary* of the prior stretch forward. That residue is
+**mode-relative — a liability at a mode transition (the prior mode's reasoning is noise for the next), an asset
+within a mode (it is the in-flight task reasoning)**. So handoff earns its keep precisely at boundaries, where the
+residue flips from asset to liability. Two precision guards for the prose: "clean baseline" means a clean
+*episodic* baseline, not a lighter load (re-init does a full procedural load); and the reset comes from the fresh
+load after `clear`, not the handoff write itself (handoff durably *captures*, then you reset). Advisory throughout
+— long-session users may let compaction carry them, knowingly trading the clean baseline for continuity.
+
+**Surfaces (all adopter-facing):**
+
+- **Amend `adr-002`** (Tier-2, append-only — confirmed amend-only, no new ADR). It owns the session model +
+  context-preservation / agent-compatibility envelope; the decoupling **evolves** that envelope, it does not
+  reverse it. Records: compaction is a **recoverable discontinuity** ARC owns recovery for, not a black box to
+  disable; bounded sessions remain a scope/review discipline; the **long-session-viability** consequence; the
+  **disableability-gone** fact (the old "disable where possible" guidance assumed a capability the harnesses no
+  longer offer); and the **episodic-vs-procedural / mode-relative-residue** rationale above (the durable *why*
+  handoff survives at boundaries).
+- **Rewrite `strategy-session-operations` § Auto-Compaction** — from "disable auto-compaction" to "compaction is a
+  recoverable event; `clear` re-bootstraps via `session-init`, `compact` recovers; install the hook recipe to make
+  recovery deterministic." Include the **clear-vs-compact** user guidance.
+- **Revise `strategy-session-operations` § Context Monitoring** — the threshold response shifts from "the user
+  responds by triggering handoff" to the boundary-vs-pressure fork: hand off if at a natural boundary, else let the
+  session compact and recover. Thresholds survive as monitoring guidance, not forced-handoff triggers.
+- **Revise `DEV-RULES.ARC` § Context quality / Session Management** — keep the natural-boundaries list and the
+  handoff recommendation; reframe its rationale as *judgment*, and add the pressure carve-out (pressure between
+  boundaries no longer forces an early handoff — compact and recover). Apply the two precision guards above.
+- **Touch `AGENT-BRIEF.ARC` § session lifecycle** (minor) — name recovery as the third lifecycle event alongside
+  init and handoff (compaction → recover), so the lifecycle line is not handoff-only.
 - External docs-site content also states "don't compact" but is **out of scope here** (stale, separate downstream
   overhaul).
 
@@ -375,8 +408,11 @@ handoff stays the preferred path; recovery is for compaction that can't be avoid
   agent resumes the in-flight task with the procedural floor restored; `clear` routes to full `session-init`
   instead. Protocol lives in `notes-compaction-recovery.md`; validated by maintainer dogfooding (Codex exercises
   it continuously).
-- **Constitutional:** `adr-002` carries the append-only amendment; `strategy-session-operations` § Auto-Compaction
-  reads "recoverable event," adopter-clean, with clear-vs-compact guidance.
+- **Constitutional + doc cascade:** `adr-002` carries the append-only amendment (incl. the episodic-vs-procedural
+  rationale); the boundary-vs-pressure disambiguation is applied — adopter-clean — across
+  `strategy-session-operations` (§ Auto-Compaction + § Context Monitoring), `DEV-RULES.ARC` § Context quality, and
+  `AGENT-BRIEF.ARC`'s lifecycle line. No live adopter-facing surface still presents session-bounding / handoff as
+  the context-preservation *correctness* mechanism.
 - **Forward-compat:** the reciprocal notes (four substrate seams + the `arc-recover`-gating note to
   `agent-platform-support`) are present in the sibling inbound buffers; the load-set projection
   resolves membership from shared policy (no recover-specific list); the seed's embedded manifest is produced by
