@@ -12,9 +12,8 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** `create-spec` complete — `spec-compaction-recovery.md` finalized (`detailed` RFC,
-  Class `Novel`); doc-cascade scope widened, `notes-*` companion authored, draft retired, `agent-platform-support`
-  reciprocal note routed.
+- **Last Completed:** `generate-tasks` complete — `tasks-compaction-recovery.md` finalized (high-depth
+  three-pass, fully grounded; Class `Novel`); WU activated (`plan/` → `feat/`).
 - **Next Task:** Begin Task 1.1 — Define load-set manifest types
 - **Blockers:** [none]
 
