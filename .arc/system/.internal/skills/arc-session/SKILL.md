@@ -13,6 +13,10 @@ mode — establishing session context.
 An optional positional argument supplies an **entry seed** — a spec pointer or description that the workflow's
 new-work arm consumes (confirmed before use). A bare invocation enters per the probe.
 
+An optional `--next` flag is a **per-invocation auto-proceed modifier** for an active work unit's Next Action.
+It never relocates the checkout, never starts new work, and is not a configuration default. The workflow decides
+whether the resolved arm can skip its final proceed prompt; otherwise `--next` falls back to normal orientation.
+
 An **explicit-intent signal** instead routes session entry to an out-of-work-unit locus, regardless of what is
 active — the resumed work unit's checkout is preserved. Each is orthogonal to the positional seed:
 

@@ -4,7 +4,7 @@
   work-unit-lifecycle rough edges that surfaced across recent work units and errands.
 
 - **Purpose:** Smooth the lifecycle's operational rough edges — handoff noise, init/notes state-honesty,
-  errand- and activate-ceremony robustness, a session-entry auto-proceed signal, and commit-path friction —
+  errand- and activate-ceremony robustness, session-entry shortcuts, and commit-path friction —
   shipped as one coherent, reviewable cleanup unit. Several directly reduce friction for the imminent
   parallel-sessions push.
 
@@ -28,7 +28,7 @@ The cluster splits into two lobes by the surface it touches:
   `arc errand check`, so it carries the widest blast radius.
 
 The work exists now because the parallel-sessions push is imminent: handoff cleanliness, errand-close
-robustness, and the `--next` auto-proceed signal each directly smooth running multiple sessions.
+robustness, and the `--next` / `--start` entry shortcuts each directly smooth running multiple sessions.
 
 ## Decision(s)
 
@@ -53,25 +53,33 @@ write git-state prose into SESSION-NOTES; the handoff push then changes the real
 stale, and a later `session-init` can echo the stale note against a live probe and contradict it.
 `session-init` will source git facts only from the probe and never from SESSION-NOTES prose.
 
-**4. Add `arc-session --next` — a session-entry auto-proceed signal.** A per-invocation autonomy modifier (not
-a locus-redirect sibling of `--errand` / `--housekeep` / `--plan`): run full `session-init`, then skip the
-"proceed to Next Action?" gate and begin the Next Action directly. Bounded by design:
+**4. Add `arc-session --next` and `--start <wu-slug>` — session-entry shortcuts.** Two explicit
+per-invocation shortcuts cover distinct lifecycle nouns:
+
+- `--next` means the active work unit's `Next Action`: run full `session-init`, then skip the "proceed to Next
+  Action?" gate and begin the active meta's Next Action directly.
+- `--start <wu-slug>` means the work-unit start transition: on the no-active-WU Orient arm, bypass discovery and
+  the confirm-only init offer for the named backlog work unit, then hand off to the existing `arc start
+  <wu-slug>` / `init-work-unit` path.
+
+Bounded by design:
 
 - **Conditional auto-proceed** — proceed only when orientation would be the bare-clean shape. Any Step 6
   conditional surface (sync state, freshness gap, blockers, uncommitted changes) or Step 7 mismatch falls back
   to the normal prompt. Stop-and-ask always wins.
 - **Per-invocation only** — never a config default. A standing auto-proceed would erode the review-increment
   invariant.
-- **One step only** — auto-proceed covers exactly the first Next Action; normal task-interlock resumes at the
-  first leaf.
-- **Arm-conditional** — on the resume arm, begin the already-scaffolded Next Action. On the no-WU Orient arm
-  with **no** positional seed it is a no-op (discovery is the point). On the no-WU Orient arm **with** a
-  positional seed naming a backlog WU, it auto-proceeds past discovery and the existing confirm-only init
-  offer to initialize the named WU — unifying with the positional seed `session-init` already accepts (today
-  confirm-only), so no dedicated `--start` verb is needed.
-- **Name** — `--next`, preferred over `--yes` to avoid the `--force`-like "yes to everything" connotation.
+- **One step / one transition** — `--next` covers exactly the first Next Action; normal task-interlock resumes
+  at the first leaf. `--start` suppresses only `session-init`'s ergonomic discovery/init-confirm prompt; the
+  start ceremony's own interlocks and guards still fire.
+- **Arm-conditional** — on the Resume arm, `--next` begins the already-scaffolded Next Action. On the
+  no-active-WU Orient arm, `--start <wu-slug>` starts the named backlog work unit. Bare `--next` on the no-WU
+  arm stays a no-op because discovery is the point; `--start` on an active-WU arm is not a mid-session detour.
+- **Names** — `--next` is preferred over `--yes` for active-WU auto-proceed (avoids the `--force`-like "yes to
+  everything" connotation). `--start` names the existing `init-work-unit` / `arc start` lifecycle transition,
+  rather than overloading `Next Action` with between-WU discovery semantics.
 
-Seeded auto-init still honors init's own interlocks: it skips only the *ergonomic* friction (discovery + the
+The start shortcut still honors init's own interlocks: it skips only the *ergonomic* friction (discovery + the
 confirm-only offer), never init's `workflowCommit` / `workflowPush` interlocks (which fire as normal, or route
 via release opt-in as elsewhere).
 
@@ -132,8 +140,8 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
 ## Scope boundary (No-gos)
 
 - **No inline weight-resolution flag.** `arc start --class` (inline `Class` resolution at init) stays in
-  `cli-substrate-adoption` — cross-referenced, not built here. Absent it, facet-4 seeded auto-init degrades
-  gracefully to the confirm-only offer on a still-unresolved stub rather than auto-resolving weight.
+  `cli-substrate-adoption` — cross-referenced, not built here. Absent it, `--start <wu-slug>` surfaces the
+  existing `class-resolved` guard on a still-unresolved stub rather than auto-resolving weight.
 - **No write-time handoff-honesty backstop.** Facet 3's optional stretch — a compose/commit-time backstop that
   re-derives any handoff git-state summary from a fresh probe so the note stays honest for human readers — is
   out of scope. The core (`session-init` sourcing git facts from the probe only) is sufficient; the backstop
@@ -170,14 +178,14 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
 - **Fewer housekeep nudges (facet 1).** Removing the handoff-side offer means the only housekeep nudge is at
   `session-init` Orient. Acceptable: that is the correct moment (base context available, low context cost), and
   the `inboxState` surface still fires there.
-- **Auto-proceed and the review-increment invariant (facet 4).** Auto-proceeding past the orientation gate
-  risks eroding the invariant if over-broadened. Mitigated by the four bounds (per-invocation, one-step,
-  conditional-surface fallback, stop-and-ask-wins); seeded auto-init additionally preserves init's commit/push
-  interlocks.
+- **Entry shortcuts and the review-increment invariant (facet 4).** Auto-proceeding past the orientation gate
+  risks eroding the invariant if over-broadened. Mitigated by the bounds (per-invocation, one-step /
+  one-transition, conditional-surface fallback, stop-and-ask-wins); `--start` additionally preserves init's
+  commit/push interlocks and `Class` guard.
 - **Commit directive is a soft nudge, not a gate (facet 7).** The always-loaded directive raises first-try
   correctness but does not guarantee it — the agent can still skip the method load. The hook stays the hard
   backstop; the win is fewer hook-catch retries, not their elimination.
-- **Two-copy sync.** Workflow/doc edits to `session-handoff` / `session-init`, the `--next` signal, and the
+- **Two-copy sync.** Workflow/doc edits to `session-handoff` / `session-init`, the entry shortcuts, and the
   `AGENT-BRIEF.ARC` / `DEV-RULES.ARC` commit-path edits all apply to both the package source
   (`packages/arc-framework/arc/`) and the `.arc/` instance per package-project sync discipline.
 
@@ -189,10 +197,11 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
   `notesDriftSurface` / `loadNeeded`).
 - A `session-init` after a state-changing handoff push reports git facts from the live probe and never echoes a
   contradicting stale SESSION-NOTES git-state line.
-- `arc-session --next` on a clean resume arm begins the Next Action without the proceed prompt; with any
-  orientation conditional surface present, it falls back to the prompt; with a backlog-WU seed on the no-WU arm
-  it auto-inits past the confirm offer while init's commit/push interlocks still fire; bare `--next` on the
-  no-WU arm with no seed is a no-op.
+- `arc-session --next` on a clean Resume arm begins the active WU's Next Action without the proceed prompt; with
+  any orientation conditional surface present, it falls back to the prompt; bare `--next` on the no-WU arm is a
+  no-op.
+- `arc-session --start <wu-slug>` on a clean no-active-WU Orient arm starts the named backlog WU past discovery
+  and the confirm-only init offer while init's commit/push interlocks and `Class` guard still fire.
 - `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists reap
   clears the record even when the local branch is already gone (no orphaned record in
   `refs/arc/user/{id}/errands`) — and the non-`--force` refusal names `--force` as the escape.
@@ -209,23 +218,21 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
 Implementation-structure calls that resolve *during* this work — not deferred design. Each carries a leaning
 resolution grounded in the current code/workflows; implementation confirms or overrides it.
 
-- **Facet 4 placement** — *leans stand-alone modifier.* The signal-leaf dispatch surface
+- **Facet 4 `--next` placement** — *leans stand-alone modifier.* The signal-leaf dispatch surface
   (`--errand` / `--housekeep` / `--plan`) is specifically the locus-relocation path: it moves the working
   checkout to an out-of-WU locus and outranks arm resolution. `--next` never relocates the checkout, so it
-  reads as a per-invocation modifier orthogonal to both the positional seed and the signals (the orthogonality
-  the skill already documents for seed-vs-signal), landing at the *terminal* of the resume / orient arms —
-  suppressing Step 6's "proceed to Next Action?" gate (and, on the seeded no-WU arm, the Step 5 confirm-only
-  init offer) when orientation resolves bare-clean. Documented as a modifier composing *with* the dispatch, not
-  nested inside its precedence chain.
+  reads as a per-invocation modifier landing at the *terminal* of the Resume arm — suppressing Step 6's
+  "proceed to Next Action?" gate when orientation resolves bare-clean. It is not the between-WU start spelling.
 
-- **Facet 4 seeded-init gate wiring** — *leans clean separation.* `--next` suppresses only session-init's own
-  ergonomic prompts (Step 5 discovery + the confirm-only init offer); it does not thread into the init ceremony.
-  Once session-init hands off to `arc start <name>`, `init-work-unit` runs unchanged — its `workflowCommit`
-  (Step 4) and `workflowPush` (Step 6) interlocks fire as normal (or route via release opt-in per config). The
-  graceful-degradation point the draft predicts is concrete: `init-work-unit`'s Step 3 `class-resolved` guard
-  refuses a `[TBD]` stub, so absent inline `arc start --class` (owned by `cli-substrate-adoption`), a still-
-  unresolved stub surfaces its `Class` for resolution rather than auto-initializing — `--next` skips the
-  ergonomic friction, never an interlock or a weight-resolution gate.
+- **Facet 4 `--start` placement** — *leans explicit no-WU Orient shortcut.* `--start <wu-slug>` names the
+  `init-work-unit` / `arc start` transition and belongs on the no-active-WU Orient arm, where discovery would
+  otherwise offer the same candidate confirm-only. It suppresses only session-init's own ergonomic prompts
+  (Step 5 discovery + the confirm-only init offer); it does not thread into the init ceremony. Once
+  session-init hands off to `arc start <name>`, `init-work-unit` runs unchanged — its `workflowCommit` (Step 4)
+  and `workflowPush` (Step 6) interlocks fire as normal (or route via release opt-in per config). The
+  graceful-degradation point is concrete: `init-work-unit`'s Step 3 `class-resolved` guard refuses a `[TBD]`
+  stub, so absent inline `arc start --class` (owned by `cli-substrate-adoption`), an unresolved stub surfaces its
+  `Class` rather than auto-initializing.
 
 - **Facet 6 exclusion layer** — *leans the detection core.* `detectForeignArtifactOverlap` already owns
   self-exclusion (the `worktreePath !== originatingWorktreePath` filter), so the meta-path exclusion co-locates
