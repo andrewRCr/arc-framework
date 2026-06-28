@@ -182,7 +182,7 @@ supplies the live leaf concern.
   source, demote meta progress fields to soft orientation after compaction, remove the meta `Next Task` fallback
   for strategic reads, and scope the authority-framing line to ARC operating context.
 
-### `[ ]` **4.R.2 Implement the shared task-list cursor projection**
+### `[x]` **4.R.2 Implement the shared task-list cursor projection**
 
 - _Goal:_ A reusable parser derives the execution task section and first incomplete executable checkbox from the
   resolved task list, without depending on meta `Next Task`.
@@ -193,6 +193,10 @@ supplies the live leaf concern.
       executable checkbox; standalone parent tasks use the same item for both.
     - Unit-test ordinary parent/subtask, standalone parent, revision IDs, completed/deferred skips, and malformed
       / no-open-task cases.
+
+- _Outcome:_ Added `src/lib/task-list/cursor.ts` with a no-throw cursor result union and markdown parser for ARC
+  parent/subtask markers, plus unit coverage for nested subtasks, standalone tasks, revision identifiers,
+  completed/deferred skips, plain subtask titles, malformed markers, and no-open-task results.
 
 ### `[ ]` **4.R.3 Expose the cursor in status envelopes and seed emission**
 
