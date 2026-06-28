@@ -215,10 +215,14 @@ For each parent task, fill in the body:
   guidance)
 - Reference specific files, patterns, or approaches where helpful
 - No time estimates — focus on clear scope and completion criteria
-- **Note relevant strategies** when a task touches a domain with codified guidance. Add a `**Strategies:**` line
-  under the task description listing applicable strategy filenames (e.g., `**Strategies:**
-  strategy-testing-methodology.md`). This helps the executing agent know what to consult without re-scanning
-  STRATEGY-INDEX. Use when the connection isn't obvious from the task title.
+- **Add task-local context pointers sparingly.** When a task needs external context the executor should read
+  directly, add a root-level `- **Additional Context:** ...` line listing exact sources/sections (for example,
+  `notes-{name}.md` § Parser edge cases, `research-{name}.md` § Prior art, or
+  `strategy-work-organization.md` § Cheap-branch path). Use it only for task-specific required context that is too
+  large, volatile, or cross-cutting to inline. Prefer project/team domain docs, notes, research, or domain rules;
+  cite ARC-supplied strategies only when the task directly works in that strategy's domain. Do not add context
+  pointers for generic test sequencing or project testing standards; `test-first` and `testing-standards` load
+  through the planning/execution methods.
 
 **Test-first grouping:** When the [test-first method][arc-methods-tf] applies (data models, API endpoints,
 business logic, complex algorithms), group test and implementation together in each task — named by module or
@@ -226,9 +230,6 @@ concern, not by activity. Use the ``Build `test-first` (one behavior at a time):
 behavior list; the executing agent treats this as the signal to apply the red-green-refactor loop. See
 [DEV-RULES.ARC][dev-rules-arc] § Test-first assessment for the decision tree, and
 [strategy-task-list-formatting][task-list-formatting] § Test-First Task Structure for the full pattern.
-
-**If your project has a testing methodology strategy** (e.g., `strategy-testing-methodology.md`), consult it for
-project-specific test patterns and coverage expectations.
 
 **Content-fill additions to the file:**
 

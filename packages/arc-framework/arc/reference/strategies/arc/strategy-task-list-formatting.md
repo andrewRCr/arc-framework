@@ -179,6 +179,15 @@ the last root bullet (the last peer descriptor when present); by convention inde
 "Goal's children" — what serves Goal — regardless of which root bullet structurally precedes
 the indent.
 
+**Additional Context is a required-read pointer.** Use a root-level `- **Additional Context:** ...`
+line only when a task depends on external context the executor should read directly and that is too
+large, volatile, or cross-cutting to inline into the task body. It may point to project/team domain
+docs, domain rules, `notes-*` sections, `research-*` sections, ARC strategies, or external URLs.
+Prefer exact section anchors (`notes-{name}.md` § Parser edge cases), not line numbers or whole-doc
+references. Omit tenuous, general, or already-loaded references: ARC-supplied strategies are uncommon
+task-local context and belong only when the task directly works in that strategy's domain. Do not use
+the field for generic test sequencing or project testing standards; those load through methods.
+
 **Goal preserved across completion; peer descriptors and body replaced.** At `[x]`, Goal stays
 verbatim. Peer descriptors (when present) and all Goal-children (description bullets, Build
 test-first lists) are pruned — replaced by a rolled-up `_Outcome:_` bullet at parent-Goal indent
@@ -277,12 +286,12 @@ it's prose by role. By convention descriptive fields land at the end of the bloc
 rule is shape-based — a descriptive field anywhere separates from its neighbors.
 
 **Descriptor clusters also stay tight.** The consecutive root-level descriptor bullets that
-open a parent task — `_Goal:_` plus any peer descriptors (`_Context:_`, `_Rationale:_`,
-`_Approach:_`, `_Shape:_`, `_Note:_`) and `**Strategies:**` — and the descriptor sub-bullets
-under an atomic item (`_Observation:_`, `_Scope:_`, `_Files:_`) describe one work item, not a
-list of items, so they stay tight to one another even when individual descriptors wrap to
-multiple lines. Separation is supplied at the cluster's boundaries, not within it: a blank
-before the indent-+1 children block and before a post-completion `_Outcome:_` (both above).
+open a parent task — `_Goal:_`, peer descriptors (`_Context:_`, `_Rationale:_`, `_Approach:_`,
+`_Shape:_`, `_Note:_`), and `**Additional Context:**` when present — and the descriptor
+sub-bullets under an atomic item (`_Observation:_`, `_Scope:_`, `_Files:_`) describe one work
+item, not a list of items, so they stay tight to one another even when individual descriptors
+wrap to multiple lines. Separation is supplied at the cluster's boundaries, not within it: a
+blank before the indent-+1 children block and before a post-completion `_Outcome:_` (both above).
 
 Markdownlint MD022 enforces heading spacing; the "between every subtask", loose-list,
 descriptor-cluster, and file-header-metadata-block rules are project convention beyond MD022

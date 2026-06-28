@@ -4,8 +4,7 @@
   drain (2026-06-01), each surfaced live during task generation / task-list audits.
 - **Purpose:** Resolve a cluster of task-list-formatting + task-generation gaps that share edit surfaces
   (`strategy-task-list-formatting.md`, `template-tasks.md`, `2_generate-tasks.md`, `3_process-task-loop.md`):
-  the Strategies-line consumption contract, descriptor-block blank-line discipline, requirement-anchor
-  traceability, and the Pass-3 interlock stop language.
+  descriptor-block blank-line discipline, requirement-anchor traceability, and the Pass-3 interlock stop language.
 
 ---
 
@@ -86,28 +85,19 @@
 
 ## Scope (routed captures — iterate into a plan)
 
-### Codify or deprecate the task-list Strategies line (+ make the root descriptor block loose)
+### Make the root descriptor block loose
 
-Two coupled task-list-formatting gaps (surfaced re-auditing `worktree-foundation`):
+Task-list-formatting gap surfaced re-auditing `worktree-foundation`:
 
 - **Descriptor-block blank lines (decided: loose).** The root descriptor block (`_Goal:_` + peer descriptors +
-  any `**Strategies:**` line) renders tight even when bullets are multi-line, which is hard to parse in raw.
-  Desired state: loose-list — a blank line between every descriptor bullet when any is multi-line. The strategy
-  doc is ambiguous (§ Goal/Note Lines "block" framing vs. § Blank-Line Discipline loose-list rule); resolve in
-  favour of loose and codify in `strategy-task-list-formatting.md` + `template-tasks.md`. Not Tier-1-lint caught
-  — a pre-save-checklist convention.
-- **The Strategies line — refine + codify, or deprecate.** As-is it is "sometimes value-add, likely more noise
-  than signal": authored by `2_generate-tasks.md` Step 2.2 but with **no consumer** — `3_process-task-loop.md`
-  never tells the executor to read it, and it is absent from the strategy doc's descriptor taxonomy and the
-  template. If it can be signal, find that and codify; if it leans noise, kill it. The call hinges on a
-  **consumption contract** (e.g. process-task-loop "read a task's Strategies entries before impl if not already
-  in context this session") as much as the inclusion threshold, and on **heaviness** (strategies are large docs;
-  prefer **section-anchor targets** over whole-doc refs if kept). Step 2.2's threshold is self-tensioned ("use
-  when not obvious from the title" vs. "save a STRATEGY-INDEX scan") — resolve the tiebreak.
-- **Files (all two-copy):** `strategy-task-list-formatting.md`, `template-tasks.md`, `2_generate-tasks.md`
-  (Step 2.2), `3_process-task-loop.md` (the missing consumption contract). `worktree-foundation`'s task list is
-  the symptom (tight descriptor blocks + `strategy-work-organization` in 9 of 13 Strategies lines) — reflow /
-  trim it as dogfooding when this lands, not before.
+  any `**Additional Context:**` line) renders tight even when bullets are multi-line, which is hard to parse in
+  raw. Desired state: loose-list — a blank line between every descriptor bullet when any is multi-line. The
+  strategy doc is ambiguous (§ Goal/Note Lines "block" framing vs. § Blank-Line Discipline loose-list rule);
+  resolve in favour of loose and codify in `strategy-task-list-formatting.md` + `template-tasks.md`. Not
+  Tier-1-lint caught — a pre-save-checklist convention.
+- **Files (all two-copy):** `strategy-task-list-formatting.md`, `template-tasks.md`, and `2_generate-tasks.md`
+  formatting checklist text if needed. `worktree-foundation`'s task list is the symptom — reflow / trim it as
+  dogfooding when this lands, not before.
 
 ### Codify a requirement-anchor field (R-ID traceability), or confirm anchors are Pass-1-only
 
@@ -138,6 +128,6 @@ agent-waivable. Touches `2_generate-tasks.md` (+ maybe DEV-RULES.ARC) — two-co
 ## Scope Estimate
 
 Small–medium; doc + workflow edits across `strategy-task-list-formatting.md`, `template-tasks.md`,
-`2_generate-tasks.md`, `3_process-task-loop.md` (two-copy sync). Carries two design forks (Strategies-line
-keep-vs-kill + consumption contract; requirement-anchor codify-vs-confirm-Pass-1-only) to resolve in plan
-iteration before tasks generate.
+`2_generate-tasks.md`, and possibly `3_process-task-loop.md` (two-copy sync). Carries one design fork
+(requirement-anchor codify-vs-confirm-Pass-1-only) plus descriptor-spacing and interlock-language refinements to
+resolve in plan iteration before tasks generate.

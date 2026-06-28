@@ -58,6 +58,9 @@ _Purpose:_ {what this phase delivers and why this granularity}
 Optional sections (Architecture Patterns, Current State, Testing Strategy, etc.) appear only when the work
 needs them.
 
+Task-local `- **Additional Context:** ...` lines are optional and rare. Add one only when the task has external
+context the executor must read directly; point to exact sections rather than whole files when possible.
+
 ---
 
 [generate-tasks]: ../../system/workflows/arc/generate-tasks.md
