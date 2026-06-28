@@ -154,32 +154,39 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
 
 ## **Phase 3:** Verification
 
-### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ Tier 3 clean — `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`,
+  `npm run typecheck`, `npm run typecheck:test`, full `npm test` (3510 passed, 1 skipped), and
+  `npm run build` all passed.
+
+- _Success criteria:_ 10 criteria checked: 10 met, 0 superseded, 0 unmet. Verification confirmed the 8 PRD
+  criteria plus the standard quality-gates and ready-for-integration criteria.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` `session-handoff` runs as a single turn with no housekeep offer or `**Housekeep:**` advisory line,
+- `[x]` `session-handoff` runs as a single turn with no housekeep offer or `**Housekeep:**` advisory line,
   and its probe-consumption table carries no `inboxState` row.
-- `[ ]` The `session-handoff` probe's `user` slot surfaces a disk-ahead-of-ref drift (parity with
+- `[x]` The `session-handoff` probe's `user` slot surfaces a disk-ahead-of-ref drift (parity with
   `session-init`'s `notesDriftSurface` / `loadNeeded`).
-- `[ ]` A `session-init` after a state-changing handoff push reports git facts from the live probe and never
+- `[x]` A `session-init` after a state-changing handoff push reports git facts from the live probe and never
   echoes a contradicting stale SESSION-NOTES git-state line.
-- `[ ]` `arc-session --next` on a clean Resume arm begins the active WU's Next Action without the proceed
+- `[x]` `arc-session --next` on a clean Resume arm begins the active WU's Next Action without the proceed
   prompt; any orientation conditional surface falls back to the prompt; bare `--next` on the no-WU arm is a
   no-op.
-- `[ ]` `arc-session --start <wu-slug>` on a clean no-active-WU Orient arm starts the named backlog WU past
+- `[x]` `arc-session --start <wu-slug>` on a clean no-active-WU Orient arm starts the named backlog WU past
   discovery and the confirm-only init offer while init's commit/push interlocks and `Class` guard still fire.
-- `[ ]` `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists
+- `[x]` `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists
   reap clears the record even when the local branch is already gone (no orphan in
   `refs/arc/user/{id}/errands`), and the non-`--force` refusal names `--force` as the escape.
-- `[ ]` `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
+- `[x]` `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
   `arc errand check`'s overlap detection is unchanged (tests cover both consumers).
-- `[ ]` `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context,
+- `[x]` `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context,
   not internals), and `DEV-RULES.ARC` § Commit Discipline carries an explicit load-the-methods /
   don't-reconstruct-from-`git log` directive — with no format/footer content copied out of the methods.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
 
 ---

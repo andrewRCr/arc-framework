@@ -16,7 +16,7 @@
 - **Next Task:** Task 2.1.a — Enrich the handoff `user` slot in the status probe (line ~109)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.1.a — Enrich the handoff `user` slot in the status probe
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
