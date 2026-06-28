@@ -12,8 +12,9 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Draft re-synthesized to formalization-ready — open design items settled (seed path,
-  audit-baseline, `loadSet` slice, ADR-002 amendment) and the four reciprocal forward-compat notes routed.
+- **Last Completed:** `create-spec` complete — `spec-compaction-recovery.md` finalized (`detailed` RFC,
+  Class `Novel`); doc-cascade scope widened, `notes-*` companion authored, draft retired, `agent-platform-support`
+  reciprocal note routed.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
