@@ -1,8 +1,8 @@
 # Metadata: lifecycle-ux-polish
 
-| **State** | **Owner** | **Branch**                 | **Class** | **Priority** |
-| --------- | --------- | -------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/lifecycle-ux-polish` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                 | **Class** | **Priority** |
+| ------------- | --------- | -------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/lifecycle-ux-polish` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-ux-polish.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.4 — Add always-loaded commit-path awareness
-- **Next Task:** Task 2.1.a — Enrich the handoff `user` slot in the status probe (line ~109)
+- **Last Completed:** Task 3.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
