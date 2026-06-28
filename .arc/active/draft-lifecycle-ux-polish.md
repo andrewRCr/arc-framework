@@ -61,6 +61,21 @@ Two lobes: workflow/doc edits, and code/script robustness. The doc lobe is Light
    `--force`-like "yes to everything" connotation). Directly smooths actual parallel sessions, which is the
    near-term motivation. *Captured during `state-ref-write-safety` Task 4.2 handoff, 2026-06-27.*
 
+   *Seeded extension (added during `lifecycle-ux-polish` init, 2026-06-27):* the modifier also covers the no-WU
+   Orient arm **when a positional seed names a backlog WU** — `arc-session --next <slug>` auto-proceeds past
+   discovery and the existing confirm-only init offer to initialize the named WU. This *sharpens* the
+   arm-conditional rule rather than contradicting it: no-WU + no-seed stays a no-op (discovery is the point);
+   no-WU + seed auto-inits. It also unifies with the positional seed already in `session-init` (today
+   confirm-only) — `--next` + seed is simply "auto-proceed past the confirm," so a dedicated `--start <slug>` verb
+   is unnecessary. **Caveat (the friction boundary):** unlike resume-arm `--next` (one cheap step — begin an
+   already-scaffolded next task), seeded auto-init runs the full init ceremony — cuts a branch, commits the meta
+   (`workflowCommit`), pushes (`workflowPush`), and trips the resolve-weight guard. Auto-proceed should skip only
+   the *ergonomic* friction (discovery + the confirm-only offer); it must still honor init's own commit/push
+   interlocks. Ergonomics improve further with inline weight resolution at init (the `arc start --class` flag,
+   owned by `cli-substrate-adoption` — cross-referenced here, not held); absent it, seeded auto-init degrades
+   gracefully to the confirm offer on a still-unresolved stub. *Resolved disposition, 2026-06-27: fold here as a
+   facet-4 refinement; `--class` stays in `cli-substrate-adoption`.*
+
 ### Code / script lobe (reviewed lane)
 
 5. **Harden `arc errand close` against a host-deleted branch.** Merging an errand PR with
@@ -98,6 +113,10 @@ Two lobes: workflow/doc edits, and code/script robustness. The doc lobe is Light
 
 - **Facet 4 (`--next`):** whether it rides the `out-of-wu-entry` dispatch surface or stands alone — an
   implementation-placement call, not a behavior question (the behavior is settled above).
+- **Facet 4 seeded extension:** the exact gate-interaction for seeded auto-init — confirm that auto-proceed skips
+  only discovery + the confirm-only offer while init's `workflowCommit` / `workflowPush` interlocks still fire (or
+  route via release opt-in, as elsewhere). The behavior principle is settled above; this is the mechanism call.
+  Coordinate the inline-weight dependency with `cli-substrate-adoption`'s `arc start --class` facet.
 - **Facet 6 (foreign-write):** which layer hosts the slug-keyed self-exclusion —
   `projectInFlightToOverlapRoster` vs. `detectForeignArtifactOverlap` vs. `runActiveInFlight`. Reviewed-lane;
   second-look for design hiding in the exclusion-layer call.
