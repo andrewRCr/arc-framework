@@ -17,16 +17,13 @@ _Design decisions:_ Built as a minimal proto resolve-then-load — a forward-com
 disciplines (`full` / `partial-section` / `partial-strategic`); array order is read order. See
 `notes-compaction-recovery.md` for the substrate-seam rationale.
 
-### `[ ]` **1.1 Define load-set manifest types**
+### `[x]` **1.1 Define load-set manifest types**
 
 - _Goal:_ A versioned, shared type vocabulary expresses an ordered context set with a per-entry read discipline,
   importable by both the probe envelope and the seed schema without redefinition.
 
-    - `ReadMode` tagged union mirrors Step 3's three disciplines: `{ kind: "full" }`,
-      `{ kind: "partial-section"; heading }`, `{ kind: "partial-strategic" }`.
-    - `LoadSetEntry { path; readMode }` (path relative to repo root); `LoadSetManifest { entries }` —
-      array order is read order.
-    - Live in a shared module so Surface 1's `CompactionSeed` embeds the same `LoadSetManifest` type directly.
+- _Outcome:_ Added `src/lib/load-set/types.ts` with `LoadSetManifestVersion`, `ReadMode`, `LoadSetEntry`, and
+  `LoadSetManifest`, plus compile-backed unit coverage pinning the import target and all three read disciplines.
 
 ### `[ ]` **1.2 Implement the shared load-set projection**
 
