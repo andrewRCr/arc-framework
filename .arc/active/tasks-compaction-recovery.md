@@ -46,9 +46,10 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
           cohort state; `ActiveSessionInitResult` now exposes the resolved task-list path so the projection does
           not guess from meta filenames.
 
-    - `[ ]` **1.3.b Smoke-test the slice on both envelope modes**
-        - Assert the `loadSet` slice is present and well-formed on both the `session-init` and `--recover`
-          envelopes (wiring parity). Per-`sessionType` membership correctness is 1.2's behavior coverage.
+    - `[~]` **1.3.b Smoke-test the slice on both envelope modes**
+        - Deferred to Task 3.1, which owns introducing the lean `--recover` envelope and its exact kept/omitted
+          slice tests; `session-init` wiring is covered by 1.3.a, and recover parity becomes meaningful only once
+          the recover mode exists.
 
 ## **Phase 2:** Compaction seed
 
@@ -139,6 +140,9 @@ silently tolerated) is tuned against real recovery runs (spec § Open Questions)
         - `--recover` omits every skipped oracle (assert each absent)
         - `--recover` resolves the `loadSet` slice via the shared projection
         - flag wiring is correct (`--recover` routes to the lean envelope; conflicts declared as needed)
+
+    - _Absorbs:_ Deferred Task 1.3.b's `--recover` smoke-test obligation; recover-mode parity is meaningful only
+      once this task introduces the lean envelope.
 
 ### `[ ]` **3.2 Implement the recovery-audit diff**
 
