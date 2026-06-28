@@ -152,6 +152,32 @@ describe("detectForeignArtifactOverlap", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("excludes a remote-only candidate matching the originating meta path", async () => {
+    const roster: OverlapRoster = {
+      entries: [{
+        branch: "origin/plan/self",
+        metaFilePath: ".arc/active/meta-self.md",
+        state: "Planning",
+      }],
+      warnings: [],
+    };
+    // No exec responses configured: the originating meta entry must be skipped
+    // before probing git, even though it has no worktree path to self-exclude.
+    const { exec, calls } = buildExec({});
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+      originatingMetaPath: ".arc/active/meta-self.md",
+    });
+
+    expect(result.overlaps).toEqual([]);
+    expect(calls).toHaveLength(0);
+  });
+
   it("reports no overlap when no other in-flight WU touches the target", async () => {
     const roster = rosterOf({
       worktreePath: "/repo.wu-a",
@@ -174,6 +200,35 @@ describe("detectForeignArtifactOverlap", () => {
     });
 
     expect(result.overlaps).toEqual([]);
+  });
+
+  it("reports a genuine foreign meta overlap when originatingMetaPath differs", async () => {
+    const roster: OverlapRoster = {
+      entries: [{
+        branch: "origin/plan/other",
+        metaFilePath: ".arc/active/meta-other.md",
+        state: "Planning",
+      }],
+      warnings: [],
+    };
+    const { exec } = buildExec({
+      "diff main...origin/plan/other --name-only -- .arc/active/meta-other.md": {
+        stdout: ".arc/active/meta-other.md\n",
+      },
+    });
+
+    const result = await detectForeignArtifactOverlap({
+      exec,
+      roster,
+      targetPaths: [".arc/active/meta-other.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.wu-self",
+      originatingMetaPath: ".arc/active/meta-self.md",
+    });
+
+    expect(result.overlaps).toEqual([
+      { branch: "origin/plan/other", matchedPaths: [".arc/active/meta-other.md"] },
+    ]);
   });
 
   it("treats only non-shipped meta-bearing worktrees as in-flight", async () => {

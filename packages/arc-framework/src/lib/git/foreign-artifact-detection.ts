@@ -58,6 +58,8 @@ export interface ForeignArtifactDetectionOptions {
   baseBranch: string;
   /** The originating WU's worktree path — never reported (self-excluded). */
   originatingWorktreePath: string;
+  /** The originating WU's meta path — never reported when present (remote-only self-exclusion). */
+  originatingMetaPath?: string;
 }
 
 /** One foreign in-flight WU whose state overlaps the errand's target. */
@@ -94,10 +96,13 @@ function isInFlight(entry: OverlapCandidateEntry): boolean {
 export async function detectForeignArtifactOverlap(
   options: ForeignArtifactDetectionOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, targetPaths, baseBranch, originatingWorktreePath } = options;
+  const { exec, roster, targetPaths, baseBranch, originatingWorktreePath, originatingMetaPath } = options;
 
   const candidates = roster.entries.filter(
-    (entry) => isInFlight(entry) && entry.worktreePath !== originatingWorktreePath,
+    (entry) =>
+      isInFlight(entry) &&
+      entry.worktreePath !== originatingWorktreePath &&
+      entry.metaFilePath !== originatingMetaPath,
   );
 
   const overlaps: ForeignArtifactOverlap[] = [];

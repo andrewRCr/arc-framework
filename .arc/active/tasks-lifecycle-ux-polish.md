@@ -145,17 +145,12 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
 
 - **Strategies:** strategy-testing-methodology.md
 
-    - `[ ]` **2.3.a Add meta-path self-exclusion to `detectForeignArtifactOverlap`**
-        - Add an optional `originatingMetaPath` to `ForeignArtifactDetectionOptions`
-          (`lib/git/foreign-artifact-detection.ts`); exclude a candidate whose `metaFilePath` equals it,
-          alongside the existing `worktreePath !== originatingWorktreePath` match. The projection hardcodes
-          `metaFilePath` as `.arc/active/meta-<name>.md`, so the caller constructs the same shape and the two
-          match by string equality. Optional, so the `arc errand check` consumer (passes none) is unchanged.
-        - Build `test-first` (one behavior at a time):
-            - A remote-only candidate whose `metaFilePath` equals `originatingMetaPath` is excluded (the
-              activate case — the renamed-from `origin/plan/<slug>` projecting to the WU's own meta).
-            - The existing worktree-path self-exclusion is unchanged (no `originatingMetaPath` passed).
-            - A genuine foreign overlap on another WU's meta is still reported.
+    - `[x]` **2.3.a Add meta-path self-exclusion to `detectForeignArtifactOverlap`**
+        - `ForeignArtifactDetectionOptions` now accepts optional `originatingMetaPath`, and
+          `detectForeignArtifactOverlap` excludes candidates whose `metaFilePath` matches it alongside the
+          existing worktree-path self-exclusion.
+        - Unit coverage now proves remote-only same-meta candidates are skipped before git diffing, existing
+          worktree self-exclusion still needs no meta path, and genuine foreign meta overlaps still report.
 
     - `[ ]` **2.3.b Resolve and thread the originating meta from the foreign-write check**
         - In `check-foreign-writes.ts`, resolve the current WU's meta path via the active-WU resolver
