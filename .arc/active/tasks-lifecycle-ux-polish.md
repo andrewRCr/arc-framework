@@ -17,26 +17,14 @@ per two-copy sync discipline. Facets 1/3/4 edit workflow + skill surfaces; facet
 governance docs, so it observes the audience boundaries (no transitional framing, no internal-roadmap
 pointers).
 
-### `[ ]` **1.1 Remove the handoff housekeep offer**
+### `[x]` **1.1 Remove the handoff housekeep offer**
 
 - _Goal:_ `session-handoff` runs as a single turn with no housekeep prompt anywhere, and no `inboxState`
   consumption remains in its probe wiring.
 
-- _Context:_ The offer is end-of-session noise: its only gate is `housekeepNeeded` (not between-WUs), so it
-  can fire mid-WU where the drain can't even run. The correct nudge already lives at `session-init`'s Orient
-  arm — that one stays.
-
-- **Strategies:** strategy-package-project-sync.md, strategy-workflow-authoring.md
-
-    - Remove every housekeep-offer and `inboxState`-consumption reference from `session-handoff.md` (both
-      copies) — the offer is woven through the file, not isolated to one step: the Between-WUs Handoff Path
-      step-3 offer block, the Confirm-Handoff `**Housekeep:**` line, the `inboxState` probe-table row, the
-      slot-freshness contract's `inboxState` mention, the Handoff Mode Dispatch and What-to-Update between-WUs
-      descriptions, the probe-2 `inboxState` re-read, and the Errand-session "or housekeep offer" aside.
-    - Re-thread the between-WUs path so it reads coherently without the offer (step renumbering; the probe-2
-      refresh no longer citing `inboxState`).
-    - Leave the shared `arc status` `inboxState` field and the `session-init` Orient soft-offer untouched —
-      this task removes only the handoff-side surfaces.
+- _Outcome:_ Removed the handoff-side housekeep prompt and all `inboxState` consumption from both
+  `session-handoff` copies; the between-WUs path now routes durable context, refreshes the probe, syncs, and
+  confirms without a housekeep branch. The `session-init` Orient soft-offer remains the housekeep nudge.
 
 ### `[ ]` **1.2 Source git facts in `session-init` from the probe only**
 
