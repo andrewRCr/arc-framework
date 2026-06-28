@@ -111,22 +111,12 @@ silently tolerated) is tuned against real recovery runs (spec § Open Questions)
   recovery state slices plus shared `loadSet` / optional `cohortDocPath`, omits sync and discovery-only surfaces,
   and is covered by orchestrator tests plus built-CLI E2E smoke and conflict coverage.
 
-### `[ ]` **3.2 Implement the recovery-audit diff**
+### `[x]` **3.2 Implement the recovery-audit diff**
 
 - _Goal:_ `session-recover` can re-resolve a fresh load-set, diff it against the seed's embedded manifest, and
   return a structured divergence verdict signalling that state moved mid-session.
-- _Note:_ Divergence granularity — membership vs. read-mode vs. path drift, stop-worthy vs. tolerated — is the
-  tuned dimension; the diff exposes each category so the workflow's stop policy can select. Relatedly, whether
-  `session-recover` warns on seed-age staleness (`emittedAt` vs. HEAD movement) or relies on the audit diff alone
-  is settled here (both are spec § Open Questions, resolved against real runs).
-
-    - Build `test-first` (one behavior at a time):
-
-        - an identical load-set yields no divergence (clean match)
-        - a membership change (a doc added or dropped) is flagged
-        - a read-mode change on a retained member is flagged
-        - a path drift on a retained member is flagged
-        - the verdict is a structured diff the workflow can render at its stop
+- _Outcome:_ Added `auditLoadSetManifest` in `src/lib/load-set/audit.ts`, returning a renderable verdict with
+  membership, read-mode, and path-drift categories, with unit coverage for clean match and mixed divergence cases.
 
 ## **Phase 4:** session-recover workflow and arc-recover skill
 
