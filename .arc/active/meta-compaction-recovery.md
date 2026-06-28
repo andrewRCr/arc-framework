@@ -12,12 +12,11 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Phase 2 compaction seed schema/emitter complete — Tasks 2.1 and 2.2 shipped.
-- **Next Task:** Task 2.3 — Persist to the fixed machine-local path (line ~83)
+- **Last Completed:** Task 3.1 — Implement the lean `arc status --recover --json` probe mode.
+- **Next Task:** Task 3.2 — Implement the recovery-audit diff (line ~114)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.3 — persist the seed at
-  `.arc/user/{identity}/.internal/compaction-seed.json` and confirm sync exclusion.
+- **Next Action:** Begin Task 3.2 — implement the recovery-audit diff for fresh vs seeded load-set manifests.
 
 - **PR URL:** [none]
 - **Completed:** [none]
