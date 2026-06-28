@@ -1,0 +1,108 @@
+/**
+ * Pure load-set projection for session context recovery.
+ *
+ * The projection consumes already-resolved session pointers and emits the
+ * ordered context set ARC would load for that state. It performs no filesystem
+ * or git reads, keeping the status envelope and compaction seed schema on one
+ * shared context-load contract.
+ *
+ * @module
+ */
+
+import type { LoadSetEntry, LoadSetManifest } from "./types.js";
+
+/** Session type resolved by the active-work probe. */
+export type LoadSetSessionType = "planning" | "execution" | "integration";
+
+/** Planning-stage workflow basename resolved from `Current Workflow`. */
+export type LoadSetPlanningStage = "draft-design" | "create-spec" | "generate-tasks";
+
+/** Already-resolved pointers needed to project the session load set. */
+export interface LoadSetProjectionInput {
+  /** ARC identity, or `null` when identity is absent. */
+  identity: string | null;
+  /** Active WU slug, or `null` between units / unresolved. */
+  activeWorkUnit: string | null;
+  /** Active meta path relative to the repo root, or `null` when none resolved. */
+  metaPath: string | null;
+  /** Current session type, or `null` when unresolved / orphaned. */
+  sessionType: LoadSetSessionType | null;
+  /** Planning lifecycle stage; used only when `sessionType === "planning"`. */
+  planningStage: LoadSetPlanningStage | null;
+  /** Active task-list path relative to the repo root, or `null` when none applies. */
+  taskListPath: string | null;
+  /** Active extension names from the session-init extensions slot. */
+  activeExtensions: readonly string[];
+  /** Active cohort coordination doc path, or `null` when none resolved. */
+  cohortDocPath: string | null;
+}
+
+function full(path: string): LoadSetEntry {
+  return { path, readMode: { kind: "full" } };
+}
+
+function partialStrategic(path: string): LoadSetEntry {
+  return { path, readMode: { kind: "partial-strategic" } };
+}
+
+const UNIVERSAL_ENTRIES: readonly LoadSetEntry[] = [
+  full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
+  full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
+  full(".arc/system/rules/DEV-RULES.ARC.md"),
+  full(".arc/system/rules/DEV-RULES.PROJECT.md"),
+  full(".arc/reference/strategies/STRATEGY-INDEX.md"),
+  {
+    path: ".arc/reference/QUICK-REFERENCE.md",
+    readMode: {
+      kind: "partial-section",
+      heading: "Environment & Path Context",
+    },
+  },
+];
+
+/**
+ * Resolve the ordered session load set from already-known state.
+ *
+ * @param input - Resolved session pointers from status/seed state.
+ * @returns Ordered load-set manifest; entry order is read order.
+ */
+export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
+  const entries: LoadSetEntry[] = [...UNIVERSAL_ENTRIES];
+
+  if (input.metaPath !== null) {
+    entries.push(full(input.metaPath));
+  }
+
+  if (input.identity !== null && input.activeWorkUnit !== null) {
+    entries.push(full(`.arc/user/${input.identity}/${input.activeWorkUnit}/SESSION-NOTES.md`));
+  }
+
+  if (input.identity !== null) {
+    entries.push(full(`.arc/user/${input.identity}/WORKING-MEMORY.md`));
+  }
+
+  if (input.sessionType === "planning" && input.planningStage !== null) {
+    entries.push(full(`.arc/system/workflows/arc/${input.planningStage}.md`));
+  }
+
+  if (input.sessionType === "execution") {
+    if (input.taskListPath !== null) {
+      entries.push(partialStrategic(input.taskListPath));
+    }
+    entries.push(full(".arc/system/workflows/arc/process-task-loop.md"));
+  }
+
+  if (input.sessionType === "integration") {
+    entries.push(full(".arc/system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md"));
+  }
+
+  if (input.cohortDocPath !== null) {
+    entries.push(full(input.cohortDocPath));
+  }
+
+  for (const extension of input.activeExtensions) {
+    entries.push(full(`.arc/system/extensions/${extension}.md`));
+  }
+
+  return { entries };
+}

@@ -25,35 +25,13 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
 - _Outcome:_ Added `src/lib/load-set/types.ts` with `LoadSetManifestVersion`, `ReadMode`, `LoadSetEntry`, and
   `LoadSetManifest`, plus compile-backed unit coverage pinning the import target and all three read disciplines.
 
-### `[ ]` **1.2 Implement the shared load-set projection**
+### `[x]` **1.2 Implement the shared load-set projection**
 
 - _Goal:_ Given probe-resolved state, the projection deterministically yields the ordered load-set with the
   correct read-mode per entry for every `sessionType`.
-- _Approach:_ Membership encodes `session-init` Step 3's documented policy — the codebase's existing "per-type
-  loadset" (`active/types.ts`): a fixed universal constitutional set, state-anchored docs, `sessionType`-selected
-  docs, the active-extensions slot, and the cohort doc. It is **not** `arc.methods`-driven (methods load on-demand
-  per workflow, never at init). Resolving from this shared policy — never a recover-specific list — is what lets
-  `composable-workflows` / `loadset-composition` subsume it without a fork.
-- _Note:_ Place the shared load-set types (1.1) + this projection in a neutral `src/lib/load-set/` module, imported
-  by both the status envelope and the seed schema (avoids a status↔seed import cycle).
-
-    - Fixed universal set: briefs, both `DEV-RULES`, strategy index, `QUICK-REFERENCE`, `WORKING-MEMORY`.
-    - State-anchored: active meta, `SESSION-NOTES`. `sessionType`-selected: the lifecycle workflow (planning →
-      `planningStage`, execution → `process-task-loop`, integration → `integrate-work-unit`) and the task-list
-      subsection (execution). Conditional: active extensions (the `extensions` slot) and the cohort doc
-      (`cohortDocPath`).
-    - The cohort doc is included as a `full` member to mirror current item-11 policy (so recovery and init resolve
-      identically); whether it should stay full-load is `loadset-composition`'s call (routed to its inbound buffer).
-
-    - Build `test-first` (one behavior at a time):
-
-        - `planning` resolves the universal set + the planning-stage lifecycle workflow, with no task-list entry
-        - `execution` adds the active task-list (`partial-strategic`) + `process-task-loop`
-        - `integration` resolves the integration lifecycle workflow
-        - read-modes resolve correctly per member (`QUICK-REFERENCE` → `partial-section`; task-list →
-          `partial-strategic`; meta / briefs / lifecycle workflow → `full`)
-        - active extensions (the `extensions` slot) appear as members (e.g. `post-context-load`)
-        - the cohort doc is a `full` member exactly when `cohortDocPath` is present
+- _Outcome:_ Added pure `resolveLoadSetManifest` projection in `src/lib/load-set/projection.ts`, covering
+  universal/state-anchored docs, per-`sessionType` lifecycle members, execution task-list partial reads, active
+  extension docs, and cohort docs with unit coverage.
 
 ### `[ ]` **1.3 Expose `loadSet` as an additive envelope slice**
 
