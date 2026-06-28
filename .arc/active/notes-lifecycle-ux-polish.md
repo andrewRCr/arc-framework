@@ -5,10 +5,10 @@ spec omits.
 
 ## Contents
 
-- Facet 5 — errand-close reap: test context
-- Facet 6 — foreign-write false-positive: repro/test context
-- Coordination — sibling cleanup boundary
-- Delivery sequencing
+- [Facet 5 — errand-close reap: test context](#facet-5--errand-close-reap-test-context)
+- [Facet 6 — foreign-write false-positive: repro/test context](#facet-6--foreign-write-false-positive-reprotest-context)
+- [Coordination — sibling cleanup boundary](#coordination--sibling-cleanup-boundary)
+- [Delivery sequencing](#delivery-sequencing)
 
 ## Facet 5 — errand-close reap: test context
 
@@ -17,6 +17,9 @@ spec omits.
   under `--force`. Test that `--force` clears the record when no local branch is present (delete-if-exists), and
   that a normal close with the branch present still reaps it then removes the record. Also test that the
   non-`--force` refusal on an absent branch names `--force` (actionable message).
+- Review sharpened the already-gone branch case: deleting `refs/heads/<branch>` can leave symbolic `HEAD`
+  attached to that dead branch name. The close path must resolve the symbolic branch name, hop back to base, and
+  only then remove the errand record.
 - No reap-safety auto-fallback is added: `assessReapSafety` already proves containment for a branch-present
   pruned-upstream merge via `isLandedInBase` (`git cherry`, patch identity — covers merge-commit / fast-forward
   / rebase / single-squash). Once `--delete-branch` removes the local branch there is no ref or stored SHA left

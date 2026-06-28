@@ -126,8 +126,9 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
 
 - _Outcome:_ `closeErrand` now checks whether the local branch still exists before reaping: `--force` closes and
   removes the record when the branch is already gone, while the non-`--force` path keeps the record and names the
-  `--force` escape. Integration and e2e coverage exercise already-gone branches, normal branch reaping, and the
-  actionable refusal.
+  `--force` escape. The branch-name probe also handles symbolic `HEAD` that still names a deleted branch and
+  switches back to base before record cleanup. Integration and e2e coverage exercise already-gone branches,
+  dead-current-branch recovery, normal branch reaping, and the actionable refusal.
 
 ### `[x]` **2.3 Eliminate the `arc activate` foreign-write false-positive**
 
@@ -180,7 +181,8 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
   discovery and the confirm-only init offer while init's commit/push interlocks and `Class` guard still fire.
 - `[x]` `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists
   reap clears the record even when the local branch is already gone (no orphan in
-  `refs/arc/user/{id}/errands`), and the non-`--force` refusal names `--force` as the escape.
+  `refs/arc/user/{id}/errands`), returns the worktree to base if symbolic `HEAD` still names the deleted branch,
+  and the non-`--force` refusal names `--force` as the escape.
 - `[x]` `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
   `arc errand check`'s overlap detection is unchanged (tests cover both consumers).
 - `[x]` `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context,

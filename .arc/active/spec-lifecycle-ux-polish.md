@@ -90,7 +90,8 @@ refuses, and `--force` — the documented escape — errors on `git branch -D` (
 record in `refs/arc/user/{id}/errands`. The fix:
 
 - **Tolerate an already-absent branch** — make the reap a delete-if-exists, so `--force` always reaches the
-  record removal and clears it even with no branch to delete.
+  record removal and clears it even with no branch to delete. If symbolic `HEAD` still names the deleted
+  branch, switch back to base before cleanup so the worktree is not left attached to a dead branch.
 - **Actionable refusal** — when the branch ref is absent, the non-`--force` refusal names `--force` as the
   escape, so the operator isn't left guessing.
 
@@ -204,7 +205,8 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
   and the confirm-only init offer while init's commit/push interlocks and `Class` guard still fire.
 - `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists reap
   clears the record even when the local branch is already gone (no orphaned record in
-  `refs/arc/user/{id}/errands`) — and the non-`--force` refusal names `--force` as the escape.
+  `refs/arc/user/{id}/errands`) and returns the worktree to base if symbolic `HEAD` still names the deleted
+  branch — and the non-`--force` refusal names `--force` as the escape.
 - `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
   `arc errand check`'s overlap detection is unchanged (covered by tests on both consumers).
 - `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context, not
