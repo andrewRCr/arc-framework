@@ -19,10 +19,17 @@
 - *Routed from:* `compaction-recovery` draft-design (2026-06-28).
 - *Seam:* `compaction-recovery`'s `session-recover` needs a deterministic "given current state, the ordered load-set
   with read-modes." Built interim as a **minimal proto resolve-then-load**: an additive `loadSet` slice on the
-  session-init probe envelope, one shared projection consumed by both `session-init` Step 3 and `session-recover`,
-  reusing existing declared-load conventions (`arc.methods` / `arc.extensions` + probe active-set). Read-modes are a
-  tagged union mirroring Step 3's three disciplines (`full` / `partial-section` / `partial-strategic`). Not a
-  competing loader — CW later subsumes this projection.
+  session-init probe envelope — one shared projection encoding session-init Step 3's documented per-type loadset
+  policy (the fixed universal set + `sessionType`-selected state docs + the active-extensions slot + the cohort
+  doc; **not** `arc.methods`, which loads on-demand). Read-modes are a tagged union mirroring Step 3's three
+  disciplines (`full` / `partial-section` / `partial-strategic`). Not a competing loader — CW later subsumes this
+  projection.
+- *Interim consumer split (CW owns the session-init rewire):* `compaction-recovery` ships the slice consumed by
+  **`session-recover` only**; `session-init` Step 3 keeps its inline enumeration, **parity-tested** against the
+  projection so the two cannot drift. The prose-level rewire of `session-init` Step 3 to *consume* the slice —
+  replacing the inline item list with a loop over `loadSet` entries, across the canonical + `.template` +
+  `.contributor` copies — is **CW's deliverable**, folded into its general resolve-then-load. Rewiring the
+  most-exercised workflow now was rejected as high-risk for a benefit CW delivers as its core job.
 - *Invariant CW / `loadset-composition` rely on:* the projection resolves load-set **membership** from shared policy
   (`loadset-composition`'s domain), never a recover-specific hardcoded list — so the subsumption is a fork-free
   lift-and-shift. Recovery stays a *consumer* of policy, not a definer.

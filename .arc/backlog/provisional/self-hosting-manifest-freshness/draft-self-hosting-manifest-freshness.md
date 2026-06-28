@@ -28,6 +28,10 @@
   `init-recipe.json` and the self-host `.arc/system/.internal/manifest.json`, with an explicit allowlist for
   intentionally-unshipped internal-dev files. Decide whether it belongs as a unit/integration test,
   package-sync validator, CI check, or pre-PR/Tier-3 audit.
+- _Also (stronger fix to weigh):_ consider eliminating the manual enumeration outright — derive the shipped-file
+  list by glob / auto-discovery over package source with an explicit unship allowlist — so `init-recipe.json`
+  can't drift in the first place, rather than only guarding against drift after the fact. (Surfaced 2026-06-28,
+  `compaction-recovery` grounding audit, on hitting the explicit per-file enumeration.)
 - _Scope:_ repo development-time validation and tests/scripts only; do not ship the guard to adopters.
 
 ## Problem / Motivation
