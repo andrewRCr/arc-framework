@@ -49,6 +49,11 @@ async function commitOn(dir: string, message: string): Promise<void> {
 }
 
 async function currentBranch(dir: string): Promise<string> {
+  try {
+    return (await git(dir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim();
+  } catch {
+    // Detached HEAD falls back to the conventional branch-name probe.
+  }
   return (await git(dir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
 }
 
@@ -160,6 +165,70 @@ describe("closeErrand", () => {
     expect(result.kind).toBe("closed");
     expect(await branchExists(dir, "fix/shipped-squash")).toBe(false);
     expect(await readErrandRecord(io, "shipped-squash")).toBeNull();
+  });
+
+  it("force-closes and removes the record when the local branch is already gone", async () => {
+    const opened = await openErrand(io, { slug: "host-deleted", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+
+    const result = await closeErrand(io, { slug: "host-deleted", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.branchReaped).toBe(false);
+    }
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+    expect(await readErrandRecord(io, "host-deleted")).toBeNull();
+    expect(await remoteSlugs(dir)).toEqual([]);
+  });
+
+  it("force-closes an already-gone current branch after hopping back to base", async () => {
+    const opened = await openErrand(io, { slug: "dead-head", base: "main", createdAt: CREATED_AT });
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+
+    const result = await closeErrand(io, { slug: "dead-head", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    expect(await currentBranch(dir)).toBe("main");
+    expect(await readErrandRecord(io, "dead-head")).toBeNull();
+  });
+
+  it("refuses an already-gone branch without force and names the force escape", async () => {
+    const opened = await openErrand(io, { slug: "needs-force", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+
+    const result = await closeErrand(io, { slug: "needs-force", base: "main" });
+
+    expect(result.kind).toBe("unsafe-reap");
+    if (result.kind === "unsafe-reap") {
+      expect(result.reason).toContain("--force");
+    }
+    expect(await readErrandRecord(io, "needs-force")).not.toBeNull();
+    expect(await remoteSlugs(dir)).toEqual(["needs-force"]);
+  });
+
+  it("propagates unexpected branch-existence lookup failures", async () => {
+    const opened = await openErrand(io, { slug: "lookup-fails", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    const brokenIo: ErrandRecordIO = {
+      ...io,
+      exec: async (cmd, args, options) => {
+        if (args[0] === "show-ref" && args.at(-1) === `refs/heads/${opened.record.branch}`) {
+          throw Object.assign(new Error("git show-ref exploded"), { code: 128 });
+        }
+        return io.exec(cmd, args, options);
+      },
+    };
+
+    await expect(closeErrand(brokenIo, { slug: "lookup-fails", base: "main", force: true }))
+      .rejects.toThrow("git show-ref exploded");
+    expect(await readErrandRecord(io, "lookup-fails")).not.toBeNull();
   });
 
   it("is a no-op when no record exists for the slug", async () => {

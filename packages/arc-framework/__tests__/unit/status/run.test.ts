@@ -2153,6 +2153,97 @@ describe("runSessionHandoffStatus — orchestration", () => {
     expect(result.mode).toBe("session-handoff");
   });
 
+  it("finalizes loadNeeded on the handoff user slot when disk lags behind the notes ref", async () => {
+    const probes = sessionHandoffProbes({
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "behind", missingFiles: [] },
+        }),
+      ),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(true);
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
+  it("uses the active WU name for the handoff safe missing SESSION-NOTES sub-case", async () => {
+    const probes = sessionHandoffProbes({
+      active: vi.fn(async () => activeSessionInit({
+        resolution: "single",
+        path: ".arc/active/meta-my-wu.md",
+      })),
+      user: vi.fn(async () =>
+        userSessionInit({
+          refState: "same",
+          notesDrift: { direction: "missing", missingFiles: ["my-wu/SESSION-NOTES.md"] },
+        }),
+      ),
+    });
+
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBe(true);
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
+  it.each([
+    { direction: "mixed" as const, missingFiles: [] },
+    { direction: "missing" as const, missingFiles: ["old-wu/SESSION-NOTES.md"] },
+  ])(
+    "finalizes notesDriftSurface on the handoff user slot for $direction disk drift",
+    async ({ direction, missingFiles }) => {
+      const probes = sessionHandoffProbes({
+        user: vi.fn(async () =>
+          userSessionInit({
+            refState: "same",
+            notesDrift: { direction, missingFiles },
+          }),
+        ),
+      });
+      const result = await runSessionHandoffStatus({
+        identity: "andrew",
+        role: "maintainer",
+        probes,
+      });
+      expect(result.user.ok).toBe(true);
+      if (result.user.ok) {
+        expect(result.user.value.loadNeeded).toBe(false);
+        expect(result.user.value.notesDriftSurface).toEqual({ direction });
+      }
+    },
+  );
+
+  it("keeps the handoff user slot clean when no notes drift signal is present", async () => {
+    const probes = sessionHandoffProbes({
+      user: vi.fn(async () => userSessionInit({ refState: "same" })),
+    });
+    const result = await runSessionHandoffStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    expect(result.user.ok).toBe(true);
+    if (result.user.ok) {
+      expect(result.user.value.loadNeeded).toBeUndefined();
+      expect(result.user.value.notesDriftSurface).toBeUndefined();
+    }
+  });
+
   it("exposes the inboxState slot with ok=true on success", async () => {
     const probes = sessionHandoffProbes({
       inboxState: vi.fn(async () => ({ routableCount: 2, housekeepNeeded: true })),

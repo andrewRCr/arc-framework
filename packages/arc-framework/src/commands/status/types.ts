@@ -106,19 +106,27 @@ export interface SessionInitBaseBranchSyncValue extends BaseBranchSyncStatusResu
 }
 
 /**
- * User slot in the session-init envelope. Extends the standalone probe
- * result with the same recommendation pair as the worktree slot.
+ * User slot shape shared by the session-scoped envelopes. Extends the
+ * standalone probe result with the finalized clean-arm notes/disk drift
+ * advisory (D3), resolved from the raw `notesDrift` signal.
  */
-export interface SessionInitUserValue extends UserSessionInitStatusResult {
-  recommendedAction: RecommendedAction;
-  recommendedPromptText: string;
+export interface SessionUserValue extends UserSessionInitStatusResult {
   /**
    * Finalized clean-arm notes/disk drift advisory (D3), resolved from the raw
    * `notesDrift` signal against the active WU name. Present only when the
    * divergence surfaces (neither a safe auto-load nor benign); the safe sub-case
-   * is folded into `loadNeeded` instead. Rendered in orientation's advisory tier.
+   * is folded into `loadNeeded` instead. Rendered in the workflow's advisory tier.
    */
   notesDriftSurface?: UserSessionNotesDriftSurface;
+}
+
+/**
+ * User slot in the session-init envelope. Extends the shared session-user
+ * result with the same recommendation pair as the worktree slot.
+ */
+export interface SessionInitUserValue extends SessionUserValue {
+  recommendedAction: RecommendedAction;
+  recommendedPromptText: string;
 }
 
 /**
@@ -376,7 +384,7 @@ export interface SessionHandoffResult {
   branch: string | null;
   dirty: Probe<DirtyStateResult>;
   worktree: Probe<WorktreeSyncStatusResult>;
-  user: Probe<UserSessionInitStatusResult>;
+  user: Probe<SessionUserValue>;
   syncInterlock: Probe<HandoffSyncInterlock>;
   active: Probe<ActiveSessionInitResult>;
   head: Probe<HeadHashResult>;

@@ -19,8 +19,10 @@ loaded when workflow YAML frontmatter declares them.
 `quality-gate-commands` method.
 
 **Release wrappers:** `arc release commit` / `arc release push` are the canonical commit/push
-invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist) — see
-DEV-RULES.ARC § Commit Discipline.
+invocation shape when active (`arc.releaseOptedIn: true` plus harness allowlist). After the interlock-validation
+cascade, `arc release commit` accepts the same message/flags as `git commit`; `arc release push` supplies
+`origin <current-branch>` itself, takes no target argument, and refuses destructive flags. See DEV-RULES.ARC
+§ Commit Discipline.
 
 ## Vocabulary
 

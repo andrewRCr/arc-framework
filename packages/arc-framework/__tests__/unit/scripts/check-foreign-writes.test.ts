@@ -7,11 +7,15 @@
  * exercised through the hook at commit time, not here.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 import {
   detectStagedForeignWrites,
   formatForeignWriteWarnings,
+  resolveOriginatingMetaPath,
   selectForeignWriteCandidates,
 } from "../../../src/scripts/check-foreign-writes.js";
 import type { OverlapRoster } from "../../../src/lib/git/foreign-artifact-detection.js";
@@ -33,6 +37,32 @@ function buildExec(responses: Record<string, ExecResult>): GitExec {
 const throwingExec: GitExec = async (cmd, args) => {
   throw new Error(`exec should not be called: ${cmd} ${args.join(" ")}`);
 };
+
+const tempRoots: string[] = [];
+
+async function createActiveFixture(metaName?: string): Promise<string> {
+  const root = await mkdtemp(join(tmpdir(), "arc-foreign-writes-"));
+  tempRoots.push(root);
+  const activeDir = join(root, ".arc", "active");
+  await mkdir(activeDir, { recursive: true });
+  if (metaName !== undefined) {
+    await writeFile(
+      join(activeDir, `meta-${metaName}.md`),
+      [
+        `# Metadata: ${metaName}`,
+        "",
+        "- **State:** Active",
+        `- **Branch:** feat/${metaName}`,
+        "",
+      ].join("\n"),
+    );
+  }
+  return root;
+}
+
+afterEach(async () => {
+  await Promise.all(tempRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+});
 
 describe("selectForeignWriteCandidates", () => {
   it("keeps work-unit movable artifacts and drops cohort docs and code", () => {
@@ -64,6 +94,20 @@ describe("formatForeignWriteWarnings", () => {
 
   it("stays silent on no overlaps", () => {
     expect(formatForeignWriteWarnings([])).toEqual([]);
+  });
+});
+
+describe("resolveOriginatingMetaPath", () => {
+  it("returns the active WU meta path when exactly one active meta resolves", async () => {
+    const root = await createActiveFixture("self");
+
+    await expect(resolveOriginatingMetaPath(root)).resolves.toBe(".arc/active/meta-self.md");
+  });
+
+  it("returns undefined when no active WU resolves", async () => {
+    const root = await createActiveFixture();
+
+    await expect(resolveOriginatingMetaPath(root)).resolves.toBeUndefined();
   });
 });
 
@@ -125,6 +169,24 @@ describe("detectStagedForeignWrites", () => {
       paths: [".arc/active/meta-self.md"],
       baseBranch: "main",
       originatingWorktreePath: "/repo.self",
+    });
+    expect(overlaps).toEqual([]);
+  });
+
+  it("stays silent on a remote-only self-write matching the originating meta path", async () => {
+    const roster = rosterOf({
+      branch: "origin/plan/self",
+      metaFilePath: ".arc/active/meta-self.md",
+      state: "Planning",
+    });
+
+    const { overlaps } = await detectStagedForeignWrites({
+      exec: throwingExec,
+      roster,
+      paths: [".arc/active/meta-self.md"],
+      baseBranch: "main",
+      originatingWorktreePath: "/repo.self",
+      originatingMetaPath: ".arc/active/meta-self.md",
     });
     expect(overlaps).toEqual([]);
   });

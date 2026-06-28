@@ -75,18 +75,33 @@ export async function closeErrand(
   const record = await readErrandRecord(io, slug);
   if (record === null) return { kind: "no-record", slug };
 
+  const current = await currentBranch(io.exec);
+  const branchPresent = await localBranchExists(io.exec, record.branch);
+  if (!branchPresent && current === record.branch) {
+    await io.exec("git", ["switch", params.base]);
+  }
+
   if (params.force !== true) {
+    if (!branchPresent) {
+      return {
+        kind: "unsafe-reap",
+        record,
+        reason: `'${record.branch}' is already absent locally — re-run with --force if you've verified it shipped`,
+      };
+    }
     const safety = await assessReapSafety(io.exec, { branch: record.branch, base: params.base, remote });
     if (!safety.safe) return { kind: "unsafe-reap", record, reason: safety.reason };
   }
 
-  // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
-  if ((await currentBranch(io.exec)) === record.branch) {
-    await io.exec("git", ["switch", params.base]);
+  if (branchPresent) {
+    // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
+    if (current === record.branch) {
+      await io.exec("git", ["switch", params.base]);
+    }
+    // Containment is proven, so force-delete: `-d` re-checks base-reachability,
+    // which false-negatives under squash / rebase merges.
+    await io.exec("git", ["branch", "-D", record.branch]);
   }
-  // Containment is proven, so force-delete: `-d` re-checks base-reachability,
-  // which false-negatives under squash / rebase merges.
-  await io.exec("git", ["branch", "-D", record.branch]);
   // Prune the now-stale remote-tracking ref, best-effort — absent when the
   // branch was never pushed (the merged-into-base safe path).
   try {
@@ -98,11 +113,29 @@ export async function closeErrand(
   await removeErrandRecord(io, slug);
   const push = await reconcileErrandPush(io);
 
-  return { kind: "closed", record, branchReaped: true, push };
+  return { kind: "closed", record, branchReaped: branchPresent, push };
 }
 
-/** The current branch name (`git rev-parse --abbrev-ref HEAD`). */
+/** The current branch name, including a symbolic HEAD whose branch ref was deleted. */
 async function currentBranch(exec: GitExec): Promise<string> {
+  try {
+    const { stdout } = await exec("git", ["symbolic-ref", "--quiet", "--short", "HEAD"]);
+    return stdout.trim();
+  } catch {
+    // Detached HEAD: preserve the previous `rev-parse` behavior, which returns `HEAD`.
+  }
   const { stdout } = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
   return stdout.trim();
+}
+
+/** Whether a local branch ref exists. */
+async function localBranchExists(exec: GitExec, branch: string): Promise<boolean> {
+  try {
+    await exec("git", ["show-ref", "--verify", "--quiet", `refs/heads/${branch}`]);
+    return true;
+  } catch (err) {
+    const code = (err as { code?: unknown }).code;
+    if (code === 1) return false;
+    throw err;
+  }
 }

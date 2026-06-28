@@ -11,8 +11,9 @@
  * **work-unit** path surface — a per-WU movable artifact, the single-owner
  * surface the foreign-write reasoning keys on; cohort docs (the deliberate
  * multi-owner exception) and code fall to the behind-base net, not this gate.
- * The current worktree self-excludes, so a write to the *current* WU's own
- * artifacts never trips it.
+ * The current worktree and active meta path self-exclude, so a write to the
+ * *current* WU's own artifacts never trips it — including a remote-only stale
+ * planning ref during activation.
  *
  * **Advisory throughout.** It warns and always exits 0 — it never refuses a
  * commit, and any failure (degraded git state, missing config) fails open with
@@ -35,6 +36,7 @@ import {
   type OverlapRoster,
 } from "../lib/git/index.js";
 import { gitExec } from "../lib/io-context.js";
+import { resolveActiveWu } from "../lib/release/wu-resolution.js";
 
 import type { GitExec } from "../lib/git/exec.js";
 
@@ -59,6 +61,8 @@ export interface StagedForeignWriteOptions {
   baseBranch: string;
   /** The committing worktree's root — self-excluded so its own writes never trip. */
   originatingWorktreePath: string;
+  /** The committing WU's meta path — self-excludes remote-only projections of the same WU. */
+  originatingMetaPath?: string;
 }
 
 /**
@@ -72,7 +76,7 @@ export interface StagedForeignWriteOptions {
 export async function detectStagedForeignWrites(
   options: StagedForeignWriteOptions,
 ): Promise<ForeignArtifactDetectionResult> {
-  const { exec, roster, paths, baseBranch, originatingWorktreePath } = options;
+  const { exec, roster, paths, baseBranch, originatingWorktreePath, originatingMetaPath } = options;
   const candidates = selectForeignWriteCandidates(paths);
   if (candidates.length === 0) return { overlaps: [] };
   return detectForeignArtifactOverlap({
@@ -81,6 +85,7 @@ export async function detectStagedForeignWrites(
     targetPaths: candidates,
     baseBranch,
     originatingWorktreePath,
+    ...(originatingMetaPath !== undefined ? { originatingMetaPath } : {}),
   });
 }
 
@@ -92,6 +97,12 @@ export function formatForeignWriteWarnings(overlaps: ForeignArtifactOverlap[]): 
   return overlaps.map(
     (o) => `${o.branch} also touches ${o.matchedPaths.join(", ")} (${o.worktreePath ?? "remote-only"})`,
   );
+}
+
+/** Resolve the committing WU's active meta path for remote-only self-exclusion. */
+export async function resolveOriginatingMetaPath(cwd: string): Promise<string | undefined> {
+  const activeWu = await resolveActiveWu({ cwd });
+  return activeWu.status === "resolved" ? activeWu.path : undefined;
 }
 
 // --- CLI entry ---
@@ -134,6 +145,7 @@ async function main(): Promise<void> {
     paths,
     baseBranch,
     originatingWorktreePath: await currentWorktreePath(gitExec, cwd),
+    originatingMetaPath: await resolveOriginatingMetaPath(cwd),
   });
 
   for (const line of formatForeignWriteWarnings(overlaps)) {

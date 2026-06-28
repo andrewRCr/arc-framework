@@ -38,14 +38,16 @@ arc status --session-handoff --json
 | `head`                   | `{hash: string \| null}` — current HEAD short-hash. Re-read from probe-2 for the `Commit at Handoff` anchor           |
 | `pushability`            | Pushability pre-check matrix for the worktree push leg                                                                |
 | `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)      |
-| `inboxState`             | Routable-entry count + `housekeepNeeded` flag for the between-WUs housekeep offer; identity-scoped                    |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
 
-**Slot freshness contract.** Probe-1 captures pre-path state. The active-WU meta-file commit and errand
-checkpoint commit mutate `worktree`, `dirty`, and `head`; between-WUs housekeep may mutate `worktree`,
-`dirty`, `head`, and `inboxState`. Re-read mutated slots from probe-2 to render post-path truth. Other slots
-(`identity`, `branch`, `syncInterlock`, `active`, `user`, `pushability`, `restateCandidates`) remain stable
-from probe-1.
+On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
+`user.value.notesDriftSurface` (`{direction: mixed | missing}`) carries unresolved notes/disk drift for Confirm
+Handoff.
+
+**Slot freshness contract.** Probe-1 captures pre-path state. The active-WU meta-file commit, errand checkpoint
+commit, and between-WUs context routing may mutate `worktree`, `dirty`, and `head`; re-read those slots from
+probe-2 to render post-path truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
+`pushability`, `restateCandidates`) remain stable from probe-1.
 
 **Identity absent** (`identity.identity === null`): Skip the notes-sync slot — notes operations
 depend on identity for path resolution. Surface a warning in the handoff summary. Sessions without
@@ -69,8 +71,7 @@ After probe-1, select one handoff path from `active.value.resolution` and `branc
   errand branch, with no meta file or SESSION-NOTES ceremony.
 - **Between-WUs handoff** — `none` + non-`chore/` branch: follow
   [Between-WUs Handoff Path](#between-wus-handoff-path). The path has no active meta file, no per-WU
-  SESSION-NOTES home, and no meta-file handoff commit. It reviews persistent context, offers housekeep when
-  captures are pending, syncs, and confirms.
+  SESSION-NOTES home, and no meta-file handoff commit. It reviews persistent context, syncs, and confirms.
 
 ## What to Update
 
@@ -100,13 +101,13 @@ follow the override instead):
 **Active-WU handoff** — active meta file and SESSION-NOTES.md session context. Use
 [Active-WU Handoff Format](#active-wu-handoff-format).
 
-**Errand-session handoff** — current `chore/<slug>` branch only. No active meta file, SESSION-NOTES write,
-WORKING-MEMORY review, or housekeep offer; checkpoint and push the branch. Use
+**Errand-session handoff** — current `chore/<slug>` branch only. No active meta file, SESSION-NOTES write, or
+WORKING-MEMORY review; checkpoint and push the branch. Use
 [Errand-Session Handoff Path](#errand-session-handoff-path).
 
 **Between-WUs handoff** — no active meta file or SESSION-NOTES write. Review WORKING-MEMORY, route any durable
-captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, ROADMAP / backlog artifacts as applicable), offer
-housekeep when captures are pending, then sync + confirm. Use
+captures to existing surfaces (`USER-INBOX`, `WORKING-MEMORY`, ROADMAP / backlog artifacts as applicable), then
+sync + confirm. Use
 [Between-WUs Handoff Path](#between-wus-handoff-path).
 
 **When context changes** — capture working-directory paths or environment expectations in the active
@@ -175,24 +176,17 @@ Use this path when `active.value.resolution === "none"`.
    authoritative surface: `USER-INBOX` for deferred personal captures, `WORKING-MEMORY` for cross-WU
    persistent context, or ROADMAP / backlog artifacts when the project document is already the clear home.
    Do not create a per-WU SESSION-NOTES home or a placeholder marker.
-3. **Offer housekeep when captures are pending** — if `inboxState.ok` and
-   `inboxState.value.housekeepNeeded`, ask:
-   `USER-INBOX has {routableCount} pending capture(s). Run arc-housekeep before handoff sync?`
-   On acceptance, dispatch [Drain Inbox][drain-inbox] through `arc-housekeep`; treat this as a
-   resolve-then-load subworkflow dispatch, not an inlined copy of the drain logic. On decline, carry the
-   deferred housekeep advisory to Confirm Handoff. If `inboxState` failed, surface the degraded state and
-   continue without an agent-side re-scan.
-4. **Refresh probe** — after housekeep or WORKING-MEMORY edits, re-run the composite probe:
+3. **Refresh probe** — after WORKING-MEMORY edits or durable context routing, re-run the composite probe:
 
     ```bash
     arc status --session-handoff --json
     ```
 
-   This is probe-2 for the between-WUs path. Read updated `worktree`, `dirty`, `head`, `inboxState`, and
-   `recommendedSummaryLine` from probe-2; unchanged slots remain stable from probe-1. If nothing changed,
-   the refresh is harmless and becomes the sync baseline.
-5. **Run [Sync](#sync)**.
-6. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
+   This is probe-2 for the between-WUs path. Read updated `worktree`, `dirty`, `head`, and
+   `recommendedSummaryLine` from probe-2; unchanged slots remain stable from probe-1. If nothing changed, the
+   refresh is harmless and becomes the sync baseline.
+4. **Run [Sync](#sync)**.
+5. **Run [Confirm Handoff](#confirm-handoff)**. Use `session-init discovery / user direction` for
    **Next session** unless the user gave a concrete next action during handoff.
 
 ## Active-WU Handoff Format
@@ -595,18 +589,25 @@ skip arms):
 - `skipped (no identity). Configure \`arc.identity\` to enable notes sync.` —
   identity-absent fallback.
 
-**Housekeep:** [between-WUs only, when pending captures remain, housekeep was declined, or `inboxState` failed]
-
 **Errand:** [errand-session only: checkpoint commit hash or "no new commit"; push result for `chore/<slug>`]
 
 **Next session:** [Task list pointer (on-task-list), freeform (off-task-list), materialize/resume `chore/<slug>`
 for errand-session, or `session-init discovery / user direction` between WUs]
 
-**Conditional top-level section** — when `recommendedSummaryLine` is non-null, prepend it
-verbatim above `**Sync:**`. Read from `arc sync --json`'s envelope when sync ran
-(`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from
-probe-2 otherwise (manual mode or identity absent). Both surfaces compose from canonical state
-— no agent-side counting or dispatch.
+**Conditional top-level sections** — prepend each applicable surface above the current result block (`**Sync:**`
+or `**Errand:**`):
+
+- `recommendedSummaryLine` non-null: prepend it verbatim. Read from `arc sync --json`'s envelope when sync ran
+  (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from probe-2 otherwise
+  (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or dispatch.
+- `identity` present, `user.value.notesDriftSurface` present, and the sync result did not report the notes leg
+  saved or pushed successfully: render the advisory below. Suppress it when `arc sync --json` shows notes
+  save/push success; the sync already captured the drift.
+
+  ```text
+  **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
+  `arc user status` before relying on session notes — no auto-load (may carry local edits).
+  ```
 
 **Formatting guidance:**
 
@@ -667,7 +668,6 @@ note to anchor.
 
 [arc-methods-session]: ../../../methods/session-state.md
 [commit-footer]: ../../../methods/commit-footer.md
-[drain-inbox]: ../supplemental/drain-inbox.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [team-coordination]: ../../../../reference/strategies/arc/strategy-team-coordination.md
 [session-ops]: ../../../../reference/strategies/arc/strategy-session-operations.md

@@ -161,6 +161,10 @@ type; routing (wrapper or raw) follows § Workflow class-tag routing.
 Commits must follow the project's configured format. See the [commit-format][arc-methods-cf] and
 [commit-footer][arc-methods-ccf] methods for specifications.
 
+Before composing any commit message, load both methods. Do not reconstruct the format from recent
+`git log` entries — history shows surface examples, not the configured rules or hook-enforced footer
+requirements.
+
 ### Atomicity
 
 One logical change per commit. When multiple tasks are completed between commits, separate code
