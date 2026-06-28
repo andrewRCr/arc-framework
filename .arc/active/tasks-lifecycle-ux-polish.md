@@ -95,16 +95,10 @@ change, not new drift logic. Facet 6 self-excludes at the detection core (`detec
 already owns self-exclusion), keeping the oracle a general projection (spec Open item — facet 6 exclusion
 layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6.
 
-### `[ ]` **2.1 Surface notes/disk-drift on the `session-handoff` probe's `user` slot**
+### `[x]` **2.1 Surface notes/disk-drift on the `session-handoff` probe's `user` slot**
 
 - _Goal:_ The `session-handoff` probe's `user` slot surfaces a disk-ahead-of-ref drift, at parity with
   `session-init`'s `notesDriftSurface` / `loadNeeded`.
-
-- _Context:_ The handoff `user` slot reports ref-vs-remote topology only, so a handoff can report notes
-  "clean" while the working tree has unsaved user-notes edits. Observability-symmetry fix, not data-loss —
-  `arc sync` already runs `runUserSave` first.
-
-- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
 
     - `[x]` **2.1.a Enrich the handoff `user` slot in the status probe**
         - `SessionHandoffResult.user` now uses a shared session-user value shape that carries finalized
@@ -115,9 +109,14 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
         - Added handoff orchestration coverage for behind, mixed/missing, and no-drift cases in
           `__tests__/unit/status/run.test.ts`.
 
-    - `[ ]` **2.1.b Surface the drift in the `session-handoff` workflow**
-        - Add the disk-drift advisory to `session-handoff.md` (both copies) where the `user` slot is consumed,
-          mirroring `session-init`'s drift surfacing so a handoff reports an unsaved-edits drift.
+    - `[x]` **2.1.b Surface the drift in the `session-handoff` workflow**
+        - Both `session-handoff` copies now document the clean-arm `loadNeeded` / `notesDriftSurface` user-slot
+          signals and render unresolved `notesDriftSurface` in Confirm Handoff with the session-init advisory
+          wording, suppressing it when sync already saved or pushed the notes leg.
+
+- _Outcome:_ The handoff status probe and workflow now share session-init's notes/disk drift surface: the probe
+  finalizes `loadNeeded` / `notesDriftSurface`, and Confirm Handoff reports unresolved advisory drift without
+  duplicating successfully synced notes.
 
 ### `[ ]` **2.2 Harden `arc errand close` against a host-deleted branch**
 

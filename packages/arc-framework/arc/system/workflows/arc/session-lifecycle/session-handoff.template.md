@@ -40,6 +40,10 @@ arc status --session-handoff --json
 | `restateCandidates`      | Structured payload backing the SESSION-NOTES restate filter — read from probe-1 (stable across meta-file commit)      |
 | `recommendedSummaryLine` | Pre-composed top-of-Confirm-Handoff line (`**Reconcile required:** ...` / `**Worktree:** N unpushed ...` / `null`)    |
 
+On the clean arm, `user.value.loadNeeded` may signal a safe local notes load, and
+`user.value.notesDriftSurface` (`{direction: mixed | missing}`) carries unresolved notes/disk drift for Confirm
+Handoff.
+
 **Slot freshness contract.** Probe-1 captures pre-path state. The active-WU meta-file commit, errand checkpoint
 commit, and between-WUs context routing may mutate `worktree`, `dirty`, and `head`; re-read those slots from
 probe-2 to render post-path truth. Other slots (`identity`, `branch`, `syncInterlock`, `active`, `user`,
@@ -590,11 +594,19 @@ skip arms):
 **Next session:** [Task list pointer (on-task-list), freeform (off-task-list), materialize/resume `chore/<slug>`
 for errand-session, or `session-init discovery / user direction` between WUs]
 
-**Conditional top-level section** — when `recommendedSummaryLine` is non-null, prepend it
-verbatim above `**Sync:**`. Read from `arc sync --json`'s envelope when sync ran
-(`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from
-probe-2 otherwise (manual mode or identity absent). Both surfaces compose from canonical state
-— no agent-side counting or dispatch.
+**Conditional top-level sections** — prepend each applicable surface above `**Sync:**`:
+
+- `recommendedSummaryLine` non-null: prepend it verbatim. Read from `arc sync --json`'s envelope when sync ran
+  (`syncInterlock.value` is `"on-handoff"` or `"on-workflow"` and identity present); read from probe-2 otherwise
+  (manual mode or identity absent). This surface composes from canonical state — no agent-side counting or dispatch.
+- `user.value.notesDriftSurface` present and the sync result did not report the notes leg saved or pushed
+  successfully: render the advisory below. Suppress it when `arc sync --json` shows notes save/push success; the
+  sync already captured the drift.
+
+  ```text
+  **Notes/disk drift:** on-disk user files diverge from the latest note ({direction}); inspect with
+  `arc user status` before relying on session notes — no auto-load (may carry local edits).
+  ```
 
 **Formatting guidance:**
 
