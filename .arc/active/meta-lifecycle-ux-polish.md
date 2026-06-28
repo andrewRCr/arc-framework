@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-ux-polish.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.3 — Add the `arc-session --next` / `--start` entry shortcuts
-- **Next Task:** Task 1.4.a — Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers (line ~77)
+- **Last Completed:** Task 1.4 — Add always-loaded commit-path awareness
+- **Next Task:** Task 2.1.a — Enrich the handoff `user` slot in the status probe (line ~109)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.4.a — Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers
+- **Next Action:** Start Task 2.1.a — Enrich the handoff `user` slot in the status probe
 
 - **PR URL:** [none]
 - **Completed:** [none]
