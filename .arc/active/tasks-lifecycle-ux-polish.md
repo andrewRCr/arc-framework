@@ -64,30 +64,23 @@ pointers).
   `arc start` and `init-work-unit` transition from the no-active-WU Orient arm without bypassing guards or
   interlocks.
 
-### `[ ]` **1.4 Add always-loaded commit-path awareness**
+### `[x]` **1.4 Add always-loaded commit-path awareness**
 
 - _Goal:_ A workflow commit can fire the release wrapper and compose a conformant message without re-probing
   `--help` or reconstructing the format from recent `git log`.
-
-- _Rationale:_ Pointer + directive only — never a copy of the overridable format/footer content, so DRY and
-  the override model both hold (spec No-go: no embedded commit-format skeleton). The methods stay the single
-  source of truth; the hook stays the hard enforcement backstop.
-
-- **Strategies:** strategy-package-project-sync.md
 
     - `[x]` **1.4.a Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers**
         - Added the mirrored always-loaded wrapper call-shape: after interlock validation,
           `arc release commit` mirrors `git commit` message/flag handling, while `arc release push` supplies
           `origin <current-branch>` itself, takes no target argument, and refuses destructive flags.
 
-    - `[ ]` **1.4.b Sharpen the commit directive in `DEV-RULES.ARC` § Commit Discipline**
-        - Sharpen the existing § Commit format subsection (it already points at the methods) with a behavioral
-          directive (both copies): before composing any commit message, load the `commit-format` /
-          `commit-footer` methods — do not reconstruct the format from recent `git log` (it shows surface
-          shape, not the hook-enforced rules). Pointer + directive only; no format content copied out of the
-          methods.
-        - _Note:_ These docs are adopter-facing (ship via package source) — keep the prose audience-clean
-          (no transitional or internal-roadmap framing) and lean (always-loaded surface).
+    - `[x]` **1.4.b Sharpen the commit directive in `DEV-RULES.ARC` § Commit Discipline**
+        - Added the mirrored commit-format directive: load the `commit-format` and `commit-footer` methods before
+          composing any commit message, and do not reconstruct the format from recent `git log` examples.
+
+- _Outcome:_ The always-loaded commit-path guidance now gives agents the wrapper interface and method-load
+  directive needed at workflow commit fire-sites, while leaving the configurable format/footer content in the
+  methods as the single source of truth.
 
 ## **Phase 2:** Code lobe
 
