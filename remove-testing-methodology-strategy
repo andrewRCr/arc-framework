@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "remove-testing-methodology-strategy",
+  "origin": "inbox",
+  "intent": "Remove strategy-testing-methodology from task-list Strategies suggestions now that test-first/testing-standards methods cover execution context.",
+  "branch": "fix/remove-testing-methodology-strategy",
+  "createdAt": "2026-06-28T14:23:42.514Z",
+  "originEntry": "Remove `strategy-testing-methodology` as an option for Strategies: line placement in relevant workflows"
+}
