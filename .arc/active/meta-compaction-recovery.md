@@ -12,8 +12,8 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Draft holistically rewritten from the session-decoupling reframe + harness hook research,
-  and captured (`Class` Heavy → Novel).
+- **Last Completed:** Draft re-synthesized to formalization-ready — open design items settled (seed path,
+  audit-baseline, `loadSet` slice, ADR-002 amendment) and the four reciprocal forward-compat notes routed.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
