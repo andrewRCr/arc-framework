@@ -498,6 +498,7 @@ program
   )
   .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user: skip the network read; render from local refs")
+  .option("--write-compaction-seed", "With --session-init: write the machine-local compaction recovery seed")
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

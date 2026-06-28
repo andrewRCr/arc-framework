@@ -92,6 +92,7 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { emitCompactionSeed, type EmitCompactionSeedResult } from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
@@ -106,6 +107,8 @@ export interface StatusCliOptions {
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
   fetch?: boolean;
   json?: boolean;
+  /** With --session-init: write the machine-local compaction seed sidecar. */
+  writeCompactionSeed?: boolean;
 }
 
 /** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
@@ -499,6 +502,14 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
+    if (opts.writeCompactionSeed) {
+      surfaceCompactionSeedWrite(await emitCompactionSeed({
+        cwd,
+        envelope: result,
+        exec: gitExec,
+        readFile: (path) => readFile(path, "utf8"),
+      }));
+    }
     if (json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
@@ -546,6 +557,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   p.intro("arc status");
   p.note(buildStatusSummary(result), "Status");
   p.outro("Done.");
+}
+
+function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {
+  if (result.status === "failed") {
+    process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
+  }
+  if (result.status === "skipped" && result.reason === "load-set-unresolved") {
+    process.stderr.write("warn: compaction seed not written: load-set unresolved\n");
+  }
 }
 
 /** Compact human render of a slug→state query for the non-`--json` path. */

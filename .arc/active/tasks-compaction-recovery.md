@@ -71,27 +71,14 @@ recovery-audit baseline, not a re-load shortcut.
   `LoadSetManifest` embedding, runtime validation, JSON parse/stringify helpers, and unit coverage for valid,
   null-pointer, malformed, mismatched, and invalid-shape payloads.
 
-### `[ ]` **2.2 Implement the seed `--write` emitter**
+### `[x]` **2.2 Implement the seed `--write` emitter**
 
 - _Goal:_ A status-family command writes the current seed on demand, deriving every field deterministically from
   probe state + git, and exits 0.
-- _Note:_ Host lean: a `--write`-style option on the `status` command composed with `--session-init` — reuse the
-  session-init envelope's resolved state + the `loadSet` slice, add `uncommittedFiles`, serialize to
-  `CompactionSeed`, write to the fixed path. Not a new subcommand, and distinct from Phase 3's `--recover` (the
-  pre-compaction write vs. the post-compaction re-probe). Exact flag spelling + `--json` composition settle at impl
-  (spec § Open Questions). State pointers populate via the existing `meta-reader.ts` / `managed-field.ts`
-  extractors (sourced from the markdown records at write time) — no bespoke seed parser, so
-  `operational-state-docs` later supersedes one reader, not two.
-
-    - Build `test-first` (one behavior at a time):
-
-        - the emitter projects `loadSet` via the shared projection (1.2), not a bespoke list
-        - `uncommittedFiles` derives from `git status --porcelain` with deterministic ordering
-        - `currentTask` is null in planning, populated (`id` / `title` / `lineHint`) in execution
-        - `head` / `branch` / `dirty` reflect live git state at emit
-        - the seed round-trips losslessly (write → read → deep-equal)
-        - the write exits 0 unconditionally
-        - identity-absent → no seed written (graceful no-op; the seed path is identity-scoped)
+- _Outcome:_ Added `src/lib/compaction-seed/emitter.ts` and the `status --session-init
+  --write-compaction-seed` flag. The emitter reuses the session-init `loadSet`, derives live HEAD/dirty files from
+  git, reads meta pointers through `meta-reader.ts`, writes the identity-scoped seed sidecar without throwing, and
+  is covered by unit tests plus a built-CLI E2E smoke.
 
 ### `[ ]` **2.3 Persist to the fixed machine-local path**
 

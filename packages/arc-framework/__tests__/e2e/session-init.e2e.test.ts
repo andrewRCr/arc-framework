@@ -14,7 +14,7 @@
  */
 
 import { execFile } from "node:child_process";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -44,6 +44,20 @@ interface SessionInitEnvelope {
       recommendedPromptText: string;
     };
   };
+}
+
+interface CompactionSeedJson {
+  schemaVersion: number;
+  repoRoot: string;
+  branch: string;
+  head: string;
+  dirty: boolean;
+  activeWorkUnit: string | null;
+  metaPath: string | null;
+  sessionType: string | null;
+  currentTask: { id: string; title: string; lineHint: number } | null;
+  loadSet: { entries: { path: string; readMode: { kind: string } }[] };
+  uncommittedFiles: string[];
 }
 
 async function writeStatusFixture(
@@ -109,6 +123,58 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("none");
     expect(envelope.active.value?.sessionType).toBe("planning");
+  });
+
+  it("writes the compaction seed sidecar when requested with session-init", async () => {
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
+    await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      [
+        "# Metadata: Foo",
+        "",
+        "- **State:** Active",
+        "- **Branch:** feat/foo",
+        "- **Task List:** tasks-foo.md",
+        "- **Current Workflow:** [none]",
+        "- **Next Task:** Task 1.1 — Do seed (line ~12)",
+        "- **Next Action:** Start Task 1.1",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), "# Task List: Foo\n");
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "active fixture"], { cwd: tmpDir });
+
+    const result = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(result.exitCode).toBe(0);
+
+    const seedPath = join(tmpDir, ".arc", "user", "test-user", ".internal", "compaction-seed.json");
+    const seed = JSON.parse(await readFile(seedPath, "utf8")) as CompactionSeedJson;
+    const expectedRepoRoot = await realpath(tmpDir);
+    expect(seed).toMatchObject({
+      schemaVersion: 1,
+      repoRoot: expectedRepoRoot,
+      branch: "feat/foo",
+      dirty: false,
+      activeWorkUnit: "foo",
+      metaPath: ".arc/active/meta-foo.md",
+      sessionType: "execution",
+      currentTask: { id: "1.1", title: "Do seed", lineHint: 12 },
+      uncommittedFiles: [],
+    });
+    expect(seed.head).toMatch(/^[0-9a-f]{40}$/);
+    expect(seed.loadSet.entries).toContainEqual({
+      path: ".arc/active/tasks-foo.md",
+      readMode: { kind: "partial-strategic" },
+    });
   });
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {
