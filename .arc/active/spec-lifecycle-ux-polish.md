@@ -20,10 +20,12 @@ as un-actioned captures. Assembled together they form one coherent cleanup with 
 The cluster splits into two lobes by the surface it touches:
 
 - **Workflow / doc lobe** — markdown edits to `session-handoff` / `session-init`, a session-entry signal, and
-  always-loaded commit-path guidance in `AGENT-BRIEF.ARC` / `DEV-RULES.ARC`. Light weight.
-- **Code / script lobe** — two robustness fixes touching `arc errand close` reap logic and the shared
-  `lib/git` foreign-artifact overlap primitive (with tests). Reviewed lane — the overlap primitive is shared
-  by `arc activate`'s foreign-write check and `arc errand check`.
+  always-loaded commit-path guidance in `AGENT-BRIEF.ARC` / `DEV-RULES.ARC` (facets 1, 3, 4, 7). Markdown-only
+  — no code, no tests, so it can land first on its own.
+- **Code / script lobe** — the `session-handoff` probe's notes/disk-drift surface plus two robustness fixes
+  touching `arc errand close` reap logic and the shared `lib/git` foreign-artifact overlap primitive (facets
+  2, 5, 6; all with tests). The overlap primitive is shared by `arc activate`'s foreign-write check and
+  `arc errand check`, so it carries the widest blast radius.
 
 The work exists now because the parallel-sessions push is imminent: handoff cleanliness, errand-close
 robustness, and the `--next` auto-proceed signal each directly smooth running multiple sessions.
@@ -74,17 +76,23 @@ confirm-only offer), never init's `workflowCommit` / `workflowPush` interlocks (
 via release opt-in as elsewhere).
 
 **5. Harden `arc errand close` against a host-deleted branch.** Merging an errand PR with
-`gh pr merge --delete-branch` (the common host-auto-delete flow) deletes the local branch too and breaks
-`arc errand close` two ways: (1) the reap-safety check can't confirm via the pruned upstream and refuses,
-reporting "not landed in `<base>`" even when the commits are provably ancestors of base; (2) `--force`, the
-documented escape, then errors on `git branch -D` (branch already gone) and orphans the record in
-`refs/arc/user/{id}/errands`. Two changes:
+`gh pr merge --delete-branch` (the common host-auto-delete flow) deletes the local branch too, and
+`arc errand close` then orphans the record: with no branch ref to verify containment the non-`--force` path
+refuses, and `--force` — the documented escape — errors on `git branch -D` (branch already gone), leaving the
+record in `refs/arc/user/{id}/errands`. The fix:
 
-- **Reap-safety fallback** — when the upstream ref is pruned, confirm shipped via
-  `git merge-base --is-ancestor <tip> <base>` (recognizing merge-commit containment, not just upstream /
-  cherry equivalence).
-- **Tolerate an already-absent branch** — make the reap a delete-if-exists, so `--force` always clears the
-  record even with no branch to delete.
+- **Tolerate an already-absent branch** — make the reap a delete-if-exists, so `--force` always reaches the
+  record removal and clears it even with no branch to delete.
+- **Actionable refusal** — when the branch ref is absent, the non-`--force` refusal names `--force` as the
+  escape, so the operator isn't left guessing.
+
+No reap-safety auto-fallback is added: the base-containment check already in place (`isLandedInBase`, patch
+identity via `git cherry`) already proves merge-commit / fast-forward / rebase / single-squash containment for
+a branch-present pruned-upstream merge, and once `--delete-branch` removes the local branch there is no ref —
+and no SHA stored in the record — left to check, so a `git merge-base --is-ancestor` fallback could neither
+add coverage nor run. `--force` is the right gate when containment is unverifiable. Auto-confirming the common
+merge-and-close path without `--force` (by persisting the errand tip SHA in the record) is routed to
+`operational-state-docs`, whose richer record model is the natural home for lifecycle-stateful record fields.
 
 **6. Eliminate the `arc activate` foreign-write false-positive.** Every `arc activate` whose planning branch
 was pushed emits a spurious "Foreign-owned write" warning at the activation commit. `check-foreign-writes.ts`
@@ -105,9 +113,11 @@ hook-enforced rules, so the hook rejects a malformed message and forces a retry.
 surface that matches its kind:
 
 - **Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers** (orientation — a descriptive fact
-  about the tool's shape): the wrappers forward their args to the underlying `git commit` / `git push` after
-  the interlock-validation cascade. Removes the recurring `--help` probe at zero added load — the section is
-  already always-loaded.
+  about the tool's shape): after the interlock-validation cascade, `arc release commit` takes the same
+  message/flags as `git commit`, and `arc release push` supplies the `origin <current-branch>` target itself
+  (no target argument) and refuses destructive flags. Lean operational context — enough to fire the wrapper
+  without a `--help` probe, not a restatement of its internals. Removes the recurring `--help` probe at zero
+  added load — the section is already always-loaded.
 - **Sharpen the commit directive in `DEV-RULES.ARC` § Commit Discipline** (a behavioral rule): before composing
   any commit message, load the `commit-format` / `commit-footer` methods — do not reconstruct the format from
   recent `git log` (it shows surface shape, not the enforced rules). The methods stay the single source of
@@ -130,11 +140,12 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
   is a separate concern if it proves needed.
 - **No standing auto-proceed setting.** `--next` is per-invocation only; no config key, no default-on mode.
 - **No WU decomposition.** The work stays one WU. The doc-lobe / code-lobe split is a task-phase boundary
-  (doc lobe can land first as a clean Light increment), not a cohort cut. Decomposition is a watch item only if
-  a reviewed-lane fix grows materially during implementation.
-- **Facet 5 does not re-home errand records.** It coordinates with `operational-state-docs`, whose records
-  re-home subsumes the reap-safety-fallback half; this WU sharpens that with the merge-commit variant and adds
-  the broken-`--force` (case-2) fix that the records re-home does not cover.
+  (the doc lobe can land first on its own), not a cohort cut. Decomposition is a watch item only if a
+  code-lobe fix grows materially during implementation.
+- **Facet 5 does not re-home errand records.** It delivers only the delete-if-exists `--force` fix and adds no
+  record-schema field. The reap-safety base-containment check it would once have "sharpened" already ships
+  (`isLandedInBase`), and the no-`--force` auto-confirm (which would need a tip SHA on the record) is routed to
+  `operational-state-docs`, whose records-rehome model owns lifecycle-stateful record fields.
 - **Facet 1 keeps the `session-init` Orient housekeep soft-offer.** Only the handoff-side offer and its dead
   probe row are removed; the between-WUs nudge at session start stays.
 - **No embedded commit-format skeleton (facet 7).** Always-loaded commit guidance is pointer + directive only;
@@ -148,13 +159,14 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
 
 ## Consequences & Risks
 
-- **Shared overlap primitive (facets 5–6, reviewed lane).** `lib/git`'s foreign-artifact detection is consumed
-  by both `arc activate`'s foreign-write check and `arc errand check`. The slug-keyed self-exclusion must not
-  regress the errand-check consumer; tests must cover both call paths. This is the primary review risk and the
+- **Shared overlap primitive (facet 6).** `lib/git`'s foreign-artifact detection is consumed
+  by both `arc activate`'s foreign-write check and `arc errand check`. The meta-path self-exclusion must not
+  regress the errand-check consumer; tests must cover both call paths. This is the widest blast radius and the
   basis for the `Heavy` `Class`.
 - **`Class` rests on scale/complexity, not derivation.** The design is determinate; `Heavy` reflects the
-  code-lobe's shared-primitive blast radius and reviewed-lane rigor. If implementation shows the overlap-layer
-  change is well-contained, `Class` may ratchet down to `Light` — no work is lost, since it is an estimate.
+  code lobe's shared-primitive blast radius and the scrutiny the shared overlap layer demands. If
+  implementation shows the overlap-layer change is well-contained, `Class` may ratchet down to `Light` — no
+  work is lost, since it is an estimate.
 - **Fewer housekeep nudges (facet 1).** Removing the handoff-side offer means the only housekeep nudge is at
   `session-init` Orient. Acceptable: that is the correct moment (base context available, low context cost), and
   the `inboxState` surface still fires there.
@@ -181,13 +193,14 @@ directive reduces hook-catch retries; the hook remains the hard enforcement back
   orientation conditional surface present, it falls back to the prompt; with a backlog-WU seed on the no-WU arm
   it auto-inits past the confirm offer while init's commit/push interlocks still fire; bare `--next` on the
   no-WU arm with no seed is a no-op.
-- `arc errand close` succeeds after a `gh pr merge --delete-branch` merge (reap-safety confirms via
-  ancestor/merge-base containment), and `--force` clears the record even when the local branch is already gone
-  (no orphaned record in `refs/arc/user/{id}/errands`).
+- `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists reap
+  clears the record even when the local branch is already gone (no orphaned record in
+  `refs/arc/user/{id}/errands`) — and the non-`--force` refusal names `--force` as the escape.
 - `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
   `arc errand check`'s overlap detection is unchanged (covered by tests on both consumers).
-- `AGENT-BRIEF.ARC` § Release wrappers states the forward-to-`git` interface, so a workflow commit can fire via
-  the wrapper without probing `--help`; `DEV-RULES.ARC` § Commit Discipline carries an explicit
+- `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context, not
+  internals), so a workflow commit can fire via the wrapper without probing `--help`; `DEV-RULES.ARC`
+  § Commit Discipline carries an explicit
   load-the-methods / don't-reconstruct-from-`git log` directive — with no format/footer content copied out of
   the methods (they remain the sole source of the shape).
 
@@ -215,11 +228,11 @@ resolution grounded in the current code/workflows; implementation confirms or ov
   ergonomic friction, never an interlock or a weight-resolution gate.
 
 - **Facet 6 exclusion layer** — *leans the detection core.* `detectForeignArtifactOverlap` already owns
-  self-exclusion (the `worktreePath !== originatingWorktreePath` filter), so the slug-keyed exclusion co-locates
-  there as an optional originating-meta/slug predicate — a candidate whose `metaFilePath` matches the
-  originating WU's meta is excluded alongside the worktree-path match. The caller (`check-foreign-writes.ts`)
-  resolves the originating slug/meta (symmetric with the `currentWorktreePath` it already resolves) and threads
-  it through. This keeps `projectInFlightToOverlapRoster` a pure projection and leaves `runActiveInFlight` a
+  self-exclusion (the `worktreePath !== originatingWorktreePath` filter), so the meta-path exclusion co-locates
+  there as an optional `originatingMetaPath` predicate — a candidate whose `metaFilePath` matches it is excluded
+  alongside the worktree-path match. The caller (`check-foreign-writes.ts`) resolves the originating meta path
+  (symmetric with the `currentWorktreePath` it already resolves) and threads it through. This keeps
+  `projectInFlightToOverlapRoster` a pure projection and leaves `runActiveInFlight` a
   general oracle (no special-casing the stale renamed-from ref at the derivation layer, which would broaden the
   blast radius onto every oracle consumer), and stays backward-compatible for the `arc errand check` consumer
   (errands carry no meta; they self-exclude by worktree path and simply don't pass the new predicate).

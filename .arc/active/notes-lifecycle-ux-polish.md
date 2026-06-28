@@ -5,19 +5,25 @@ spec omits.
 
 ## Contents
 
-- Facet 5 — errand-close reap-safety: test context
+- Facet 5 — errand-close reap: test context
 - Facet 6 — foreign-write false-positive: repro/test context
 - Coordination — sibling cleanup boundary
 - Delivery sequencing
 
-## Facet 5 — errand-close reap-safety: test context
+## Facet 5 — errand-close reap: test context
 
-- The refusal (case 1) was verified live on a real **merge commit**, not a squash — the reap-safety fallback
-  must recognize merge-commit containment via `git merge-base --is-ancestor <tip> <base>`, not only
-  upstream/cherry equivalence. Test both the merge-commit and squash shapes.
-- The broken `--force` (case 2) is a distinct failure from the refusal: with the local branch already gone,
-  `--force` errors on `git branch -D` and leaves the record orphaned. Test that `--force` clears the record
-  when no local branch is present (delete-if-exists reap).
+- The fix is the delete-if-exists reap: with the local branch already gone (after `gh pr merge
+  --delete-branch`), `closeErrand`'s unconditional `git branch -D` errors and leaves the record orphaned even
+  under `--force`. Test that `--force` clears the record when no local branch is present (delete-if-exists), and
+  that a normal close with the branch present still reaps it then removes the record. Also test that the
+  non-`--force` refusal on an absent branch names `--force` (actionable message).
+- No reap-safety auto-fallback is added: `assessReapSafety` already proves containment for a branch-present
+  pruned-upstream merge via `isLandedInBase` (`git cherry`, patch identity — covers merge-commit / fast-forward
+  / rebase / single-squash). Once `--delete-branch` removes the local branch there is no ref or stored SHA left
+  to check, so `--force` is the gate. Auto-confirm-without-`--force` (persist a tip SHA) is routed to
+  `operational-state-docs` (a `USER-INBOX § Work Unit` capture).
+- The earlier "refuses on a real merge commit" observation predated the shipped `isLandedInBase` fallback; the
+  live symptom was the deleted local branch, not a merge-commit blind spot.
 
 ## Facet 6 — foreign-write false-positive: repro/test context
 
@@ -29,8 +35,10 @@ spec omits.
 - Test setup: stage a work-unit-surface artifact at an activation commit while a matching `origin/plan/<slug>`
   remote-tracking ref exists; assert no foreign-write warning. Cover the `arc errand check` consumer too — it
   passes no originating meta/slug (errands carry no meta) and must stay unaffected.
-- Slug resolvability: `lifecycle-state-resolver` has shipped, so the originating slug/meta the core
-  self-exclusion needs is cheaply resolvable from the current branch — no extra derivation cost.
+- Originating-meta resolvability: the current WU's meta is resolvable via the active-WU resolver
+  (`resolveActiveWu` in `lib/release/wu-resolution.ts`, already used by `arc release commit`, or the active
+  meta-reader) — symmetric with the `currentWorktreePath` the hook already resolves, no extra derivation cost.
+  (Not `lifecycle-resolver.ts`, which resolves slug→state, not branch→slug.)
 
 ## Coordination — sibling cleanup boundary
 
@@ -41,5 +49,5 @@ spec omits.
 
 ## Delivery sequencing
 
-- The doc lobe (Decisions 1–4) can land as a clean Light increment ahead of the reviewed-lane code lobe
-  (Decisions 5–6). This is a natural task-phase boundary within the one WU, not a decomposition cut.
+- The doc lobe (Decisions 1, 3, 4, 7) can land first on its own, ahead of the code lobe (Decisions 2, 5, 6).
+  This is a natural task-phase boundary within the one WU, not a decomposition cut.
