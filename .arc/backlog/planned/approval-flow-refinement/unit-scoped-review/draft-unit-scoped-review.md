@@ -271,6 +271,13 @@ from "no" to "a scoped, orchestrated exception exists, with `session-recover` as
 draft's coordination surface for reconciliation at its next planning iteration. Neither draft is more
 authoritative than the other; align them.
 
+**Resolved (2026-06-28) — `compaction-recovery` reframed.** That draft was holistically reworked: compaction is now
+**first-class re-hydration** (the ARC session decoupled from the harness session), long sessions are **viable** (the
+*correctness* argument against them is removed; scope/review discipline remains as judgment, not a compaction
+workaround), and `session-recover` is named the explicit backstop for an orchestrated batch. The anti-long-session
+stance softened exactly as this item asked — the alignment closed in `unit-scoped-review`'s favor. Fold the closure
+in at this WU's next iteration; no longer open.
+
 ## Alternatives
 
 - **Full autonomy (auto-merge / skip the integration gate).** Rejected — crosses the no-human-gate line. The

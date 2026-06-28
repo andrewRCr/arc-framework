@@ -11,6 +11,18 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
+
+- _Routed from:_ `compaction-recovery` draft-design (2026-06-28).
+- _Seam:_ the compaction seed reads exactly the surfaces OSD formalizes as managed records (`meta`, `SESSION-NOTES`,
+  `WORKING-MEMORY`). It is pure **read / resolve-don't-store** — re-derived at each compaction, never persisted as
+  authoritative — so it sits on OSD's safe side: interim it projects from markdown, post-OSD from records, with no
+  reshape. Tracks `adr-022`.
+- _Invariant OSD relies on:_ the seed (and its embedded load-set manifest) is produced by the **same** shared
+  load-set projection and reads via session-init's existing `managed-field.ts` extractors — never a new bespoke
+  parser — so it inherits exactly session-init's fragility (no worse) and OSD supersedes **one** reader, not two. At
+  the record layer the seed's pointer fields re-home onto records without a second migration.
+
 ### `[ ]` **Decide the legacy flat-bullet core fallback in `parseMetaRecord`**
 
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during

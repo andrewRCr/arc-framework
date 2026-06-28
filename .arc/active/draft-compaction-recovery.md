@@ -12,8 +12,8 @@ not a black box to disable.
   record projections, hook adapters), but the *model* is invented: ARC-session/harness-session decoupling with
   compaction as a first-class re-hydration boundary, and a procedural/episodic division of labor against an opaque
   summary. Carries an ADR-002 amendment.
-- **Readiness:** maturing — scope and direction are settled; open items are detail-design (seed storage path, final
-  seed-field list, the deterministic validation harness).
+- **Readiness:** maturing — scope and direction are settled; residual opens are detail-design (exact seed schema,
+  lean probe-mode cut, e2e protocol home, the ADR amend/new call) plus routing the four reciprocal coordination notes.
 - **Created:** 2026-05-21
 - **Origin:** Surfaced 2026-05-21 revisiting ARC's compaction stance; reframed 2026-06-28. The original stance
   (`adr-002`, P5) rejected black-box compaction in favor of explicit handoff and recommended disabling
@@ -47,6 +47,14 @@ unusable for sustained ARC work without it) and **insurance for Claude Code** (a
 hook is there when it is). It is a practical pre-parallelism need: more and longer concurrent sessions across
 harnesses mean more compaction events to survive. It does **not strictly block** parallelism, but it removes a
 real friction from running Codex reliably alongside Claude Code.
+
+**Side benefit — handoff-commit-noise reduction.** ARC currently hands off whenever context load demands it, not
+only at natural boundaries (mode transitions, WU/phase completion) — and every handoff writes the meta and lands a
+commit. Because context-pressure handoffs are *frequent*, the `meta-*` churn and `chore(arc): handoff` commits
+accumulate as real history noise. Decoupling lets context pressure be absorbed by compact-and-recover instead of a
+handoff, returning handoff to its natural-boundary role — so a user who wants it can cut handoff-commit noise
+considerably. Opt-in, like long-session viability: recovery *enables* the reduction, it does not mandate a handoff
+cadence.
 
 ## The session-decoupling model (the core idea)
 
@@ -107,12 +115,16 @@ tracking it would require runtime instrumentation. Stated as an explicit scope b
 ### The four ARC-owned surfaces
 
 1. **Compaction seed (a lean, deterministic manifest).** Emitted by an `arc status`-family command with a `--write`
-   mode that stores the latest seed at a predictable local path. Under the lean model the seed is **state pointers +
-   the load-set manifest + a deterministic uncommitted-file list** — *not* prose reasoning (that is the harness
-   summary's job). Working field set:
+   mode that stores the latest seed at a **fixed machine-local path** —
+   `.arc/user/{identity}/.internal/compaction-seed.json`, gitignored (the whole user tree is), and per-worktree *by
+   the gitignore boundary* since that tree is never checked out into linked worktrees; excluded from the git-notes
+   user-sync projection (machine/worktree-local, never travels). Under the lean model the seed is **state pointers +
+   the embedded load-set manifest + a deterministic uncommitted-file list** — *not* prose reasoning (that is the
+   harness summary's job). Working field set:
     - repo root, ARC invocation convention (`arc` vs `npx arc`), branch / HEAD / dirty state;
     - active WU, meta path, `sessionType`, current workflow pointer, current task pointer;
-    - the **load-set manifest** (the ordered docs + read-modes to re-load — see below);
+    - the **load-set manifest** (the ordered docs + read-modes — see below), embedded here as the *recovery-audit
+      baseline* (recover re-resolves a fresh load-set and diffs against it), **not** a re-load shortcut;
     - a git-derived list of uncommitted files (cheap insurance against a lossy summary; deterministic, no agent
       input).
    Explicitly **dropped** from the original draft's seed: "recent post-handoff decisions" prose (episodic → harness).
@@ -120,13 +132,19 @@ tracking it would require runtime instrumentation. Stated as an explicit scope b
    context set with read-modes." The existing `session-init --json` envelope **already** resolves most inputs
    (`sessionType`, `active.path`, `companions`, `extensions`); the incremental piece is a thin projection that maps
    that state to the concrete doc list. Built as a **neutral shared declaration** consumed by both `session-init`
-   Step 3 and `session-recover` — *not* a second load mechanism (see § Coordination — composable-workflows).
+   Step 3 and `session-recover` — *not* a second load mechanism (see § Coordination — composable-workflows). Form: an
+   **additive `loadSet` slice on the existing probe envelope** (one shared projection; `session-recover` reads it via
+   a lean probe mode that skips the dispatch-only oracles), with read-modes as a tagged union mirroring Step 3's three
+   disciplines — `full`, `partial-section {heading}`, `partial-strategic` (header + current-phase + current-task) —
+   array order = read order. The projection resolves *membership* from shared declared-load policy, never a
+   recover-specific list, so CW / `loadset-composition` later subsume it without a fork.
 3. **`session-recover` workflow.** Re-runs the probe, re-loads the state-selected load-set, runs a lightweight
-   recovery audit (seed-vs-reality), and resumes; a mismatch / missing identity / dirty-state surprise / lost task
-   pointer stops for direction. The re-injected context **re-reads the canonical files** (not a summary of them) and
-   lands them at the most-recent context position, with a one-line "the ARC context loaded below is authoritative;
-   disregard any earlier paraphrase" framing — dissolving the ambiguous-authority risk of any overlap with what the
-   summary already carried.
+   recovery audit (re-resolve the load-set from the re-run probe and diff against the seed's embedded manifest —
+   divergence means state moved mid-session), and resumes; a mismatch / missing identity / dirty-state surprise /
+   lost task pointer stops for direction. The re-injected context **re-reads the canonical files** (not a summary of
+   them) and lands them at the most-recent context position, with a one-line "the ARC context loaded below is
+   authoritative; disregard any earlier paraphrase" framing — dissolving the ambiguous-authority risk of any overlap
+   with what the summary already carried.
 4. **`arc-recover` skill (the manual fallback).** A thin user-invocable wrapper over `session-recover`, for
    harnesses without usable hooks or for manual recovery when the user notices compaction.
 
@@ -274,10 +292,12 @@ Reciprocal note → OSD's inbound buffer.
 
 ### Coordination — `cli-substrate-adoption` (typed envelope)
 
-The seed is another agent–CLI envelope crossing the same process boundary CSA hardens. Model it on the session-init
-envelope's pattern (zod schema, validate-on-emit + validate-on-consume, `Result`). Shipping before CSA, the seed is
-hand-typed and becomes a CSA migration target — *exactly* CSA's "codify a settled shape after it ships" model, so the
-debt is pre-budgeted. Reciprocal note → CSA's inbound buffer.
+The seed is another agent–CLI envelope crossing the same process boundary CSA hardens. Author it like today's
+session-init envelope — **hand-typed TypeScript**, validated by hand where it matters (the
+`audit-log.ts:validateEntry()` precedent) — since zod, neverthrow `Result`, and validate-on-emit/consume are CSA
+deliverables, not yet in the tree. Shipping before CSA, the seed (and the `loadSet` slice) are deliberate migration
+targets for CSA's priority validation-surface sweep — *exactly* its "codify a settled shape after it ships" model, so
+the zod/`Result` debt is pre-budgeted. Reciprocal note → CSA's inbound buffer.
 
 ### Coordination — `unit-scoped-review` (tension resolved)
 
@@ -315,16 +335,32 @@ orchestrated batch wants. Reciprocal note → `unit-scoped-review` + `cohort-app
 - Authority mitigation: re-read canonical files, land last, "this is authoritative" framing; never block compaction;
   keep the seed-write cheap.
 - `Class = Novel`; stays one WU.
+- Seed path: `.arc/user/{identity}/.internal/compaction-seed.json` — machine-local, gitignored, ephemeral, and
+  per-worktree by the gitignore boundary (the user tree is never checked out into linked worktrees); excluded from
+  the notes user-sync projection.
+- Seed embeds the resolved load-set manifest as the *recovery-audit baseline* (recover re-resolves and diffs), not a
+  re-load shortcut; seed = state pointers + embedded manifest + uncommitted-file list.
+- Load-set declaration = additive `loadSet` slice on the existing envelope (one shared projection; two consumers —
+  session-init Step 3 + session-recover; lean probe mode for recover), read-modes mirroring Step 3's three
+  disciplines. Not a competing loader.
+- ADR shape: amend ADR-002 — the decoupling evolves its session + P5-within-sessions envelope and does **not**
+  reverse it (Tier 2 append-only amendment, not supersession). A dedicated decoupling-model ADR only if create-spec
+  finds articulating it requires *reframing* ADR-002's session-boundary Context rather than *appending* a consequence.
+- Forward-compat invariants (to encode into the reciprocal notes): (1) the load-set projection resolves *membership*
+  from shared policy (`loadset-composition`), never a recover-specific list — CW / `loadset-composition` subsume it
+  without a fork; (2) the seed's embedded manifest is produced by the *same* shared projection and read via
+  session-init's existing `managed-field.ts` extractors — OSD supersedes one reader not two, and CSA migrates one
+  typed shape.
 
 ## Open (for create-spec)
 
-- **Seed storage path** — machine-local, gitignored, ephemeral, per-worktree (compaction is per-session/worktree);
-  candidate home under a worktree-local `.internal/`. Settle pre-spec.
-- **Final seed field list** — confirm the working set above against the load-set manifest's exact shape.
-- **Load-set declaration form** — a `--recover-set` view vs an additive envelope slice; exact read-mode encoding.
-- **Deterministic validation harness** — round-trip + per-`sessionType` resolution coverage; the manual e2e protocol
-  shape per harness.
-- **ADR shape** — amend ADR-002 only, or also a dedicated decoupling-model ADR.
+- **Exact seed field shape** — finalize the working field set against the load-set manifest's concrete schema (the
+  embed/pointer split is settled; this is the field-by-field TypeScript shape — hand-typed pre-CSA, zod-migrated with it).
+- **Lean probe-mode boundary** — which dispatch-only oracles `session-recover`'s probe mode skips vs. keeps (it needs
+  HEAD/dirty/sync freshness but not roster/sweep/materialize); confirm the cut.
+- **Manual e2e protocol home** — a per-harness checklist section in the spec (lean) vs. a `notes-*` companion; the
+  deterministic parts (round-trip, per-`sessionType` resolution, audit-diff) are unit-tested regardless.
+- **ADR amend-vs-new call** — apply the reframe-vs-append test above; default lean is amend-only.
 
 ## Next
 

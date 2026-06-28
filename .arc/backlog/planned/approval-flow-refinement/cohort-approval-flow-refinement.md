@@ -58,6 +58,9 @@ is parallel-able; it shares machinery with both but gates neither.
 - **`compaction-recovery` (`agent-context-optimization`)** — `unit-scoped-review`'s long-run backstop (not a
   blocker). A two-way alignment is open: that draft's blanket anti-long-session framing is likely overcautious
   against an orchestrated, bounded-context batch mode; reconcile rather than work around. Flagged into that draft.
+  _Resolved 2026-06-28:_ `compaction-recovery` reframed compaction as first-class re-hydration with long-session
+  viability and `session-recover` as the orchestration backstop — the alignment closed in `unit-scoped-review`'s
+  favor.
 - **`out-of-wu-entry` (`agile-parallelism`)** — owns the explicit-intent entry-signal family (`--errand` /
   `--housekeep` / `--new`, and a discussed `--plan`). `unit-scoped-review`'s "activate in batch mode" request is a
   sibling signal — sequence, don't duplicate.

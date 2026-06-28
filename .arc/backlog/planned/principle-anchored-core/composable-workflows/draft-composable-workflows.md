@@ -14,6 +14,21 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Recovery load-set emitter — a proto resolve-then-load consumer (additive `loadSet` slice)**
+
+- *Routed from:* `compaction-recovery` draft-design (2026-06-28).
+- *Seam:* `compaction-recovery`'s `session-recover` needs a deterministic "given current state, the ordered load-set
+  with read-modes." Built interim as a **minimal proto resolve-then-load**: an additive `loadSet` slice on the
+  session-init probe envelope, one shared projection consumed by both `session-init` Step 3 and `session-recover`,
+  reusing existing declared-load conventions (`arc.methods` / `arc.extensions` + probe active-set). Read-modes are a
+  tagged union mirroring Step 3's three disciplines (`full` / `partial-section` / `partial-strategic`). Not a
+  competing loader — CW later subsumes this projection.
+- *Invariant CW / `loadset-composition` rely on:* the projection resolves load-set **membership** from shared policy
+  (`loadset-composition`'s domain), never a recover-specific hardcoded list — so the subsumption is a fork-free
+  lift-and-shift. Recovery stays a *consumer* of policy, not a definer.
+- *Also:* recovery is a concrete motivating case for CW's conditional-arm / `sessionType`-gated fragment declaration
+  — the load-set varies by resolved `sessionType`, exactly the resolve-then-load pattern.
+
 ### `[ ]` **Stable-anchor convention for cross-file workflow step references (ordinals → anchors)**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), work-routing-discipline housekeep
