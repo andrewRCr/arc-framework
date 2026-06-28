@@ -106,20 +106,14 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
 
 - **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
 
-    - `[ ]` **2.1.a Enrich the handoff `user` slot in the status probe**
-        - Widen `SessionHandoffResult.user` in `commands/status/types.ts` to the enriched shape carrying
-          optional `loadNeeded` / `notesDriftSurface` — reuse `SessionInitUserValue` (or extract a shared
-          type), not a new handoff-specific shape.
-        - In `runSessionHandoffStatus` (`commands/status/run.ts`), call `resolveCleanArmNotesVerdict` over the
-          raw `notesDrift` and enrich the handoff `user` slot — the same post-probe step session-init applies
-          (`run.ts` ~403-419). Reuse the pure verdict resolver; add no new drift logic.
-        - _Note:_ between-WUs handoff has no active WU, so `activeWuName` is null and the safe-auto-load
-          sub-case (a missing active-WU `SESSION-NOTES`) can't apply — drift then surfaces as advisory, which
-          is the correct handoff behavior.
-        - Build `test-first` (one behavior at a time):
-            - Handoff `user` slot carries `loadNeeded` when the disk is behind the notes ref (clean arm).
-            - Handoff `user` slot carries `notesDriftSurface` when disk-vs-ref direction is `mixed` / `missing`.
-            - Handoff `user` slot stays clean (neither field) when there is no disk-vs-ref drift.
+    - `[x]` **2.1.a Enrich the handoff `user` slot in the status probe**
+        - `SessionHandoffResult.user` now uses a shared session-user value shape that carries finalized
+          `loadNeeded` / `notesDriftSurface` without introducing a handoff-specific type.
+        - `runSessionHandoffStatus` resolves raw clean-arm `notesDrift` with `activeWuName: null`, reusing
+          `resolveCleanArmNotesVerdict` to set `loadNeeded` for `behind` and advisory surfaces for
+          `mixed` / `missing`.
+        - Added handoff orchestration coverage for behind, mixed/missing, and no-drift cases in
+          `__tests__/unit/status/run.test.ts`.
 
     - `[ ]` **2.1.b Surface the drift in the `session-handoff` workflow**
         - Add the disk-drift advisory to `session-handoff.md` (both copies) where the `user` slot is consumed,

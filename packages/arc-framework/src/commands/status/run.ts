@@ -33,6 +33,7 @@ import type {
   SessionInitRetiredSubdirsValue,
   SessionInitUserValue,
   SessionInitWorktreeValue,
+  SessionUserValue,
   SessionSharedProbes,
   StatusIdentity,
   StatusResult,
@@ -652,6 +653,19 @@ export async function runSessionHandoffStatus(
   ]);
 
   const branch = worktree.ok ? worktree.value.branch : null;
+  const handoffNotesVerdict = user.ok && user.value.notesDrift
+    ? resolveCleanArmNotesVerdict({ ...user.value.notesDrift, activeWuName: null })
+    : null;
+  const enrichedUser: SessionHandoffResult["user"] = user.ok
+    ? {
+      ok: true,
+      value: {
+        ...user.value,
+        ...(handoffNotesVerdict ? { loadNeeded: handoffNotesVerdict.loadNeeded } : {}),
+        ...(handoffNotesVerdict?.driftSurface ? { notesDriftSurface: handoffNotesVerdict.driftSurface } : {}),
+      } satisfies SessionUserValue,
+    }
+    : user;
 
   const recommendedSummaryLine = worktree.ok
     ? inferRecommendedSummaryLine({
@@ -670,7 +684,7 @@ export async function runSessionHandoffStatus(
     branch,
     dirty,
     worktree,
-    user,
+    user: enrichedUser,
     syncInterlock,
     active,
     head,
