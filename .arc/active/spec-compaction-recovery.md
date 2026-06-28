@@ -99,9 +99,9 @@ machine-local path: `.arc/user/{identity}/.internal/compaction-seed.json`. It is
 tree is), **per-worktree by the gitignore boundary** (that tree is never checked out into linked worktrees), and
 **excluded from the git-notes user-sync projection** (machine/worktree-local, never travels).
 
-The seed is **state pointers + the embedded load-set manifest + a deterministic uncommitted-file list** — not
-prose reasoning (that is the harness summary's job). Concrete hand-typed shape (pre-CSA; a deliberate migration
-target for CSA's zod/`Result` sweep):
+The seed is **state pointers + the embedded load-set manifest + a deterministic uncommitted-file list + the
+task-list cursor projection** — not prose reasoning (that is the harness summary's job). Concrete hand-typed shape
+(pre-CSA; a deliberate migration target for CSA's zod/`Result` sweep):
 
 ```typescript
 /** Schema version for forward-compatible parsing across seed-format evolution. */
@@ -123,6 +123,18 @@ interface LoadSetManifest {
   entries: LoadSetEntry[];
 }
 
+/** Deterministic task-list cursor, derived from task-list checkboxes. */
+interface TaskCursorItem {
+  id: string;
+  title: string;
+  lineHint: number;
+}
+
+interface TaskCursor {
+  section: TaskCursorItem; // parent task section used for partial-strategic reads
+  leaf: TaskCursorItem;    // first incomplete executable checkbox; equals section for standalone tasks
+}
+
 interface CompactionSeed {
   schemaVersion: SeedSchemaVersion;
   emittedAt: string;               // ISO-8601; audit/debug only, never load-bearing
@@ -137,8 +149,8 @@ interface CompactionSeed {
   activeWorkUnit: string | null;   // WU slug, or null between units
   metaPath: string | null;         // relative path to the active meta, or null
   sessionType: "planning" | "execution" | "integration" | null;
-  currentWorkflow: string | null;  // current lifecycle / planning-stage pointer
-  currentTask: { id: string; title: string; lineHint: number } | null; // null in planning
+  currentWorkflow: string | null;  // soft orientation only after compaction; not resume authority
+  taskCursor: TaskCursor | null;   // null outside execution or when no task list resolves
 
   // Recovery baseline
   loadSet: LoadSetManifest;        // embedded as the recovery-audit baseline (see below)
@@ -149,6 +161,13 @@ interface CompactionSeed {
 The embedded `loadSet` is the **recovery-audit baseline** — `session-recover` re-resolves a fresh load-set and
 diffs against it — **not** a re-load shortcut. Explicitly **dropped** from the original draft's seed:
 "recent post-handoff decisions" prose (episodic → harness).
+
+**Execution-locus authority.** After compaction, volatile meta fields are assumed soft/stale for resume authority:
+`Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may orient a human, but they do
+not decide the in-flight leaf. The harness compaction summary is the source for "what was happening this second";
+ARC restores the deterministic operating floor and audits for contradictions. The task-list cursor is only a
+durable-doc projection ("first incomplete executable checkbox"), useful for efficient partial reads and mismatch
+detection. It is not a reconstruction of the agent's thought state.
 
 **Invocation convention is not seed state.** Whether the recover command is `arc` or `npx arc` is a
 harness-bootstrap concern — bare `arc` for adopters always, `npx arc` only in this self-hosting repo — carried by
@@ -175,21 +194,30 @@ universal constitutional set + the `sessionType`-selected state docs (the codeba
 `arc.methods` (methods load on-demand per workflow, not at init). So `composable-workflows` / `loadset-composition`
 later subsume it without a fork; it reuses existing conventions and never mints a competing loader.
 
+The same status envelope exposes the **task-list cursor projection** whenever a task list resolves. For
+`session-init`, meta fields are expected fresh by design, so the cursor is an efficiency/helper surface: it gives
+line anchors for the strategic-partial read when the meta's triple-anchor is missing or incomplete. For recovery,
+the cursor is an audit input: the seed cursor and fresh cursor must agree unless the harness summary or user
+explicitly explains why they diverged.
+
 ### Surface 3 — `session-recover` workflow
 
 The lean recovery path. In order:
 
-1. **Re-run the probe in lean recover mode** (`arc status --recover --json`; see § Cross-cutting → Lean probe
-   mode). Cheap, deterministic; picks up any mid-session HEAD/dirty/branch movement.
-2. **Re-resolve the load-set** from the re-run probe and **run the recovery audit** — diff the fresh load-set
-   against the seed's embedded manifest. Divergence means state moved mid-session.
+1. **Run the deterministic recovery audit** (`arc recover audit --json`). The command reads the seed, re-runs the
+   lean recover probe, re-resolves the load-set and task-list cursor, compares dirty file paths, and emits a
+   structured `ready` / `stop` verdict.
+2. **Stop only on real uncertainty or contradiction.** Stop-worthy signals include missing identity / seed,
+   malformed seed, load-set divergence, dirty-file path divergence, task-cursor mismatch not explained by the
+   harness summary, or a needed workflow pointer that only exists as stale meta orientation. Do not stop merely
+   because the harness summary supplies the current leaf; that is its job.
 3. **Re-hydrate**: read the state-selected load-set (canonical files, not summaries of them) plus the lifecycle
    workflow for the current `sessionType`, landing them at the most-recent context position.
 4. **Authority framing**: prefix the re-injected context with a one-line "the ARC context loaded below is
    authoritative; disregard any earlier paraphrase" — dissolving the ambiguous-authority risk of any overlap with
-   the harness summary.
-5. **Resume** the in-flight task. **Stop for direction** only on a recovery-audit mismatch, missing identity,
-   dirty-state surprise, or a lost task pointer — never a routine user prompt.
+   the harness summary for ARC operating context.
+5. **Resume** from the harness-summary locus with the ARC floor restored. The summary owns the volatile
+   "current leaf concern"; ARC's cursor only bounds and verifies the durable task-list section.
 
 Recovery restores the deterministic init-time load-set + the lifecycle workflow; it does **not** restore
 on-demand mid-task loads (Non-Goals).
@@ -201,6 +229,23 @@ manual recovery when the user notices compaction. Portable and honest — a true
 **MVP installs it unconditionally**; gating its installation per-harness / opt-in is deferred (§ Cross-cutting →
 Forward-compat seams) — for hook-path harnesses (CC/Codex) the manual skill is rarely invoked, so an opt-in gate
 avoids clogging skill registries with an unused entry.
+
+### Surface 5 — Recovery audit CLI
+
+`arc recover audit --json` is the deterministic agent-facing checker for post-compaction recovery. It owns the
+mechanical work an agent should not perform by hand:
+
+- Load and validate `.arc/user/{identity}/.internal/compaction-seed.json`.
+- Run the lean recover probe and require `mode: "recover"`.
+- Diff fresh `loadSet` against `seed.loadSet` with the load-set audit categories.
+- Compare dirty state by **path set**, not only count.
+- Derive the fresh task-list cursor and compare it to `seed.taskCursor`.
+- Emit a structured verdict: `ready` when the context floor is coherent; `stop` with categorized reasons when
+  recovery needs user direction.
+
+The command is intentionally narrower than `session-init`: it does not discover next work, sync, pull, relocate,
+commit, push, or infer the current thought-state. It only proves the recovery floor has not drifted under the
+harness summary.
 
 ### Adapter layer — per-harness hooks
 
@@ -356,10 +401,20 @@ buffer (already routed; see § Open Questions for status):
   (`meta`, `SESSION-NOTES`, `WORKING-MEMORY`). Frame the seed as a **projection over those records** (sibling to
   `STATUS.*`): interim it projects from markdown via the existing extractors, post-OSD from records, no reshape.
   Pure read / resolve-don't-store — re-derived at compaction, never persisted as authoritative; zero drift risk.
+  The task-list cursor follows the same rule: markdown parser now, managed-record projection later.
 - **`cli-substrate-adoption`** — the seed (and the `loadSet` slice) are agent–CLI envelopes crossing the same
   process boundary CSA hardens. Author them hand-typed and hand-validated where it matters (the
   `audit-log.ts:validateEntry()` precedent); they are deliberate migration targets for CSA's validation-surface
   sweep — exactly its "codify a settled shape after it ships" model, so the zod/`Result` debt is pre-budgeted.
+  `arc recover audit --json` is another typed-in / typed-out CLI boundary for that sweep.
+- **`schema-introspection-layer`** — once CSA schemas exist, publish the seed / task-cursor / recovery-audit
+  verdict contracts through the schema registry rather than leaving them as prose-only envelopes.
+- **`task-list-conventions`** — the cursor parser depends on the task-list marker grammar
+  (parent headings, subtask bullets, `[x]` / `[~]` / `[ ]`, and `R` revision identifiers). This WU consumes the
+  current grammar; TLC owns future grammar evolution and should preserve or migrate the cursor contract.
+- **`planning-iteration-mechanics`** — deterministic planning-stage recovery is related but not solved here.
+  `Current Workflow` is soft/stale after compaction, so recovery should stop or rely on the harness summary when a
+  planning-stage pointer is uncertain; PIM owns a future durable planning-stage cursor if one is needed.
 - **`unit-scoped-review` / `cohort-approval-flow-refinement`** — the reframe resolves `unit-scoped-review`'s
   flagged tension in its favor: compaction is now first-class, and `session-recover` is exactly the backstop a
   long orchestrated batch wants.
@@ -409,8 +464,15 @@ handoff stays the preferred path; recovery is for compaction that can't be avoid
 - **Load-set resolution:** the shared projection resolves the correct ordered load-set + read-modes for each
   `sessionType` (planning / execution / integration); unit-tested. `session-recover` consumes it; `session-init`
   Step 3's resolution is parity-tested against it (prose-level consumption deferred to `composable-workflows`).
-- **Recovery audit:** `session-recover` re-resolves the load-set, diffs against the seed's embedded manifest, and
-  stops for direction on divergence (state moved mid-session); unit-tested across match and mismatch.
+- **Task-list cursor projection:** a shared projection derives the execution task section + first incomplete
+  executable checkbox from task-list markdown; `session-init` can use it as a strategic-read line-anchor helper,
+  and recovery stores / audits it without treating it as thought-state.
+- **Recovery audit CLI:** `arc recover audit --json` re-resolves the load-set and task cursor, compares dirty file
+  paths against the seed, and emits a structured `ready` / `stop` verdict. Unit-tested across match and load-set /
+  dirty-path / task-cursor mismatch cases.
+- **Stale-field discipline:** `session-recover` treats `Next Task`, `Next Action`, `Last Completed`,
+  `Current Workflow`, and `Blockers` as post-compaction soft orientation only; the harness summary owns volatile
+  current-leaf continuity, and the workflow stops only on true uncertainty or contradiction.
 - **Lean probe mode** emits exactly the kept slices and omits the skipped oracles (§ Cross-cutting → Lean probe
   mode); verified.
 - **End-to-end (manual, per harness):** on Claude Code and Codex, forcing a compaction injects recovery and the
@@ -432,13 +494,15 @@ handoff stays the preferred path; recovery is for compaction that can't be avoid
 
 Genuine implementation detail, resolved during the work — none is a resolve-before-starting blocker:
 
-- **Exact `arc status` subcommand surface for `--write`** — which existing status-family command hosts the seed
-  write, and the precise flag spelling, settle at implementation against the command layer.
-- **Recovery-audit divergence granularity** — what counts as a stop-worthy diff (membership change vs. read-mode
-  change vs. path drift) versus a silently-tolerated one; tuned against real recovery runs.
+- **Recovery-audit JSON shape** — exact field names for categorized `ready` / `stop` output settle against the
+  command layer and tests, then migrate to CSA schemas later.
+- **Planning-stage recovery policy** — execution gets a deterministic task-list cursor now. Planning-stage
+  `Current Workflow` remains soft/stale after compaction; this WU should stop or use the harness summary when
+  uncertain, while a durable planning-stage cursor stays with `planning-iteration-mechanics`.
 - **`emittedAt` / staleness handling** — whether `session-recover` warns when the seed is older than the current
   HEAD movement suggests, or relies solely on the audit diff.
 
-The four substrate reciprocal notes (CW / OSD / CSA / `unit-scoped-review`) are **already routed** (not open) —
-confirmed at handoff. The fifth — the `arc-recover`-gating note to `agent-platform-support` — is routed at this
-create-spec pass.
+The original substrate reciprocal notes (CW / OSD / CSA / `unit-scoped-review`) are **already routed** (not open)
+— confirmed at handoff. The remedial lane adds reciprocal notes for task-list cursor ownership and planning-stage
+cursor boundaries (`task-list-conventions`, `schema-introspection-layer`, `planning-iteration-mechanics`) plus the
+`arc-recover`-gating note to `agent-platform-support`.
