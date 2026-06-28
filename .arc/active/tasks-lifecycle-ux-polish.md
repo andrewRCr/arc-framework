@@ -118,31 +118,16 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
   finalizes `loadNeeded` / `notesDriftSurface`, and Confirm Handoff reports unresolved advisory drift without
   duplicating successfully synced notes.
 
-### `[ ]` **2.2 Harden `arc errand close` against a host-deleted branch**
+### `[x]` **2.2 Harden `arc errand close` against a host-deleted branch**
 
 - _Goal:_ `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the reap clears the
   record even when the local branch is already gone (no orphan in `refs/arc/user/{id}/errands`) — and the
   non-`--force` refusal names `--force` as the escape.
 
-- _Context:_ Host-auto-delete prunes the local branch; `closeErrand` then runs `git branch -D` unconditionally
-  and throws before `removeErrandRecord`, so even `--force` (which only bypasses the safety check) orphans the
-  record. _Notes:_ See `notes-lifecycle-ux-polish.md` § Facet 5.
-
-- _Approach:_ No reap-safety auto-fallback is added — the base-containment check already in place
-  (`isLandedInBase`, `git cherry`) covers a branch-present pruned-upstream merge, and once `--delete-branch`
-  removes the local branch there is no ref or stored SHA to check, so `--force` is the right gate. Auto-confirm
-  without `--force` (persisting a tip SHA) is routed to `operational-state-docs`.
-
-- **Strategies:** strategy-testing-methodology.md
-
-    - In `closeErrand` (`lib/errand/close.ts`), make the reap delete-if-exists: delete the local branch only
-      when it exists, so `--force` always reaches `removeErrandRecord` and clears the record.
-    - When the branch ref is absent on the non-`--force` path, surface a refusal that names `--force` as the
-      escape (in `closeErrand` / its handler), rather than the generic "not landed in base" message.
-    - Build `test-first` (one behavior at a time):
-        - `--force` with no local branch present clears the record (no `git branch -D` error, no orphan).
-        - A normal close with the branch present still reaps the branch, then removes the record.
-        - The non-`--force` refusal on an absent branch names `--force` (actionable message).
+- _Outcome:_ `closeErrand` now checks whether the local branch still exists before reaping: `--force` closes and
+  removes the record when the branch is already gone, while the non-`--force` path keeps the record and names the
+  `--force` escape. Integration and e2e coverage exercise already-gone branches, normal branch reaping, and the
+  actionable refusal.
 
 ### `[ ]` **2.3 Eliminate the `arc activate` foreign-write false-positive**
 

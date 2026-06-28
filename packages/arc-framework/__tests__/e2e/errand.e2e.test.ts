@@ -170,6 +170,24 @@ describe("arc errand close", () => {
     expect(await git(tmpDir, ["branch", "--list", "fix/wip"])).toBe("");
   });
 
+  it("force-closes when the local branch was already deleted", async () => {
+    await setFullProtection(tmpDir);
+    const open = await runArc(["errand", "open", "host-deleted", "--type", "chore"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    await git(tmpDir, ["switch", "main"]);
+    await git(tmpDir, ["update-ref", "-d", "refs/heads/chore/host-deleted"]);
+
+    const refused = await runArc(["errand", "close", "host-deleted"], tmpDir);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.stdout + refused.stderr).toContain("--force");
+
+    const forced = await runArc(["errand", "close", "host-deleted", "--force"], tmpDir);
+    expect(forced.exitCode).toBe(0);
+    await expect(
+      git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:host-deleted"]),
+    ).rejects.toThrow();
+  });
+
   it("drops the originating capture at close when opened with --from-inbox (the producer→drain leg)", async () => {
     await setFullProtection(tmpDir);
     const inboxDir = join(tmpDir, ".arc", "user", "test-user");

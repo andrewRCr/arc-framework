@@ -162,6 +162,38 @@ describe("closeErrand", () => {
     expect(await readErrandRecord(io, "shipped-squash")).toBeNull();
   });
 
+  it("force-closes and removes the record when the local branch is already gone", async () => {
+    const opened = await openErrand(io, { slug: "host-deleted", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+
+    const result = await closeErrand(io, { slug: "host-deleted", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    if (result.kind === "closed") {
+      expect(result.branchReaped).toBe(false);
+    }
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+    expect(await readErrandRecord(io, "host-deleted")).toBeNull();
+    expect(await remoteSlugs(dir)).toEqual([]);
+  });
+
+  it("refuses an already-gone branch without force and names the force escape", async () => {
+    const opened = await openErrand(io, { slug: "needs-force", base: "main", createdAt: CREATED_AT });
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+
+    const result = await closeErrand(io, { slug: "needs-force", base: "main" });
+
+    expect(result.kind).toBe("unsafe-reap");
+    if (result.kind === "unsafe-reap") {
+      expect(result.reason).toContain("--force");
+    }
+    expect(await readErrandRecord(io, "needs-force")).not.toBeNull();
+    expect(await remoteSlugs(dir)).toEqual(["needs-force"]);
+  });
+
   it("is a no-op when no record exists for the slug", async () => {
     expect(await closeErrand(io, { slug: "ghost", base: "main" })).toEqual({
       kind: "no-record",
