@@ -8,10 +8,10 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-lifecycle-ux-polish.md`
+- **Design:** `spec-lifecycle-ux-polish.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
