@@ -1,0 +1,264 @@
+# Task List: lifecycle-ux-polish
+
+- **Design:** `spec-lifecycle-ux-polish.md`
+
+---
+
+## **Phase 1:** Documentation & workflow polish
+
+_Purpose:_ Land the markdown-only lifecycle polish — handoff-noise removal, the `session-init`
+state-honesty directive, the `arc-session --next` auto-proceed signal, and always-loaded commit-path
+awareness. The doc lobe is facets 1, 3, 4, and 7; it carries no code and no tests, so it can land ahead of
+the code lobe on its own.
+
+_Design decisions:_ Every edit here applies to **both** copies — the authoritative package source
+(`packages/arc-framework/arc/...`, `.template.md` suffix on the workflow files) and the `.arc/` instance —
+per two-copy sync discipline. Facets 1/3/4 edit workflow + skill surfaces; facet 7 edits adopter-facing
+governance docs, so it observes the audience boundaries (no transitional framing, no internal-roadmap
+pointers).
+
+### `[ ]` **1.1 Remove the handoff housekeep offer**
+
+- _Goal:_ `session-handoff` runs as a single turn with no housekeep prompt anywhere, and no `inboxState`
+  consumption remains in its probe wiring.
+
+- _Context:_ The offer is end-of-session noise: its only gate is `housekeepNeeded` (not between-WUs), so it
+  can fire mid-WU where the drain can't even run. The correct nudge already lives at `session-init`'s Orient
+  arm — that one stays.
+
+- **Strategies:** strategy-package-project-sync.md, strategy-workflow-authoring.md
+
+    - Remove every housekeep-offer and `inboxState`-consumption reference from `session-handoff.md` (both
+      copies) — the offer is woven through the file, not isolated to one step: the Between-WUs Handoff Path
+      step-3 offer block, the Confirm-Handoff `**Housekeep:**` line, the `inboxState` probe-table row, the
+      slot-freshness contract's `inboxState` mention, the Handoff Mode Dispatch and What-to-Update between-WUs
+      descriptions, the probe-2 `inboxState` re-read, and the Errand-session "or housekeep offer" aside.
+    - Re-thread the between-WUs path so it reads coherently without the offer (step renumbering; the probe-2
+      refresh no longer citing `inboxState`).
+    - Leave the shared `arc status` `inboxState` field and the `session-init` Orient soft-offer untouched —
+      this task removes only the handoff-side surfaces.
+
+### `[ ]` **1.2 Source git facts in `session-init` from the probe only**
+
+- _Goal:_ A `session-init` after a state-changing handoff push reports git facts from the live probe and
+  never echoes a contradicting stale SESSION-NOTES git-state line.
+
+- _Context:_ Handoff can write git-state prose into SESSION-NOTES; the handoff push then changes the real
+  state, leaving the prose stale. A later `session-init` must not surface the stale note against a live probe.
+
+- _Approach:_ This is the read-side complement to the write-side guard already in `session-handoff.md` — its
+  stay-out list bars probe-owned volatile git state (unpushed counts, ahead/behind, dirty counts) from
+  SESSION-NOTES. `session-init` already builds orientation and the freshness check from probe slots, so this
+  is a reinforcing directive, not a located-bug fix.
+
+- **Strategies:** strategy-package-project-sync.md, strategy-workflow-authoring.md
+
+    - Add an explicit directive in `session-init.md` (both copies): git facts (HEAD, ahead/behind, sync
+      state, dirty state) come from the `arc status` probe envelope only — never from SESSION-NOTES prose.
+    - Scope it to the spots that read SESSION-NOTES: the Step 5 freshness check (the `Commit at Handoff`
+      baseline stays a documented anchor, but live git state is the probe's) and Step 6 orientation rendering.
+    - Keep the legitimate SESSION-NOTES reads — the `Commit at Handoff` hash as a freshness baseline and the
+      `Session Type` override — these are notes-authoritative, not git-state claims.
+
+### `[ ]` **1.3 Add the `arc-session --next` auto-proceed signal**
+
+- _Goal:_ `arc-session --next` begins the first Next Action without the "proceed?" prompt when orientation
+  resolves bare-clean, and falls back to the normal prompt on any conditional surface or mismatch.
+
+- _Approach:_ `--next` is a **per-invocation autonomy modifier**, not a locus-redirect sibling of
+  `--errand` / `--housekeep` / `--plan`. It never relocates the checkout, so it composes orthogonally with
+  both the positional seed and the signals, landing at the **terminal** of the resume / orient arms rather
+  than nested in the signal-leaf precedence chain (spec Open item — facet 4 placement).
+
+    - `[ ]` **1.3.a Document `--next` in the `arc-session` skill**
+        - Document `--next` in `SKILL.md` (both copies) as a per-invocation auto-proceed modifier — a distinct
+          paragraph parallel to the entry-seed framing, **not** a fourth entry in the `--errand` /
+          `--housekeep` / `--plan` signal list (those relocate the checkout; `--next` never does). Orthogonal
+          to the positional seed and the signals; explicitly not a config default.
+
+    - `[ ]` **1.3.b Wire the auto-proceed semantics into `session-init`**
+        - Document `--next` across three loci: a one-line orientation at Step 2's signal-leaf dispatch (it is
+          a modifier handled at the resume/orient arm terminals, orthogonal to the precedence chain), then the
+          gate suppression at Step 5 (the seeded confirm-only init offer) and Step 6 (the proceed gate). The
+          Step 6 check evaluates after the conditional surfaces resolve, so any surface present falls back to
+          the prompt.
+        - Document the four bounds in `session-init.md` (both copies): conditional auto-proceed (only when
+          Step 6 would be bare-clean — any sync state, freshness gap, blocker, uncommitted change, or Step 7
+          mismatch falls back to the prompt); per-invocation only; one step only (normal task-interlock
+          resumes at the first leaf); arm-conditional.
+        - Arm-conditional behavior: on the resume arm, begin the scaffolded Next Action; on the no-WU Orient
+          arm with a backlog-WU positional seed, auto-proceed past discovery and the Step 5 confirm-only init
+          offer to initialize the named WU; bare `--next` on the no-WU arm with no seed is a no-op.
+        - State the seeded-init boundary (spec Open item — facet 4 seeded-init gate, leans clean separation):
+          `--next` suppresses only `session-init`'s own ergonomic prompts; once it hands off to `arc start
+          <name>`, `init-work-unit` runs unchanged and its `workflowCommit` / `workflowPush` interlocks fire
+          as normal. The `class-resolved` init guard still refuses a `[TBD]` stub, so an unresolved stub
+          surfaces its `Class` for resolution rather than auto-initializing.
+        - _Note:_ No `--class` inline weight resolution is added here — that stays in `cli-substrate-adoption`
+          (spec No-go); seeded auto-init degrades gracefully to the confirm-only offer on an unresolved stub.
+
+### `[ ]` **1.4 Add always-loaded commit-path awareness**
+
+- _Goal:_ A workflow commit can fire the release wrapper and compose a conformant message without re-probing
+  `--help` or reconstructing the format from recent `git log`.
+
+- _Rationale:_ Pointer + directive only — never a copy of the overridable format/footer content, so DRY and
+  the override model both hold (spec No-go: no embedded commit-format skeleton). The methods stay the single
+  source of truth; the hook stays the hard enforcement backstop.
+
+- **Strategies:** strategy-package-project-sync.md
+
+    - `[ ]` **1.4.a Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers**
+        - State, leanly, what a caller needs to fire the wrappers without a `--help` probe (both copies):
+          after the interlock-validation cascade, `arc release commit` takes the same message/flags as
+          `git commit`, and `arc release push` supplies the `origin <current-branch>` target itself (no
+          target argument) and refuses destructive flags. Operational context only — the section is
+          always-loaded, so keep it tight; don't turn it into internals documentation.
+
+    - `[ ]` **1.4.b Sharpen the commit directive in `DEV-RULES.ARC` § Commit Discipline**
+        - Sharpen the existing § Commit format subsection (it already points at the methods) with a behavioral
+          directive (both copies): before composing any commit message, load the `commit-format` /
+          `commit-footer` methods — do not reconstruct the format from recent `git log` (it shows surface
+          shape, not the hook-enforced rules). Pointer + directive only; no format content copied out of the
+          methods.
+        - _Note:_ These docs are adopter-facing (ship via package source) — keep the prose audience-clean
+          (no transitional or internal-roadmap framing) and lean (always-loaded surface).
+
+## **Phase 2:** Code lobe
+
+_Purpose:_ Land the three TypeScript robustness/observability fixes — the `session-handoff` probe drift
+surface (facet 2), `arc errand close` reap hardening (facet 5), and the `arc activate` foreign-write
+false-positive elimination (facet 6). Each is an independent change with its own tests; facet 6 carries the
+widest blast radius because its overlap primitive is shared by two consumers.
+
+_Design decisions:_ The drift-computation logic facet 2 needs (`resolveCleanArmNotesVerdict`,
+`computeSessionInitNotesDrift`) is already pure and reusable — facet 2 is orchestration plumbing + a type
+change, not new drift logic. Facet 6 self-excludes at the detection core (`detectForeignArtifactOverlap`
+already owns self-exclusion), keeping the oracle a general projection (spec Open item — facet 6 exclusion
+layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6.
+
+### `[ ]` **2.1 Surface notes/disk-drift on the `session-handoff` probe's `user` slot**
+
+- _Goal:_ The `session-handoff` probe's `user` slot surfaces a disk-ahead-of-ref drift, at parity with
+  `session-init`'s `notesDriftSurface` / `loadNeeded`.
+
+- _Context:_ The handoff `user` slot reports ref-vs-remote topology only, so a handoff can report notes
+  "clean" while the working tree has unsaved user-notes edits. Observability-symmetry fix, not data-loss —
+  `arc sync` already runs `runUserSave` first.
+
+- **Strategies:** strategy-testing-methodology.md, strategy-package-project-sync.md
+
+    - `[ ]` **2.1.a Enrich the handoff `user` slot in the status probe**
+        - Widen `SessionHandoffResult.user` in `commands/status/types.ts` to the enriched shape carrying
+          optional `loadNeeded` / `notesDriftSurface` — reuse `SessionInitUserValue` (or extract a shared
+          type), not a new handoff-specific shape.
+        - In `runSessionHandoffStatus` (`commands/status/run.ts`), call `resolveCleanArmNotesVerdict` over the
+          raw `notesDrift` and enrich the handoff `user` slot — the same post-probe step session-init applies
+          (`run.ts` ~403-419). Reuse the pure verdict resolver; add no new drift logic.
+        - _Note:_ between-WUs handoff has no active WU, so `activeWuName` is null and the safe-auto-load
+          sub-case (a missing active-WU `SESSION-NOTES`) can't apply — drift then surfaces as advisory, which
+          is the correct handoff behavior.
+        - Build `test-first` (one behavior at a time):
+            - Handoff `user` slot carries `loadNeeded` when the disk is behind the notes ref (clean arm).
+            - Handoff `user` slot carries `notesDriftSurface` when disk-vs-ref direction is `mixed` / `missing`.
+            - Handoff `user` slot stays clean (neither field) when there is no disk-vs-ref drift.
+
+    - `[ ]` **2.1.b Surface the drift in the `session-handoff` workflow**
+        - Add the disk-drift advisory to `session-handoff.md` (both copies) where the `user` slot is consumed,
+          mirroring `session-init`'s drift surfacing so a handoff reports an unsaved-edits drift.
+
+### `[ ]` **2.2 Harden `arc errand close` against a host-deleted branch**
+
+- _Goal:_ `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the reap clears the
+  record even when the local branch is already gone (no orphan in `refs/arc/user/{id}/errands`) — and the
+  non-`--force` refusal names `--force` as the escape.
+
+- _Context:_ Host-auto-delete prunes the local branch; `closeErrand` then runs `git branch -D` unconditionally
+  and throws before `removeErrandRecord`, so even `--force` (which only bypasses the safety check) orphans the
+  record. _Notes:_ See `notes-lifecycle-ux-polish.md` § Facet 5.
+
+- _Approach:_ No reap-safety auto-fallback is added — the base-containment check already in place
+  (`isLandedInBase`, `git cherry`) covers a branch-present pruned-upstream merge, and once `--delete-branch`
+  removes the local branch there is no ref or stored SHA to check, so `--force` is the right gate. Auto-confirm
+  without `--force` (persisting a tip SHA) is routed to `operational-state-docs`.
+
+- **Strategies:** strategy-testing-methodology.md
+
+    - In `closeErrand` (`lib/errand/close.ts`), make the reap delete-if-exists: delete the local branch only
+      when it exists, so `--force` always reaches `removeErrandRecord` and clears the record.
+    - When the branch ref is absent on the non-`--force` path, surface a refusal that names `--force` as the
+      escape (in `closeErrand` / its handler), rather than the generic "not landed in base" message.
+    - Build `test-first` (one behavior at a time):
+        - `--force` with no local branch present clears the record (no `git branch -D` error, no orphan).
+        - A normal close with the branch present still reaps the branch, then removes the record.
+        - The non-`--force` refusal on an absent branch names `--force` (actionable message).
+
+### `[ ]` **2.3 Eliminate the `arc activate` foreign-write false-positive**
+
+- _Goal:_ `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, with
+  `arc errand check`'s overlap detection unchanged.
+
+- _Context:_ The renamed-from `origin/plan/<slug>` remote-tracking ref is still live at the activation commit
+  (deleted only at the ceremony's last step), so the oracle counts it as a distinct in-flight entry pointing
+  at the WU's own `meta-<slug>.md`, and the worktree-path self-exclusion misses it (remote-only, no worktree).
+  _Notes:_ See `notes-lifecycle-ux-polish.md` § Facet 6 for the repro and both-consumer test setup.
+
+- _Approach:_ Self-exclude at the detection core on the originating meta path (spec Open item — facet 6
+  exclusion layer, leans the detection core). `detectForeignArtifactOverlap` already owns self-exclusion, so
+  the meta-path predicate co-locates there; the oracle stays a general projection.
+
+- **Strategies:** strategy-testing-methodology.md
+
+    - `[ ]` **2.3.a Add meta-path self-exclusion to `detectForeignArtifactOverlap`**
+        - Add an optional `originatingMetaPath` to `ForeignArtifactDetectionOptions`
+          (`lib/git/foreign-artifact-detection.ts`); exclude a candidate whose `metaFilePath` equals it,
+          alongside the existing `worktreePath !== originatingWorktreePath` match. The projection hardcodes
+          `metaFilePath` as `.arc/active/meta-<name>.md`, so the caller constructs the same shape and the two
+          match by string equality. Optional, so the `arc errand check` consumer (passes none) is unchanged.
+        - Build `test-first` (one behavior at a time):
+            - A remote-only candidate whose `metaFilePath` equals `originatingMetaPath` is excluded (the
+              activate case — the renamed-from `origin/plan/<slug>` projecting to the WU's own meta).
+            - The existing worktree-path self-exclusion is unchanged (no `originatingMetaPath` passed).
+            - A genuine foreign overlap on another WU's meta is still reported.
+
+    - `[ ]` **2.3.b Resolve and thread the originating meta from the foreign-write check**
+        - In `check-foreign-writes.ts`, resolve the current WU's meta path via the active-WU resolver
+          (`resolveActiveWu` in `lib/release/wu-resolution.ts`, already used by `arc release commit`, or the
+          active meta-reader) and thread it as `originatingMetaPath` into `detectForeignArtifactOverlap`,
+          symmetric with the `currentWorktreePath` it already resolves.
+        - Build `test-first` (one behavior at a time):
+            - An activation commit on a pushed planning branch (matching `origin/plan/<slug>` ref live) emits
+              no foreign-write warning.
+            - `arc errand check` passes no `originatingMetaPath` (errands carry no meta) and is unaffected —
+              it still self-excludes by worktree path and reports genuine overlaps.
+
+## **Phase 3:** Verification
+
+### `[ ]` **3.1 Complete verification** — load and follow `verify-work-unit.md`
+
+---
+
+## Success Criteria
+
+- `[ ]` `session-handoff` runs as a single turn with no housekeep offer or `**Housekeep:**` advisory line,
+  and its probe-consumption table carries no `inboxState` row.
+- `[ ]` The `session-handoff` probe's `user` slot surfaces a disk-ahead-of-ref drift (parity with
+  `session-init`'s `notesDriftSurface` / `loadNeeded`).
+- `[ ]` A `session-init` after a state-changing handoff push reports git facts from the live probe and never
+  echoes a contradicting stale SESSION-NOTES git-state line.
+- `[ ]` `arc-session --next` on a clean resume arm begins the Next Action without the proceed prompt; any
+  orientation conditional surface falls back to the prompt; a backlog-WU seed on the no-WU arm auto-inits past
+  the confirm offer while init's commit/push interlocks still fire; bare `--next` on the no-WU arm with no
+  seed is a no-op.
+- `[ ]` `arc errand close --force` succeeds after a `gh pr merge --delete-branch` merge — the delete-if-exists
+  reap clears the record even when the local branch is already gone (no orphan in
+  `refs/arc/user/{id}/errands`), and the non-`--force` refusal names `--force` as the escape.
+- `[ ]` `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, and
+  `arc errand check`'s overlap detection is unchanged (tests cover both consumers).
+- `[ ]` `AGENT-BRIEF.ARC` § Release wrappers states the wrapper-to-`git` interface (lean operational context,
+  not internals), and `DEV-RULES.ARC` § Commit Discipline carries an explicit load-the-methods /
+  don't-reconstruct-from-`git log` directive — with no format/footer content copied out of the methods.
+- `[ ]` All quality gates pass (tests, linting, type checking)
+- `[ ]` Ready for integration
+
+---
