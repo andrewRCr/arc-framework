@@ -12,11 +12,11 @@
 - **Task List:** `tasks-lifecycle-ux-polish.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Task 1.1 — Remove the handoff housekeep offer (line ~20)
+- **Last Completed:** Task 1.2 — Source git facts in `session-init` from the probe only
+- **Next Task:** Task 1.3.a — Document `--next` in the `arc-session` skill (line ~48)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 1.1 — Remove the handoff housekeep offer
+- **Next Action:** Start Task 1.3.a — Document `--next` in the `arc-session` skill
 
 - **PR URL:** [none]
 - **Completed:** [none]
