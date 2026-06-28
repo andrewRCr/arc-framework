@@ -75,12 +75,10 @@ pointers).
 
 - **Strategies:** strategy-package-project-sync.md
 
-    - `[ ]` **1.4.a Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers**
-        - State, leanly, what a caller needs to fire the wrappers without a `--help` probe (both copies):
-          after the interlock-validation cascade, `arc release commit` takes the same message/flags as
-          `git commit`, and `arc release push` supplies the `origin <current-branch>` target itself (no
-          target argument) and refuses destructive flags. Operational context only — the section is
-          always-loaded, so keep it tight; don't turn it into internals documentation.
+    - `[x]` **1.4.a Document the wrapper interface in `AGENT-BRIEF.ARC` § Release wrappers**
+        - Added the mirrored always-loaded wrapper call-shape: after interlock validation,
+          `arc release commit` mirrors `git commit` message/flag handling, while `arc release push` supplies
+          `origin <current-branch>` itself, takes no target argument, and refuses destructive flags.
 
     - `[ ]` **1.4.b Sharpen the commit directive in `DEV-RULES.ARC` § Commit Discipline**
         - Sharpen the existing § Commit format subsection (it already points at the methods) with a behavioral
