@@ -433,6 +433,11 @@ SESSION-NOTES `**Session Type:**`, when present and matching `planning | executi
 (case-insensitive), supersedes the envelope value for this session. Invalid override → ignore + emit a
 warning in orientation.
 
+**SESSION-NOTES authority boundary.** SESSION-NOTES may supply roster/context anchors (`**Working On:**`,
+`**Session Type:**`, `**Commit at Handoff:**`) and human working context. It is never authoritative for live git
+facts: HEAD, ahead/behind counts, sync state, and dirty state come from the probe envelope (or the explicit
+freshness-check commands below), not from SESSION-NOTES prose.
+
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
@@ -501,6 +506,8 @@ next-work discovery. See [Signal-leaf dispatch](#signal-leaf-dispatch-precedence
 ### Freshness check
 
 **Skip if** SESSION-NOTES `Commit at Handoff` hash matches current HEAD — documents are current.
+Use the SESSION-NOTES hash only as the baseline anchor; read current HEAD and any delta from the live probe /
+commands below, never from SESSION-NOTES prose.
 
 Otherwise, or if no handoff hash exists (first session, crash, fresh clone without notes):
 
@@ -564,6 +571,10 @@ deliberately.
 ## 6. Confirm Orientation
 
 Produce the orientation summary.
+
+Render live git facts exclusively from probe slots (`worktree`, `baseDistance`, `baseBranchSync`, `dirty`,
+`user`, `partialPushMarker`) and the Step 5 freshness result. Do not surface HEAD, ahead/behind, sync, or dirty
+claims copied from SESSION-NOTES prose.
 
 **Signal-leaf / errand mode** (an explicit-intent signal routed via
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) on any arm, or Errand-resume via `errandState`): frame

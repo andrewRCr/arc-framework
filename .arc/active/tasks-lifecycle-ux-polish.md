@@ -26,27 +26,14 @@ pointers).
   `session-handoff` copies; the between-WUs path now routes durable context, refreshes the probe, syncs, and
   confirms without a housekeep branch. The `session-init` Orient soft-offer remains the housekeep nudge.
 
-### `[ ]` **1.2 Source git facts in `session-init` from the probe only**
+### `[x]` **1.2 Source git facts in `session-init` from the probe only**
 
 - _Goal:_ A `session-init` after a state-changing handoff push reports git facts from the live probe and
   never echoes a contradicting stale SESSION-NOTES git-state line.
 
-- _Context:_ Handoff can write git-state prose into SESSION-NOTES; the handoff push then changes the real
-  state, leaving the prose stale. A later `session-init` must not surface the stale note against a live probe.
-
-- _Approach:_ This is the read-side complement to the write-side guard already in `session-handoff.md` — its
-  stay-out list bars probe-owned volatile git state (unpushed counts, ahead/behind, dirty counts) from
-  SESSION-NOTES. `session-init` already builds orientation and the freshness check from probe slots, so this
-  is a reinforcing directive, not a located-bug fix.
-
-- **Strategies:** strategy-package-project-sync.md, strategy-workflow-authoring.md
-
-    - Add an explicit directive in `session-init.md` (both copies): git facts (HEAD, ahead/behind, sync
-      state, dirty state) come from the `arc status` probe envelope only — never from SESSION-NOTES prose.
-    - Scope it to the spots that read SESSION-NOTES: the Step 5 freshness check (the `Commit at Handoff`
-      baseline stays a documented anchor, but live git state is the probe's) and Step 6 orientation rendering.
-    - Keep the legitimate SESSION-NOTES reads — the `Commit at Handoff` hash as a freshness baseline and the
-      `Session Type` override — these are notes-authoritative, not git-state claims.
+- _Outcome:_ Added a SESSION-NOTES authority boundary to both `session-init` copies: SESSION-NOTES may supply
+  context anchors, `Session Type`, and `Commit at Handoff`, but live git facts come from the probe and freshness
+  check. Step 5 now treats the handoff hash as a baseline only, and Step 6 renders git state from probe slots.
 
 ### `[ ]` **1.3 Add the `arc-session --next` auto-proceed signal**
 
