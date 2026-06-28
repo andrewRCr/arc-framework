@@ -12,13 +12,13 @@
 - **Task List:** `tasks-lifecycle-ux-polish.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.1 — Complete verification
+- **Last Completed:** Task 3.1 — Complete verification; PR #149 opened
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** integrate-work-unit Step 4 — review iteration
 
-- **PR URL:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/149>
 - **Completed:** [none]
 
 ---
