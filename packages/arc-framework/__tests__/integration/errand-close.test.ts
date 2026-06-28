@@ -49,6 +49,11 @@ async function commitOn(dir: string, message: string): Promise<void> {
 }
 
 async function currentBranch(dir: string): Promise<string> {
+  try {
+    return (await git(dir, ["symbolic-ref", "--quiet", "--short", "HEAD"])).trim();
+  } catch {
+    // Detached HEAD falls back to the conventional branch-name probe.
+  }
   return (await git(dir, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
 }
 
@@ -177,6 +182,20 @@ describe("closeErrand", () => {
     expect(await branchExists(dir, opened.record.branch)).toBe(false);
     expect(await readErrandRecord(io, "host-deleted")).toBeNull();
     expect(await remoteSlugs(dir)).toEqual([]);
+  });
+
+  it("force-closes an already-gone current branch after hopping back to base", async () => {
+    const opened = await openErrand(io, { slug: "dead-head", base: "main", createdAt: CREATED_AT });
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+    expect(await branchExists(dir, opened.record.branch)).toBe(false);
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+
+    const result = await closeErrand(io, { slug: "dead-head", base: "main", force: true });
+
+    expect(result.kind).toBe("closed");
+    expect(await currentBranch(dir)).toBe("main");
+    expect(await readErrandRecord(io, "dead-head")).toBeNull();
   });
 
   it("refuses an already-gone branch without force and names the force escape", async () => {
