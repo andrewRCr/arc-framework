@@ -22,6 +22,7 @@ import * as p from "@clack/prompts";
 import {
   buildSessionInitStatusSummary,
   buildStatusSummary,
+  runRecoverStatus,
   runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
@@ -101,6 +102,7 @@ import { requireArcProjectRoot } from "./shared.js";
 export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
+  recover?: boolean;
   user?: boolean;
   /** `--local`: render the user view from local refs without a network read. */
   local?: boolean;
@@ -188,12 +190,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     slug !== undefined,
     opts.sessionInit,
     opts.sessionHandoff,
+    opts.recover,
     opts.user,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, and --user are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, and --user are mutually exclusive.\n",
     );
+    process.exitCode = 1;
+    return;
+  }
+  if (opts.writeCompactionSeed && !opts.sessionInit) {
+    process.stderr.write("Error: --write-compaction-seed requires --session-init.\n");
     process.exitCode = 1;
     return;
   }
@@ -288,6 +296,44 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       inboxState: async (id) => runInboxState({ content: await readUserInbox(id) }),
     };
     const result = await runSessionHandoffStatus({ identity, role, probes });
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
+  if (opts.recover) {
+    if (!json) {
+      process.stderr.write(
+        "Error: --recover currently requires --json (interactive rendering not implemented).\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const result = await runRecoverStatus({
+      identity,
+      role,
+      probes: {
+        worktree: async () => {
+          const resolved = await resolvedSettingsP;
+          const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+          return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+        },
+        worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+        dirty: () => runDirtyStateStatus({ exec: gitExec }),
+        extensions: () => runExtensionsSessionInitStatus({ cwd }),
+        config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
+        active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
+        releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+        cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
+          cwd,
+          activeMetaPath,
+          fs: {
+            readFile: (path) => readFile(path, "utf8"),
+            pathExists: (path) => access(path).then(() => true, () => false),
+          },
+        }),
+      },
+    });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
   }

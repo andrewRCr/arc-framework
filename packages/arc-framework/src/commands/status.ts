@@ -5,6 +5,7 @@
  */
 
 export {
+  runRecoverStatus,
   runStatus,
   runSessionInitStatus,
   runSessionHandoffStatus,
@@ -17,9 +18,13 @@ export type {
   HandoffSyncInterlock,
   Probe,
   ProbeError,
+  RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
   RunStatusOptions,
+  SessionRecoverProbeResult,
+  SessionRecoverProbes,
+  SessionRecoverWorktreeValue,
   SessionHandoffProbes,
   SessionHandoffResult,
   SessionInitProbeResult,

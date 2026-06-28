@@ -103,27 +103,13 @@ _Design decisions:_ Lean mode reuses the existing envelope orchestrator via cond
 loader. Audit divergence granularity (membership vs. read-mode vs. path drift, and what is stop-worthy vs.
 silently tolerated) is tuned against real recovery runs (spec § Open Questions).
 
-### `[ ]` **3.1 Implement the lean `arc status --recover --json` probe mode**
+### `[x]` **3.1 Implement the lean `arc status --recover --json` probe mode**
 
 - _Goal:_ A `--recover` flag emits only the slices recovery needs and skips the dispatch-only oracles, producing
   a cheap deterministic re-probe that picks up mid-session HEAD / dirty / branch movement.
-
-    - Kept (state + load-set resolution): `identity`, `worktree`, `dirty`, `active`, `config`, `releaseRouting`,
-      `extensions`, the `loadSet` slice, and `cohortDocPath` when present. `domainRules` stays load-on-demand.
-    - Skipped (dispatch / sync): `user`, `roster`, `sweep`, `planOrphanSweep`, `retiredSubdirs`, `errandSweep`,
-      `errandState`, `workUnitState`, `materializableWorkUnits`, `inFlightComposition`, `inboxState`,
-      `partialPushMarker`, `recommendedCombinedPrompt`, `recovery`, and the `baseDistance` / `baseBranchSync`
-      sync-advisory channels.
-
-    - Build `test-first` (one behavior at a time):
-
-        - `--recover` emits exactly the kept slices
-        - `--recover` omits every skipped oracle (assert each absent)
-        - `--recover` resolves the `loadSet` slice via the shared projection
-        - flag wiring is correct (`--recover` routes to the lean envelope; conflicts declared as needed)
-
-    - _Absorbs:_ Deferred Task 1.3.b's `--recover` smoke-test obligation; recover-mode parity is meaningful only
-      once this task introduces the lean envelope.
+- _Outcome:_ Added the recover-mode status orchestrator, CLI flag, and handler branch. The lean envelope emits the
+  recovery state slices plus shared `loadSet` / optional `cohortDocPath`, omits sync and discovery-only surfaces,
+  and is covered by orchestrator tests plus built-CLI E2E smoke and conflict coverage.
 
 ### `[ ]` **3.2 Implement the recovery-audit diff**
 

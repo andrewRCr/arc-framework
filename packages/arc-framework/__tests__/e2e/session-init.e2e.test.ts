@@ -25,6 +25,10 @@ const execFileAsync = promisify(execFile);
 
 interface SessionInitEnvelope {
   mode: string;
+  user?: unknown;
+  baseDistance?: unknown;
+  domainRules?: unknown;
+  recommendedCombinedPrompt?: unknown;
   active: {
     ok: boolean;
     value?: {
@@ -33,6 +37,7 @@ interface SessionInitEnvelope {
       path: string | null;
     };
   };
+  loadSet?: { ok: boolean; value?: { entries: { path: string; readMode: { kind: string } }[] } };
   baseBranchSync?: {
     ok: boolean;
     value?: {
@@ -175,6 +180,55 @@ describe("session-init E2E — sessionType across type variants", () => {
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },
     });
+  });
+
+  it("emits the lean recover envelope when --recover is requested", async () => {
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
+    await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      [
+        "# Metadata: Foo",
+        "",
+        "- **State:** Active",
+        "- **Branch:** feat/foo",
+        "- **Task List:** tasks-foo.md",
+        "- **Current Workflow:** [none]",
+        "- **Next Task:** Task 1.1 — Do recover (line ~12)",
+        "- **Next Action:** Start Task 1.1",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), "# Task List: Foo\n");
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "active fixture"], { cwd: tmpDir });
+
+    const result = await runArc(["status", "--recover", "--json"], tmpDir);
+    expect(result.exitCode).toBe(0);
+
+    const envelope = parseJsonEnvelope(result.stdout);
+    expect(envelope.mode).toBe("recover");
+    expect(envelope.user).toBeUndefined();
+    expect(envelope.baseDistance).toBeUndefined();
+    expect(envelope.baseBranchSync).toBeUndefined();
+    expect(envelope.domainRules).toBeUndefined();
+    expect(envelope.recommendedCombinedPrompt).toBeUndefined();
+    expect(envelope.active.ok).toBe(true);
+    expect(envelope.active.value?.resolution).toBe("single");
+    expect(envelope.loadSet?.value?.entries).toContainEqual({
+      path: ".arc/active/tasks-foo.md",
+      readMode: { kind: "partial-strategic" },
+    });
+  });
+
+  it("rejects --recover combined with session-init mode", async () => {
+    const result = await runArc(["status", "--recover", "--session-init", "--json"], tmpDir);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain("--session-init, --session-handoff, --recover, and --user are mutually exclusive");
   });
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {

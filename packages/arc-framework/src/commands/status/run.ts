@@ -23,9 +23,12 @@
 
 import type {
   ProbeError,
+  RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
   RunStatusOptions,
+  SessionRecoverProbeResult,
+  SessionRecoverWorktreeValue,
   SessionHandoffResult,
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
@@ -558,6 +561,81 @@ export async function runSessionInitStatus(
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet,
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
+  };
+}
+
+/** Run the lean recover-mode composite probe. */
+export async function runRecoverStatus(
+  options: RunRecoverStatusOptions,
+): Promise<SessionRecoverProbeResult> {
+  const { identity, role, probes } = options;
+
+  const worktreeTask = safeProbe(() => probes.worktree());
+  const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
+  const dirtyTask = safeProbe(() => probes.dirty());
+  const extensionsTask = safeProbe(() => probes.extensions());
+  const configTask = safeProbe(() => probes.config());
+  const activeTask = safeProbe(() => probes.active(identity, role));
+  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+
+  const [
+    worktree,
+    worktreeIdentitySlot,
+    dirty,
+    extensions,
+    config,
+    active,
+    releaseRouting,
+  ] = await Promise.all([
+    worktreeTask,
+    worktreeIdentityTask,
+    dirtyTask,
+    extensionsTask,
+    configTask,
+    activeTask,
+    releaseRoutingTask,
+  ]);
+
+  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.ok
+    ? worktreeIdentitySlot.value
+    : { kind: "primary" };
+  const enrichedWorktree: SessionRecoverProbeResult["worktree"] = worktree.ok
+    ? {
+      ok: true,
+      value: {
+        ...worktree.value,
+        identity: worktreeIdentity,
+      } satisfies SessionRecoverWorktreeValue,
+    }
+    : worktree;
+
+  const cohortDocPath =
+    active.ok && active.value.resolution === "single" && active.value.path !== null
+      ? await probes.cohortDoc(active.value.path).catch(() => null)
+      : null;
+  const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const loadSet = ok(resolveLoadSetManifest({
+    identity,
+    activeWorkUnit: activeWuName,
+    metaPath: active.ok ? active.value.path : null,
+    sessionType: active.ok ? active.value.sessionType : null,
+    planningStage: active.ok ? active.value.planningStage : null,
+    taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
+    activeExtensions: extensions.ok ? extensions.value.active : [],
+    cohortDocPath,
+  }));
+
+  return {
+    mode: "recover",
+    identity: buildIdentity(identity, role),
+    worktree: enrichedWorktree,
+    dirty,
+    extensions,
+    config,
+    active,
+    releaseRouting,
+    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
+    loadSet,
   };
 }
 

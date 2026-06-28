@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  runRecoverStatus,
   runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
@@ -26,6 +27,7 @@ import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
+  SessionRecoverProbes,
   StatusProbes,
 } from "../../../src/commands/status.js";
 import type {
@@ -358,6 +360,20 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
     partialPushMarker: vi.fn(
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
+    cohortDoc: vi.fn(async (): Promise<string | null> => null),
+    ...overrides,
+  };
+}
+
+function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
+  return {
+    worktree: vi.fn(async () => worktreeSync()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    dirty: vi.fn(async () => dirtyState()),
+    extensions: vi.fn(async () => extensionsSessionInit()),
+    config: vi.fn(async () => configSessionInit()),
+    active: vi.fn(async () => activeSessionInit()),
+    releaseRouting: vi.fn(async () => releaseRouting()),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
     ...overrides,
   };
@@ -750,6 +766,111 @@ describe("runSessionInitStatus — orchestration", () => {
     if (!result.active.ok) {
       expect(result.active.error.kind).toBe("runtime");
       expect(result.active.error.message).toBe("boom");
+    }
+  });
+});
+
+describe("runRecoverStatus — lean recover envelope", () => {
+  it("emits exactly the state slices recovery needs", async () => {
+    const probes = sessionRecoverProbes();
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.mode).toBe("recover");
+    expect(Object.keys(result).sort()).toEqual([
+      "active",
+      "config",
+      "dirty",
+      "extensions",
+      "identity",
+      "loadSet",
+      "mode",
+      "releaseRouting",
+      "worktree",
+    ]);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.config).toHaveBeenCalledTimes(1);
+    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits every dispatch-only session-init slice", async () => {
+    const probes = sessionRecoverProbes();
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    const skippedSlices = [
+      "user",
+      "roster",
+      "sweep",
+      "planOrphanSweep",
+      "retiredSubdirs",
+      "errandSweep",
+      "errandState",
+      "workUnitState",
+      "materializableWorkUnits",
+      "inFlightComposition",
+      "inboxState",
+      "partialPushMarker",
+      "recommendedCombinedPrompt",
+      "recovery",
+      "baseDistance",
+      "baseBranchSync",
+      "domainRules",
+    ];
+
+    for (const slice of skippedSlices) {
+      expect(Object.hasOwn(result, slice)).toBe(false);
+    }
+  });
+
+  it("projects loadSet from the shared projection inputs", async () => {
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      extensions: vi.fn(async () =>
+        extensionsSessionInit({ active: ["post-context-load"] })),
+      cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.cohortDocPath).toBe(".arc/backlog/planned/x/cohort-x.md");
+    expect(result.loadSet.ok).toBe(true);
+    if (result.loadSet.ok) {
+      expect(result.loadSet.value.entries).toEqual(
+        expect.arrayContaining([
+          {
+            path: ".arc/active/tasks-x.md",
+            readMode: { kind: "partial-strategic" },
+          },
+          {
+            path: ".arc/system/extensions/post-context-load.md",
+            readMode: { kind: "full" },
+          },
+          {
+            path: ".arc/backlog/planned/x/cohort-x.md",
+            readMode: { kind: "full" },
+          },
+        ]),
+      );
     }
   });
 });

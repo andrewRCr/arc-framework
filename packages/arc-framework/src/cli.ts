@@ -488,17 +488,28 @@ program
     new Option(
       "--session-handoff",
       "Emit the session-handoff envelope for arc-handoff",
-    ).conflicts("session-init"),
+    ).conflicts(["session-init", "recover"]),
+  )
+  .addOption(
+    new Option(
+      "--recover",
+      "Emit the lean recover envelope for compaction recovery",
+    ).conflicts(["session-init", "session-handoff", "user"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff"]),
+    ).conflicts(["session-init", "session-handoff", "recover"]),
   )
   .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user: skip the network read; render from local refs")
-  .option("--write-compaction-seed", "With --session-init: write the machine-local compaction recovery seed")
+  .addOption(
+    new Option(
+      "--write-compaction-seed",
+      "With --session-init: write the machine-local compaction recovery seed",
+    ).conflicts(["recover", "session-handoff", "user"]),
+  )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
 

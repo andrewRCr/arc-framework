@@ -337,6 +337,28 @@ export interface SessionInitProbeResult {
   recommendedCombinedPrompt: string | null;
 }
 
+/** Worktree slot in the recover envelope. No sync recommendations are attached. */
+export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
+  /** Which physical worktree the recovered session occupies. */
+  identity: WorktreeIdentity;
+}
+
+/** Lean recover-mode composite result — `--recover` consumer shape. */
+export interface SessionRecoverProbeResult {
+  mode: "recover";
+  identity: StatusIdentity;
+  worktree: Probe<SessionRecoverWorktreeValue>;
+  dirty: Probe<DirtyStateResult>;
+  extensions: Probe<ExtensionsSessionInitResult>;
+  config: Probe<ConfigSessionInitResult>;
+  active: Probe<ActiveSessionInitResult>;
+  releaseRouting: Probe<ReleaseRoutingValue>;
+  /** Present only when a single active WU resolves to a coordinating cohort doc. */
+  cohortDocPath?: string;
+  /** Ordered context load set projected from the freshly resolved recover state. */
+  loadSet: Probe<LoadSetManifest>;
+}
+
 /** Probe functions in full mode — bound to cwd and any required I/O. */
 export interface StatusProbes {
   /**
@@ -596,6 +618,21 @@ export interface SessionInitProbes extends SessionSharedProbes {
   cohortDoc: (activeMetaPath: string) => Promise<string | null>;
 }
 
+/** Probe functions in recover mode — the lean subset recovery needs. */
+export interface SessionRecoverProbes {
+  worktree: () => Promise<WorktreeSyncStatusResult>;
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
+  dirty: () => Promise<DirtyStateResult>;
+  extensions: () => Promise<ExtensionsSessionInitResult>;
+  config: () => Promise<ConfigSessionInitResult>;
+  active: (
+    identity: string | null,
+    role: string | null,
+  ) => Promise<ActiveSessionInitResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
+  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
+}
+
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
 export interface SessionHandoffProbes extends SessionSharedProbes {
   syncInterlock: () => Promise<HandoffSyncInterlock>;
@@ -615,6 +652,12 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
+}
+
+export interface RunRecoverStatusOptions {
+  identity: string | null;
+  role: string | null;
+  probes: SessionRecoverProbes;
 }
 
 export interface RunSessionHandoffStatusOptions {
