@@ -548,6 +548,13 @@ If the freshness gap suggests an interrupted session, run the crash-recovery rou
 `[none]`) — discovery only applies between work units. A planning session is an active WU even with no task
 list yet; the meta file's Next Action carries direction.
 
+**`--start <wu-slug>` shortcut.** When present on the no-active-WU Orient arm, resolve `<wu-slug>` before the
+unseeded discovery pass, against the same backlog-WU candidate set that positional-seed pre-focus uses. Missing,
+ambiguous, non-backlog, or already-started / terminal targets are context mismatches: surface the target state and
+fall back to the normal orientation prompt. A valid target bypasses discovery and the confirm-only init offer, but
+do **not** run `arc start <wu-slug>` yet; carry the pending start target to Step 6's terminal-gate check so sync,
+dirty, freshness, blocker, and mismatch surfaces still win.
+
 When no active meta file was resolved, or the resolved file shows `**Task List:** [none]` outside a
 planning session, assess readiness for the next unit. When a **positional seed** names a backlog WU,
 **pre-focus** it as the candidate and offer to init it — confirm-only, never auto-init. Absent such a seed:
@@ -581,13 +588,6 @@ deliberately.
 > planning branch and meta — before drafting or spec work. Under partial protection (the default), proceed
 > directly to [create-spec.md][create-spec] — no planning branch needed.
 
-**`--start <wu-slug>` shortcut.** When present on the no-active-WU Orient arm, resolve `<wu-slug>` against the
-same backlog-WU candidate set that positional-seed pre-focus uses. Missing, ambiguous, non-backlog, or
-already-started / terminal targets are context mismatches: surface the target state and fall back to the normal
-orientation prompt. A valid target bypasses discovery and the confirm-only init offer, but do **not** run
-`arc start <wu-slug>` yet; carry the pending start target to Step 6's terminal-gate check so sync, dirty,
-freshness, blocker, and mismatch surfaces still win.
-
 ## 6. Confirm Orientation
 
 Produce the orientation summary.
@@ -603,9 +603,10 @@ caveat — instead of work-unit state; the active-work-state shape below does no
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
 
 **Entry-shortcut terminal gates.** After assembling the orientation and conditional surfaces, decide whether an
-entry shortcut may fire. The shortcut fires only when orientation is bare-clean: no sync surface, no dirty tree,
-no freshness gap, no blockers, no unconsumed seed or shortcut note, and no Step 7 mismatch. Otherwise render
-the normal orientation and prompt.
+entry shortcut may fire. The shortcut fires only when orientation is bare-clean: no conditional top-level
+orientation sections (including advisory sync/base/notes surfaces, route offers, and completion-tail reminders),
+no dirty tree, no freshness gap, no blockers, no unconsumed seed or shortcut note, and no Step 7 mismatch.
+Otherwise render the normal orientation and prompt.
 
 - `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action directly.
   Bare `--next` on a no-active-WU Orient arm is a no-op.

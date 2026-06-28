@@ -55,8 +55,9 @@ pointers).
 
     - `[x]` **1.3.c Wire the entry-shortcut semantics into `session-init`**
         - Updated both `session-init` copies to keep the shortcuts out of the signal-leaf relocation spine,
-          resolve `--start <wu-slug>` as a pending no-active-WU Orient target, and fire either shortcut only at
-          the bare-clean terminal gate after sync, freshness, blocker, and mismatch checks.
+          resolve `--start <wu-slug>` before the unseeded discovery pass as a pending no-active-WU Orient target,
+          and fire either shortcut only at the bare-clean terminal gate when no conditional orientation surfaces,
+          freshness gaps, blockers, or mismatches remain.
 
 - _Outcome:_ The entry shortcuts now have separate lifecycle nouns across skill and workflow docs:
   `--next` begins an active WU's Next Action only, while `--start <wu-slug>` reaches the existing
