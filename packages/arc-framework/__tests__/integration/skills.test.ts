@@ -51,7 +51,7 @@ async function initWithTools(
   return dir;
 }
 
-/** Check that all 5 canonical SKILL.md files exist under a skill directory. */
+/** Check that every canonical SKILL.md file exists under a skill directory. */
 async function assertSkillsExist(
   dir: string,
   skillDir: string,

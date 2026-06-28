@@ -35,7 +35,7 @@ function skillMd(name: string, description: string): string {
   ].join("\n");
 }
 
-/** Build a file system map with all 5 canonical skills. */
+/** Build a file system map with all canonical skills. */
 function buildCanonicalFiles(
   skillsDir: string,
 ): Record<string, string> {
@@ -145,7 +145,7 @@ describe("generateSkills", () => {
       io,
     );
 
-    // Two directories × 5 skills = 10 SKILL.md outputs
+    // Two directories times the canonical skill set.
     const skillOutputs = result.outputs.filter((o) =>
       o.path.endsWith("/SKILL.md"),
     );

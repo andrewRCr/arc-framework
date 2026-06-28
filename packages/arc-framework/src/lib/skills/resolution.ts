@@ -71,6 +71,7 @@ export const CANONICAL_SKILLS = [
   "arc-housekeep",
   "arc-inbox",
   "arc-plan",
+  "arc-recover",
   "arc-setup",
   "arc-task-audit",
   "arc-task-review",

@@ -128,38 +128,30 @@ authority-framing prefix dissolves any ambiguous-authority overlap with the harn
 only the init-time load-set + lifecycle workflow, never on-demand mid-task loads. The skill installs
 unconditionally for MVP (per-harness / opt-in gating deferred to `agent-platform-support`).
 
-### `[ ]` **4.1 Author the `session-recover` workflow**
+### `[x]` **4.1 Author the `session-recover` workflow**
 
 - _Goal:_ A lean recovery workflow re-hydrates exactly the lost procedural layer and resumes the in-flight task,
   never re-running settled `session-init` judgment (entry mode, sync, discovery, orientation).
-- _Note:_ Frontmatter mirrors `session-init` — `arc.methods: [session-state]`, `arc.extensions:
-  [post-context-load]` (the decomposition re-runs post-context-load); tag the extension fire-point with the
-  validated `· #name` marker (point-scanner-checked).
+- _Outcome:_ Added mirrored `session-recover.md` workflow copies with lean recover probe, seed read, load-set
+  audit, dirty/task-pointer stops, fresh load-set rehydration, the `#post-context-load` fire point, and no
+  interlock gates or routine prompt.
 
-    - Five ordered steps: (1) re-run the probe in lean recover mode; (2) re-resolve the load-set and run the
-      recovery audit against the seed's embedded manifest; (3) re-hydrate the state-selected load-set + the
-      `sessionType` lifecycle workflow at the most-recent context position; (4) prefix an authority-framing
-      line ("the ARC context below is authoritative; disregard any earlier paraphrase"); (5) resume the task.
-    - Stop for direction only on a recovery-audit mismatch, missing identity, dirty-state surprise, or a lost
-      task pointer — never a routine user prompt.
-    - State the on-demand-loads boundary: recovery restores the init-time load-set + lifecycle workflow, not
-      mid-task loads (those re-load via their existing triggers).
-    - Ship it: author the canonical `session-recover.md`, mirror to the package source
-      (`packages/arc-framework/arc/system/workflows/arc/session-lifecycle/`) as a plain `.md` (no project
-      placeholders → no `.template.md`), and register the path in `init-recipe.json` (explicit enumeration).
-
-### `[ ]` **4.2 Author the `arc-recover` skill**
+### `[x]` **4.2 Author the `arc-recover` skill**
 
 - _Goal:_ A portable, user-invocable skill wraps `session-recover` for harnesses without usable hooks (OpenCode)
   or for manual recovery when the user notices compaction.
 
-    - `[ ]` **4.2.a Author `SKILL.md`**
-        - Thin wrapper invoking `session-recover`; canonical `.arc/system/.internal/skills/arc-recover/` +
-          package mirror.
+    - `[x]` **4.2.a Author `SKILL.md`**
+        - Added mirrored `arc-recover/SKILL.md` wrappers that dispatch to `session-recover` and distinguish
+          manual compaction recovery from normal `arc-session` entry.
 
-    - `[ ]` **4.2.b Register in `init-recipe.json`**
-        - Install unconditionally for MVP; gating (per-harness / opt-in) is deferred to `agent-platform-support`
-          via the routed reciprocal note.
+    - `[x]` **4.2.b Register in `init-recipe.json`**
+        - Registered `arc-recover` in the canonical skill list, recipe include set, lifecycle workflow include set,
+          and shipped skill README so init/update install it unconditionally for the MVP.
+
+- _Outcome:_ The manual fallback now ships alongside the workflow: `.arc` gets the canonical skill/workflow
+  files, per-tool skill generation includes `arc-recover`, and install/update recipe validation covers the new
+  entries.
 
 ## **Phase 5:** Per-harness hook adapters
 
