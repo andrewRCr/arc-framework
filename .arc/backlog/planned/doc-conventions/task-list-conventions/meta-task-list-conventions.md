@@ -16,7 +16,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft into a plan — resolve the two design forks (Strategies-line
-  keep-vs-kill + consumption contract; requirement-anchor codify-vs-confirm-Pass-1-only), then sequence.
+- **Next Action:** Iterate the draft into a plan — resolve descriptor-block spacing, requirement-anchor
+  codify-vs-confirm-Pass-1-only, and Pass-3 interlock language, then sequence.
 
 ---

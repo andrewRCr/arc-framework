@@ -24,6 +24,11 @@ arc:
   Treat parallel changes as expected context, not interruptions. If changes conflict with your
   current task, flag the conflict and ask how to proceed.
 
+- **Additional context pointers:** Before implementation, inspect the current task body for a root-level
+  `**Additional Context:**` line. Read every listed target unless it is already loaded in this session;
+  narrow to the named section when one is provided. If a pointer is vague, missing, or unreachable, resolve the
+  closest source you can and surface the gap before relying on the task plan.
+
 - **Test-first execution:** When a task has a ``Build `test-first` (one behavior at a time):`` marker
   (per the [testing-standards method][arc-methods-ts]), execute as vertical slices — one behavior at a time:
     1. **RED:** Write one test for one behavior listed in the task → run it → confirm it fails
