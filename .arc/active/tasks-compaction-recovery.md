@@ -165,7 +165,7 @@ can remove judgment: shared task-list cursor, path-set dirty comparison, and a s
 verdict. Stop only on true uncertainty or contradiction, not as a routine fallback when the harness summary
 supplies the live leaf concern.
 
-### `[ ]` **4.R.1 Apply the stale-field authority contract**
+### `[x]` **4.R.1 Apply the stale-field authority contract**
 
 - _Goal:_ The spec and agent-facing recovery prose clearly separate ARC's deterministic context floor from the
   harness summary's volatile execution-locus summary, and no workflow treats stale meta fields as post-compaction
@@ -177,6 +177,10 @@ supplies the live leaf concern.
       or stop/surface uncertainty.
     - State the stop discipline: surface only true uncertainty or contradiction, not every case where the harness
       summary is the source of the current leaf.
+
+- _Outcome:_ Updated both `session-recover.md` copies to name the harness summary as the volatile current-leaf
+  source, demote meta progress fields to soft orientation after compaction, remove the meta `Next Task` fallback
+  for strategic reads, and scope the authority-framing line to ARC operating context.
 
 ### `[ ]` **4.R.2 Implement the shared task-list cursor projection**
 

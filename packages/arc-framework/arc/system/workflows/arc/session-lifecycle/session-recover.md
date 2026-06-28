@@ -12,8 +12,10 @@ arc:
 
 Use this workflow only after a harness compaction event, or from the manual `arc-recover`
 fallback when a developer notices compaction erased ARC operating context. Recovery rehydrates
-the context-load layer from live state plus the latest compaction seed. It does not run
-session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a clean path.
+the context-load layer from live state plus the latest compaction seed. It does not reconstruct
+the just-before-compaction action; the harness compaction summary owns that volatile current
+leaf. Recovery does not run session-init, sync, pull, discover next work, relocate, commit,
+push, or prompt on a clean path.
 
 ## 1. Resolve Recovery State
 
@@ -37,6 +39,10 @@ Read the latest seed:
 
 If the seed is missing, malformed, or has an unsupported schema version, stop and surface the
 path and parse failure. Do not invent a seed from the harness summary.
+
+Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
+`Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
+Use them only as context after the deterministic recovery checks and harness summary are aligned.
 
 ## 2. Audit Fresh State Against The Seed
 
@@ -64,14 +70,17 @@ Do not stop solely because `seed.emittedAt` is old or `seed.head` differs from c
 The load-set audit and dirty-state check are the recovery authority; mention seed age or head
 movement only as supporting detail when another stop condition already fired.
 
-For execution sessions, require a task pointer. If `seed.currentTask === null`, or the recovered
-active state no longer resolves to an execution session with a task list, stop and surface the
-lost task pointer. Do not guess the task from prose in the harness summary.
+For execution sessions, require a verified task-list anchor. Prefer `seed.currentTask` when
+present. If it is absent, use the harness summary only to identify a candidate task id/title,
+then verify that candidate exists in the recovered task list before continuing. If the recovered
+active state no longer resolves to an execution session with a task list, or no candidate can be
+verified, stop and surface the uncertainty.
 
 ## 3. Rehydrate The Load Set
 
-Read the **fresh** load-set entries in order. Never load from the seed's paths, and never rely on
-the harness summary as an authority for ARC context.
+Read the **fresh** load-set entries in order. Never load from the seed's paths. The harness
+summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
+context; verify it against the recovered files when it names a task.
 
 Apply each entry's `readMode`:
 
@@ -79,12 +88,15 @@ Apply each entry's `readMode`:
 - `partial-section` - read only the named heading section.
 - `partial-strategic` - read the active task-list header, current phase preamble, and current
   task section. Use `seed.currentTask.id`, `seed.currentTask.title`, and `seed.currentTask.lineHint`
-  as the lookup anchors when present; otherwise use the active meta file's `**Next Task:**`
-  triple-anchor.
+  as the lookup anchors when present. If absent, use a task id/title explicitly supplied by the
+  harness summary only after verifying it against the task list. If neither source yields a
+  verified anchor, stop. Do not fall back to the active meta file's `**Next Task:**`.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
 one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
-and surface the missing workflow pointer.
+and surface the missing workflow pointer. For planning recovery, do not treat `Current Workflow`
+as authoritative by itself; if the stage is unclear from deterministic state plus the harness
+summary, stop for direction.
 
 ## 4. Post-Context-Load Extensions · `#post-context-load`
 
@@ -96,13 +108,14 @@ after the recovery load set has been read. Otherwise skip.
 Before resuming work, emit this authority line exactly once:
 
 ```text
-The ARC context below is authoritative; disregard any earlier paraphrase.
+The ARC operating context below is authoritative; use it to evaluate the compaction summary.
 ```
 
-Resume from the recovered locus without a routine prompt:
+Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
+prompt:
 
-- `execution` - continue the current task through `process-task-loop.md`.
-- `planning` - continue the recovered planning workflow.
+- `execution` - continue the summarized current task through `process-task-loop.md`.
+- `planning` - continue the recovered planning workflow when the stage is verified; otherwise stop.
 - `integration` - continue `integrate-work-unit.md`.
 
 Recovery restores the init-time load set plus the state-selected lifecycle workflow only.
