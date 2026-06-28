@@ -12,12 +12,12 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** `generate-tasks` complete — `tasks-compaction-recovery.md` finalized (high-depth
-  three-pass, fully grounded; Class `Novel`); WU activated (`plan/` → `feat/`).
-- **Next Task:** Begin Task 1.1 — Define load-set manifest types
+- **Last Completed:** Phase 1 load-set projection complete — Tasks 1.1, 1.2, and 1.3.a shipped; Task 1.3.b
+  deferred to Task 3.1, which absorbs the `--recover` smoke test.
+- **Next Task:** Task 2.1 — Define the `CompactionSeed` schema (line ~66)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation — Task 1.1 (load-set manifest types)
+- **Next Action:** Begin Phase 2 — Task 2.1 (CompactionSeed schema in `src/lib/compaction-seed/`)
 
 - **PR URL:** [none]
 - **Completed:** [none]
