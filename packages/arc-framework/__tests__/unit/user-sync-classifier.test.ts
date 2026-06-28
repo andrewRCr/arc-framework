@@ -28,6 +28,10 @@ describe("classifyUserSyncPath", () => {
     expect(classifyUserSyncPath(".internal/release-setup.json")).toBe("never-synced");
   });
 
+  it("classifies the compaction seed sidecar as never-synced", () => {
+    expect(classifyUserSyncPath(".internal/compaction-seed.json")).toBe("never-synced");
+  });
+
   it("classifies a root-level dotfile as never-synced", () => {
     expect(classifyUserSyncPath(".sync-state.json")).toBe("never-synced");
   });

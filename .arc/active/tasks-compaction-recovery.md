@@ -80,18 +80,18 @@ recovery-audit baseline, not a re-load shortcut.
   git, reads meta pointers through `meta-reader.ts`, writes the identity-scoped seed sidecar without throwing, and
   is covered by unit tests plus a built-CLI E2E smoke.
 
-### `[ ]` **2.3 Persist to the fixed machine-local path**
+### `[x]` **2.3 Persist to the fixed machine-local path**
 
 - _Goal:_ The seed lands at `.arc/user/{identity}/.internal/compaction-seed.json`, where the gitignore and the
   user-sync classifier guarantee it stays machine- and worktree-local.
 
-    - `[ ]` **2.3.a Write to the identity-resolved `.internal/` path**
-        - Create the directory if absent; machine-local, per-worktree by the gitignore boundary (the user tree
-          is never checked out into linked worktrees).
+    - `[x]` **2.3.a Write to the identity-resolved `.internal/` path**
+        - The emitter resolves `.arc/user/{identity}/.internal/compaction-seed.json` and writes through the
+          shared atomic JSON helper, which creates the `.internal/` parent when absent.
 
-    - `[ ]` **2.3.b Confirm sync exclusion with a regression test**
-        - Assert the seed path classifies `never-synced` (the `.arc/user/*/` gitignore covers it; the classifier
-          marks `.internal/**` never-synced — no manifest entry, no notes projection).
+    - `[x]` **2.3.b Confirm sync exclusion with a regression test**
+        - Added a classifier regression asserting `.internal/compaction-seed.json` resolves to `never-synced`,
+          relying on the existing `.internal/**` boundary rather than a seed-specific manifest entry.
 
 ## **Phase 3:** Lean probe mode and recovery audit
 
