@@ -162,14 +162,18 @@ The deterministic "given current state, here is the ordered context set with rea
 `session-init --json` envelope already resolves most inputs (`sessionType`, `active.path`, `companions`,
 `extensions`); the incremental piece is a thin projection mapping that state to the concrete doc list.
 
-Built as a **neutral shared declaration** consumed by both `session-init` Step 3 and `session-recover` — not a
-second load mechanism. Form: an **additive `loadSet` slice on the existing probe envelope** (one shared
-projection). Read-modes are the tagged union above, mirroring Step 3's three disciplines (`full`,
-`partial-section`, `partial-strategic`); array order is read order.
+Built as a **neutral shared declaration** — not a second load mechanism. Form: an **additive `loadSet` slice on
+the existing probe envelope** (one shared projection). Read-modes are the tagged union above, mirroring Step 3's
+three disciplines (`full`, `partial-section`, `partial-strategic`); array order is read order. `session-recover`
+consumes the slice; `session-init` Step 3 keeps its inline enumeration for the MVP — **parity-tested** against the
+projection, with the prose-level rewire to consume it deferred to `composable-workflows` (the most-exercised
+workflow is not rewired inside a recovery WU; CW owns that rewire as its core resolve-then-load job).
 
-The projection resolves **membership** from shared declared-load policy (`arc.methods` / `arc.extensions` + the
-probe active-set), never a recover-specific list — so `composable-workflows` / `loadset-composition` later subsume
-it without a fork. It reuses existing declared-load conventions; it never mints a competing loader.
+The projection resolves **membership** from `session-init` Step 3's documented per-type loadset policy — the fixed
+universal constitutional set + the `sessionType`-selected state docs (the codebase's existing "per-type loadset",
+`active/types.ts`) + the active-extensions slot + the cohort doc — never a recover-specific list, and **not**
+`arc.methods` (methods load on-demand per workflow, not at init). So `composable-workflows` / `loadset-composition`
+later subsume it without a fork; it reuses existing conventions and never mints a competing loader.
 
 ### Surface 3 — `session-recover` workflow
 
@@ -260,9 +264,11 @@ recovery contract once; adapters bind it to a tool.
   policy, so `composable-workflows` / `loadset-composition` subsume it without a fork. A bespoke list would fork
   the load mechanism and rot against session-init's.
 
-- **A bespoke seed parser (rejected).** The interim seed reads via session-init's existing
-  `session-init/managed-field.ts` extractors — so it inherits exactly session-init's fragility (no worse), and
-  `operational-state-docs` later supersedes *one* reader, not two.
+- **A bespoke seed parser (rejected).** The seed's state-pointer fields are *sourced* from the underlying markdown
+  records (meta, `SESSION-NOTES`) at write time via session-init's existing `session-init/managed-field.ts`
+  extractors — the JSON seed itself round-trips via ordinary serialize/parse, no markdown parsing on read. So it
+  inherits exactly session-init's source-read fragility (no worse), and `operational-state-docs` later supersedes
+  *one* reader, not two.
 
 - **OpenCode hook recipe now (deferred).** Fragile injection + all-`experimental.` surfaces; the manual
   `arc-recover` fallback covers it until its `session.start(compact)` hook lands (a watch item).
@@ -278,9 +284,11 @@ recovery contract once; adapters bind it to a tool.
 slices recovery needs and **skips the dispatch-only oracles**:
 
 - **Kept** (state + load-set resolution): `identity`, `worktree` (branch / HEAD / dirty / ahead-behind freshness),
-  `dirty`, `active` (resolution / path / `sessionType` / companions), `config`, `extensions`, the new `loadSet`
-  slice, and `cohortDocPath` when present (a load-set member).
-- **Skipped** (dispatch-only — entry mode already settled, no sync, no discovery): `roster`, `sweep`,
+  `dirty`, `active` (resolution / path / `sessionType` / companions), `config`, `releaseRouting` (commit/push
+  routing the resumed task needs at its next commit), `extensions`, the new `loadSet` slice, and `cohortDocPath`
+  when present (a load-set member).
+- **Skipped** (dispatch / sync — entry mode already settled, no sync, no discovery): `user` (notes-sync state —
+  recovery never pulls), `roster`, `sweep`,
   `planOrphanSweep`, `retiredSubdirs`, `errandSweep`, `errandState`, `workUnitState`, `materializableWorkUnits`,
   `inFlightComposition`, `inboxState`, `partialPushMarker`, `recommendedCombinedPrompt`, `recovery`, and the
   sync-advisory `baseDistance` / `baseBranchSync` channels. `domainRules` stays load-on-demand.
@@ -342,7 +350,8 @@ buffer (already routed; see § Open Questions for status):
 
 - **`composable-workflows`** — the load-set emitter is a special case of resolve-then-load (probe resolves config;
   workflows load only applicable fragments). Build it as a minimal proto resolve-then-load scoped to the
-  session-init/recovery load-set, reusing declared-load conventions; CW later subsumes it.
+  session-init/recovery load-set; CW later subsumes it. CW also owns the deferred prose-level rewire of
+  `session-init` Step 3 to consume the slice — this WU ships it consumed by `session-recover` only, parity-tested.
 - **`operational-state-docs` / `adr-022`** — the seed reads exactly the surfaces OSD formalizes as managed records
   (`meta`, `SESSION-NOTES`, `WORKING-MEMORY`). Frame the seed as a **projection over those records** (sibling to
   `STATUS.*`): interim it projects from markdown via the existing extractors, post-OSD from records, no reshape.
@@ -398,8 +407,8 @@ handoff stays the preferred path; recovery is for compaction that can't be avoid
 
 - **Seed round-trip:** the seed emits to the fixed machine-local path and parses back losslessly; unit-tested.
 - **Load-set resolution:** the shared projection resolves the correct ordered load-set + read-modes for each
-  `sessionType` (planning / execution / integration); unit-tested, and identical whether consumed by `session-init`
-  Step 3 or `session-recover`.
+  `sessionType` (planning / execution / integration); unit-tested. `session-recover` consumes it; `session-init`
+  Step 3's resolution is parity-tested against it (prose-level consumption deferred to `composable-workflows`).
 - **Recovery audit:** `session-recover` re-resolves the load-set, diffs against the seed's embedded manifest, and
   stops for direction on divergence (state moved mid-session); unit-tested across match and mismatch.
 - **Lean probe mode** emits exactly the kept slices and omits the skipped oracles (§ Cross-cutting → Lean probe
