@@ -53,6 +53,7 @@ import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
+import type { LoadSetManifest } from "../../lib/load-set/types.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -321,6 +322,12 @@ export interface SessionInitProbeResult {
    * during context-load to surface cross-member coordination awareness.
    */
   cohortDocPath?: string;
+  /**
+   * Ordered context load set projected from the resolved session-init state.
+   * Purely additive: recovery consumes it as the deterministic context-load
+   * contract, while session-init keeps its existing prose-level reads for now.
+   */
+  loadSet: Probe<LoadSetManifest>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel

@@ -41,9 +41,10 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
   now, parity-tested against the projection, with prose-level consumption deferred to `composable-workflows`
   (routed). This WU wires the slice and proves parity — it does not rewire `session-init`'s prose.
 
-    - `[ ]` **1.3.a Wire the projection as an eager `Probe<LoadSetManifest>` slice**
-        - Add to the `runSessionInitStatus()` fan-out (cheap, deterministic — depends only on already-resolved
-          state); extend `SessionInitProbeResult` with the new slot.
+    - `[x]` **1.3.a Wire the projection as an eager `Probe<LoadSetManifest>` slice**
+        - Added the `loadSet` slice to `SessionInitProbeResult`, projected from resolved active, extension, and
+          cohort state; `ActiveSessionInitResult` now exposes the resolved task-list path so the projection does
+          not guess from meta filenames.
 
     - `[ ]` **1.3.b Smoke-test the slice on both envelope modes**
         - Assert the `loadSet` slice is present and well-formed on both the `session-init` and `--recover`

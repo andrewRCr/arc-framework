@@ -246,6 +246,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
       notes: ".arc/active/notes-foo.md",
       atomic: ".arc/active/atomic-foo.md",
@@ -298,6 +299,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.layout).toBe("lite");
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks.md");
     expect(result.companions).toBeUndefined();
   });
 
@@ -333,6 +335,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
       notes: ".arc/active/notes-foo.md",
       atomic: ".arc/active/atomic-foo.md",
@@ -351,6 +354,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
   });
 });

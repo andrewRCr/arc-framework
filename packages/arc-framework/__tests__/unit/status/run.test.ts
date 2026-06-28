@@ -660,6 +660,47 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
+  it("exposes a loadSet slot projected from resolved session-init state", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      extensions: vi.fn(async () =>
+        extensionsSessionInit({ active: ["post-context-load"] })),
+      cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(true);
+    if (result.loadSet.ok) {
+      expect(result.loadSet.value.entries).toEqual(
+        expect.arrayContaining([
+          {
+            path: ".arc/active/tasks-x.md",
+            readMode: { kind: "partial-strategic" },
+          },
+          {
+            path: ".arc/system/extensions/post-context-load.md",
+            readMode: { kind: "full" },
+          },
+          {
+            path: ".arc/backlog/planned/x/cohort-x.md",
+            readMode: { kind: "full" },
+          },
+        ]),
+      );
+    }
+  });
+
   it("returns the session-init-scoped shape with mode=session-init", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({
@@ -1253,6 +1294,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "extensions",
       "identity",
       "inboxState",
+      "loadSet",
       "mode",
       "partialPushMarker",
       "recommendedCombinedPrompt",

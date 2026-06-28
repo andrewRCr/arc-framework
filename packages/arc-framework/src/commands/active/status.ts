@@ -244,6 +244,7 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
+      result.taskListPath = resolveTaskListPath(only.path, only.taskList);
       const companions = await deriveCompanions(cwd, only.path, only.taskList);
       if (companions !== undefined) result.companions = companions;
       result.planningStage = resolvePlanningStage(only, fields.sessionType);
@@ -272,6 +273,18 @@ function resolvePlanningStage(
   return isPlanningWorkflow(candidate.currentWorkflow)
     ? candidate.currentWorkflow
     : PLANNING_ENTRY_STAGE;
+}
+
+function resolveTaskListPath(
+  statusFilePath: string,
+  taskListValue: string | null,
+): string | null {
+  if (taskListValue === null) return null;
+  const normalized = taskListValue.split(sep).join("/").trim();
+  if (normalized === "" || TASK_LIST_PLANNING_VALUES.has(normalized)) return null;
+  return normalized.includes("/")
+    ? normalized
+    : `${statusFileDirPrefix(statusFilePath)}${normalized}`;
 }
 
 /**

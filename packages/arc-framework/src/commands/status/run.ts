@@ -57,6 +57,7 @@ import {
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
+import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
 
 const IDENTITY_MISSING_MESSAGE =
   "User probe skipped: `arc.identity` is not configured in git config.";
@@ -518,6 +519,16 @@ export async function runSessionInitStatus(
     active.ok && active.value.resolution === "single" && active.value.path !== null
       ? await probes.cohortDoc(active.value.path).catch(() => null)
       : null;
+  const loadSet = ok(resolveLoadSetManifest({
+    identity,
+    activeWorkUnit: activeWuName,
+    metaPath: active.ok ? active.value.path : null,
+    sessionType: active.ok ? active.value.sessionType : null,
+    planningStage: active.ok ? active.value.planningStage : null,
+    taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
+    activeExtensions: extensions.ok ? extensions.value.active : [],
+    cohortDocPath,
+  }));
 
   return {
     mode: "session-init",
@@ -545,6 +556,7 @@ export async function runSessionInitStatus(
     ...(partialPushMarker !== null ? { partialPushMarker } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
+    loadSet,
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }

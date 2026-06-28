@@ -210,6 +210,14 @@ export interface ActiveSessionInitResult {
     atomic: string | null;
   };
   /**
+   * Resolved active task-list path relative to cwd, derived from the parsed
+   * `**Task List:**` field when a single meta resolves. Path-form values pass
+   * through normalized; bare filenames resolve beside the meta file. `null`
+   * when the single resolved meta has no task list (`[none]`, missing, or
+   * equivalent); omitted outside the single-meta arm.
+   */
+  taskListPath?: string | null;
+  /**
    * Resolved session type for per-type loadset selection. Computed from
    * `resolution` plus the resolved candidate's `**Task List:**` and
    * `**Next Action:**` fields. `null` when `resolution === "multiple"`
