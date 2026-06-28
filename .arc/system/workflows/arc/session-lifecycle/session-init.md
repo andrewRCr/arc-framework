@@ -118,6 +118,11 @@ When present, run the **spine** below before resolving the entry mode: it outran
 cold-start resolution on **any** arm and never clobbers the active checkout. Signal absent → skip to
 [Entry dispatch](#entry-dispatch) unchanged.
 
+`--next` and `--start <wu-slug>` are **entry shortcuts**, not signal-leaf signals. They do not use this spine,
+do not relocate through `resolveWriteContext`, and do not skip the sync, context, or mismatch checks below:
+`--next` is handled at the Resume-arm terminal gate, and `--start` is handled at the no-active-WU Orient terminal
+gate.
+
 Place it after the branch-gone precondition and ahead of the arm resolution; on the signal path the spine
 replaces Step 3's full context-load with a universal-only load and **skips the resume/orient worktree pull** —
 relocate moves the working branch out from under the probe's worktree state. The **notes pull still applies**:
@@ -158,6 +163,11 @@ An **entry seed** may accompany the invocation — an optional spec pointer or d
 entry (it reaches this workflow as context, not via the probe). It feeds **cold-start** only; on every other
 arm it is surfaced, not acted on.
 
+An **entry shortcut** may also accompany the invocation. `--next` asks the Resume arm to begin the active meta's
+Next Action after a bare-clean orientation. `--start <wu-slug>` asks the no-active-WU Orient arm to start the
+named backlog work unit after a bare-clean orientation. Both shortcuts are terminal-only: conditional sync
+surfaces, dirty state, freshness gaps, blockers, or Step 7 mismatches fall back to the normal prompt.
+
 An **explicit-intent signal** present at invocation is handled by
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) above, which takes precedence over the arm resolution
 here; the arms below are the **signal-absent** path.
@@ -171,7 +181,8 @@ here; the arms below are the **signal-absent** path.
   units). The **signal-absent** path: discovery is the dispatch intent (the positional seed stays orthogonal —
   never "any arg"), with a housekeep soft-offer overlaid when the inbox holds routable captures. An explicit
   `--errand` / `--housekeep` / `--plan` is dispatched by the signal leaf above, before this arm — including the
-  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below).
+  no-active-WU errand elaboration ([Errand cold-entry](#errand-cold-entry-orient-arm) below). `--start
+  <wu-slug>` stays on this arm as a terminal shortcut, not a signal-leaf relocation.
     - **Discovery** (default — bare `arc-session`, or with a positional seed): continue as resume; Step 5's
       next-work discovery orients and awaits direction. A positional seed naming a backlog WU **pre-focuses**
       that WU with an init offer (Step 5) — confirm-only, never auto-init. If `errandState` carries flagged
@@ -211,7 +222,9 @@ and **Orient** continue straight to the channels below.
 **Seed not consumed (Resume / Errand-resume / Materialize arms).** Cold-start acts on a seed (its resolved
 disposition), and the Orient/discovery arm pre-focuses a seed that names a backlog WU (Step 5 — confirm to
 init). On the remaining arms a supplied seed is not consumed: surface a one-line note in orientation (Step 6)
-that starting fresh work from it means spawning or checking out a new worktree and re-entering there.
+that starting fresh work from it means spawning or checking out a new worktree and re-entering there. `--start
+<wu-slug>` is not a positional seed; its slug is the explicit start target and is valid only on the
+no-active-WU Orient arm.
 
 ### Conditional sync pulls (resume / orient arm)
 
@@ -568,6 +581,13 @@ deliberately.
 > planning branch and meta — before drafting or spec work. Under partial protection (the default), proceed
 > directly to [create-spec.md][create-spec] — no planning branch needed.
 
+**`--start <wu-slug>` shortcut.** When present on the no-active-WU Orient arm, resolve `<wu-slug>` against the
+same backlog-WU candidate set that positional-seed pre-focus uses. Missing, ambiguous, non-backlog, or
+already-started / terminal targets are context mismatches: surface the target state and fall back to the normal
+orientation prompt. A valid target bypasses discovery and the confirm-only init offer, but do **not** run
+`arc start <wu-slug>` yet; carry the pending start target to Step 6's terminal-gate check so sync, dirty,
+freshness, blocker, and mismatch surfaces still win.
+
 ## 6. Confirm Orientation
 
 Produce the orientation summary.
@@ -581,6 +601,18 @@ claims copied from SESSION-NOTES prose.
 the summary on the **locus** — the errand / drain / grooming target, its goal, branch, and any coordination
 caveat — instead of work-unit state; the active-work-state shape below does not apply. See
 [Signal-leaf dispatch](#signal-leaf-dispatch-precedence) / [Errand cold-entry](#errand-cold-entry-orient-arm).
+
+**Entry-shortcut terminal gates.** After assembling the orientation and conditional surfaces, decide whether an
+entry shortcut may fire. The shortcut fires only when orientation is bare-clean: no sync surface, no dirty tree,
+no freshness gap, no blockers, no unconsumed seed or shortcut note, and no Step 7 mismatch. Otherwise render
+the normal orientation and prompt.
+
+- `--next` on the Resume arm: omit the final proceed prompt and begin the active meta's Next Action directly.
+  Bare `--next` on a no-active-WU Orient arm is a no-op.
+- `--start <wu-slug>` on the no-active-WU Orient arm: omit the confirm-only init offer and run `arc start
+  <wu-slug>` for the pending start target. Once the handoff to `arc start` happens, `init-work-unit` runs
+  unchanged: its `workflowCommit` / `workflowPush` interlocks and `class-resolved` guard still fire. `--start`
+  on a Resume arm is surfaced as an unconsumed shortcut and falls back to the normal prompt.
 
 **Output format:**
 
@@ -601,8 +633,8 @@ no other tracked source documents.
 Awaiting direction — proceed to Next Action?
 
 **Include only if actionable**: freshness gaps, missing identity, environment issues, sync states other than
-`clean` (worktree or notes), an unconsumed entry seed (non-cold-start entry), cohort coordination bearing on the
-current task (from the `cohortDocPath` doc), probe-failure fallback.
+`clean` (worktree or notes), an unconsumed entry seed or shortcut (non-consuming arm), cohort coordination
+bearing on the current task (from the `cohortDocPath` doc), probe-failure fallback.
 
 **Anti-pattern:** Restating the Next Task's full description from the task list. The task list carries the
 detail; orientation needs only the pointer. Reserve unbounded prose for off-task-list scenarios where no

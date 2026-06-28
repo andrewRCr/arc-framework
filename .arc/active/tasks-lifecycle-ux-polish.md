@@ -35,18 +35,12 @@ pointers).
   context anchors, `Session Type`, and `Commit at Handoff`, but live git facts come from the probe and freshness
   check. Step 5 now treats the handoff hash as a baseline only, and Step 6 renders git state from probe slots.
 
-### `[ ]` **1.3 Add the `arc-session --next` / `--start` entry shortcuts**
+### `[x]` **1.3 Add the `arc-session --next` / `--start` entry shortcuts**
 
 - _Goal:_ `arc-session --next` begins the first Next Action without the "proceed?" prompt when orientation
   resolves bare-clean; `arc-session --start <wu-slug>` starts a named backlog WU from the no-active-WU Orient
-  arm without the discovery / confirm-only init prompt; both fall back to the normal prompt or guard surface on
+  arm without the discovery and confirm-only init prompt; both fall back to the normal prompt or guard surface on
   any conditional surface or mismatch.
-
-- _Approach:_ `--next` is a **per-invocation autonomy modifier** for the active meta's `Next Action`, not a
-  start spelling and not a locus-redirect sibling of `--errand` / `--housekeep` / `--plan`. `--start
-  <wu-slug>` names the existing `init-work-unit` / `arc start` transition on the no-active-WU Orient arm. Both
-  shortcuts bypass only `session-init`'s ergonomic prompt at their own arm terminal; neither suppresses
-  stop-and-ask mismatches, sync/dirty/freshness surfaces, lifecycle interlocks, or the `Class` guard.
 
     - `[x]` **1.3.a Document `--next` in the `arc-session` skill**
         - Added the mirrored `SKILL.md` paragraph describing `--next` as a per-invocation auto-proceed
@@ -54,27 +48,20 @@ pointers).
           not a configuration default, and falls back to normal orientation when the resolved arm cannot skip
           the final proceed prompt.
 
-    - `[ ]` **1.3.b Document `--start <wu-slug>` in the `arc-session` skill**
-        - Document `--start <wu-slug>` in `SKILL.md` (both copies) as the no-active-WU Orient shortcut to the
-          existing `init-work-unit` / `arc start` transition — a distinct paragraph beside `--next`, not an
-          overload of the positional seed and not a fourth entry in the out-of-WU locus list.
-        - State the boundary: `--start` bypasses discovery and the confirm-only init offer for the named
-          backlog WU, but still honors sync/dirty/freshness surfaces, stop-and-ask mismatches, init
-          `workflowCommit` / `workflowPush` interlocks, and the `class-resolved` guard.
+    - `[x]` **1.3.b Document `--start <wu-slug>` in the `arc-session` skill**
+        - Added the mirrored `SKILL.md` paragraph describing `--start <wu-slug>` as a no-active-WU shortcut to
+          the existing start transition: it bypasses discovery and init confirmation prompts for a named backlog WU,
+          but still honors sync, dirty-tree, freshness, mismatch, interlock, and `Class`-guard surfaces.
 
-    - `[ ]` **1.3.c Wire the entry-shortcut semantics into `session-init`**
-        - Document `--next` as a Resume-arm terminal modifier: after conditional surfaces resolve, it may
-          suppress only Step 6's "proceed to Next Action?" gate. Any sync state, freshness gap, blocker,
-          uncommitted change, or Step 7 mismatch falls back to the prompt.
-        - Document `--start <wu-slug>` as a no-active-WU Orient shortcut: it pre-focuses the named backlog WU
-          and bypasses discovery plus the Step 5 confirm-only init offer when the same bare-clean conditions
-          hold. Bare `--next` on the no-WU arm stays a no-op because discovery is the point.
-        - State the start boundary (spec Open item — facet 4 `--start` placement, leans clean separation):
-          once session-init hands off to `arc start <name>`, `init-work-unit` runs unchanged and its
-          `workflowCommit` / `workflowPush` interlocks fire as normal. The `class-resolved` init guard still
-          refuses a `[TBD]` stub, so an unresolved stub surfaces its `Class` rather than auto-initializing.
-        - _Note:_ No `--class` inline weight resolution is added here — that stays in `cli-substrate-adoption`
-          (spec No-go); `--start` surfaces the existing guard instead of resolving weight inline.
+    - `[x]` **1.3.c Wire the entry-shortcut semantics into `session-init`**
+        - Updated both `session-init` copies to keep the shortcuts out of the signal-leaf relocation spine,
+          resolve `--start <wu-slug>` as a pending no-active-WU Orient target, and fire either shortcut only at
+          the bare-clean terminal gate after sync, freshness, blocker, and mismatch checks.
+
+- _Outcome:_ The entry shortcuts now have separate lifecycle nouns across skill and workflow docs:
+  `--next` begins an active WU's Next Action only, while `--start <wu-slug>` reaches the existing
+  `arc start` and `init-work-unit` transition from the no-active-WU Orient arm without bypassing guards or
+  interlocks.
 
 ### `[ ]` **1.4 Add always-loaded commit-path awareness**
 
