@@ -129,21 +129,10 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
   `--force` escape. Integration and e2e coverage exercise already-gone branches, normal branch reaping, and the
   actionable refusal.
 
-### `[ ]` **2.3 Eliminate the `arc activate` foreign-write false-positive**
+### `[x]` **2.3 Eliminate the `arc activate` foreign-write false-positive**
 
 - _Goal:_ `arc activate` on a pushed planning branch emits no spurious "Foreign-owned write" warning, with
   `arc errand check`'s overlap detection unchanged.
-
-- _Context:_ The renamed-from `origin/plan/<slug>` remote-tracking ref is still live at the activation commit
-  (deleted only at the ceremony's last step), so the oracle counts it as a distinct in-flight entry pointing
-  at the WU's own `meta-<slug>.md`, and the worktree-path self-exclusion misses it (remote-only, no worktree).
-  _Notes:_ See `notes-lifecycle-ux-polish.md` § Facet 6 for the repro and both-consumer test setup.
-
-- _Approach:_ Self-exclude at the detection core on the originating meta path (spec Open item — facet 6
-  exclusion layer, leans the detection core). `detectForeignArtifactOverlap` already owns self-exclusion, so
-  the meta-path predicate co-locates there; the oracle stays a general projection.
-
-- **Strategies:** strategy-testing-methodology.md
 
     - `[x]` **2.3.a Add meta-path self-exclusion to `detectForeignArtifactOverlap`**
         - `ForeignArtifactDetectionOptions` now accepts optional `originatingMetaPath`, and
@@ -152,16 +141,16 @@ layer). Repro/test context: `notes-lifecycle-ux-polish.md` §§ Facet 5, Facet 6
         - Unit coverage now proves remote-only same-meta candidates are skipped before git diffing, existing
           worktree self-exclusion still needs no meta path, and genuine foreign meta overlaps still report.
 
-    - `[ ]` **2.3.b Resolve and thread the originating meta from the foreign-write check**
-        - In `check-foreign-writes.ts`, resolve the current WU's meta path via the active-WU resolver
-          (`resolveActiveWu` in `lib/release/wu-resolution.ts`, already used by `arc release commit`, or the
-          active meta-reader) and thread it as `originatingMetaPath` into `detectForeignArtifactOverlap`,
-          symmetric with the `currentWorktreePath` it already resolves.
-        - Build `test-first` (one behavior at a time):
-            - An activation commit on a pushed planning branch (matching `origin/plan/<slug>` ref live) emits
-              no foreign-write warning.
-            - `arc errand check` passes no `originatingMetaPath` (errands carry no meta) and is unaffected —
-              it still self-excludes by worktree path and reports genuine overlaps.
+    - `[x]` **2.3.b Resolve and thread the originating meta from the foreign-write check**
+        - `check-foreign-writes.ts` now resolves the active WU via `resolveActiveWu`, threads the resolved meta
+          path into `detectStagedForeignWrites`, and forwards it to `detectForeignArtifactOverlap`.
+        - Unit coverage now proves the foreign-write path suppresses same-meta remote-only activation refs,
+          resolves the active meta path from disk, and still reports genuine overlaps when no originating meta
+          path is supplied.
+
+- _Outcome:_ The foreign-write hook now self-excludes both the committing worktree and the committing WU's meta
+  path, eliminating the pushed-planning-branch activation false-positive while preserving the shared overlap
+  detector's behavior for errand-style consumers that pass no meta path.
 
 ## **Phase 3:** Verification
 
