@@ -152,10 +152,11 @@ ARC ships opt-in hook recipes for harnesses with reliable compaction events. The
 machine-local compaction seed before auto/manual compaction and inject `session-recover` after a
 `compact` restart, so the ARC procedural layer is restored without rerunning full session init.
 
-This is a harness-config write, not a git-hook or release-wrapper allowlist. Hooks run local
-commands, so install only after the user explicitly accepts the trust shift for the current harness.
-Do not auto-install during `arc init`, do not install for unrecognized harnesses, and do not hook
-`clear` — deliberate resets continue to enter ARC through ordinary `session-init`.
+This is a project-scoped harness-config write, not a user/global hook, git-hook, or release-wrapper
+allowlist. Hooks run local commands, so install only after the user explicitly accepts the trust
+shift for the current project and harness. Do not auto-install during `arc init`, do not install for
+unrecognized harnesses, and do not hook `clear` — deliberate resets continue to enter ARC through
+ordinary `session-init`.
 
 Three options:
 
@@ -167,14 +168,15 @@ Three options:
 
 On accept, write only the selected harness recipe:
 
-- **Claude Code** — merge
+- **Claude Code** — merge into the project-root harness config:
   `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
   `.claude/settings.json`. Merge the top-level `hooks` object; preserve all unrelated settings and
   existing non-ARC hook entries.
-- **Codex CLI** — merge `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into
-  `.codex/hooks.json`, then ensure `.codex/config.toml` has `[features] hooks = true` unless an
-  existing policy or user choice keeps hooks disabled. Codex project-local hooks load only after the
-  project `.codex/` layer and the exact hook definitions are trusted.
+- **Codex CLI** — merge into the project-root harness config:
+  `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into `.codex/hooks.json`, then ensure
+  `.codex/config.toml` has `[features] hooks = true` unless an existing policy or user choice keeps
+  hooks disabled. Codex project-local hooks load only after the project `.codex/` layer and the
+  exact hook definitions are trusted.
 
 Install discipline:
 
@@ -282,8 +284,8 @@ Three options:
 ARC ships opt-in hook recipes for Claude Code and Codex CLI. They write a machine-local seed before
 compaction and inject `session-recover` only after `compact`; `clear` is deliberately unhooked.
 
-This is a harness-config write and requires explicit user trust. If the user accepts, write only
-the selected harness recipe:
+This is a project-scoped harness-config write and requires explicit user trust. If the user accepts,
+write only the selected harness recipe into the current project:
 
 - **Claude Code** — merge
   `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
