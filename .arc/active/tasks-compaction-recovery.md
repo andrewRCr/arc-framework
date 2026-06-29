@@ -375,15 +375,14 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
 - _Outcome:_ Always-loaded surfaces stayed lean while recording the operational shift; package-source and `.arc/`
   framework copies stayed synchronized.
 
-### `[ ]` **6.4 Forward-compat closeout**
+### `[x]` **6.4 Forward-compat closeout**
 
 - _Goal:_ The forward-compat seams are confirmed intact — the reciprocal notes are present in their sibling
   inbound buffers, and the projection's membership derives from shared policy.
 
-    - Confirm the five reciprocal notes (CW / OSD / CSA / `unit-scoped-review`, already routed; plus the
-      `agent-platform-support` `arc-recover`-gating note) are present in their sibling buffers.
-    - Verify the load-set projection resolves membership from shared declared-load policy (no recover-specific
-      list) and the seed's embedded manifest is produced by that same projection.
+- _Outcome:_ Confirmed the CW, OSD, CSA, `unit-scoped-review`, and `agent-platform-support` reciprocal notes in their
+  sibling buffers; verified the shared load-set projection and compaction-seed embedding path remain the single
+  source for recovery membership.
 
 ## **Phase 7:** Verification
 
