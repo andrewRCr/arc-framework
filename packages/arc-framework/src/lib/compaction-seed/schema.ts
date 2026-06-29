@@ -314,7 +314,9 @@ function isNullableTaskCursor(value: unknown): value is TaskListCursor | null {
 function isTaskCursorItem(value: unknown): value is TaskListCursor["section"] {
   if (!isRecord(value)) return false;
   return typeof value.id === "string"
+    && value.id.trim().length > 0
     && typeof value.title === "string"
+    && value.title.trim().length > 0
     && typeof value.lineHint === "number"
     && Number.isSafeInteger(value.lineHint)
     && value.lineHint > 0;

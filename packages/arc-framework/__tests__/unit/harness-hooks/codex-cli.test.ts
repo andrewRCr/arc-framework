@@ -224,6 +224,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "  process.exit(1);",
         "}",
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
           compactionSeedWrite: {
             status: "written",
             path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
@@ -257,6 +258,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
           compactionSeedWrite: {
             status: "written",
             path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
@@ -337,6 +339,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
         `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
           compactionSeedWrite: {
             status: "written",
             path: join(root, ".arc", "user", ".internal", ".internal", "compaction-seed.json"),
@@ -598,6 +601,55 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
       const userPromptOutput = runHookScript(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(fallbackMarkerPath);
+    });
+  });
+
+  it("clears all same-scope pending markers when recovery sees more than one", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      const fallbackMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      mkdirSync(dirname(fallbackMarkerPath), { recursive: true });
+      writeFileSync(fallbackMarkerPath, `${JSON.stringify({
+        schemaVersion: 1,
+        kind: "codex-compaction-recovery-pending",
+        scope: { kind: "thread", id: "thread-a" },
+        codexThreadId: "thread-a",
+        hookParentPid: process.pid,
+        emittedAt: new Date().toISOString(),
+        fallback: true,
+        seedPath: null,
+        seedHandoffPath: null,
+      }, null, 2)}\n`);
+
+      writeSeedHandoff(root, env);
+      runHookScript(postCompactScriptPath, root, env);
+      const scopedMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+
+      const userPromptOutput = runHookScript(userPromptScriptPath, root, env);
+      const additionalContext = userPromptOutput.hookSpecificOutput?.additionalContext ?? "";
+      expect(additionalContext).toContain("clear the markers");
+      expect(additionalContext).not.toContain("--marker");
+
+      const clearOutput = runHookScript(clearScriptPath, root, env);
+      expect([...(clearOutput.removed ?? [])].sort()).toEqual([
+        fallbackMarkerPath,
+        scopedMarkerPath,
+      ].sort());
+      expect(existsSync(fallbackMarkerPath)).toBe(false);
+      expect(existsSync(scopedMarkerPath)).toBe(false);
     });
   });
 

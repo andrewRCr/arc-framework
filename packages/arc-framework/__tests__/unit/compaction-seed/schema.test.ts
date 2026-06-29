@@ -312,6 +312,29 @@ describe("CompactionSeed schema", () => {
     }
   });
 
+  it("rejects blank task cursor anchors", () => {
+    for (const taskCursor of [
+      {
+        section: { id: "", title: "Define schema", lineHint: 1 },
+        leaf: { id: "2.1", title: "Define schema", lineHint: 1 },
+      },
+      {
+        section: { id: "2.1", title: "   ", lineHint: 1 },
+        leaf: { id: "2.1", title: "Define schema", lineHint: 1 },
+      },
+    ]) {
+      const result = parseCompactionSeedJson(JSON.stringify({
+        ...seed(),
+        taskCursor,
+      }));
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind).toBe("invalid-schema");
+      }
+    }
+  });
+
   it("rejects unsafe task cursor line hints", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({

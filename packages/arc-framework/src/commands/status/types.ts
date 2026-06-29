@@ -175,7 +175,7 @@ export type CompactionSeedWriteStatus =
   | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
   | {
     status: "failed";
-    reason: "git-failed" | "identity-invalid" | "write-failed";
+    reason: "git-failed" | "identity-invalid" | "seed-invalid" | "write-failed";
     message: string;
   };
 

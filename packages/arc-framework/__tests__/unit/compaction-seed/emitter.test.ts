@@ -280,6 +280,33 @@ describe("emitCompactionSeed", () => {
     expect(parsed).toEqual({ ok: true, seed: written });
   });
 
+  it("fails before writing when the generated seed violates the schema", async () => {
+    const writeSeed = vi.fn();
+    const result = await emit({
+      envelope: {
+        loadSet: {
+          ok: true,
+          value: {
+            ...LOAD_SET,
+            entries: [
+              {
+                path: "../escape.md",
+                readMode: { kind: "full" },
+              },
+            ],
+          } as LoadSetManifest,
+        },
+      },
+      writeSeed,
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      reason: "seed-invalid",
+    });
+    expect(writeSeed).not.toHaveBeenCalled();
+  });
+
   it("returns a failed write result instead of throwing when persistence fails", async () => {
     await expect(
       emit({

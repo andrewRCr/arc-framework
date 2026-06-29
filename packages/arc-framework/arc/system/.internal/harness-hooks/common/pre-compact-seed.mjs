@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { join, resolve } from "node:path";
 
 import { clearSeedHandoff, writeSeedHandoff } from "./codex-recovery-marker.mjs";
 
@@ -57,8 +58,38 @@ function writeHandoffFromResult(result) {
   if (result.status === 0 && typeof result.stdout === "string") {
     const envelope = JSON.parse(result.stdout);
     const write = envelope?.compactionSeedWrite;
-    if (write?.status === "written" && typeof write.path === "string") {
+    const expectedPath = expectedSeedPath(envelope);
+    if (
+      write?.status === "written"
+      && typeof write.path === "string"
+      && expectedPath !== null
+      && samePath(write.path, expectedPath)
+    ) {
       writeSeedHandoff(write.path);
     }
   }
+}
+
+function expectedSeedPath(envelope) {
+  const identity = typeof envelope?.identity?.identity === "string"
+    ? envelope.identity.identity.trim()
+    : "";
+  if (!isSafeIdentitySegment(identity)) return null;
+  return join(cwd, ".arc", "user", identity, ".internal", "compaction-seed.json");
+}
+
+function samePath(actual, expected) {
+  return resolve(cwd, actual) === resolve(cwd, expected);
+}
+
+function isSafeIdentitySegment(identity) {
+  return (
+    identity !== ""
+    && identity !== "."
+    && identity !== ".."
+    && !identity.startsWith(".")
+    && !/[<>:"/\\|?*]/u.test(identity)
+    && !/[. ]$/u.test(identity)
+    && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(identity)
+  );
 }

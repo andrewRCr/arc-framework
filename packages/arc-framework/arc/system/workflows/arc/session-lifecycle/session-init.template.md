@@ -455,8 +455,9 @@ freshness-check commands below), not from SESSION-NOTES prose.
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** `sessionType === "planning"` (primary gate), the active meta file is not resolved, or
-    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path).
+    **Skip if** `sessionType === "planning"` (primary gate), the active meta file is not resolved,
+    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path), or
+    `taskCursor.ok === true && taskCursor.value.status === "missing"`.
 
     - Path: use `active.value.taskListPath` from the probe. Do not reconstruct it from raw meta text.
     - **Anchor source**: Prefer the `**Next Task:**` triple-anchor when it carries usable task id,

@@ -10,7 +10,7 @@ if (markers.length === 0) {
   process.exit(0);
 }
 
-const marker = markers[0];
+const marker = markers.length === 1 ? markers[0] : undefined;
 const markerArg = marker === undefined ? "" : ` --marker ${quoteMarkerPath(marker.markerPath)}`;
 const clearCommand = markerClearCommand(markerArg);
 
@@ -20,7 +20,7 @@ const additionalContext = [
   "1. Follow .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
   `2. Audit command: ${arcCommand} recover audit --json.`,
   "3. Use recovered ARC context for procedure/state; use the compacted harness summary only for the volatile work locus.",
-  "4. If ready after load-set rehydration, clear the marker:",
+  `4. If ready after load-set rehydration, clear ${markers.length === 1 ? "the marker" : "the markers"}:`,
   `   ${clearCommand}`,
   "5. If stopped, leave the marker and report the structured stop reasons.",
 ].join("\n");

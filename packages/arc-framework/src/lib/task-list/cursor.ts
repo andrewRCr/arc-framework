@@ -56,7 +56,7 @@ export type TaskListCursorResult =
 const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u;
 const SUBTASK_RE =
   /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*(?:\s+.+)?)|(?<plainBody>.+?))\s*$/u;
-const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
+const TASK_HEADING_PREFIX_RE = /^###\s+`?\[[ x~]\]/u;
 const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
 const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
@@ -77,7 +77,7 @@ export function resolveTaskListCursor(content: string): TaskListCursorResult {
   for (const [index, line] of lines.entries()) {
     const lineNumber = index + 1;
 
-    if (MARKED_PARENT_PREFIX_RE.test(line)) {
+    if (TASK_HEADING_PREFIX_RE.test(line)) {
       const parsed = parseParentTask(line, lineNumber);
       if (parsed.status === "malformed") return parsed;
       currentTask = parsed.task;

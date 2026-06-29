@@ -150,7 +150,7 @@ interface CompactionSeed {
   metaPath: string | null;         // relative path to the active meta, or null
   sessionType: "planning" | "execution" | "integration" | null;
   currentWorkflow: string | null;  // soft orientation only after compaction; not resume authority
-  taskCursor: TaskCursor | null;   // null outside execution or when no task list resolves
+  taskCursor: TaskCursor | null;   // non-planning task-list cursor when found, otherwise null
 
   // Recovery baseline
   loadSet: LoadSetManifest;        // embedded as the recovery-audit baseline (see below)
@@ -190,8 +190,9 @@ workflow is not rewired inside a recovery WU; CW owns that rewire as its core re
 
 The projection resolves **membership** from `session-init` Step 3's documented per-type loadset policy — the fixed
 universal constitutional set + the `sessionType`-selected state docs (the codebase's existing "per-type loadset",
-`active/types.ts`) + the active-extensions slot + the cohort doc — never a recover-specific list, and **not**
-`arc.methods` (methods load on-demand per workflow, not at init). So `composable-workflows` / `loadset-composition`
+`active/types.ts`) + the cohort doc — never a recover-specific list, and **not** `arc.methods` or extension bodies
+(methods and extensions load on-demand per workflow, not at init). The status envelope still carries the active
+extension names separately for downstream fire-point dispatch. So `composable-workflows` / `loadset-composition`
 later subsume it without a fork; it reuses existing conventions and never mints a competing loader.
 
 The same status envelope exposes the **task-list cursor projection** whenever a task list resolves. For

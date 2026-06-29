@@ -742,6 +742,33 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
+  it("propagates session-init cohort-doc probe failures into loadSet", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("cohort boom");
+    }
+    expect(result).not.toHaveProperty("cohortDocPath");
+  });
+
   it("returns the session-init-scoped shape with mode=session-init", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({
@@ -942,6 +969,33 @@ describe("runRecoverStatus — lean recover envelope", () => {
         },
       });
     }
+  });
+
+  it("propagates recover cohort-doc probe failures into loadSet", async () => {
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("cohort boom");
+    }
+    expect(result).not.toHaveProperty("cohortDocPath");
   });
 });
 

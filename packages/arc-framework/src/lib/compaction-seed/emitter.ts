@@ -15,6 +15,7 @@ import { atomicWriteJson } from "../fs.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import {
+  assertCompactionSeed,
   COMPACTION_SEED_SCHEMA_VERSION,
   type CompactionSeed,
   type CompactionSeedSessionType,
@@ -60,7 +61,7 @@ export type EmitCompactionSeedResult =
   | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
   | {
     status: "failed";
-    reason: "git-failed" | "identity-invalid" | "write-failed";
+    reason: "git-failed" | "identity-invalid" | "seed-invalid" | "write-failed";
     message: string;
   };
 
@@ -144,6 +145,12 @@ export async function emitCompactionSeed(
     loadSet: options.envelope.loadSet.value,
     uncommittedFiles,
   };
+
+  try {
+    assertCompactionSeed(seed);
+  } catch (err) {
+    return { status: "failed", reason: "seed-invalid", message: errorMessage(err) };
+  }
 
   try {
     await (options.writeSeed ?? writeCompactionSeedFile)(path, seed);

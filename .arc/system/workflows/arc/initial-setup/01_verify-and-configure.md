@@ -302,12 +302,12 @@ write only the selected harness recipe into the current project:
 Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
 and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
 `SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
-and `UserPromptSubmit` as the documented workaround for Codex's missing immediate
-post-compaction context injection. Codex's pending marker is scoped to the current thread, and
-recovery restores ARC session context; repository instruction files such as `AGENTS.md` and
-`CLAUDE.md` remain harness-managed and outside ARC's recovery load set. After writing, re-read the
-target files and ask the user to review/trust the hook definitions in the harness UI. Roll back by
-restoring the backup, or by removing only the ARC recipe entries. For Codex, remove
+`UserPromptSubmit`, and cleanup-only `SessionStart(clear)` as the documented workaround for Codex's
+missing immediate post-compaction context injection. Codex's pending marker is scoped to the current
+thread, and recovery restores ARC session context; repository instruction files such as `AGENTS.md`
+and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set. After writing, re-read
+the target files and ask the user to review/trust the hook definitions in the harness UI. Roll back
+by restoring the backup, or by removing only the ARC recipe entries. For Codex, remove
 `[features].hooks` only if this install created that key.
 
 ### Optional: Verify Installation

@@ -516,14 +516,12 @@ export async function runSessionInitStatus(
       : undefined;
 
   // Cohort-doc resolution — when a single active WU resolved, locate its
-  // coordinating `cohort-<leaf>.md` so context-load can read it. Totalized to
-  // null on any miss; the call is guarded so the envelope never rejects.
-  const cohortDocPath =
-    active.ok && active.value.resolution === "single" && active.value.path !== null
-      ? await probes.cohortDoc(active.value.path).catch(() => null)
-      : null;
+  // coordinating `cohort-<leaf>.md` so context-load can read it. Probe failures
+  // propagate through loadSet because recovery must not silently drop context.
+  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
+  const cohortDocPath = cohortDoc.ok ? cohortDoc.value : null;
   const loadSet: SessionInitProbeResult["loadSet"] = active.ok
-    ? ok(resolveLoadSetManifest({
+    ? loadSetFromState({
       identity,
       activeWorkUnit: activeWuName,
       metaPath: active.value.path,
@@ -532,7 +530,8 @@ export async function runSessionInitStatus(
       taskListPath: active.value.taskListPath ?? null,
       activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath,
-    }))
+      cohortDoc,
+    })
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionInitProbeResult["taskCursor"] | undefined =
@@ -617,13 +616,11 @@ export async function runRecoverStatus(
     }
     : worktree;
 
-  const cohortDocPath =
-    active.ok && active.value.resolution === "single" && active.value.path !== null
-      ? await probes.cohortDoc(active.value.path).catch(() => null)
-      : null;
+  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
+  const cohortDocPath = cohortDoc.ok ? cohortDoc.value : null;
   const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
   const loadSet: SessionRecoverProbeResult["loadSet"] = active.ok
-    ? ok(resolveLoadSetManifest({
+    ? loadSetFromState({
       identity,
       activeWorkUnit: activeWuName,
       metaPath: active.value.path,
@@ -632,7 +629,8 @@ export async function runRecoverStatus(
       taskListPath: active.value.taskListPath ?? null,
       activeExtensions: extensions.ok ? extensions.value.active : [],
       cohortDocPath,
-    }))
+      cohortDoc,
+    })
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionRecoverProbeResult["taskCursor"] | undefined =
@@ -664,6 +662,45 @@ function metaWorkUnitNameFromActive(path: string | null): string | null {
   if (path === null) return null;
   const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
   return match?.[1] ?? null;
+}
+
+async function resolveCohortDoc(
+  active: { ok: true; value: ActiveSessionInitResult } | ProbeErrorSlot,
+  probe: (metaPath: string) => Promise<string | null>,
+): Promise<{ ok: true; value: string | null } | ProbeErrorSlot> {
+  if (!active.ok || active.value.resolution !== "single" || active.value.path === null) {
+    return ok(null);
+  }
+  const metaPath = active.value.path;
+  return safeProbe(() => probe(metaPath));
+}
+
+function loadSetFromState(options: {
+  identity: string | null;
+  activeWorkUnit: string | null;
+  metaPath: string | null;
+  sessionType: ActiveSessionInitResult["sessionType"];
+  planningStage: ActiveSessionInitResult["planningStage"];
+  taskListPath: string | null;
+  activeExtensions: readonly string[];
+  cohortDocPath: string | null;
+  cohortDoc: { ok: true; value: string | null } | ProbeErrorSlot;
+}): { ok: true; value: ReturnType<typeof resolveLoadSetManifest> } | ProbeErrorSlot {
+  if (!options.cohortDoc.ok) return options.cohortDoc;
+  try {
+    return ok(resolveLoadSetManifest({
+      identity: options.identity,
+      activeWorkUnit: options.activeWorkUnit,
+      metaPath: options.metaPath,
+      sessionType: options.sessionType,
+      planningStage: options.planningStage,
+      taskListPath: options.taskListPath,
+      activeExtensions: options.activeExtensions,
+      cohortDocPath: options.cohortDocPath,
+    }));
+  } catch (err) {
+    return fromRejection(err);
+  }
 }
 
 /**

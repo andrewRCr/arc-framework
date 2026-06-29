@@ -349,6 +349,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for checkbox task headings without backticks", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### [ ] **1.2 Missing code marker**",
+      "",
+      "### `[ ]` **1.3 Later valid task**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "parent task marker does not match task-list heading grammar",
+      },
+    });
+  });
+
   it("returns malformed for numeric third-level task identifiers", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -472,6 +490,7 @@ describe("resolveTaskListCursorFromFile", () => {
         if (normalized === "/repo/.arc/active/tasks-widget.md") throw enoent;
         throw new Error(`unexpected path: ${path}`);
       },
+      lstat: async () => ({ isSymbolicLink: () => false }),
       readFile,
     });
 

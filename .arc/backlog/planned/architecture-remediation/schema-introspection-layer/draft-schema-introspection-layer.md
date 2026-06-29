@@ -34,7 +34,7 @@ The contracts ARC's CLI exposes across process boundaries are currently invisibl
   violations.
 
 - **Compaction recovery contracts.** `arc status --session-init --write-compaction-seed --json`
-  writes a seed schema, status envelopes can include `taskCursor`, and `arc recover audit --json`
+  writes a compaction-seed payload, status envelopes can include `taskCursor`, and `arc recover audit --json`
   emits a ready/stop verdict. These are agent-facing contracts for post-compaction recovery and
   should be published once CSA turns their hand-written guards into zod schemas.
 
