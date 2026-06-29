@@ -117,7 +117,7 @@ export async function emitCompactionSeed(
   const uncommittedFiles = [...options.gitSnapshot.uncommittedFiles];
   const taskCursor =
     options.envelope.active.ok
-      && options.envelope.active.value.sessionType === "execution"
+      && options.envelope.active.value.sessionType !== "planning"
       && options.envelope.taskCursor?.ok
       && options.envelope.taskCursor.value.status === "found"
       ? options.envelope.taskCursor.value.cursor

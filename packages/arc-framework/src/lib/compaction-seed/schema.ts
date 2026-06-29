@@ -51,7 +51,7 @@ export interface CompactionSeed {
   sessionType: CompactionSeedSessionType | null;
   /** Current lifecycle/planning workflow label for soft orientation, or `null` when none applies. */
   currentWorkflow: string | null;
-  /** Task-list-derived execution cursor, or `null` outside execution / unresolved. */
+  /** Task-list-derived cursor, or `null` when planning, unresolved, or no task is open. */
   taskCursor: TaskListCursor | null;
 
   /** Embedded load-set baseline, produced by the shared load-set projection. */
@@ -162,10 +162,53 @@ function toCanonicalCompactionSeed(seed: CompactionSeed): CompactionSeed {
     metaPath: seed.metaPath,
     sessionType: seed.sessionType,
     currentWorkflow: seed.currentWorkflow,
-    taskCursor: seed.taskCursor,
-    loadSet: seed.loadSet,
-    uncommittedFiles: seed.uncommittedFiles,
+    taskCursor: toCanonicalTaskCursor(seed.taskCursor),
+    loadSet: toCanonicalLoadSetManifest(seed.loadSet),
+    uncommittedFiles: [...seed.uncommittedFiles],
   };
+}
+
+function toCanonicalTaskCursor(cursor: TaskListCursor | null): TaskListCursor | null {
+  if (cursor === null) return null;
+  return {
+    section: toCanonicalTaskCursorItem(cursor.section),
+    leaf: toCanonicalTaskCursorItem(cursor.leaf),
+  };
+}
+
+function toCanonicalTaskCursorItem(item: TaskListCursor["section"]): TaskListCursor["section"] {
+  return {
+    id: item.id,
+    title: item.title,
+    lineHint: item.lineHint,
+  };
+}
+
+function toCanonicalLoadSetManifest(manifest: LoadSetManifest): LoadSetManifest {
+  return {
+    manifestVersion: manifest.manifestVersion,
+    entries: manifest.entries.map(toCanonicalLoadSetEntry),
+  };
+}
+
+function toCanonicalLoadSetEntry(entry: LoadSetEntry): LoadSetEntry {
+  return {
+    path: entry.path,
+    readMode: toCanonicalReadMode(entry.readMode),
+  };
+}
+
+function toCanonicalReadMode(readMode: ReadMode): ReadMode {
+  switch (readMode.kind) {
+    case "full":
+    case "partial-strategic":
+      return { kind: readMode.kind };
+    case "partial-section":
+      return {
+        kind: "partial-section",
+        heading: readMode.heading,
+      };
+  }
 }
 
 /**

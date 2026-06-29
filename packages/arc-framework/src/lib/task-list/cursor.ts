@@ -59,6 +59,8 @@ const SUBTASK_RE =
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
 const MARKED_SUBTASK_PREFIX_RE = /^\s+-\s+`?\[[ x~]\]`?/u;
 const SECTION_HEADING_RE = /^##\s+/u;
+const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
+const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
 
 /**
  * Resolve the current execution cursor from a task list.
@@ -163,16 +165,22 @@ function parseTaskBody(
   body: string,
   lineNumber: number,
 ): { status: "parsed"; item: TaskCursorItem } | { status: "malformed"; error: TaskListCursorMalformed } {
-  const match = /^(\S+)\s+(.+?)\s*$/u.exec(body.trim());
-  if (match === null) {
-    return malformed(lineNumber, "task marker must include an id and title");
+  const match = TASK_BODY_RE.exec(body.trim());
+  const id = match?.groups?.id;
+  const title = match?.groups?.title;
+  if (
+    id === undefined
+    || title === undefined
+    || NUMERIC_THIRD_SEGMENT_RE.test(id)
+  ) {
+    return malformed(lineNumber, "task marker must include a valid id and title");
   }
 
   return {
     status: "parsed",
     item: {
-      id: match[1] as string,
-      title: match[2] as string,
+      id,
+      title,
       lineHint: lineNumber,
     },
   };

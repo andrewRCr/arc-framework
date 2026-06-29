@@ -128,6 +128,38 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("supports accepted revision and fourth-level identifier shapes", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "## **Phase 3.R:** Revision",
+      "",
+      "### `[x]` **3.R.k Parent revision letter**",
+      "",
+      "### `[ ]` **4.2.R Remaining subtask-level work**",
+      "",
+      "    - `[ ]` **4.2.R.1 Rare numbered child after revision marker**",
+      "",
+      "    - `[ ]` **4.2.a.1 Rare fourth-level child after letter**",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      cursor: {
+        section: {
+          id: "4.2.R",
+          title: "Remaining subtask-level work",
+          lineHint: 7,
+        },
+        leaf: {
+          id: "4.2.R.1",
+          title: "Rare numbered child after revision marker",
+          lineHint: 9,
+        },
+      },
+    });
+  });
+
   it("skips completed and deferred markers before the first open task", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -242,7 +274,39 @@ describe("resolveTaskListCursor", () => {
       status: "malformed",
       error: {
         line: 3,
-        message: "task marker must include an id and title",
+        message: "task marker must include a valid id and title",
+      },
+    });
+  });
+
+  it("returns malformed for a marked heading without a task id", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **Complete verification now**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "task marker must include a valid id and title",
+      },
+    });
+  });
+
+  it("returns malformed for numeric third-level task identifiers", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1.1 Use a numeric third segment**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "task marker must include a valid id and title",
       },
     });
   });

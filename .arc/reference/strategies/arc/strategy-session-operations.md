@@ -976,8 +976,9 @@ handoff at a natural boundary; otherwise compact and recover.
 ARC treats compaction as a recoverable discontinuity, not a black box to disable. A harness
 compaction rewrites the conversation history; ARC recovery rehydrates the procedural/semantic
 context from live project state and the latest compaction seed, then verifies the recovered ARC
-state. After recovery, the agent uses the harness summary only to locate the volatile
-work-in-progress leaf, bounded by recovered ARC context.
+state. The compacted harness summary may preserve the conversational work leaf for the agent to
+resume from, but ARC recovery does not standardize, inspect, or trust that summary as recovery
+state.
 
 Two reset paths matter:
 
@@ -991,15 +992,14 @@ For supported harnesses, install the opt-in compaction-recovery hook recipe duri
 recovery only after a `compact` event; `clear` remains deliberately unhooked. If hooks are not
 installed, run the manual fallback when compaction erases ARC operating context.
 
-Recovery restores ARC's operating context. It does not standardize or inspect the harness summary,
-and it does not reload on-demand context that was pulled mid-task before compaction. The recovery
-load set is ARC-owned context only; repository-root harness instruction files such as `AGENTS.md`
-and `CLAUDE.md` remain the harness baseline, not ARC recovery entries. ARC recovery does not add
-sibling harness instruction files to that load set; projects that want shared guidance should make
-each harness file reference the shared source explicitly. Reload on-demand material through its
-normal trigger when resumed work needs it again. Understand your platform's compaction behavior —
-when it triggers, what it preserves, how it signals — so the boundary-vs-pressure fork stays
-deliberate.
+Recovery restores ARC's operating context. It does not reload on-demand context that was pulled
+mid-task before compaction. The recovery load set is ARC-owned context only; repository-root harness
+instruction files such as `AGENTS.md` and `CLAUDE.md` remain the harness baseline, not ARC recovery
+entries. ARC recovery does not add sibling harness instruction files to that load set; projects that
+want shared guidance should make each harness file reference the shared source explicitly. Reload
+on-demand material through its normal trigger when resumed work needs it again. Understand your
+platform's compaction behavior — when it triggers, what it preserves, how it signals — so the
+boundary-vs-pressure fork stays deliberate.
 
 ---
 

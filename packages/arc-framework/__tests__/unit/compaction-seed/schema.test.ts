@@ -111,6 +111,43 @@ describe("CompactionSeed schema", () => {
     expect(JSON.parse(stringifyCompactionSeed(value))).toEqual(canonical);
   });
 
+  it("strips unknown nested fields from cursor and load-set payloads", () => {
+    const canonical = seed();
+    const value = {
+      ...canonical,
+      taskCursor: {
+        section: {
+          ...canonical.taskCursor!.section,
+          stale: true,
+        },
+        leaf: {
+          ...canonical.taskCursor!.leaf,
+          stale: true,
+        },
+        stale: true,
+      },
+      loadSet: {
+        ...canonical.loadSet,
+        stale: true,
+        entries: canonical.loadSet.entries.map((entry) => ({
+          ...entry,
+          stale: true,
+          readMode: {
+            ...entry.readMode,
+            stale: true,
+          },
+        })),
+      },
+    };
+
+    expect(isCompactionSeed(value)).toBe(true);
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({
+      ok: true,
+      seed: canonical,
+    });
+    expect(JSON.parse(stringifyCompactionSeed(value))).toEqual(canonical);
+  });
+
   it("accepts null WU pointers for between-unit recovery state", () => {
     expect(
       isCompactionSeed(seed({

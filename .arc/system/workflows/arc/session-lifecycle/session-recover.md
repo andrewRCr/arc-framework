@@ -123,10 +123,19 @@ ARC post-compaction session recovery complete.
 ```
 
 If recovery was injected from Codex's pending-marker workaround, clear the current thread's marker
-only after the recovery load set is rehydrated and the verdict is ready:
+only after the recovery load set is rehydrated and the verdict is ready. Use the exact marker path
+from the injected recovery instructions.
+
+On POSIX shells:
 
 ```bash
-node "$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs"
+node "$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs" --marker '<marker-path-from-recovery-instructions>'
+```
+
+On Windows `cmd.exe`:
+
+```bat
+for /f "delims=" %i in ('git rev-parse --show-toplevel') do node "%i\.arc\system\.internal\harness-hooks\common\clear-codex-recovery-pending.mjs" --marker "<marker-path-from-recovery-instructions>"
 ```
 
 If recovery stops for direction, leave the marker in place.

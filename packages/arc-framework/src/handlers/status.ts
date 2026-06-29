@@ -75,7 +75,7 @@ import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-ma
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
-import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
+import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
@@ -425,9 +425,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
-      dirty: () => compactionSeedGitSnapshotP === null
-        ? runDirtyStateStatus({ exec: gitExec })
-        : compactionSeedGitSnapshotP.then(dirtyStateFromCompactionSeedSnapshot),
+      dirty: () => resolveSessionInitDirtyState({
+        compactionSeedGitSnapshotP,
+        fallback: () => runDirtyStateStatus({ exec: gitExec }),
+      }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
@@ -645,6 +646,20 @@ function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapsho
     state: fileCount === 0 ? "clean" as const : "dirty" as const,
     fileCount,
   };
+}
+
+export async function resolveSessionInitDirtyState(options: {
+  compactionSeedGitSnapshotP: Promise<CompactionSeedGitSnapshot> | null;
+  fallback: () => Promise<DirtyStateResult>;
+}): Promise<DirtyStateResult> {
+  if (options.compactionSeedGitSnapshotP === null) {
+    return options.fallback();
+  }
+  try {
+    return dirtyStateFromCompactionSeedSnapshot(await options.compactionSeedGitSnapshotP);
+  } catch {
+    return options.fallback();
+  }
 }
 
 function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {

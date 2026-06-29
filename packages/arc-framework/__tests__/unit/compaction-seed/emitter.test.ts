@@ -188,6 +188,37 @@ describe("emitCompactionSeed", () => {
     }
   });
 
+  it("keeps a resolved task cursor for integration sessions", async () => {
+    const result = await emit({
+      envelope: {
+        active: {
+          ok: true,
+          value: {
+            path: ".arc/active/meta-compaction-recovery.md",
+            sessionType: "integration",
+            currentWorkflow: "integrate-work-unit Step 4",
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.taskCursor).toEqual({
+        section: {
+          id: "2.1",
+          title: "Define the task-list cursor",
+          lineHint: 66,
+        },
+        leaf: {
+          id: "2.1.a",
+          title: "Parse cursor markers",
+          lineHint: 70,
+        },
+      });
+    }
+  });
+
   it("uses the supplied git snapshot for head and dirty while carrying the resolved branch", async () => {
     const result = await emit({
       uncommittedFiles: ["src/changed.ts"],
