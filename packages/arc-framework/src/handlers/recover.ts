@@ -46,7 +46,10 @@ export interface RecoverAuditOptions {
 interface RecoverAuditReport {
   mode: "recover-audit";
   seedPath: string | null;
-  seed: Pick<CompactionSeed, "schemaVersion" | "emittedAt" | "head" | "branch" | "sessionType"> | null;
+  seed: Pick<
+    CompactionSeed,
+    "schemaVersion" | "emittedAt" | "head" | "branch" | "sessionType" | "harness"
+  > | null;
   recover: SessionRecoverProbeResult | null;
   verdict: RecoveryAuditVerdict;
 }
@@ -97,6 +100,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   const recover = await runRecoverStatus({
     identity,
     role,
+    recoveryHarness: parsedSeed.seed.harness ?? null,
     probes: {
       worktree: async () => {
         const resolved = await resolvedSettingsP;
@@ -230,6 +234,7 @@ function seedSummary(
     head: seed.head,
     branch: seed.branch,
     sessionType: seed.sessionType,
+    harness: seed.harness ?? null,
   };
 }
 

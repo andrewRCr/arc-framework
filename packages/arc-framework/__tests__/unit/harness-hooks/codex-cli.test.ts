@@ -134,13 +134,16 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
 
     const hook = preCompact!.hooks[0]!;
+    expect(hook.command).toContain("ARC_HOOK_HARNESS=codex-cli");
     expect(hook.command).toContain("git rev-parse --show-toplevel");
     expect(hook.command).toContain(".arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs");
+    expect(hook.commandWindows).toContain("ARC_HOOK_HARNESS=codex-cli");
     expect(hook.commandWindows).toContain("git rev-parse --show-toplevel");
     expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
     expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
+    expect(seedScript).toContain("ARC_HOOK_HARNESS");
     expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
     expect(seedScript).toContain("stdio: \"ignore\"");
     expect(seedScript).toContain("process.exit(0)");
@@ -191,9 +194,10 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const postCompactOutput = runHookScript(postCompactScriptPath, root, env);
       expect(postCompactOutput.continue).toBe(false);
       expect(postCompactOutput.stopReason).toContain("ARC recovery required");
+      expect(postCompactOutput.systemMessage).toContain("=== ARC compaction recovery ===");
       expect(postCompactOutput.systemMessage).toContain("ARC paused after compaction");
-      expect(postCompactOutput.systemMessage).toContain("AGENTS.md + ARC load set");
-      expect(postCompactOutput.systemMessage).toContain("continue");
+      expect(postCompactOutput.systemMessage).toContain("repo instructions and session context");
+      expect(postCompactOutput.systemMessage).toContain("Send \"continue\" to the agent");
       expect(existsSync(markerPath)).toBe(true);
 
       const marker = readJson<{ kind: string; seedPath: string; codexThreadId: string }>(markerPath);
@@ -208,8 +212,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(userPromptOutput.hookSpecificOutput).toMatchObject({
         hookEventName: "UserPromptSubmit",
       });
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(
+        "=== ARC post-compaction recovery (agent instructions) ===",
+      );
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("2. Audit command: arc recover audit --json.");
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("clear-codex-recovery-pending.mjs");
 
       const clearOtherThreadOutput = runHookScript(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" });
@@ -233,7 +240,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       });
 
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(
-        "Recovery audit command: npx arc recover audit --json.",
+        "2. Audit command: npx arc recover audit --json.",
       );
     });
   });

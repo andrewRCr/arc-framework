@@ -53,6 +53,7 @@ import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
+import type { LoadSetHarness } from "../../lib/load-set/harness.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
 import type { TaskListCursorResult } from "../../lib/task-list/cursor.js";
 
@@ -664,12 +665,14 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
+  recoveryHarness?: LoadSetHarness | null;
 }
 
 export interface RunRecoverStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionRecoverProbes;
+  recoveryHarness?: LoadSetHarness | null;
 }
 
 export interface RunSessionHandoffStatusOptions {

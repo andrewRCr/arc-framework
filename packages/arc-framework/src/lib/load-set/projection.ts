@@ -10,6 +10,7 @@
  */
 
 import { LOAD_SET_MANIFEST_VERSION, type LoadSetEntry, type LoadSetManifest } from "./types.js";
+import type { LoadSetHarness } from "./harness.js";
 
 /** Session type resolved by the active-work probe. */
 export type LoadSetSessionType = "planning" | "execution" | "integration";
@@ -40,6 +41,8 @@ export interface LoadSetProjectionInput {
   activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
+  /** Harness whose repository-root instruction file should lead recovery context. */
+  harness?: LoadSetHarness | null;
 }
 
 function full(path: string): LoadSetEntry {
@@ -50,8 +53,7 @@ function partialStrategic(path: string): LoadSetEntry {
   return { path, readMode: { kind: "partial-strategic" } };
 }
 
-const UNIVERSAL_ENTRIES: readonly LoadSetEntry[] = [
-  full("AGENTS.md"),
+const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
   full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
   full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
   full(".arc/system/rules/DEV-RULES.ARC.md"),
@@ -66,6 +68,17 @@ const UNIVERSAL_ENTRIES: readonly LoadSetEntry[] = [
   },
 ];
 
+function harnessInstructionEntries(harness: LoadSetHarness | null): LoadSetEntry[] {
+  switch (harness) {
+    case "claude-code":
+      return [full("CLAUDE.md")];
+    case "codex-cli":
+      return [full("AGENTS.md")];
+    case null:
+      return [];
+  }
+}
+
 /**
  * Resolve the ordered session load set from already-known state.
  *
@@ -73,7 +86,10 @@ const UNIVERSAL_ENTRIES: readonly LoadSetEntry[] = [
  * @returns Ordered load-set manifest; entry order is read order.
  */
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
-  const entries: LoadSetEntry[] = [...UNIVERSAL_ENTRIES];
+  const entries: LoadSetEntry[] = [
+    ...harnessInstructionEntries(input.harness ?? null),
+    ...ARC_CONTEXT_ENTRIES,
+  ];
 
   if (input.metaPath !== null) {
     entries.push(full(input.metaPath));

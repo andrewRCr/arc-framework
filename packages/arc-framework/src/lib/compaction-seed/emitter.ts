@@ -14,6 +14,7 @@ import { join } from "node:path";
 import { parseMetaFile } from "../active/meta-reader.js";
 import { atomicWriteJson } from "../fs.js";
 import type { GitExec } from "../git/index.js";
+import type { LoadSetHarness } from "../load-set/harness.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorResult } from "../task-list/cursor.js";
 import {
@@ -45,6 +46,7 @@ export interface EmitCompactionSeedOptions {
   exec: GitExec;
   readFile: (path: string) => Promise<string>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
+  harness?: LoadSetHarness | null;
   now?: () => Date;
 }
 
@@ -146,6 +148,7 @@ export async function emitCompactionSeed(
       : "HEAD",
     head,
     dirty: uncommittedFiles.length > 0,
+    harness: options.harness ?? null,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
     sessionType: options.envelope.active.ok ? options.envelope.active.value.sessionType : null,

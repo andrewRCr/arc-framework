@@ -45,8 +45,14 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
-function runHookScript(path: string): HookOutput {
-  return JSON.parse(execFileSync(process.execPath, [path], { encoding: "utf8" })) as HookOutput;
+function runHookScript(path: string, env: NodeJS.ProcessEnv = {}): HookOutput {
+  return JSON.parse(execFileSync(process.execPath, [path], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...env,
+    },
+  })) as HookOutput;
 }
 
 describe("Claude Code compaction recovery hook recipe", () => {
@@ -91,6 +97,8 @@ describe("Claude Code compaction recovery hook recipe", () => {
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
     expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
+    expect(seedScript).toContain("ARC_HOOK_HARNESS");
+    expect(seedScript).toContain("claude-code");
     expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
     expect(seedScript).toContain("stdio: \"ignore\"");
     expect(seedScript).toContain("process.exit(0)");
@@ -119,6 +127,14 @@ describe("Claude Code compaction recovery hook recipe", () => {
     });
     expect(output.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
     expect(output.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
+  });
+
+  it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
+    const output = runHookScript(compactScriptPath, { ARC_HOOK_ARC_COMMAND: "npx arc" });
+
+    expect(output.hookSpecificOutput?.additionalContext).toContain(
+      "Recovery audit command: npx arc recover audit --json.",
+    );
   });
 
   it("does not hook SessionStart source clear", () => {

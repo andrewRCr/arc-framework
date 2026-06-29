@@ -8,15 +8,15 @@ if (markers.length === 0) {
 }
 
 const additionalContext = [
-  "ARC Codex post-compaction recovery is pending before continuing.",
-  "Recovery workflow: .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
-  `Recovery audit command: ${arcCommand} recover audit --json.`,
-  "Use recovered ARC context as the procedural floor; use the compacted harness summary only for the volatile",
-  "current work locus.",
-  "After recovery completes successfully, clear the Codex pending marker with:",
-  "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\".",
-  "If recovery stops, leave the marker in place and report the structured stop reasons.",
-].join(" ");
+  "=== ARC post-compaction recovery (agent instructions) ===",
+  "Before project work resumes:",
+  "1. Follow .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
+  `2. Audit command: ${arcCommand} recover audit --json.`,
+  "3. Use recovered ARC context for procedure/state; use the compacted harness summary only for the volatile work locus.",
+  "4. If ready after load-set rehydration, clear the marker:",
+  "   node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\"",
+  "5. If stopped, leave the marker and report the structured stop reasons.",
+].join("\n");
 
 process.stdout.write(`${JSON.stringify({
   suppressOutput: true,

@@ -22,6 +22,7 @@ describe("resolveLoadSetManifest", () => {
       ...BASE_INPUT,
       sessionType: "planning",
       planningStage: "create-spec",
+      harness: "codex-cli",
     });
 
     expect(manifest.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
@@ -44,6 +45,31 @@ describe("resolveLoadSetManifest", () => {
       fullEntry(".arc/user/andrew/WORKING-MEMORY.md"),
       fullEntry(".arc/system/workflows/arc/create-spec.md"),
     ]);
+  });
+
+  it("uses the Claude instruction file only for Claude recovery", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "planning",
+      planningStage: "create-spec",
+      harness: "claude-code",
+    });
+
+    expect(manifest.entries[0]).toEqual(fullEntry("CLAUDE.md"));
+    expect(manifest.entries).not.toContainEqual(fullEntry("AGENTS.md"));
+  });
+
+  it("omits harness instruction files when no recovery harness is known", () => {
+    const manifest = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "planning",
+      planningStage: "create-spec",
+      harness: null,
+    });
+
+    expect(manifest.entries[0]).toEqual(fullEntry(".arc/reference/briefs/AGENT-BRIEF.ARC.md"));
+    expect(manifest.entries).not.toContainEqual(fullEntry("AGENTS.md"));
+    expect(manifest.entries).not.toContainEqual(fullEntry("CLAUDE.md"));
   });
 
   it("resolves execution sessions with the task-list slice and process-task-loop", () => {

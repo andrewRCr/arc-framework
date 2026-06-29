@@ -71,9 +71,9 @@ slice genuinely depends on the earlier read. Never load from the seed's paths. T
 summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
 context; verify it against the recovered files when it names a task.
 
-The universal recovery load set begins with repository-root `AGENTS.md` so harness/bootstrap
-guidance lost to compaction is restored before ARC's own context. If the project has no
-`AGENTS.md`, the read contributes no guidance and recovery continues.
+The recovery load set begins with the repository-root instruction file for the harness that
+wrote the seed (`AGENTS.md` for Codex CLI, `CLAUDE.md` for Claude Code), then ARC's own
+context. If that file is absent, the entry contributes no guidance and recovery continues.
 
 Apply each entry's `readMode`:
 
