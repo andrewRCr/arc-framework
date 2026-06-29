@@ -55,9 +55,10 @@ export type TaskListCursorResult =
 
 const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*/u;
 const SUBTASK_RE =
-  /^\s*-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*)|(?<plainBody>.+?))\s*$/u;
+  /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*)|(?<plainBody>.+?))\s*$/u;
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
-const MARKED_SUBTASK_PREFIX_RE = /^\s*-\s+`\[[ x~]\]`/u;
+const MARKED_SUBTASK_PREFIX_RE = /^\s{4,}-\s+`\[[ x~]\]`/u;
+const SECTION_HEADING_RE = /^##\s+/u;
 
 /**
  * Resolve the current execution cursor from a task list.
@@ -88,6 +89,11 @@ export function resolveTaskListCursor(content: string): TaskListCursorResult {
       const parsed = parseSubtask(line, lineNumber);
       if (parsed.status === "malformed") return parsed;
       currentTask.subtasks.push(parsed.subtask);
+      continue;
+    }
+
+    if (SECTION_HEADING_RE.test(line)) {
+      currentTask = null;
     }
   }
 

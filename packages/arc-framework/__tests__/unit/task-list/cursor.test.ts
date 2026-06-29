@@ -131,6 +131,41 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("ignores root-level success criteria checkboxes after an open verification task", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "## **Phase 7:** Verification",
+      "",
+      "### `[ ]` **7.1 Complete verification**",
+      "",
+      "- _Note:_ Validate success criteria.",
+      "",
+      "---",
+      "",
+      "## Success Criteria",
+      "",
+      "- `[ ]` On Claude Code and Codex, forcing a compaction injects recovery",
+      "- `[ ]` All quality gates pass",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      cursor: {
+        section: {
+          id: "7.1",
+          title: "Complete verification",
+          lineHint: 5,
+        },
+        leaf: {
+          id: "7.1",
+          title: "Complete verification",
+          lineHint: 5,
+        },
+      },
+    });
+  });
+
   it("returns no-open-task when every task is terminal", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
