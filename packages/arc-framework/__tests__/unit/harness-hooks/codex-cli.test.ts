@@ -75,6 +75,7 @@ function runHookScriptRaw(
   return execFileSync(process.execPath, [path, ...args], {
     cwd,
     encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
       CODEX_THREAD_ID: "",
@@ -324,6 +325,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("--marker");
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(markerPath);
 
+      expect(() => runHookScriptRaw(clearScriptPath, root, env, ["--marker"])).toThrow(
+        "Missing value for --marker",
+      );
+      expect(existsSync(markerPath)).toBe(true);
+
       const clearOtherThreadOutput = runHookScript(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" });
       expect(clearOtherThreadOutput.removed).toEqual([]);
       expect(existsSync(markerPath)).toBe(true);
@@ -333,6 +339,34 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(existsSync(markerPath)).toBe(false);
       expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
     });
+  });
+
+  it("rejects explicit marker paths that are not recovery marker JSON files", () => {
+    withTempArcProject((root) => {
+      const markerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json.bak",
+      );
+      writeFileSync(markerPath, "{}\n");
+
+      expect(() =>
+        runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-a" }, ["--marker", markerPath]),
+      ).toThrow("Invalid ARC recovery marker path");
+      expect(existsSync(markerPath)).toBe(true);
+    });
+  });
+
+  it("keeps marker-clear recovery instructions platform-specific", () => {
+    const content = readFileSync(userPromptScriptPath, "utf8");
+
+    expect(content).toContain('process.platform === "win32"');
+    expect(content).toContain('for /f "delims=" %i');
+    expect(content).toContain("windowsQuote");
+    expect(content).toContain("shellQuote");
   });
 
   it("uses process-scoped markers instead of a global fallback when no thread id is available", () => {

@@ -77,10 +77,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   } catch (err) {
     writeReport(stopReport({
       seedPath,
-      reason: {
-        kind: "seed-missing",
-        message: errorMessage(err),
-      },
+      reason: seedReadReason(err),
     }), Boolean(opts.json));
     return;
   }
@@ -208,9 +205,19 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     dirtyFiles: {
       expected: [],
       actual: [],
+      pathSetMatch: false,
+      dirtyStateConsistent: null,
       match: false,
     },
     taskCursor: null,
+  };
+}
+
+function seedReadReason(err: unknown): RecoveryAuditStopReason {
+  return {
+    kind: isNotFoundError(err) ? "seed-missing" : "seed-unreadable",
+    message: errorMessage(err),
+    detail: err,
   };
 }
 
@@ -242,4 +249,11 @@ function normalizeGitConfigValue(value: string | undefined): string | null {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+function isNotFoundError(err: unknown): boolean {
+  return typeof err === "object"
+    && err !== null
+    && "code" in err
+    && (err as { code?: unknown }).code === "ENOENT";
 }

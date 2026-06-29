@@ -15,7 +15,7 @@ import { parseMetaFile } from "../active/meta-reader.js";
 import { atomicWriteJson } from "../fs.js";
 import type { GitExec } from "../git/index.js";
 import type { LoadSetManifest } from "../load-set/types.js";
-import type { TaskListCursorResult } from "../task-list/cursor.js";
+import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import {
   COMPACTION_SEED_SCHEMA_VERSION,
   type CompactionSeed,
@@ -35,7 +35,7 @@ export interface CompactionSeedEnvelope {
     sessionType: CompactionSeedSessionType | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
-  taskCursor?: SeedProbe<TaskListCursorResult>;
+  taskCursor?: SeedProbe<TaskListCursorFileResult>;
 }
 
 /** Options for emitting the compaction seed. */

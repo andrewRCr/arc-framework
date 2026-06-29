@@ -289,9 +289,19 @@ function validateMarkerPath(root, markerPath) {
     || relativeMarkerPath.includes("/../")
     || !relativeMarkerPath.startsWith(".arc/user/")
     || !relativeMarkerPath.includes("/.internal/")
-    || !markerFile.startsWith(markerFileBaseName)
+    || !isMarkerFileName(markerFile)
   ) {
     throw new Error(`Invalid ARC recovery marker path: ${markerPath}`);
   }
   return normalized;
+}
+
+function isMarkerFileName(markerFile) {
+  const prefix = `${markerFileBaseName}-`;
+  if (!markerFile.startsWith(prefix) || !markerFile.endsWith(".json")) {
+    return false;
+  }
+
+  const suffix = markerFile.slice(prefix.length, -".json".length);
+  return suffix.length > 0 && /^[A-Za-z0-9._-]+$/u.test(suffix);
 }

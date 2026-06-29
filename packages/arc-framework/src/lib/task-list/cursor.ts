@@ -50,7 +50,6 @@ export interface TaskListCursorMalformed {
 /** Result of resolving the current task-list cursor. */
 export type TaskListCursorResult =
   | { status: "found"; cursor: TaskListCursor }
-  | { status: "missing"; path: string }
   | { status: "no-open-task" }
   | { status: "malformed"; error: TaskListCursorMalformed };
 

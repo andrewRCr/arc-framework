@@ -354,6 +354,27 @@ describe("session-init E2E — sessionType across type variants", () => {
     });
   });
 
+  it("reports unreadable compaction seeds distinctly from missing seeds", async () => {
+    await mkdir(
+      join(tmpDir, ".arc", "user", "test-user", ".internal", "compaction-seed.json"),
+      { recursive: true },
+    );
+
+    const auditResult = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(auditResult.exitCode).toBe(0);
+
+    const report = parseRecoverAuditReport(auditResult.stdout);
+    expect(report.verdict).toMatchObject({
+      status: "stop",
+      ready: false,
+      stopReasons: [
+        {
+          kind: "seed-unreadable",
+        },
+      ],
+    });
+  });
+
   it("rejects --recover combined with session-init mode", async () => {
     const result = await runArc(["status", "--recover", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).not.toBe(0);

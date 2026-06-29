@@ -54,7 +54,7 @@ import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidat
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
 import type { LoadSetManifest } from "../../lib/load-set/types.js";
-import type { TaskListCursorResult } from "../../lib/task-list/cursor.js";
+import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -334,7 +334,7 @@ export interface SessionInitProbeResult {
    * Present only when `active.taskListPath` resolves. Session-init may use it
    * as a line-anchor helper for strategic reads; it is not thought-state.
    */
-  taskCursor?: Probe<TaskListCursorResult>;
+  taskCursor?: Probe<TaskListCursorFileResult>;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
@@ -365,7 +365,7 @@ export interface SessionRecoverProbeResult {
   /** Ordered context load set projected from the freshly resolved recover state. */
   loadSet: Probe<LoadSetManifest>;
   /** Deterministic task-list cursor, present only when `active.taskListPath` resolves. */
-  taskCursor?: Probe<TaskListCursorResult>;
+  taskCursor?: Probe<TaskListCursorFileResult>;
 }
 
 /** Probe functions in full mode — bound to cwd and any required I/O. */
@@ -626,7 +626,7 @@ export interface SessionInitProbes extends SessionSharedProbes {
    */
   cohortDoc: (activeMetaPath: string) => Promise<string | null>;
   /** Resolve the deterministic task-list cursor for a resolved task-list path. */
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorResult>;
+  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in recover mode — the lean subset recovery needs. */
@@ -642,7 +642,7 @@ export interface SessionRecoverProbes {
   ) => Promise<ActiveSessionInitResult>;
   releaseRouting: () => Promise<ReleaseRoutingValue>;
   cohortDoc: (activeMetaPath: string) => Promise<string | null>;
-  taskCursor: (taskListPath: string) => Promise<TaskListCursorResult>;
+  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */

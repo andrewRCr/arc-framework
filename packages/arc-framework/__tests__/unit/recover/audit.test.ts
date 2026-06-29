@@ -124,6 +124,8 @@ describe("auditRecoveryState", () => {
       dirtyFiles: {
         expected: [],
         actual: [],
+        pathSetMatch: true,
+        dirtyStateConsistent: true,
         match: true,
       },
       taskCursor: {
@@ -165,6 +167,8 @@ describe("auditRecoveryState", () => {
     expect(result.dirtyFiles).toEqual({
       expected: ["src/original.ts"],
       actual: ["src/changed.ts"],
+      pathSetMatch: false,
+      dirtyStateConsistent: true,
       match: false,
     });
   });
@@ -188,7 +192,9 @@ describe("auditRecoveryState", () => {
     expect(result.dirtyFiles).toEqual({
       expected: ["src/changed.ts"],
       actual: ["src/changed.ts"],
-      match: true,
+      pathSetMatch: true,
+      dirtyStateConsistent: false,
+      match: false,
     });
     expect(result.stopReasons).toMatchObject([
       {
@@ -214,7 +220,9 @@ describe("auditRecoveryState", () => {
     expect(result.dirtyFiles).toEqual({
       expected: [],
       actual: [],
-      match: true,
+      pathSetMatch: true,
+      dirtyStateConsistent: false,
+      match: false,
     });
     expect(result.stopReasons).toMatchObject([
       {
@@ -222,6 +230,32 @@ describe("auditRecoveryState", () => {
         message: "fresh dirty-file path set contradicts the dirty-state probe reporting dirty",
       },
     ]);
+  });
+
+  it("stops on unresolved dirty probes without reporting path drift", () => {
+    const result = auditRecoveryState({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: {
+          ok: false,
+          error: { kind: "runtime", message: "git status failed" },
+        },
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.dirtyFiles).toEqual({
+      expected: [],
+      actual: [],
+      pathSetMatch: true,
+      dirtyStateConsistent: null,
+      match: false,
+    });
+    expect(result.stopReasons.map((reason) => reason.kind)).toEqual(["dirty-unresolved"]);
   });
 
   it("stops when an execution seed lacks a task-list cursor", () => {

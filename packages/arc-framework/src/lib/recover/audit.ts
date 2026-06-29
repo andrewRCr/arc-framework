@@ -16,8 +16,8 @@ import { auditLoadSetManifest, type LoadSetAuditVerdict } from "../load-set/audi
 import type { LoadSetManifest } from "../load-set/types.js";
 import type {
   TaskListCursor,
-  TaskListCursorResult,
 } from "../task-list/cursor.js";
+import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 
 /** Stop reason categories emitted by the recovery audit. */
 export type RecoveryAuditStopKind =
@@ -29,6 +29,7 @@ export type RecoveryAuditStopKind =
   | "load-set-drift"
   | "seed-invalid"
   | "seed-missing"
+  | "seed-unreadable"
   | "dirty-path-drift"
   | "task-cursor-missing"
   | "task-cursor-unresolved"
@@ -50,13 +51,15 @@ export interface RecoveryAuditStopReason {
 export interface RecoveryAuditDirtyFiles {
   expected: string[];
   actual: string[];
+  pathSetMatch: boolean;
+  dirtyStateConsistent: boolean | null;
   match: boolean;
 }
 
 /** Task-cursor comparison carried by the audit result. */
 export interface RecoveryAuditTaskCursor {
   expected: TaskListCursor | null;
-  actual: TaskListCursorResult | null;
+  actual: TaskListCursorFileResult | null;
   match: boolean;
 }
 
@@ -75,7 +78,7 @@ export interface RecoveryAuditProbeState {
   active: Probe<ActiveSessionInitResult>;
   dirty: Probe<DirtyStateResult>;
   loadSet: Probe<LoadSetManifest>;
-  taskCursor?: Probe<TaskListCursorResult>;
+  taskCursor?: Probe<TaskListCursorFileResult>;
 }
 
 /** Inputs for deterministic recovery audit. */
@@ -139,13 +142,15 @@ function auditDirtyFiles(
 ): RecoveryAuditDirtyFiles {
   const expected = normalizePaths(options.seed.uncommittedFiles);
   const actual = normalizePaths(options.freshUncommittedFiles);
-  const match = arraysEqual(expected, actual);
+  const pathSetMatch = arraysEqual(expected, actual);
   const dirtyProbeState = options.recover.dirty.ok ? options.recover.dirty.value.state : null;
   const dirtyProbeContradiction = dirtyProbeState !== null
     && (
       (dirtyProbeState === "clean" && actual.length > 0)
       || (dirtyProbeState === "dirty" && actual.length === 0)
     );
+  const dirtyStateConsistent = options.recover.dirty.ok ? !dirtyProbeContradiction : null;
+  const match = pathSetMatch && dirtyStateConsistent === true;
 
   if (!options.recover.dirty.ok) {
     stopReasons.push({
@@ -154,7 +159,7 @@ function auditDirtyFiles(
       detail: options.recover.dirty.error,
     });
   }
-  if (!match || dirtyProbeContradiction) {
+  if (!pathSetMatch || dirtyProbeContradiction) {
     stopReasons.push({
       kind: "dirty-path-drift",
       message: dirtyProbeContradiction
@@ -168,7 +173,7 @@ function auditDirtyFiles(
     });
   }
 
-  return { expected, actual, match };
+  return { expected, actual, pathSetMatch, dirtyStateConsistent, match };
 }
 
 function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): string {

@@ -108,12 +108,11 @@ describe("Claude Code compaction recovery hook recipe", () => {
 
   it("injects session-recover only for SessionStart source compact", () => {
     const settings = readJson<ClaudeCodeSettingsFragment>(settingsPath);
-    const sessionMatchers = new Map(
-      settings.hooks.SessionStart.map((group) => [group.matcher, group]),
-    );
 
-    expect([...sessionMatchers.keys()]).toEqual(["compact"]);
-    expect(sessionMatchers.get("compact")?.hooks[0]).toMatchObject({
+    expect(settings.hooks.SessionStart).toHaveLength(1);
+    const [compactGroup] = settings.hooks.SessionStart;
+    expect(compactGroup?.matcher).toBe("compact");
+    expect(compactGroup?.hooks[0]).toMatchObject({
       type: "command",
       command: "node",
       args: [

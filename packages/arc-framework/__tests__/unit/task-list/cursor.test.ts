@@ -292,6 +292,32 @@ describe("resolveTaskListCursorFromFile", () => {
     });
   });
 
+  it("rejects absolute task-list paths before reading", async () => {
+    const readFile = async (): Promise<string> => {
+      throw new Error("read should not be called");
+    };
+
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: "/tmp/tasks-widget.md",
+      readFile,
+    })).rejects.toThrow("Task list path must be repository-relative: /tmp/tasks-widget.md");
+  });
+
+  it("rejects parent-escaping task-list paths before reading", async () => {
+    const readFile = async (): Promise<string> => {
+      throw new Error("read should not be called");
+    };
+
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: ".arc/active/../../outside.md",
+      readFile,
+    })).rejects.toThrow(
+      "Task list path must be repository-relative: .arc/active/../../outside.md",
+    );
+  });
+
   it("rethrows non-ENOENT read failures", async () => {
     const eacces = Object.assign(new Error("EACCES"), { code: "EACCES" });
 
