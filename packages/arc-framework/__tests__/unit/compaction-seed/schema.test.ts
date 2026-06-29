@@ -96,17 +96,19 @@ describe("CompactionSeed schema", () => {
       .toBe(true);
   });
 
-  it("ignores legacy harness fields without adding them to the active contract", () => {
+  it("strips legacy harness fields without adding them to the active contract", () => {
+    const canonical = seed();
     const value = {
-      ...seed(),
+      ...canonical,
       harness: "codex-cli",
     };
 
     expect(isCompactionSeed(value)).toBe(true);
     expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({
       ok: true,
-      seed: value,
+      seed: canonical,
     });
+    expect(JSON.parse(stringifyCompactionSeed(value))).toEqual(canonical);
   });
 
   it("accepts null WU pointers for between-unit recovery state", () => {

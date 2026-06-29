@@ -49,7 +49,7 @@ export interface CompactionSeed {
   metaPath: string | null;
   /** Resolved session type, or `null` when no lifecycle applies. */
   sessionType: CompactionSeedSessionType | null;
-  /** Current lifecycle/planning workflow pointer, or `null` when none applies. */
+  /** Current lifecycle/planning workflow label for soft orientation, or `null` when none applies. */
   currentWorkflow: string | null;
   /** Task-list-derived execution cursor, or `null` outside execution / unresolved. */
   taskCursor: TaskListCursor | null;
@@ -136,7 +136,7 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
     };
   }
 
-  return { ok: true, seed: parsed };
+  return { ok: true, seed: toCanonicalCompactionSeed(parsed) };
 }
 
 /**
@@ -147,7 +147,25 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
  */
 export function stringifyCompactionSeed(seed: CompactionSeed): string {
   assertCompactionSeed(seed);
-  return `${JSON.stringify(seed, null, 2)}\n`;
+  return `${JSON.stringify(toCanonicalCompactionSeed(seed), null, 2)}\n`;
+}
+
+function toCanonicalCompactionSeed(seed: CompactionSeed): CompactionSeed {
+  return {
+    schemaVersion: seed.schemaVersion,
+    emittedAt: seed.emittedAt,
+    repoRoot: seed.repoRoot,
+    branch: seed.branch,
+    head: seed.head,
+    dirty: seed.dirty,
+    activeWorkUnit: seed.activeWorkUnit,
+    metaPath: seed.metaPath,
+    sessionType: seed.sessionType,
+    currentWorkflow: seed.currentWorkflow,
+    taskCursor: seed.taskCursor,
+    loadSet: seed.loadSet,
+    uncommittedFiles: seed.uncommittedFiles,
+  };
 }
 
 /**

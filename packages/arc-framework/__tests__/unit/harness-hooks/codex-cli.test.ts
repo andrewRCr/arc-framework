@@ -69,7 +69,7 @@ function runHookScript(
 function runHookScriptRaw(
   path: string,
   cwd?: string,
-  env: NodeJS.ProcessEnv = {},
+  envOverrides: NodeJS.ProcessEnv = {},
   args: string[] = [],
 ): string {
   return execFileSync(process.execPath, [path, ...args], {
@@ -78,8 +78,11 @@ function runHookScriptRaw(
     stdio: ["ignore", "pipe", "pipe"],
     env: {
       ...process.env,
+      ARC_HOOK_ARC_COMMAND: "arc",
+      ARC_HOOK_STALE_BUILD_COMMAND: "",
+      CLAUDE_PROJECT_DIR: "",
       CODEX_THREAD_ID: "",
-      ...env,
+      ...envOverrides,
     },
   });
 }
@@ -178,9 +181,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     const hook = preCompact!.hooks[0]!;
     expect(hook.command).not.toContain("ARC_HOOK_HARNESS");
     expect(hook.command).toContain("git rev-parse --show-toplevel");
+    expect(hook.command).toContain("cd \"$repo_root\"");
     expect(hook.command).toContain(".arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs");
     expect(hook.commandWindows).not.toContain("ARC_HOOK_HARNESS");
     expect(hook.commandWindows).toContain("git rev-parse --show-toplevel");
+    expect(hook.commandWindows).toContain("cd /d");
     expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
@@ -267,15 +272,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("stops after PostCompact and injects recovery context on the next user prompt", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
-    const postCompactMatchers = new Map(
-      fragment.hooks.PostCompact.map((group) => [group.matcher, group]),
-    );
 
-    expect([...postCompactMatchers.keys()]).toEqual(["manual|auto"]);
+    expect(fragment.hooks.PostCompact).toHaveLength(1);
+    const [postCompactGroup] = fragment.hooks.PostCompact;
+    expect(postCompactGroup?.matcher).toBe("manual|auto");
     expect(fragment.hooks.UserPromptSubmit).toHaveLength(1);
     expect(fragment.hooks.UserPromptSubmit[0]?.matcher).toBeUndefined();
 
-    const postCompactHook = postCompactMatchers.get("manual|auto")?.hooks[0];
+    const postCompactHook = postCompactGroup?.hooks[0];
     expect(postCompactHook).toMatchObject({
       type: "command",
       timeout: 30,
@@ -523,6 +527,43 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(existsSync(identityMarkerPath)).toBe(false);
       expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
         "Invalid ARC recovery seed handoff",
+      );
+    });
+  });
+
+  it("writes a fallback marker when the seed handoff path is not discoverable", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      const handoffPath = writeSeedHandoff(root, env);
+      const handoff = readJson<Record<string, unknown>>(handoffPath);
+      writeFileSync(handoffPath, `${JSON.stringify({
+        ...handoff,
+        seedPath: ".arc/user/andrew/nested/.internal/compaction-seed.json",
+      }, null, 2)}\n`);
+
+      const fallbackMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const identityMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        "nested",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const output = runHookScript(postCompactScriptPath, root, env);
+
+      expect(output.systemMessage).toContain("report the seed issue");
+      expect(existsSync(fallbackMarkerPath)).toBe(true);
+      expect(existsSync(identityMarkerPath)).toBe(false);
+      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
+        "Invalid ARC compaction seed path",
       );
     });
   });

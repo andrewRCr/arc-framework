@@ -33,14 +33,12 @@ export async function resolveTaskListCursorFromFile(
   const taskListPath = resolveRepoRelativeTaskListPath(options.cwd, options.taskListPath);
 
   try {
-    if (options.readFile === undefined || options.realpath !== undefined) {
-      await assertRealPathInsideRepo({
-        cwd: options.cwd,
-        absolutePath: taskListPath.absolutePath,
-        taskListPath: options.taskListPath,
-        realpath: options.realpath ?? realpath,
-      });
-    }
+    await assertRealPathInsideRepo({
+      cwd: options.cwd,
+      absolutePath: taskListPath.absolutePath,
+      taskListPath: options.taskListPath,
+      realpath: options.realpath ?? realpath,
+    });
     const read = options.readFile ?? readUtf8File;
     return resolveTaskListCursor(await read(taskListPath.absolutePath));
   } catch (err) {

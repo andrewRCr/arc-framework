@@ -102,13 +102,16 @@ function seedHandoffFileName(scope) {
 function normalizeSeedPath(root, seedPath) {
   const relativeSeedPath = isAbsolute(seedPath) ? relative(root, seedPath) : seedPath;
   const normalized = relativeSeedPath.replaceAll("\\", "/");
+  const seedPathPattern = new RegExp(
+    `^\\.arc/user/[^/]+/\\.internal/${seedFileName.replaceAll(".", "\\.")}$`,
+    "u",
+  );
   if (
     normalized.startsWith("../")
     || normalized === ".."
     || normalized.includes("/../")
     || normalized.startsWith("/")
-    || !normalized.startsWith(".arc/user/")
-    || !normalized.endsWith(`/.internal/${seedFileName}`)
+    || !seedPathPattern.test(normalized)
   ) {
     throw new Error(`Invalid ARC compaction seed path: ${seedPath}`);
   }

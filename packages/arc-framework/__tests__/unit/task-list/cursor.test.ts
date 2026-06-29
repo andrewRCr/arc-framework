@@ -11,6 +11,10 @@ function taskList(lines: readonly string[]): string {
   return lines.join("\n");
 }
 
+async function passthroughRealpath(path: string): Promise<string> {
+  return path;
+}
+
 describe("resolveTaskListCursor", () => {
   it("returns the parent section and first open subtask leaf", () => {
     const result = resolveTaskListCursor(taskList([
@@ -285,6 +289,7 @@ describe("resolveTaskListCursorFromFile", () => {
     const result = await resolveTaskListCursorFromFile({
       cwd: "/repo",
       taskListPath: ".arc/active/tasks-widget.md",
+      realpath: passthroughRealpath,
       readFile: async () => {
         throw enoent;
       },
@@ -354,12 +359,26 @@ describe("resolveTaskListCursorFromFile", () => {
     }
   });
 
+  it("rejects symlink escapes before an injected reader can read", async () => {
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: ".arc/active/linked/tasks-widget.md",
+      realpath: async (path) => path === "/repo" ? "/repo" : "/tmp/outside/tasks-widget.md",
+      readFile: async () => {
+        throw new Error("read should not be called");
+      },
+    })).rejects.toThrow(
+      "Task list path must stay within the repository: .arc/active/linked/tasks-widget.md",
+    );
+  });
+
   it("rethrows non-ENOENT read failures", async () => {
     const eacces = Object.assign(new Error("EACCES"), { code: "EACCES" });
 
     await expect(resolveTaskListCursorFromFile({
       cwd: "/repo",
       taskListPath: ".arc/active/tasks-widget.md",
+      realpath: passthroughRealpath,
       readFile: async () => {
         throw eacces;
       },
