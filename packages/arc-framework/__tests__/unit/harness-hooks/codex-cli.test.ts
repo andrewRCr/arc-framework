@@ -84,6 +84,10 @@ function runHookScriptRaw(
   });
 }
 
+function shellArg(value: string): string {
+  return `"${value.replaceAll("\"", "\\\"")}"`;
+}
+
 function writeSeedHandoff(root: string, env: NodeJS.ProcessEnv = {}): string {
   const threadId = env.CODEX_THREAD_ID?.trim();
   const suffix = threadId && threadId.length > 0 ? threadId : `ppid-${process.pid}`;
@@ -232,7 +236,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
       runHookScriptRaw(seedScriptPath, root, {
         ...env,
-        ARC_HOOK_ARC_COMMAND: "false",
+        ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
       });
 
       expect(existsSync(handoffPath)).toBe(false);
@@ -483,6 +487,42 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(existsSync(identityMarkerPath)).toBe(false);
       expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
         "Mismatched ARC recovery seed handoff scope",
+      );
+    });
+  });
+
+  it("writes a fallback marker when the seed handoff schema is unsupported", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      const handoffPath = writeSeedHandoff(root, env);
+      const handoff = readJson<Record<string, unknown>>(handoffPath);
+      writeFileSync(handoffPath, `${JSON.stringify({
+        ...handoff,
+        schemaVersion: 999,
+      }, null, 2)}\n`);
+
+      const fallbackMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const identityMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const output = runHookScript(postCompactScriptPath, root, env);
+
+      expect(output.systemMessage).toContain("report the seed issue");
+      expect(existsSync(fallbackMarkerPath)).toBe(true);
+      expect(existsSync(identityMarkerPath)).toBe(false);
+      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
+        "Invalid ARC recovery seed handoff",
       );
     });
   });

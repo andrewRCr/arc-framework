@@ -26,8 +26,8 @@ arc recover audit --json
 ```
 
 Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop and
-surface that recovery cannot establish live state; the fallback is normal `arc-session` entry
-through session-init.
+surface that recovery cannot establish live state; the fallback is the normal `session-init`
+re-entry path.
 Do not manually reconstruct a seed from the harness summary.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:

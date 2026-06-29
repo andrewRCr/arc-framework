@@ -464,12 +464,12 @@ freshness-check commands below), not from SESSION-NOTES prose.
       (co-located by convention). Path-form values (legacy) work too, used as-is.
     - **Anchor source**: Prefer the `**Next Task:**` triple-anchor when it carries usable task id,
       title, and line hint. If it is absent or incomplete and `taskCursor.ok === true` with
-      `taskCursor.value.status === "found"`, use `taskCursor.value.cursor.leaf` as the current
-      task identifier and `taskCursor.value.cursor.section` as the task-section anchor. This is a
-      deterministic line-anchor helper only, not thought-state.
+      `taskCursor.value.status === "found"`, use `taskCursor.value.cursor.section` as the lookup
+      anchor for the section read, and keep `taskCursor.value.cursor.leaf` only as the in-section
+      current executable. This is a deterministic line-anchor helper only, not thought-state.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
-        2. **Current phase preamble** — derive the phase identifier from the current task identifier by
+        2. **Current phase preamble** — derive the phase identifier from the current section anchor by
            stripping the leaf segment (`5.3` → Phase `5`, `3.R.e` → Phase `3.R`); locate the heading with
            `^## \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
            the line immediately before the first `- [ ]` / `- [x]` bullet under the phase. Multi-paragraph
@@ -478,8 +478,8 @@ freshness-check commands below), not from SESSION-NOTES prose.
         3. **Current task section** — resolved via graduated lookup below
     - **Graduated lookup** using the chosen anchor:
         1. Jump to the line hint (`line ~N` from `Next Task`, or `taskCursor.section.lineHint`
-           when using the cursor) — if the task number matches there, done
-        2. Search for the task number (e.g., `**4.2`) if the line hint is stale
+           when using the cursor) — if the anchor id matches there, done
+        2. Search for the anchor id (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
     - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or

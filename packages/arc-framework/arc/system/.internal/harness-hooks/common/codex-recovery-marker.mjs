@@ -12,6 +12,7 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 const markerFileBaseName = "codex-compaction-recovery-pending";
 const seedHandoffFileBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
+const recoveryPayloadSchemaVersion = 1;
 const seedHandoffMaxAgeMs = 10 * 60 * 1000;
 
 export function resolveRepoRoot() {
@@ -127,7 +128,7 @@ export function writeSeedHandoff(seedPath) {
 
   mkdirSync(handoffDir, { recursive: true });
   writeFileSync(handoffPath, `${JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: recoveryPayloadSchemaVersion,
     kind: "codex-compaction-recovery-seed",
     scope: {
       kind: scope.kind,
@@ -153,7 +154,10 @@ export function clearSeedHandoff() {
 function readSeedHandoff(root, scope) {
   const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
   const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-  if (handoff?.kind !== "codex-compaction-recovery-seed") {
+  if (
+    handoff?.schemaVersion !== recoveryPayloadSchemaVersion
+    || handoff?.kind !== "codex-compaction-recovery-seed"
+  ) {
     throw new Error(`Invalid ARC recovery seed handoff: ${handoffPath}`);
   }
   if (handoff.scope?.kind !== scope.kind || handoff.scope?.id !== scope.id) {
@@ -179,7 +183,7 @@ export function writePendingMarker() {
 
   mkdirSync(markerDir, { recursive: true });
   writeFileSync(markerPath, `${JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: recoveryPayloadSchemaVersion,
     kind: "codex-compaction-recovery-pending",
     scope: {
       kind: scope.kind,
@@ -208,7 +212,7 @@ export function writeFallbackPendingMarker(reason = null) {
 
   mkdirSync(markerDir, { recursive: true });
   writeFileSync(markerPath, `${JSON.stringify({
-    schemaVersion: 1,
+    schemaVersion: recoveryPayloadSchemaVersion,
     kind: "codex-compaction-recovery-pending",
     scope: {
       kind: scope.kind,

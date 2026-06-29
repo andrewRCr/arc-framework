@@ -107,6 +107,7 @@ async function assertRealPathInsideRepo(options: {
     || relativeRealPath.startsWith("../")
     || relativeRealPath === ".."
     || relativeRealPath.startsWith("/")
+    || /^[A-Za-z]:(?:\/|$)/u.test(relativeRealPath)
   ) {
     throw new Error(`Task list path must stay within the repository: ${options.taskListPath}`);
   }

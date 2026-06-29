@@ -31,6 +31,20 @@ const LOAD_SET = {
   ],
 } satisfies LoadSetManifest;
 
+const PLANNING_LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
+  entries: [
+    {
+      path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
+      readMode: { kind: "full" },
+    },
+    {
+      path: ".arc/system/workflows/arc/draft-design.md",
+      readMode: { kind: "full" },
+    },
+  ],
+} satisfies LoadSetManifest;
+
 const CURSOR = {
   section: {
     id: "4.R.3",
@@ -368,6 +382,7 @@ describe("auditRecoveryState", () => {
         sessionType: "planning",
         taskCursor: null,
         currentWorkflow: "draft-design",
+        loadSet: PLANNING_LOAD_SET,
       }),
       recover: {
         active: ok(active({
@@ -376,7 +391,7 @@ describe("auditRecoveryState", () => {
           planningStage: "draft-design",
         })),
         dirty: ok(dirty()),
-        loadSet: ok(LOAD_SET),
+        loadSet: ok(PLANNING_LOAD_SET),
       },
       freshUncommittedFiles: [],
     });

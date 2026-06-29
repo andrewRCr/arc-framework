@@ -180,6 +180,7 @@ describe("auditLoadSetManifest", () => {
         },
       },
     ]);
+    expect(result.diff.readModeChanges).toEqual([]);
     expect(result.diff.membership).toEqual({ added: [], removed: [] });
   });
 
