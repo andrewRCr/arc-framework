@@ -43,13 +43,17 @@ workflow mechanical and consistent. Conversational requests accomplish the same 
 
 ## When to End a Session
 
-Three triggers signal that a session should end. Any one is sufficient.
+Three triggers signal that a session should end or reset. Natural boundaries and quality degradation still point to
+handoff. Context pressure is a fork: hand off when pressure arrives at a natural boundary; compact and recover when
+pressure arrives between boundaries.
 
 ### Approaching context limits
 
-Your platform will signal when context is running low — through persistent indicators, on-demand commands, or threshold
-warnings. When you see that signal, wrap up your current work item and trigger handoff. Don't push to the limit; leave
-room for the handoff workflow itself.
+Your platform will signal when context is running low through persistent indicators, on-demand commands, or threshold
+warnings. When you see that signal, first ask whether you are already at a natural boundary. If yes, wrap up the
+current work item, trigger handoff, then clear and reinitialize for a clean episodic baseline. If no, let the harness
+compact and recover with [session-recover][session-recover] or the `arc-recover` fallback; don't force an early handoff
+solely because the window is filling.
 
 **Context monitoring is primarily the user's responsibility.** You have persistent visibility into context usage through
 your platform's reporting. Agent self-monitoring (threshold-based check-ins configured in agent-specific files) is a
@@ -75,21 +79,19 @@ Strategy][session-ops-strategy] § Focused Sessions for the reasoning.
 
 ## Platform Considerations
 
-### Auto-compaction
+### Compaction and recovery
 
-Some platforms automatically compact (summarize and compress) conversation history when context fills. Where your
-platform allows it, **disable auto-compaction.** Two reasons:
+Some platforms automatically compact (summarize and compress) conversation history when context fills. ARC treats that
+as a recoverable discontinuity. The harness summary preserves episodic continuity; ARC recovery restores the
+procedural context needed to keep working.
 
-- **Lossy operation.** Platform compaction is a black-box summarization optimized for conversation continuity, not
-  project context. It has no knowledge of what matters for your project's recovery.
-- **Removes user agency.** The session-handoff workflow exists so that *you* control what context is preserved —
-  decisions, approach, blockers, partial work state. Auto-compaction substitutes the platform's judgment for yours.
+Use the harness reset deliberately:
 
-With auto-compaction disabled, the context-limit warning becomes your handoff trigger: you see the warning, finish
-current work, run handoff, clear, restart. This gives you full control over the session lifecycle.
+- **Clear after handoff** when you are at a natural boundary and want a clean episodic baseline for the next session.
+- **Compact and recover** when pressure arrives between boundaries and the current work still benefits from continuity.
 
-When you can't disable auto-compaction, factor it into your workflow: the platform may silently reset context
-mid-session, so consider more frequent commits and earlier handoffs to reduce the impact.
+For supported harnesses, ARC can install opt-in compaction-recovery hooks during setup. Without hooks, use the manual
+`arc-recover` fallback when compaction erases ARC operating context.
 
 ### Context monitoring tools
 
@@ -105,5 +107,6 @@ Use whatever your platform provides. The key habit is checking periodically, not
 
 [session-init]: session-init.md
 [session-handoff]: session-handoff.md
+[session-recover]: session-recover.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
 [session-ops-strategy]: ../../../../reference/strategies/arc/strategy-session-operations.md

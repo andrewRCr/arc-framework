@@ -343,20 +343,22 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
   bounded sessions as scope/review discipline, the long-session-viability consequence, the disableability-gone
   fact, and the episodic-vs-procedural rationale for handoff at boundaries.
 
-### `[ ]` **6.2 Rewrite `strategy-session-operations` § Auto-Compaction and revise § Context Monitoring**
+### `[x]` **6.2 Rewrite `strategy-session-operations` § Auto-Compaction and revise § Context Monitoring**
 
 - _Goal:_ The strategy presents compaction as a recoverable event with deterministic recovery, and reframes the
   threshold response as boundary-vs-pressure rather than forced handoff.
 
-    - `[ ]` **6.2.a § Auto-Compaction**
-        - From "disable auto-compaction" to "compaction is a recoverable event; `clear` re-bootstraps via
-          `session-init`, `compact` recovers; install the hook recipe to make recovery deterministic." Include
-          the clear-vs-compact user guidance.
+    - `[x]` **6.2.a § Auto-Compaction**
+        - Reframed compaction as a recoverable discontinuity; distinguished `clear` as post-handoff re-init from
+          `compact` as within-session recovery; pointed supported harnesses to the setup hook recipe and named
+          the manual fallback.
 
-    - `[ ]` **6.2.b § Context Monitoring**
-        - Threshold response shifts from "user triggers handoff" to the boundary-vs-pressure fork (hand off at a
-          natural boundary, else compact and recover); thresholds survive as monitoring guidance, not
-          forced-handoff triggers.
+    - `[x]` **6.2.b § Context Monitoring**
+        - Shifted thresholds from forced-handoff triggers to the boundary-vs-pressure fork: hand off at a natural
+          boundary, otherwise compact and recover.
+
+- _Outcome:_ `session-loop.md` now mirrors the same human-facing fork and removes the stale "disable
+  auto-compaction" guidance; package-source and `.arc/` framework copies stayed synchronized.
 
 ### `[ ]` **6.3 Revise `DEV-RULES.ARC` § Context quality and touch `AGENT-BRIEF.ARC` lifecycle line**
 
