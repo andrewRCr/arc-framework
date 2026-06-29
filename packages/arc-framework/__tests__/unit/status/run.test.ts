@@ -715,15 +715,19 @@ describe("runSessionInitStatus — orchestration", () => {
             readMode: { kind: "partial-strategic" },
           },
           {
-            path: ".arc/system/extensions/post-context-load.md",
-            readMode: { kind: "full" },
-          },
-          {
             path: ".arc/backlog/planned/x/cohort-x.md",
             readMode: { kind: "full" },
           },
         ]),
       );
+      expect(result.loadSet.value.entries).not.toContainEqual({
+        path: ".arc/system/extensions/post-context-load.md",
+        readMode: { kind: "full" },
+      });
+    }
+    expect(result.extensions.ok).toBe(true);
+    if (result.extensions.ok) {
+      expect(result.extensions.value.active).toEqual(["post-context-load"]);
     }
     expect(result.taskCursor?.ok).toBe(true);
     if (result.taskCursor?.ok) {
@@ -889,15 +893,19 @@ describe("runRecoverStatus — lean recover envelope", () => {
             readMode: { kind: "partial-strategic" },
           },
           {
-            path: ".arc/system/extensions/post-context-load.md",
-            readMode: { kind: "full" },
-          },
-          {
             path: ".arc/backlog/planned/x/cohort-x.md",
             readMode: { kind: "full" },
           },
         ]),
       );
+      expect(result.loadSet.value.entries).not.toContainEqual({
+        path: ".arc/system/extensions/post-context-load.md",
+        readMode: { kind: "full" },
+      });
+    }
+    expect(result.extensions.ok).toBe(true);
+    if (result.extensions.ok) {
+      expect(result.extensions.value.active).toEqual(["post-context-load"]);
     }
     expect(result.taskCursor?.ok).toBe(true);
     if (result.taskCursor?.ok) {

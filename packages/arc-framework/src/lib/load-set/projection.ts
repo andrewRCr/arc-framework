@@ -31,7 +31,12 @@ export interface LoadSetProjectionInput {
   planningStage: LoadSetPlanningStage | null;
   /** Active task-list path relative to the repo root, or `null` when none applies. */
   taskListPath: string | null;
-  /** Active extension names from the session-init extensions slot. */
+  /**
+   * Active extension names from the session-init extensions slot.
+   *
+   * Names stay in the status envelope for workflow fire-points to consult.
+   * Extension bodies are intentionally excluded from the session load set.
+   */
   activeExtensions: readonly string[];
   /** Active cohort coordination doc path, or `null` when none resolved. */
   cohortDocPath: string | null;
@@ -98,10 +103,6 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
 
   if (input.cohortDocPath !== null) {
     entries.push(full(input.cohortDocPath));
-  }
-
-  for (const extension of input.activeExtensions) {
-    entries.push(full(`.arc/system/extensions/${extension}.md`));
   }
 
   return { entries };

@@ -75,21 +75,25 @@ describe("resolveLoadSetManifest", () => {
     );
   });
 
-  it("includes active extensions and the cohort doc as full-load members", () => {
+  it("keeps active extension bodies out of the session load set while including the cohort doc", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,
       sessionType: "execution",
       planningStage: null,
-      activeExtensions: ["post-context-load", "post-task-quality"],
+      activeExtensions: ["post-context-load", "pre-pr-review"],
       cohortDocPath: ".arc/backlog/planned/loadset/cohort-loadset.md",
     });
 
     expect(manifest.entries).toEqual(
       expect.arrayContaining([
-        fullEntry(".arc/system/extensions/post-context-load.md"),
-        fullEntry(".arc/system/extensions/post-task-quality.md"),
         fullEntry(".arc/backlog/planned/loadset/cohort-loadset.md"),
       ]),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/extensions/post-context-load.md"),
+    );
+    expect(manifest.entries).not.toContainEqual(
+      fullEntry(".arc/system/extensions/pre-pr-review.md"),
     );
   });
 });
