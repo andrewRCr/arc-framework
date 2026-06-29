@@ -12,11 +12,11 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** integrate-work-unit Step 4 — review iteration
-- **Last Completed:** Integration correction - Codex recovery uses PostCompact hard stop + UserPromptSubmit sentinel.
+- **Last Completed:** CodeRabbit review pass addressed through `41108ef5`; branch pushed.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 4 — wait for PR #151 checks on the latest branch head; once green, run
+- **Next Action:** integrate-work-unit Step 4 — wait for PR #151 CI on the latest pushed branch head; once green, run
   `project/address-pr-review.md` to trigger/respond to CodeRabbit.
 
 - **PR URL:** [PR #151](https://github.com/andrewRCr/arc-framework/pull/151)
