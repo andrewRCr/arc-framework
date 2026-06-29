@@ -116,6 +116,15 @@ developer. If a user-visible recovery note is useful, keep it to one terse statu
 ARC post-compaction session recovery complete.
 ```
 
+If recovery was injected from Codex's pending-marker workaround, clear the marker only after the
+recovery load set is rehydrated and the verdict is ready:
+
+```bash
+node "$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs"
+```
+
+If recovery stops for direction, leave the marker in place.
+
 Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
 prompt:
 

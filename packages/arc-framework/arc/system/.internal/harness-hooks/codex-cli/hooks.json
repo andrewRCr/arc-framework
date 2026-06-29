@@ -14,16 +14,28 @@
         ]
       }
     ],
-    "SessionStart": [
+    "PostCompact": [
       {
-        "matcher": "compact",
+        "matcher": "manual|auto",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/session-start-compact.mjs\"",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\session-start-compact.mjs\"",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/post-compact-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs\"",
             "timeout": 30,
-            "statusMessage": "Restoring ARC recovery context"
+            "statusMessage": "Stopping for ARC recovery"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs\"",
+            "timeout": 30
           }
         ]
       }

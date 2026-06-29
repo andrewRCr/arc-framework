@@ -262,7 +262,7 @@ supplies the live leaf concern.
 ## **Phase 5:** Per-harness hook adapters
 
 _Purpose:_ Wire the canonical seed/recover commands into per-harness hooks — Leg A (pre-compaction seed write,
-read-only, exit 0, never block) and Leg B (post-compaction recovery inject) — with the `compact`-vs-`clear` fork
+read-only, exit 0, never block) and Leg B (post-compaction recovery requirement) — with the `compact`-vs-`clear` fork
 read directly from harness signals, never inferred.
 
 _Design decisions:_ CC ≈ Codex — one adapter pattern, two config formats (the P8 canonical/adapter split: the
@@ -297,10 +297,12 @@ wiring detail.
   validating the config-not-logic adapter split.
 
 - _Outcome:_ Added a shipped Codex CLI `hooks.json` recipe plus an optional `[features] hooks = true` config
-  fragment for the later opt-in installer. Codex and Claude Code now share the common seed/recovery Node scripts:
-  `PreCompact(manual|auto)` writes the seed without blocking; `SessionStart(compact)` injects `session-recover`;
-  `PostCompact` and `clear` remain unhooked. The recipe is included in `init-recipe.json` and pinned by unit
-  coverage.
+  fragment for the later opt-in installer. Codex and Claude Code share the common seed/recovery Node scripts, but
+  Codex uses a Codex-specific timing adapter: `PreCompact(manual|auto)` writes the seed without blocking,
+  `PostCompact(manual|auto)` writes a pending marker and immediately stops for recovery, `UserPromptSubmit`
+  injects the recovery instruction on the user's next prompt, and `clear` remains unhooked. Codex
+  `SessionStart(compact)` is deliberately not hooked because it can fire late or duplicate. The recipe is included
+  in `init-recipe.json` and pinned by unit coverage.
 
 ### `[x]` **5.3 Opt-in install integration**
 

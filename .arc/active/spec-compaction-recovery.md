@@ -171,7 +171,7 @@ detection. It is not a reconstruction of the agent's thought state.
 
 **Invocation convention is not seed state.** Whether the recover command is `arc` or `npx arc` is a
 harness-bootstrap concern — bare `arc` for adopters always, `npx arc` only in this self-hosting repo — carried by
-the harness entry files (`AGENTS.md`) and, post-compaction, embedded in the adapter's injection instruction
+the harness entry files (`AGENTS.md`) and, post-compaction, embedded in the adapter's recovery instruction
 (harness-specific, adapter-owned per P8). The canonical seed stays **invocation-neutral**: it ships as a shape, so
 a dev-only field in it would be both an audience-boundary leak and a mis-set hazard. Out by design.
 
@@ -252,22 +252,26 @@ harness summary.
 Per-harness hook recipes invoking the **same** canonical seed/recover commands. Two legs:
 
 - **Leg A (write seed, pre-compaction)** — a read-only pre-compaction hook writes the seed and exits 0.
-- **Leg B (inject recovery, post-compaction)** — a `compact` session-start hook injects the recovery instruction.
-  Deliberate reset (`clear`) is not hooked; it remains a normal harness reset, and any later ARC entry uses
-  ordinary `session-init`.
+- **Leg B (require recovery, post-compaction)** — the harness-specific post-compaction edge requires recovery
+  before further work. Deliberate reset (`clear`) is not hooked; it remains a normal harness reset, and any later
+  ARC entry uses ordinary `session-init`.
 
-| Harness         | Leg A (seed)                      | Leg B (inject)                                                           | clear vs compact                  | Verdict             |
-|-----------------|-----------------------------------|--------------------------------------------------------------------------|-----------------------------------|---------------------|
-| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout                                  | `clear` unhooked; `compact` hooks | **Yes — both legs** |
-| **Codex CLI**   | `PreCompact`                      | `SessionStart(source=compact)` + `additionalContext` (not `PostCompact`) | `clear` unhooked; `compact` hooks | **Yes — both legs** |
-| **OpenCode**    | `experimental.session.compacting` | Fragile — no reliable post-compaction inject                             | `session.created` vs `.compacted` | **Deferred**        |
+| Harness         | Leg A (seed)                      | Leg B (require recovery)                                         | clear vs compact                  | Verdict             |
+|-----------------|-----------------------------------|------------------------------------------------------------------|-----------------------------------|---------------------|
+| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout                          | `clear` unhooked; `compact` hooks | **Yes — both legs** |
+| **Codex CLI**   | `PreCompact`                      | `PostCompact` marker + stop; prompt hook injects                 | `clear` unhooked; `compact` hooks | **Workaround**      |
+| **OpenCode**    | `experimental.session.compacting` | Fragile — no reliable post-compaction inject                     | `session.created` vs `.compacted` | **Deferred**        |
 
-Claude Code and Codex are essentially the **same hook, two config formats** (CC `settings.json` hooks; Codex
-`hooks.json` plus an optional `[features].hooks = true` installer fragment) — the canonical commands are
-identical; only the wiring file differs, validating the P8 canonical/adapter split and making the CC+Codex MVP
-cheap. OpenCode is deferred: its injection is architecturally different (bake the pointer into the compaction
-summary), everything is
-`experimental.`, and the clean post-compaction inject is unmerged; it gets the portable `arc-recover` fallback.
+Claude Code and Codex share the same canonical seed/recover commands, but their post-compaction
+timing primitives differ. Claude Code's documented recovery carrier is `SessionStart(source=compact)`;
+Codex's immediate post-compaction edge is `PostCompact(trigger=manual|auto)`, but that event cannot
+inject `additionalContext` in current Codex schemas. Codex therefore uses an explicit workaround:
+`PostCompact` writes an ARC pending marker and returns `continue: false`; when the user sends a short
+resume prompt, `UserPromptSubmit` sees the marker and injects `session-recover` exactly from ARC-owned
+state. Codex does **not** hook `SessionStart(compact)`: upstream issue reports show it can fire late or
+duplicate, so it is not an authoritative recovery edge. OpenCode is deferred: its injection is
+architecturally different (bake the pointer into the compaction summary), everything is `experimental.`,
+and the clean post-compaction inject is unmerged; it gets the portable `arc-recover` fallback.
 
 ### The only real fork — `compact` vs `clear`
 

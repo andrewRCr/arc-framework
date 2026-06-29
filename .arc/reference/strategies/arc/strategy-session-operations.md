@@ -986,7 +986,7 @@ Two reset paths matter:
   `session-recover` or the `arc-recover` fallback, then continue inside the same ARC session.
 
 For supported harnesses, install the opt-in compaction-recovery hook recipe during
-[initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and inject
+[initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and require
 recovery only after a `compact` event; `clear` remains deliberately unhooked. If hooks are not
 installed, run the manual fallback when compaction erases ARC operating context.
 

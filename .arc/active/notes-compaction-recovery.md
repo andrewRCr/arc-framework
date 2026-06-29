@@ -15,7 +15,7 @@ hook adapter (opt-in).
 
 ### Common preconditions
 
-- Hook adapter installed (Leg A: pre-compaction seed write; Leg B: post-compaction recovery inject) and opted in.
+- Hook adapter installed (Leg A: pre-compaction seed write; Leg B: post-compaction recovery requirement) and opted in.
 - An ARC session mid-task (an active WU with a resolved `sessionType` and a concrete in-flight task), so there is
   real procedural context to lose and a task pointer to resume.
 
@@ -41,7 +41,9 @@ Same four checks. Wiring differences:
 - Hooks are configured via `hooks.json` (vs. CC's `settings.json` hooks). Codex docs now say hooks are enabled by
   default; the opt-in installer can still write `[features] hooks = true` as an explicit local stance when not
   blocked by policy.
-- Leg B uses `SessionStart(source=compact)` with `additionalContext` — **not** `PostCompact`.
+- Leg B uses `PostCompact(trigger=manual|auto)` as the immediate recovery stop. It writes an ARC-owned pending
+  marker; `UserPromptSubmit` injects recovery context on the user's next prompt. Codex does not hook
+  `SessionStart(source=compact)` because it can fire late or duplicate.
 - `SessionStart(source=clear)` is not hooked; clear remains a harness reset.
 
 ### OpenCode (deferred — no shipped recipe)
@@ -54,15 +56,15 @@ protocol if/when its `session.start(compact)` hook lands (watch item).
 The canonical seed/recover commands are identical across harnesses; only the wiring differs (the P8
 canonical/adapter split — adapter layer is config, not logic). Detail beyond the spec's condensed table:
 
-| Concern                     | Claude Code                                                        | Codex CLI                                                                           | OpenCode                                                       |
-|-----------------------------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------|
-| Hook model                  | `PreCompact` (matcher `manual`/`auto`) + `SessionStart` (`source`) | Near-identical — `PreCompact`/`PostCompact` (`trigger`) + `SessionStart` (`source`) | Plugin (TS/JS); `experimental.session.compacting` + bus events |
-| Config file                 | `settings.json` hooks                                              | `hooks.json` (+ optional `[features] hooks = true`)                                 | Plugin config (keys under-documented)                          |
-| Leg A — write seed          | `PreCompact` runs shell; read-only; can block                      | Same shape                                                                          | `experimental.session.compacting` + shell                      |
-| Leg B — inject recovery     | `SessionStart(source=compact)` → stdout / `additionalContext`      | `SessionStart(source=compact)` + `additionalContext` (**not** `PostCompact`)        | Fragile — bake pointer into compaction summary instead         |
-| `clear` vs `compact` signal | `clear` unhooked; `compact` hooks                                  | `clear` unhooked; `compact` hooks                                                   | `session.created` vs `session.compacted`                       |
-| Auto-compaction disableable | No documented global disable                                       | No off switch (threshold clamped)                                                   | Configurable threshold (keys under-documented)                 |
-| Stability                   | Documented, stable                                                 | GA, stable                                                                          | All compaction hooks `experimental.` — breaking-change risk    |
+| Concern                     | Claude Code                                                        | Codex CLI                                                                       | OpenCode                                                       |
+|-----------------------------|--------------------------------------------------------------------|---------------------------------------------------------------------------------|----------------------------------------------------------------|
+| Hook model                  | `PreCompact` (matcher `manual`/`auto`) + `SessionStart` (`source`) | `PreCompact`/`PostCompact` (`trigger`) + `UserPromptSubmit`                     | Plugin (TS/JS); `experimental.session.compacting` + bus events |
+| Config file                 | `settings.json` hooks                                              | `hooks.json` (+ optional `[features] hooks = true`)                             | Plugin config (keys under-documented)                          |
+| Leg A — write seed          | `PreCompact` runs shell; read-only; can block                      | Same shape                                                                      | `experimental.session.compacting` + shell                      |
+| Leg B — require recovery    | `SessionStart(source=compact)` → stdout / `additionalContext`      | `PostCompact(trigger=manual\|auto)` stops; next `UserPromptSubmit` injects      | Fragile — bake pointer into compaction summary instead         |
+| `clear` vs `compact` signal | `clear` unhooked; `compact` hooks                                  | `clear` unhooked; `compact` hooks                                               | `session.created` vs `session.compacted`                       |
+| Auto-compaction disableable | No documented global disable                                       | No off switch (threshold clamped)                                               | Configurable threshold (keys under-documented)                 |
+| Stability                   | Documented, stable                                                 | GA, but post-compaction injection requires this workaround pending upstream fix | All compaction hooks `experimental.` — breaking-change risk    |
 
 Implementation constraints carried from the research:
 
@@ -70,9 +72,12 @@ Implementation constraints carried from the research:
   auto-compaction surfaces the context-limit error and fails the request. Write-and-exit-0 only. The seed-write
   fires *often* (both harnesses have compaction-frequency issues), which is exactly why the seed stays lean.
 - **Two-leg split maps cleanly.** `PreCompact` is read-only on both (writes files, can't inject) — the seed-write
-  leg. Injection lands at the post-compaction `SessionStart(compact)` leg.
-- **CC ≈ Codex.** One adapter pattern, two config formats — the canonical commands are identical, only the wiring
-  file differs. Strongly validates the canonical/adapter split and makes the CC + Codex MVP cheap.
+  leg. Claude Code recovery lands at `SessionStart(compact)`; Codex recovery uses `PostCompact` for the immediate
+  turn-scoped stop and `UserPromptSubmit` for the next-prompt injection because `PostCompact` cannot inject
+  context and `SessionStart(compact)` is not reliable enough.
+- **CC and Codex share commands, not timing.** The canonical commands are identical, but the adapter wiring differs
+  where the harness lifecycle differs. That still validates the canonical/adapter split without pretending the two
+  hook schedulers are identical.
 - **Token specifics are illustrative only.** Window sizes / thresholds move with model versions; depend only on
   "compaction fires below the coherence ceiling," never a number.
 - **OpenCode watch item.** Its clean post-compaction-turn inject is broken/unmerged; the `session.start(compact)`
@@ -87,7 +92,7 @@ Grounds the spec's claim that the `arc` / `npx arc` invocation convention surviv
   are re-read from disk and re-injected after `/compact` and auto-compaction — documented behavior. Nested /
   subdirectory `CLAUDE.md` files are the exception (they reload lazily on the next file read in that directory),
   but a root-level import is covered.
-- **`SessionStart` is the one hook event that re-runs on compaction** (other events replay stale saved output),
-  so its `additionalContext` is the reliable post-compaction injection mechanism — the deterministic carrier for
-  the recovery instruction (and, where needed, the invocation convention) independent of the `CLAUDE.md`
-  re-injection redundancy.
+- **Claude Code `SessionStart(compact)` is the documented recovery carrier** for post-compaction context. Codex
+  differs: its current docs put `PostCompact` at turn scope but its schemas do not allow `additionalContext` for
+  that event, while issue reports show `SessionStart(compact)` can fire late. Codex therefore uses the hard-stop
+  plus pending-marker workaround until upstream exposes a seamless post-compaction injection hook.

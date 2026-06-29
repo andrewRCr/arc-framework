@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -12,8 +13,11 @@ const packageRoot = resolve(__dirname, "../../..");
 const hookRoot = resolve(packageRoot, "arc/system/.internal/harness-hooks");
 const hooksPath = resolve(hookRoot, "codex-cli/hooks.json");
 const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
+const markerScriptPath = resolve(hookRoot, "common/codex-recovery-marker.mjs");
+const clearScriptPath = resolve(hookRoot, "common/clear-codex-recovery-pending.mjs");
 const seedScriptPath = resolve(hookRoot, "common/pre-compact-seed.mjs");
-const compactScriptPath = resolve(hookRoot, "common/session-start-compact.mjs");
+const postCompactScriptPath = resolve(hookRoot, "common/post-compact-recover.mjs");
+const userPromptScriptPath = resolve(hookRoot, "common/user-prompt-recover.mjs");
 
 interface CommandHook {
   type: "command";
@@ -31,12 +35,16 @@ interface MatcherGroup {
 interface CodexHooksFragment {
   hooks: {
     PreCompact: MatcherGroup[];
-    SessionStart: MatcherGroup[];
-    PostCompact?: MatcherGroup[];
+    PostCompact: MatcherGroup[];
+    UserPromptSubmit: MatcherGroup[];
+    SessionStart?: MatcherGroup[];
   };
 }
 
 interface HookOutput {
+  continue?: boolean;
+  stopReason?: string;
+  systemMessage?: string;
   suppressOutput?: boolean;
   hookSpecificOutput?: {
     hookEventName?: string;
@@ -48,8 +56,24 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
-function runHookScript(path: string): HookOutput {
-  return JSON.parse(execFileSync(process.execPath, [path], { encoding: "utf8" })) as HookOutput;
+function runHookScript(path: string, cwd?: string): HookOutput {
+  return JSON.parse(runHookScriptRaw(path, cwd)) as HookOutput;
+}
+
+function runHookScriptRaw(path: string, cwd?: string): string {
+  return execFileSync(process.execPath, [path], { cwd, encoding: "utf8" });
+}
+
+function withTempArcProject<T>(fn: (root: string) => T): T {
+  const root = mkdtempSync(join(tmpdir(), "arc-codex-hook-"));
+
+  try {
+    mkdirSync(join(root, ".arc", "user", "andrew", ".internal"), { recursive: true });
+    writeFileSync(join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"), "{}\n");
+    return fn(root);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 }
 
 describe("Codex CLI compaction recovery hook recipe", () => {
@@ -59,13 +83,19 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(recipe.include_files).toEqual(expect.arrayContaining([
       "system/.internal/harness-hooks/codex-cli/features.config.toml",
       "system/.internal/harness-hooks/codex-cli/hooks.json",
+      "system/.internal/harness-hooks/common/codex-recovery-marker.mjs",
+      "system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
       "system/.internal/harness-hooks/common/pre-compact-seed.mjs",
-      "system/.internal/harness-hooks/common/session-start-compact.mjs",
+      "system/.internal/harness-hooks/common/post-compact-recover.mjs",
+      "system/.internal/harness-hooks/common/user-prompt-recover.mjs",
     ]));
     expect(existsSync(hooksPath)).toBe(true);
     expect(existsSync(featuresPath)).toBe(true);
+    expect(existsSync(markerScriptPath)).toBe(true);
+    expect(existsSync(clearScriptPath)).toBe(true);
     expect(existsSync(seedScriptPath)).toBe(true);
-    expect(existsSync(compactScriptPath)).toBe(true);
+    expect(existsSync(postCompactScriptPath)).toBe(true);
+    expect(existsSync(userPromptScriptPath)).toBe(true);
   });
 
   it("keeps the Codex feature flag fragment narrow and canonical", () => {
@@ -106,39 +136,70 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(seedScript).toContain("process.exit(0)");
   });
 
-  it("injects session-recover only for SessionStart source compact", () => {
+  it("stops after PostCompact and injects recovery context on the next user prompt", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
-    const sessionMatchers = new Map(
-      fragment.hooks.SessionStart.map((group) => [group.matcher, group]),
+    const postCompactMatchers = new Map(
+      fragment.hooks.PostCompact.map((group) => [group.matcher, group]),
     );
 
-    expect([...sessionMatchers.keys()]).toEqual(["compact"]);
-    expect(fragment.hooks.PostCompact).toBeUndefined();
+    expect([...postCompactMatchers.keys()]).toEqual(["manual|auto"]);
+    expect(fragment.hooks.UserPromptSubmit).toHaveLength(1);
+    expect(fragment.hooks.UserPromptSubmit[0]?.matcher).toBeUndefined();
 
-    const compactHook = sessionMatchers.get("compact")?.hooks[0];
-    expect(compactHook).toMatchObject({
+    const postCompactHook = postCompactMatchers.get("manual|auto")?.hooks[0];
+    expect(postCompactHook).toMatchObject({
       type: "command",
       timeout: 30,
-      statusMessage: "Restoring ARC recovery context",
+      statusMessage: "Stopping for ARC recovery",
     });
-    expect(compactHook?.command).toContain(".arc/system/.internal/harness-hooks/common/session-start-compact.mjs");
-    expect(compactHook?.commandWindows).toContain(
-      ".arc\\system\\.internal\\harness-hooks\\common\\session-start-compact.mjs",
+    expect(postCompactHook?.command).toContain(".arc/system/.internal/harness-hooks/common/post-compact-recover.mjs");
+    expect(postCompactHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs",
     );
 
-    const output = runHookScript(compactScriptPath);
-    expect(output.suppressOutput).toBe(true);
-    expect(output.hookSpecificOutput).toMatchObject({
-      hookEventName: "SessionStart",
+    const userPromptHook = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
+    expect(userPromptHook).toMatchObject({
+      type: "command",
+      timeout: 30,
     });
-    expect(output.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
-    expect(output.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
+    expect(userPromptHook?.command).toContain(".arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs");
+    expect(userPromptHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs",
+    );
+
+    withTempArcProject((root) => {
+      const markerPath = join(root, ".arc", "user", "andrew", ".internal", "codex-compaction-recovery-pending.json");
+
+      const postCompactOutput = runHookScript(postCompactScriptPath, root);
+      expect(postCompactOutput.continue).toBe(false);
+      expect(postCompactOutput.stopReason).toContain("ARC recovery required");
+      expect(postCompactOutput.systemMessage).toContain("recovery-pending");
+      expect(postCompactOutput.systemMessage).toContain("continue");
+      expect(existsSync(markerPath)).toBe(true);
+
+      const marker = readJson<{ kind: string; seedPath: string }>(markerPath);
+      expect(marker.kind).toBe("codex-compaction-recovery-pending");
+      expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
+
+      const userPromptOutput = runHookScript(userPromptScriptPath, root);
+      expect(userPromptOutput.suppressOutput).toBe(true);
+      expect(userPromptOutput.hookSpecificOutput).toMatchObject({
+        hookEventName: "UserPromptSubmit",
+      });
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("clear-codex-recovery-pending.mjs");
+
+      const clearOutput = runHookScript(clearScriptPath, root) as { removed: string[] };
+      expect(clearOutput.removed).toHaveLength(1);
+      expect(existsSync(markerPath)).toBe(false);
+      expect(runHookScriptRaw(userPromptScriptPath, root)).toBe("");
+    });
   });
 
-  it("does not hook SessionStart source clear", () => {
+  it("does not hook SessionStart in Codex because source compact can fire late", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
-    const clearGroup = fragment.hooks.SessionStart.find((group) => group.matcher === "clear");
 
-    expect(clearGroup).toBeUndefined();
+    expect(fragment.hooks.SessionStart).toBeUndefined();
   });
 });

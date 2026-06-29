@@ -149,8 +149,8 @@ Three options:
 ### Optional: Install Compaction Recovery Hooks
 
 ARC ships opt-in hook recipes for harnesses with reliable compaction events. The hooks write a
-machine-local compaction seed before auto/manual compaction and inject `session-recover` after a
-`compact` restart, so the ARC procedural layer is restored without rerunning full session init.
+machine-local compaction seed before auto/manual compaction and require `session-recover` after
+compaction, so the ARC procedural layer is restored without rerunning full session init.
 
 This is a project-scoped harness-config write, not a user/global hook, git-hook, or release-wrapper
 allowlist. Hooks run local commands, so install only after the user explicitly accepts the trust
@@ -185,9 +185,11 @@ Install discipline:
 - Before each write, create a timestamped backup beside the target file.
 - Idempotency is exact-entry based: if the ARC matcher group and command handler already exist, do
   not duplicate them. Preserve all non-ARC hook groups and handlers.
-- The installed events are only `PreCompact` with matcher `manual|auto` and `SessionStart` with
-  matcher `compact`. Do not add `PostCompact`, `SessionStart(clear)`, or a catch-all
-  `SessionStart` matcher.
+- The installed events are harness-specific: Claude Code installs only `PreCompact(manual|auto)` and
+  `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`,
+  `PostCompact(manual|auto)`, and `UserPromptSubmit`; Codex `PostCompact` writes a pending marker
+  and hard-stops, then the next user prompt injects recovery context. Do not add Codex
+  `SessionStart(compact)`, `SessionStart(clear)`, or a catch-all `SessionStart` matcher.
 - After writing, re-read the target files and report one line:
   `ARC post-compaction session-recovery hooks installed for <harness>.`
 - Ask the user to review/trust the new hook definitions in the harness UI when the harness requires
@@ -282,7 +284,7 @@ Three options:
 ### Optional: Install Compaction Recovery Hooks
 
 ARC ships opt-in hook recipes for Claude Code and Codex CLI. They write a machine-local seed before
-compaction and inject `session-recover` only after `compact`; `clear` is deliberately unhooked.
+compaction and require `session-recover` after `compact`; `clear` is deliberately unhooked.
 
 This is a project-scoped harness-config write and requires explicit user trust. If the user accepts,
 write only the selected harness recipe into the current project:
@@ -295,10 +297,12 @@ write only the selected harness recipe into the current project:
   existing policy or user choice keeps hooks disabled.
 
 Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
-and keep exact-entry idempotency. Install only `PreCompact(manual|auto)` and
-`SessionStart(compact)`. After writing, re-read the target files and ask the user to review/trust
-the hook definitions in the harness UI. Roll back by restoring the backup, or by removing only the
-ARC recipe entries.
+and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
+`SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
+and `UserPromptSubmit` as the documented workaround for Codex's missing immediate
+post-compaction context injection. After writing, re-read the target files and ask the user to
+review/trust the hook definitions in the harness UI. Roll back by restoring the backup, or by
+removing only the ARC recipe entries.
 
 ### Optional: Verify Installation
 
