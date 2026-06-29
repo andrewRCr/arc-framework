@@ -12,11 +12,11 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Tasks 4.R.3-4.R.6 — Deterministic recovery audit, cursor wiring, workflow consumption, and coordination.
-- **Next Task:** Task 5.1 — Claude Code hook adapter (line ~270)
+- **Last Completed:** Task 5.3 — Opt-in install integration.
+- **Next Task:** Task 6.1 — Amend `adr-002`
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — implement the Claude Code hook adapter.
+- **Next Action:** Begin Task 6.1 — record the evolved compaction-recovery stance in `adr-002`.
 
 - **PR URL:** [none]
 - **Completed:** [none]
