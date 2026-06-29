@@ -334,17 +334,14 @@ the prose: "clean baseline" means a clean _episodic_ baseline (not a lighter loa
 fresh load after `clear` (not the handoff write itself). Every shipped surface is two-copy package-synced; the
 `adr/` amendment is internal-only (no mirror).
 
-### `[ ]` **6.1 Amend `adr-002`**
+### `[x]` **6.1 Amend `adr-002`**
 
 - _Goal:_ `adr-002` records the evolved stance — compaction is a recoverable discontinuity ARC owns, not a black
   box to disable — without reversing its session-model / agent-compatibility envelope.
 
-    - Append-only amendment (Tier-2, no new ADR), recording: recoverable-discontinuity framing;
-      bounded-sessions-as-scope/review-discipline; the long-session-viability consequence; the
-      disableability-gone fact (the old "disable where possible" guidance assumed a capability the harnesses no
-      longer offer); and the episodic-vs-procedural / mode-relative-residue rationale (the durable _why_ handoff
-      survives at boundaries).
-    - Internal-dev-facing only — `adr/` does not ship; no package mirror, no adopter-clean constraint.
+- _Outcome:_ Added a dated Tier-2 amendment to `adr-002`, recording the recoverable-discontinuity framing,
+  bounded sessions as scope/review discipline, the long-session-viability consequence, the disableability-gone
+  fact, and the episodic-vs-procedural rationale for handoff at boundaries.
 
 ### `[ ]` **6.2 Rewrite `strategy-session-operations` § Auto-Compaction and revise § Context Monitoring**
 

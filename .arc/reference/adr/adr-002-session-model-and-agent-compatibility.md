@@ -243,6 +243,25 @@ longer apply. Flag for WU2 cleanup.
   architectures improve. Convention-level classification means thresholds can update without ADR revision, but the
   guidance must be presented as current evidence rather than permanent truth.
 
+**Amendment (2026-06-29):** Compaction recovery evolves this ADR's session model without superseding it. ARC now
+treats harness compaction as a recoverable discontinuity: the harness may rewrite the conversation, but ARC owns
+the deterministic recovery path for its procedural/semantic context. The earlier "disable auto-compaction where
+possible" posture assumed a capability current primary harnesses no longer reliably expose, so compaction is no
+longer framed as a black box to avoid.
+
+Bounded sessions remain load-bearing, but for scope, review, and attention discipline rather than as the sole
+correctness mechanism for preserving context under pressure. Recovery makes longer sessions viable when pressure
+arrives between natural boundaries; it does not make them the default recommendation. Natural session boundaries
+still earn a handoff because they create a clean episodic baseline for the next mode of work.
+
+The recovered procedural floor is intentionally the same one a fresh `clear` + `session-init` load resolves from
+tracked state: briefs, rules, working memory, active metadata, task-list slice, lifecycle workflow, and declared
+methods/extensions. The difference is episodic. Handoff + `clear` + re-init carries a curated-minimal episodic
+baseline, while compaction carries the harness's opaque summary of the prior stretch. That residue is
+mode-relative: useful continuity within a mode, but noise at a mode transition. "Clean baseline" therefore means
+clean episodic baseline, not lighter procedural load; the reset comes from the fresh load after `clear`, while
+handoff supplies the durable capture before that reset.
+
 ---
 
 Context: tasks-philosophy-configurability.md (Tasks 3.1, 3.2)
