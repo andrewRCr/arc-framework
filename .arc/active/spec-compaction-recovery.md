@@ -197,8 +197,8 @@ later subsume it without a fork; it reuses existing conventions and never mints 
 The same status envelope exposes the **task-list cursor projection** whenever a task list resolves. For
 `session-init`, meta fields are expected fresh by design, so the cursor is an efficiency/helper surface: it gives
 line anchors for the strategic-partial read when the meta's triple-anchor is missing or incomplete. For recovery,
-the cursor is an audit input: the seed cursor and fresh cursor must agree unless the harness summary or user
-explicitly explains why they diverged.
+the cursor is an audit input: the seed cursor and fresh cursor must agree. A mismatch is an unconditional stop
+because the harness summary can explain the volatile current leaf, but it does not override durable task-list drift.
 
 ### Surface 3 — `session-recover` workflow
 
@@ -208,14 +208,14 @@ The lean recovery path. In order:
    lean recover probe, re-resolves the load-set and task-list cursor, compares dirty file paths, and emits a
    structured `ready` / `stop` verdict.
 2. **Stop only on real uncertainty or contradiction.** Stop-worthy signals include missing identity / seed,
-   malformed seed, load-set divergence, dirty-file path divergence, task-cursor mismatch not explained by the
-   harness summary, or a needed workflow pointer that only exists as stale meta orientation. Do not stop merely
-   because the harness summary supplies the current leaf; that is its job.
+   malformed seed, load-set divergence, dirty-file path divergence, task-cursor mismatch, or a needed workflow
+   pointer that only exists as stale meta orientation. Do not stop merely because the harness summary supplies the
+   current leaf; that is its job.
 3. **Re-hydrate**: read the state-selected load-set (canonical files, not summaries of them) plus the lifecycle
    workflow for the current `sessionType`, landing them at the most-recent context position.
-4. **Authority framing**: prefix the re-injected context with a one-line "the ARC context loaded below is
-   authoritative; disregard any earlier paraphrase" — dissolving the ambiguous-authority risk of any overlap with
-   the harness summary for ARC operating context.
+4. **Authority framing**: apply the recovered ARC context as the internal precedence source for ARC procedure and
+   state, while the harness summary remains the volatile current-locus source. If a user-visible recovery note is
+   useful, keep it to a terse success line; do not paste recovered files or user-facing precedence prose.
 5. **Resume** from the harness-summary locus with the ARC floor restored. The summary owns the volatile
    "current leaf concern"; ARC's cursor only bounds and verifies the durable task-list section.
 
@@ -397,6 +397,8 @@ buffer (already routed; see § Open Questions for status):
   workflows load only applicable fragments). Build it as a minimal proto resolve-then-load scoped to the
   session-init/recovery load-set; CW later subsumes it. CW also owns the deferred prose-level rewire of
   `session-init` Step 3 to consume the slice — this WU ships it consumed by `session-recover` only, parity-tested.
+  `session-recover` temporarily carries a short inline copy of `partial-strategic` slicing so compacted agents have
+  a self-contained procedure; CW should DRY that read-mode execution contract when it lifts load-set consumption.
 - **`operational-state-docs` / `adr-022`** — the seed reads exactly the surfaces OSD formalizes as managed records
   (`meta`, `SESSION-NOTES`, `WORKING-MEMORY`). Frame the seed as a **projection over those records** (sibling to
   `STATUS.*`): interim it projects from markdown via the existing extractors, post-OSD from records, no reshape.
@@ -472,7 +474,7 @@ handoff stays the preferred path; recovery is for compaction that can't be avoid
   dirty-path / task-cursor mismatch cases.
 - **Stale-field discipline:** `session-recover` treats `Next Task`, `Next Action`, `Last Completed`,
   `Current Workflow`, and `Blockers` as post-compaction soft orientation only; the harness summary owns volatile
-  current-leaf continuity, and the workflow stops only on true uncertainty or contradiction.
+  current-leaf continuity, while durable task-list cursor drift remains an unconditional stop.
 - **Lean probe mode** emits exactly the kept slices and omits the skipped oracles (§ Cross-cutting → Lean probe
   mode); verified.
 - **End-to-end (manual, per harness):** on Claude Code and Codex, forcing a compaction injects recovery and the

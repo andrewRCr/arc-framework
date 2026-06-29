@@ -33,6 +33,10 @@
 - *Invariant CW / `loadset-composition` rely on:* the projection resolves load-set **membership** from shared policy
   (`loadset-composition`'s domain), never a recover-specific hardcoded list — so the subsumption is a fork-free
   lift-and-shift. Recovery stays a *consumer* of policy, not a definer.
+- *Temporary duplication to DRY:* `session-recover` carries a short inline copy of the `partial-strategic` task-list
+  slicing contract so a freshly compacted agent does not need `session-init` in context. When CW lifts load-set
+  consumption into the general resolve-then-load substrate, factor that read-mode execution contract into one
+  shared source and have both session-init and recovery consume it.
 - *Also:* recovery is a concrete motivating case for CW's conditional-arm / `sessionType`-gated fragment declaration
   — the load-set varies by resolved `sessionType`, exactly the resolve-then-load pattern.
 

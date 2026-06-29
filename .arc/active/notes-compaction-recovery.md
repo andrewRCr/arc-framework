@@ -30,8 +30,9 @@ hook adapter (opt-in).
    state-selected context present again).
 3. **`clear` routing.** Run `/clear`; confirm `SessionStart(source=clear)` routes to full `session-init` /
    `arc-session`, **not** `session-recover`.
-4. **Audit divergence.** Land a commit (move HEAD) mid-session, then compact; confirm the recovery audit detects
-   the seed-vs-reality divergence and **stops for direction** rather than silently resuming.
+4. **Audit divergence.** Write a seed, then mutate recovery-relevant state without rewriting the seed (for example,
+   change the dirty-file path set or advance the task-list cursor). Confirm the recovery audit detects the
+   seed-vs-reality divergence and **stops for direction** rather than silently resuming.
 
 ### Codex CLI
 

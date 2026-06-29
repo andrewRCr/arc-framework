@@ -33,7 +33,7 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
   universal/state-anchored docs, per-`sessionType` lifecycle members, execution task-list partial reads, active
   extension docs, and cohort docs with unit coverage.
 
-### `[ ]` **1.3 Expose `loadSet` as an additive envelope slice**
+### `[x]` **1.3 Expose `loadSet` as an additive envelope slice**
 
 - _Goal:_ The projection surfaces as an additive slice on the probe envelope, exposed identically to the
   `session-init` and `--recover` envelope modes — one shared resolver, never a forked loader.
@@ -50,6 +50,10 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
         - Deferred to Task 3.1, which owns introducing the lean `--recover` envelope and its exact kept/omitted
           slice tests; `session-init` wiring is covered by 1.3.a, and recover parity becomes meaningful only once
           the recover mode exists.
+
+- _Outcome:_ The additive `loadSet` slice is exposed on both session-init and recover envelopes through one shared
+  projection. Recover-mode smoke coverage landed with the lean probe in Task 3.1, so the original paired smoke
+  subtask is terminally deferred rather than open.
 
 ## **Phase 2:** Compaction seed
 

@@ -54,6 +54,8 @@ Use the **fresh** report surfaces for context loading:
 - For execution sessions, require `report.verdict.taskCursor.match === true` and use
   `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. If it is absent,
   malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
+  A task-cursor mismatch is an unconditional stop: the harness summary can explain the volatile
+  current leaf, but it does not override durable task-list drift.
 - For planning sessions, use the harness-summary workflow/stage only after the verification above.
 
 Do not stop solely because the seed is old or `HEAD` moved. The recovery audit's structured
@@ -73,7 +75,18 @@ Apply each entry's `readMode`:
 - `partial-strategic` - read the active task-list header, current phase preamble, and current
   task section. Use the verified `taskCursor.section` and `taskCursor.leaf` anchors from the
   audit report. If the report lacks a verified anchor, stop. Do not fall back to the active
-  meta file's `**Next Task:**`.
+  meta file's `**Next Task:**`. Slice the task list as follows:
+    1. Header — read the content above the first `## **Phase` heading.
+    2. Current phase preamble — derive the phase id from `taskCursor.section.id` by stripping
+       the leaf segment (`5.3` -> `5`, `3.R.e` -> `3.R`), then read from
+       `## **Phase {id}:**` through the line before the first checkbox under that phase.
+    3. Current task section — start at `taskCursor.section.lineHint`, falling back to the
+       section id and title only if the hint is stale, and read through the line before the
+       next parent task or phase heading. The `taskCursor.leaf` identifies the executable
+       checkbox inside that section.
+
+  If offsets are needed, build one structural map from phase/task headings rather than repeated
+  ad hoc searches. Stop if any required slice cannot be located.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
 one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
@@ -88,10 +101,13 @@ after the recovery load set has been read. Otherwise skip.
 
 ## 5. Resume
 
-Before resuming work, emit this authority line exactly once:
+Before resuming work, apply this precedence rule internally: the recovered ARC operating context
+is authoritative for ARC procedure and state; the harness summary is authoritative only for the
+volatile in-progress locus. Do not paste recovered files or print precedence language to the
+developer. If a user-visible recovery note is useful, keep it to one terse status line:
 
 ```text
-The ARC operating context below is authoritative; use it to evaluate the compaction summary.
+ARC post-compaction session recovery complete.
 ```
 
 Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
