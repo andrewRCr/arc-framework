@@ -11,16 +11,15 @@
 - **Design:** `spec-compaction-recovery.md`
 - **Task List:** `tasks-compaction-recovery.md`
 
-- **Current Workflow:** [none]
-- **Last Completed:** Task 7.1 — Complete verification. Tier 3 gates green (TS lint, shell lint, typecheck,
-  3578 tests, build, md lint, diff check); all 12 success criteria met, including Codex/Claude compact recovery
-  and `clear` routing.
+- **Current Workflow:** integrate-work-unit Step 4 — review iteration
+- **Last Completed:** Integration correction - Codex recovery uses PostCompact hard stop + UserPromptSubmit sentinel.
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** integrate-work-unit Step 4 — wait for PR #151 checks on the latest branch head; once green, run
+  `project/address-pr-review.md` to trigger/respond to CodeRabbit.
 
-- **PR URL:** [none]
+- **PR URL:** [PR #151](https://github.com/andrewRCr/arc-framework/pull/151)
 - **Completed:** [none]
 
 ---
