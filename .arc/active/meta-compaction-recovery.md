@@ -12,11 +12,13 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 5.3 — Opt-in install integration.
-- **Next Task:** Task 6.1 — Amend `adr-002`
+- **Last Completed:** Task 7.1 — Complete verification. Tier 3 gates green (TS lint, shell lint, typecheck,
+  3578 tests, build, md lint, diff check); all 12 success criteria met, including Codex/Claude compact recovery
+  and `clear` routing.
+- **Next Task:** [none] — verification complete; WU ready for integration.
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 6.1 — record the evolved compaction-recovery stance in `adr-002`.
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

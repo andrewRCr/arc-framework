@@ -386,10 +386,12 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
 
 ## **Phase 7:** Verification
 
-### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **7.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ Verification includes the manual per-harness end-to-end recovery protocol — see
-  `notes-compaction-recovery.md` § Manual end-to-end recovery protocol (Claude Code + Codex; OpenCode deferred).
+- _Quality gates:_ TS lint, shell lint, typecheck (source + test), 3578 tests (1 skipped), build, md lint, and
+  `git diff --check` — all passed.
+- _Success criteria:_ 12 criteria, all met against `spec-compaction-recovery.md`; manual Codex and Claude Code
+  compact recovery passed, `clear` routed to full `session-init`, and OpenCode remains deferred by design.
 
 ---
 
@@ -407,17 +409,23 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
   as post-compaction soft orientation only; it resumes from the harness-summary locus unless true uncertainty or
   contradiction requires a stop
 - `[x]` Lean probe mode emits exactly the kept slices and omits the skipped oracles (verified)
-- `[ ]` On Claude Code and Codex, forcing a compaction injects recovery and the agent resumes the in-flight task
+- `[x]` On Claude Code and Codex, forcing a compaction injects recovery and the agent resumes the in-flight task
   with the procedural floor restored; `clear` routes to full `session-init` instead (manual per-harness e2e)
-- `[ ]` `adr-002` carries the append-only amendment (incl. the episodic-vs-procedural rationale); the
+    - **Met:** Codex and Claude Code compact recovery e2e passed after project-local hook installation from
+      `dotfiles-ai`; `clear` was confirmed to route to full `session-init`. The runs surfaced serial recovery
+      context reads and eager active-extension body loading, now corrected in `session-recover` and the shared
+      load-set projection.
+- `[x]` `adr-002` carries the append-only amendment (incl. the episodic-vs-procedural rationale); the
   boundary-vs-pressure disambiguation is applied adopter-clean across `strategy-session-operations`
   (§ Auto-Compaction + § Context Monitoring), `DEV-RULES.ARC` § Context quality, and `AGENT-BRIEF.ARC`; no live
   adopter-facing surface still presents session-bounding as the context-preservation correctness mechanism
 - `[x]` The five reciprocal forward-compat notes are present in their sibling buffers; the load-set projection
   resolves membership from shared policy (no recover-specific list); the seed's embedded manifest is produced by
   the same projection
-- `[ ]` The pre-compaction seed write exits 0 and never blocks compaction
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` The pre-compaction seed write exits 0 and never blocks compaction
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration
+    - **Met:** `npx arc finalize verify` wrote `integrate-work-unit Step 1 — verify completion`; all success
+      criteria are met.
 
 ---
