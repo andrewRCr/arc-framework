@@ -271,18 +271,25 @@ is explicit opt-in at verify-and-configure (hooks run local commands and require
 auto-installed. See `notes-compaction-recovery.md` § Harness adapter implementation reference for the per-harness
 wiring detail.
 
-### `[ ]` **5.1 Claude Code hook adapter**
+### `[x]` **5.1 Claude Code hook adapter**
 
 - _Goal:_ Claude Code writes the seed before compaction and injects recovery after, distinguishing `compact`
   from `clear` from the harness `source`.
 
-    - `[ ]` **5.1.a Leg A — `PreCompact` seed-write recipe**
+    - `[x]` **5.1.a Leg A — `PreCompact` seed-write recipe**
         - Runs the seed-write command; read-only; exits 0; never blocks compaction (blocking surfaces the
           context-limit error and fails the request).
 
-    - `[ ]` **5.1.b Leg B — `SessionStart(source=compact)` recovery inject**
-        - Injects the recovery instruction to stdout / `additionalContext`; `source: clear` routes to full
-          `session-init` instead. Wired in `settings.json` hooks.
+    - `[x]` **5.1.b Leg B — `SessionStart(source=compact)` recovery inject**
+        - Injects the recovery instruction to stdout / `additionalContext`; `source: clear` is not hooked, so
+          clear remains a normal harness reset and any later ARC entry goes through ordinary `session-init`.
+          Wired in `settings.json` hooks.
+
+- _Outcome:_ Added a shipped Claude Code settings fragment plus two tiny Node hook scripts under
+  `system/.internal/harness-hooks/claude-code/`. `PreCompact(manual|auto)` writes the seed through
+  `arc status --session-init --write-compaction-seed --json` and always exits 0; `SessionStart(compact)` injects
+  the `session-recover` instruction via `additionalContext`; `SessionStart(clear)` has no ARC hook. The recipe is
+  included in `init-recipe.json` and pinned by unit coverage.
 
 ### `[ ]` **5.2 Codex CLI hook adapter**
 

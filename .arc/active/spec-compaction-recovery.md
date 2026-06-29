@@ -252,8 +252,9 @@ harness summary.
 Per-harness hook recipes invoking the **same** canonical seed/recover commands. Two legs:
 
 - **Leg A (write seed, pre-compaction)** — a read-only pre-compaction hook writes the seed and exits 0.
-- **Leg B (inject recovery, post-compaction)** — a post-compaction session-start hook injects the recovery
-  instruction; the deliberate-reset signal routes to full `session-init` instead.
+- **Leg B (inject recovery, post-compaction)** — a `compact` session-start hook injects the recovery instruction.
+  Deliberate reset (`clear`) is not hooked; it remains a normal harness reset, and any later ARC entry uses
+  ordinary `session-init`.
 
 | Harness         | Leg A (seed)                      | Leg B (inject)                                                           | clear vs compact                  | Verdict             |
 |-----------------|-----------------------------------|--------------------------------------------------------------------------|-----------------------------------|---------------------|
@@ -272,7 +273,8 @@ injection is architecturally different (bake the pointer into the compaction sum
 - **`compact`** (auto *or* manual `/compact`) — "keep working, the window is full / shed bulk." The task
   continues; ARC's operating context must be restored → **`session-recover`**. Manual `/compact` carries the same
   intent as auto-compact, so the two are handled **identically** — no separate coverage.
-- **`clear`** — "deliberate reset, fresh start." That is a re-bootstrap → ordinary `session-init` / `arc-session`.
+- **`clear`** — "deliberate reset, fresh start." ARC does not inject recovery on clear. If ARC is invoked after
+  the reset, that is a re-bootstrap → ordinary `session-init` / `arc-session`.
   Recovery must **not** touch it.
 
 The harness `source`/`trigger` fields give this fork directly; ARC never infers it.

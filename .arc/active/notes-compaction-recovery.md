@@ -28,8 +28,8 @@ hook adapter (opt-in).
    recovery instruction, `session-recover` ran (lean probe re-run → load-set re-resolve → audit), and the agent
    resumed the in-flight task with the procedural floor restored (briefs / `DEV-RULES` / `WORKING-MEMORY` /
    state-selected context present again).
-3. **`clear` routing.** Run `/clear`; confirm `SessionStart(source=clear)` routes to full `session-init` /
-   `arc-session`, **not** `session-recover`.
+3. **`clear` boundary.** Run `/clear`; confirm no ARC recovery hook injects context. Clear remains a harness
+   reset; any later ARC entry should be ordinary `session-init` / `arc-session`, **not** `session-recover`.
 4. **Audit divergence.** Write a seed, then mutate recovery-relevant state without rewriting the seed (for example,
    change the dirty-file path set or advance the task-list cursor). Confirm the recovery audit detects the
    seed-vs-reality divergence and **stops for direction** rather than silently resuming.
