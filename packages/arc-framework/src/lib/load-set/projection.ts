@@ -50,6 +50,13 @@ function partialStrategic(path: string): LoadSetEntry {
   return { path, readMode: { kind: "partial-strategic" } };
 }
 
+function cloneEntry(entry: LoadSetEntry): LoadSetEntry {
+  return {
+    path: entry.path,
+    readMode: { ...entry.readMode },
+  };
+}
+
 const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
   full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
   full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
@@ -72,9 +79,7 @@ const ARC_CONTEXT_ENTRIES: readonly LoadSetEntry[] = [
  * @returns Ordered load-set manifest; entry order is read order.
  */
 export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetManifest {
-  const entries: LoadSetEntry[] = [
-    ...ARC_CONTEXT_ENTRIES,
-  ];
+  const entries: LoadSetEntry[] = ARC_CONTEXT_ENTRIES.map(cloneEntry);
 
   if (input.metaPath !== null) {
     entries.push(full(input.metaPath));

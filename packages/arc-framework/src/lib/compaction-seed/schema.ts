@@ -316,7 +316,7 @@ function isTaskCursorItem(value: unknown): value is TaskListCursor["section"] {
   return typeof value.id === "string"
     && typeof value.title === "string"
     && typeof value.lineHint === "number"
-    && Number.isInteger(value.lineHint)
+    && Number.isSafeInteger(value.lineHint)
     && value.lineHint > 0;
 }
 

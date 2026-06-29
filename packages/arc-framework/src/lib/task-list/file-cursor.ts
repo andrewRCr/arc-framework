@@ -5,7 +5,7 @@
  */
 
 import { readFile, realpath } from "node:fs/promises";
-import { isAbsolute, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
 import { resolveTaskListCursor, type TaskListCursorResult } from "./cursor.js";
 
@@ -95,13 +95,63 @@ async function assertRealPathInsideRepo(options: {
   taskListPath: string;
   realpath: (path: string) => Promise<string>;
 }): Promise<string> {
-  const [repoRealPath, fileRealPath] = await Promise.all([
-    options.realpath(options.cwd),
-    options.realpath(options.absolutePath),
-  ]);
-  const relativeRealPath = relative(repoRealPath, fileRealPath).replaceAll("\\", "/");
+  const repoRealPath = await options.realpath(options.cwd);
+  try {
+    const fileRealPath = await options.realpath(options.absolutePath);
+    assertPathInsideRepo({
+      repoRealPath,
+      candidateRealPath: fileRealPath,
+      taskListPath: options.taskListPath,
+      allowRoot: false,
+    });
+    return fileRealPath;
+  } catch (err) {
+    if (!isNotFoundError(err)) throw err;
+    await assertNearestExistingAncestorInsideRepo({
+      repoRealPath,
+      absolutePath: options.absolutePath,
+      taskListPath: options.taskListPath,
+      realpath: options.realpath,
+    });
+    throw err;
+  }
+}
+
+async function assertNearestExistingAncestorInsideRepo(options: {
+  repoRealPath: string;
+  absolutePath: string;
+  taskListPath: string;
+  realpath: (path: string) => Promise<string>;
+}): Promise<void> {
+  let candidate = dirname(options.absolutePath);
+  for (;;) {
+    try {
+      const ancestorRealPath = await options.realpath(candidate);
+      assertPathInsideRepo({
+        repoRealPath: options.repoRealPath,
+        candidateRealPath: ancestorRealPath,
+        taskListPath: options.taskListPath,
+        allowRoot: true,
+      });
+      return;
+    } catch (err) {
+      if (!isNotFoundError(err)) throw err;
+      const parent = dirname(candidate);
+      if (parent === candidate) throw err;
+      candidate = parent;
+    }
+  }
+}
+
+function assertPathInsideRepo(options: {
+  repoRealPath: string;
+  candidateRealPath: string;
+  taskListPath: string;
+  allowRoot: boolean;
+}): void {
+  const relativeRealPath = relative(options.repoRealPath, options.candidateRealPath).replaceAll("\\", "/");
   if (
-    relativeRealPath.length === 0
+    (relativeRealPath.length === 0 && !options.allowRoot)
     || relativeRealPath.startsWith("../")
     || relativeRealPath === ".."
     || relativeRealPath.startsWith("/")
@@ -109,5 +159,4 @@ async function assertRealPathInsideRepo(options: {
   ) {
     throw new Error(`Task list path must stay within the repository: ${options.taskListPath}`);
   }
-  return fileRealPath;
 }

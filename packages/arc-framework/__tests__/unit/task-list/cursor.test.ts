@@ -269,6 +269,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for id-only checkbox bullets at root level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "- `[ ]` **1.1.a**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task checkbox marker appeared at root level",
+      },
+    });
+  });
+
   it("returns no-open-task when every task is terminal", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -362,6 +380,24 @@ describe("resolveTaskListCursor", () => {
       },
     });
   });
+
+  it("returns malformed for id-only subtasks with invalid indentation", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "  - `[ ]` **1.1.a**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "subtask marker does not match task-list bullet grammar",
+      },
+    });
+  });
 });
 
 describe("resolveTaskListCursorFromFile", () => {
@@ -375,6 +411,32 @@ describe("resolveTaskListCursorFromFile", () => {
       readFile: async () => {
         throw enoent;
       },
+    });
+
+    expect(result).toEqual({
+      status: "missing",
+      path: ".arc/active/tasks-widget.md",
+    });
+  });
+
+  it("returns missing when the absent task-list path stays inside the repository", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const readFile = async (): Promise<string> => {
+      throw new Error("read should not be called");
+    };
+
+    const result = await resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: ".arc/active/tasks-widget.md",
+      realpath: async (path) => {
+        const normalized = path.replaceAll("\\", "/");
+        if (normalized === "/repo" || normalized === "/repo/.arc" || normalized === "/repo/.arc/active") {
+          return normalized;
+        }
+        if (normalized === "/repo/.arc/active/tasks-widget.md") throw enoent;
+        throw new Error(`unexpected path: ${path}`);
+      },
+      readFile,
     });
 
     expect(result).toEqual({
@@ -434,6 +496,30 @@ describe("resolveTaskListCursorFromFile", () => {
         taskListPath: ".arc/active/linked/tasks-widget.md",
       })).rejects.toThrow(
         "Task list path must stay within the repository: .arc/active/linked/tasks-widget.md",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects symlink escapes when the target file is absent", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-cursor-"));
+    const outside = await mkdtemp(join(tmpdir(), "arc-cursor-outside-"));
+
+    try {
+      await mkdir(join(root, ".arc", "active"), { recursive: true });
+      await symlink(
+        outside,
+        join(root, ".arc", "active", "linked"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+
+      await expect(resolveTaskListCursorFromFile({
+        cwd: root,
+        taskListPath: ".arc/active/linked/missing.md",
+      })).rejects.toThrow(
+        "Task list path must stay within the repository: .arc/active/linked/missing.md",
       );
     } finally {
       await rm(root, { recursive: true, force: true });

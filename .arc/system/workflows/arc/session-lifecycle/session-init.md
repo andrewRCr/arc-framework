@@ -477,7 +477,7 @@ freshness-check commands below), not from SESSION-NOTES prose.
            themselves are not
         3. **Current task section** — resolved via graduated lookup below
     - **Graduated lookup** using the chosen anchor:
-        1. Jump to the line hint (`line ~N` from `Next Task`, or `taskCursor.section.lineHint`
+        1. Jump to the line hint (`line ~N` from `Next Task`, or `taskCursor.value.cursor.section.lineHint`
            when using the cursor) — if the anchor id matches there, done
         2. Search for the anchor id (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered

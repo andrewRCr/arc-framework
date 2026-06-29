@@ -57,6 +57,23 @@ describe("resolveLoadSetManifest", () => {
     expect(manifest.entries).not.toContainEqual(fullEntry("CLAUDE.md"));
   });
 
+  it("returns detached copies of static context entries", () => {
+    const first = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "planning",
+      planningStage: "create-spec",
+    });
+    const second = resolveLoadSetManifest({
+      ...BASE_INPUT,
+      sessionType: "planning",
+      planningStage: "create-spec",
+    });
+
+    expect(first.entries[0]).not.toBe(second.entries[0]);
+    expect(first.entries[0]?.readMode).not.toBe(second.entries[0]?.readMode);
+    expect(first.entries[5]?.readMode).not.toBe(second.entries[5]?.readMode);
+  });
+
   it("resolves execution sessions with the task-list slice and process-task-loop", () => {
     const manifest = resolveLoadSetManifest({
       ...BASE_INPUT,

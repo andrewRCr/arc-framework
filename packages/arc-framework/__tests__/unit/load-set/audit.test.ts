@@ -16,6 +16,16 @@ function manifest(paths: readonly string[]): LoadSetManifest {
   };
 }
 
+function cloneManifest(value: LoadSetManifest): LoadSetManifest {
+  return {
+    manifestVersion: value.manifestVersion,
+    entries: value.entries.map((entry) => ({
+      path: entry.path,
+      readMode: { ...entry.readMode },
+    })),
+  };
+}
+
 const BASELINE = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
@@ -39,7 +49,7 @@ const BASELINE = {
 
 describe("auditLoadSetManifest", () => {
   it("returns a clean verdict when the fresh load-set matches the seed baseline", () => {
-    expect(auditLoadSetManifest({ baseline: BASELINE, fresh: BASELINE })).toEqual({
+    expect(auditLoadSetManifest({ baseline: BASELINE, fresh: cloneManifest(BASELINE) })).toEqual({
       status: "match",
       diverged: false,
       diff: {

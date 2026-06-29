@@ -88,12 +88,21 @@ describe("resolveCompactionSeedPath", () => {
   });
 
   it("rejects identities that would escape the user directory", () => {
-    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "../andrew" }))
-      .toThrow("Invalid compaction seed identity");
-    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "team/andrew" }))
-      .toThrow("Invalid compaction seed identity");
-    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "C:andrew" }))
-      .toThrow("Invalid compaction seed identity");
+    for (const identity of [
+      "../andrew",
+      "team/andrew",
+      "C:andrew",
+      ".internal",
+      "bad*name",
+      "bad?name",
+      "bad\"name",
+      "bad<name",
+      "bad>name",
+      "bad|name",
+    ]) {
+      expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity }))
+        .toThrow("Invalid compaction seed identity");
+    }
   });
 });
 

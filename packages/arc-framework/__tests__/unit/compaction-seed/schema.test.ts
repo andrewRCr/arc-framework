@@ -312,6 +312,31 @@ describe("CompactionSeed schema", () => {
     }
   });
 
+  it("rejects unsafe task cursor line hints", () => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({
+        ...seed(),
+        taskCursor: {
+          section: {
+            id: "2.1",
+            title: "Define schema",
+            lineHint: Number.MAX_SAFE_INTEGER + 1,
+          },
+          leaf: {
+            id: "2.1",
+            title: "Define schema",
+            lineHint: 1,
+          },
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
+
   it("rejects load-set entries outside the shared read-mode vocabulary", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({

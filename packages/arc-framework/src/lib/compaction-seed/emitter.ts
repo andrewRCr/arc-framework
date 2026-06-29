@@ -70,8 +70,8 @@ export function resolveCompactionSeedPath(ctx: { cwd: string; identity: string }
     ctx.identity === ""
     || ctx.identity === "."
     || ctx.identity === ".."
-    || ctx.identity.includes(":")
-    || /[\\/]/u.test(ctx.identity)
+    || ctx.identity.startsWith(".")
+    || /[<>:"/\\|?*]/u.test(ctx.identity)
   ) {
     throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
   }
