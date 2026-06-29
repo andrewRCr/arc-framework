@@ -287,6 +287,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for empty checkbox bullets at root level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "- `[ ]`",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task marker must include a valid id and title",
+      },
+    });
+  });
+
   it("returns no-open-task when every task is terminal", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -359,6 +377,24 @@ describe("resolveTaskListCursor", () => {
       error: {
         line: 3,
         message: "subtask marker appeared before any parent task",
+      },
+    });
+  });
+
+  it("returns malformed for empty indented checkbox bullets", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "    - `[ ]`",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task marker must include a valid id and title",
       },
     });
   });
@@ -542,6 +578,33 @@ describe("resolveTaskListCursorFromFile", () => {
       await rm(root, { recursive: true, force: true });
       await rm(outside, { recursive: true, force: true });
     }
+  });
+
+  it("rejects dangling symlink escapes before returning missing", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const taskListPath = ".arc/active/linked/tasks-widget.md";
+
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath,
+      realpath: async (path) => {
+        if (path === "/repo") return "/repo";
+        if (path === "/repo/.arc/active/linked/tasks-widget.md") throw enoent;
+        if (path === "/repo/.arc/active/linked") throw enoent;
+        throw new Error(`unexpected realpath: ${path}`);
+      },
+      lstat: async (path) => {
+        if (path === "/repo/.arc/active/linked") {
+          return { isSymbolicLink: () => true };
+        }
+        throw enoent;
+      },
+      readFile: async () => {
+        throw new Error("read should not be called");
+      },
+    })).rejects.toThrow(
+      `Task list path must stay within the repository: ${taskListPath}`,
+    );
   });
 
   it("rejects symlink escapes before an injected reader can read", async () => {

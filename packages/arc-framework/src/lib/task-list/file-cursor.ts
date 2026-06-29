@@ -4,7 +4,7 @@
  * @module
  */
 
-import { readFile, realpath } from "node:fs/promises";
+import { lstat, readFile, realpath } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
 
 import { resolveTaskListCursor, type TaskListCursorResult } from "./cursor.js";
@@ -14,6 +14,7 @@ interface ResolveTaskListCursorFromFileOptions {
   taskListPath: string;
   readFile?: (path: string) => Promise<string>;
   realpath?: (path: string) => Promise<string>;
+  lstat?: (path: string) => Promise<{ isSymbolicLink(): boolean }>;
 }
 
 /** File-backed task-list cursor result, including absent file handling. */
@@ -38,6 +39,7 @@ export async function resolveTaskListCursorFromFile(
       absolutePath: taskListPath.absolutePath,
       taskListPath: options.taskListPath,
       realpath: options.realpath ?? realpath,
+      lstat: options.lstat ?? lstat,
     });
     const read = options.readFile ?? readUtf8File;
     return resolveTaskListCursor(await read(safePath));
@@ -94,6 +96,7 @@ async function assertRealPathInsideRepo(options: {
   absolutePath: string;
   taskListPath: string;
   realpath: (path: string) => Promise<string>;
+  lstat: (path: string) => Promise<{ isSymbolicLink(): boolean }>;
 }): Promise<string> {
   let repoRealPath: string;
   try {
@@ -115,6 +118,13 @@ async function assertRealPathInsideRepo(options: {
     return fileRealPath;
   } catch (err) {
     if (!isNotFoundError(err)) throw err;
+    await assertNoDanglingSymlinkSegments({
+      repoRealPath,
+      absolutePath: options.absolutePath,
+      taskListPath: options.taskListPath,
+      realpath: options.realpath,
+      lstat: options.lstat,
+    });
     await assertNearestExistingAncestorInsideRepo({
       repoRealPath,
       absolutePath: options.absolutePath,
@@ -122,6 +132,46 @@ async function assertRealPathInsideRepo(options: {
       realpath: options.realpath,
     });
     throw err;
+  }
+}
+
+async function assertNoDanglingSymlinkSegments(options: {
+  repoRealPath: string;
+  absolutePath: string;
+  taskListPath: string;
+  realpath: (path: string) => Promise<string>;
+  lstat: (path: string) => Promise<{ isSymbolicLink(): boolean }>;
+}): Promise<void> {
+  let candidate = options.absolutePath;
+  for (;;) {
+    try {
+      const stat = await options.lstat(candidate);
+      if (stat.isSymbolicLink()) {
+        let targetRealPath: string;
+        try {
+          targetRealPath = await options.realpath(candidate);
+        } catch (err) {
+          if (isNotFoundError(err)) {
+            throw new Error(`Task list path must stay within the repository: ${options.taskListPath}`, {
+              cause: err,
+            });
+          }
+          throw err;
+        }
+        assertPathInsideRepo({
+          repoRealPath: options.repoRealPath,
+          candidateRealPath: targetRealPath,
+          taskListPath: options.taskListPath,
+          allowRoot: true,
+        });
+      }
+    } catch (err) {
+      if (!isNotFoundError(err)) throw err;
+    }
+
+    const parent = dirname(candidate);
+    if (parent === candidate) return;
+    candidate = parent;
   }
 }
 

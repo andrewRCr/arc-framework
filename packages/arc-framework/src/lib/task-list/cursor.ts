@@ -57,7 +57,7 @@ const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*(?:\
 const SUBTASK_RE =
   /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*(?:\s+.+)?)|(?<plainBody>.+?))\s*$/u;
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
-const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s+(?<body>.+?)\s*$/u;
+const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s*(?<body>.*?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
 const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
 const TASK_ID_PREFIX_RE = /^\d+(?:\.[0-9A-Za-z]+)+(?:\s+|$)/u;
@@ -89,6 +89,9 @@ export function resolveTaskListCursor(content: string): TaskListCursorResult {
     if (checkboxBullet !== null && checkboxBullet.groups !== undefined) {
       const indent = checkboxBullet.groups.indent ?? "";
       const body = checkboxBullet.groups.body ?? "";
+      if (body.trim() === "") {
+        return malformed(lineNumber, "task marker must include a valid id and title");
+      }
       if (indent.length < 4) {
         if (hasTaskIdLikePrefix(body)) {
           return malformed(lineNumber, indent.length === 0
