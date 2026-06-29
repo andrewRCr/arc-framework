@@ -40,7 +40,7 @@ If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
 
 - For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
   details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
-  load-set drift, dirty path-set drift, and execution task-cursor drift.
+  load-set drift, dirty path-set drift, and non-planning task-cursor drift when a cursor exists.
 - If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
   summary names a planning workflow/stage that can be verified against the recovered load set and
   artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
@@ -53,10 +53,12 @@ Use the **fresh** report surfaces for context loading:
 - `report.recover.loadSet.value` is the canonical context-load plan. The seed's embedded load set
   is only the audit baseline.
 - For execution sessions, require `report.verdict.taskCursor.match === true` and use
-  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. If it is absent,
-  malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
-  A task-cursor mismatch is an unconditional stop: the harness summary can explain the volatile
-  current leaf, but it does not override durable task-list drift.
+  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. For integration sessions,
+  apply the same rule when the report carries a non-null `taskCursor` comparison (seed or fresh
+  recovery found a cursor); a cursorless integration review state is valid when the task list has no open
+  executable checkbox. If a required cursor is absent, malformed, or not `status: "found"`, stop; do not
+  fall back to active-meta `Next Task`. A task-cursor mismatch is an unconditional stop: the harness summary
+  can explain the volatile current leaf, but it does not override durable task-list drift.
 - For planning sessions, use the harness-summary workflow/stage only after the verification above.
 
 Do not stop solely because the seed is old or `HEAD` moved. The recovery audit's structured

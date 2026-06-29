@@ -376,6 +376,63 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
+  it("audits integration task cursors when the seed captured one", () => {
+    const result = auditRecoveryState({
+      seed: seed({
+        sessionType: "integration",
+        currentWorkflow: "integrate-work-unit Step 4",
+      }),
+      recover: {
+        active: ok(active({
+          sessionType: "integration",
+          currentWorkflow: "integrate-work-unit Step 4",
+        })),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult({
+          leaf: {
+            id: "4.R.4",
+            title: "Add deterministic arc recover audit --json",
+            lineHint: 210,
+          },
+        })),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toMatchObject([
+      {
+        kind: "task-cursor-mismatch",
+      },
+    ]);
+  });
+
+  it("allows cursorless integration recovery when no task-list checkbox is open", () => {
+    const result = auditRecoveryState({
+      seed: seed({
+        sessionType: "integration",
+        currentWorkflow: "integrate-work-unit Step 4",
+        taskCursor: null,
+      }),
+      recover: {
+        active: ok(active({
+          sessionType: "integration",
+          currentWorkflow: "integrate-work-unit Step 4",
+        })),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok({
+          status: "no-open-task",
+        }),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.taskCursor).toBeNull();
+  });
+
   it("stops for planning recovery because Current Workflow is soft after compaction", () => {
     const result = auditRecoveryState({
       seed: seed({

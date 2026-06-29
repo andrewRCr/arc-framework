@@ -278,7 +278,12 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
   const freshSessionType = options.recover.active.ok
     ? options.recover.active.value.sessionType
     : null;
-  return options.seed.sessionType === "execution" || freshSessionType === "execution";
+  const freshCursorFound = options.recover.taskCursor?.ok === true
+    && options.recover.taskCursor.value.status === "found";
+  return options.seed.sessionType === "execution"
+    || freshSessionType === "execution"
+    || options.seed.taskCursor !== null
+    || (freshSessionType !== "planning" && freshCursorFound);
 }
 
 function normalizePaths(paths: readonly string[]): string[] {
