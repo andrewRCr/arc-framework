@@ -33,14 +33,14 @@ export async function resolveTaskListCursorFromFile(
   const taskListPath = resolveRepoRelativeTaskListPath(options.cwd, options.taskListPath);
 
   try {
-    await assertRealPathInsideRepo({
+    const safePath = await assertRealPathInsideRepo({
       cwd: options.cwd,
       absolutePath: taskListPath.absolutePath,
       taskListPath: options.taskListPath,
       realpath: options.realpath ?? realpath,
     });
     const read = options.readFile ?? readUtf8File;
-    return resolveTaskListCursor(await read(taskListPath.absolutePath));
+    return resolveTaskListCursor(await read(safePath));
   } catch (err) {
     if (isNotFoundError(err)) return { status: "missing", path: taskListPath.relativePath };
     throw err;
@@ -94,7 +94,7 @@ async function assertRealPathInsideRepo(options: {
   absolutePath: string;
   taskListPath: string;
   realpath: (path: string) => Promise<string>;
-}): Promise<void> {
+}): Promise<string> {
   const [repoRealPath, fileRealPath] = await Promise.all([
     options.realpath(options.cwd),
     options.realpath(options.absolutePath),
@@ -109,4 +109,5 @@ async function assertRealPathInsideRepo(options: {
   ) {
     throw new Error(`Task list path must stay within the repository: ${options.taskListPath}`);
   }
+  return fileRealPath;
 }

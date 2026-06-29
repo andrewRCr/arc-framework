@@ -16,7 +16,9 @@ const recoveryPayloadSchemaVersion = 1;
 const seedHandoffMaxAgeMs = 10 * 60 * 1000;
 
 export function resolveRepoRoot() {
+  const cwd = hookProjectDir();
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+    cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "ignore"],
   });
@@ -28,7 +30,12 @@ export function resolveRepoRoot() {
     }
   }
 
-  return process.cwd();
+  return cwd;
+}
+
+function hookProjectDir() {
+  const projectDir = process.env.CLAUDE_PROJECT_DIR?.trim();
+  return projectDir && projectDir.length > 0 ? projectDir : process.cwd();
 }
 
 function internalDirs(root) {
@@ -103,19 +110,26 @@ function normalizeSeedPath(root, seedPath) {
   const relativeSeedPath = isAbsolute(seedPath) ? relative(root, seedPath) : seedPath;
   const normalized = relativeSeedPath.replaceAll("\\", "/");
   const seedPathPattern = new RegExp(
-    `^\\.arc/user/[^/]+/\\.internal/${seedFileName.replaceAll(".", "\\.")}$`,
+    `^\\.arc/user/(?<identity>[^/]+)/\\.internal/${seedFileName.replaceAll(".", "\\.")}$`,
     "u",
   );
+  const match = seedPathPattern.exec(normalized);
+  const identity = match?.groups?.identity;
   if (
-    normalized.startsWith("../")
+    identity === undefined
+    || isReservedIdentitySegment(identity)
+    || normalized.startsWith("../")
     || normalized === ".."
     || normalized.includes("/../")
     || normalized.startsWith("/")
-    || !seedPathPattern.test(normalized)
   ) {
     throw new Error(`Invalid ARC compaction seed path: ${seedPath}`);
   }
   return normalized;
+}
+
+function isReservedIdentitySegment(identity) {
+  return identity.startsWith(".");
 }
 
 function markerDirForSeed(root, seedPath) {

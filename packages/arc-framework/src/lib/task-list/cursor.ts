@@ -57,9 +57,10 @@ const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*(?:\
 const SUBTASK_RE =
   /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*(?:\s+.+)?)|(?<plainBody>.+?))\s*$/u;
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
-const MARKED_SUBTASK_PREFIX_RE = /^\s+-\s+`?\[[ x~]\]`?/u;
+const MARKED_CHECKBOX_BULLET_RE = /^(?<indent>\s*)-\s+`?\[[ x~]\]`?\s+(?<body>.+?)\s*$/u;
 const SECTION_HEADING_RE = /^##\s+/u;
 const TASK_BODY_RE = /^(?<id>\d+(?:\.[0-9A-Za-z]+)+)\s+(?<title>.+?)\s*$/u;
+const TASK_SHAPED_BODY_RE = /^\d+(?:\.[0-9A-Za-z]+)+\s+.+?\s*$/u;
 const NUMERIC_THIRD_SEGMENT_RE = /^\d+\.\d+\.\d+(?:\.|$)/u;
 
 /**
@@ -84,7 +85,18 @@ export function resolveTaskListCursor(content: string): TaskListCursorResult {
       continue;
     }
 
-    if (MARKED_SUBTASK_PREFIX_RE.test(line)) {
+    const checkboxBullet = MARKED_CHECKBOX_BULLET_RE.exec(line);
+    if (checkboxBullet !== null && checkboxBullet.groups !== undefined) {
+      const indent = checkboxBullet.groups.indent ?? "";
+      const body = checkboxBullet.groups.body ?? "";
+      if (indent.length < 4) {
+        if (isTaskShapedCheckboxBody(body)) {
+          return malformed(lineNumber, indent.length === 0
+            ? "task checkbox marker appeared at root level"
+            : "subtask marker does not match task-list bullet grammar");
+        }
+        continue;
+      }
       if (currentTask === null) {
         return malformed(lineNumber, "subtask marker appeared before any parent task");
       }
@@ -113,6 +125,12 @@ function firstOpenCursor(tasks: readonly ParsedTask[]): TaskListCursor | null {
     };
   }
   return null;
+}
+
+function isTaskShapedCheckboxBody(body: string): boolean {
+  const trimmed = body.trim();
+  const bold = /^\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u.exec(trimmed);
+  return TASK_SHAPED_BODY_RE.test(bold?.groups?.body ?? trimmed);
 }
 
 function parseParentTask(

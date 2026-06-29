@@ -251,6 +251,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for task-shaped checkbox bullets at root level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "- `[ ]` **1.1.a Root task-shaped checkbox**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "task checkbox marker appeared at root level",
+      },
+    });
+  });
+
   it("returns no-open-task when every task is terminal", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -434,6 +452,29 @@ describe("resolveTaskListCursorFromFile", () => {
     })).rejects.toThrow(
       "Task list path must stay within the repository: .arc/active/linked/tasks-widget.md",
     );
+  });
+
+  it("reads from the verified realpath", async () => {
+    const reads: string[] = [];
+    const result = await resolveTaskListCursorFromFile({
+      cwd: "/repo-link",
+      taskListPath: ".arc/active/tasks-widget.md",
+      realpath: async (path) =>
+        path === "/repo-link"
+          ? "/repo-real"
+          : "/repo-real/.arc/active/tasks-widget.md",
+      readFile: async (path) => {
+        reads.push(path);
+        return taskList([
+          "# Task List: Widget",
+          "",
+          "### `[ ]` **1.1 Build widget**",
+        ]);
+      },
+    });
+
+    expect(result).toMatchObject({ status: "found" });
+    expect(reads).toEqual(["/repo-real/.arc/active/tasks-widget.md"]);
   });
 
   it("rethrows non-ENOENT read failures", async () => {

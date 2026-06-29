@@ -402,6 +402,21 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     expect(result.resolution).toBe("single");
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-drive.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-drive-relative.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/drive-relative",
+        taskList: "`C:tasks-drive.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
   });
 });
 

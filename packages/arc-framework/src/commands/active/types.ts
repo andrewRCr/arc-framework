@@ -214,7 +214,8 @@ export interface ActiveSessionInitResult {
    * `**Task List:**` field when a single meta resolves. Path-form values pass
    * through normalized; bare filenames resolve beside the meta file. `null`
    * when the single resolved meta has no task list (`[none]`, missing, or
-   * equivalent); omitted outside the single-meta arm.
+   * equivalent) or the value is unsafe (absolute, drive-prefixed, or
+   * parent-traversing); omitted outside the single-meta arm.
    */
   taskListPath?: string | null;
   /**

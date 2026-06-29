@@ -797,11 +797,7 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.loadSet.error.kind).toBe("runtime");
       expect(result.loadSet.error.message).toBe("boom");
     }
-    expect(result.taskCursor?.ok).toBe(false);
-    if (result.taskCursor?.ok === false) {
-      expect(result.taskCursor.error.kind).toBe("runtime");
-      expect(result.taskCursor.error.message).toBe("boom");
-    }
+    expect(result.taskCursor).toBeUndefined();
   });
 });
 
@@ -867,7 +863,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
     }
   });
 
-  it("propagates active probe failures into loadSet and taskCursor", async () => {
+  it("propagates active probe failures into loadSet and omits taskCursor", async () => {
     const probes = sessionRecoverProbes({
       active: async () => { throw new Error("boom"); },
     });
@@ -882,10 +878,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.message).toBe("boom");
     }
-    expect(result.taskCursor?.ok).toBe(false);
-    if (result.taskCursor?.ok === false) {
-      expect(result.taskCursor.error.message).toBe("boom");
-    }
+    expect(result.taskCursor).toBeUndefined();
   });
 
   it("projects loadSet from the shared projection inputs", async () => {

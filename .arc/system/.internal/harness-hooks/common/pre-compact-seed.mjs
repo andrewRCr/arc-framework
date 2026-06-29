@@ -71,6 +71,7 @@ function isSafeIdentitySegment(identity) {
     identity !== ""
     && identity !== "."
     && identity !== ".."
+    && !identity.startsWith(".")
     && !identity.includes(":")
     && !/[\\/]/u.test(identity)
   );

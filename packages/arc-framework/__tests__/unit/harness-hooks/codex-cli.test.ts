@@ -234,6 +234,41 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("resolves hook marker state from CLAUDE_PROJECT_DIR when process cwd differs", () => {
+    withTempArcProject((root) => {
+      const outside = mkdtempSync(join(tmpdir(), "arc-codex-outside-"));
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        "process.stdout.write(`${JSON.stringify({ identity: { identity: 'andrew' } })}\\n`);",
+      ].join("\n"));
+
+      try {
+        runHookScriptRaw(seedScriptPath, outside, {
+          ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
+          CLAUDE_PROJECT_DIR: root,
+          CODEX_THREAD_ID: "thread-a",
+        });
+
+        expect(existsSync(join(
+          root,
+          ".arc",
+          "user",
+          ".internal",
+          "codex-compaction-recovery-seed-thread-a.json",
+        ))).toBe(true);
+        expect(existsSync(join(
+          outside,
+          ".arc",
+          "user",
+          ".internal",
+          "codex-compaction-recovery-seed-thread-a.json",
+        ))).toBe(false);
+      } finally {
+        rmSync(outside, { recursive: true, force: true });
+      }
+    });
+  });
+
   it("clears a prior seed handoff when the PreCompact seed write fails", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
@@ -253,6 +288,28 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
         "process.stdout.write(`${JSON.stringify({ identity: { identity: '../other' } })}\\n`);",
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
+        CODEX_THREAD_ID: "thread-a",
+      });
+
+      expect(existsSync(join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-seed-thread-a.json",
+      ))).toBe(false);
+    });
+  });
+
+  it("does not write a seed handoff for reserved identity segments", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        "process.stdout.write(`${JSON.stringify({ identity: { identity: '.internal' } })}\\n`);",
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
@@ -562,6 +619,42 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(output.systemMessage).toContain("report the seed issue");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
       expect(existsSync(identityMarkerPath)).toBe(false);
+      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
+        "Invalid ARC compaction seed path",
+      );
+    });
+  });
+
+  it("writes a fallback marker when the seed handoff uses a reserved identity segment", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      const handoffPath = writeSeedHandoff(root, env);
+      const handoff = readJson<Record<string, unknown>>(handoffPath);
+      writeFileSync(handoffPath, `${JSON.stringify({
+        ...handoff,
+        seedPath: ".arc/user/.internal/.internal/compaction-seed.json",
+      }, null, 2)}\n`);
+
+      const fallbackMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const nestedMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const output = runHookScript(postCompactScriptPath, root, env);
+
+      expect(output.systemMessage).toContain("report the seed issue");
+      expect(existsSync(fallbackMarkerPath)).toBe(true);
+      expect(existsSync(nestedMarkerPath)).toBe(false);
       expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
         "Invalid ARC compaction seed path",
       );
