@@ -99,6 +99,13 @@ describe("resolveCompactionSeedPath", () => {
       "bad<name",
       "bad>name",
       "bad|name",
+      "andrew.",
+      "andrew ",
+      "CON",
+      "NUL",
+      "COM1",
+      "LPT9",
+      "CON.txt",
     ]) {
       expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity }))
         .toThrow("Invalid compaction seed identity");

@@ -445,6 +445,23 @@ describe("resolveTaskListCursorFromFile", () => {
     });
   });
 
+  it("throws when the repository root is missing", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    const readFile = async (): Promise<string> => {
+      throw new Error("read should not be called");
+    };
+
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/missing-repo",
+      taskListPath: ".arc/active/tasks-widget.md",
+      realpath: async (path) => {
+        if (path === "/missing-repo") throw enoent;
+        throw new Error(`unexpected path: ${path}`);
+      },
+      readFile,
+    })).rejects.toThrow("Repository root not found: /missing-repo");
+  });
+
   it("rejects absolute task-list paths before reading", async () => {
     const readFile = async (): Promise<string> => {
       throw new Error("read should not be called");

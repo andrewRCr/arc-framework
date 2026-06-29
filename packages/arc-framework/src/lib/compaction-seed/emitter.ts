@@ -66,16 +66,20 @@ export type EmitCompactionSeedResult =
 
 /** Resolve the fixed seed path for an identity. */
 export function resolveCompactionSeedPath(ctx: { cwd: string; identity: string }): string {
-  if (
-    ctx.identity === ""
-    || ctx.identity === "."
-    || ctx.identity === ".."
-    || ctx.identity.startsWith(".")
-    || /[<>:"/\\|?*]/u.test(ctx.identity)
-  ) {
+  if (isUnsafeCompactionSeedIdentity(ctx.identity)) {
     throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
   }
   return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", "compaction-seed.json");
+}
+
+function isUnsafeCompactionSeedIdentity(identity: string): boolean {
+  return identity === ""
+    || identity === "."
+    || identity === ".."
+    || identity.startsWith(".")
+    || /[<>:"/\\|?*]/u.test(identity)
+    || /[. ]$/u.test(identity)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(identity);
 }
 
 /** Parse `git status --porcelain=v1 -z` output into a sorted path list. */

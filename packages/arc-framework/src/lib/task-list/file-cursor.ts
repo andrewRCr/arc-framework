@@ -95,7 +95,15 @@ async function assertRealPathInsideRepo(options: {
   taskListPath: string;
   realpath: (path: string) => Promise<string>;
 }): Promise<string> {
-  const repoRealPath = await options.realpath(options.cwd);
+  let repoRealPath: string;
+  try {
+    repoRealPath = await options.realpath(options.cwd);
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      throw new Error(`Repository root not found: ${options.cwd}`, { cause: err });
+    }
+    throw err;
+  }
   try {
     const fileRealPath = await options.realpath(options.absolutePath);
     assertPathInsideRepo({

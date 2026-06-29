@@ -94,16 +94,23 @@ function currentScope() {
   };
 }
 
-function safeSuffix(value) {
-  return value.replace(/[^A-Za-z0-9._-]/g, "_");
+function fileSafeSuffix(value) {
+  let suffix = "";
+  for (const byte of Buffer.from(value, "utf8")) {
+    const char = String.fromCharCode(byte);
+    suffix += /^[A-Za-z0-9._-]$/u.test(char)
+      ? char
+      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return suffix;
 }
 
 function markerFileName(scope) {
-  return `${markerFileBaseName}-${safeSuffix(scope.suffix)}.json`;
+  return `${markerFileBaseName}-${fileSafeSuffix(scope.suffix)}.json`;
 }
 
 function seedHandoffFileName(scope) {
-  return `${seedHandoffFileBaseName}-${safeSuffix(scope.suffix)}.json`;
+  return `${seedHandoffFileBaseName}-${fileSafeSuffix(scope.suffix)}.json`;
 }
 
 function normalizeSeedPath(root, seedPath) {
@@ -325,5 +332,5 @@ function isMarkerFileName(markerFile) {
   }
 
   const suffix = markerFile.slice(prefix.length, -".json".length);
-  return suffix.length > 0 && /^[A-Za-z0-9._-]+$/u.test(suffix);
+  return suffix.length > 0 && /^(?:[A-Za-z0-9._-]|%[0-9A-F]{2})+$/u.test(suffix);
 }

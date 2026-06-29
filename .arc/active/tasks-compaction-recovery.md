@@ -8,9 +8,10 @@
 
 _Purpose:_ Establish the shared resolve-then-load projection — the additive `loadSet` slice on the probe envelope
 encoding `session-init` Step 3's documented per-type loadset policy (the fixed universal set +
-`sessionType`-selected state docs + active extensions + cohort doc), never a recover-specific list.
-`session-recover` consumes it; `session-init`'s prose-level consumption is deferred to `composable-workflows`
-(parity-tested meanwhile).
+`sessionType`-selected state docs + cohort doc), never a recover-specific list. Code review clarified that active
+extension names stay on the envelope while extension bodies stay out of the projected load set. `session-recover`
+consumes it; `session-init`'s prose-level consumption is deferred to `composable-workflows` (parity-tested
+meanwhile).
 
 _Design decisions:_ Built as a minimal proto resolve-then-load — a forward-compat seam `composable-workflows` /
 `loadset-composition` later subsumes without a fork. Read-modes are the tagged union mirroring Step 3's three
@@ -30,8 +31,10 @@ disciplines (`full` / `partial-section` / `partial-strategic`); array order is r
 - _Goal:_ Given probe-resolved state, the projection deterministically yields the ordered load-set with the
   correct read-mode per entry for every `sessionType`.
 - _Outcome:_ Added pure `resolveLoadSetManifest` projection in `src/lib/load-set/projection.ts`, covering
-  universal/state-anchored docs, per-`sessionType` lifecycle members, execution task-list partial reads, active
-  extension docs, and cohort docs with unit coverage.
+  universal/state-anchored docs, per-`sessionType` lifecycle members, execution task-list partial reads, and cohort
+  docs with unit coverage.
+- _Code review amendment:_ Clarified the final projection contract: active extension names remain on the envelope
+  for workflow fire-point checks, but extension bodies load only through their normal workflow triggers.
 
 ### `[x]` **1.3 Expose `loadSet` as an additive envelope slice**
 

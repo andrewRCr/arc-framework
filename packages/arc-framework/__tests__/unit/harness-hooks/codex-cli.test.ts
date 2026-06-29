@@ -91,9 +91,21 @@ function shellArg(value: string): string {
   return `"${value.replaceAll("\"", "\\\"")}"`;
 }
 
+function recoveryFileSuffix(value: string): string {
+  let suffix = "";
+  for (const byte of Buffer.from(value, "utf8")) {
+    const char = String.fromCharCode(byte);
+    suffix += /^[A-Za-z0-9._-]$/u.test(char)
+      ? char
+      : `%${byte.toString(16).toUpperCase().padStart(2, "0")}`;
+  }
+  return suffix;
+}
+
 function writeSeedHandoff(root: string, env: NodeJS.ProcessEnv = {}): string {
   const threadId = env.CODEX_THREAD_ID?.trim();
-  const suffix = threadId && threadId.length > 0 ? threadId : `ppid-${process.pid}`;
+  const rawSuffix = threadId && threadId.length > 0 ? threadId : `ppid-${process.pid}`;
+  const suffix = recoveryFileSuffix(rawSuffix);
   const scope = threadId && threadId.length > 0
     ? { kind: "thread", id: threadId }
     : { kind: "process", id: String(process.pid) };
@@ -155,7 +167,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
   it("keeps the Codex feature flag fragment narrow and canonical", () => {
     const content = readFileSync(featuresPath, "utf8");
 
-    expect(content).toBe([
+    expect(content.replace(/\r\n?/gu, "\n")).toBe([
       "[features]",
       "hooks = true",
       "",
@@ -425,6 +437,44 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(clearOutput.removed).toHaveLength(1);
       expect(existsSync(markerPath)).toBe(false);
       expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
+    });
+  });
+
+  it("keeps recovery filenames collision-free for unsafe thread ids", () => {
+    withTempArcProject((root) => {
+      const slashThread = { CODEX_THREAD_ID: "a/b" };
+      const underscoreThread = { CODEX_THREAD_ID: "a_b" };
+      writeSeedHandoff(root, slashThread);
+      writeSeedHandoff(root, underscoreThread);
+
+      const slashMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-a%2Fb.json",
+      );
+      const underscoreMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-a_b.json",
+      );
+
+      runHookScript(postCompactScriptPath, root, slashThread);
+      runHookScript(postCompactScriptPath, root, underscoreThread);
+
+      expect(existsSync(slashMarkerPath)).toBe(true);
+      expect(existsSync(underscoreMarkerPath)).toBe(true);
+      expect(readJson<{ codexThreadId: string }>(slashMarkerPath).codexThreadId).toBe("a/b");
+      expect(readJson<{ codexThreadId: string }>(underscoreMarkerPath).codexThreadId).toBe("a_b");
+
+      const slashPrompt = runHookScript(userPromptScriptPath, root, slashThread);
+      expect(slashPrompt.hookSpecificOutput?.additionalContext).toContain(slashMarkerPath);
+      expect(slashPrompt.hookSpecificOutput?.additionalContext).not.toContain(underscoreMarkerPath);
     });
   });
 
