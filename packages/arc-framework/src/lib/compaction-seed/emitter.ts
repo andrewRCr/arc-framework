@@ -52,10 +52,23 @@ export interface EmitCompactionSeedOptions {
 export type EmitCompactionSeedResult =
   | { status: "written"; path: string; seed: CompactionSeed }
   | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
-  | { status: "failed"; reason: "git-failed" | "meta-read-failed" | "write-failed"; message: string };
+  | {
+    status: "failed";
+    reason: "git-failed" | "identity-invalid" | "meta-read-failed" | "write-failed";
+    message: string;
+  };
 
 /** Resolve the fixed seed path for an identity. */
 export function resolveCompactionSeedPath(ctx: { cwd: string; identity: string }): string {
+  if (
+    ctx.identity === ""
+    || ctx.identity === "."
+    || ctx.identity === ".."
+    || ctx.identity.includes(":")
+    || /[\\/]/u.test(ctx.identity)
+  ) {
+    throw new Error(`Invalid compaction seed identity: ${ctx.identity}`);
+  }
   return join(ctx.cwd, ".arc", "user", ctx.identity, ".internal", "compaction-seed.json");
 }
 
@@ -73,7 +86,7 @@ export function parseUncommittedFiles(stdout: string): string[] {
     if (status.includes("R") || status.includes("C")) index++;
   }
 
-  return [...new Set(paths)].sort((a, b) => a.localeCompare(b));
+  return [...new Set(paths)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** Emit the current compaction seed to disk, returning a non-throwing result. */
@@ -83,6 +96,13 @@ export async function emitCompactionSeed(
   const identity = options.envelope.identity.identity;
   if (identity === null) return { status: "skipped", reason: "identity-missing" };
   if (!options.envelope.loadSet.ok) return { status: "skipped", reason: "load-set-unresolved" };
+
+  let path: string;
+  try {
+    path = resolveCompactionSeedPath({ cwd: options.cwd, identity });
+  } catch (err) {
+    return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
+  }
 
   let head: string;
   let uncommittedFiles: string[];
@@ -117,7 +137,6 @@ export async function emitCompactionSeed(
       ? options.envelope.taskCursor.value.cursor
       : null;
 
-  const path = resolveCompactionSeedPath({ cwd: options.cwd, identity });
   const seed: CompactionSeed = {
     schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
     emittedAt: (options.now ?? (() => new Date()))().toISOString(),

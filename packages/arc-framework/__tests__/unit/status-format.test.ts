@@ -177,7 +177,7 @@ function makeSessionInitResult(
       },
     },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
-    loadSet: { ok: true, value: { entries: [] } },
+    loadSet: { ok: true, value: { manifestVersion: 1, entries: [] } },
     recommendedCombinedPrompt: null,
     extensions: {
       ok: true,

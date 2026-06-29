@@ -159,7 +159,7 @@ function resolvePathDrifts(options: ResolvePathDriftsOptions): LoadSetPathDrift[
     const expected = options.baseline[index];
     const actual = options.fresh[index];
     if (expected === undefined || actual === undefined) continue;
-    if (expected.path === actual.path || !readModeEqual(expected.readMode, actual.readMode)) continue;
+    if (expected.path === actual.path) continue;
 
     const substitution = options.preliminaryRemovedPaths.has(expected.path)
       && options.preliminaryAddedPaths.has(actual.path);

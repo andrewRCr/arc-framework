@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { LOAD_SET_MANIFEST_VERSION } from "../../../src/lib/load-set/types.js";
 import { resolveLoadSetManifest } from "../../../src/lib/load-set/projection.js";
 
 const BASE_INPUT = {
@@ -23,6 +24,7 @@ describe("resolveLoadSetManifest", () => {
       planningStage: "create-spec",
     });
 
+    expect(manifest.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
     expect(manifest.entries).toEqual([
       fullEntry(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
       fullEntry(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),

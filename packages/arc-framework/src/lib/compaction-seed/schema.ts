@@ -10,10 +10,11 @@
  * @module
  */
 
-import type {
-  LoadSetEntry,
-  LoadSetManifest,
-  ReadMode,
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  type LoadSetEntry,
+  type LoadSetManifest,
+  type ReadMode,
 } from "../load-set/types.js";
 import type { TaskListCursor } from "../task-list/cursor.js";
 
@@ -103,7 +104,17 @@ export function parseCompactionSeedJson(content: string): CompactionSeedParseRes
     };
   }
 
-  if (!isRecord(parsed) || parsed.schemaVersion !== COMPACTION_SEED_SCHEMA_VERSION) {
+  if (!isRecord(parsed) || getSchemaVersion(parsed) === undefined) {
+    return {
+      ok: false,
+      error: {
+        kind: "invalid-schema",
+        message: "compaction seed does not match schema v1",
+      },
+    };
+  }
+
+  if (parsed.schemaVersion !== COMPACTION_SEED_SCHEMA_VERSION) {
     return {
       ok: false,
       error: {
@@ -221,7 +232,9 @@ function isTaskCursorItem(value: unknown): value is TaskListCursor["section"] {
 
 function isLoadSetManifest(value: unknown): value is LoadSetManifest {
   if (!isRecord(value)) return false;
-  return Array.isArray(value.entries) && value.entries.every(isLoadSetEntry);
+  return value.manifestVersion === LOAD_SET_MANIFEST_VERSION
+    && Array.isArray(value.entries)
+    && value.entries.every(isLoadSetEntry);
 }
 
 function isLoadSetEntry(value: unknown): value is LoadSetEntry {

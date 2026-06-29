@@ -8,9 +8,13 @@ import {
   type CompactionSeed,
   type CompactionSeedSchemaVersion,
 } from "../../../src/lib/compaction-seed/schema.js";
-import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  type LoadSetManifest,
+} from "../../../src/lib/load-set/types.js";
 
 const LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
     {
       path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
@@ -132,6 +136,17 @@ describe("CompactionSeed schema", () => {
     }
   });
 
+  it("rejects schema-less JSON values as invalid schema", () => {
+    for (const content of ["null", "{}", "[]"]) {
+      const result = parseCompactionSeedJson(content);
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error.kind).toBe("invalid-schema");
+      }
+    }
+  });
+
   it("rejects invalid session types", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({ ...seed(), sessionType: "errand" }),
@@ -173,6 +188,7 @@ describe("CompactionSeed schema", () => {
       JSON.stringify({
         ...seed(),
         loadSet: {
+          manifestVersion: LOAD_SET_MANIFEST_VERSION,
           entries: [
             {
               path: ".arc/reference/QUICK-REFERENCE.md",

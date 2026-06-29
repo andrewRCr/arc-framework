@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { LoadSetEntry, LoadSetManifest } from "./types.js";
+import { LOAD_SET_MANIFEST_VERSION, type LoadSetEntry, type LoadSetManifest } from "./types.js";
 
 /** Session type resolved by the active-work probe. */
 export type LoadSetSessionType = "planning" | "execution" | "integration";
@@ -105,5 +105,5 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
     entries.push(full(input.cohortDocPath));
   }
 
-  return { entries };
+  return { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries };
 }

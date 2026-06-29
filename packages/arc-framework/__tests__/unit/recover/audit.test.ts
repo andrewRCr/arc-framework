@@ -7,7 +7,10 @@ import {
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
 import type { DirtyStateResult } from "../../../src/lib/git/dirty-state.js";
-import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  type LoadSetManifest,
+} from "../../../src/lib/load-set/types.js";
 import { auditRecoveryState } from "../../../src/lib/recover/audit.js";
 import type {
   TaskListCursor,
@@ -15,6 +18,7 @@ import type {
 } from "../../../src/lib/task-list/cursor.js";
 
 const LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
     {
       path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
@@ -138,6 +142,7 @@ describe("auditRecoveryState", () => {
         active: ok(active()),
         dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
         loadSet: ok({
+          manifestVersion: LOAD_SET_MANIFEST_VERSION,
           entries: [
             LOAD_SET.entries[0]!,
             {
@@ -162,6 +167,35 @@ describe("auditRecoveryState", () => {
       actual: ["src/changed.ts"],
       match: false,
     });
+  });
+
+  it("stops when the dirty probe claims clean but porcelain paths are present", () => {
+    const result = auditRecoveryState({
+      seed: seed({
+        dirty: true,
+        uncommittedFiles: ["src/changed.ts"],
+      }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "clean", fileCount: 0 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: ["src/changed.ts"],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.dirtyFiles).toEqual({
+      expected: ["src/changed.ts"],
+      actual: ["src/changed.ts"],
+      match: true,
+    });
+    expect(result.stopReasons).toMatchObject([
+      {
+        kind: "dirty-path-drift",
+        message: "fresh dirty-file path set contradicts the clean dirty-state probe",
+      },
+    ]);
   });
 
   it("stops when an execution seed lacks a task-list cursor", () => {
@@ -239,6 +273,30 @@ describe("auditRecoveryState", () => {
     expect(result.stopReasons).toMatchObject([
       {
         kind: "task-cursor-malformed",
+      },
+    ]);
+  });
+
+  it("stops when the fresh task-list cursor path is missing", () => {
+    const result = auditRecoveryState({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok({
+          status: "missing",
+          path: ".arc/active/tasks-missing.md",
+        }),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toMatchObject([
+      {
+        kind: "task-cursor-unresolved",
+        message: "fresh recovery probe could not read task list: .arc/active/tasks-missing.md",
       },
     ]);
   });

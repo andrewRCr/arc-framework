@@ -14,7 +14,7 @@
  */
 
 import { stat } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
 import { isPlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
@@ -244,8 +244,9 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
-      result.taskListPath = resolveTaskListPath(only.path, only.taskList);
-      const companions = await deriveCompanions(cwd, only.path, only.taskList);
+      const taskListPath = resolveTaskListPath(only.path, only.taskList);
+      result.taskListPath = taskListPath;
+      const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
       result.planningStage = resolvePlanningStage(only, fields.sessionType);
     }
@@ -280,11 +281,22 @@ function resolveTaskListPath(
   taskListValue: string | null,
 ): string | null {
   if (taskListValue === null) return null;
-  const normalized = taskListValue.split(sep).join("/").trim();
-  if (normalized === "" || TASK_LIST_PLANNING_VALUES.has(normalized)) return null;
-  return normalized.includes("/")
-    ? normalized
-    : `${statusFileDirPrefix(statusFilePath)}${normalized}`;
+  const raw = normalizeArcPath(taskListValue).trim();
+  if (raw === "" || TASK_LIST_PLANNING_VALUES.has(raw)) return null;
+  const candidate = raw.includes("/")
+    ? raw
+    : `${statusFileDirPrefix(statusFilePath)}${raw}`;
+  const normalized = posix.normalize(candidate);
+  if (
+    posix.isAbsolute(normalized)
+    || /^[A-Za-z]:/u.test(normalized)
+    || normalized === "."
+    || normalized === ".."
+    || normalized.startsWith("../")
+  ) {
+    return null;
+  }
+  return normalized;
 }
 
 /**
@@ -300,15 +312,13 @@ function resolveTaskListPath(
  */
 async function deriveCompanions(
   cwd: string,
-  statusFilePath: string,
-  taskListValue: string | null,
+  taskListPath: string | null,
 ): Promise<{ notes: string | null; atomic: string | null } | undefined> {
-  if (taskListValue === null) return undefined;
-  const normalized = taskListValue.split(sep).join("/");
+  if (taskListPath === null) return undefined;
+  const normalized = taskListPath;
   const lastSlash = normalized.lastIndexOf("/");
   const filename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
-  const dirPrefix =
-    lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : statusFileDirPrefix(statusFilePath);
+  const dirPrefix = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
   const match = TASK_LIST_FULL_PATTERN.exec(filename);
   const stem = match?.[1];
   if (stem === undefined) return undefined;
@@ -334,7 +344,11 @@ async function fileExists(absPath: string): Promise<boolean> {
 }
 
 function statusFileDirPrefix(statusFilePath: string): string {
-  const normalized = statusFilePath.split(sep).join("/");
+  const normalized = normalizeArcPath(statusFilePath);
   const lastSlash = normalized.lastIndexOf("/");
   return lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
+}
+
+function normalizeArcPath(path: string): string {
+  return path.replaceAll("\\", "/");
 }

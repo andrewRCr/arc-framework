@@ -140,6 +140,9 @@ function auditDirtyFiles(
   const expected = normalizePaths(options.seed.uncommittedFiles);
   const actual = normalizePaths(options.freshUncommittedFiles);
   const match = arraysEqual(expected, actual);
+  const dirtyProbeContradiction = options.recover.dirty.ok
+    && options.recover.dirty.value.state === "clean"
+    && actual.length > 0;
 
   if (!options.recover.dirty.ok) {
     stopReasons.push({
@@ -148,11 +151,17 @@ function auditDirtyFiles(
       detail: options.recover.dirty.error,
     });
   }
-  if (!match) {
+  if (!match || dirtyProbeContradiction) {
     stopReasons.push({
       kind: "dirty-path-drift",
-      message: "fresh dirty-file path set differs from the compaction seed baseline",
-      detail: { expected, actual },
+      message: dirtyProbeContradiction
+        ? "fresh dirty-file path set contradicts the clean dirty-state probe"
+        : "fresh dirty-file path set differs from the compaction seed baseline",
+      detail: {
+        expected,
+        actual,
+        dirty: options.recover.dirty.ok ? options.recover.dirty.value : null,
+      },
     });
   }
 
@@ -192,6 +201,15 @@ function auditTaskCursor(
       kind: "task-cursor-malformed",
       message: actualSlot.value.error.message,
       detail: actualSlot.value.error,
+    });
+    return { expected, actual, match: false };
+  }
+
+  if (actualSlot.value.status === "missing") {
+    stopReasons.push({
+      kind: "task-cursor-unresolved",
+      message: `fresh recovery probe could not read task list: ${actualSlot.value.path}`,
+      detail: actualSlot.value,
     });
     return { expected, actual, match: false };
   }

@@ -614,6 +614,9 @@ function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {
   if (result.status === "failed") {
     process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
   }
+  if (result.status === "skipped" && result.reason === "identity-missing") {
+    process.stderr.write("warn: compaction seed not written: identity not configured\n");
+  }
   if (result.status === "skipped" && result.reason === "load-set-unresolved") {
     process.stderr.write("warn: compaction seed not written: load-set unresolved\n");
   }

@@ -357,6 +357,52 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
   });
+
+  it("rejects absolute and parent-traversing Task List values", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-absolute.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/absolute",
+        taskList: "`/tmp/tasks-absolute.md`",
+      }),
+    );
+
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-absolute.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-parent.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/parent",
+        taskList: "`../tasks-parent.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-parent.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-drive.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/drive",
+        taskList: "`C:\\tasks-drive.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+  });
 });
 
 describe("runActiveSessionInitStatus — contributor role-aware resolution", () => {

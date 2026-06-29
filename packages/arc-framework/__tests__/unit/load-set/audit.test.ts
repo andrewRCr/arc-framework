@@ -1,10 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { auditLoadSetManifest } from "../../../src/lib/load-set/audit.js";
-import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  type LoadSetManifest,
+} from "../../../src/lib/load-set/types.js";
 
 function manifest(paths: readonly string[]): LoadSetManifest {
   return {
+    manifestVersion: LOAD_SET_MANIFEST_VERSION,
     entries: paths.map((path) => ({
       path,
       readMode: { kind: "full" },
@@ -13,6 +17,7 @@ function manifest(paths: readonly string[]): LoadSetManifest {
 }
 
 const BASELINE = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
     {
       path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
@@ -73,6 +78,7 @@ describe("auditLoadSetManifest", () => {
     const result = auditLoadSetManifest({
       baseline: BASELINE,
       fresh: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
         entries: BASELINE.entries.map((entry) => entry.path === ".arc/reference/QUICK-REFERENCE.md"
           ? {
             ...entry,
@@ -121,10 +127,50 @@ describe("auditLoadSetManifest", () => {
     });
   });
 
+  it("flags same-slot path drift even when the read mode changes", () => {
+    const result = auditLoadSetManifest({
+      baseline: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "context/before.md",
+            readMode: { kind: "partial-strategic" },
+          },
+        ],
+      },
+      fresh: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "context/after.md",
+            readMode: { kind: "full" },
+          },
+        ],
+      },
+    });
+
+    expect(result.status).toBe("diverged");
+    expect(result.diff.pathDrifts).toEqual([
+      {
+        index: 0,
+        expected: {
+          path: "context/before.md",
+          readMode: { kind: "partial-strategic" },
+        },
+        actual: {
+          path: "context/after.md",
+          readMode: { kind: "full" },
+        },
+      },
+    ]);
+    expect(result.diff.membership).toEqual({ added: [], removed: [] });
+  });
+
   it("returns a structured diff renderable by the recovery workflow", () => {
     const result = auditLoadSetManifest({
       baseline: BASELINE,
       fresh: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
         entries: [
           BASELINE.entries[0]!,
           {

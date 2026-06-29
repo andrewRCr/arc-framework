@@ -44,7 +44,13 @@ interface SessionInitEnvelope {
       cursor?: TaskCursorJson;
     };
   };
-  loadSet?: { ok: boolean; value?: { entries: { path: string; readMode: { kind: string } }[] } };
+  loadSet?: {
+    ok: boolean;
+    value?: {
+      manifestVersion: number;
+      entries: { path: string; readMode: { kind: string } }[];
+    };
+  };
   baseBranchSync?: {
     ok: boolean;
     value?: {
@@ -79,7 +85,10 @@ interface CompactionSeedJson {
   metaPath: string | null;
   sessionType: string | null;
   taskCursor: TaskCursorJson | null;
-  loadSet: { entries: { path: string; readMode: { kind: string } }[] };
+  loadSet: {
+    manifestVersion: number;
+    entries: { path: string; readMode: { kind: string } }[];
+  };
   uncommittedFiles: string[];
 }
 
@@ -227,6 +236,7 @@ describe("session-init E2E — sessionType across type variants", () => {
       uncommittedFiles: [],
     });
     expect(seed.head).toMatch(/^[0-9a-f]{40}$/);
+    expect(seed.loadSet.manifestVersion).toBe(1);
     expect(seed.loadSet.entries).toContainEqual({
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },
@@ -270,6 +280,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
+    expect(envelope.loadSet?.value?.manifestVersion).toBe(1);
     expect(envelope.loadSet?.value?.entries).toContainEqual({
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },
@@ -319,7 +330,9 @@ describe("session-init E2E — sessionType across type variants", () => {
 
     const report = parseRecoverAuditReport(auditResult.stdout);
     expect(report.mode).toBe("recover-audit");
-    expect(report.seedPath).toContain(".arc/user/test-user/.internal/compaction-seed.json");
+    expect(report.seedPath).toContain(
+      join(".arc", "user", "test-user", ".internal", "compaction-seed.json"),
+    );
     expect(report.verdict).toMatchObject({
       status: "ready",
       ready: true,

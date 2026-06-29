@@ -9,8 +9,11 @@
  * @module
  */
 
+/** Current version of the load-set manifest vocabulary. */
+export const LOAD_SET_MANIFEST_VERSION = 1;
+
 /** Version of the load-set manifest vocabulary. */
-export type LoadSetManifestVersion = 1;
+export type LoadSetManifestVersion = typeof LOAD_SET_MANIFEST_VERSION;
 
 /** Read discipline mirroring session-init Step 3's context-load modes. */
 export type ReadMode =
@@ -28,5 +31,7 @@ export interface LoadSetEntry {
 
 /** Ordered context set; entry order is read order. */
 export interface LoadSetManifest {
+  /** Serialized manifest vocabulary version. */
+  manifestVersion: LoadSetManifestVersion;
   entries: LoadSetEntry[];
 }

@@ -10,9 +10,13 @@ import {
   stringifyCompactionSeed,
   type CompactionSeed,
 } from "../../../src/lib/compaction-seed/schema.js";
-import type { LoadSetManifest } from "../../../src/lib/load-set/types.js";
+import {
+  LOAD_SET_MANIFEST_VERSION,
+  type LoadSetManifest,
+} from "../../../src/lib/load-set/types.js";
 
 const LOAD_SET = {
+  manifestVersion: LOAD_SET_MANIFEST_VERSION,
   entries: [
     {
       path: ".arc/reference/briefs/AGENT-BRIEF.ARC.md",
@@ -101,6 +105,15 @@ describe("resolveCompactionSeedPath", () => {
     expect(resolveCompactionSeedPath({ cwd: "/repo", identity: "andrew" }))
       .toBe("/repo/.arc/user/andrew/.internal/compaction-seed.json");
   });
+
+  it("rejects identities that would escape the user directory", () => {
+    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "../andrew" }))
+      .toThrow("Invalid compaction seed identity");
+    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "team/andrew" }))
+      .toThrow("Invalid compaction seed identity");
+    expect(() => resolveCompactionSeedPath({ cwd: "/repo", identity: "C:andrew" }))
+      .toThrow("Invalid compaction seed identity");
+  });
 });
 
 describe("parseUncommittedFiles", () => {
@@ -108,6 +121,7 @@ describe("parseUncommittedFiles", () => {
     expect(
       parseUncommittedFiles([
         "?? zeta.txt",
+        "?? Zeta.txt",
         " M src/b.ts",
         "R  src/new.ts",
         "src/old.ts",
@@ -115,6 +129,7 @@ describe("parseUncommittedFiles", () => {
         "",
       ].join("\0")),
     ).toEqual([
+      "Zeta.txt",
       "src/a.ts",
       "src/b.ts",
       "src/new.ts",
@@ -267,6 +282,23 @@ describe("emitCompactionSeed", () => {
     });
     expect(exec).not.toHaveBeenCalled();
     expect(readFile).not.toHaveBeenCalled();
+    expect(writeSeed).not.toHaveBeenCalled();
+  });
+
+  it("fails without writing when the configured identity is not a safe segment", async () => {
+    const writeSeed = vi.fn();
+
+    const result = await emit({
+      envelope: {
+        identity: { identity: "../andrew" },
+      },
+      writeSeed,
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      reason: "identity-invalid",
+    });
     expect(writeSeed).not.toHaveBeenCalled();
   });
 });

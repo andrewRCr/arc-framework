@@ -50,10 +50,11 @@ export interface TaskListCursorMalformed {
 /** Result of resolving the current task-list cursor. */
 export type TaskListCursorResult =
   | { status: "found"; cursor: TaskListCursor }
+  | { status: "missing"; path: string }
   | { status: "no-open-task" }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
-const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*/u;
+const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*\s*$/u;
 const SUBTASK_RE =
   /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*)|(?<plainBody>.+?))\s*$/u;
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;

@@ -36,6 +36,7 @@ import {
 } from "../lib/recover/audit.js";
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import type { TaskListCursorResult } from "../lib/task-list/cursor.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface RecoverAuditOptions {
@@ -116,8 +117,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
           pathExists: (path) => access(path).then(() => true, () => false),
         },
       }),
-      taskCursor: async (taskListPath) =>
-        resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8")),
+      taskCursor: async (taskListPath) => resolveRecoverTaskCursor(cwd, taskListPath),
     },
   });
 
@@ -237,6 +237,27 @@ function normalizeGitConfigValue(value: string | undefined): string | null {
   if (value === undefined) return null;
   const trimmed = value.trim();
   return trimmed.length === 0 ? null : trimmed;
+}
+
+async function resolveRecoverTaskCursor(
+  cwd: string,
+  taskListPath: string,
+): Promise<TaskListCursorResult> {
+  try {
+    return resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8"));
+  } catch (err) {
+    if (isNotFoundError(err)) {
+      return { status: "missing", path: taskListPath };
+    }
+    throw err;
+  }
+}
+
+function isNotFoundError(err: unknown): boolean {
+  return typeof err === "object"
+    && err !== null
+    && "code" in err
+    && (err as { code?: unknown }).code === "ENOENT";
 }
 
 function errorMessage(err: unknown): string {
