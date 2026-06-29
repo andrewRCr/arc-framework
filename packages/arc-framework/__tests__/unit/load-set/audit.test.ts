@@ -85,6 +85,60 @@ describe("auditLoadSetManifest", () => {
     ]);
   });
 
+  it("flags duplicate path additions and removals as membership drift", () => {
+    const addedDuplicate = auditLoadSetManifest({
+      baseline: manifest(["kept.md"]),
+      fresh: manifest(["kept.md", "kept.md"]),
+    });
+    const removedDuplicate = auditLoadSetManifest({
+      baseline: manifest(["kept.md", "kept.md"]),
+      fresh: manifest(["kept.md"]),
+    });
+
+    expect(addedDuplicate.status).toBe("diverged");
+    expect(addedDuplicate.diff.membership.added).toEqual([
+      {
+        path: "kept.md",
+        readMode: { kind: "full" },
+      },
+    ]);
+    expect(removedDuplicate.status).toBe("diverged");
+    expect(removedDuplicate.diff.membership.removed).toEqual([
+      {
+        path: "kept.md",
+        readMode: { kind: "full" },
+      },
+    ]);
+  });
+
+  it("compares duplicate retained paths by occurrence for read-mode drift", () => {
+    const result = auditLoadSetManifest({
+      baseline: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "kept.md",
+            readMode: { kind: "full" },
+          },
+          {
+            path: "kept.md",
+            readMode: { kind: "partial-strategic" },
+          },
+        ],
+      },
+      fresh: manifest(["kept.md", "kept.md"]),
+    });
+
+    expect(result.status).toBe("diverged");
+    expect(result.diff.readModeChanges).toEqual([
+      {
+        path: "kept.md",
+        expected: { kind: "partial-strategic" },
+        actual: { kind: "full" },
+      },
+    ]);
+  });
+
   it("flags manifest-version drift", () => {
     const result = auditLoadSetManifest({
       baseline: BASELINE,

@@ -90,17 +90,19 @@ export function auditLoadSetManifest(
       expected: options.baseline.manifestVersion,
       actual: options.fresh.manifestVersion,
     };
-  const baselineByPath = indexByPath(options.baseline.entries);
-  const freshByPath = indexByPath(options.fresh.entries);
+  const baselineByPath = groupByPath(options.baseline.entries);
+  const freshByPath = groupByPath(options.fresh.entries);
   const preliminaryAddedPaths = new Set(
-    options.fresh.entries
-      .filter((entry) => !baselineByPath.has(entry.path))
-      .map((entry) => entry.path),
+    pathsWithExtraEntries({
+      candidate: freshByPath,
+      reference: baselineByPath,
+    }),
   );
   const preliminaryRemovedPaths = new Set(
-    options.baseline.entries
-      .filter((entry) => !freshByPath.has(entry.path))
-      .map((entry) => entry.path),
+    pathsWithExtraEntries({
+      candidate: baselineByPath,
+      reference: freshByPath,
+    }),
   );
 
   const pathDrifts = resolvePathDrifts({
@@ -112,21 +114,29 @@ export function auditLoadSetManifest(
   const pathDriftExpectedPaths = new Set(pathDrifts.map((drift) => drift.expected.path));
   const pathDriftActualPaths = new Set(pathDrifts.map((drift) => drift.actual.path));
 
-  const added = options.fresh.entries.filter((entry) => (
-    preliminaryAddedPaths.has(entry.path) && !pathDriftActualPaths.has(entry.path)
-  ));
-  const removed = options.baseline.entries.filter((entry) => (
-    preliminaryRemovedPaths.has(entry.path) && !pathDriftExpectedPaths.has(entry.path)
-  ));
-  const readModeChanges = options.baseline.entries.flatMap((entry) => {
-    if (pathDriftExpectedPaths.has(entry.path)) return [];
-    const freshEntry = freshByPath.get(entry.path)?.entry;
-    if (freshEntry === undefined || readModeEqual(entry.readMode, freshEntry.readMode)) return [];
-    return [{
-      path: entry.path,
-      expected: entry.readMode,
-      actual: freshEntry.readMode,
-    }];
+  const added = extraEntries({
+    candidate: freshByPath,
+    reference: baselineByPath,
+    excludedPaths: pathDriftActualPaths,
+  });
+  const removed = extraEntries({
+    candidate: baselineByPath,
+    reference: freshByPath,
+    excludedPaths: pathDriftExpectedPaths,
+  });
+  const readModeChanges = [...baselineByPath.entries()].flatMap(([path, baselineEntries]) => {
+    if (pathDriftExpectedPaths.has(path)) return [];
+    const freshEntries = freshByPath.get(path) ?? [];
+    const retainedCount = Math.min(baselineEntries.length, freshEntries.length);
+    return baselineEntries.slice(0, retainedCount).flatMap((entry, index) => {
+      const freshEntry = freshEntries[index];
+      if (freshEntry === undefined || readModeEqual(entry.readMode, freshEntry.readMode)) return [];
+      return [{
+        path: entry.path,
+        expected: entry.readMode,
+        actual: freshEntry.readMode,
+      }];
+    });
   });
 
   const diverged = manifestVersion !== null
@@ -150,13 +160,35 @@ export function auditLoadSetManifest(
   };
 }
 
-interface IndexedEntry {
-  entry: LoadSetEntry;
-  index: number;
+interface EntriesByPath {
+  candidate: ReadonlyMap<string, readonly LoadSetEntry[]>;
+  reference: ReadonlyMap<string, readonly LoadSetEntry[]>;
 }
 
-function indexByPath(entries: readonly LoadSetEntry[]): Map<string, IndexedEntry> {
-  return new Map(entries.map((entry, index) => [entry.path, { entry, index }]));
+function groupByPath(entries: readonly LoadSetEntry[]): Map<string, LoadSetEntry[]> {
+  const groups = new Map<string, LoadSetEntry[]>();
+  for (const entry of entries) {
+    const group = groups.get(entry.path) ?? [];
+    group.push(entry);
+    groups.set(entry.path, group);
+  }
+  return groups;
+}
+
+function pathsWithExtraEntries(options: EntriesByPath): string[] {
+  return [...options.candidate.entries()]
+    .filter(([path, entries]) => entries.length > (options.reference.get(path)?.length ?? 0))
+    .map(([path]) => path);
+}
+
+function extraEntries(options: EntriesByPath & {
+  excludedPaths: ReadonlySet<string>;
+}): LoadSetEntry[] {
+  return [...options.candidate.entries()].flatMap(([path, entries]) => {
+    if (options.excludedPaths.has(path)) return [];
+    const referenceCount = options.reference.get(path)?.length ?? 0;
+    return entries.slice(referenceCount);
+  });
 }
 
 interface ResolvePathDriftsOptions {

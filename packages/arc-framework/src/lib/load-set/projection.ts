@@ -9,6 +9,8 @@
  * @module
  */
 
+import { isAbsolute } from "node:path";
+
 import { LOAD_SET_MANIFEST_VERSION, type LoadSetEntry, type LoadSetManifest } from "./types.js";
 
 /** Session type resolved by the active-work probe. */
@@ -43,10 +45,12 @@ export interface LoadSetProjectionInput {
 }
 
 function full(path: string): LoadSetEntry {
+  assertRepoRelativePath(path);
   return { path, readMode: { kind: "full" } };
 }
 
 function partialStrategic(path: string): LoadSetEntry {
+  assertRepoRelativePath(path);
   return { path, readMode: { kind: "partial-strategic" } };
 }
 
@@ -86,11 +90,11 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   if (input.identity !== null && input.activeWorkUnit !== null) {
-    entries.push(full(`.arc/user/${input.identity}/${input.activeWorkUnit}/SESSION-NOTES.md`));
+    entries.push(full(userPath(input.identity, input.activeWorkUnit, "SESSION-NOTES.md")));
   }
 
   if (input.identity !== null) {
-    entries.push(full(`.arc/user/${input.identity}/WORKING-MEMORY.md`));
+    entries.push(full(userPath(input.identity, "WORKING-MEMORY.md")));
   }
 
   if (input.sessionType === "planning" && input.planningStage !== null) {
@@ -113,4 +117,39 @@ export function resolveLoadSetManifest(input: LoadSetProjectionInput): LoadSetMa
   }
 
   return { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries };
+}
+
+function userPath(...segments: readonly string[]): string {
+  return [".arc", "user", ...segments.map((segment) => safePathSegment(segment))].join("/");
+}
+
+function safePathSegment(segment: string): string {
+  if (
+    segment.length === 0
+    || segment === "."
+    || segment === ".."
+    || /[<>:"/\\|?*\0]/u.test(segment)
+    || /[. ]$/u.test(segment)
+    || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(segment)
+  ) {
+    throw new Error(`Load-set path segment must be safe: ${segment}`);
+  }
+  return segment;
+}
+
+function assertRepoRelativePath(path: string): void {
+  const segments = path.split("/");
+  if (
+    path.length === 0
+    || path === "."
+    || path.includes("\\")
+    || path.startsWith("/")
+    || path.startsWith("//")
+    || isAbsolute(path)
+    || /^[A-Za-z]:/u.test(path)
+    || path.includes("\0")
+    || segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")
+  ) {
+    throw new Error(`Load-set path must be repository-relative: ${path}`);
+  }
 }

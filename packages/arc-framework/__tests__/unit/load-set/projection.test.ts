@@ -127,4 +127,40 @@ describe("resolveLoadSetManifest", () => {
       fullEntry(".arc/system/extensions/pre-pr-review.md"),
     );
   });
+
+  it("rejects unsafe repository-relative paths at projection time", () => {
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      metaPath: "../meta-escape.md",
+      sessionType: "planning",
+      planningStage: "create-spec",
+    })).toThrow("Load-set path must be repository-relative: ../meta-escape.md");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      taskListPath: "/tmp/tasks.md",
+      sessionType: "execution",
+      planningStage: null,
+    })).toThrow("Load-set path must be repository-relative: /tmp/tasks.md");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      cohortDocPath: ".arc/backlog//cohort.md",
+      sessionType: "integration",
+      planningStage: null,
+    })).toThrow("Load-set path must be repository-relative: .arc/backlog//cohort.md");
+  });
+
+  it("rejects unsafe user path segments before deriving personal context paths", () => {
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      identity: "bad/name",
+      sessionType: "planning",
+      planningStage: "create-spec",
+    })).toThrow("Load-set path segment must be safe: bad/name");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      activeWorkUnit: "CON",
+      sessionType: "planning",
+      planningStage: "create-spec",
+    })).toThrow("Load-set path segment must be safe: CON");
+  });
 });
