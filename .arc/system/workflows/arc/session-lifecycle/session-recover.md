@@ -17,80 +17,63 @@ the just-before-compaction action; the harness compaction summary owns that vola
 leaf. Recovery does not run session-init, sync, pull, discover next work, relocate, commit,
 push, or prompt on a clean path.
 
-## 1. Resolve Recovery State
+## 1. Run The Deterministic Recovery Audit
 
-Run the lean recovery probe:
+Run the recovery audit:
 
 ```bash
-arc status --recover --json
+arc recover audit --json
 ```
 
-Require `mode: "recover"`. If the command fails or the envelope is malformed, stop and surface
-that recovery cannot establish live state; the fallback is a normal `arc-session` re-init.
-
-If `identity.identity === null`, stop. The compaction seed is identity-scoped, and sessions
-without identity cannot recover user-context state.
-
-Read the latest seed:
-
-```text
-.arc/user/{identity}/.internal/compaction-seed.json
-```
-
-If the seed is missing, malformed, or has an unsupported schema version, stop and surface the
-path and parse failure. Do not invent a seed from the harness summary.
+Require `mode: "recover-audit"`. If the command fails or the report is malformed, stop and
+surface that recovery cannot establish live state; the fallback is a normal `arc-session` re-init.
+Do not manually reconstruct a seed from the harness summary.
 
 Treat active-meta progress fields as soft orientation after compaction, not recovery authority:
 `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers` may be stale.
 Use them only as context after the deterministic recovery checks and harness summary are aligned.
 
-## 2. Audit Fresh State Against The Seed
+## 2. Interpret The Verdict
 
-Require `loadSet.ok === true` from the recovery probe. The fresh `loadSet.value` is the
-canonical context-load plan for recovery; the seed's embedded `loadSet` is only the audit
-baseline.
+If `verdict.status === "stop"`, inspect `verdict.stopReasons`:
 
-Diff fresh `loadSet.value` against `seed.loadSet` using the recovery-audit categories:
+- For any reason other than `planning-workflow-uncertain`, stop and surface the structured reason
+  details. The CLI has already checked seed presence/schema, identity, fresh recovery state,
+  load-set drift, dirty path-set drift, and execution task-cursor drift.
+- If `planning-workflow-uncertain` is the only reason, continue only when the harness compaction
+  summary names a planning workflow/stage that can be verified against the recovered load set and
+  artifacts. If the summary is missing, vague, or contradictory, stop for direction. Do not fall
+  back to active-meta `Current Workflow`.
 
-- **Membership:** paths added to or removed from the load set.
-- **Read-mode changes:** a retained path changed read discipline.
-- **Path drift:** the same load-set slot now points at a different path.
+If `verdict.status === "ready"`, continue without prompting.
 
-If any category is non-empty, stop for direction. Surface the structured diff by category and
-state that session state moved since the seed was emitted. The developer can choose a full
-`arc-session` re-init, inspect the drift, or explicitly continue from the fresh context.
+Use the **fresh** report surfaces for context loading:
 
-Require `dirty.ok === true`, then check dirty-state surprise after the load-set audit:
+- `report.recover.loadSet.value` is the canonical context-load plan. The seed's embedded load set
+  is only the audit baseline.
+- For execution sessions, require `report.verdict.taskCursor.match === true` and use
+  `report.verdict.taskCursor.actual.cursor` as the verified task-list anchor. If it is absent,
+  malformed, or not `status: "found"`, stop; do not fall back to active-meta `Next Task`.
+- For planning sessions, use the harness-summary workflow/stage only after the verification above.
 
-- Seed says clean, probe says dirty -> stop.
-- Seed says dirty, probe says clean -> stop.
-- Both dirty, but `dirty.value.fileCount !== seed.uncommittedFiles.length` -> stop.
-
-Do not stop solely because `seed.emittedAt` is old or `seed.head` differs from current `HEAD`.
-The load-set audit and dirty-state check are the recovery authority; mention seed age or head
-movement only as supporting detail when another stop condition already fired.
-
-For execution sessions, require a verified task-list anchor. Prefer `seed.currentTask` when
-present. If it is absent, use the harness summary only to identify a candidate task id/title,
-then verify that candidate exists in the recovered task list before continuing. If the recovered
-active state no longer resolves to an execution session with a task list, or no candidate can be
-verified, stop and surface the uncertainty.
+Do not stop solely because the seed is old or `HEAD` moved. The recovery audit's structured
+verdict is the authority; mention seed age or head movement only as supporting detail when another
+stop condition already fired.
 
 ## 3. Rehydrate The Load Set
 
-Read the **fresh** load-set entries in order. Never load from the seed's paths. The harness
-summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
-context; verify it against the recovered files when it names a task.
+Read `report.recover.loadSet.value.entries` in order. Never load from the seed's paths. The
+harness summary is authoritative for the volatile work-in-progress locus, but not for ARC
+operating context; verify it against the recovered files when it names a task.
 
 Apply each entry's `readMode`:
 
 - `full` - read the whole file.
 - `partial-section` - read only the named heading section.
 - `partial-strategic` - read the active task-list header, current phase preamble, and current
-  task section. Use `seed.currentTask.id`, `seed.currentTask.title`, and `seed.currentTask.lineHint`
-  as the lookup anchors when present. If absent, use a task id/title explicitly supplied by the
-  harness summary only after verifying it against the task list. If neither source yields a
-  verified anchor, stop. Do not fall back to the active meta file's `**Next Task:**`.
+  task section. Use the verified `taskCursor.section` and `taskCursor.leaf` anchors from the
+  audit report. If the report lacks a verified anchor, stop. Do not fall back to the active
+  meta file's `**Next Task:**`.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
 one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop

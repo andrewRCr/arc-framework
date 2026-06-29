@@ -95,6 +95,7 @@ import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { emitCompactionSeed, type EmitCompactionSeedResult } from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
+import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -332,6 +333,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
             pathExists: (path) => access(path).then(() => true, () => false),
           },
         }),
+        taskCursor: async (taskListPath) =>
+          resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8")),
       },
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -546,6 +549,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           pathExists: (path) => access(path).then(() => true, () => false),
         },
       }),
+      taskCursor: async (taskListPath) =>
+        resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8")),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
     if (opts.writeCompactionSeed) {

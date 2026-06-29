@@ -65,6 +65,7 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
+import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
@@ -512,6 +513,18 @@ program
   )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
+
+// --- Recover ---
+
+const recoverCmd = program
+  .command("recover")
+  .description("Recovery support commands for harness compaction");
+
+recoverCmd
+  .command("audit")
+  .description("Audit the latest compaction seed against fresh recovery state")
+  .option("--json", "Emit the typed result as JSON")
+  .action((opts: RecoverAuditOptions) => handleRecoverAudit(opts));
 
 // --- Sync (orchestrator) ---
 

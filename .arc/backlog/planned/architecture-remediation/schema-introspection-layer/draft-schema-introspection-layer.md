@@ -33,6 +33,11 @@ The contracts ARC's CLI exposes across process boundaries are currently invisibl
   changes that drift from agent assumptions are detected as silent misbehavior, not contract
   violations.
 
+- **Compaction recovery contracts.** `arc status --session-init --write-compaction-seed --json`
+  writes a seed schema, status envelopes can include `taskCursor`, and `arc recover audit --json`
+  emits a ready/stop verdict. These are agent-facing contracts for post-compaction recovery and
+  should be published once CSA turns their hand-written guards into zod schemas.
+
 - **Audit-log entry shape.** JSONL written by `arc release` operations. `schemaVersion: 1` is
   pinned but the v1 schema lives in source. Future v2 will need discriminated-union dispatch;
   publishing v1's schema today is the substrate for publishing v2's tomorrow.
@@ -75,6 +80,10 @@ PRD-time elaboration. Provisional shape:
   contract) — soft boundary, see WU-A § Open Questions.
 - **Agent-facing documentation** in `AGENT-BRIEF.ARC.md` § Key Documents (or new § Contracts)
   pointing at the introspection surface.
+- **Recovery schema registration** — include the compaction seed, task-list cursor, status
+  envelope `taskCursor` slice, and `recover-audit` verdict/report once CSA owns their zod
+  definitions. These schemas are particularly useful after context compaction, when agents need
+  deterministic contract checks rather than prose inference.
 
 ---
 

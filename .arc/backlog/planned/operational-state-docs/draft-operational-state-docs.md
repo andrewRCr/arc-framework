@@ -22,6 +22,11 @@
   load-set projection and reads via session-init's existing `managed-field.ts` extractors — never a new bespoke
   parser — so it inherits exactly session-init's fragility (no worse) and OSD supersedes **one** reader, not two. At
   the record layer the seed's pointer fields re-home onto records without a second migration.
+- _Cursor boundary added 2026-06-28:_ `compaction-recovery` now stores a task-list-derived `taskCursor` in the
+  seed and rechecks it through `arc recover audit --json`. Keep this in the same read-only projection bucket: it is
+  an authored-artifact cursor over the task list, not durable thought-state. Post-OSD, meta progress fields remain
+  soft after compaction; the task cursor should still be derived from the task-list record/artifact and compared
+  against the seed baseline.
 
 ### `[ ]` **Decide the legacy flat-bullet core fallback in `parseMetaRecord`**
 

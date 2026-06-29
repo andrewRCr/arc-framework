@@ -37,6 +37,13 @@ interface SessionInitEnvelope {
       path: string | null;
     };
   };
+  taskCursor?: {
+    ok: boolean;
+    value?: {
+      status: string;
+      cursor?: TaskCursorJson;
+    };
+  };
   loadSet?: { ok: boolean; value?: { entries: { path: string; readMode: { kind: string } }[] } };
   baseBranchSync?: {
     ok: boolean;
@@ -51,6 +58,17 @@ interface SessionInitEnvelope {
   };
 }
 
+interface TaskCursorItemJson {
+  id: string;
+  title: string;
+  lineHint: number;
+}
+
+interface TaskCursorJson {
+  section: TaskCursorItemJson;
+  leaf: TaskCursorItemJson;
+}
+
 interface CompactionSeedJson {
   schemaVersion: number;
   repoRoot: string;
@@ -60,9 +78,24 @@ interface CompactionSeedJson {
   activeWorkUnit: string | null;
   metaPath: string | null;
   sessionType: string | null;
-  currentTask: { id: string; title: string; lineHint: number } | null;
+  taskCursor: TaskCursorJson | null;
   loadSet: { entries: { path: string; readMode: { kind: string } }[] };
   uncommittedFiles: string[];
+}
+
+interface RecoverAuditReport {
+  mode: string;
+  seedPath: string | null;
+  verdict: {
+    status: string;
+    ready: boolean;
+    stopReasons: { kind: string; message: string }[];
+    taskCursor: {
+      expected: TaskCursorJson | null;
+      actual: { status: string; cursor?: TaskCursorJson } | null;
+      match: boolean;
+    } | null;
+  };
 }
 
 async function writeStatusFixture(
@@ -89,6 +122,21 @@ async function writeStatusFixture(
 function parseJsonEnvelope(stdout: string): SessionInitEnvelope {
   // The CLI may emit a trailing newline; JSON.parse tolerates it after trim.
   return JSON.parse(stdout.trim()) as SessionInitEnvelope;
+}
+
+function parseRecoverAuditReport(stdout: string): RecoverAuditReport {
+  return JSON.parse(stdout.trim()) as RecoverAuditReport;
+}
+
+function taskListFixture(title: string): string {
+  return [
+    "# Task List: Foo",
+    "",
+    "## **Phase 1:** Work",
+    "",
+    `### \`[ ]\` **1.1 ${title}**`,
+    "",
+  ].join("\n");
 }
 
 describe("session-init E2E — sessionType across type variants", () => {
@@ -151,7 +199,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "",
       ].join("\n"),
     );
-    await writeFile(join(activeDir, "tasks-foo.md"), "# Task List: Foo\n");
+    await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do seed"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "active fixture"], { cwd: tmpDir });
 
@@ -172,7 +220,10 @@ describe("session-init E2E — sessionType across type variants", () => {
       activeWorkUnit: "foo",
       metaPath: ".arc/active/meta-foo.md",
       sessionType: "execution",
-      currentTask: { id: "1.1", title: "Do seed", lineHint: 12 },
+      taskCursor: {
+        section: { id: "1.1", title: "Do seed", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do seed", lineHint: 5 },
+      },
       uncommittedFiles: [],
     });
     expect(seed.head).toMatch(/^[0-9a-f]{40}$/);
@@ -203,7 +254,7 @@ describe("session-init E2E — sessionType across type variants", () => {
         "",
       ].join("\n"),
     );
-    await writeFile(join(activeDir, "tasks-foo.md"), "# Task List: Foo\n");
+    await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do recover"));
     await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
     await execFileAsync("git", ["commit", "--no-verify", "-m", "active fixture"], { cwd: tmpDir });
 
@@ -222,6 +273,71 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.loadSet?.value?.entries).toContainEqual({
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },
+    });
+    expect(envelope.taskCursor?.value).toMatchObject({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do recover", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do recover", lineHint: 5 },
+      },
+    });
+  });
+
+  it("audits the compaction seed against fresh recovery state", async () => {
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "init"], { cwd: tmpDir });
+    await execFileAsync("git", ["checkout", "-b", "feat/foo"], { cwd: tmpDir });
+
+    const activeDir = join(tmpDir, ".arc", "active");
+    await mkdir(activeDir, { recursive: true });
+    await writeFile(
+      join(activeDir, "meta-foo.md"),
+      [
+        "# Metadata: Foo",
+        "",
+        "- **State:** Active",
+        "- **Branch:** feat/foo",
+        "- **Task List:** tasks-foo.md",
+        "- **Current Workflow:** [none]",
+        "- **Next Task:** stale meta pointer ignored by recovery",
+        "- **Next Action:** Start Task 1.1",
+        "",
+      ].join("\n"),
+    );
+    await writeFile(join(activeDir, "tasks-foo.md"), taskListFixture("Do audit"));
+    await execFileAsync("git", ["add", "-A"], { cwd: tmpDir });
+    await execFileAsync("git", ["commit", "--no-verify", "-m", "active fixture"], { cwd: tmpDir });
+
+    const seedResult = await runArc(
+      ["status", "--session-init", "--write-compaction-seed", "--json"],
+      tmpDir,
+    );
+    expect(seedResult.exitCode).toBe(0);
+
+    const auditResult = await runArc(["recover", "audit", "--json"], tmpDir);
+    expect(auditResult.exitCode).toBe(0);
+
+    const report = parseRecoverAuditReport(auditResult.stdout);
+    expect(report.mode).toBe("recover-audit");
+    expect(report.seedPath).toContain(".arc/user/test-user/.internal/compaction-seed.json");
+    expect(report.verdict).toMatchObject({
+      status: "ready",
+      ready: true,
+      stopReasons: [],
+      taskCursor: {
+        match: true,
+        expected: {
+          section: { id: "1.1", title: "Do audit", lineHint: 5 },
+          leaf: { id: "1.1", title: "Do audit", lineHint: 5 },
+        },
+        actual: {
+          status: "found",
+          cursor: {
+            section: { id: "1.1", title: "Do audit", lineHint: 5 },
+            leaf: { id: "1.1", title: "Do audit", lineHint: 5 },
+          },
+        },
+      },
     });
   });
 

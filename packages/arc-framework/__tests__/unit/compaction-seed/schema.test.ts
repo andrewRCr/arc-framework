@@ -42,10 +42,17 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
     metaPath: ".arc/active/meta-compaction-recovery.md",
     sessionType: "execution",
     currentWorkflow: null,
-    currentTask: {
-      id: "2.1",
-      title: "Define the `CompactionSeed` schema",
-      lineHint: 66,
+    taskCursor: {
+      section: {
+        id: "2.1",
+        title: "Define the `CompactionSeed` schema",
+        lineHint: 66,
+      },
+      leaf: {
+        id: "2.1.a",
+        title: "Add schema runtime guard",
+        lineHint: 70,
+      },
     },
     loadSet: LOAD_SET,
     uncommittedFiles: [
@@ -81,7 +88,7 @@ describe("CompactionSeed schema", () => {
         metaPath: null,
         sessionType: null,
         currentWorkflow: null,
-        currentTask: null,
+        taskCursor: null,
       })),
     ).toBe(true);
   });
@@ -136,14 +143,21 @@ describe("CompactionSeed schema", () => {
     }
   });
 
-  it("rejects invalid task pointers", () => {
+  it("rejects invalid task cursors", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({
         ...seed(),
-        currentTask: {
-          id: "2.1",
-          title: "Define schema",
-          lineHint: 0,
+        taskCursor: {
+          section: {
+            id: "2.1",
+            title: "Define schema",
+            lineHint: 0,
+          },
+          leaf: {
+            id: "2.1",
+            title: "Define schema",
+            lineHint: 1,
+          },
         },
       }),
     );

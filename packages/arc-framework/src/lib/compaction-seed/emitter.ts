@@ -15,10 +15,10 @@ import { parseMetaFile } from "../active/meta-reader.js";
 import { atomicWriteJson } from "../fs.js";
 import type { GitExec } from "../git/index.js";
 import type { LoadSetManifest } from "../load-set/types.js";
+import type { TaskListCursorResult } from "../task-list/cursor.js";
 import {
   COMPACTION_SEED_SCHEMA_VERSION,
   type CompactionSeed,
-  type CompactionSeedCurrentTask,
   type CompactionSeedSessionType,
 } from "./schema.js";
 
@@ -35,6 +35,7 @@ export interface CompactionSeedEnvelope {
     sessionType: CompactionSeedSessionType | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
+  taskCursor?: SeedProbe<TaskListCursorResult>;
 }
 
 /** Options for emitting the compaction seed. */
@@ -98,7 +99,6 @@ export async function emitCompactionSeed(
 
   const metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
   let currentWorkflow: string | null = null;
-  let currentTask: CompactionSeedCurrentTask | null = null;
   if (metaPath !== null) {
     let parsed: ReturnType<typeof parseMetaFile>;
     try {
@@ -108,10 +108,14 @@ export async function emitCompactionSeed(
       return { status: "failed", reason: "meta-read-failed", message: errorMessage(err) };
     }
     currentWorkflow = normalizeNullablePointer(parsed.currentWorkflow);
-    if (options.envelope.active.ok && options.envelope.active.value.sessionType === "execution") {
-      currentTask = parseCurrentTask(parsed.nextTask);
-    }
   }
+  const taskCursor =
+    options.envelope.active.ok
+      && options.envelope.active.value.sessionType === "execution"
+      && options.envelope.taskCursor?.ok
+      && options.envelope.taskCursor.value.status === "found"
+      ? options.envelope.taskCursor.value.cursor
+      : null;
 
   const path = resolveCompactionSeedPath({ cwd: options.cwd, identity });
   const seed: CompactionSeed = {
@@ -127,7 +131,7 @@ export async function emitCompactionSeed(
     metaPath,
     sessionType: options.envelope.active.ok ? options.envelope.active.value.sessionType : null,
     currentWorkflow,
-    currentTask,
+    taskCursor,
     loadSet: options.envelope.loadSet.value,
     uncommittedFiles,
   };
@@ -155,17 +159,6 @@ function normalizeNullablePointer(value: string | null): string | null {
   const trimmed = value.trim();
   if (trimmed === "" || trimmed === "[none]") return null;
   return trimmed;
-}
-
-function parseCurrentTask(value: string | null): CompactionSeedCurrentTask | null {
-  if (value === null) return null;
-  const match = /^Task\s+(\S+)\s+(?:\u2014|-)\s+(.+?)\s+\(line\s+~(\d+)\)\s*$/u.exec(value);
-  if (match === null) return null;
-  return {
-    id: match[1] as string,
-    title: match[2] as string,
-    lineHint: Number.parseInt(match[3] as string, 10),
-  };
 }
 
 function errorMessage(err: unknown): string {

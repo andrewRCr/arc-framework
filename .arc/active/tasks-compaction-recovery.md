@@ -198,7 +198,7 @@ supplies the live leaf concern.
   parent/subtask markers, plus unit coverage for nested subtasks, standalone tasks, revision identifiers,
   completed/deferred skips, plain subtask titles, malformed markers, and no-open-task results.
 
-### `[ ]` **4.R.3 Expose the cursor in status envelopes and seed emission**
+### `[x]` **4.R.3 Expose the cursor in status envelopes and seed emission**
 
 - _Goal:_ `session-init`, recover-mode status, and the compaction seed all consume one cursor projection.
 
@@ -207,7 +207,11 @@ supplies the live leaf concern.
       incomplete; do not turn it into thought-state.
     - Change seed emission to store the task-list-derived cursor instead of parsing meta `Next Task`.
 
-### `[ ]` **4.R.4 Add deterministic `arc recover audit --json`**
+- _Outcome:_ Added optional `taskCursor` probe slots to session-init and recover envelopes, wired handlers through
+  the shared task-list cursor parser, and changed compaction seed v1 to store `taskCursor` instead of parsing
+  stale meta `Next Task`. Updated schema/emitter/status tests and E2E fixtures to assert cursor projection.
+
+### `[x]` **4.R.4 Add deterministic `arc recover audit --json`**
 
 - _Goal:_ Recovery mismatch checks move out of workflow judgment and into one command that emits a structured
   `ready` / `stop` verdict.
@@ -219,7 +223,12 @@ supplies the live leaf concern.
       task-cursor mismatch, and workflow-pointer uncertainty.
     - Unit-test clean and mismatched verdicts; add a CLI smoke for JSON output.
 
-### `[ ]` **4.R.5 Rewrite recovery workflow consumption**
+- _Outcome:_ Added `arc recover audit --json` with a typed `recover-audit` report and pure `auditRecoveryState`
+  verdict helper. The command reads the identity-scoped seed, reruns the lean recover probe, compares load-set,
+  dirty path set, and task cursor state, and emits structured ready/stop reasons. Added unit verdict coverage and
+  an E2E ready-path smoke through the built CLI.
+
+### `[x]` **4.R.5 Rewrite recovery workflow consumption**
 
 - _Goal:_ `session-recover` consumes `arc recover audit --json`, reads the fresh load-set, and resumes from the
   harness-summary locus with ARC context restored.
@@ -228,7 +237,11 @@ supplies the live leaf concern.
     - Use fresh cursor data for `partial-strategic` reads; stop when a required cursor is absent.
     - Keep the authority-framing line scoped to ARC context, not the harness summary's volatile leaf.
 
-### `[ ]` **4.R.6 Forward-compat coordination for cursor/audit ownership**
+- _Outcome:_ Rewrote both `session-recover.md` copies to begin with `arc recover audit --json`, consume the fresh
+  load-set and verified task cursor from the report, and treat planning `Current Workflow` as soft unless the
+  harness summary supplies a verifiable stage anchor.
+
+### `[x]` **4.R.6 Forward-compat coordination for cursor/audit ownership**
 
 - _Goal:_ Downstream WUs know what they inherit: the cursor parser's grammar owner, the audit envelope's schema
   owner, and the planning-stage cursor boundary.
@@ -237,6 +250,10 @@ supplies the live leaf concern.
       `planning-iteration-mechanics`, `operational-state-docs`, and `cli-substrate-adoption`.
     - Preserve the existing `composable-workflows`, `unit-scoped-review`, and `agent-platform-support`
       coordination notes.
+
+- _Outcome:_ Updated the downstream buffers for task-list marker grammar ownership, CSA/schema migration targets,
+  OSD read-only projection boundaries, and planning-stage recovery uncertainty. Existing coordination notes remain
+  intact.
 
 ## **Phase 5:** Per-harness hook adapters
 
@@ -362,25 +379,25 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
 
 ## Success Criteria
 
-- `[ ]` The seed emits to the fixed machine-local path and parses back losslessly (unit-tested round-trip)
-- `[ ]` The shared load-set projection resolves the correct ordered load-set + read-modes per `sessionType`
+- `[x]` The seed emits to the fixed machine-local path and parses back losslessly (unit-tested round-trip)
+- `[x]` The shared load-set projection resolves the correct ordered load-set + read-modes per `sessionType`
   (planning / execution / integration), identical whether consumed by `session-init` Step 3 or `session-recover`
   (unit-tested)
-- `[ ]` A shared task-list cursor projection derives the execution task section + first incomplete executable
+- `[x]` A shared task-list cursor projection derives the execution task section + first incomplete executable
   checkbox, feeds `session-init` strategic-read anchoring, and seeds/audits recovery without claiming thought-state
-- `[ ]` `arc recover audit --json` re-resolves the load-set and task cursor, compares dirty file path sets against
+- `[x]` `arc recover audit --json` re-resolves the load-set and task cursor, compares dirty file path sets against
   the seed, and emits structured `ready` / `stop` verdicts (unit-tested across match and mismatch)
-- `[ ]` `session-recover` treats `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers`
+- `[x]` `session-recover` treats `Next Task`, `Next Action`, `Last Completed`, `Current Workflow`, and `Blockers`
   as post-compaction soft orientation only; it resumes from the harness-summary locus unless true uncertainty or
   contradiction requires a stop
-- `[ ]` Lean probe mode emits exactly the kept slices and omits the skipped oracles (verified)
+- `[x]` Lean probe mode emits exactly the kept slices and omits the skipped oracles (verified)
 - `[ ]` On Claude Code and Codex, forcing a compaction injects recovery and the agent resumes the in-flight task
   with the procedural floor restored; `clear` routes to full `session-init` instead (manual per-harness e2e)
 - `[ ]` `adr-002` carries the append-only amendment (incl. the episodic-vs-procedural rationale); the
   boundary-vs-pressure disambiguation is applied adopter-clean across `strategy-session-operations`
   (§ Auto-Compaction + § Context Monitoring), `DEV-RULES.ARC` § Context quality, and `AGENT-BRIEF.ARC`; no live
   adopter-facing surface still presents session-bounding as the context-preservation correctness mechanism
-- `[ ]` The five reciprocal forward-compat notes are present in their sibling buffers; the load-set projection
+- `[x]` The five reciprocal forward-compat notes are present in their sibling buffers; the load-set projection
   resolves membership from shared policy (no recover-specific list); the seed's embedded manifest is produced by
   the same projection
 - `[ ]` The pre-compaction seed write exits 0 and never blocks compaction

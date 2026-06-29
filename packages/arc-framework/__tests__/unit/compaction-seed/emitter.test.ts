@@ -37,6 +37,24 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
       },
     },
     loadSet: { ok: true, value: LOAD_SET },
+    taskCursor: {
+      ok: true,
+      value: {
+        status: "found",
+        cursor: {
+          section: {
+            id: "2.1",
+            title: "Define the task-list cursor",
+            lineHint: 66,
+          },
+          leaf: {
+            id: "2.1.a",
+            title: "Parse cursor markers",
+            lineHint: 70,
+          },
+        },
+      },
+    },
     ...overrides,
   } satisfies Parameters<typeof emitCompactionSeed>[0]["envelope"];
 }
@@ -70,7 +88,7 @@ async function emit(overrides: {
       "# Metadata: Compaction Recovery",
       "",
       "- **Current Workflow:** [none]",
-      "- **Next Task:** Task 2.1 — Define the `CompactionSeed` schema (line ~66)",
+      "- **Next Task:** this stale field is ignored by seed emission",
       "- **Next Action:** Begin Task 2.1",
     ].join("\n")),
     writeSeed: overrides.writeSeed ?? vi.fn(async () => undefined),
@@ -134,20 +152,27 @@ describe("emitCompactionSeed", () => {
     }
   });
 
-  it("populates the execution current task from the meta Next Task pointer", async () => {
+  it("populates the execution task cursor from the envelope cursor projection", async () => {
     const result = await emit();
 
     expect(result.status).toBe("written");
     if (result.status === "written") {
-      expect(result.seed.currentTask).toEqual({
-        id: "2.1",
-        title: "Define the `CompactionSeed` schema",
-        lineHint: 66,
+      expect(result.seed.taskCursor).toEqual({
+        section: {
+          id: "2.1",
+          title: "Define the task-list cursor",
+          lineHint: 66,
+        },
+        leaf: {
+          id: "2.1.a",
+          title: "Parse cursor markers",
+          lineHint: 70,
+        },
       });
     }
   });
 
-  it("sets currentTask to null in planning sessions", async () => {
+  it("sets taskCursor to null in planning sessions", async () => {
     const result = await emit({
       envelope: {
         active: {
@@ -162,7 +187,7 @@ describe("emitCompactionSeed", () => {
 
     expect(result.status).toBe("written");
     if (result.status === "written") {
-      expect(result.seed.currentTask).toBeNull();
+      expect(result.seed.taskCursor).toBeNull();
     }
   });
 

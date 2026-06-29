@@ -532,6 +532,11 @@ export async function runSessionInitStatus(
     activeExtensions: extensions.ok ? extensions.value.active : [],
     cohortDocPath,
   }));
+  const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
+  const taskCursor =
+    taskListPath !== null
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
 
   return {
     mode: "session-init",
@@ -560,6 +565,7 @@ export async function runSessionInitStatus(
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet,
+    ...(taskCursor !== undefined ? { taskCursor } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
   };
 }
@@ -624,6 +630,11 @@ export async function runRecoverStatus(
     activeExtensions: extensions.ok ? extensions.value.active : [],
     cohortDocPath,
   }));
+  const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
+  const taskCursor =
+    taskListPath !== null
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
 
   return {
     mode: "recover",
@@ -636,6 +647,7 @@ export async function runRecoverStatus(
     releaseRouting,
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
     loadSet,
+    ...(taskCursor !== undefined ? { taskCursor } : {}),
   };
 }
 

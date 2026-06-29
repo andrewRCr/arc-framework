@@ -2,9 +2,10 @@
  * Compaction seed schema and JSON boundary helpers.
  *
  * The seed is a lean, invocation-neutral recovery manifest: live session
- * pointers, the embedded load-set baseline, and a deterministic list of dirty
- * files. It deliberately carries no harness command spelling or reasoning
- * prose; those belong to harness adapters and summaries.
+ * pointers, the embedded load-set baseline, the task-list cursor projection,
+ * and a deterministic list of dirty files. It deliberately carries no harness
+ * command spelling or reasoning prose; those belong to harness adapters and
+ * summaries.
  *
  * @module
  */
@@ -14,6 +15,7 @@ import type {
   LoadSetManifest,
   ReadMode,
 } from "../load-set/types.js";
+import type { TaskListCursor } from "../task-list/cursor.js";
 
 /** Current compaction seed envelope version. */
 export const COMPACTION_SEED_SCHEMA_VERSION = 1;
@@ -23,16 +25,6 @@ export type CompactionSeedSchemaVersion = typeof COMPACTION_SEED_SCHEMA_VERSION;
 
 /** Session lifecycle type captured by the seed when a WU is active. */
 export type CompactionSeedSessionType = "planning" | "execution" | "integration";
-
-/** Current task pointer captured for execution sessions. */
-export interface CompactionSeedCurrentTask {
-  /** Task identifier, e.g. `2.1`. */
-  id: string;
-  /** Task title without the identifier. */
-  title: string;
-  /** Approximate line number from the active task list. */
-  lineHint: number;
-}
 
 /** Schema-v1 compaction seed. */
 export interface CompactionSeed {
@@ -58,8 +50,8 @@ export interface CompactionSeed {
   sessionType: CompactionSeedSessionType | null;
   /** Current lifecycle/planning workflow pointer, or `null` when none applies. */
   currentWorkflow: string | null;
-  /** Current execution-task pointer, or `null` outside execution. */
-  currentTask: CompactionSeedCurrentTask | null;
+  /** Task-list-derived execution cursor, or `null` outside execution / unresolved. */
+  taskCursor: TaskListCursor | null;
 
   /** Embedded load-set baseline, produced by the shared load-set projection. */
   loadSet: LoadSetManifest;
@@ -166,7 +158,7 @@ export function isCompactionSeed(value: unknown): value is CompactionSeed {
     && isNullableString(value.metaPath)
     && isNullableSessionType(value.sessionType)
     && isNullableString(value.currentWorkflow)
-    && isNullableCurrentTask(value.currentTask)
+    && isNullableTaskCursor(value.taskCursor)
     && isLoadSetManifest(value.loadSet)
     && isStringArray(value.uncommittedFiles);
 }
@@ -212,8 +204,13 @@ function isNullableSessionType(
     || (typeof value === "string" && (SESSION_TYPES as readonly string[]).includes(value));
 }
 
-function isNullableCurrentTask(value: unknown): value is CompactionSeedCurrentTask | null {
+function isNullableTaskCursor(value: unknown): value is TaskListCursor | null {
   if (value === null) return true;
+  if (!isRecord(value)) return false;
+  return isTaskCursorItem(value.section) && isTaskCursorItem(value.leaf);
+}
+
+function isTaskCursorItem(value: unknown): value is TaskListCursor["section"] {
   if (!isRecord(value)) return false;
   return typeof value.id === "string"
     && typeof value.title === "string"

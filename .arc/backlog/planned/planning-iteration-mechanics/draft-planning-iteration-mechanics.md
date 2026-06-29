@@ -72,6 +72,17 @@
   convention (`draft-design` / template), `init-work-unit`, and `session-init`'s resume / discovery arms; both
   copies. Design fork (where the re-validation lives, what the staleness signal is) → reviewed lane.
 
+### `[ ]` **Planning-stage recovery after compaction: harness summary vs. stale `Current Workflow`**
+
+- _Routed from:_ `compaction-recovery` Phase 4.R (2026-06-28).
+- _Concern:_ after harness compaction, `Current Workflow` is a soft active-meta field just like `Next Task` /
+  `Next Action`: it may reflect the last handoff rather than the interrupted planning leaf. Recovery now treats
+  execution cursor state as task-list-derived, but planning has no equivalent deterministic task-list cursor.
+- _Coordination:_ when this WU defines planning-stage pointer mechanics, include the recovery case: the harness
+  compaction summary is the volatile source of truth, and `arc recover audit --json` can only flag
+  `planning-workflow-uncertain`. Define what counts as a verifiable summary-stage anchor so agents ask the user
+  only when the summary is missing, vague, or contradictory.
+
 ### `[ ]` **Cohort-scoped grooming entry — groom a cohort doc + ≥2 member drafts on one backlog branch**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain

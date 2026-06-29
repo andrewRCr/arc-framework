@@ -224,6 +224,7 @@ function makeSessionInitProbes(fixture: Fixture): SessionInitProbes {
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
+    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,
@@ -287,6 +288,7 @@ function makeResolvedReleaseModeSessionInitProbes(
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
+    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () => routingFromSettings(await resolvedSettings()),
   };
 }
@@ -523,6 +525,7 @@ describe("runSessionInitStatus — contributor role-aware active resolution", ()
       inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
       partialPushMarker: async () => ({ markers: [] }),
       cohortDoc: async () => null,
+      taskCursor: async () => ({ status: "no-open-task" }),
       releaseRouting: async () =>
         resolveReleaseRouting({
           releaseOptedIn: false,
@@ -699,6 +702,7 @@ function makeRealWorktreeProbes(
     inboxState: async () => ({ routableCount: 0, housekeepNeeded: false }),
     partialPushMarker: async () => ({ markers: [] }),
     cohortDoc: async () => null,
+    taskCursor: async () => ({ status: "no-open-task" }),
     releaseRouting: async () =>
       resolveReleaseRouting({
         releaseOptedIn: false,

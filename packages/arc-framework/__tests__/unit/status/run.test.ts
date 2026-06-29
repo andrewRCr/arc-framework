@@ -70,6 +70,7 @@ import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state
 import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
+import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 
 // --- Fixtures ---
 
@@ -361,6 +362,7 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
+    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
     ...overrides,
   };
 }
@@ -375,6 +377,7 @@ function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): Se
     active: vi.fn(async () => activeSessionInit()),
     releaseRouting: vi.fn(async () => releaseRouting()),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
+    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
     ...overrides,
   };
 }
@@ -689,6 +692,13 @@ describe("runSessionInitStatus — orchestration", () => {
       extensions: vi.fn(async () =>
         extensionsSessionInit({ active: ["post-context-load"] })),
       cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+      taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
+        status: "found",
+        cursor: {
+          section: { id: "1.1", title: "Do x", lineHint: 5 },
+          leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+        },
+      })),
     });
     const result = await runSessionInitStatus({
       identity: "andrew",
@@ -714,6 +724,16 @@ describe("runSessionInitStatus — orchestration", () => {
           },
         ]),
       );
+    }
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1" },
+        },
+      });
     }
   });
 
@@ -845,6 +865,13 @@ describe("runRecoverStatus — lean recover envelope", () => {
       extensions: vi.fn(async () =>
         extensionsSessionInit({ active: ["post-context-load"] })),
       cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+      taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
+        status: "found",
+        cursor: {
+          section: { id: "1.1", title: "Do x", lineHint: 5 },
+          leaf: { id: "1.1.a", title: "Do x child", lineHint: 9 },
+        },
+      })),
     });
     const result = await runRecoverStatus({
       identity: "andrew",
@@ -871,6 +898,16 @@ describe("runRecoverStatus — lean recover envelope", () => {
           },
         ]),
       );
+    }
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1.a" },
+        },
+      });
     }
   });
 });
