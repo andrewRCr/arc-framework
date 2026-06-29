@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { join, relative } from "node:path";
 
-const markerFileName = "codex-compaction-recovery-pending.json";
+const markerFileBaseName = "codex-compaction-recovery-pending";
 const seedFileName = "compaction-seed.json";
 
 export function resolveRepoRoot() {
@@ -65,16 +65,40 @@ function newestSeedDir(root) {
   return candidates[0] ?? null;
 }
 
+function currentCodexThreadId() {
+  const raw = process.env.CODEX_THREAD_ID;
+  if (typeof raw !== "string") {
+    return null;
+  }
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function markerFileName(threadId) {
+  if (threadId === null) {
+    return `${markerFileBaseName}.json`;
+  }
+  const safeThreadId = threadId.replace(/[^A-Za-z0-9._-]/g, "_");
+  return `${markerFileBaseName}-${safeThreadId}.json`;
+}
+
+function isMarkerFileName(name) {
+  return name === markerFileName(null)
+    || (name.startsWith(`${markerFileBaseName}-`) && name.endsWith(".json"));
+}
+
 export function writePendingMarker() {
   const root = resolveRepoRoot();
   const seed = newestSeedDir(root);
   const markerDir = seed?.dir ?? join(root, ".arc", "user", ".internal");
-  const markerPath = join(markerDir, markerFileName);
+  const codexThreadId = currentCodexThreadId();
+  const markerPath = join(markerDir, markerFileName(codexThreadId));
 
   mkdirSync(markerDir, { recursive: true });
   writeFileSync(markerPath, `${JSON.stringify({
     schemaVersion: 1,
     kind: "codex-compaction-recovery-pending",
+    codexThreadId,
     emittedAt: new Date().toISOString(),
     seedPath: seed ? relative(root, seed.seedPath) : null,
   }, null, 2)}\n`);
@@ -84,23 +108,36 @@ export function writePendingMarker() {
 
 export function findPendingMarkers() {
   const root = resolveRepoRoot();
+  const codexThreadId = currentCodexThreadId();
   const markers = [];
 
   for (const dir of internalDirs(root)) {
-    const markerPath = join(dir, markerFileName);
-    if (!existsSync(markerPath)) {
+    if (!existsSync(dir)) {
       continue;
     }
 
-    let emittedAt = null;
-    try {
-      const marker = JSON.parse(readFileSync(markerPath, "utf8"));
-      emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
-    } catch {
-      // Malformed markers still mean recovery is pending; recovery can clear them after success.
-    }
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !isMarkerFileName(entry.name)) {
+        continue;
+      }
 
-    markers.push({ markerPath, emittedAt, mtimeMs: statSync(markerPath).mtimeMs });
+      const markerPath = join(dir, entry.name);
+      let emittedAt = null;
+      let markerThreadId = null;
+      try {
+        const marker = JSON.parse(readFileSync(markerPath, "utf8"));
+        emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
+        markerThreadId = typeof marker.codexThreadId === "string" ? marker.codexThreadId : null;
+      } catch {
+        // Malformed markers still mean recovery is pending, but only for the unscoped fallback.
+      }
+
+      if (markerThreadId !== codexThreadId) {
+        continue;
+      }
+
+      markers.push({ markerPath, emittedAt, mtimeMs: statSync(markerPath).mtimeMs });
+    }
   }
 
   markers.sort((a, b) => b.mtimeMs - a.mtimeMs);

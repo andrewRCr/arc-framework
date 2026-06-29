@@ -51,6 +51,7 @@ function partialStrategic(path: string): LoadSetEntry {
 }
 
 const UNIVERSAL_ENTRIES: readonly LoadSetEntry[] = [
+  full("AGENTS.md"),
   full(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
   full(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
   full(".arc/system/rules/DEV-RULES.ARC.md"),

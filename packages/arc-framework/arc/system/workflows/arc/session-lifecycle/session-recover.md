@@ -71,6 +71,10 @@ slice genuinely depends on the earlier read. Never load from the seed's paths. T
 summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
 context; verify it against the recovered files when it names a task.
 
+The universal recovery load set begins with repository-root `AGENTS.md` so harness/bootstrap
+guidance lost to compaction is restored before ARC's own context. If the project has no
+`AGENTS.md`, the read contributes no guidance and recovery continues.
+
 Apply each entry's `readMode`:
 
 - `full` - read the whole file.
@@ -116,8 +120,8 @@ developer. If a user-visible recovery note is useful, keep it to one terse statu
 ARC post-compaction session recovery complete.
 ```
 
-If recovery was injected from Codex's pending-marker workaround, clear the marker only after the
-recovery load set is rehydrated and the verdict is ready:
+If recovery was injected from Codex's pending-marker workaround, clear the current thread's marker
+only after the recovery load set is rehydrated and the verdict is ready:
 
 ```bash
 node "$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs"

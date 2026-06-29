@@ -90,7 +90,8 @@ describe("Claude Code compaction recovery hook recipe", () => {
     expect(existsSync(seedScriptPath)).toBe(true);
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
-    expect(seedScript).toContain("arc status --session-init --write-compaction-seed --json");
+    expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
+    expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
     expect(seedScript).toContain("stdio: \"ignore\"");
     expect(seedScript).toContain("process.exit(0)");
   });

@@ -26,6 +26,7 @@ describe("resolveLoadSetManifest", () => {
 
     expect(manifest.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
     expect(manifest.entries).toEqual([
+      fullEntry("AGENTS.md"),
       fullEntry(".arc/reference/briefs/AGENT-BRIEF.ARC.md"),
       fullEntry(".arc/reference/briefs/AGENT-BRIEF.PROJECT.md"),
       fullEntry(".arc/system/rules/DEV-RULES.ARC.md"),

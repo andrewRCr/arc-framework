@@ -187,8 +187,9 @@ Install discipline:
   not duplicate them. Preserve all non-ARC hook groups and handlers.
 - The installed events are harness-specific: Claude Code installs only `PreCompact(manual|auto)` and
   `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`,
-  `PostCompact(manual|auto)`, and `UserPromptSubmit`; Codex `PostCompact` writes a pending marker
-  and hard-stops, then the next user prompt injects recovery context. Do not add Codex
+  `PostCompact(manual|auto)`, and `UserPromptSubmit`; Codex `PostCompact` writes a thread-scoped
+  pending marker and hard-stops, then the next prompt in that Codex thread injects recovery context.
+  Recovery restores repository bootstrap guidance (`AGENTS.md`) plus ARC's load set. Do not add Codex
   `SessionStart(compact)`, `SessionStart(clear)`, or a catch-all `SessionStart` matcher.
 - After writing, re-read the target files and report one line:
   `ARC post-compaction session-recovery hooks installed for <harness>.`
@@ -300,9 +301,10 @@ Use structured JSON/TOML edits where available, back up target files first, pres
 and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|auto)` and
 `SessionStart(compact)`; Codex CLI installs `PreCompact(manual|auto)`, `PostCompact(manual|auto)`,
 and `UserPromptSubmit` as the documented workaround for Codex's missing immediate
-post-compaction context injection. After writing, re-read the target files and ask the user to
-review/trust the hook definitions in the harness UI. Roll back by restoring the backup, or by
-removing only the ARC recipe entries.
+post-compaction context injection. Codex's pending marker is scoped to the current thread, and
+recovery restores `AGENTS.md` plus ARC's load set. After writing, re-read the target files and ask
+the user to review/trust the hook definitions in the harness UI. Roll back by restoring the backup,
+or by removing only the ARC recipe entries.
 
 ### Optional: Verify Installation
 

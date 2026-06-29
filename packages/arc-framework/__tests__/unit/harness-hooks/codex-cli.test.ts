@@ -46,6 +46,7 @@ interface HookOutput {
   stopReason?: string;
   systemMessage?: string;
   suppressOutput?: boolean;
+  removed?: string[];
   hookSpecificOutput?: {
     hookEventName?: string;
     additionalContext?: string;
@@ -56,12 +57,20 @@ function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
 
-function runHookScript(path: string, cwd?: string): HookOutput {
-  return JSON.parse(runHookScriptRaw(path, cwd)) as HookOutput;
+function runHookScript(path: string, cwd?: string, env: NodeJS.ProcessEnv = {}): HookOutput {
+  return JSON.parse(runHookScriptRaw(path, cwd, env)) as HookOutput;
 }
 
-function runHookScriptRaw(path: string, cwd?: string): string {
-  return execFileSync(process.execPath, [path], { cwd, encoding: "utf8" });
+function runHookScriptRaw(path: string, cwd?: string, env: NodeJS.ProcessEnv = {}): string {
+  return execFileSync(process.execPath, [path], {
+    cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CODEX_THREAD_ID: "",
+      ...env,
+    },
+  });
 }
 
 function withTempArcProject<T>(fn: (root: string) => T): T {
@@ -131,7 +140,8 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
-    expect(seedScript).toContain("arc status --session-init --write-compaction-seed --json");
+    expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
+    expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
     expect(seedScript).toContain("stdio: \"ignore\"");
     expect(seedScript).toContain("process.exit(0)");
   });
@@ -168,20 +178,32 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     );
 
     withTempArcProject((root) => {
-      const markerPath = join(root, ".arc", "user", "andrew", ".internal", "codex-compaction-recovery-pending.json");
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      const markerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
 
-      const postCompactOutput = runHookScript(postCompactScriptPath, root);
+      const postCompactOutput = runHookScript(postCompactScriptPath, root, env);
       expect(postCompactOutput.continue).toBe(false);
       expect(postCompactOutput.stopReason).toContain("ARC recovery required");
-      expect(postCompactOutput.systemMessage).toContain("recovery-pending");
+      expect(postCompactOutput.systemMessage).toContain("ARC paused after compaction");
+      expect(postCompactOutput.systemMessage).toContain("AGENTS.md + ARC load set");
       expect(postCompactOutput.systemMessage).toContain("continue");
       expect(existsSync(markerPath)).toBe(true);
 
-      const marker = readJson<{ kind: string; seedPath: string }>(markerPath);
+      const marker = readJson<{ kind: string; seedPath: string; codexThreadId: string }>(markerPath);
       expect(marker.kind).toBe("codex-compaction-recovery-pending");
+      expect(marker.codexThreadId).toBe("thread-a");
       expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
 
-      const userPromptOutput = runHookScript(userPromptScriptPath, root);
+      expect(runHookScriptRaw(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
+
+      const userPromptOutput = runHookScript(userPromptScriptPath, root, env);
       expect(userPromptOutput.suppressOutput).toBe(true);
       expect(userPromptOutput.hookSpecificOutput).toMatchObject({
         hookEventName: "UserPromptSubmit",
@@ -190,10 +212,29 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
       expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("clear-codex-recovery-pending.mjs");
 
-      const clearOutput = runHookScript(clearScriptPath, root) as { removed: string[] };
+      const clearOtherThreadOutput = runHookScript(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" });
+      expect(clearOtherThreadOutput.removed).toEqual([]);
+      expect(existsSync(markerPath)).toBe(true);
+
+      const clearOutput = runHookScript(clearScriptPath, root, env);
       expect(clearOutput.removed).toHaveLength(1);
       expect(existsSync(markerPath)).toBe(false);
-      expect(runHookScriptRaw(userPromptScriptPath, root)).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
+    });
+  });
+
+  it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
+    withTempArcProject((root) => {
+      runHookScript(postCompactScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
+
+      const userPromptOutput = runHookScript(userPromptScriptPath, root, {
+        ARC_HOOK_ARC_COMMAND: "npx arc",
+        CODEX_THREAD_ID: "thread-a",
+      });
+
+      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(
+        "Recovery audit command: npx arc recover audit --json.",
+      );
     });
   });
 

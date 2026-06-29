@@ -991,7 +991,9 @@ recovery only after a `compact` event; `clear` remains deliberately unhooked. If
 installed, run the manual fallback when compaction erases ARC operating context.
 
 Recovery restores ARC's operating context. It does not standardize or inspect the harness summary,
-and it does not reload on-demand context that was pulled mid-task before compaction; reload that
+and it does not reload on-demand context that was pulled mid-task before compaction. The recovery
+load set starts with repository-root `AGENTS.md`, then ARC's own session context, so harness/bootstrap
+rules discarded by compaction are restored with the rest of the operating floor. Reload on-demand
 material through its normal trigger when resumed work needs it again. Understand your platform's
 compaction behavior — when it triggers, what it preserves, how it signals — so the boundary-vs-
 pressure fork stays deliberate.
