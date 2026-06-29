@@ -347,8 +347,14 @@ hand off (typically via `arc-handoff` skill invocation); the agent then executes
 **Never** degrade work quality or change approach due to context pressure — work at full
 specification throughout the session regardless of context window size or utilization.
 
-**Prefer shorter, focused sessions that reset at natural boundaries.** See
-[Session Operations Strategy][session-ops] for duration guidance.
+**Prefer handoff at natural boundaries.** This is a judgment call for scope, review, and
+a clean episodic baseline, not a correctness requirement for every context-pressure event.
+At a boundary, handoff captures state; the clean baseline comes from the fresh load after
+`clear`. See [Session Operations Strategy][session-ops] for duration guidance.
+
+**Between natural boundaries, compact and recover.** Context pressure alone does not force
+early handoff; let the harness compact and recover ARC operating context. "Clean baseline"
+means a clean episodic baseline, not a lighter procedural load.
 
 **Natural session boundaries:**
 

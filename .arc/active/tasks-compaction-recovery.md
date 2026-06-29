@@ -360,19 +360,20 @@ fresh load after `clear` (not the handoff write itself). Every shipped surface i
 - _Outcome:_ `session-loop.md` now mirrors the same human-facing fork and removes the stale "disable
   auto-compaction" guidance; package-source and `.arc/` framework copies stayed synchronized.
 
-### `[ ]` **6.3 Revise `DEV-RULES.ARC` § Context quality and touch `AGENT-BRIEF.ARC` lifecycle line**
+### `[x]` **6.3 Revise `DEV-RULES.ARC` § Context quality and touch `AGENT-BRIEF.ARC` lifecycle line**
 
 - _Goal:_ The constitutional rules keep the natural-boundaries list and handoff recommendation but reframe its
   rationale as judgment and add the pressure carve-out; the lifecycle line names recovery as a third event.
 
-    - `[ ]` **6.3.a `DEV-RULES.ARC` § Context quality / Session Management**
-        - Keep the natural-boundaries list + handoff recommendation; reframe its rationale as _judgment_; add the
-          pressure carve-out (pressure between boundaries no longer forces an early handoff — compact and
-          recover). Apply the two precision guards.
+    - `[x]` **6.3.a `DEV-RULES.ARC` § Context quality / Session Management**
+        - Reframed natural-boundary handoff as judgment for scope, review, and clean episodic baseline; added the
+          compact-and-recover carve-out for context pressure between boundaries.
 
-    - `[ ]` **6.3.b `AGENT-BRIEF.ARC` § session lifecycle**
-        - Name recovery as the third lifecycle event alongside init and handoff (compaction → recover), so the
-          lifecycle line is not handoff-only.
+    - `[x]` **6.3.b `AGENT-BRIEF.ARC` § session lifecycle**
+        - Named compaction recovery alongside init and handoff in the brief lifecycle line.
+
+- _Outcome:_ Always-loaded surfaces stayed lean while recording the operational shift; package-source and `.arc/`
+  framework copies stayed synchronized.
 
 ### `[ ]` **6.4 Forward-compat closeout**
 
