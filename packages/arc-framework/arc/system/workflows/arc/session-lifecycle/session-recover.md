@@ -64,9 +64,12 @@ stop condition already fired.
 
 ## 3. Rehydrate The Load Set
 
-Read `report.recover.loadSet.value.entries` in order. Never load from the seed's paths. The
-harness summary is authoritative for the volatile work-in-progress locus, but not for ARC
-operating context; verify it against the recovered files when it names a task.
+Load `report.recover.loadSet.value.entries`; the manifest order is the context order, not a
+serial-read requirement. Issue independent reads in a single tool message when the platform
+supports parallel reads. Never wait on one document before issuing the next unless locating a
+slice genuinely depends on the earlier read. Never load from the seed's paths. The harness
+summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
+context; verify it against the recovered files when it names a task.
 
 Apply each entry's `readMode`:
 
@@ -87,6 +90,9 @@ Apply each entry's `readMode`:
 
   If offsets are needed, build one structural map from phase/task headings rather than repeated
   ad hoc searches. Stop if any required slice cannot be located.
+
+Preserve the manifest order when reconciling loaded content and deciding what procedural
+context applies, even when the reads complete out of order.
 
 The load set already includes the session-type lifecycle workflow when the recovered state has
 one. If no lifecycle workflow is present for an execution, planning, or integration resume, stop
