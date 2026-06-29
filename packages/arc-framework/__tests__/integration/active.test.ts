@@ -802,6 +802,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.sessionType).toBe("planning");
+    expect(result.currentWorkflow).toBe("create-spec");
     expect(result.planningStage).toBe("create-spec");
   });
 
@@ -812,6 +813,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
     );
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.currentWorkflow).toBeNull();
     expect(result.planningStage).toBe("draft-design");
   });
 

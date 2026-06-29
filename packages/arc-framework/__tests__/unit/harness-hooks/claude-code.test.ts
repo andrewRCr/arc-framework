@@ -50,6 +50,9 @@ function runHookScript(path: string, env: NodeJS.ProcessEnv = {}): HookOutput {
     encoding: "utf8",
     env: {
       ...process.env,
+      ARC_HOOK_ARC_COMMAND: "arc",
+      ARC_HOOK_STALE_BUILD_COMMAND: "",
+      CLAUDE_PROJECT_DIR: packageRoot,
       ...env,
     },
   })) as HookOutput;

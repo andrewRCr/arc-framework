@@ -522,21 +522,25 @@ export async function runSessionInitStatus(
     active.ok && active.value.resolution === "single" && active.value.path !== null
       ? await probes.cohortDoc(active.value.path).catch(() => null)
       : null;
-  const loadSet = ok(resolveLoadSetManifest({
-    identity,
-    activeWorkUnit: activeWuName,
-    metaPath: active.ok ? active.value.path : null,
-    sessionType: active.ok ? active.value.sessionType : null,
-    planningStage: active.ok ? active.value.planningStage : null,
-    taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
-    activeExtensions: extensions.ok ? extensions.value.active : [],
-    cohortDocPath,
-  }));
+  const loadSet: SessionInitProbeResult["loadSet"] = active.ok
+    ? ok(resolveLoadSetManifest({
+      identity,
+      activeWorkUnit: activeWuName,
+      metaPath: active.value.path,
+      sessionType: active.value.sessionType,
+      planningStage: active.value.planningStage,
+      taskListPath: active.value.taskListPath ?? null,
+      activeExtensions: extensions.ok ? extensions.value.active : [],
+      cohortDocPath,
+    }))
+    : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    taskListPath !== null
-      ? await safeProbe(() => probes.taskCursor(taskListPath))
-      : undefined;
+  const taskCursor: SessionInitProbeResult["taskCursor"] | undefined =
+    !active.ok
+      ? active
+      : taskListPath !== null
+        ? await safeProbe(() => probes.taskCursor(taskListPath))
+        : undefined;
 
   return {
     mode: "session-init",
@@ -620,21 +624,25 @@ export async function runRecoverStatus(
       ? await probes.cohortDoc(active.value.path).catch(() => null)
       : null;
   const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
-  const loadSet = ok(resolveLoadSetManifest({
-    identity,
-    activeWorkUnit: activeWuName,
-    metaPath: active.ok ? active.value.path : null,
-    sessionType: active.ok ? active.value.sessionType : null,
-    planningStage: active.ok ? active.value.planningStage : null,
-    taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
-    activeExtensions: extensions.ok ? extensions.value.active : [],
-    cohortDocPath,
-  }));
+  const loadSet: SessionRecoverProbeResult["loadSet"] = active.ok
+    ? ok(resolveLoadSetManifest({
+      identity,
+      activeWorkUnit: activeWuName,
+      metaPath: active.value.path,
+      sessionType: active.value.sessionType,
+      planningStage: active.value.planningStage,
+      taskListPath: active.value.taskListPath ?? null,
+      activeExtensions: extensions.ok ? extensions.value.active : [],
+      cohortDocPath,
+    }))
+    : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
-  const taskCursor =
-    taskListPath !== null
-      ? await safeProbe(() => probes.taskCursor(taskListPath))
-      : undefined;
+  const taskCursor: SessionRecoverProbeResult["taskCursor"] | undefined =
+    !active.ok
+      ? active
+      : taskListPath !== null
+        ? await safeProbe(() => probes.taskCursor(taskListPath))
+        : undefined;
 
   return {
     mode: "recover",

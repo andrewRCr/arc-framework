@@ -975,9 +975,9 @@ handoff at a natural boundary; otherwise compact and recover.
 
 ARC treats compaction as a recoverable discontinuity, not a black box to disable. A harness
 compaction rewrites the conversation history; ARC recovery rehydrates the procedural/semantic
-context from live project state and the latest compaction seed, verifies the recovered ARC state,
-and then leaves the agent to resume from the harness summary's volatile work-in-progress locus
-bounded by recovered ARC context.
+context from live project state and the latest compaction seed, then verifies the recovered ARC
+state. After recovery, the agent resumes from the harness summary's volatile work-in-progress
+locus bounded by recovered ARC context.
 
 Two reset paths matter:
 

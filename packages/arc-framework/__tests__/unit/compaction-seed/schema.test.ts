@@ -85,6 +85,17 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
+  it("accepts POSIX and Windows absolute repo roots", () => {
+    expect(isCompactionSeed(seed({ repoRoot: "/repo" }))).toBe(true);
+    expect(isCompactionSeed(seed({ repoRoot: "C:\\repo" }))).toBe(true);
+    expect(isCompactionSeed(seed({ repoRoot: "\\\\server\\share\\repo" }))).toBe(true);
+  });
+
+  it("keeps currentWorkflow as soft orientation rather than a path field", () => {
+    expect(isCompactionSeed(seed({ currentWorkflow: "integrate-work-unit Step 4 — review" })))
+      .toBe(true);
+  });
+
   it("ignores legacy harness fields without adding them to the active contract", () => {
     const value = {
       ...seed(),
@@ -163,6 +174,72 @@ describe("CompactionSeed schema", () => {
   it("rejects invalid session types", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({ ...seed(), sessionType: "errand" }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
+
+  it("rejects relative repo roots", () => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({ ...seed(), repoRoot: "repo" }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
+
+  it.each([
+    ["/tmp/meta.md"],
+    ["../meta.md"],
+    ["C:\\tmp\\meta.md"],
+    [".arc/active/../meta.md"],
+    [".arc//active/meta.md"],
+    [".arc/./active/meta.md"],
+    [".arc/active/meta.md/"],
+  ])("rejects unsafe repo-relative metaPath %s", (metaPath) => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({ ...seed(), metaPath }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
+
+  it("rejects unsafe load-set entry paths", () => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({
+        ...seed(),
+        loadSet: {
+          manifestVersion: LOAD_SET_MANIFEST_VERSION,
+          entries: [
+            {
+              path: "../AGENTS.md",
+              readMode: { kind: "full" },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
+
+  it("rejects unsafe uncommitted file paths", () => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({
+        ...seed(),
+        uncommittedFiles: ["packages/arc-framework/src/index.ts", "/tmp/escape.ts"],
+      }),
     );
 
     expect(result.ok).toBe(false);

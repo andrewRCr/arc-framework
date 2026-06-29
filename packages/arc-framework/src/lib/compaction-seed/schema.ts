@@ -9,6 +9,8 @@
  * @module
  */
 
+import { posix } from "node:path";
+
 import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetEntry,
@@ -159,17 +161,17 @@ export function isCompactionSeed(value: unknown): value is CompactionSeed {
 
   return value.schemaVersion === COMPACTION_SEED_SCHEMA_VERSION
     && typeof value.emittedAt === "string"
-    && typeof value.repoRoot === "string"
+    && isAbsoluteRepoRoot(value.repoRoot)
     && typeof value.branch === "string"
     && typeof value.head === "string"
     && typeof value.dirty === "boolean"
     && isNullableString(value.activeWorkUnit)
-    && isNullableString(value.metaPath)
+    && isNullableRepoRelativePath(value.metaPath)
     && isNullableSessionType(value.sessionType)
     && isNullableString(value.currentWorkflow)
     && isNullableTaskCursor(value.taskCursor)
     && isLoadSetManifest(value.loadSet)
-    && isStringArray(value.uncommittedFiles);
+    && isRepoRelativePathArray(value.uncommittedFiles);
 }
 
 /**
@@ -198,12 +200,41 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
-}
-
 function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
+}
+
+function isAbsoluteRepoRoot(value: unknown): value is string {
+  return typeof value === "string"
+    && value.length > 0
+    && (
+      value.startsWith("/")
+      || /^[A-Za-z]:[\\/]/u.test(value)
+      || value.startsWith("\\\\")
+    );
+}
+
+function isRepoRelativePath(value: unknown): value is string {
+  if (typeof value !== "string" || value.length === 0) return false;
+  if (
+    value.includes("\\")
+    || value.startsWith("/")
+    || value.startsWith("//")
+    || /^[A-Za-z]:/u.test(value)
+    || posix.normalize(value) !== value
+  ) {
+    return false;
+  }
+  return !value.split("/").some((segment) =>
+    segment.length === 0 || segment === "." || segment === "..");
+}
+
+function isNullableRepoRelativePath(value: unknown): value is string | null {
+  return value === null || isRepoRelativePath(value);
+}
+
+function isRepoRelativePathArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(isRepoRelativePath);
 }
 
 function isNullableSessionType(
@@ -237,7 +268,7 @@ function isLoadSetManifest(value: unknown): value is LoadSetManifest {
 
 function isLoadSetEntry(value: unknown): value is LoadSetEntry {
   if (!isRecord(value)) return false;
-  return typeof value.path === "string" && isReadMode(value.readMode);
+  return isRepoRelativePath(value.path) && isReadMode(value.readMode);
 }
 
 function isReadMode(value: unknown): value is ReadMode {

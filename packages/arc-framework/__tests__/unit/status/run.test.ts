@@ -262,6 +262,7 @@ function activeSessionInit(
     path: null,
     candidates: [],
     sessionType: "planning",
+    currentWorkflow: null,
     planningStage: null,
     warnings: [],
     ...overrides,
@@ -791,6 +792,16 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.active.error.kind).toBe("runtime");
       expect(result.active.error.message).toBe("boom");
     }
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("boom");
+    }
+    expect(result.taskCursor?.ok).toBe(false);
+    if (result.taskCursor?.ok === false) {
+      expect(result.taskCursor.error.kind).toBe("runtime");
+      expect(result.taskCursor.error.message).toBe("boom");
+    }
   });
 });
 
@@ -853,6 +864,27 @@ describe("runRecoverStatus — lean recover envelope", () => {
 
     for (const slice of skippedSlices) {
       expect(Object.hasOwn(result, slice)).toBe(false);
+    }
+  });
+
+  it("propagates active probe failures into loadSet and taskCursor", async () => {
+    const probes = sessionRecoverProbes({
+      active: async () => { throw new Error("boom"); },
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(false);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("boom");
+    }
+    expect(result.taskCursor?.ok).toBe(false);
+    if (result.taskCursor?.ok === false) {
+      expect(result.taskCursor.error.message).toBe("boom");
     }
   });
 

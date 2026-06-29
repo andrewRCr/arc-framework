@@ -74,6 +74,7 @@ function active(
     candidates: [],
     taskListPath: ".arc/active/tasks-compaction-recovery.md",
     sessionType: "execution",
+    currentWorkflow: null,
     planningStage: null,
     warnings: [],
     ...overrides,

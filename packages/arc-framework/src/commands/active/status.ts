@@ -165,6 +165,7 @@ export async function runActiveSessionInitStatus(
       path: null,
       candidates: [],
       sessionType: inferFromBranchPattern(currentBranch),
+      currentWorkflow: null,
       planningStage: null,
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     };
@@ -237,6 +238,7 @@ async function resolveSessionInit(
     mode: "session-init",
     layout,
     ...fields,
+    currentWorkflow: null,
     planningStage: null,
     warnings,
   };
@@ -248,6 +250,7 @@ async function resolveSessionInit(
       result.taskListPath = taskListPath;
       const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
+      result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
       result.planningStage = resolvePlanningStage(only, fields.sessionType);
     }
   }
@@ -351,4 +354,11 @@ function statusFileDirPrefix(statusFilePath: string): string {
 
 function normalizeArcPath(path: string): string {
   return path.replaceAll("\\", "/");
+}
+
+function normalizeNullablePointer(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "[none]") return null;
+  return trimmed;
 }

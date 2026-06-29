@@ -52,6 +52,7 @@ function sessionInitResult(
     path: null,
     candidates: [],
     sessionType: "planning",
+    currentWorkflow: null,
     planningStage: null,
     warnings: [],
     ...overrides,

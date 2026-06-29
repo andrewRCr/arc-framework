@@ -38,6 +38,7 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
       value: {
         path: ".arc/active/meta-compaction-recovery.md",
         sessionType: "execution",
+        currentWorkflow: "process-task-loop",
       },
     },
     loadSet: { ok: true, value: LOAD_SET },
@@ -63,38 +64,18 @@ function envelope(overrides: Partial<Parameters<typeof emitCompactionSeed>[0]["e
   } satisfies Parameters<typeof emitCompactionSeed>[0]["envelope"];
 }
 
-function execWithStatus(statusOutput: string) {
-  return vi.fn(async (_cmd: string, args: string[]) => {
-    if (args.join(" ") === "rev-parse HEAD") {
-      return {
-        stdout: "72d145021bf4166fa70efc5b9fd11916cf0a359a\n",
-        stderr: "",
-      };
-    }
-    if (args.join(" ") === "status --porcelain=v1 -z") {
-      return { stdout: statusOutput, stderr: "" };
-    }
-    throw new Error(`unexpected git args: ${args.join(" ")}`);
-  });
-}
-
 async function emit(overrides: {
-  statusOutput?: string;
-  metaContent?: string;
+  uncommittedFiles?: string[];
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
   return emitCompactionSeed({
     cwd: "/repo",
     envelope: envelope(overrides.envelope),
-    exec: execWithStatus(overrides.statusOutput ?? ""),
-    readFile: vi.fn(async () => overrides.metaContent ?? [
-      "# Metadata: Compaction Recovery",
-      "",
-      "- **Current Workflow:** [none]",
-      "- **Next Task:** this stale field is ignored by seed emission",
-      "- **Next Action:** Begin Task 2.1",
-    ].join("\n")),
+    gitSnapshot: {
+      head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
+      uncommittedFiles: overrides.uncommittedFiles ?? [],
+    },
     writeSeed: overrides.writeSeed ?? vi.fn(async () => undefined),
     now: () => new Date("2026-06-28T12:00:00.000Z"),
   });
@@ -149,13 +130,12 @@ describe("emitCompactionSeed", () => {
     }
   });
 
-  it("derives uncommitted files from live git status with deterministic ordering", async () => {
+  it("embeds uncommitted files from the supplied git snapshot", async () => {
     const result = await emit({
-      statusOutput: [
-        "?? packages/arc-framework/src/lib/compaction-seed/emitter.ts",
-        " M .arc/active/tasks-compaction-recovery.md",
-        "",
-      ].join("\0"),
+      uncommittedFiles: [
+        ".arc/active/tasks-compaction-recovery.md",
+        "packages/arc-framework/src/lib/compaction-seed/emitter.ts",
+      ],
     });
 
     expect(result.status).toBe("written");
@@ -196,6 +176,7 @@ describe("emitCompactionSeed", () => {
           value: {
             path: ".arc/active/meta-compaction-recovery.md",
             sessionType: "planning",
+            currentWorkflow: "create-spec",
           },
         },
       },
@@ -207,9 +188,9 @@ describe("emitCompactionSeed", () => {
     }
   });
 
-  it("uses live git data for head and dirty while carrying the resolved branch", async () => {
+  it("uses the supplied git snapshot for head and dirty while carrying the resolved branch", async () => {
     const result = await emit({
-      statusOutput: " M src/changed.ts\0",
+      uncommittedFiles: ["src/changed.ts"],
     });
 
     expect(result.status).toBe("written");
@@ -217,6 +198,26 @@ describe("emitCompactionSeed", () => {
       expect(result.seed.head).toBe("72d145021bf4166fa70efc5b9fd11916cf0a359a");
       expect(result.seed.branch).toBe("feat/compaction-recovery");
       expect(result.seed.dirty).toBe(true);
+    }
+  });
+
+  it("uses currentWorkflow from the resolved active envelope without rereading the meta", async () => {
+    const result = await emit({
+      envelope: {
+        active: {
+          ok: true,
+          value: {
+            path: ".arc/active/meta-compaction-recovery.md",
+            sessionType: "integration",
+            currentWorkflow: "integrate-work-unit Step 4",
+          },
+        },
+      },
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.currentWorkflow).toBe("integrate-work-unit Step 4");
     }
   });
 
@@ -245,34 +246,16 @@ describe("emitCompactionSeed", () => {
     });
   });
 
-  it("returns a failed write result instead of throwing when meta parsing fails", async () => {
-    await expect(
-      emit({
-        metaContent: [
-          "# Metadata: Compaction Recovery",
-          "",
-          "| State    | Owner    | Branch | Class | Priority |",
-          "| -------- | -------- | ------ | ----- | -------- |",
-          "| `Active` | `andrew` |",
-          "",
-        ].join("\n"),
-      }),
-    ).resolves.toMatchObject({
-      status: "failed",
-      reason: "meta-read-failed",
-    });
-  });
-
   it("skips without touching git or fs when identity is absent", async () => {
-    const exec = vi.fn();
-    const readFile = vi.fn();
     const writeSeed = vi.fn();
 
     const result = await emitCompactionSeed({
       cwd: "/repo",
       envelope: envelope({ identity: { identity: null } }),
-      exec,
-      readFile,
+      gitSnapshot: {
+        head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
+        uncommittedFiles: [],
+      },
       writeSeed,
       now: () => new Date("2026-06-28T12:00:00.000Z"),
     });
@@ -281,8 +264,6 @@ describe("emitCompactionSeed", () => {
       status: "skipped",
       reason: "identity-missing",
     });
-    expect(exec).not.toHaveBeenCalled();
-    expect(readFile).not.toHaveBeenCalled();
     expect(writeSeed).not.toHaveBeenCalled();
   });
 

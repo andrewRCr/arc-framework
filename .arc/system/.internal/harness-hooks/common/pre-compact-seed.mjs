@@ -57,9 +57,21 @@ function shouldRetryAfterBuild(result) {
 function writeHandoffFromResult(result) {
   if (result.status === 0 && typeof result.stdout === "string") {
     const envelope = JSON.parse(result.stdout);
-    const identity = envelope?.identity?.identity;
-    if (typeof identity === "string" && identity.trim().length > 0) {
+    const identity = typeof envelope?.identity?.identity === "string"
+      ? envelope.identity.identity.trim()
+      : "";
+    if (isSafeIdentitySegment(identity)) {
       writeSeedHandoff(join(cwd, ".arc", "user", identity, ".internal", "compaction-seed.json"));
     }
   }
+}
+
+function isSafeIdentitySegment(identity) {
+  return (
+    identity !== ""
+    && identity !== "."
+    && identity !== ".."
+    && !identity.includes(":")
+    && !/[\\/]/u.test(identity)
+  );
 }

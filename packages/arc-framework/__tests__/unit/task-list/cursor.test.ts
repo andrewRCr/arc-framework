@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
@@ -316,6 +320,38 @@ describe("resolveTaskListCursorFromFile", () => {
     })).rejects.toThrow(
       "Task list path must be repository-relative: .arc/active/../../outside.md",
     );
+  });
+
+  it("rejects symlink escapes before reading", async () => {
+    const root = await mkdtemp(join(tmpdir(), "arc-cursor-"));
+    const outside = await mkdtemp(join(tmpdir(), "arc-cursor-outside-"));
+
+    try {
+      await mkdir(join(root, ".arc", "active"), { recursive: true });
+      await writeFile(
+        join(outside, "tasks-widget.md"),
+        taskList([
+          "# Task List: Widget",
+          "",
+          "### `[ ]` **1.1 Build widget**",
+        ]),
+      );
+      await symlink(
+        outside,
+        join(root, ".arc", "active", "linked"),
+        process.platform === "win32" ? "junction" : "dir",
+      );
+
+      await expect(resolveTaskListCursorFromFile({
+        cwd: root,
+        taskListPath: ".arc/active/linked/tasks-widget.md",
+      })).rejects.toThrow(
+        "Task list path must stay within the repository: .arc/active/linked/tasks-widget.md",
+      );
+    } finally {
+      await rm(root, { recursive: true, force: true });
+      await rm(outside, { recursive: true, force: true });
+    }
   });
 
   it("rethrows non-ENOENT read failures", async () => {

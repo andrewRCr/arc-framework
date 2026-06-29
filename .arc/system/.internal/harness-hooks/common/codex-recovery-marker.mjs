@@ -160,7 +160,8 @@ function readSeedHandoff(root, scope) {
     throw new Error(`Mismatched ARC recovery seed handoff scope: ${handoffPath}`);
   }
   const emittedAtMs = typeof handoff.emittedAt === "string" ? Date.parse(handoff.emittedAt) : NaN;
-  if (!Number.isFinite(emittedAtMs) || Date.now() - emittedAtMs > seedHandoffMaxAgeMs) {
+  const handoffAgeMs = Date.now() - emittedAtMs;
+  if (!Number.isFinite(emittedAtMs) || handoffAgeMs < 0 || handoffAgeMs > seedHandoffMaxAgeMs) {
     throw new Error(`Stale ARC recovery seed handoff: ${handoffPath}`);
   }
   return {

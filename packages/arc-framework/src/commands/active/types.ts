@@ -225,6 +225,13 @@ export interface ActiveSessionInitResult {
    */
   sessionType: SessionType | null;
   /**
+   * Normalized `**Current Workflow:**` value from the single resolved meta, or
+   * `null` when absent, `[none]`, or outside the single-meta arm. Recovery keeps
+   * this as soft orientation only; workflow authority comes from `sessionType`
+   * and the projected load set.
+   */
+  currentWorkflow: string | null;
+  /**
    * Resolved planning sub-stage workflow basename (`draft-design` / `create-spec`
    * / `generate-tasks`) — what session-init's planning arm loads as `<stage>.md`,
    * replacing the old `Next Action` prose-parse. Read from the meta's

@@ -15,6 +15,7 @@ import {
   buildSessionInitStatusSummary,
   buildStatusSummary,
 } from "../../src/commands/status.js";
+import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import type {
   Probe,
   SessionInitProbeResult,
@@ -177,7 +178,7 @@ function makeSessionInitResult(
       },
     },
     dirty: { ok: true, value: { state: "clean", fileCount: 0 } },
-    loadSet: { ok: true, value: { manifestVersion: 1, entries: [] } },
+    loadSet: { ok: true, value: { manifestVersion: LOAD_SET_MANIFEST_VERSION, entries: [] } },
     recommendedCombinedPrompt: null,
     extensions: {
       ok: true,
@@ -227,6 +228,7 @@ function makeSessionInitResult(
         path: ".arc/active/technical/meta-foo.md",
         candidates: [],
         sessionType: "execution",
+        currentWorkflow: null,
         planningStage: null,
         warnings: [],
       },

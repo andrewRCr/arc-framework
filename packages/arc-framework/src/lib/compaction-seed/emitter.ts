@@ -1,8 +1,8 @@
 /**
  * Compaction seed emitter.
  *
- * Composes the session-init envelope with a small live git slice to emit the
- * machine-local seed used after harness compaction. The helper absorbs read and
+ * Composes the session-init envelope with the status handler's git snapshot to
+ * emit the machine-local seed used after harness compaction. The helper absorbs
  * write failures into result objects so hook callers can exit 0 and never block
  * compaction.
  *
@@ -11,9 +11,7 @@
 
 import { join } from "node:path";
 
-import { parseMetaFile } from "../active/meta-reader.js";
 import { atomicWriteJson } from "../fs.js";
-import type { GitExec } from "../git/index.js";
 import type { LoadSetManifest } from "../load-set/types.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
 import {
@@ -33,17 +31,25 @@ export interface CompactionSeedEnvelope {
   active: SeedProbe<{
     path: string | null;
     sessionType: CompactionSeedSessionType | null;
+    currentWorkflow: string | null;
   }>;
   loadSet: SeedProbe<LoadSetManifest>;
   taskCursor?: SeedProbe<TaskListCursorFileResult>;
+}
+
+/** Git state captured by the status handler for seed emission. */
+export interface CompactionSeedGitSnapshot {
+  /** HEAD SHA at the same status-handler snapshot used for seed emission. */
+  head: string;
+  /** Deterministic dirty-file path set from `git status --porcelain=v1 -z`. */
+  uncommittedFiles: readonly string[];
 }
 
 /** Options for emitting the compaction seed. */
 export interface EmitCompactionSeedOptions {
   cwd: string;
   envelope: CompactionSeedEnvelope;
-  exec: GitExec;
-  readFile: (path: string) => Promise<string>;
+  gitSnapshot: CompactionSeedGitSnapshot;
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
   now?: () => Date;
 }
@@ -54,7 +60,7 @@ export type EmitCompactionSeedResult =
   | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
   | {
     status: "failed";
-    reason: "git-failed" | "identity-invalid" | "meta-read-failed" | "write-failed";
+    reason: "git-failed" | "identity-invalid" | "write-failed";
     message: string;
   };
 
@@ -104,31 +110,11 @@ export async function emitCompactionSeed(
     return { status: "failed", reason: "identity-invalid", message: errorMessage(err) };
   }
 
-  let head: string;
-  let uncommittedFiles: string[];
-  try {
-    const [headResult, statusResult] = await Promise.all([
-      options.exec("git", ["rev-parse", "HEAD"]),
-      options.exec("git", ["status", "--porcelain=v1", "-z"]),
-    ]);
-    head = headResult.stdout.trim();
-    uncommittedFiles = parseUncommittedFiles(statusResult.stdout);
-  } catch (err) {
-    return { status: "failed", reason: "git-failed", message: errorMessage(err) };
-  }
-
   const metaPath = options.envelope.active.ok ? options.envelope.active.value.path : null;
-  let currentWorkflow: string | null = null;
-  if (metaPath !== null) {
-    let parsed: ReturnType<typeof parseMetaFile>;
-    try {
-      const metaContent = await options.readFile(join(options.cwd, metaPath));
-      parsed = parseMetaFile(metaContent);
-    } catch (err) {
-      return { status: "failed", reason: "meta-read-failed", message: errorMessage(err) };
-    }
-    currentWorkflow = normalizeNullablePointer(parsed.currentWorkflow);
-  }
+  const currentWorkflow = options.envelope.active.ok
+    ? options.envelope.active.value.currentWorkflow
+    : null;
+  const uncommittedFiles = [...options.gitSnapshot.uncommittedFiles];
   const taskCursor =
     options.envelope.active.ok
       && options.envelope.active.value.sessionType === "execution"
@@ -144,7 +130,7 @@ export async function emitCompactionSeed(
     branch: options.envelope.worktree.ok
       ? options.envelope.worktree.value.branch ?? "HEAD"
       : "HEAD",
-    head,
+    head: options.gitSnapshot.head,
     dirty: uncommittedFiles.length > 0,
     activeWorkUnit: activeWorkUnitName(metaPath),
     metaPath,
@@ -171,13 +157,6 @@ function activeWorkUnitName(path: string | null): string | null {
   if (path === null) return null;
   const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
   return match?.[1] ?? null;
-}
-
-function normalizeNullablePointer(value: string | null): string | null {
-  if (value === null) return null;
-  const trimmed = value.trim();
-  if (trimmed === "" || trimmed === "[none]") return null;
-  return trimmed;
 }
 
 function errorMessage(err: unknown): string {

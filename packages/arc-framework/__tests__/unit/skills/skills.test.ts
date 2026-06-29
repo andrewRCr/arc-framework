@@ -14,6 +14,7 @@ import {
   validateTools,
   VALID_TOOL_IDS,
   CANONICAL_SKILLS,
+  type CanonicalSkillName,
   type SkillGenerationIO,
 } from "../../../src/lib/skills/index.js";
 
@@ -40,11 +41,18 @@ function buildCanonicalFiles(
   skillsDir: string,
 ): Record<string, string> {
   const files: Record<string, string> = {};
-  const descriptions: Record<string, string> = {
+  const descriptions: Record<CanonicalSkillName, string> = {
     "arc-session": "Initialize and resume the active working ARC session.",
     "arc-commit": "Commit current repository changes with atomic boundaries.",
+    "arc-errand": "Run an isolated ARC errand.",
     "arc-handoff": "Update and finalize current ARC session documentation.",
+    "arc-housekeep": "Drain and route captured ARC inbox entries.",
+    "arc-inbox": "Capture deferred ARC work into the user inbox.",
+    "arc-plan": "Begin or resume ARC planning.",
+    "arc-recover": "Recover ARC context after harness compaction.",
     "arc-setup": "Run post-install ARC setup.",
+    "arc-task-audit": "Audit task readiness before implementation.",
+    "arc-task-review": "Review a completed task increment.",
     "arc-verify": "Run ARC installation health checks.",
   };
   for (const name of CANONICAL_SKILLS) {

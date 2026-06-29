@@ -4,7 +4,7 @@
  * @module
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, realpath } from "node:fs/promises";
 import { isAbsolute, join, relative } from "node:path";
 
 import { resolveTaskListCursor, type TaskListCursorResult } from "./cursor.js";
@@ -13,6 +13,7 @@ interface ResolveTaskListCursorFromFileOptions {
   cwd: string;
   taskListPath: string;
   readFile?: (path: string) => Promise<string>;
+  realpath?: (path: string) => Promise<string>;
 }
 
 /** File-backed task-list cursor result, including absent file handling. */
@@ -32,6 +33,14 @@ export async function resolveTaskListCursorFromFile(
   const taskListPath = resolveRepoRelativeTaskListPath(options.cwd, options.taskListPath);
 
   try {
+    if (options.readFile === undefined || options.realpath !== undefined) {
+      await assertRealPathInsideRepo({
+        cwd: options.cwd,
+        absolutePath: taskListPath.absolutePath,
+        taskListPath: options.taskListPath,
+        realpath: options.realpath ?? realpath,
+      });
+    }
     const read = options.readFile ?? readUtf8File;
     return resolveTaskListCursor(await read(taskListPath.absolutePath));
   } catch (err) {
@@ -80,4 +89,25 @@ function resolveRepoRelativeTaskListPath(
   }
 
   return { absolutePath, relativePath };
+}
+
+async function assertRealPathInsideRepo(options: {
+  cwd: string;
+  absolutePath: string;
+  taskListPath: string;
+  realpath: (path: string) => Promise<string>;
+}): Promise<void> {
+  const [repoRealPath, fileRealPath] = await Promise.all([
+    options.realpath(options.cwd),
+    options.realpath(options.absolutePath),
+  ]);
+  const relativeRealPath = relative(repoRealPath, fileRealPath).replaceAll("\\", "/");
+  if (
+    relativeRealPath.length === 0
+    || relativeRealPath.startsWith("../")
+    || relativeRealPath === ".."
+    || relativeRealPath.startsWith("/")
+  ) {
+    throw new Error(`Task list path must stay within the repository: ${options.taskListPath}`);
+  }
 }

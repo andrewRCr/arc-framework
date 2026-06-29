@@ -93,7 +93,12 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
-import { emitCompactionSeed, type EmitCompactionSeedResult } from "../lib/compaction-seed/emitter.js";
+import {
+  emitCompactionSeed,
+  parseUncommittedFiles,
+  type CompactionSeedGitSnapshot,
+  type EmitCompactionSeedResult,
+} from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
@@ -345,6 +350,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const compactionSeedGitSnapshotP = opts.writeCompactionSeed
+      ? readCompactionSeedGitSnapshot(cwd)
+      : null;
     // Shared in-flight oracle slice — the bounded network read (live remote
     // membership → pruned-ref derivation) feeding both the errand-state and
     // materializable-WU probes. Both gate on the no-active-WU arm, so when one
@@ -417,7 +425,9 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
-      dirty: () => runDirtyStateStatus({ exec: gitExec }),
+      dirty: () => compactionSeedGitSnapshotP === null
+        ? runDirtyStateStatus({ exec: gitExec })
+        : compactionSeedGitSnapshotP.then(dirtyStateFromCompactionSeedSnapshot),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
@@ -553,13 +563,21 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
-    if (opts.writeCompactionSeed) {
-      surfaceCompactionSeedWrite(await emitCompactionSeed({
-        cwd,
-        envelope: result,
-        exec: gitExec,
-        readFile: (path) => readFile(path, "utf8"),
-      }));
+    if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
+      try {
+        const gitSnapshot = await compactionSeedGitSnapshotP;
+        surfaceCompactionSeedWrite(await emitCompactionSeed({
+          cwd,
+          envelope: result,
+          gitSnapshot,
+        }));
+      } catch (err) {
+        surfaceCompactionSeedWrite({
+          status: "failed",
+          reason: "git-failed",
+          message: errorMessage(err),
+        });
+      }
     }
     if (json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -610,6 +628,25 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   p.outro("Done.");
 }
 
+async function readCompactionSeedGitSnapshot(cwd: string): Promise<CompactionSeedGitSnapshot> {
+  const [headResult, statusResult] = await Promise.all([
+    gitExec("git", ["rev-parse", "HEAD"], { cwd }),
+    gitExec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
+  ]);
+  return {
+    head: headResult.stdout.trim(),
+    uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
+  };
+}
+
+function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapshot) {
+  const fileCount = snapshot.uncommittedFiles.length;
+  return {
+    state: fileCount === 0 ? "clean" as const : "dirty" as const,
+    fileCount,
+  };
+}
+
 function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {
   if (result.status === "failed") {
     process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
@@ -620,6 +657,10 @@ function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {
   if (result.status === "skipped" && result.reason === "load-set-unresolved") {
     process.stderr.write("warn: compaction seed not written: load-set unresolved\n");
   }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Compact human render of a slug→state query for the non-`--json` path. */
