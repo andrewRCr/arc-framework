@@ -302,7 +302,7 @@ wiring detail.
   `PostCompact` and `clear` remain unhooked. The recipe is included in `init-recipe.json` and pinned by unit
   coverage.
 
-### `[ ]` **5.3 Opt-in install integration**
+### `[x]` **5.3 Opt-in install integration**
 
 - _Goal:_ Hook installation is offered (never forced) during verify-and-configure, gated on explicit user opt-in
   and harness trust.
@@ -310,13 +310,18 @@ wiring detail.
   of harness-config write — distinct from its git-hook setup (`core.hooksPath` / husky) and its release-wrapper
   allowlist. No code writes harness `settings.json` / `config.toml` today, so the install is greenfield.
 
-    - `[ ]` **5.3.a Surface the install offer**
+    - `[x]` **5.3.a Surface the install offer**
         - Per-harness recipe selection at verify-and-configure; never auto-install; honor the trust-model
           acknowledgment the workflow already performs.
 
-    - `[ ]` **5.3.b Wire the chosen recipe on accept**
+    - `[x]` **5.3.b Wire the chosen recipe on accept**
         - Write the event-hook recipe into the harness config (CC `settings.json`; Codex `config.toml` +
           `hooks.json`) — new manipulation code; idempotent across re-runs (no duplicate hook entries).
+
+- _Outcome:_ Added the verify-and-configure opt-in surface for compaction recovery hooks in both workflow copies.
+  The workflow now offers Claude Code/Codex recipe selection only after explicit trust acceptance, writes the
+  selected harness recipe with backup/idempotency/rollback discipline, preserves non-ARC hooks, requires harness
+  hook trust review after install, and keeps `clear` unhooked.
 
 ## **Phase 6:** Constitutional change and doc cascade
 

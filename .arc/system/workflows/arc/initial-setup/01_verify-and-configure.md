@@ -146,6 +146,53 @@ Three options:
 - **Skip entirely** — continue initial setup; `arc release setup install` remains
   available regardless of this choice. The framework doesn't gate the feature out.
 
+### Optional: Install Compaction Recovery Hooks
+
+ARC ships opt-in hook recipes for harnesses with reliable compaction events. The hooks write a
+machine-local compaction seed before auto/manual compaction and inject `session-recover` after a
+`compact` restart, so the ARC procedural layer is restored without rerunning full session init.
+
+This is a harness-config write, not a git-hook or release-wrapper allowlist. Hooks run local
+commands, so install only after the user explicitly accepts the trust shift for the current harness.
+Do not auto-install during `arc init`, do not install for unrecognized harnesses, and do not hook
+`clear` — deliberate resets continue to enter ARC through ordinary `session-init`.
+
+Three options:
+
+- **Install for this harness** — continue only after explicit user acceptance, then select the
+  matching recipe below.
+- **Defer** — continue initial setup; the recipe files remain available under
+  `.arc/system/.internal/harness-hooks/`.
+- **Skip entirely** — continue initial setup; the portable `arc-recover` skill remains the fallback.
+
+On accept, write only the selected harness recipe:
+
+- **Claude Code** — merge
+  `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
+  `.claude/settings.json`. Merge the top-level `hooks` object; preserve all unrelated settings and
+  existing non-ARC hook entries.
+- **Codex CLI** — merge `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into
+  `.codex/hooks.json`, then ensure `.codex/config.toml` has `[features] hooks = true` unless an
+  existing policy or user choice keeps hooks disabled. Codex project-local hooks load only after the
+  project `.codex/` layer and the exact hook definitions are trusted.
+
+Install discipline:
+
+- Use structured JSON/TOML edits where available. If a target file does not exist, create it with
+  only the accepted recipe content and any required parent directory.
+- Before each write, create a timestamped backup beside the target file.
+- Idempotency is exact-entry based: if the ARC matcher group and command handler already exist, do
+  not duplicate them. Preserve all non-ARC hook groups and handlers.
+- The installed events are only `PreCompact` with matcher `manual|auto` and `SessionStart` with
+  matcher `compact`. Do not add `PostCompact`, `SessionStart(clear)`, or a catch-all
+  `SessionStart` matcher.
+- After writing, re-read the target files and report one line:
+  `ARC post-compaction session-recovery hooks installed for <harness>.`
+- Ask the user to review/trust the new hook definitions in the harness UI when the harness requires
+  it (Codex uses `/hooks`; Claude Code exposes hook review through its hook settings flow).
+- Rollback by restoring the timestamped backup, or by removing only the ARC recipe entries. For
+  Codex, remove `[features].hooks` only if this install created that key.
+
 ### Optional: Set Up the Auto-Merge Gate
 
 **Applies only under `branch.protection: full`** (reviewed in § Configuration Walkthrough). Skip under partial
@@ -229,6 +276,27 @@ Three options:
   Available indefinitely.
 - **Skip entirely** — continue initial setup; `arc release setup install` remains
   available regardless of this choice. The framework doesn't gate the feature out.
+
+### Optional: Install Compaction Recovery Hooks
+
+ARC ships opt-in hook recipes for Claude Code and Codex CLI. They write a machine-local seed before
+compaction and inject `session-recover` only after `compact`; `clear` is deliberately unhooked.
+
+This is a harness-config write and requires explicit user trust. If the user accepts, write only
+the selected harness recipe:
+
+- **Claude Code** — merge
+  `.arc/system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json` into
+  `.claude/settings.json`.
+- **Codex CLI** — merge `.arc/system/.internal/harness-hooks/codex-cli/hooks.json` into
+  `.codex/hooks.json`, then ensure `.codex/config.toml` has `[features] hooks = true` unless an
+  existing policy or user choice keeps hooks disabled.
+
+Use structured JSON/TOML edits where available, back up target files first, preserve non-ARC hooks,
+and keep exact-entry idempotency. Install only `PreCompact(manual|auto)` and
+`SessionStart(compact)`. After writing, re-read the target files and ask the user to review/trust
+the hook definitions in the harness UI. Roll back by restoring the backup, or by removing only the
+ARC recipe entries.
 
 ### Optional: Verify Installation
 
