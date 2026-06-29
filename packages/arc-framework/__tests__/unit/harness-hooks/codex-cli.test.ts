@@ -223,7 +223,12 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "  console.error('error: arc dev build is stale (src/lib/recover/audit.ts changed 1s ago; dist/cli.js built 1h ago). Refusing `arc status` against stale dist; run `npm run build`, then retry.');",
         "  process.exit(1);",
         "}",
-        "process.stdout.write(`${JSON.stringify({ identity: { identity: 'andrew' } })}\\n`);",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
       ].join("\n"));
       writeFileSync(fakeBuildPath, [
         "import { writeFileSync } from 'node:fs';",
@@ -251,7 +256,12 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const outside = mkdtempSync(join(tmpdir(), "arc-codex-outside-"));
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
-        "process.stdout.write(`${JSON.stringify({ identity: { identity: 'andrew' } })}\\n`);",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
       ].join("\n"));
 
       try {
@@ -295,11 +305,16 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("does not write a seed handoff for unsafe identities", () => {
+  it("does not write a seed handoff when seed writing is skipped", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
-        "process.stdout.write(`${JSON.stringify({ identity: { identity: '../other' } })}\\n`);",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          compactionSeedWrite: {
+            status: "skipped",
+            reason: "identity-missing",
+          },
+        })}\n`)});`,
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
@@ -317,11 +332,16 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("does not write a seed handoff for reserved identity segments", () => {
+  it("does not write a seed handoff for invalid emitted seed paths", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
-        "process.stdout.write(`${JSON.stringify({ identity: { identity: '.internal' } })}\\n`);",
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", ".internal", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
@@ -345,6 +365,9 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(fragment.hooks.PostCompact).toHaveLength(1);
     const [postCompactGroup] = fragment.hooks.PostCompact;
     expect(postCompactGroup?.matcher).toBe("manual|auto");
+    expect(fragment.hooks.SessionStart).toHaveLength(1);
+    const [sessionStartGroup] = fragment.hooks.SessionStart ?? [];
+    expect(sessionStartGroup?.matcher).toBe("clear");
     expect(fragment.hooks.UserPromptSubmit).toHaveLength(1);
     expect(fragment.hooks.UserPromptSubmit[0]?.matcher).toBeUndefined();
 
@@ -357,6 +380,18 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(postCompactHook?.command).toContain(".arc/system/.internal/harness-hooks/common/post-compact-recover.mjs");
     expect(postCompactHook?.commandWindows).toContain(
       ".arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs",
+    );
+
+    const sessionStartHook = sessionStartGroup?.hooks[0];
+    expect(sessionStartHook).toMatchObject({
+      type: "command",
+      timeout: 30,
+    });
+    expect(sessionStartHook?.command).toContain(
+      ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
+    );
+    expect(sessionStartHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs",
     );
 
     const userPromptHook = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
@@ -772,9 +807,13 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("does not hook SessionStart in Codex because source compact can fire late", () => {
+  it("hooks only SessionStart clear cleanup in Codex because source compact can fire late", () => {
     const fragment = readJson<CodexHooksFragment>(hooksPath);
 
-    expect(fragment.hooks.SessionStart).toBeUndefined();
+    expect(fragment.hooks.SessionStart).toHaveLength(1);
+    expect(fragment.hooks.SessionStart?.[0]?.matcher).toBe("clear");
+    expect(fragment.hooks.SessionStart?.[0]?.hooks[0]?.command).toContain(
+      "clear-codex-recovery-pending.mjs",
+    );
   });
 });

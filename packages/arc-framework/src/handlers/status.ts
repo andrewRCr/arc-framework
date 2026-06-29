@@ -28,6 +28,7 @@ import {
   runStatus,
 } from "../commands/status.js";
 import type {
+  CompactionSeedWriteStatus,
   SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
@@ -567,17 +568,19 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
       try {
         const gitSnapshot = await compactionSeedGitSnapshotP;
-        surfaceCompactionSeedWrite(await emitCompactionSeed({
+        result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
           cwd,
           envelope: result,
           gitSnapshot,
         }));
+        surfaceCompactionSeedWrite(result.compactionSeedWrite);
       } catch (err) {
-        surfaceCompactionSeedWrite({
+        result.compactionSeedWrite = {
           status: "failed",
           reason: "git-failed",
           message: errorMessage(err),
-        });
+        };
+        surfaceCompactionSeedWrite(result.compactionSeedWrite);
       }
     }
     if (json) {
@@ -662,7 +665,14 @@ export async function resolveSessionInitDirtyState(options: {
   }
 }
 
-function surfaceCompactionSeedWrite(result: EmitCompactionSeedResult): void {
+function summarizeCompactionSeedWrite(result: EmitCompactionSeedResult): CompactionSeedWriteStatus {
+  if (result.status === "written") {
+    return { status: "written", path: result.path };
+  }
+  return result;
+}
+
+function surfaceCompactionSeedWrite(result: CompactionSeedWriteStatus): void {
   if (result.status === "failed") {
     process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
   }

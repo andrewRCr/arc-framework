@@ -44,7 +44,8 @@ Same four checks. Wiring differences:
 - Leg B uses `PostCompact(trigger=manual|auto)` as the immediate recovery stop. It writes an ARC-owned pending
   marker; `UserPromptSubmit` injects recovery context on the user's next prompt. Codex does not hook
   `SessionStart(source=compact)` because it can fire late or duplicate.
-- `SessionStart(source=clear)` is not hooked; clear remains a harness reset.
+- `SessionStart(source=clear)` runs cleanup-only marker removal; clear remains a harness reset and does not
+  inject recovery.
 - Post-review hardening keeps the Codex workaround bounded and session-safe: pending markers and seed handoffs
   are scoped to the Codex thread when `CODEX_THREAD_ID` is available, otherwise to a process fallback; the next
   prompt clears the exact marker path only after successful recovery. Seed handoffs are short-lived, scope-checked,
@@ -72,7 +73,7 @@ canonical/adapter split — adapter layer is config, not logic). Detail beyond t
 | Config file                 | `settings.json` hooks                                              | `hooks.json` (+ optional `[features] hooks = true`)                             | Plugin config (keys under-documented)                          |
 | Leg A — write seed          | `PreCompact` runs shell; read-only; can block                      | Same shape                                                                      | `experimental.session.compacting` + shell                      |
 | Leg B — require recovery    | `SessionStart(source=compact)` → stdout / `additionalContext`      | `PostCompact(trigger=manual\|auto)` stops; next `UserPromptSubmit` injects      | Fragile — bake pointer into compaction summary instead         |
-| `clear` vs `compact` signal | `clear` unhooked; `compact` hooks                                  | `clear` unhooked; `compact` hooks                                               | `session.created` vs `session.compacted`                       |
+| `clear` vs `compact` signal | `clear` unhooked; `compact` hooks                                  | `clear` cleanup-only; `compact` hooks                                           | `session.created` vs `session.compacted`                       |
 | Auto-compaction disableable | No documented global disable                                       | No off switch (threshold clamped)                                               | Configurable threshold (keys under-documented)                 |
 | Stability                   | Documented, stable                                                 | GA, but post-compaction injection requires this workaround pending upstream fix | All compaction hooks `experimental.` — breaking-change risk    |
 

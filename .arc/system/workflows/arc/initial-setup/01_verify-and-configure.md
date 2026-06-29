@@ -187,11 +187,12 @@ Install discipline:
   not duplicate them. Preserve all non-ARC hook groups and handlers.
 - The installed events are harness-specific: Claude Code installs only `PreCompact(manual|auto)` and
   `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`,
-  `PostCompact(manual|auto)`, and `UserPromptSubmit`; Codex `PostCompact` writes a thread-scoped
-  pending marker and hard-stops, then the next prompt in that Codex thread injects recovery context.
-  Recovery restores ARC session context; repository instruction files such as `AGENTS.md` and
-  `CLAUDE.md` remain harness-managed and outside ARC's recovery load set. Do not add Codex
-  `SessionStart(compact)`, `SessionStart(clear)`, or a catch-all `SessionStart` matcher.
+  `PostCompact(manual|auto)`, `UserPromptSubmit`, and cleanup-only `SessionStart(clear)`; Codex
+  `PostCompact` writes a thread-scoped pending marker and hard-stops, then the next prompt in that
+  Codex thread injects recovery context. Recovery restores ARC session context; repository instruction
+  files such as `AGENTS.md` and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set.
+  Do not add Codex `SessionStart(compact)` or a catch-all `SessionStart` matcher, and do not make
+  `SessionStart(clear)` inject recovery.
 - After writing, re-read the target files and report one line:
   `ARC post-compaction session-recovery hooks installed for <harness>.`
 - Ask the user to review/trust the new hook definitions in the harness UI when the harness requires
@@ -286,7 +287,7 @@ Three options:
 ### Optional: Install Compaction Recovery Hooks
 
 ARC ships opt-in hook recipes for Claude Code and Codex CLI. They write a machine-local seed before
-compaction and require `session-recover` after `compact`; `clear` is deliberately unhooked.
+compaction and require `session-recover` after `compact`; `clear` does not inject recovery.
 
 This is a project-scoped harness-config write and requires explicit user trust. If the user accepts,
 write only the selected harness recipe into the current project:

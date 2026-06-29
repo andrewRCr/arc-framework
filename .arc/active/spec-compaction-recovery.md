@@ -253,14 +253,14 @@ Per-harness hook recipes invoking the **same** canonical seed/recover commands. 
 
 - **Leg A (write seed, pre-compaction)** — a read-only pre-compaction hook writes the seed and exits 0.
 - **Leg B (require recovery, post-compaction)** — the harness-specific post-compaction edge requires recovery
-  before further work. Deliberate reset (`clear`) is not hooked; it remains a normal harness reset, and any later
-  ARC entry uses ordinary `session-init`.
+  before further work. Deliberate reset (`clear`) never injects recovery; Codex may use a cleanup-only clear hook
+  to discard a stale pending marker, and any later ARC entry uses ordinary `session-init`.
 
-| Harness         | Leg A (seed)                      | Leg B (require recovery)                                         | clear vs compact                  | Verdict             |
-|-----------------|-----------------------------------|------------------------------------------------------------------|-----------------------------------|---------------------|
-| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout                          | `clear` unhooked; `compact` hooks | **Yes — both legs** |
-| **Codex CLI**   | `PreCompact`                      | `PostCompact` marker + stop; prompt hook injects                 | `clear` unhooked; `compact` hooks | **Workaround**      |
-| **OpenCode**    | `experimental.session.compacting` | Fragile — no reliable post-compaction inject                     | `session.created` vs `.compacted` | **Deferred**        |
+| Harness         | Leg A (seed)                      | Leg B (require recovery)                     | clear vs compact                         | Verdict             |
+|-----------------|-----------------------------------|----------------------------------------------|------------------------------------------|---------------------|
+| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout      | `clear` unhooked; `compact` hooks        | **Yes — both legs** |
+| **Codex CLI**   | `PreCompact`                      | `PostCompact` marker + stop; prompt injects  | `clear` cleanup-only; `compact` hooks    | **Workaround**      |
+| **OpenCode**    | `experimental.session.compacting` | Fragile — no reliable post-compaction inject | `session.created` vs `.compacted`        | **Deferred**        |
 
 Claude Code and Codex share the same canonical seed/recover commands, but their post-compaction
 timing primitives differ. Claude Code's documented recovery carrier is `SessionStart(source=compact)`;
@@ -269,7 +269,8 @@ inject `additionalContext` in current Codex schemas. Codex therefore uses an exp
 `PostCompact` writes an ARC pending marker and returns `continue: false`; when the user sends a short
 resume prompt, `UserPromptSubmit` sees the marker and injects `session-recover` exactly from ARC-owned
 state. Codex does **not** hook `SessionStart(compact)`: upstream issue reports show it can fire late or
-duplicate, so it is not an authoritative recovery edge. OpenCode is deferred: its injection is
+duplicate, so it is not an authoritative recovery edge. It hooks `SessionStart(clear)` only to remove a stale
+pending marker; no recovery context is injected on clear. OpenCode is deferred: its injection is
 architecturally different (bake the pointer into the compaction summary), everything is `experimental.`,
 and the clean post-compaction inject is unmerged; it gets the portable `arc-recover` fallback.
 
@@ -278,8 +279,9 @@ and the clean post-compaction inject is unmerged; it gets the portable `arc-reco
 - **`compact`** (auto *or* manual `/compact`) — "keep working, the window is full / shed bulk." The task
   continues; ARC's operating context must be restored → **`session-recover`**. Manual `/compact` carries the same
   intent as auto-compact, so the two are handled **identically** — no separate coverage.
-- **`clear`** — "deliberate reset, fresh start." ARC does not inject recovery on clear. If ARC is invoked after
-  the reset, that is a re-bootstrap → ordinary `session-init` / `arc-session`.
+- **`clear`** — "deliberate reset, fresh start." ARC does not inject recovery on clear; Codex only removes a
+  stale pending marker if one exists. If ARC is invoked after the reset, that is a re-bootstrap → ordinary
+  `session-init` / `arc-session`.
   Recovery must **not** touch it.
 
 The harness `source`/`trigger` fields give this fork directly; ARC never infers it.

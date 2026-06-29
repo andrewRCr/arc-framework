@@ -44,6 +44,10 @@ interface SessionInitEnvelope {
       cursor?: TaskCursorJson;
     };
   };
+  compactionSeedWrite?:
+    | { status: "written"; path: string }
+    | { status: "skipped"; reason: string }
+    | { status: "failed"; reason: string; message: string };
   loadSet?: {
     ok: boolean;
     value?: {
@@ -218,7 +222,12 @@ describe("session-init E2E — sessionType across type variants", () => {
     );
     expect(result.exitCode).toBe(0);
 
+    const envelope = parseJsonEnvelope(result.stdout);
     const seedPath = join(tmpDir, ".arc", "user", "test-user", ".internal", "compaction-seed.json");
+    expect(envelope.compactionSeedWrite).toMatchObject({
+      status: "written",
+      path: seedPath,
+    });
     const seed = JSON.parse(await readFile(seedPath, "utf8")) as CompactionSeedJson;
     const expectedRepoRoot = await realpath(tmpDir);
     expect(seed).toMatchObject({

@@ -1,5 +1,4 @@
 import { spawnSync } from "node:child_process";
-import { join } from "node:path";
 
 import { clearSeedHandoff, writeSeedHandoff } from "./codex-recovery-marker.mjs";
 
@@ -57,22 +56,9 @@ function shouldRetryAfterBuild(result) {
 function writeHandoffFromResult(result) {
   if (result.status === 0 && typeof result.stdout === "string") {
     const envelope = JSON.parse(result.stdout);
-    const identity = typeof envelope?.identity?.identity === "string"
-      ? envelope.identity.identity.trim()
-      : "";
-    if (isSafeIdentitySegment(identity)) {
-      writeSeedHandoff(join(cwd, ".arc", "user", identity, ".internal", "compaction-seed.json"));
+    const write = envelope?.compactionSeedWrite;
+    if (write?.status === "written" && typeof write.path === "string") {
+      writeSeedHandoff(write.path);
     }
   }
-}
-
-function isSafeIdentitySegment(identity) {
-  return (
-    identity !== ""
-    && identity !== "."
-    && identity !== ".."
-    && !identity.startsWith(".")
-    && !identity.includes(":")
-    && !/[\\/]/u.test(identity)
-  );
 }

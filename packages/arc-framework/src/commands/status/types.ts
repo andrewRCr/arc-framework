@@ -169,6 +169,16 @@ export type Probe<T> =
   | { ok: true; value: T }
   | { ok: false; error: ProbeError };
 
+/** JSON-safe summary of a `--write-compaction-seed` attempt. */
+export type CompactionSeedWriteStatus =
+  | { status: "written"; path: string }
+  | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
+  | {
+    status: "failed";
+    reason: "git-failed" | "identity-invalid" | "write-failed";
+    message: string;
+  };
+
 /** Full-mode composite result — default (no-flag) rendering. */
 export interface StatusResult {
   mode: "full";
@@ -335,6 +345,12 @@ export interface SessionInitProbeResult {
    * as a line-anchor helper for strategic reads; it is not thought-state.
    */
   taskCursor?: Probe<TaskListCursorFileResult>;
+  /**
+   * Present only when `--write-compaction-seed` is requested. Lets harness
+   * hooks consume the authoritative seed-write result instead of rebuilding the
+   * seed path from envelope fields.
+   */
+  compactionSeedWrite?: CompactionSeedWriteStatus;
   /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel

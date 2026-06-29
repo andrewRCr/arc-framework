@@ -303,9 +303,9 @@ wiring detail.
   fragment for the later opt-in installer. Codex and Claude Code share the common seed/recovery Node scripts, but
   Codex uses a Codex-specific timing adapter: `PreCompact(manual|auto)` writes the seed without blocking,
   `PostCompact(manual|auto)` writes a pending marker and immediately stops for recovery, `UserPromptSubmit`
-  injects the recovery instruction on the user's next prompt, and `clear` remains unhooked. Codex
-  `SessionStart(compact)` is deliberately not hooked because it can fire late or duplicate. The recipe is included
-  in `init-recipe.json` and pinned by unit coverage.
+  injects the recovery instruction on the user's next prompt, and `SessionStart(clear)` runs cleanup-only marker
+  removal without injecting recovery. Codex `SessionStart(compact)` is deliberately not hooked because it can fire
+  late or duplicate. The recipe is included in `init-recipe.json` and pinned by unit coverage.
 
 ### `[x]` **5.3 Opt-in install integration**
 
@@ -326,7 +326,7 @@ wiring detail.
 - _Outcome:_ Added the verify-and-configure opt-in surface for compaction recovery hooks in both workflow copies.
   The workflow now offers Claude Code/Codex recipe selection only after explicit trust acceptance, writes the
   selected harness recipe with backup/idempotency/rollback discipline, preserves non-ARC hooks, requires harness
-  hook trust review after install, and keeps `clear` unhooked.
+  hook trust review after install, and keeps `clear` free of recovery injection.
 
 ## **Phase 6:** Constitutional change and doc cascade
 
