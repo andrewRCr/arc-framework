@@ -10,6 +10,10 @@
 
 import type { LoadSetEntry, LoadSetManifest, ReadMode } from "./types.js";
 
+type AuditableLoadSetManifest = Omit<LoadSetManifest, "manifestVersion"> & {
+  manifestVersion: number;
+};
+
 /** Membership changes between the seed baseline and the fresh manifest. */
 export interface LoadSetMembershipDiff {
   /** Fresh entries whose paths were absent from the seed baseline. */
@@ -40,6 +44,11 @@ export interface LoadSetPathDrift {
 
 /** Structured recovery-audit diff. */
 export interface LoadSetAuditDiff {
+  /** Manifest-version drift between baseline and fresh load-set schemas. */
+  manifestVersion: {
+    expected: number;
+    actual: number;
+  } | null;
   /** Added and removed load-set members. */
   membership: LoadSetMembershipDiff;
   /** Read-mode changes on retained paths. */
@@ -61,9 +70,9 @@ export interface LoadSetAuditVerdict {
 /** Inputs for auditing a fresh load-set manifest against a seed baseline. */
 export interface AuditLoadSetManifestOptions {
   /** Load-set manifest embedded in the compaction seed. */
-  baseline: LoadSetManifest;
+  baseline: AuditableLoadSetManifest;
   /** Fresh load-set manifest resolved from the recovery probe. */
-  fresh: LoadSetManifest;
+  fresh: AuditableLoadSetManifest;
 }
 
 /**
@@ -75,6 +84,12 @@ export interface AuditLoadSetManifestOptions {
 export function auditLoadSetManifest(
   options: AuditLoadSetManifestOptions,
 ): LoadSetAuditVerdict {
+  const manifestVersion = options.baseline.manifestVersion === options.fresh.manifestVersion
+    ? null
+    : {
+      expected: options.baseline.manifestVersion,
+      actual: options.fresh.manifestVersion,
+    };
   const baselineByPath = indexByPath(options.baseline.entries);
   const freshByPath = indexByPath(options.fresh.entries);
   const preliminaryAddedPaths = new Set(
@@ -114,7 +129,8 @@ export function auditLoadSetManifest(
     }];
   });
 
-  const diverged = added.length > 0
+  const diverged = manifestVersion !== null
+    || added.length > 0
     || removed.length > 0
     || readModeChanges.length > 0
     || pathDrifts.length > 0;
@@ -123,6 +139,7 @@ export function auditLoadSetManifest(
     status: diverged ? "diverged" : "match",
     diverged,
     diff: {
+      manifestVersion,
       membership: {
         added,
         removed,

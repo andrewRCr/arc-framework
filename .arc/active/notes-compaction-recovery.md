@@ -45,6 +45,16 @@ Same four checks. Wiring differences:
   marker; `UserPromptSubmit` injects recovery context on the user's next prompt. Codex does not hook
   `SessionStart(source=compact)` because it can fire late or duplicate.
 - `SessionStart(source=clear)` is not hooked; clear remains a harness reset.
+- Post-review hardening keeps the Codex workaround bounded and session-safe: pending markers and seed handoffs
+  are scoped to the Codex thread when `CODEX_THREAD_ID` is available, otherwise to a process fallback; the next
+  prompt clears the exact marker path only after successful recovery. Seed handoffs are short-lived, scope-checked,
+  consumed after marker creation, and cleared before each new seed attempt so failed pre-compact runs cannot reuse
+  stale handoffs.
+- If `PostCompact` cannot resolve a seed handoff, it still writes a scoped fallback marker so `UserPromptSubmit`
+  can inject `session-recover` and let `arc recover audit --json` surface the seed problem deterministically.
+- In this self-hosting repo only, the installed Codex hook sets `ARC_HOOK_STALE_BUILD_COMMAND="npm run build"` so
+  a stale `npx arc` dev build can be repaired before retrying the seed write. The shipped adopter recipe does not
+  auto-build.
 
 ### OpenCode (deferred — no shipped recipe)
 

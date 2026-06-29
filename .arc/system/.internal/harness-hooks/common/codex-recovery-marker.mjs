@@ -5,13 +5,14 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
-  statSync,
   writeFileSync,
 } from "node:fs";
-import { join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
 const markerFileBaseName = "codex-compaction-recovery-pending";
+const seedHandoffFileBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
+const seedHandoffMaxAgeMs = 10 * 60 * 1000;
 
 export function resolveRepoRoot() {
   const result = spawnSync("git", ["rev-parse", "--show-toplevel"], {
@@ -50,19 +51,8 @@ function internalDirs(root) {
   return dirs;
 }
 
-function newestSeedDir(root) {
-  const candidates = [];
-
-  for (const dir of internalDirs(root)) {
-    const seedPath = join(dir, seedFileName);
-    if (!existsSync(seedPath)) {
-      continue;
-    }
-    candidates.push({ dir, seedPath, mtimeMs: statSync(seedPath).mtimeMs });
-  }
-
-  candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  return candidates[0] ?? null;
+function globalInternalDir(root) {
+  return join(root, ".arc", "user", ".internal");
 }
 
 function currentCodexThreadId() {
@@ -74,33 +64,162 @@ function currentCodexThreadId() {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function markerFileName(threadId) {
-  if (threadId === null) {
-    return `${markerFileBaseName}.json`;
+function currentScope() {
+  const codexThreadId = currentCodexThreadId();
+  if (codexThreadId !== null) {
+    return {
+      kind: "thread",
+      id: codexThreadId,
+      suffix: codexThreadId,
+      codexThreadId,
+      hookParentPid: process.ppid,
+    };
   }
-  const safeThreadId = threadId.replace(/[^A-Za-z0-9._-]/g, "_");
-  return `${markerFileBaseName}-${safeThreadId}.json`;
+
+  const parentPid = String(process.ppid);
+  return {
+    kind: "process",
+    id: parentPid,
+    suffix: `ppid-${parentPid}`,
+    codexThreadId: null,
+    hookParentPid: process.ppid,
+  };
 }
 
-function isMarkerFileName(name) {
-  return name === markerFileName(null)
-    || (name.startsWith(`${markerFileBaseName}-`) && name.endsWith(".json"));
+function safeSuffix(value) {
+  return value.replace(/[^A-Za-z0-9._-]/g, "_");
+}
+
+function markerFileName(scope) {
+  return `${markerFileBaseName}-${safeSuffix(scope.suffix)}.json`;
+}
+
+function seedHandoffFileName(scope) {
+  return `${seedHandoffFileBaseName}-${safeSuffix(scope.suffix)}.json`;
+}
+
+function normalizeSeedPath(root, seedPath) {
+  const relativeSeedPath = isAbsolute(seedPath) ? relative(root, seedPath) : seedPath;
+  const normalized = relativeSeedPath.replaceAll("\\", "/");
+  if (
+    normalized.startsWith("../")
+    || normalized === ".."
+    || normalized.includes("/../")
+    || normalized.startsWith("/")
+    || !normalized.startsWith(".arc/user/")
+    || !normalized.endsWith(`/.internal/${seedFileName}`)
+  ) {
+    throw new Error(`Invalid ARC compaction seed path: ${seedPath}`);
+  }
+  return normalized;
+}
+
+function markerDirForSeed(root, seedPath) {
+  return join(root, dirname(normalizeSeedPath(root, seedPath)));
+}
+
+export function writeSeedHandoff(seedPath) {
+  const root = resolveRepoRoot();
+  const scope = currentScope();
+  const handoffDir = globalInternalDir(root);
+  const handoffPath = join(handoffDir, seedHandoffFileName(scope));
+  const normalizedSeedPath = normalizeSeedPath(root, seedPath);
+
+  mkdirSync(handoffDir, { recursive: true });
+  writeFileSync(handoffPath, `${JSON.stringify({
+    schemaVersion: 1,
+    kind: "codex-compaction-recovery-seed",
+    scope: {
+      kind: scope.kind,
+      id: scope.id,
+    },
+    codexThreadId: scope.codexThreadId,
+    hookParentPid: scope.hookParentPid,
+    emittedAt: new Date().toISOString(),
+    seedPath: normalizedSeedPath,
+  }, null, 2)}\n`);
+
+  return { root, handoffPath, seedPath: normalizedSeedPath };
+}
+
+export function clearSeedHandoff() {
+  const root = resolveRepoRoot();
+  const scope = currentScope();
+  const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
+  rmSync(handoffPath, { force: true });
+  return { root, handoffPath };
+}
+
+function readSeedHandoff(root, scope) {
+  const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
+  const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
+  if (handoff?.kind !== "codex-compaction-recovery-seed") {
+    throw new Error(`Invalid ARC recovery seed handoff: ${handoffPath}`);
+  }
+  if (handoff.scope?.kind !== scope.kind || handoff.scope?.id !== scope.id) {
+    throw new Error(`Mismatched ARC recovery seed handoff scope: ${handoffPath}`);
+  }
+  const emittedAtMs = typeof handoff.emittedAt === "string" ? Date.parse(handoff.emittedAt) : NaN;
+  if (!Number.isFinite(emittedAtMs) || Date.now() - emittedAtMs > seedHandoffMaxAgeMs) {
+    throw new Error(`Stale ARC recovery seed handoff: ${handoffPath}`);
+  }
+  return {
+    seedPath: normalizeSeedPath(root, handoff.seedPath),
+    handoffPath,
+  };
 }
 
 export function writePendingMarker() {
   const root = resolveRepoRoot();
-  const seed = newestSeedDir(root);
-  const markerDir = seed?.dir ?? join(root, ".arc", "user", ".internal");
-  const codexThreadId = currentCodexThreadId();
-  const markerPath = join(markerDir, markerFileName(codexThreadId));
+  const scope = currentScope();
+  const seed = readSeedHandoff(root, scope);
+  const markerDir = markerDirForSeed(root, seed.seedPath);
+  const markerPath = join(markerDir, markerFileName(scope));
 
   mkdirSync(markerDir, { recursive: true });
   writeFileSync(markerPath, `${JSON.stringify({
     schemaVersion: 1,
     kind: "codex-compaction-recovery-pending",
-    codexThreadId,
+    scope: {
+      kind: scope.kind,
+      id: scope.id,
+    },
+    codexThreadId: scope.codexThreadId,
+    hookParentPid: scope.hookParentPid,
     emittedAt: new Date().toISOString(),
-    seedPath: seed ? relative(root, seed.seedPath) : null,
+    seedPath: seed.seedPath,
+    seedHandoffPath: relative(root, seed.handoffPath),
+  }, null, 2)}\n`);
+  try {
+    rmSync(seed.handoffPath, { force: true });
+  } catch {
+    // Marker creation succeeded; stale handoff cleanup is best-effort.
+  }
+
+  return { root, markerPath };
+}
+
+export function writeFallbackPendingMarker(reason = null) {
+  const root = resolveRepoRoot();
+  const scope = currentScope();
+  const markerDir = globalInternalDir(root);
+  const markerPath = join(markerDir, markerFileName(scope));
+
+  mkdirSync(markerDir, { recursive: true });
+  writeFileSync(markerPath, `${JSON.stringify({
+    schemaVersion: 1,
+    kind: "codex-compaction-recovery-pending",
+    scope: {
+      kind: scope.kind,
+      id: scope.id,
+    },
+    codexThreadId: scope.codexThreadId,
+    hookParentPid: scope.hookParentPid,
+    emittedAt: new Date().toISOString(),
+    fallback: true,
+    reason: typeof reason === "string" && reason.trim().length > 0 ? reason : null,
+    seedPath: null,
+    seedHandoffPath: null,
   }, null, 2)}\n`);
 
   return { root, markerPath };
@@ -108,7 +227,8 @@ export function writePendingMarker() {
 
 export function findPendingMarkers() {
   const root = resolveRepoRoot();
-  const codexThreadId = currentCodexThreadId();
+  const scope = currentScope();
+  const expectedMarkerName = markerFileName(scope);
   const markers = [];
 
   for (const dir of internalDirs(root)) {
@@ -117,35 +237,38 @@ export function findPendingMarkers() {
     }
 
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isFile() || !isMarkerFileName(entry.name)) {
+      if (!entry.isFile() || entry.name !== expectedMarkerName) {
         continue;
       }
 
       const markerPath = join(dir, entry.name);
       let emittedAt = null;
-      let markerThreadId = null;
+      let scopeMatches = true;
+      let seedPath = null;
       try {
         const marker = JSON.parse(readFileSync(markerPath, "utf8"));
         emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
-        markerThreadId = typeof marker.codexThreadId === "string" ? marker.codexThreadId : null;
+        seedPath = typeof marker.seedPath === "string" ? marker.seedPath : null;
+        scopeMatches = marker.scope === undefined
+          || (marker.scope.kind === scope.kind && marker.scope.id === scope.id);
       } catch {
-        // Malformed markers still mean recovery is pending, but only for the unscoped fallback.
+        // Filename-derived scope is enough: malformed scoped markers still block recovery.
       }
 
-      if (markerThreadId !== codexThreadId) {
-        continue;
-      }
+      if (!scopeMatches) continue;
 
-      markers.push({ markerPath, emittedAt, mtimeMs: statSync(markerPath).mtimeMs });
+      markers.push({ markerPath, emittedAt, seedPath });
     }
   }
 
-  markers.sort((a, b) => b.mtimeMs - a.mtimeMs);
   return { root, markers };
 }
 
-export function clearPendingMarkers() {
-  const { markers } = findPendingMarkers();
+export function clearPendingMarkers(options = {}) {
+  const root = resolveRepoRoot();
+  const markers = options.markerPath === undefined
+    ? findPendingMarkers().markers
+    : [{ markerPath: validateMarkerPath(root, options.markerPath) }];
   const removed = [];
 
   for (const marker of markers) {
@@ -154,4 +277,21 @@ export function clearPendingMarkers() {
   }
 
   return removed;
+}
+
+function validateMarkerPath(root, markerPath) {
+  const normalized = isAbsolute(markerPath) ? markerPath : join(root, markerPath);
+  const relativeMarkerPath = relative(root, normalized).replaceAll("\\", "/");
+  const markerFile = relativeMarkerPath.split("/").pop() ?? "";
+  if (
+    relativeMarkerPath.startsWith("../")
+    || relativeMarkerPath === ".."
+    || relativeMarkerPath.includes("/../")
+    || !relativeMarkerPath.startsWith(".arc/user/")
+    || !relativeMarkerPath.includes("/.internal/")
+    || !markerFile.startsWith(markerFileBaseName)
+  ) {
+    throw new Error(`Invalid ARC recovery marker path: ${markerPath}`);
+  }
+  return normalized;
 }

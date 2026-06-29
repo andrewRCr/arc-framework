@@ -992,14 +992,13 @@ installed, run the manual fallback when compaction erases ARC operating context.
 
 Recovery restores ARC's operating context. It does not standardize or inspect the harness summary,
 and it does not reload on-demand context that was pulled mid-task before compaction. The recovery
-load set starts with the repository-root instruction file for the harness that wrote the seed
-(`AGENTS.md` for Codex CLI, `CLAUDE.md` for Claude Code), then ARC's own session context, so
-harness/bootstrap rules discarded by compaction are restored with the rest of the operating floor.
-ARC does not implicitly read sibling harness instruction files; projects that want shared guidance
-should make each harness file reference the shared source explicitly. Reload on-demand material
-through its normal trigger when resumed work needs it again. Understand your platform's compaction
-behavior — when it triggers, what it preserves, how it signals — so the boundary-vs-pressure fork
-stays deliberate.
+load set is ARC-owned context only; repository-root harness instruction files such as `AGENTS.md`
+and `CLAUDE.md` remain the harness baseline, not ARC recovery entries. ARC recovery does not add
+sibling harness instruction files to that load set; projects that want shared guidance should make
+each harness file reference the shared source explicitly. Reload on-demand material through its
+normal trigger when resumed work needs it again. Understand your platform's compaction behavior —
+when it triggers, what it preserves, how it signals — so the boundary-vs-pressure fork stays
+deliberate.
 
 ---
 

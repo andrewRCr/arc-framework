@@ -42,7 +42,6 @@ function seed(overrides: Partial<CompactionSeed> = {}): CompactionSeed {
     branch: "feat/compaction-recovery",
     head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
     dirty: true,
-    harness: "codex-cli",
     activeWorkUnit: "compaction-recovery",
     metaPath: ".arc/active/meta-compaction-recovery.md",
     sessionType: "execution",
@@ -86,15 +85,16 @@ describe("CompactionSeed schema", () => {
     ]);
   });
 
-  it("accepts legacy seeds without a harness", () => {
-    const value = seed();
-    const legacyValue = { ...value };
-    delete legacyValue.harness;
+  it("ignores legacy harness fields without adding them to the active contract", () => {
+    const value = {
+      ...seed(),
+      harness: "codex-cli",
+    };
 
-    expect(isCompactionSeed(legacyValue)).toBe(true);
-    expect(parseCompactionSeedJson(JSON.stringify(legacyValue))).toEqual({
+    expect(isCompactionSeed(value)).toBe(true);
+    expect(parseCompactionSeedJson(JSON.stringify(value))).toEqual({
       ok: true,
-      seed: legacyValue,
+      seed: value,
     });
   });
 
@@ -163,17 +163,6 @@ describe("CompactionSeed schema", () => {
   it("rejects invalid session types", () => {
     const result = parseCompactionSeedJson(
       JSON.stringify({ ...seed(), sessionType: "errand" }),
-    );
-
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(result.error.kind).toBe("invalid-schema");
-    }
-  });
-
-  it("rejects invalid harness values", () => {
-    const result = parseCompactionSeedJson(
-      JSON.stringify({ ...seed(), harness: "gemini" }),
     );
 
     expect(result.ok).toBe(false);

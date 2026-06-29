@@ -217,7 +217,7 @@ export async function runStatus(options: RunStatusOptions): Promise<StatusResult
 export async function runSessionInitStatus(
   options: RunSessionInitStatusOptions,
 ): Promise<SessionInitProbeResult> {
-  const { identity, role, probes, recoveryHarness = null } = options;
+  const { identity, role, probes } = options;
 
   type RawUser = Slot<UserSessionInitStatusResult>;
   type RawRetired =
@@ -531,7 +531,6 @@ export async function runSessionInitStatus(
     taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
     activeExtensions: extensions.ok ? extensions.value.active : [],
     cohortDocPath,
-    harness: recoveryHarness,
   }));
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor =
@@ -575,7 +574,7 @@ export async function runSessionInitStatus(
 export async function runRecoverStatus(
   options: RunRecoverStatusOptions,
 ): Promise<SessionRecoverProbeResult> {
-  const { identity, role, probes, recoveryHarness = null } = options;
+  const { identity, role, probes } = options;
 
   const worktreeTask = safeProbe(() => probes.worktree());
   const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
@@ -630,7 +629,6 @@ export async function runRecoverStatus(
     taskListPath: active.ok ? (active.value.taskListPath ?? null) : null,
     activeExtensions: extensions.ok ? extensions.value.active : [],
     cohortDocPath,
-    harness: recoveryHarness,
   }));
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor =

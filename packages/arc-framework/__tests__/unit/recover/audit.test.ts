@@ -198,6 +198,32 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
+  it("stops when the dirty probe claims dirty but porcelain paths are absent", () => {
+    const result = auditRecoveryState({
+      seed: seed(),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.dirtyFiles).toEqual({
+      expected: [],
+      actual: [],
+      match: true,
+    });
+    expect(result.stopReasons).toMatchObject([
+      {
+        kind: "dirty-path-drift",
+        message: "fresh dirty-file path set contradicts the dirty-state probe reporting dirty",
+      },
+    ]);
+  });
+
   it("stops when an execution seed lacks a task-list cursor", () => {
     const result = auditRecoveryState({
       seed: seed({ taskCursor: null }),

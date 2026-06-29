@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { resolveTaskListCursor } from "../../../src/lib/task-list/cursor.js";
+import { resolveTaskListCursorFromFile } from "../../../src/lib/task-list/file-cursor.js";
 
 function taskList(lines: readonly string[]): string {
   return lines.join("\n");
@@ -252,5 +253,54 @@ describe("resolveTaskListCursor", () => {
         message: "subtask marker appeared before any parent task",
       },
     });
+  });
+
+  it("returns malformed for likely subtasks with invalid indentation", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **1.1 Parent task**",
+      "",
+      "  - `[ ]` **1.1.a Bad indentation**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 5,
+        message: "subtask marker does not match task-list bullet grammar",
+      },
+    });
+  });
+});
+
+describe("resolveTaskListCursorFromFile", () => {
+  it("returns missing when the task-list file is absent", async () => {
+    const enoent = Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+
+    const result = await resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: ".arc/active/tasks-widget.md",
+      readFile: async () => {
+        throw enoent;
+      },
+    });
+
+    expect(result).toEqual({
+      status: "missing",
+      path: ".arc/active/tasks-widget.md",
+    });
+  });
+
+  it("rethrows non-ENOENT read failures", async () => {
+    const eacces = Object.assign(new Error("EACCES"), { code: "EACCES" });
+
+    await expect(resolveTaskListCursorFromFile({
+      cwd: "/repo",
+      taskListPath: ".arc/active/tasks-widget.md",
+      readFile: async () => {
+        throw eacces;
+      },
+    })).rejects.toThrow("EACCES");
   });
 });

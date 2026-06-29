@@ -43,6 +43,7 @@ describe("auditLoadSetManifest", () => {
       status: "match",
       diverged: false,
       diff: {
+        manifestVersion: null,
         membership: {
           added: [],
           removed: [],
@@ -72,6 +73,22 @@ describe("auditLoadSetManifest", () => {
         readMode: { kind: "full" },
       },
     ]);
+  });
+
+  it("flags manifest-version drift", () => {
+    const result = auditLoadSetManifest({
+      baseline: BASELINE,
+      fresh: {
+        ...BASELINE,
+        manifestVersion: 2,
+      } as unknown as LoadSetManifest,
+    });
+
+    expect(result.status).toBe("diverged");
+    expect(result.diff.manifestVersion).toEqual({
+      expected: LOAD_SET_MANIFEST_VERSION,
+      actual: 2,
+    });
   });
 
   it("flags read-mode changes on retained paths", () => {

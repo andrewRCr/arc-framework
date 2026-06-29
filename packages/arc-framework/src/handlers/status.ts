@@ -94,9 +94,8 @@ import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
 import { emitCompactionSeed, type EmitCompactionSeedResult } from "../lib/compaction-seed/emitter.js";
-import { parseLoadSetHarness } from "../lib/load-set/harness.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
-import { resolveTaskListCursor } from "../lib/task-list/cursor.js";
+import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -335,7 +334,7 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           },
         }),
         taskCursor: async (taskListPath) =>
-          resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8")),
+          resolveTaskListCursorFromFile({ cwd, taskListPath }),
       },
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
@@ -551,17 +550,15 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         },
       }),
       taskCursor: async (taskListPath) =>
-        resolveTaskListCursor(await readFile(join(cwd, taskListPath), "utf8")),
+        resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
-    const recoveryHarness = parseLoadSetHarness(process.env.ARC_HOOK_HARNESS);
-    const result = await runSessionInitStatus({ identity, role, probes, recoveryHarness });
+    const result = await runSessionInitStatus({ identity, role, probes });
     if (opts.writeCompactionSeed) {
       surfaceCompactionSeedWrite(await emitCompactionSeed({
         cwd,
         envelope: result,
         exec: gitExec,
         readFile: (path) => readFile(path, "utf8"),
-        harness: recoveryHarness,
       }));
     }
     if (json) {

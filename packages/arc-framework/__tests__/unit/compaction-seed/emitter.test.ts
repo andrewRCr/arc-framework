@@ -82,7 +82,6 @@ async function emit(overrides: {
   statusOutput?: string;
   metaContent?: string;
   envelope?: Partial<Parameters<typeof emitCompactionSeed>[0]["envelope"]>;
-  harness?: Parameters<typeof emitCompactionSeed>[0]["harness"];
   writeSeed?: (path: string, seed: CompactionSeed) => Promise<void>;
 } = {}) {
   return emitCompactionSeed({
@@ -97,7 +96,6 @@ async function emit(overrides: {
       "- **Next Action:** Begin Task 2.1",
     ].join("\n")),
     writeSeed: overrides.writeSeed ?? vi.fn(async () => undefined),
-    harness: overrides.harness,
     now: () => new Date("2026-06-28T12:00:00.000Z"),
   });
 }
@@ -142,12 +140,12 @@ describe("parseUncommittedFiles", () => {
 
 describe("emitCompactionSeed", () => {
   it("embeds the load-set manifest supplied by the session-init envelope", async () => {
-    const result = await emit({ harness: "codex-cli" });
+    const result = await emit();
 
     expect(result.status).toBe("written");
     if (result.status === "written") {
       expect(result.seed.loadSet).toEqual(LOAD_SET);
-      expect(result.seed.harness).toBe("codex-cli");
+      expect(result.seed).not.toHaveProperty("harness");
     }
   });
 

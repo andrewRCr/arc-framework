@@ -3,9 +3,8 @@
  *
  * The seed is a lean, invocation-neutral recovery manifest: live session
  * pointers, the embedded load-set baseline, the task-list cursor projection,
- * and a deterministic list of dirty files. It carries only the harness
- * identifier needed to re-project harness-specific instruction files, not
- * command spelling or reasoning prose.
+ * and a deterministic list of dirty files. It carries ARC-owned recovery state,
+ * not harness instruction files, command spelling, or reasoning prose.
  *
  * @module
  */
@@ -16,7 +15,6 @@ import {
   type LoadSetManifest,
   type ReadMode,
 } from "../load-set/types.js";
-import { parseLoadSetHarness, type LoadSetHarness } from "../load-set/harness.js";
 import type { TaskListCursor } from "../task-list/cursor.js";
 
 /** Current compaction seed envelope version. */
@@ -43,9 +41,6 @@ export interface CompactionSeed {
   head: string;
   /** Whether the working tree was dirty at seed emission. */
   dirty: boolean;
-  /** Harness that emitted the seed, or `null` / absent when unknown. */
-  harness?: LoadSetHarness | null;
-
   /** Active WU slug, or `null` between work units. */
   activeWorkUnit: string | null;
   /** Active meta path relative to `repoRoot`, or `null` when none resolved. */
@@ -168,7 +163,6 @@ export function isCompactionSeed(value: unknown): value is CompactionSeed {
     && typeof value.branch === "string"
     && typeof value.head === "string"
     && typeof value.dirty === "boolean"
-    && isNullableHarness(value.harness)
     && isNullableString(value.activeWorkUnit)
     && isNullableString(value.metaPath)
     && isNullableSessionType(value.sessionType)
@@ -217,10 +211,6 @@ function isNullableSessionType(
 ): value is CompactionSeedSessionType | null {
   return value === null
     || (typeof value === "string" && (SESSION_TYPES as readonly string[]).includes(value));
-}
-
-function isNullableHarness(value: unknown): value is LoadSetHarness | null | undefined {
-  return value === undefined || value === null || parseLoadSetHarness(value) !== null;
 }
 
 function isNullableTaskCursor(value: unknown): value is TaskListCursor | null {

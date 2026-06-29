@@ -71,9 +71,10 @@ slice genuinely depends on the earlier read. Never load from the seed's paths. T
 summary is authoritative for the volatile work-in-progress locus, but not for ARC operating
 context; verify it against the recovered files when it names a task.
 
-The recovery load set begins with the repository-root instruction file for the harness that
-wrote the seed (`AGENTS.md` for Codex CLI, `CLAUDE.md` for Claude Code), then ARC's own
-context. If that file is absent, the entry contributes no guidance and recovery continues.
+The recovery load set is ARC-owned context only. Repository-root harness instruction files
+(such as `AGENTS.md` for Codex CLI and `CLAUDE.md` for Claude Code) are expected to come from
+the harness baseline and are not included in `report.recover.loadSet.value`. Do not read sibling
+harness instruction files during recovery.
 
 Apply each entry's `readMode`:
 
@@ -136,6 +137,8 @@ prompt:
 - `planning` - continue the recovered planning workflow when the stage is verified; otherwise stop.
 - `integration` - continue `integrate-work-unit.md`.
 
-Recovery restores the init-time load set plus the state-selected lifecycle workflow only.
+Recovery restores the init-time ARC load set plus the state-selected lifecycle workflow only.
 On-demand context loaded mid-task before compaction is not restored here; reload it through its
-normal trigger if the resumed work needs it again.
+normal trigger if the resumed work needs it again. If the harness summary says compaction happened
+inside a nested workflow such as `archive-work-unit`, load that workflow through its normal trigger
+after base recovery is complete.

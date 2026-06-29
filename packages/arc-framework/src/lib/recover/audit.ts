@@ -140,9 +140,12 @@ function auditDirtyFiles(
   const expected = normalizePaths(options.seed.uncommittedFiles);
   const actual = normalizePaths(options.freshUncommittedFiles);
   const match = arraysEqual(expected, actual);
-  const dirtyProbeContradiction = options.recover.dirty.ok
-    && options.recover.dirty.value.state === "clean"
-    && actual.length > 0;
+  const dirtyProbeState = options.recover.dirty.ok ? options.recover.dirty.value.state : null;
+  const dirtyProbeContradiction = dirtyProbeState !== null
+    && (
+      (dirtyProbeState === "clean" && actual.length > 0)
+      || (dirtyProbeState === "dirty" && actual.length === 0)
+    );
 
   if (!options.recover.dirty.ok) {
     stopReasons.push({
@@ -155,7 +158,7 @@ function auditDirtyFiles(
     stopReasons.push({
       kind: "dirty-path-drift",
       message: dirtyProbeContradiction
-        ? "fresh dirty-file path set contradicts the clean dirty-state probe"
+        ? dirtyProbeContradictionMessage(dirtyProbeState)
         : "fresh dirty-file path set differs from the compaction seed baseline",
       detail: {
         expected,
@@ -166,6 +169,12 @@ function auditDirtyFiles(
   }
 
   return { expected, actual, match };
+}
+
+function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): string {
+  return state === "clean"
+    ? "fresh dirty-file path set contradicts the clean dirty-state probe"
+    : "fresh dirty-file path set contradicts the dirty-state probe reporting dirty";
 }
 
 function auditTaskCursor(
