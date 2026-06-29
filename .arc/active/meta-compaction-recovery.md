@@ -12,11 +12,11 @@
 - **Task List:** `tasks-compaction-recovery.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.1 — Implement the lean `arc status --recover --json` probe mode.
-- **Next Task:** Task 3.2 — Implement the recovery-audit diff (line ~114)
+- **Last Completed:** Tasks 4.R.3-4.R.6 — Deterministic recovery audit, cursor wiring, workflow consumption, and coordination.
+- **Next Task:** Task 5.1 — Claude Code hook adapter (line ~270)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.2 — implement the recovery-audit diff for fresh vs seeded load-set manifests.
+- **Next Action:** Begin Task 5.1 — implement the Claude Code hook adapter.
 
 - **PR URL:** [none]
 - **Completed:** [none]
