@@ -10,14 +10,16 @@ import type { Recipe } from "../../../src/lib/types.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(__dirname, "../../..");
 const hookRoot = resolve(packageRoot, "arc/system/.internal/harness-hooks");
-const settingsPath = resolve(hookRoot, "claude-code/compaction-recovery.settings.json");
+const hooksPath = resolve(hookRoot, "codex-cli/hooks.json");
+const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
 const seedScriptPath = resolve(hookRoot, "common/pre-compact-seed.mjs");
 const compactScriptPath = resolve(hookRoot, "common/session-start-compact.mjs");
 
 interface CommandHook {
   type: "command";
   command: string;
-  args?: string[];
+  commandWindows?: string;
+  statusMessage?: string;
   timeout?: number;
 }
 
@@ -26,10 +28,11 @@ interface MatcherGroup {
   hooks: CommandHook[];
 }
 
-interface ClaudeCodeSettingsFragment {
+interface CodexHooksFragment {
   hooks: {
     PreCompact: MatcherGroup[];
     SessionStart: MatcherGroup[];
+    PostCompact?: MatcherGroup[];
   };
 }
 
@@ -49,45 +52,53 @@ function runHookScript(path: string): HookOutput {
   return JSON.parse(execFileSync(process.execPath, [path], { encoding: "utf8" })) as HookOutput;
 }
 
-describe("Claude Code compaction recovery hook recipe", () => {
-  it("ships every recipe artifact through init-recipe.json", () => {
+describe("Codex CLI compaction recovery hook recipe", () => {
+  it("ships hooks.json, an opt-in feature fragment, and shared hook scripts", () => {
     const recipe = readJson<Recipe>(resolve(packageRoot, "init-recipe.json"));
 
     expect(recipe.include_files).toEqual(expect.arrayContaining([
-      "system/.internal/harness-hooks/claude-code/compaction-recovery.settings.json",
+      "system/.internal/harness-hooks/codex-cli/features.config.toml",
+      "system/.internal/harness-hooks/codex-cli/hooks.json",
       "system/.internal/harness-hooks/common/pre-compact-seed.mjs",
       "system/.internal/harness-hooks/common/session-start-compact.mjs",
     ]));
-    expect(recipe.include_files).not.toContain(
-      "system/.internal/harness-hooks/claude-code/session-start-clear.mjs",
-    );
-    expect(recipe.include_files).not.toContain(
-      "system/.internal/harness-hooks/claude-code/pre-compact-seed.mjs",
-    );
-    expect(recipe.include_files).not.toContain(
-      "system/.internal/harness-hooks/claude-code/session-start-compact.mjs",
-    );
+    expect(existsSync(hooksPath)).toBe(true);
+    expect(existsSync(featuresPath)).toBe(true);
+    expect(existsSync(seedScriptPath)).toBe(true);
+    expect(existsSync(compactScriptPath)).toBe(true);
+  });
+
+  it("keeps the Codex feature flag fragment narrow and canonical", () => {
+    const content = readFileSync(featuresPath, "utf8");
+
+    expect(content).toBe([
+      "[features]",
+      "hooks = true",
+      "",
+    ].join("\n"));
   });
 
   it("defines a nonblocking PreCompact seed-write hook for manual and auto compaction", () => {
-    const settings = readJson<ClaudeCodeSettingsFragment>(settingsPath);
+    const fragment = readJson<CodexHooksFragment>(hooksPath);
 
-    expect(settings.hooks.PreCompact).toHaveLength(1);
-    const [preCompact] = settings.hooks.PreCompact;
+    expect(fragment.hooks.PreCompact).toHaveLength(1);
+    const [preCompact] = fragment.hooks.PreCompact;
     expect(preCompact).toMatchObject({
       matcher: "manual|auto",
       hooks: [
         {
           type: "command",
-          command: "node",
-          args: [
-            "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs",
-          ],
           timeout: 30,
+          statusMessage: "Writing ARC compaction seed",
         },
       ],
     });
-    expect(existsSync(seedScriptPath)).toBe(true);
+
+    const hook = preCompact!.hooks[0]!;
+    expect(hook.command).toContain("git rev-parse --show-toplevel");
+    expect(hook.command).toContain(".arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs");
+    expect(hook.commandWindows).toContain("git rev-parse --show-toplevel");
+    expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
     expect(seedScript).toContain("arc status --session-init --write-compaction-seed --json");
@@ -96,20 +107,24 @@ describe("Claude Code compaction recovery hook recipe", () => {
   });
 
   it("injects session-recover only for SessionStart source compact", () => {
-    const settings = readJson<ClaudeCodeSettingsFragment>(settingsPath);
+    const fragment = readJson<CodexHooksFragment>(hooksPath);
     const sessionMatchers = new Map(
-      settings.hooks.SessionStart.map((group) => [group.matcher, group]),
+      fragment.hooks.SessionStart.map((group) => [group.matcher, group]),
     );
 
     expect([...sessionMatchers.keys()]).toEqual(["compact"]);
-    expect(sessionMatchers.get("compact")?.hooks[0]).toMatchObject({
+    expect(fragment.hooks.PostCompact).toBeUndefined();
+
+    const compactHook = sessionMatchers.get("compact")?.hooks[0];
+    expect(compactHook).toMatchObject({
       type: "command",
-      command: "node",
-      args: [
-        "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/session-start-compact.mjs",
-      ],
       timeout: 30,
+      statusMessage: "Restoring ARC recovery context",
     });
+    expect(compactHook?.command).toContain(".arc/system/.internal/harness-hooks/common/session-start-compact.mjs");
+    expect(compactHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\session-start-compact.mjs",
+    );
 
     const output = runHookScript(compactScriptPath);
     expect(output.suppressOutput).toBe(true);
@@ -121,8 +136,8 @@ describe("Claude Code compaction recovery hook recipe", () => {
   });
 
   it("does not hook SessionStart source clear", () => {
-    const settings = readJson<ClaudeCodeSettingsFragment>(settingsPath);
-    const clearGroup = settings.hooks.SessionStart.find((group) => group.matcher === "clear");
+    const fragment = readJson<CodexHooksFragment>(hooksPath);
+    const clearGroup = fragment.hooks.SessionStart.find((group) => group.matcher === "clear");
 
     expect(clearGroup).toBeUndefined();
   });

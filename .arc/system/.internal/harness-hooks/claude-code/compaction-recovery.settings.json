@@ -8,7 +8,7 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/claude-code/pre-compact-seed.mjs"
+              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs"
             ],
             "timeout": 30
           }
@@ -23,7 +23,7 @@
             "type": "command",
             "command": "node",
             "args": [
-              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/claude-code/session-start-compact.mjs"
+              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/session-start-compact.mjs"
             ],
             "timeout": 30
           }

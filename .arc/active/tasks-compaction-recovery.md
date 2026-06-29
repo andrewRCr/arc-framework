@@ -285,21 +285,22 @@ wiring detail.
           clear remains a normal harness reset and any later ARC entry goes through ordinary `session-init`.
           Wired in `settings.json` hooks.
 
-- _Outcome:_ Added a shipped Claude Code settings fragment plus two tiny Node hook scripts under
-  `system/.internal/harness-hooks/claude-code/`. `PreCompact(manual|auto)` writes the seed through
+- _Outcome:_ Added a shipped Claude Code settings fragment wired to the shared Node hook scripts under
+  `system/.internal/harness-hooks/common/`. `PreCompact(manual|auto)` writes the seed through
   `arc status --session-init --write-compaction-seed --json` and always exits 0; `SessionStart(compact)` injects
   the `session-recover` instruction via `additionalContext`; `SessionStart(clear)` has no ARC hook. The recipe is
   included in `init-recipe.json` and pinned by unit coverage.
 
-### `[ ]` **5.2 Codex CLI hook adapter**
+### `[x]` **5.2 Codex CLI hook adapter**
 
 - _Goal:_ Codex fires the same canonical seed/recover commands, differing from Claude Code only in wiring —
   validating the config-not-logic adapter split.
 
-    - Hooks enabled via `config.toml` `[features] hooks = true` + a `hooks.json`.
-    - Leg A mirrors Claude Code's `PreCompact` seed-write.
-    - Leg B uses `SessionStart(source=compact)` + `additionalContext` (not `PostCompact`); the `compact`-vs-`clear`
-      fork reads from `source` + `trigger`.
+- _Outcome:_ Added a shipped Codex CLI `hooks.json` recipe plus an optional `[features] hooks = true` config
+  fragment for the later opt-in installer. Codex and Claude Code now share the common seed/recovery Node scripts:
+  `PreCompact(manual|auto)` writes the seed without blocking; `SessionStart(compact)` injects `session-recover`;
+  `PostCompact` and `clear` remain unhooked. The recipe is included in `init-recipe.json` and pinned by unit
+  coverage.
 
 ### `[ ]` **5.3 Opt-in install integration**
 

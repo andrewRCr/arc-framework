@@ -1,0 +1,32 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Writing ARC compaction seed"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/session-start-compact.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\session-start-compact.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Restoring ARC recovery context"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -258,14 +258,15 @@ Per-harness hook recipes invoking the **same** canonical seed/recover commands. 
 
 | Harness         | Leg A (seed)                      | Leg B (inject)                                                           | clear vs compact                  | Verdict             |
 |-----------------|-----------------------------------|--------------------------------------------------------------------------|-----------------------------------|---------------------|
-| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout                                  | `source: clear` vs `compact`      | **Yes — both legs** |
-| **Codex CLI**   | `PreCompact`                      | `SessionStart(source=compact)` + `additionalContext` (not `PostCompact`) | `source` + `trigger`              | **Yes — both legs** |
+| **Claude Code** | `PreCompact`                      | `SessionStart(source=compact)` → stdout                                  | `clear` unhooked; `compact` hooks | **Yes — both legs** |
+| **Codex CLI**   | `PreCompact`                      | `SessionStart(source=compact)` + `additionalContext` (not `PostCompact`) | `clear` unhooked; `compact` hooks | **Yes — both legs** |
 | **OpenCode**    | `experimental.session.compacting` | Fragile — no reliable post-compaction inject                             | `session.created` vs `.compacted` | **Deferred**        |
 
 Claude Code and Codex are essentially the **same hook, two config formats** (CC `settings.json` hooks; Codex
-`config.toml` `[features] hooks=true` + `hooks.json`) — the canonical commands are identical; only the wiring file
-differs, validating the P8 canonical/adapter split and making the CC+Codex MVP cheap. OpenCode is deferred: its
-injection is architecturally different (bake the pointer into the compaction summary), everything is
+`hooks.json` plus an optional `[features].hooks = true` installer fragment) — the canonical commands are
+identical; only the wiring file differs, validating the P8 canonical/adapter split and making the CC+Codex MVP
+cheap. OpenCode is deferred: its injection is architecturally different (bake the pointer into the compaction
+summary), everything is
 `experimental.`, and the clean post-compaction inject is unmerged; it gets the portable `arc-recover` fallback.
 
 ### The only real fork — `compact` vs `clear`

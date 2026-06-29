@@ -38,9 +38,11 @@ hook adapter (opt-in).
 
 Same four checks. Wiring differences:
 
-- Hooks enabled via `config.toml` `[features] hooks = true` + a `hooks.json` (vs. CC's `settings.json` hooks).
+- Hooks are configured via `hooks.json` (vs. CC's `settings.json` hooks). Codex docs now say hooks are enabled by
+  default; the opt-in installer can still write `[features] hooks = true` as an explicit local stance when not
+  blocked by policy.
 - Leg B uses `SessionStart(source=compact)` with `additionalContext` — **not** `PostCompact`.
-- The `compact` vs `clear` fork reads from `source` + `trigger`.
+- `SessionStart(source=clear)` is not hooked; clear remains a harness reset.
 
 ### OpenCode (deferred — no shipped recipe)
 
@@ -55,10 +57,10 @@ canonical/adapter split — adapter layer is config, not logic). Detail beyond t
 | Concern                     | Claude Code                                                        | Codex CLI                                                                           | OpenCode                                                       |
 |-----------------------------|--------------------------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------------------|
 | Hook model                  | `PreCompact` (matcher `manual`/`auto`) + `SessionStart` (`source`) | Near-identical — `PreCompact`/`PostCompact` (`trigger`) + `SessionStart` (`source`) | Plugin (TS/JS); `experimental.session.compacting` + bus events |
-| Config file                 | `settings.json` hooks                                              | `config.toml` `[features] hooks = true` + `hooks.json`                              | Plugin config (keys under-documented)                          |
+| Config file                 | `settings.json` hooks                                              | `hooks.json` (+ optional `[features] hooks = true`)                                 | Plugin config (keys under-documented)                          |
 | Leg A — write seed          | `PreCompact` runs shell; read-only; can block                      | Same shape                                                                          | `experimental.session.compacting` + shell                      |
 | Leg B — inject recovery     | `SessionStart(source=compact)` → stdout / `additionalContext`      | `SessionStart(source=compact)` + `additionalContext` (**not** `PostCompact`)        | Fragile — bake pointer into compaction summary instead         |
-| `clear` vs `compact` signal | `source: clear` vs `compact`                                       | `source` + `trigger`                                                                | `session.created` vs `session.compacted`                       |
+| `clear` vs `compact` signal | `clear` unhooked; `compact` hooks                                  | `clear` unhooked; `compact` hooks                                                   | `session.created` vs `session.compacted`                       |
 | Auto-compaction disableable | No documented global disable                                       | No off switch (threshold clamped)                                                   | Configurable threshold (keys under-documented)                 |
 | Stability                   | Documented, stable                                                 | GA, stable                                                                          | All compaction hooks `experimental.` — breaking-change risk    |
 
