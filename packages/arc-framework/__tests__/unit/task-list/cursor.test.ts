@@ -65,6 +65,32 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("accepts documented trailing notes on parent task headings", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "## **Phase 7:** Verification",
+      "",
+      "### `[ ]` **7.1 Complete verification** — load and follow `verify-work-unit.md`",
+    ]));
+
+    expect(result).toEqual({
+      status: "found",
+      cursor: {
+        section: {
+          id: "7.1",
+          title: "Complete verification",
+          lineHint: 5,
+        },
+        leaf: {
+          id: "7.1",
+          title: "Complete verification",
+          lineHint: 5,
+        },
+      },
+    });
+  });
+
   it("supports revision task identifiers", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
@@ -109,6 +135,24 @@ describe("resolveTaskListCursor", () => {
       cursor: {
         section: { id: "1.3", title: "Continue here", lineHint: 7 },
         leaf: { id: "1.3", title: "Continue here", lineHint: 7 },
+      },
+    });
+  });
+
+  it("accepts trailing notes on bold subtask titles", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "### `[ ]` **2.1 Parent**",
+      "",
+      "    - `[ ]` **2.1.a Wire the check** — project copy",
+    ]));
+
+    expect(result).toMatchObject({
+      status: "found",
+      cursor: {
+        section: { id: "2.1", title: "Parent", lineHint: 3 },
+        leaf: { id: "2.1.a", title: "Wire the check", lineHint: 5 },
       },
     });
   });

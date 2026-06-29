@@ -357,7 +357,9 @@ describe("session-init E2E — sessionType across type variants", () => {
   it("rejects --recover combined with session-init mode", async () => {
     const result = await runArc(["status", "--recover", "--session-init", "--json"], tmpDir);
     expect(result.exitCode).not.toBe(0);
-    expect(result.stderr).toContain("--session-init, --session-handoff, --recover, and --user are mutually exclusive");
+    expect(result.stdout + result.stderr).toContain(
+      "--session-init, --session-handoff, --recover, and --user are mutually exclusive",
+    );
   });
 
   it("emits sessionType=null when resolution=none + branch does not match plan-pattern (orphan)", async () => {

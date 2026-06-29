@@ -54,9 +54,9 @@ export type TaskListCursorResult =
   | { status: "no-open-task" }
   | { status: "malformed"; error: TaskListCursorMalformed };
 
-const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*\s*$/u;
+const PARENT_TASK_RE = /^###\s+`\[(?<marker>[ x~])\]`\s+\*\*(?<body>.+?)\*\*(?:\s+.+)?\s*$/u;
 const SUBTASK_RE =
-  /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*)|(?<plainBody>.+?))\s*$/u;
+  /^\s{4,}-\s+`\[(?<marker>[ x~])\]`\s+(?:(?:\*\*(?<boldBody>.+?)\*\*(?:\s+.+)?)|(?<plainBody>.+?))\s*$/u;
 const MARKED_PARENT_PREFIX_RE = /^###\s+`\[[ x~]\]`/u;
 const MARKED_SUBTASK_PREFIX_RE = /^\s{4,}-\s+`\[[ x~]\]`/u;
 const SECTION_HEADING_RE = /^##\s+/u;
