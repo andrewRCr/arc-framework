@@ -13,6 +13,7 @@
 #    overrides were silently overwritten (e.g., by `cp pkg/<f> .arc/<f>`).
 
 # Source shared library for colors
+# shellcheck source=../.arc/system/.internal/scripts/arc-lib.sh
 . .arc/system/.internal/scripts/arc-lib.sh
 RED="$ARC_RED"
 YELLOW="$ARC_YELLOW"

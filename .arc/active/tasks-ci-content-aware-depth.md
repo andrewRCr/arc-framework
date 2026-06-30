@@ -19,28 +19,30 @@ proxy in `bab51166` was unsafe). Tree/blob SHAs serialize a rebase/squash-stable
 injectable seam in `decide`. Full path membership and the fixture-dependency rationale live in
 `spec-ci-content-aware-depth.md` § A and `notes-ci-content-aware-depth.md`.
 
-### `[ ]` **1.1 Establish the shell-script test harness and extend `lint:sh` coverage**
+### `[x]` **1.1 Establish the shell-script test harness and extend `lint:sh` coverage**
 
 - _Goal:_ A new `scripts/classify-change.sh` can be exercised by vitest unit tests against fixtures and is
   caught by `lint:sh`, so the test-first work in 1.2–1.3 has somewhere to land and stays `shellcheck`-clean.
 
-- _Note:_ `lint:sh` currently globs `packages/arc-framework/arc/system/.internal/scripts/*.sh` + githooks only,
-  so repo-root `scripts/` is unchecked today — `check-package-sync.sh` and `check-ts-quality.sh` included. Close
-  the gap for the whole directory, not just the new file; fix any pre-existing violations the broadened coverage
-  surfaces inline where small, escalating only if a script needs nontrivial rework.
+    - `[x]` **1.1.a Wire the shell-script unit-test harness**
+        - Added `scripts/classify-change.sh` as a subcommand-dispatch skeleton (`classify` / `tree-hash` stubs
+          returning 1, usage on no/unknown command via `EX_USAGE=64`) for 1.2–1.3 to fill in test-first.
+        - Added `__tests__/helpers/run-script.ts` — a `bash`-subprocess spawn helper mirroring `run-cli.ts`'s
+          shape. New helper rather than reusing `cli-spawn.ts` / `run-cli.ts`, which spawn the built `dist/cli.js`
+          specifically; `run-script.ts` exposes `CLASSIFY_SCRIPT` + `SCRIPTS_DIR` and threads `cwd` for tree-hash
+          cases against a temp git repo (`createTempRepo` from `integration.ts`).
+        - `__tests__/unit/classify-change.test.ts` asserts the durable dispatch contract + temp-repo scaffolding;
+          runs under `npm run test:unit`.
 
-    - `[ ]` **1.1.a Wire the shell-script unit-test harness**
-        - Spawn the `classify-change.sh` subcommands (`classify`, `tree-hash`) via the subprocess pattern in
-          `__tests__/helpers/cli-spawn.ts` / `run-cli.ts`; build tree-hash cases on a temp git repo using the
-          `mkdtemp` + `makeGitExec` scaffolding in `__tests__/helpers/integration.ts`.
-        - Place tests under `packages/arc-framework/__tests__/unit/`; confirm they run under `npm run test:unit`.
+    - `[x]` **1.1.b Extend `lint:sh` to cover repo-root `scripts/`**
+        - Added `../../scripts/*.sh` to the `run-shellcheck.sh` args in `lint:sh`, catching `classify-change.sh`
+          and the existing `check-*.sh`.
+        - Resolved the resulting SC1091 on `check-package-sync.sh` / `check-ts-quality.sh` with a
+          `# shellcheck source=../.arc/system/.internal/scripts/arc-lib.sh` directive each (SCRIPTDIR-relative);
+          `npm run lint:sh` is clean.
 
-    - `[ ]` **1.1.b Extend `lint:sh` to cover repo-root `scripts/`**
-        - Add `../../scripts/*.sh` to the `run-shellcheck.sh` args in `lint:sh` (which runs from
-          `packages/arc-framework/`), catching `classify-change.sh` and the existing `check-*.sh`.
-        - Expect SC1091 on the existing `check-*.sh` (they `source` `arc-lib.sh` via a path
-          `--source-path=SCRIPTDIR` can't follow); resolve with a `# shellcheck source=` directive or extended
-          `--source-path` so `npm run lint:sh` is clean.
+- _Outcome:_ Repo-root `scripts/` is now under `lint:sh` — coverage extends past the new file to the pre-existing
+  `check-*.sh`, so the whole directory stays `shellcheck`-clean going forward.
 
 ### `[ ]` **1.2 Canonical code-surface path set and `weight=light` docs-only classification**
 
