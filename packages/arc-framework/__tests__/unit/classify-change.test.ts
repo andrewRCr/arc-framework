@@ -68,3 +68,58 @@ describe("classify-change.sh harness", () => {
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
 });
+
+describe("classify-change.sh classify", () => {
+  async function classify(files: string[]): Promise<string> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["classify", ...files]);
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("is light when every changed file is genuine docs", async () => {
+    expect(
+      await classify(["README.md", ".arc/system/rules/DEV-RULES.ARC.md", "docs/guide.md"]),
+    ).toBe("light");
+    expect(await classify(["mkdocs.yml"])).toBe("light");
+  });
+
+  it.each([
+    ["src source", ["packages/arc-framework/src/lib/classify.ts"]],
+    ["the CI workflow", [".github/workflows/ci.yml"]],
+    ["test source", ["packages/arc-framework/__tests__/unit/x.test.ts"]],
+  ])("is heavy when the change touches %s", async (_label, files) => {
+    expect(await classify(files)).toBe("heavy");
+  });
+
+  it.each([
+    ["shipped arc fixtures", ["packages/arc-framework/arc/system/rules/DEV-RULES.ARC.md"]],
+    ["template fixtures", ["packages/arc-framework/templates/template-tasks.md"]],
+    ["the init recipe", ["packages/arc-framework/init-recipe.json"]],
+  ])("is heavy for fixture-as-code: %s", async (_label, files) => {
+    expect(await classify(files)).toBe("heavy");
+  });
+
+  it.each([
+    ["root package.json", ["package.json"]],
+    ["a package tsconfig", ["packages/arc-framework/tsconfig.test.json"]],
+    ["the vitest config", ["packages/arc-framework/vitest.config.ts"]],
+    ["a repo-root shell script", ["scripts/classify-change.sh"]],
+  ])("is heavy for build/test config: %s", async (_label, files) => {
+    expect(await classify(files)).toBe("heavy");
+  });
+
+  it("is heavy (fail-safe) for a path in neither the code nor genuine-docs set", async () => {
+    expect(await classify(["some/unknown/asset.bin"])).toBe("heavy");
+    expect(await classify(["LICENSE"])).toBe("heavy");
+  });
+
+  it("is heavy (fail-safe) for empty input", async () => {
+    expect(await classify([])).toBe("heavy");
+  });
+
+  it("is heavy when a docs-only set is joined by a single code file", async () => {
+    expect(
+      await classify(["README.md", "packages/arc-framework/src/cli.ts"]),
+    ).toBe("heavy");
+  });
+});

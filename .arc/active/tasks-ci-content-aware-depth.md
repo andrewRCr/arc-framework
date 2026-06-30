@@ -44,28 +44,20 @@ injectable seam in `decide`. Full path membership and the fixture-dependency rat
 - _Outcome:_ Repo-root `scripts/` is now under `lint:sh` — coverage extends past the new file to the pre-existing
   `check-*.sh`, so the whole directory stays `shellcheck`-clean going forward.
 
-### `[ ]` **1.2 Canonical code-surface path set and `weight=light` docs-only classification**
+### `[x]` **1.2 Canonical code-surface path set and `weight=light` docs-only classification**
 
 - _Goal:_ Given a changed-file list, the `classify` subcommand decides code-touching vs docs-only from one
   canonical path set (§ A) — fixture content (`packages/arc-framework/{arc,templates}/**`, `init-recipe.json`)
   classifies as code, genuine docs (`.arc/**`, root `*.md`, `docs/**`, `mkdocs.yml`) as docs, and any
   ambiguous/empty input as code.
 
-- **Additional Context:** `notes-ci-content-aware-depth.md` § Fixture-dependency evidence for the code-surface
-  set (why fixtures count as code); § Local probing gotcha (grep/ugrep) (the `grep -qv` failure that motivates
-  real tests over inline workflow `grep`).
-
-    - Implement the path set as the single definition both the `weight` decision and the code-tree hash read.
-
-    - Build `test-first` (one behavior at a time):
-        - A list of only `*.md` / `.arc/**` / `docs/**` paths → docs-only (`light`-eligible).
-        - A list touching `packages/arc-framework/src/**` or `ci.yml` → code (`heavy`).
-        - A list touching only `packages/arc-framework/{arc,templates}/**` or `init-recipe.json` → code (the
-          fixture-as-code guarantee; Success Criteria 4).
-        - Build/test config paths (`package.json`, `tsconfig*.json`, `vitest.config.ts`, `scripts/*.sh`, …) → code.
-        - A changed path in neither the code set nor the genuine-docs set → code (the fail-safe default the
-          whole design leans on).
-        - Empty / unverifiable input → code (fail-safe heavy).
+- _Outcome:_ The path set lives in `classify-change.sh` as `CODE_SURFACE_GLOBS` + `GENUINE_DOCS_GLOBS` consulted
+  by `is_code_surface_path` — the single definition the code-tree hash (1.3) will reuse. `classify` short-circuits
+  to `heavy` on the first code-surface or unclassified path and prints `light` only when every file is genuine
+  docs; empty input is `heavy`. Fixture trees and `init-recipe.json` classify `heavy` (Success Criteria 4).
+  Matching uses bash glob comparison rather than inline `grep`, sidestepping the `grep -qv` gotcha; 14 behavior
+  tests cover the set. Root `*.md` is special-cased (a leading-`*` glob would also claim nested markdown the code
+  surface owns).
 
 ### `[ ]` **1.3 Code-tree hash over the canonical set**
 
