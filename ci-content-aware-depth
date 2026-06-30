@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "ci-content-aware-depth",
+  "origin": "description",
+  "intent": "Decouple CI test-depth (light/heavy by content) from the merge-lane in ci.yml; docs-only PRs and markdown-only pushes skip the code suite + portability matrix, fail-safe to heavy",
+  "branch": "chore/ci-content-aware-depth",
+  "createdAt": "2026-06-30T13:44:00.609Z"
+}
