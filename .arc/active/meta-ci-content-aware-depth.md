@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Promoted from errand; seeded design draft
+- **Last Completed:** Resolved CI cost/efficiency design; draft formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** create-spec — formalize the resolved design in `draft-ci-content-aware-depth.md` into the spec
 
 - **PR URL:** [none]
 - **Completed:** [none]
