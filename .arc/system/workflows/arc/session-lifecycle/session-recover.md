@@ -148,6 +148,22 @@ prompt:
 - `planning` - continue the recovered planning workflow when the stage is verified; otherwise stop.
 - `integration` - continue `integrate-work-unit.md`.
 
+**Out-of-work-unit loci.** The three types above assume an active work unit. A compaction can also land in
+a between-WU locus — inbox drain / housekeep, an errand, or planning-grooming — where no active meta
+resolves and the load set carries no lifecycle workflow. Key recovery off the **indicated intent in the
+harness summary, not branch presence**: a compaction can land before the locus cuts its `chore/<slug>` or
+grooming branch, so the branch is not a reliable signal. When the summary indicates such a locus, rehydrate
+the floor above, then load its workflow through its normal trigger and resume:
+
+- **inbox drain / housekeep** - load `drain-inbox.md`.
+- **errand** - load `run-errand.md`.
+- **planning-grooming** - load the planning workflow the summary names (verify the stage as for `planning`).
+
+Resolve the resume mode from the working branch: on a `chore/<slug>` or grooming branch the locus already
+exists — resume mid-flow; on bare base with no such branch the cut had not happened — re-enter the workflow
+at its Launch/entry phase (safe to replay: classify and `arc errand check` are read-only, `arc errand open`
+cuts fresh). If the summary is missing, vague, or contradictory about the locus, stop for direction.
+
 Recovery restores the init-time ARC load set plus the state-selected lifecycle workflow only.
 On-demand context loaded mid-task before compaction is not restored here; reload it through its
 normal trigger if the resumed work needs it again. If the harness summary says compaction happened
