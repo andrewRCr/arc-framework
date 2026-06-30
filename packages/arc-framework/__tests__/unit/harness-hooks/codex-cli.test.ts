@@ -199,10 +199,12 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(hook.command).toContain("git rev-parse --show-toplevel");
     expect(hook.command).toContain("cd \"$repo_root\"");
     expect(hook.command).toContain(".arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs");
+    expect(hook.command).toContain("|| exit 0");
     expect(hook.commandWindows).not.toContain("ARC_HOOK_HARNESS");
     expect(hook.commandWindows).toContain("git rev-parse --show-toplevel");
     expect(hook.commandWindows).toContain("cd /d");
     expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
+    expect(hook.commandWindows).toContain("|| exit /b 0");
 
     const seedScript = readFileSync(seedScriptPath, "utf8");
     expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
@@ -545,6 +547,8 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(content).toContain('process.platform === "win32"');
     expect(content).toContain('for /f "delims=" %i');
     expect(content).toContain("windowsQuote");
+    expect(content).toContain('.replaceAll("^", "^^")');
+    expect(content).toContain('.replaceAll("%", "^%")');
     expect(content).toContain("shellQuote");
   });
 

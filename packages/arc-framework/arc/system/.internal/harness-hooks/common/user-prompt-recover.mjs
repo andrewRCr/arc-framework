@@ -53,5 +53,8 @@ function markerClearCommand(markerArg) {
 }
 
 function windowsQuote(value) {
-  return `"${value.replaceAll('"', '""')}"`;
+  return `"${value
+    .replaceAll("^", "^^")
+    .replaceAll("%", "^%")
+    .replaceAll('"', '""')}"`;
 }

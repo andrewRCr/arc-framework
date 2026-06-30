@@ -21,7 +21,7 @@ import {
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
 import { resolveAllSettings } from "../lib/config/resolved-settings.js";
-import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
+import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import { gitConfigGet } from "../lib/git/index.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
 import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
@@ -92,6 +92,12 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   }
 
   const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+  let gitStatusOutputP: Promise<string> | undefined;
+  const getGitStatusOutput = (): Promise<string> => {
+    gitStatusOutputP ??= gitExec("git", ["status", "--porcelain=v1", "-z"])
+      .then(({ stdout }) => stdout);
+    return gitStatusOutputP;
+  };
   const recover = await runRecoverStatus({
     identity,
     role,
@@ -102,7 +108,9 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
         return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
       },
       worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
-      dirty: () => runDirtyStateStatus({ exec: gitExec }),
+      dirty: async () => dirtyStateFromUncommittedFiles(
+        parseUncommittedFiles(await getGitStatusOutput()),
+      ),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
@@ -121,7 +129,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
 
   let statusOutput: string;
   try {
-    statusOutput = (await gitExec("git", ["status", "--porcelain=v1", "-z"])).stdout;
+    statusOutput = await getGitStatusOutput();
   } catch (err) {
     writeReport({
       mode: "recover-audit",
@@ -148,6 +156,13 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     recover,
     verdict,
   }, Boolean(opts.json));
+}
+
+function dirtyStateFromUncommittedFiles(files: readonly string[]): DirtyStateResult {
+  return {
+    state: files.length === 0 ? "clean" : "dirty",
+    fileCount: files.length,
+  };
 }
 
 async function readIdentityPointers(): Promise<{

@@ -211,11 +211,12 @@ export interface ActiveSessionInitResult {
   };
   /**
    * Resolved active task-list path relative to cwd, derived from the parsed
-   * `**Task List:**` field when a single meta resolves. Path-form values pass
-   * through normalized; bare filenames resolve beside the meta file. `null`
-   * when the single resolved meta has no task list (`[none]`, missing, or
-   * equivalent) or the value is unsafe (absolute, drive-prefixed, or
-   * parent-traversing); omitted outside the single-meta arm.
+   * `**Task List:**` field when a single meta resolves. Bare filenames and
+   * `./`-prefixed values resolve beside the meta file; other path-form values
+   * pass through normalized relative to cwd. `null` when the single resolved
+   * meta has no task list (`[none]`, missing, or equivalent) or the value is
+   * unsafe (absolute, drive-prefixed, or parent-traversing); omitted outside
+   * the single-meta arm.
    */
   taskListPath?: string | null;
   /**
