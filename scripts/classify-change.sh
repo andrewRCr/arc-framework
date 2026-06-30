@@ -59,6 +59,23 @@ readonly GENUINE_DOCS_GLOBS=(
   "mkdocs.yml"
 )
 
+# --- Heavy verification checks -------------------------------------------------
+#
+# The check-run display names that together prove a code tree was fully verified.
+# The verified-tree lookback skips the heavy suite for a pull request only when
+# every one of these concluded `success` for a commit carrying HEAD's exact code
+# tree. These strings are the source of truth for the corresponding job `name:`
+# fields in .github/workflows/ci.yml — they must stay byte-identical (matrix legs
+# include the `(<os>)` suffix the runner appends to the job name). A drift fails
+# safe to heavy but silently defeats the skip, so the two surfaces move together.
+readonly HEAVY_CHECK_NAMES=(
+  "Lint, Typecheck & Unit Tests"
+  "Integration & E2E Tests"
+  "Portability (concurrency guards) (ubuntu-latest)"
+  "Portability (concurrency guards) (macos-latest)"
+  "Portability (concurrency guards) (windows-latest)"
+)
+
 # True when $1 matches any glob in the remaining args (glob match, not literal).
 _matches_any() {
   local path="$1"
@@ -120,22 +137,16 @@ cmd_classify() {
   echo "light"
 }
 
-# tree-hash <ref> — print a deterministic, content-based identity for the code
-# surface at <ref>. Enumerates every tracked path (`git ls-tree -r`), keeps those
-# the canonical set classifies as code, and hashes the sorted `path:blob-sha`
-# lines. Reusing is_code_surface_path is the no-drift guarantee: the hashed set
-# is exactly what classify calls code. Any failure exits non-zero with no hash on
-# stdout, so a caller reads it as fail-safe heavy rather than a stale identity.
-cmd_tree_hash() {
-  local ref="${1:-}"
-  if [[ -z "${ref}" ]]; then
-    echo "tree-hash: a git ref is required" >&2
-    return 1
-  fi
-
-  local listing
+# Print a deterministic, content-based identity for the code surface at <ref>:
+# enumerate every tracked path (`git ls-tree -r`), keep those the canonical set
+# classifies as code, and hash the sorted `path:blob-sha` lines. Reusing
+# is_code_surface_path is the no-drift guarantee — the hashed set is exactly what
+# classify calls code. Returns non-zero with no stdout on any failure, so callers
+# read it as fail-safe heavy rather than trusting a stale identity. Quiet: the
+# CLI wrapper below emits the user-facing diagnostics.
+_code_tree_hash() {
+  local ref="$1" listing
   if ! listing="$(git ls-tree -r "${ref}" 2>/dev/null)"; then
-    echo "tree-hash: cannot read tree at ref '${ref}'" >&2
     return 1
   fi
 
@@ -152,6 +163,54 @@ cmd_tree_hash() {
   )"
 
   printf '%s' "${serialized}" | git hash-object --stdin
+}
+
+# tree-hash <ref> — CLI entry for the code-tree hash. Validates the argument and
+# maps a compute failure to a diagnostic on stderr plus a non-zero exit.
+cmd_tree_hash() {
+  local ref="${1:-}"
+  if [[ -z "${ref}" ]]; then
+    echo "tree-hash: a git ref is required" >&2
+    return 1
+  fi
+
+  local hash
+  if ! hash="$(_code_tree_hash "${ref}")"; then
+    echo "tree-hash: cannot read tree at ref '${ref}'" >&2
+    return 1
+  fi
+  printf '%s\n' "${hash}"
+}
+
+# Fetch the check-run results for <sha> as normalized "<name>\t<conclusion>"
+# lines. Live, this queries the GitHub Checks API with the ambient token; the
+# JSON→tsv extraction runs inside `gh` and is exercised only in live CI. Tests
+# inject results by pointing CLASSIFY_CHECK_RUNS_DIR at a directory of
+# "<sha>.tsv" fixtures. An absent fixture, an unset repository, or any `gh`
+# failure yields no lines — which the matcher below reads as "not verified".
+_fetch_check_runs() {
+  local sha="$1"
+  if [[ -n "${CLASSIFY_CHECK_RUNS_DIR:-}" ]]; then
+    local fixture="${CLASSIFY_CHECK_RUNS_DIR}/${sha}.tsv"
+    [[ -f "${fixture}" ]] && cat "${fixture}"
+    return 0
+  fi
+  gh api --paginate "repos/${GITHUB_REPOSITORY:-}/commits/${sha}/check-runs" \
+    --jq '.check_runs[] | [.name, (.conclusion // "")] | @tsv' 2>/dev/null || true
+}
+
+# True (exit 0) when the normalized check-run lines (<name>\t<conclusion>) carry
+# every heavy check at conclusion `success`. A heavy check that is failed,
+# in-progress (empty conclusion), or absent leaves its name unmatched, so the
+# set is incomplete and the function reports not-passed.
+_all_heavy_checks_passed() {
+  local runs="$1" name
+  for name in "${HEAVY_CHECK_NAMES[@]}"; do
+    if ! grep -qxF -- "${name}"$'\t'"success" <<<"${runs}"; then
+      return 1
+    fi
+  done
+  return 0
 }
 
 # True (exit 0) when any path in the newline-delimited set is on the code
@@ -203,13 +262,36 @@ cmd_decide() {
     # No code-surface path changed → docs-only, no API call.
     weight=light
     reason=docs-only
-  else
-    # Code touched. A push has no per-tree verification history to consult (that
-    # is the pull request's job), so it runs heavy for fast feedback; a pull
-    # request consults the verified-tree lookback. Until that lookback is wired
-    # in, both fail safe to heavy.
+  elif [[ "${event}" != "pull_request" ]]; then
+    # Code touched on a push: no per-tree verification history to consult (that
+    # is the pull request's job), so run heavy for fast feedback.
     weight=heavy
     reason=unverified
+  else
+    # Code touched on a pull request: skip the heavy suite only when some commit
+    # in the PR range carries HEAD's exact code tree AND already has the full
+    # heavy check set at `success`. Blob SHAs are rebase/squash-stable, so a
+    # docs-only commit layered on verified code still matches the verified
+    # commit's tree. Any gap — an unhashable HEAD, no matching tree, an
+    # incomplete/failed/in-progress check, or an API miss — leaves the fail-safe
+    # heavy default in place.
+    weight=heavy
+    reason=unverified
+    local head_hash
+    if head_hash="$(_code_tree_hash "${head}")"; then
+      local sha sha_hash runs
+      while IFS= read -r sha; do
+        [[ -z "${sha}" ]] && continue
+        sha_hash="$(_code_tree_hash "${sha}")" || continue
+        [[ "${sha_hash}" != "${head_hash}" ]] && continue
+        runs="$(_fetch_check_runs "${sha}")"
+        if _all_heavy_checks_passed "${runs}"; then
+          weight=light
+          reason=verified
+          break
+        fi
+      done < <(git rev-list "${base}..${head}" 2>/dev/null || true)
+    fi
   fi
 
   printf 'decide: event=%s base=%s head=%s -> weight=%s reason=%s\n' \

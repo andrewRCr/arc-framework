@@ -83,17 +83,10 @@ the gate stays the fail-open `!= 'light'` polarity (an empty/unset output runs h
 enumerate-and-recompute (pure `classify`-side read), not embed-hash-in-check-run. See
 `spec-ci-content-aware-depth.md` § B, § D.
 
-### `[ ]` **2.1 Assemble the `weight` decision in the script**
+### `[x]` **2.1 Assemble the `weight` decision in the script**
 
 - _Goal:_ The script resolves `weight` ∈ `{light, heavy}` with a logged reason ∈ `{docs-only, verified,
   unverified}` — docs-only changes and already-verified code trees skip; everything uncertain runs heavy.
-
-- _Approach:_ The Checks-API call is the one live-only seam — structure it so the pure parts (commit
-  enumeration, code-tree-hash matching, reason resolution) are unit-testable with the API result injected, and
-  the network call itself is exercised only in Phase 4. On a `push` event (no PR base — `quality` still runs),
-  `decide` does the docs-only check only and otherwise returns `heavy`; the verified-tree lookback is a
-  pull-request concern (per-tree verification history is the PR's job, and branch pushes keep fast heavy-on-code
-  feedback).
 
     - `[x]` **2.1.a Docs-only and fail-safe arms (pure)**
         - Added the `decide <event> <base> <head>` subcommand to `classify-change.sh`: it resolves `weight` ∈
@@ -105,25 +98,18 @@ enumerate-and-recompute (pure `classify`-side read), not embed-hash-in-check-run
           PR awaits the 2.1.b lookback (until which it fail-safes heavy). The docs-only no-API-call regression
           guard lands with that seam in 2.1.b.
 
-    - `[ ]` **2.1.b Verified-tree lookback (enumerate-and-recompute)**
-        - _Goal:_ A code-touching PR skips heavy only when some enumerated commit with HEAD's code-tree hash
-          has all the heavy checks (`Full Test Suite`, the three `Portability` legs, and the lint/typecheck/unit
-          job) concluded `success`.
-
-        - Enumerate `base..head` commits, keep those whose code-tree hash equals HEAD's, query the Checks API
-          (`GET /commits/{sha}/check-runs`, via `gh api` with the default `GITHUB_TOKEN`) for each, and require
-          the full heavy set at `success`.
-
-        - _Note:_ Match against the heavy check **display names** from a single declared constant at the top of
-          the script — settle those names up front (their final post-rename form) so the constant and the
-          workflow `name:` fields are written identically in one pass. Only the lint/typecheck/unit name changes
-          in the Phase 3 naming task (3.2); `Full Test Suite` / `Portability` are stable. The constant and 3.2's
-          rename are one coupled surface — a name drift here fails safe (heavy) but silently defeats the skip.
-
-        - Build `test-first` (one behavior at a time):
-            - Injected: a matching commit with all heavy checks green → `light` / `verified`.
-            - Injected: a matching commit with a heavy check failed/in-progress/absent → `heavy` / `unverified`.
-            - No commit matches HEAD's hash → `heavy` / `unverified`.
+    - `[x]` **2.1.b Verified-tree lookback (enumerate-and-recompute)**
+        - Implemented the PR lookback in `decide`: enumerate `base..head` (`git rev-list`), keep commits whose
+          code-tree hash equals HEAD's (via `_code_tree_hash`, extracted from `tree-hash` for reuse), and skip
+          heavy only when one carries the full heavy check set at `success`. The Checks-API fetch is the lone live
+          seam (`_fetch_check_runs`: `gh api … --jq` live, `CLASSIFY_CHECK_RUNS_DIR` tsv fixtures under test), so
+          enumeration, hash-matching, and the matcher (`_all_heavy_checks_passed`) are offline-tested; the network
+          call runs only in Phase 4.
+        - Heavy-check display names live in one `HEAVY_CHECK_NAMES` constant — the source of truth Task 3.2
+          mirrors into the `ci.yml` job `name:` fields. Settling them expanded the original two-rename set:
+          `Full Test Suite` → `Integration & E2E Tests` corrects a misnomer (it runs only integration + e2e; unit
+          tests live in the sibling job), alongside `Quality Checks` → `Lint, Typecheck & Unit Tests`;
+          `Portability (concurrency guards)` kept. Spec § D and the 3.2 task amended to record the wider scope.
 
 ### `[ ]` **2.2 Wire the `classify` job to the script**
 
@@ -163,11 +149,14 @@ _Design decisions:_ `ci.yml` is not split and no jobs are added/removed (job cou
 - _Goal:_ Job/step names say what they do and the workflow carries no methodology vocabulary — reviewer-legible
   and compliant with the no-meta-references rule for durable config.
 
-    - Rename the `Quality Checks` job to name its work (lint + typecheck + unit); fix `classify`'s display name
-      (`Classify lane`) to cover both axes.
-    - Apply the renamed lint/typecheck/unit display name identically to the lookback's heavy-check-name constant
-      (Task 2.1.b) — the workflow `name:` and the matcher are one coupled surface; a mismatch silently defeats
-      the skip.
+    - Rename the `Quality Checks` job to `Lint, Typecheck & Unit Tests` and `Full Test Suite` to
+      `Integration & E2E Tests` (it runs only integration + e2e — unit tests live in the job above, so the old
+      name mis-implied containment); fix `classify`'s display name (`Classify lane`) to cover both axes. Keep
+      `Portability (concurrency guards)` (already functional).
+    - Apply those `name:` strings identically to the lookback's heavy-check-name constant (Task 2.1.b) — the
+      workflow `name:` fields and the matcher are one coupled surface; a mismatch silently defeats the skip. The
+      constant in `classify-change.sh` is the source of truth for the exact strings (matrix legs carry the
+      `(<os>)` suffix GitHub appends).
     - Scrub methodology vocabulary from names and comments — including the `classify` comment citing
       `strategy-work-organization § Auto-Merge Lane` (a doc-path/§ citation in durable config); keep `merge-ok`.
       Leave the functional `lane` classification regex (the artifact-path patterns it matches) — that is

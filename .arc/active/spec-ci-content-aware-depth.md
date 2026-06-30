@@ -183,7 +183,11 @@ Co-located since `ci.yml` is already being edited; chosen for impact at rising c
   so its pure parts (path classification, tree hashing) run without network; the Checks-API lookback is the one
   seam that needs a live token and is exercised only in live verification.
 - **Naming — explicit and functional.** Rename the `Quality Checks` job to name what it does (lint + typecheck +
-  unit); fix `classify`'s display name (`Classify lane`) to cover both axes. **Keep `merge-ok`** (Non-Goals). No
+  unit), and rename `Full Test Suite` to name *its* scope (integration + e2e): `Full Test Suite` is a misnomer —
+  it runs only the integration and e2e suites, while the unit tests live in the lint/typecheck/unit job, so the
+  two names sitting side by side would imply a containment that doesn't hold. Fix `classify`'s display name
+  (`Classify lane`) to cover both axes. **Keep** `Portability (concurrency guards)` (already functional) and
+  `merge-ok` (Non-Goals). No
   ARC vocabulary (no `tier-1/2/3`, no methodology lingo) in names or comments — reviewer-hostile and a
   no-meta-references violation for durable config. The content-aware gating *embodies* the tiered-threshold
   discipline without naming it.
@@ -289,8 +293,9 @@ Validated at work-unit completion:
 Resolved during the work, not deferred as debt:
 
 - **Final job / step display-name strings and `weight` reason values** — settled at implementation once the gate
-  boundaries are final (the rename of `Quality Checks` and `Classify lane`; the `docs-only` / `verified` /
-  `unverified` reason strings). The output *keys* (`lane`, `weight`) are settled — see Proposed Design § D.
+  boundaries are final (the rename of `Quality Checks` → `Lint, Typecheck & Unit Tests`, `Full Test Suite` →
+  `Integration & E2E Tests`, and `Classify lane` → both-axes; the `docs-only` / `verified` / `unverified` reason
+  strings). The output *keys* (`lane`, `weight`) are settled — see Proposed Design § D.
 - **Commit-enumeration range for the lookback** — `base..head` is the default; whether to widen to recent repo
   history for the rebase/squash case (vs. accept the mild re-run) is a tuning call made against live behavior, not
   a design blocker.

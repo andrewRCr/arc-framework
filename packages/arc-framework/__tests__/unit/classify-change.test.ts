@@ -362,3 +362,196 @@ describe("classify-change.sh decide (pure arms)", () => {
     });
   });
 });
+
+describe("classify-change.sh decide (verified-tree lookback)", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  /** Heavy check-run display names — must mirror HEAVY_CHECK_NAMES in classify-change.sh. */
+  const HEAVY_CHECKS = [
+    "Lint, Typecheck & Unit Tests",
+    "Integration & E2E Tests",
+    "Portability (concurrency guards) (ubuntu-latest)",
+    "Portability (concurrency guards) (macos-latest)",
+    "Portability (concurrency guards) (windows-latest)",
+  ];
+
+  /** Render [name, conclusion] pairs as the normalized "<name>\t<conclusion>" lines the seam returns. */
+  function checkLines(runs: Array<[string, string]>): string {
+    return runs.map(([name, conclusion]) => `${name}\t${conclusion}`).join("\n") + "\n";
+  }
+
+  /** All heavy checks at `success`. */
+  function allGreen(): string {
+    return checkLines(HEAVY_CHECKS.map((name) => [name, "success"]));
+  }
+
+  /** All heavy checks green except `name`, which takes `conclusion` (e.g. `failure`, or `""` for in-progress). */
+  function greenExcept(name: string, conclusion: string): string {
+    return checkLines(HEAVY_CHECKS.map((n) => [n, n === name ? conclusion : "success"]));
+  }
+
+  /** All heavy checks green except `name`, which is absent from the set entirely. */
+  function greenOmitting(name: string): string {
+    return checkLines(HEAVY_CHECKS.filter((n) => n !== name).map((n) => [n, "success"]));
+  }
+
+  async function writeAndCommit(
+    repo: string,
+    files: Record<string, string>,
+    message: string,
+  ): Promise<string> {
+    for (const [rel, content] of Object.entries(files)) {
+      const full = join(repo, rel);
+      await mkdir(dirname(full), { recursive: true });
+      await writeFile(full, content);
+    }
+    const git = ["-c", "core.hooksPath=/dev/null"];
+    await execFileAsync("git", [...git, "add", "-A"], { cwd: repo });
+    await execFileAsync("git", [...git, "commit", "-m", message], { cwd: repo });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    return stdout.trim();
+  }
+
+  /** Write a check-runs fixture for `sha` into the injected directory. */
+  async function injectChecks(checksDir: string, sha: string, tsv: string): Promise<void> {
+    await writeFile(join(checksDir, `${sha}.tsv`), tsv);
+  }
+
+  /** Run `decide` with check-runs injected from `checksDir`, parsing the `weight=` / `reason=` lines. */
+  async function decide(
+    repo: string,
+    checksDir: string,
+    event: string,
+    base: string,
+    head: string,
+  ): Promise<{ weight: string | undefined; reason: string | undefined }> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], {
+      cwd: repo,
+      env: { CLASSIFY_CHECK_RUNS_DIR: checksDir },
+    });
+    expect(result.exitCode).toBe(0);
+    const weight = /^weight=(\S+)$/m.exec(result.stdout)?.[1];
+    const reason = /^reason=(\S+)$/m.exec(result.stdout)?.[1];
+    return { weight, reason };
+  }
+
+  /**
+   * A linear repo where a verified code commit is layered with a docs-only
+   * commit, so HEAD and the code commit share a code-tree hash: base → code → docs(HEAD).
+   */
+  async function layeredRepo(): Promise<{
+    repo: string;
+    checksDir: string;
+    base: string;
+    code: string;
+    head: string;
+  }> {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const code = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    const head = await writeAndCommit(repo, { "README.md": "docs\n" }, "docs on top of verified code");
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    return { repo, checksDir, base, code, head };
+  }
+
+  it("is light/verified when a commit carrying HEAD's code tree has all heavy checks green", async () => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    // The prior code commit (not HEAD) holds the green run; HEAD is a docs-only
+    // delta on top, so its code tree matches and the lookback reaches back to it.
+    await injectChecks(checksDir, code, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "verified",
+    });
+  });
+
+  const TARGET = "Integration & E2E Tests";
+  it.each([
+    ["a failed", greenExcept(TARGET, "failure")],
+    ["an in-progress (empty conclusion)", greenExcept(TARGET, "")],
+    ["an absent", greenOmitting(TARGET)],
+  ])("is heavy/unverified when the matching commit has %s heavy check", async (_label, tsv) => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, tsv);
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("is heavy/unverified when no commit in range carries HEAD's code tree (green run on a different tree)", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const oldCode = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code v1",
+    );
+    const head = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 2;\n" },
+      "code v2",
+    );
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    // The green run is on the v1 tree, which no longer matches HEAD's v2 tree;
+    // it must be filtered out by the hash check rather than skip the suite.
+    await injectChecks(checksDir, oldCode, allGreen());
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("does not look back on a push even when HEAD itself has a green run", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const head = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    await injectChecks(checksDir, head, allGreen());
+
+    expect(await decide(repo, checksDir, "push", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("decides docs-only without consulting the Checks API (empty injected dir still resolves light)", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", "README.md": "v1\n" },
+      "code + docs",
+    );
+    const head = await writeAndCommit(repo, { "README.md": "v2\n" }, "docs only");
+    const checksDir = join(repo, ".checks");
+    await mkdir(checksDir, { recursive: true });
+    // No fixtures injected: if the docs-only arm consulted the API, the absent
+    // run would force heavy. It must short-circuit to light without looking.
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "docs-only",
+    });
+  });
+});
