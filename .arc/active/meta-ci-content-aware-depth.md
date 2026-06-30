@@ -1,8 +1,8 @@
 # Metadata: ci-content-aware-depth
 
-| **State** | **Owner** | **Branch**                     | **Class** | **Priority** |
-| --------- | --------- | ------------------------------ | --------- | ------------ |
-| `Active`  | `andrew`  | `chore/ci-content-aware-depth` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
+| ------------- | --------- | ------------------------------ | --------- | ------------ |
+| `Integrating` | `andrew`  | `chore/ci-content-aware-depth` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -13,10 +13,10 @@
 
 - **Current Workflow:** [none]
 - **Last Completed:** Task 5.1 — Complete verification (all phases done; Tier 3 green)
-- **Next Task:** [none] — all tasks complete
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** integrate-work-unit Step 2 — pre-PR review before adopting PR #155
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/155>
 - **Completed:** [none]
