@@ -27,6 +27,7 @@ const systemMessage = [
   "=== ARC compaction recovery ===",
   "ARC paused after compaction, as expected, to restore ARC session context.",
   recoveryInstruction,
+  markerError === null ? null : `Marker issue: ${singleLine(markerError)}`,
   markerPath === null ? null : `Recovery marker: ${markerPath}`,
 ].filter((line) => line !== null).join("\n");
 
@@ -34,7 +35,8 @@ process.stdout.write(`${JSON.stringify({
   continue: false,
   stopReason: "ARC recovery required after compaction",
   systemMessage,
-  markerPath,
-  markerError,
-  fallbackMarkerSaved,
 })}\n`);
+
+function singleLine(value) {
+  return value.replace(/[\x00-\x1F\x7F]+/gu, " ").trim();
+}

@@ -45,11 +45,7 @@ interface HookOutput {
   continue?: boolean;
   stopReason?: string;
   systemMessage?: string;
-  markerPath?: string | null;
-  markerError?: string | null;
-  fallbackMarkerSaved?: boolean;
   suppressOutput?: boolean;
-  removed?: string[];
   hookSpecificOutput?: {
     hookEventName?: string;
     additionalContext?: string;
@@ -67,6 +63,12 @@ function runHookScript(
   args: string[] = [],
 ): HookOutput {
   return JSON.parse(runHookScriptRaw(path, cwd, env, args)) as HookOutput;
+}
+
+function runPostCompactScript(cwd?: string, env: NodeJS.ProcessEnv = {}): HookOutput {
+  const output = runHookScript(postCompactScriptPath, cwd, env);
+  expect(Object.keys(output).sort()).toEqual(["continue", "stopReason", "systemMessage"].sort());
+  return output;
 }
 
 function runHookScriptRaw(
@@ -430,7 +432,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "codex-compaction-recovery-pending-thread-a.json",
       );
 
-      const postCompactOutput = runHookScript(postCompactScriptPath, root, env);
+      const postCompactOutput = runPostCompactScript(root, env);
       expect(postCompactOutput.continue).toBe(false);
       expect(postCompactOutput.stopReason).toContain("ARC recovery required");
       expect(postCompactOutput.systemMessage).toContain("=== ARC compaction recovery ===");
@@ -438,9 +440,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(postCompactOutput.systemMessage).toContain("ARC session context");
       expect(postCompactOutput.systemMessage).toContain("Send \"continue\" to the agent");
       expect(postCompactOutput.systemMessage).toContain(markerPath);
-      expect(postCompactOutput.markerPath).toBe(markerPath);
-      expect(postCompactOutput.markerError).toBeNull();
-      expect(postCompactOutput.fallbackMarkerSaved).toBe(false);
+      expect(postCompactOutput.systemMessage).not.toContain("Marker issue:");
       expect(existsSync(markerPath)).toBe(true);
       expect(existsSync(join(
         root,
@@ -482,12 +482,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       );
       expect(existsSync(markerPath)).toBe(true);
 
-      const clearOtherThreadOutput = runHookScript(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" });
-      expect(clearOtherThreadOutput.removed).toEqual([]);
+      expect(runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
       expect(existsSync(markerPath)).toBe(true);
 
-      const clearOutput = runHookScript(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" }, ["--marker", markerPath]);
-      expect(clearOutput.removed).toHaveLength(1);
+      expect(runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" }, ["--marker", markerPath]))
+        .toBe("");
       expect(existsSync(markerPath)).toBe(false);
       expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
     });
@@ -517,8 +516,8 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "codex-compaction-recovery-pending-a_b.json",
       );
 
-      runHookScript(postCompactScriptPath, root, slashThread);
-      runHookScript(postCompactScriptPath, root, underscoreThread);
+      runPostCompactScript(root, slashThread);
+      runPostCompactScript(root, underscoreThread);
 
       expect(existsSync(slashMarkerPath)).toBe(true);
       expect(existsSync(underscoreMarkerPath)).toBe(true);
@@ -581,7 +580,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         "codex-compaction-recovery-pending.json",
       );
 
-      const postCompactOutput = runHookScript(postCompactScriptPath, root);
+      const postCompactOutput = runPostCompactScript(root);
       expect(postCompactOutput.continue).toBe(false);
       expect(existsSync(markerPath)).toBe(true);
       expect(existsSync(legacyGlobalMarkerPath)).toBe(false);
@@ -600,15 +599,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
+      const output = runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
 
       expect(output.continue).toBe(false);
       expect(output.stopReason).toContain("ARC recovery required");
       expect(output.systemMessage).toContain("report the seed issue");
+      expect(output.systemMessage).toContain("Marker issue:");
+      expect(output.systemMessage).toContain("codex-compaction-recovery-seed-thread-a.json");
       expect(output.systemMessage).toContain(fallbackMarkerPath);
-      expect(output.markerPath).toBe(fallbackMarkerPath);
-      expect(output.markerError).toContain("codex-compaction-recovery-seed-thread-a.json");
-      expect(output.fallbackMarkerSaved).toBe(true);
       expect(existsSync(fallbackMarkerPath)).toBe(true);
 
       const marker = readJson<{
@@ -649,7 +647,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       }, null, 2)}\n`);
 
       writeSeedHandoff(root, env);
-      runHookScript(postCompactScriptPath, root, env);
+      runPostCompactScript(root, env);
       const scopedMarkerPath = join(
         root,
         ".arc",
@@ -666,11 +664,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(additionalContext).toContain(fallbackMarkerPath);
       expect(additionalContext).toContain(scopedMarkerPath);
 
-      const clearOutput = runHookScript(clearScriptPath, root, env);
-      expect([...(clearOutput.removed ?? [])].sort()).toEqual([
-        fallbackMarkerPath,
-        scopedMarkerPath,
-      ].sort());
+      expect(runHookScriptRaw(clearScriptPath, root, env)).toBe("");
       expect(existsSync(fallbackMarkerPath)).toBe(false);
       expect(existsSync(scopedMarkerPath)).toBe(false);
     });
@@ -757,9 +751,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
+      expect(output.systemMessage).toContain("Marker issue:");
+      expect(output.systemMessage).not.toContain("bad\nname");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
       expect(existsSync(identityMarkerPath)).toBe(false);
       expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
@@ -793,7 +789,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
@@ -830,7 +826,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
@@ -866,7 +862,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
@@ -902,10 +898,9 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
-      expect(output.markerPath).toBe(fallbackMarkerPath);
       expect(existsSync(fallbackMarkerPath)).toBe(true);
       expect(existsSync(identityMarkerPath)).toBe(false);
       expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
@@ -931,7 +926,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-thread-a.json",
       );
-      const output = runHookScript(postCompactScriptPath, root, env);
+      const output = runPostCompactScript(root, env);
 
       expect(output.systemMessage).toContain("report the seed issue");
       expect(existsSync(fallbackMarkerPath)).toBe(true);
@@ -962,7 +957,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
   it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
     withTempArcProject((root) => {
       writeSeedHandoff(root, { CODEX_THREAD_ID: "thread-a" });
-      runHookScript(postCompactScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
+      runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
 
       const userPromptOutput = runHookScript(userPromptScriptPath, root, {
         ARC_HOOK_ARC_COMMAND: "npx arc",
