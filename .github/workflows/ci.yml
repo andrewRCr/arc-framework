@@ -11,43 +11,104 @@ on:
 permissions:
   contents: read
 
+# Cancel a superseded in-flight run when a new commit lands on the same ref - the
+# dominant waste lever as PR frequency rises. (docs.yml's pages group is
+# deliberately non-cancelling and stays separate.)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  # Auto-merge lane gate (see strategy-work-organization § Auto-Merge Lane).
-  # On a PR, classify the changed paths; the heavy jobs run only on the
-  # reviewed lane, and merge-ok rolls them up into the single required check
-  # so a planning-only PR gets a green check without the heavy jobs running.
+  # Classify the change on two independent axes:
+  #   lane   - merge policy (auto-merge vs reviewed). PR-only.
+  #   weight - CI cost (light vs heavy), resolved by scripts/classify-change.sh:
+  #            heavy when the change touches the canonical code surface and that
+  #            exact code tree has not already passed the heavy suite; light for a
+  #            docs-only change or an already-verified tree. A light run skips the
+  #            code checks, the integration/e2e suite, and the portability matrix.
+  # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
+  # merge-ok rolls the gated jobs up into the single required check.
   classify:
-    name: Classify lane
-    if: github.event_name == 'pull_request'
+    name: Classify lane & weight
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
     outputs:
-      lane: ${{ steps.lane.outputs.lane }}
+      lane: ${{ steps.c.outputs.lane }}
+      weight: ${{ steps.c.outputs.weight }}
+      reason: ${{ steps.c.outputs.reason }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: false
-      - id: lane
+      - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
-          base='${{ github.event.pull_request.base.sha }}'
-          head='${{ github.event.pull_request.head.sha }}'
-          changed="$(git diff --name-only "$base...$head")"
-          echo "changed paths:"; printf '%s\n' "$changed"
-          # Auto-merge lane = per-WU / per-cohort planning artifacts only,
-          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
-          # under active/ or backlog/. Any other path -> reviewed lane.
-          if printf '%s\n' "$changed" \
-            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
-            echo "lane=reviewed" >> "$GITHUB_OUTPUT"
+          # changed_all - the whole change (PR base...head, or push delta) - drives
+          # the lane (merge policy) decision below. The weight axis (CI cost) is
+          # resolved by scripts/classify-change.sh, which derives its own change set
+          # and fail-safes to heavy on any uncertainty.
+          event="$EVENT_NAME"
+          action="$EVENT_ACTION"
+
+          if [ "$event" = 'pull_request' ]; then
+            all_base='${{ github.event.pull_request.base.sha }}'
+            all_head='${{ github.event.pull_request.head.sha }}'
           else
-            echo "lane=auto" >> "$GITHUB_OUTPUT"
+            all_base='${{ github.event.before }}'
+            all_head='${{ github.sha }}'
+          fi
+          changed_all=''
+          if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
+             && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
+            changed_all="$(git diff --name-only "$all_base...$all_head" 2>/dev/null || true)"
           fi
 
-  quality:
-    name: Quality Checks
+          echo 'changed (all):'; printf '%s\n' "$changed_all"
+
+          # weight axis: delegate to the canonical classifier. It prints
+          # `weight=` and `reason=` (GITHUB_OUTPUT lines) on stdout and a decision
+          # line on stderr; the verified-tree lookback uses the ambient token
+          # (checks: read) and runs only in live CI.
+          weight_out="$(bash scripts/classify-change.sh decide "$event" "$all_base" "$all_head")"
+          if ! printf '%s\n' "$weight_out" | awk '
+            /^weight=(light|heavy)$/ { weight += 1; next }
+            /^reason=(docs-only|verified|unverified)$/ { reason += 1; next }
+            { bad = 1 }
+            END { exit !(NR == 2 && weight == 1 && reason == 1 && bad != 1) }
+          '; then
+            echo "::error::invalid classifier output shape"
+            printf '%s\n' "$weight_out"
+            exit 1
+          fi
+          printf '%s\n' "$weight_out" >> "$GITHUB_OUTPUT"
+          { echo '### CI classification'; echo; printf '%s\n' "$weight_out" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
+
+          # lane (PR only) from the WHOLE change: auto-merge lane = changes confined
+          # to planning/metadata files (PREFIX draft- / tasks- / meta- / notes- /
+          # cohort-* under active/ or backlog/); else reviewed. Computed from
+          # changed_all so a docs push never flips a code PR to auto-merge.
+          lane=reviewed
+          if [ "$event" = 'pull_request' ] && [ -n "$changed_all" ] \
+             && ! printf '%s\n' "$changed_all" \
+                  | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
+            lane=auto
+          fi
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
+
+  lint-typecheck-unit:
+    name: Lint, Typecheck & Unit Tests
     needs: classify
-    # Run on every push (feedback); on a PR, only the reviewed lane.
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.classify.outputs.lane == 'reviewed') }}
+    # Run after classification on every push and PR lane. The documentation /
+    # ARC-doc linters always run; code checks additionally gate on weight
+    # (fail-safe: run unless explicitly light).
+    if: ${{ !cancelled() && needs.classify.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -58,21 +119,29 @@ jobs:
         node-version: 'lts/*'
         cache: 'npm'
     - run: npm ci
-    - run: npm run build
+    # Documentation / ARC-doc linters - relevant to docs and code alike; always run.
     - run: npm run lint:arc:triggers
     - run: npm run lint:arc:domain-rules
     - run: npm run lint:arc:section-refs
     - run: npm run -s lint:md
-    - run: npm run lint:ts
-    - run: npm run lint:sh
-    - run: npm run typecheck
-    - run: npm run typecheck:test
-    - run: npm run test:unit
+    # Code checks - only when the change touches code (weight != light).
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run build
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run lint:ts
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run lint:sh
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run typecheck
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run typecheck:test
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
+      run: npm run test:unit
 
-  full-suite:
-    name: Full Test Suite
+  integration-e2e:
+    name: Integration & E2E Tests
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -89,15 +158,15 @@ jobs:
 
   # Cross-platform confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
-  # liveness), and CAS primitives — and the bounded true-race smoke that spawns
-  # real concurrent writers — are OS-sensitive in a way the ubuntu-only jobs
+  # liveness), and CAS primitives - and the bounded true-race smoke that spawns
+  # real concurrent writers - are OS-sensitive in a way the ubuntu-only jobs
   # above can't confirm. The rest of the pipeline stays ubuntu-only by design;
   # only this suite fans out across the three GitHub-hosted runner OSes (WSL is
   # Linux syscalls, covered by the ubuntu leg).
   portability:
     name: Portability (concurrency guards)
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     strategy:
       fail-fast: false
       matrix:
@@ -117,8 +186,8 @@ jobs:
 
   merge-ok:
     name: merge-ok
-    needs: [classify, quality, full-suite, portability]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    needs: [classify, lint-typecheck-unit, integration-e2e, portability]
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Roll up required jobs
@@ -130,4 +199,4 @@ jobs:
               failure|cancelled) echo "::error::a required job did not succeed"; exit 1 ;;
             esac
           done
-          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
+          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"

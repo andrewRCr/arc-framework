@@ -18,7 +18,7 @@
     "typecheck:test": "tsc --noEmit --project tsconfig.test.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:test",
     "lint:ts": "eslint src/ __tests__/",
-    "lint:sh": "bash arc/system/.internal/scripts/run-shellcheck.sh arc/system/.internal/githooks/pre-commit arc/system/.internal/githooks/commit-msg arc/system/.internal/githooks/pre-push arc/system/.internal/scripts/*.sh"
+    "lint:sh": "bash arc/system/.internal/scripts/run-shellcheck.sh arc/system/.internal/githooks/pre-commit arc/system/.internal/githooks/commit-msg arc/system/.internal/githooks/pre-push arc/system/.internal/scripts/*.sh ../../scripts/*.sh"
   },
   "engines": {
     "node": ">=24",

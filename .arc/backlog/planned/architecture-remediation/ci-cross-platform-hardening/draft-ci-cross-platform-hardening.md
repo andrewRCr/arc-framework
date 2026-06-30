@@ -16,18 +16,21 @@
 
 ## Facets
 
-1. **Cross-platform CI matrix + general optimization pass.** `.github/workflows/ci.yml` is `ubuntu-latest` only
+1. **Cross-platform CI matrix generalization + shake-out.** `.github/workflows/ci.yml` is `ubuntu-latest` only
    across every job (typecheck / test / build / lint) — no Windows/WSL/Mac matrix, so any cross-platform guarantee
    is currently CI-unverifiable. `state-ref-write-safety`'s portability criterion (exclusive-create, advisory
    lock, `process.kill(pid, 0)` liveness across Win/WSL/Mac) is the first to need it. GitHub-hosted runners are
    `ubuntu`/`windows`/`macos`; WSL is Linux syscalls (covered-by-proxy by `ubuntu`), so the load-bearing axis is
    `windows` vs `ubuntu`. Approach: (a) generalize the OS matrix from `state-ref-write-safety`'s first scoped
    matrixed job to the whole pipeline — this will shake out unrelated cross-platform test issues that then need
-   resolving; (b) a best-practice-informed robustness + efficiency pass — dependency caching, `concurrency` groups
-   (cancel-in-progress), fail-fast/matrix tuning, and the separate-config-vs-globbed test race (a raw
-   `npx vitest run` globs unit+e2e at high concurrency and races, unlike the sanctioned `npm test` that runs them
-   under separate configs). Coordinate with `cli-test-hardening` — its inbound buffer already tracks save/sync
-   concurrency flakes in the integration+e2e layer (the same race surface). _Captured during
+   resolving; (b) the matrix-coupled robustness items — fail-fast/matrix tuning, and the
+   separate-config-vs-globbed test race (a raw `npx vitest run` globs unit+e2e at high concurrency and races,
+   unlike the sanctioned `npm test` that runs them under separate configs). Coordinate with `cli-test-hardening` —
+   its inbound buffer already tracks save/sync concurrency flakes in the integration+e2e layer (the same race
+   surface). **Boundary with `ci-content-aware-depth`:** CI cost/efficiency — content-aware depth, the
+   merge-safety gate, and `concurrency` cancel-in-progress — is owned there; dependency caching already ships via
+   `setup-node`. This facet is scoped to cross-platform verifiability; the two share `.github/workflows/ci.yml`,
+   so sequence them (rebase the later WU on the earlier). _Captured during
    `state-ref-write-safety` task generation, 2026-06-26._
 
 2. **SHA-pin GitHub Actions + add Renovate/Dependabot.** Both workflow files reference actions by floating major
