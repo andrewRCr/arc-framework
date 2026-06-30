@@ -118,9 +118,38 @@ cmd_classify() {
   echo "light"
 }
 
+# tree-hash <ref> — print a deterministic, content-based identity for the code
+# surface at <ref>. Enumerates every tracked path (`git ls-tree -r`), keeps those
+# the canonical set classifies as code, and hashes the sorted `path:blob-sha`
+# lines. Reusing is_code_surface_path is the no-drift guarantee: the hashed set
+# is exactly what classify calls code. Any failure exits non-zero with no hash on
+# stdout, so a caller reads it as fail-safe heavy rather than a stale identity.
 cmd_tree_hash() {
-  echo "tree-hash: not yet implemented" >&2
-  return 1
+  local ref="${1:-}"
+  if [[ -z "${ref}" ]]; then
+    echo "tree-hash: a git ref is required" >&2
+    return 1
+  fi
+
+  local listing
+  if ! listing="$(git ls-tree -r "${ref}" 2>/dev/null)"; then
+    echo "tree-hash: cannot read tree at ref '${ref}'" >&2
+    return 1
+  fi
+
+  # ls-tree -r lines are "<mode> blob <sha>\t<path>"; keep code-surface blobs as
+  # "path:sha", sorted for a stable serialization independent of tree order.
+  local serialized
+  serialized="$(
+    while IFS=$'\t' read -r meta path; do
+      [[ -z "${path}" ]] && continue
+      if is_code_surface_path "${path}"; then
+        printf '%s:%s\n' "${path}" "${meta##* }"
+      fi
+    done <<<"${listing}" | LC_ALL=C sort
+  )"
+
+  printf '%s' "${serialized}" | git hash-object --stdin
 }
 
 main() {

@@ -143,11 +143,14 @@ so the heavy jobs run rather than silently skip (§ D records why this beats a b
   only touch docs?" — a docs push onto a code PR skips heavy **only** after confirming the code passed, and can
   never mask a red / incomplete code run. This is what retires the `before..after` delta machinery.
 
-**Code-tree hash.** Over the code-surface set (§ A): combine `git rev-parse HEAD:<dir>` **tree-SHAs** for the
-directory subtrees with `git rev-parse HEAD:<file>` **blob-SHAs** for the individual files, as a stable serialization
-(sorted `path:sha` lines, hashed). A path absent at HEAD records a sentinel rather than failing. Tree/blob SHAs are
-**rebase- and squash-stable** (commit SHAs churn; content hashes don't), which neutralizes those edges for free.
-Any failure to compute the hash → fail-safe `weight=heavy`.
+**Code-tree hash.** Over the code-surface set (§ A): enumerate every tracked path at the ref
+(`git ls-tree -r <ref>`), keep those the canonical path set classifies as code, and hash the sorted
+`path:blob-sha` lines. Deriving the hashed set from the **same predicate** the `weight` decision uses is the
+no-drift guarantee — there is no second member list to maintain, and a code path *outside* the explicitly-named
+dirs/files (caught by the fail-safe) is still hashed, so it can never silently match a prior run and skip the
+suite. Blob SHAs are **rebase- and squash-stable** (commit SHAs churn; content hashes don't), which neutralizes
+those edges for free; a removed path simply drops from the list (its absence changes the hash). Any failure to
+compute the hash → fail-safe `weight=heavy`, never a stale hash.
 
 ### C. Bounded efficiency pass
 

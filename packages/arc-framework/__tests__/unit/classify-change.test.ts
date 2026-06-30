@@ -12,7 +12,16 @@
 import { describe, it, expect, afterEach } from "vitest";
 
 import { CLASSIFY_SCRIPT, runScript } from "../helpers/run-script.js";
-import { createTempRepo, cleanupTempDir, makeCommit } from "../helpers/integration.js";
+import {
+  createTempRepo,
+  cleanupTempDir,
+  makeCommit,
+  execFileAsync,
+  writeFile,
+  mkdir,
+  join,
+  dirname,
+} from "../helpers/integration.js";
 
 /** Usage-error exit status (unknown or missing subcommand). */
 const EX_USAGE = 64;
@@ -121,5 +130,118 @@ describe("classify-change.sh classify", () => {
     expect(
       await classify(["README.md", "packages/arc-framework/src/cli.ts"]),
     ).toBe("heavy");
+  });
+});
+
+describe("classify-change.sh tree-hash", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  /** Write files (relative paths) into the repo, commit them, return the commit SHA. */
+  async function writeAndCommit(
+    repo: string,
+    files: Record<string, string>,
+    message: string,
+  ): Promise<string> {
+    for (const [rel, content] of Object.entries(files)) {
+      const full = join(repo, rel);
+      await mkdir(dirname(full), { recursive: true });
+      await writeFile(full, content);
+    }
+    const git = ["-c", "core.hooksPath=/dev/null"];
+    await execFileAsync("git", [...git, "add", "-A"], { cwd: repo });
+    await execFileAsync("git", [...git, "commit", "-m", message], { cwd: repo });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    return stdout.trim();
+  }
+
+  async function treeHash(repo: string, ref: string): Promise<string> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", ref], { cwd: repo });
+    expect(result.exitCode).toBe(0);
+    return result.stdout.trim();
+  }
+
+  it("is stable across a docs-only delta layered on the same code tree", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const codeCommit = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", "README.md": "v1\n" },
+      "code + docs",
+    );
+    const docsCommit = await writeAndCommit(repo, { "README.md": "v2\n" }, "docs only");
+
+    const hash = await treeHash(repo, codeCommit);
+    expect(hash).toMatch(/^[0-9a-f]{40}$/);
+    expect(await treeHash(repo, docsCommit)).toBe(hash);
+  });
+
+  it("changes when a code-surface file changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    const after = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 2;\n" },
+      "code change",
+    );
+
+    expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
+  });
+
+  it("does not change when only a genuine-docs file changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", ".arc/notes.md": "a\n" },
+      "code + arc docs",
+    );
+    const after = await writeAndCommit(repo, { ".arc/notes.md": "b\n" }, "arc docs only");
+
+    expect(await treeHash(repo, after)).toBe(await treeHash(repo, before));
+  });
+
+  it("changes when a code-surface file is removed", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(
+      repo,
+      {
+        "packages/arc-framework/src/a.ts": "export const a = 1;\n",
+        "packages/arc-framework/src/b.ts": "export const b = 2;\n",
+      },
+      "two code files",
+    );
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "rm", "packages/arc-framework/src/b.ts"], {
+      cwd: repo,
+    });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "remove b"], { cwd: repo });
+    const { stdout: after } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+
+    expect(await treeHash(repo, after.trim())).not.toBe(await treeHash(repo, before));
+  });
+
+  it("fails (fail-safe heavy) on a bad ref without emitting a hash", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    await makeCommit(repo, "initial");
+
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash", "no-such-ref"], { cwd: repo });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout.trim()).toBe("");
+  });
+
+  it("fails when no ref is given", async () => {
+    const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash"]);
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout.trim()).toBe("");
   });
 });

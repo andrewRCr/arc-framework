@@ -59,20 +59,18 @@ injectable seam in `decide`. Full path membership and the fixture-dependency rat
   tests cover the set. Root `*.md` is special-cased (a leading-`*` glob would also claim nested markdown the code
   surface owns).
 
-### `[ ]` **1.3 Code-tree hash over the canonical set**
+### `[x]` **1.3 Code-tree hash over the canonical set**
 
 - _Goal:_ The `tree-hash` subcommand computes a deterministic, rebase/squash-stable identity for the code tree
   at a given commit — so "is this exact code already verified?" can be asked without trusting commit SHAs.
 
-    - Serialize tree-SHAs (`git rev-parse <sha>:<dir>`) for directory subtrees and blob-SHAs for individual
-      files in the set, as sorted `path:sha` lines, then hash; a path absent at the commit records a sentinel.
-
-    - Build `test-first` (one behavior at a time):
-        - Same code tree across two commits (docs-only delta layered on top) → identical hash.
-        - A change to a code-surface file → different hash.
-        - A change to a genuine-docs file only → unchanged hash.
-        - An absent code-surface path → sentinel recorded, no failure.
-        - Any failure to compute (bad ref, plumbing error) → surfaces as fail-safe heavy, never a stale hash.
+- _Outcome:_ `tree-hash <ref>` enumerates tracked paths (`git ls-tree -r`), keeps those `is_code_surface_path`
+  calls code, and hashes the sorted `path:blob-sha` lines via `git hash-object --stdin`. Reusing the predicate
+  (rather than the originally-specced declared tree-SHA/blob-SHA set with sentinels) is the no-drift guarantee:
+  a fail-safe-classified path is still hashed, closing a verified-skip gap where a code path outside the named
+  dirs/files could match a prior run — `spec-*.md` § B amended to this serialization. Any failure (bad/missing
+  ref, plumbing error) exits non-zero with no stdout, so a caller reads fail-safe heavy, never a stale hash;
+  6 behavior tests cover it.
 
 ## **Phase 2:** `weight` run-decision and `classify` wiring
 
