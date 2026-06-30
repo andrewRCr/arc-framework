@@ -56,7 +56,7 @@ describe("classify-change.sh harness", () => {
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
 
-  it.each(["classify", "tree-hash"])(
+  it.each(["classify", "tree-hash", "decide"])(
     "recognizes the %s subcommand (not a usage error)",
     async (command) => {
       const result = await runScript(CLASSIFY_SCRIPT, [command]);
@@ -243,5 +243,122 @@ describe("classify-change.sh tree-hash", () => {
     const result = await runScript(CLASSIFY_SCRIPT, ["tree-hash"]);
     expect(result.exitCode).not.toBe(0);
     expect(result.stdout.trim()).toBe("");
+  });
+});
+
+describe("classify-change.sh decide (pure arms)", () => {
+  const tempDirs: string[] = [];
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  /** Write files into the repo, commit them, and return the commit SHA. */
+  async function writeAndCommit(
+    repo: string,
+    files: Record<string, string>,
+    message: string,
+  ): Promise<string> {
+    for (const [rel, content] of Object.entries(files)) {
+      const full = join(repo, rel);
+      await mkdir(dirname(full), { recursive: true });
+      await writeFile(full, content);
+    }
+    const git = ["-c", "core.hooksPath=/dev/null"];
+    await execFileAsync("git", [...git, "add", "-A"], { cwd: repo });
+    await execFileAsync("git", [...git, "commit", "-m", message], { cwd: repo });
+    const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+    return stdout.trim();
+  }
+
+  /** Run `decide` and parse the `weight=` / `reason=` output lines. */
+  async function decide(
+    repo: string,
+    event: string,
+    base: string,
+    head: string,
+  ): Promise<{ weight: string | undefined; reason: string | undefined }> {
+    const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], { cwd: repo });
+    expect(result.exitCode).toBe(0);
+    const weight = /^weight=(\S+)$/m.exec(result.stdout)?.[1];
+    const reason = /^reason=(\S+)$/m.exec(result.stdout)?.[1];
+    return { weight, reason };
+  }
+
+  it("is light/docs-only when the whole change touches no code surface", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n", "README.md": "v1\n" },
+      "code + docs",
+    );
+    const head = await writeAndCommit(
+      repo,
+      { "README.md": "v2\n", ".arc/notes.md": "n\n" },
+      "docs only",
+    );
+
+    // The docs-only arm is decided purely from the changed set — no Checks-API
+    // call. (The lookback seam, and a regression guard that docs-only never
+    // invokes it, land with the verified-tree work.)
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "light",
+      reason: "docs-only",
+    });
+  });
+
+  it("is heavy/unverified when the change touches the code surface", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "v1\n" }, "docs");
+    const head = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code change",
+    );
+
+    expect(await decide(repo, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("is heavy/unverified for an empty change set (base === head)", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const sha = await writeAndCommit(repo, { "README.md": "v1\n" }, "docs");
+
+    expect(await decide(repo, "pull_request", sha, sha)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("is heavy/unverified (fail-safe) when an endpoint ref does not resolve", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const head = await writeAndCommit(repo, { "README.md": "v1\n" }, "docs");
+
+    expect(await decide(repo, "pull_request", "0000000000000000000000000000000000000000", head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
+  it("is heavy/unverified on a push that touches code (no lookback on push)", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const base = await writeAndCommit(repo, { "README.md": "v1\n" }, "docs");
+    const head = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code change",
+    );
+
+    expect(await decide(repo, "push", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
   });
 });

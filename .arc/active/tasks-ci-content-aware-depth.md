@@ -95,13 +95,15 @@ enumerate-and-recompute (pure `classify`-side read), not embed-hash-in-check-run
   pull-request concern (per-tree verification history is the PR's job, and branch pushes keep fast heavy-on-code
   feedback).
 
-    - `[ ]` **2.1.a Docs-only and fail-safe arms (pure)**
-        - Whole-PR changed set (`base...head`) touches no code-surface path → `light` / `docs-only`.
-        - Missing token, API error, no resolvable diff, force-push with no match → `heavy` / `unverified`.
-
-        - Build `test-first` (one behavior at a time):
-            - Docs-only PR diff → `light` / `docs-only`, no API call attempted.
-            - Empty / unverifiable diff → `heavy` / `unverified`.
+    - `[x]` **2.1.a Docs-only and fail-safe arms (pure)**
+        - Added the `decide <event> <base> <head>` subcommand to `classify-change.sh`: it resolves `weight` ∈
+          `{light, heavy}` and `reason` ∈ `{docs-only, verified, unverified}` over the `base...head` change set,
+          emitting `weight=` / `reason=` lines (`$GITHUB_OUTPUT`-shaped) plus a human decision line on stderr.
+          Docs-only change (no code-surface path, reusing `is_code_surface_path`) → `light` / `docs-only` with no
+          API call; an empty, unresolvable (bad/force-pushed ref), or code-touching change → `heavy` /
+          `unverified` (fail-safe). The code-touching arm is the deferred `else` seam — push runs heavy by design,
+          PR awaits the 2.1.b lookback (until which it fail-safes heavy). The docs-only no-API-call regression
+          guard lands with that seam in 2.1.b.
 
     - `[ ]` **2.1.b Verified-tree lookback (enumerate-and-recompute)**
         - _Goal:_ A code-touching PR skips heavy only when some enumerated commit with HEAD's code-tree hash

@@ -95,8 +95,10 @@ usage() {
 Usage: classify-change.sh <command> [args...]
 
 Commands:
-  classify <file>...   Classify a changed-file set as code (heavy) or docs (light)
-  tree-hash <ref>      Compute the code-tree hash at a git ref
+  classify <file>...        Classify a changed-file set as code (heavy) or docs (light)
+  tree-hash <ref>           Compute the code-tree hash at a git ref
+  decide <event> <base> <head>
+                            Resolve the run weight (light|heavy) and reason for a change
 EOF
 }
 
@@ -152,6 +154,70 @@ cmd_tree_hash() {
   printf '%s' "${serialized}" | git hash-object --stdin
 }
 
+# True (exit 0) when any path in the newline-delimited set is on the code
+# surface; false (exit 1) when every path is genuine docs. Empty lines are
+# skipped, so a trailing newline never reads as a code path.
+_set_touches_code() {
+  local set="$1" file
+  while IFS= read -r file; do
+    [[ -z "${file}" ]] && continue
+    if is_code_surface_path "${file}"; then
+      return 0
+    fi
+  done <<<"${set}"
+  return 1
+}
+
+# decide <event> <base> <head> — resolve the run weight ∈ {light, heavy} and the
+# reason it was reached ∈ {docs-only, verified, unverified}, the run-vs-skip
+# decision the `classify` job emits. Prints `weight=<w>` and `reason=<r>` on
+# stdout (consumable as `$GITHUB_OUTPUT` lines) plus a human decision line on
+# stderr. <event> is the triggering event name (`pull_request` | `push`);
+# <base>/<head> are the change endpoints (a PR's base/head SHAs, or a push's
+# before/after).
+#
+# The decision is fail-safe to heavy: only a resolvable, non-empty change set
+# that touches no code surface skips the heavy suite. An empty, unresolvable, or
+# ambiguous change set runs heavy — an unknown change must never be mistaken for
+# docs-only. The docs-only arm is decided with no Checks-API call; the
+# verified-tree lookback for a code-touching pull request is the one live seam,
+# layered in separately.
+cmd_decide() {
+  local event="${1:-}" base="${2:-}" head="${3:-}"
+  local weight reason
+
+  # Whole change over base...head. Both endpoints must resolve; an unresolvable
+  # endpoint (force-push, missing ref) leaves the set empty for the fail-safe.
+  local changed=''
+  if [[ -n "${base}" && -n "${head}" ]] \
+     && git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
+     && git rev-parse -q --verify "${head}^{commit}" >/dev/null 2>&1; then
+    changed="$(git diff --name-only "${base}...${head}" 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${changed}" ]]; then
+    # Empty or unresolvable change set → fail-safe heavy.
+    weight=heavy
+    reason=unverified
+  elif ! _set_touches_code "${changed}"; then
+    # No code-surface path changed → docs-only, no API call.
+    weight=light
+    reason=docs-only
+  else
+    # Code touched. A push has no per-tree verification history to consult (that
+    # is the pull request's job), so it runs heavy for fast feedback; a pull
+    # request consults the verified-tree lookback. Until that lookback is wired
+    # in, both fail safe to heavy.
+    weight=heavy
+    reason=unverified
+  fi
+
+  printf 'decide: event=%s base=%s head=%s -> weight=%s reason=%s\n' \
+    "${event}" "${base}" "${head}" "${weight}" "${reason}" >&2
+  printf 'weight=%s\n' "${weight}"
+  printf 'reason=%s\n' "${reason}"
+}
+
 main() {
   local command="${1:-}"
   case "${command}" in
@@ -162,6 +228,10 @@ main() {
     tree-hash)
       shift
       cmd_tree_hash "$@"
+      ;;
+    decide)
+      shift
+      cmd_decide "$@"
       ;;
     -h | --help)
       usage
