@@ -477,6 +477,17 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
   });
 
   const TARGET = "Integration & E2E Tests";
+
+  it("uses the latest duplicate check run when reruns share a display name", async () => {
+    const { repo, checksDir, base, code, head } = await layeredRepo();
+    await injectChecks(checksDir, code, allGreen() + `${TARGET}\tfailure\n`);
+
+    expect(await decide(repo, checksDir, "pull_request", base, head)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
+
   it.each([
     ["a failed", greenExcept(TARGET, "failure")],
     ["an in-progress (empty conclusion)", greenExcept(TARGET, "")],

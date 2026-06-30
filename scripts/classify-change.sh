@@ -182,27 +182,60 @@ cmd_tree_hash() {
   printf '%s\n' "${hash}"
 }
 
-# Fetch the check-run results for <sha> as normalized "<name>\t<conclusion>"
-# lines. Live, this queries the GitHub Checks API with the ambient token; the
-# JSON→tsv extraction runs inside `gh` and is exercised only in live CI. Tests
-# inject results by pointing CLASSIFY_CHECK_RUNS_DIR at a directory of
-# "<sha>.tsv" fixtures. An absent fixture, an unset repository, or any `gh`
-# failure yields no lines — which the matcher below reads as "not verified".
+# Collapse check-run rows to the latest row per check name, emitting normalized
+# "<name>\t<conclusion>" lines. Fixture rows may be two-column normalized TSV,
+# where later rows win; live rows include timestamp + id tie-breakers.
+_latest_check_runs() {
+  awk -F '\t' '
+    NF >= 2 {
+      name = $1
+      conclusion = $2
+      if (NF >= 4) {
+        key = $3 sprintf("%020.0f", $4 + 0)
+      } else {
+        key = sprintf("%020d", NR)
+      }
+      if (!(name in latest_key) || key >= latest_key[name]) {
+        latest_key[name] = key
+        latest_line[name] = name "\t" conclusion
+      }
+      if (!(name in seen)) {
+        seen[name] = 1
+        order[++count] = name
+      }
+    }
+    END {
+      for (i = 1; i <= count; i++) {
+        print latest_line[order[i]]
+      }
+    }
+  '
+}
+
+# Fetch the latest check-run results for <sha> as normalized
+# "<name>\t<conclusion>" lines. Live, this queries the GitHub Checks API with the
+# ambient token; the JSON→tsv extraction runs inside `gh` and is exercised only
+# in live CI. Tests inject results by pointing CLASSIFY_CHECK_RUNS_DIR at a
+# directory of "<sha>.tsv" fixtures. An absent fixture, an unset repository, or
+# any `gh` failure yields no lines — which the matcher below reads as "not
+# verified".
 _fetch_check_runs() {
   local sha="$1"
   if [[ -n "${CLASSIFY_CHECK_RUNS_DIR:-}" ]]; then
     local fixture="${CLASSIFY_CHECK_RUNS_DIR}/${sha}.tsv"
-    [[ -f "${fixture}" ]] && cat "${fixture}"
+    [[ -f "${fixture}" ]] && _latest_check_runs <"${fixture}"
     return 0
   fi
   gh api --paginate "repos/${GITHUB_REPOSITORY:-}/commits/${sha}/check-runs" \
-    --jq '.check_runs[] | [.name, (.conclusion // "")] | @tsv' 2>/dev/null || true
+    --jq '.check_runs[] | [.name, (.conclusion // ""), (.started_at // .completed_at // .created_at // ""), ((.id // 0) | tostring)] | @tsv' \
+    2>/dev/null | _latest_check_runs || true
 }
 
-# True (exit 0) when the normalized check-run lines (<name>\t<conclusion>) carry
-# every heavy check at conclusion `success`. A heavy check that is failed,
-# in-progress (empty conclusion), or absent leaves its name unmatched, so the
-# set is incomplete and the function reports not-passed.
+# True (exit 0) when the latest normalized check-run lines
+# (<name>\t<conclusion>) carry every heavy check at conclusion `success`. A
+# heavy check that is failed, in-progress (empty conclusion), or absent leaves
+# its name unmatched, so the set is incomplete and the function reports
+# not-passed.
 _all_heavy_checks_passed() {
   local runs="$1" name
   for name in "${HEAVY_CHECK_NAMES[@]}"; do

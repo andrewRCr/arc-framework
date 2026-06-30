@@ -46,13 +46,15 @@ jobs:
       - id: c
         env:
           GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_ACTION: ${{ github.event.action }}
         run: |
           # changed_all - the whole change (PR base...head, or push delta) - drives
           # the lane (merge policy) decision below. The weight axis (CI cost) is
           # resolved by scripts/classify-change.sh, which derives its own change set
           # and fail-safes to heavy on any uncertainty.
-          event='${{ github.event_name }}'
-          action='${{ github.event.action }}'
+          event="$EVENT_NAME"
+          action="$EVENT_ACTION"
 
           if [ "$event" = 'pull_request' ]; then
             all_base='${{ github.event.pull_request.base.sha }}'
@@ -74,6 +76,16 @@ jobs:
           # line on stderr; the verified-tree lookback uses the ambient token
           # (checks: read) and runs only in live CI.
           weight_out="$(bash scripts/classify-change.sh decide "$event" "$all_base" "$all_head")"
+          if ! printf '%s\n' "$weight_out" | awk '
+            /^weight=(light|heavy)$/ { weight += 1; next }
+            /^reason=(docs-only|verified|unverified)$/ { reason += 1; next }
+            { bad = 1 }
+            END { exit !(NR == 2 && weight == 1 && reason == 1 && bad != 1) }
+          '; then
+            echo "::error::invalid classifier output shape"
+            printf '%s\n' "$weight_out"
+            exit 1
+          fi
           printf '%s\n' "$weight_out" >> "$GITHUB_OUTPUT"
           { echo '### CI classification'; echo; printf '%s\n' "$weight_out" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
 
