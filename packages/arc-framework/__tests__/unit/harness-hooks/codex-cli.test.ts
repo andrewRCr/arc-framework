@@ -399,9 +399,11 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(sessionStartHook?.command).toContain(
       ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
     );
+    expect(sessionStartHook?.command).toContain("|| exit 0");
     expect(sessionStartHook?.commandWindows).toContain(
       ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs",
     );
+    expect(sessionStartHook?.commandWindows).toContain("|| exit /b 0");
 
     const userPromptHook = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
     expect(userPromptHook).toMatchObject({

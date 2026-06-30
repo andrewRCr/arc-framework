@@ -60,7 +60,7 @@ import {
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
-import { resolveLoadSetManifest } from "../../lib/load-set/projection.js";
+import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
 
 const IDENTITY_MISSING_MESSAGE =
   "User probe skipped: `arc.identity` is not configured in git config.";
@@ -535,7 +535,7 @@ export async function runSessionInitStatus(
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionInitProbeResult["taskCursor"] | undefined =
-    active.ok && taskListPath !== null
+    active.ok && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
       ? await safeProbe(() => probes.taskCursor(taskListPath))
       : undefined;
 
@@ -634,7 +634,7 @@ export async function runRecoverStatus(
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionRecoverProbeResult["taskCursor"] | undefined =
-    active.ok && taskListPath !== null
+    active.ok && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
       ? await safeProbe(() => probes.taskCursor(taskListPath))
       : undefined;
 
@@ -700,6 +700,15 @@ function loadSetFromState(options: {
     }));
   } catch (err) {
     return fromRejection(err);
+  }
+}
+
+function taskListPathIsLoadSetSafe(taskListPath: string): boolean {
+  try {
+    assertLoadSetPath(taskListPath);
+    return true;
+  } catch {
+    return false;
   }
 }
 

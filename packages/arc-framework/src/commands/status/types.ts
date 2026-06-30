@@ -341,7 +341,7 @@ export interface SessionInitProbeResult {
   loadSet: Probe<LoadSetManifest>;
   /**
    * Deterministic cursor derived from the active task-list checkbox grammar.
-   * Present only when `active.taskListPath` resolves. Session-init may use it
+   * Present only when `active.value.taskListPath` resolves. Session-init may use it
    * as a line-anchor helper for strategic reads; it is not thought-state.
    */
   taskCursor?: Probe<TaskListCursorFileResult>;
@@ -380,7 +380,7 @@ export interface SessionRecoverProbeResult {
   cohortDocPath?: string;
   /** Ordered context load set projected from the freshly resolved recover state. */
   loadSet: Probe<LoadSetManifest>;
-  /** Deterministic task-list cursor, present only when `active.taskListPath` resolves. */
+  /** Deterministic task-list cursor, present only when `active.value.taskListPath` resolves. */
   taskCursor?: Probe<TaskListCursorFileResult>;
 }
 

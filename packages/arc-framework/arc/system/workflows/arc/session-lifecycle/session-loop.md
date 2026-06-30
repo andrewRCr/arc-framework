@@ -44,16 +44,15 @@ workflow mechanical and consistent. Conversational requests accomplish the same 
 ## When to End a Session
 
 Three triggers signal that a session should end or reset. Natural boundaries and quality degradation still point to
-handoff. Context pressure is a fork: hand off when pressure arrives at a natural boundary; compact and recover when
-pressure arrives between boundaries.
+handoff. Context pressure is a fork: hand off when pressure arrives at a natural boundary; compact and recover between
+boundaries when recovery is available.
 
 ### Approaching context limits
 
 Your platform will signal when context is running low through persistent indicators, on-demand commands, or threshold
 warnings. When you see that signal, first ask whether you are already at a natural boundary. If yes, wrap up the
-current work item, trigger handoff, then clear and reinitialize for a clean episodic baseline. If no, let the harness
-compact and recover with [session-recover][session-recover] or the `arc-recover` fallback; don't force an early handoff
-solely because the window is filling.
+current work item, trigger handoff, then clear and reinitialize for a clean episodic baseline. If no, recover with
+[session-recover][session-recover] or the `arc-recover` fallback when available; otherwise hand off and re-init.
 
 **Context monitoring is primarily the user's responsibility.** You have persistent visibility into context usage through
 your platform's reporting. Agent self-monitoring (threshold-based check-ins configured in agent-specific files) is a

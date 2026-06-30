@@ -45,12 +45,12 @@ export interface LoadSetProjectionInput {
 }
 
 function full(path: string): LoadSetEntry {
-  assertRepoRelativePath(path);
+  assertLoadSetPath(path);
   return { path, readMode: { kind: "full" } };
 }
 
 function partialStrategic(path: string): LoadSetEntry {
-  assertRepoRelativePath(path);
+  assertLoadSetPath(path);
   return { path, readMode: { kind: "partial-strategic" } };
 }
 
@@ -137,7 +137,8 @@ function safePathSegment(segment: string): string {
   return segment;
 }
 
-function assertRepoRelativePath(path: string): void {
+/** Assert that a path is safe to include in a load-set manifest. */
+export function assertLoadSetPath(path: string): void {
   const segments = path.split("/");
   if (
     path.length === 0

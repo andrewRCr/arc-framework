@@ -743,6 +743,13 @@ describe("runSessionInitStatus — orchestration", () => {
   });
 
   it("propagates session-init cohort-doc probe failures into loadSet", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
     const probes = sessionInitProbes({
       active: vi.fn(async () =>
         activeSessionInit({
@@ -753,6 +760,7 @@ describe("runSessionInitStatus — orchestration", () => {
           taskListPath: ".arc/active/tasks-x.md",
         })),
       cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+      taskCursor,
     });
     const result = await runSessionInitStatus({
       identity: "andrew",
@@ -767,9 +775,11 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.loadSet.error.message).toBe("cohort boom");
     }
     expect(result).not.toHaveProperty("cohortDocPath");
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
   });
 
-  it("keeps the session-init task cursor when load-set projection rejects the task-list path", async () => {
+  it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
       cursor: {
@@ -798,17 +808,8 @@ describe("runSessionInitStatus — orchestration", () => {
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
     }
-    expect(taskCursor).toHaveBeenCalledWith(".arc/active/CON/tasks-x.md");
-    expect(result.taskCursor?.ok).toBe(true);
-    if (result.taskCursor?.ok) {
-      expect(result.taskCursor.value).toMatchObject({
-        status: "found",
-        cursor: {
-          section: { id: "1.1" },
-          leaf: { id: "1.1" },
-        },
-      });
-    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 
   it("returns the session-init-scoped shape with mode=session-init", async () => {
@@ -1014,6 +1015,13 @@ describe("runRecoverStatus — lean recover envelope", () => {
   });
 
   it("propagates recover cohort-doc probe failures into loadSet", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
     const probes = sessionRecoverProbes({
       active: vi.fn(async () =>
         activeSessionInit({
@@ -1024,6 +1032,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
           taskListPath: ".arc/active/tasks-x.md",
         })),
       cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+      taskCursor,
     });
     const result = await runRecoverStatus({
       identity: "andrew",
@@ -1038,9 +1047,11 @@ describe("runRecoverStatus — lean recover envelope", () => {
       expect(result.loadSet.error.message).toBe("cohort boom");
     }
     expect(result).not.toHaveProperty("cohortDocPath");
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
   });
 
-  it("keeps the recover task cursor when load-set projection rejects the task-list path", async () => {
+  it("omits the recover task cursor when load-set projection rejects the task-list path", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
       cursor: {
@@ -1069,17 +1080,8 @@ describe("runRecoverStatus — lean recover envelope", () => {
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
     }
-    expect(taskCursor).toHaveBeenCalledWith(".arc/active/CON/tasks-x.md");
-    expect(result.taskCursor?.ok).toBe(true);
-    if (result.taskCursor?.ok) {
-      expect(result.taskCursor.value).toMatchObject({
-        status: "found",
-        cursor: {
-          section: { id: "1.1" },
-          leaf: { id: "1.1" },
-        },
-      });
-    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 });
 

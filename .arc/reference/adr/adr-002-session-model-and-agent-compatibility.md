@@ -256,8 +256,9 @@ still earn a handoff because they create a clean episodic baseline for the next 
 
 The recovered procedural floor is intentionally the same one a fresh `clear` + `session-init` load resolves from
 tracked state: briefs, rules, working memory, active metadata, task-list slice, lifecycle workflow, and declared
-methods/extensions. The difference is episodic. Handoff + `clear` + re-init carries a curated-minimal episodic
-baseline, while compaction carries the harness's opaque summary of the prior stretch. That residue is
+methods/extensions, plus the active cohort coordination doc when present. The difference is episodic. Handoff +
+`clear` + re-init carries a curated-minimal episodic baseline, while compaction carries the harness's opaque summary
+of the prior stretch. That residue is
 mode-relative: useful continuity within a mode, but noise at a mode transition. "Clean baseline" therefore means
 clean episodic baseline, not lighter procedural load; the reset comes from the fresh load after `clear`, while
 handoff supplies the durable capture before that reset.

@@ -953,14 +953,14 @@ Context monitoring is a shared responsibility between user and agent.
 platform-provided indicators — status bars, on-demand commands, threshold warnings. The user
 decides whether context pressure has arrived at a natural boundary or between boundaries. At a
 natural boundary, hand off, clear the harness conversation if needed, and re-enter through
-session-init for a clean episodic baseline. Between natural boundaries, let the session compact
-and recover; do not force an early handoff solely because the window is filling.
+session-init for a clean episodic baseline. Between natural boundaries, recover when available;
+otherwise hand off and re-init.
 
 **The agent is the secondary safety net.** Harness-level files (e.g., `CLAUDE.md`, `AGENTS.md`)
 may define threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches
 cases where the user isn't monitoring, but it's imprecise: agents assess their own token usage
 approximately, and the check-in interrupts workflow. When the fallback fires, use the same fork:
-handoff at a natural boundary; otherwise compact and recover.
+handoff at a natural boundary; otherwise recover when available, or hand off and re-init when not.
 
 **Monitoring thresholds:**
 

@@ -34,8 +34,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\"",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs\"",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && node \"$repo_root/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs\" || exit /b 0",
             "timeout": 30
           }
         ]
