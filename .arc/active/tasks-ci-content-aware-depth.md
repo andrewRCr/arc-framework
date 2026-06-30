@@ -211,8 +211,8 @@ red, then discarded.
 
 ## Success Criteria
 
-- `[ ]` Docs-only PR runs light — only doc/ARC linters; `Full Test Suite` and `Portability` skip; `merge-ok`
-  passes (reproduces #153 / #154 at near-zero cost).
+- `[ ]` Docs-only PR runs light — only doc/ARC linters; `Integration & E2E Tests` and `Portability` skip;
+  `merge-ok` passes (reproduces #153 / #154 at near-zero cost).
 - `[ ]` Docs-follow-up skip is safe — a code PR's docs-only latest push skips heavy only after a prior heavy run
   succeeded for the same code tree (confirmed live).
 - `[ ]` Red-code-then-docs does NOT merge — a failed/incomplete code push followed by a docs-only push does not

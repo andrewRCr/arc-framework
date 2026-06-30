@@ -15,8 +15,9 @@ The dev repo's GitHub Actions spend is disproportionate to the value delivered, 
 Three observed costs:
 
 - **Docs pay for code CI.** Any non-planning-artifact change — including pure markdown (`.arc/**` prose, READMEs,
-  strategies) classified `reviewed` lane — ran the full matrix: the `Quality Checks` code steps, the `Full Test
-  Suite`, and the 3-OS `Portability` matrix. Seen live on PRs #153 / #154 (pure markdown) running the entire
+  strategies) classified `reviewed` lane — ran the full matrix: the `Lint, Typecheck & Unit Tests` code steps,
+  the `Integration & E2E Tests` suite, and the 3-OS `Portability` matrix. Seen live on PRs #153 / #154 (pure
+  markdown) running the entire
   suite.
 - **Per-push waste on code PRs.** Code PRs *commonly* receive markdown-only follow-up pushes (the archive-a-WU
   ceremony does this every time, plus handoff / doc tweaks). Each re-ran the full matrix, because PR path filters
@@ -48,8 +49,9 @@ second):
 
 - **Cost follows content.** A change that provably cannot affect a build / lint / typecheck / test outcome does not
   pay for the code/test/cross-platform matrix.
-- **Safety is precise, not heuristic.** A PR may merge only when the `Full Test Suite` **and** the `Portability`
-  matrix succeeded for the PR's **current code tree** — identified exactly, never approximated by per-push file
+- **Safety is precise, not heuristic.** A PR may merge only when the `Integration & E2E Tests` **and** the
+  `Portability` matrix succeeded for the PR's **current code tree** — identified exactly, never approximated by
+  per-push file
   diffing. No docs follow-up can mask a red or incomplete code run.
 - **One source of truth for "code".** A single canonical definition of the code surface drives both the `weight`
   decision and the safety check — no drift between two glob lists.
@@ -120,8 +122,8 @@ decision** as follows:
       code-tree hash equals HEAD's (typically HEAD plus any docs-only commits layered on top of the last code
       commit).
     - For each such commit, query the Checks API (`GET /repos/{owner}/{repo}/commits/{sha}/check-runs`) and test
-      whether the heavy check-runs — `Full Test Suite`, all three `Portability` legs, and `Quality Checks` —
-      concluded `success`.
+      whether the heavy check-runs — `Integration & E2E Tests`, all three `Portability` legs, and
+      `Lint, Typecheck & Unit Tests` — concluded `success`.
     - If any matching commit clears that bar → `weight=light` (reason: `verified`). The heavy jobs skip — provably
       redundant, that exact code tree was actually verified.
 3. **Otherwise → `weight=heavy`** (reason: `unverified` / `fail-safe`). Covers first push, a not-yet-successful or
@@ -232,7 +234,7 @@ Co-located since `ci.yml` is already being edited; chosen for impact at rising c
 read`). No write scope added. The lookback queries only this repo's own check-runs via the default `GITHUB_TOKEN`.
 
 **Safety — the merge invariant.** The required check (`merge-ok`) must never pass for a PR whose current code tree
-lacks a successful `Full Test Suite` + `Portability` run. Because the skip decision is *gated on confirmed prior
+lacks a successful `Integration & E2E Tests` + `Portability` run. Because the skip decision is *gated on confirmed prior
 success* (not on a file heuristic), a skipped heavy job means "already verified," and `merge-ok`'s skip-tolerance
 is sound. Every uncertain path fails safe to running heavy.
 
@@ -273,8 +275,9 @@ the `weight` axis now also gates. Update that prose organically when this WU int
 
 Validated at work-unit completion:
 
-1. **Docs-only PR runs light.** A pure-markdown / `.arc/**` PR runs only the doc/ARC linters; `Full Test Suite`
-   and `Portability` skip; `merge-ok` passes. (Reproduces the #153 / #154 case at near-zero cost.)
+1. **Docs-only PR runs light.** A pure-markdown / `.arc/**` PR runs only the doc/ARC linters;
+   `Integration & E2E Tests` and `Portability` skip; `merge-ok` passes. (Reproduces the #153 / #154 case at
+   near-zero cost.)
 2. **Docs-follow-up skip is safe.** A code PR whose latest push is docs-only skips the heavy jobs **only** after a
    prior heavy run succeeded for the same code tree — confirmed live.
 3. **Red-code-then-docs does NOT merge.** A code push that fails (or never completes) the heavy suite, followed by a
