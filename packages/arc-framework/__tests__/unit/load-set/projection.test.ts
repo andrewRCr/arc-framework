@@ -147,6 +147,24 @@ describe("resolveLoadSetManifest", () => {
       sessionType: "integration",
       planningStage: null,
     })).toThrow("Load-set path must be repository-relative: .arc/backlog//cohort.md");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      metaPath: ".arc/active/CON/meta.md",
+      sessionType: "planning",
+      planningStage: "create-spec",
+    })).toThrow("Load-set path segment must be safe: CON");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      taskListPath: ".arc/active/tasks.md ",
+      sessionType: "execution",
+      planningStage: null,
+    })).toThrow("Load-set path segment must be safe: tasks.md ");
+    expect(() => resolveLoadSetManifest({
+      ...BASE_INPUT,
+      cohortDocPath: ".arc/backlog/planned/name./cohort.md",
+      sessionType: "integration",
+      planningStage: null,
+    })).toThrow("Load-set path segment must be safe: name.");
   });
 
   it("rejects unsafe user path segments before deriving personal context paths", () => {

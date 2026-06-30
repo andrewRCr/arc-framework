@@ -154,9 +154,10 @@ compaction, so the ARC procedural layer is restored without rerunning full sessi
 
 This is a project-scoped harness-config write, not a user/global hook, git-hook, or release-wrapper
 allowlist. Hooks run local commands, so install only after the user explicitly accepts the trust
-shift for the current project and harness. Do not auto-install during `arc init`, do not install for
-unrecognized harnesses, and do not hook `clear` — deliberate resets continue to enter ARC through
-ordinary `session-init`.
+shift for the current project and harness. Do not auto-install during `arc init`, and do not install
+for unrecognized harnesses. Do not install clear-time recovery injection; the only allowed `clear`
+hook is cleanup-only stale-marker removal, so deliberate resets continue to enter ARC through ordinary
+`session-init`.
 
 Three options:
 

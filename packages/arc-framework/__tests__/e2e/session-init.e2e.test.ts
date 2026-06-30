@@ -19,6 +19,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { COMPACTION_SEED_SCHEMA_VERSION } from "../../src/lib/compaction-seed/schema.js";
+import { LOAD_SET_MANIFEST_VERSION } from "../../src/lib/load-set/types.js";
 import { runArc, createTempRepo, cleanupTempDir } from "./helpers.js";
 
 const execFileAsync = promisify(execFile);
@@ -231,7 +233,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     const seed = JSON.parse(await readFile(seedPath, "utf8")) as CompactionSeedJson;
     const expectedRepoRoot = await realpath(tmpDir);
     expect(seed).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: COMPACTION_SEED_SCHEMA_VERSION,
       repoRoot: expectedRepoRoot,
       branch: "feat/foo",
       dirty: false,
@@ -245,7 +247,7 @@ describe("session-init E2E — sessionType across type variants", () => {
       uncommittedFiles: [],
     });
     expect(seed.head).toMatch(/^[0-9a-f]{40}$/);
-    expect(seed.loadSet.manifestVersion).toBe(1);
+    expect(seed.loadSet.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
     expect(seed.loadSet.entries).toContainEqual({
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },
@@ -289,7 +291,7 @@ describe("session-init E2E — sessionType across type variants", () => {
     expect(envelope.recommendedCombinedPrompt).toBeUndefined();
     expect(envelope.active.ok).toBe(true);
     expect(envelope.active.value?.resolution).toBe("single");
-    expect(envelope.loadSet?.value?.manifestVersion).toBe(1);
+    expect(envelope.loadSet?.value?.manifestVersion).toBe(LOAD_SET_MANIFEST_VERSION);
     expect(envelope.loadSet?.value?.entries).toContainEqual({
       path: ".arc/active/tasks-foo.md",
       readMode: { kind: "partial-strategic" },

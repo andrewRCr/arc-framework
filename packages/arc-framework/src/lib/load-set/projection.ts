@@ -152,4 +152,7 @@ function assertRepoRelativePath(path: string): void {
   ) {
     throw new Error(`Load-set path must be repository-relative: ${path}`);
   }
+  for (const segment of segments) {
+    safePathSegment(segment);
+  }
 }

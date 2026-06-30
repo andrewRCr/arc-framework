@@ -456,15 +456,20 @@ freshness-check commands below), not from SESSION-NOTES prose.
     read other sections on-demand during work.
 
     **Skip if** `sessionType === "planning"` (primary gate), the active meta file is not resolved,
-    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path), or
-    `taskCursor.ok === true && taskCursor.value.status === "missing"`.
+    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path),
+    `taskCursor.ok === true && taskCursor.value.status === "missing"` (task-list file absent), or the
+    anchor-source rules below resolve to no current task.
 
     - Path: use `active.value.taskListPath` from the probe. Do not reconstruct it from raw meta text.
-    - **Anchor source**: Prefer the `**Next Task:**` triple-anchor when it carries usable task id,
-      title, and line hint. If it is absent or incomplete and `taskCursor.ok === true` with
-      `taskCursor.value.status === "found"`, use `taskCursor.value.cursor.section` as the lookup
-      anchor for the section read, and keep `taskCursor.value.cursor.leaf` only as the in-section
-      current executable. This is a deterministic line-anchor helper only, not thought-state.
+    - **Anchor source**: Choose an anchor before any partial read. Prefer the `**Next Task:**`
+      triple-anchor when it carries usable task id, title, and line hint. If it is absent or incomplete,
+      require `taskCursor.ok === true` and `taskCursor.value.status === "found"`; use
+      `taskCursor.value.cursor.section` as the lookup anchor for the section read, and keep
+      `taskCursor.value.cursor.leaf` only as the in-section current executable. If the cursor reports
+      `no-open-task`, skip the partial read and surface that no executable checkbox is currently open.
+      If the cursor is malformed or the `taskCursor` probe failed, stop and surface the diagnostic. Do not
+      enter the graduated lookup without a chosen anchor. This is a deterministic line-anchor helper only,
+      not thought-state.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
         2. **Current phase preamble** — derive the phase identifier from the current section anchor by

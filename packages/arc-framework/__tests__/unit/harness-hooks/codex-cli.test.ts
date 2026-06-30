@@ -91,6 +91,10 @@ function shellArg(value: string): string {
   return `"${value.replaceAll("\"", "\\\"")}"`;
 }
 
+function nodeScriptCommand(path: string): string {
+  return `${shellArg(process.execPath)} ${shellArg(path)}`;
+}
+
 function recoveryFileSuffix(value: string): string {
   let suffix = "";
   for (const byte of Buffer.from(value, "utf8")) {
@@ -237,8 +241,8 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
-        ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
-        ARC_HOOK_STALE_BUILD_COMMAND: `${process.execPath} ${fakeBuildPath}`,
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+        ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
         CODEX_THREAD_ID: "thread-a",
       });
 
@@ -268,7 +272,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
       try {
         runHookScriptRaw(seedScriptPath, outside, {
-          ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
           CLAUDE_PROJECT_DIR: root,
           CODEX_THREAD_ID: "thread-a",
         });
@@ -320,7 +324,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
-        ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
         CODEX_THREAD_ID: "thread-a",
       });
 
@@ -348,7 +352,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       ].join("\n"));
 
       runHookScriptRaw(seedScriptPath, root, {
-        ARC_HOOK_ARC_COMMAND: `${process.execPath} ${fakeArcPath}`,
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
         CODEX_THREAD_ID: "thread-a",
       });
 

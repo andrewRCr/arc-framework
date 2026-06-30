@@ -381,4 +381,26 @@ describe("CompactionSeed schema", () => {
       expect(result.error.kind).toBe("invalid-schema");
     }
   });
+
+  it("rejects load-set partial-section entries with blank headings", () => {
+    const result = parseCompactionSeedJson(
+      JSON.stringify({
+        ...seed(),
+        loadSet: {
+          manifestVersion: LOAD_SET_MANIFEST_VERSION,
+          entries: [
+            {
+              path: ".arc/reference/QUICK-REFERENCE.md",
+              readMode: { kind: "partial-section", heading: " " },
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.kind).toBe("invalid-schema");
+    }
+  });
 });

@@ -769,6 +769,39 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(result).not.toHaveProperty("cohortDocPath");
   });
 
+  it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/CON/tasks-x.md",
+        })),
+      taskCursor,
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
+    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
+  });
+
   it("returns the session-init-scoped shape with mode=session-init", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({
@@ -996,6 +1029,39 @@ describe("runRecoverStatus — lean recover envelope", () => {
       expect(result.loadSet.error.message).toBe("cohort boom");
     }
     expect(result).not.toHaveProperty("cohortDocPath");
+  });
+
+  it("omits the recover task cursor when load-set projection rejects the task-list path", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/CON/tasks-x.md",
+        })),
+      taskCursor,
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
+    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 });
 

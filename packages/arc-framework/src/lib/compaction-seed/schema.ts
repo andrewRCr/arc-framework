@@ -341,7 +341,7 @@ function isReadMode(value: unknown): value is ReadMode {
     case "partial-strategic":
       return true;
     case "partial-section":
-      return typeof value.heading === "string";
+      return typeof value.heading === "string" && value.heading.trim().length > 0;
     default:
       return false;
   }

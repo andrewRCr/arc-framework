@@ -286,6 +286,7 @@ function resolveTaskListPath(
   if (taskListValue === null) return null;
   const raw = normalizeArcPath(taskListValue).trim();
   if (raw === "" || TASK_LIST_PLANNING_VALUES.has(raw)) return null;
+  if (raw === "." || raw === "..") return null;
   if (/^[A-Za-z]:/u.test(raw)) return null;
   const candidate = raw.includes("/")
     ? raw
