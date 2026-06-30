@@ -1,8 +1,8 @@
 # Metadata: ci-content-aware-depth
 
-| **State**     | **Owner** | **Branch**                     | **Class** | **Priority** |
-| ------------- | --------- | ------------------------------ | --------- | ------------ |
-| `Integrating` | `andrew`  | `chore/ci-content-aware-depth` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 2 — pre-PR review before adopting PR #155
+- **Next Action:** [none]
 
 - **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/155>
-- **Completed:** [none]
+- **Completed:** 2026-06-30
 
 ---
 
