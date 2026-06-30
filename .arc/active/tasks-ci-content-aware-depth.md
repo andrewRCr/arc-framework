@@ -142,12 +142,13 @@ _Purpose:_ Land the co-located efficiency win (cancel superseded runs) and the r
 _Design decisions:_ `ci.yml` is not split and no jobs are added/removed (job count is itself a cost lever);
 `merge-ok` keeps its name (it is the wired required check). See `spec-ci-content-aware-depth.md` § C, § D.
 
-### `[ ]` **3.1 Add `concurrency` with `cancel-in-progress`**
+### `[x]` **3.1 Add `concurrency` with `cancel-in-progress`**
 
 - _Goal:_ A re-push cancels the superseded in-flight CI run — the dominant waste lever once PR cadence rises.
 
-    - Add a workflow-level `concurrency` group keyed on `${{ github.workflow }}-${{ github.ref }}` with
-      `cancel-in-progress: true`; leave `docs.yml`'s non-cancelling `pages` group untouched.
+    - Added a workflow-level `concurrency` block to `ci.yml` (above `jobs:`) keyed on
+      `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`; `docs.yml`'s non-cancelling
+      `pages` group left untouched.
 
 ### `[ ]` **3.2 Functional naming and ARC-vocabulary scrub**
 

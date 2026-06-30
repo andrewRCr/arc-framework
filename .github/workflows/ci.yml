@@ -11,6 +11,13 @@ on:
 permissions:
   contents: read
 
+# Cancel a superseded in-flight run when a new commit lands on the same ref - the
+# dominant waste lever as PR frequency rises. (docs.yml's pages group is
+# deliberately non-cancelling and stays separate.)
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # Classify the change on two independent axes:
   #   lane   - merge policy (auto-merge vs reviewed); see strategy-work-organization
