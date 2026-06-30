@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "user-save-status-divergence",
+  "origin": "inbox",
+  "intent": "Make arc user save/status/push surfaces agree immediately after a successful save",
+  "branch": "fix/user-save-status-divergence",
+  "createdAt": "2026-06-30T23:56:39.677Z",
+  "originEntry": "Audit `arc user save`/status divergence after reported save"
+}
