@@ -46,6 +46,18 @@
   `skill-infrastructure-cleanup` (skill-inventory placement) is the adjacent home.
 - *Scope:* small (one generation gate, composes with the prompt reframe).
 
+### `[ ]` **Evaluate CLI-managed installers for harness recovery hooks and git-hook setup**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: agent-platform-support`), housekeep drain (2026-06-30);
+  captured during `compaction-recovery` Task 5.3 close / handoff.
+- *Concern:* `compaction-recovery` added an agent-driven opt-in path for Claude Code / Codex compaction recovery
+  hooks, while release wrappers already have `arc release setup install` and ARC git hooks use setup/reconfigure
+  mechanics. The asymmetry may be right, but it leaves a recurring question: should harness config writes and
+  git-hook integration have a first-class CLI installer instead of living only as workflow prose?
+- *Approach:* in this WU, evaluate whether per-harness hook recipes, `arc-recover` skill gating, and add-agent /
+  join flows want a shared CLI install / uninstall / status surface. Split or cross-link the git-hook portion to
+  `quality-gate-hooks` if the concern belongs to hook-tier setup rather than agent-platform installation.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)

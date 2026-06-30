@@ -13,6 +13,26 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Record compaction-recovery as a prototype-modality live instance**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: synthesis-modality`), housekeep drain (2026-06-30);
+  captured during the between-WU post-mortem after `compaction-recovery` shipped.
+- *Concern:* `compaction-recovery` was planned through the normal document-first draft/spec/tasks path, but its
+  original design failure surfaced only during late live e2e verification of the harness compaction path. That is
+  a concrete instance where the dominant unknown was empirical rather than purely conceptual: whether the harness
+  hooks and post-compaction recovery carrier behaved the way the design assumed.
+- *Approach:* use this as a live motivating example for selecting prototype or hybrid modality during pre-spec
+  synthesis. Signal: when a design depends on harness behavior, external tool lifecycle events, or a live e2e
+  integration seam, run a bounded spike before declaring the design settled. This complements, rather than
+  replaces, `planning-iteration-mechanics`' open-question and writable-task checks.
+
+---
+
 ## Concept
 
 ARC's existing planning model is document-driven: a `draft-*` doc is iterated through collaborative refinement
