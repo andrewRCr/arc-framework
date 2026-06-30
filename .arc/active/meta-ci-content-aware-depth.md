@@ -12,11 +12,11 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** Resolved CI cost/efficiency design; draft formalization-ready
+- **Last Completed:** create-spec — `spec-ci-content-aware-depth.md` finalized (detailed RFC)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [begin current workflow]
+- **Next Action:** generate-tasks — build the task list from `spec-ci-content-aware-depth.md`
 
 - **PR URL:** [none]
 - **Completed:** [none]
