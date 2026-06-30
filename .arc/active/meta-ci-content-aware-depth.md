@@ -12,13 +12,13 @@
 - **Task List:** `tasks-ci-content-aware-depth.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.3 — Retire the per-push delta machinery (Phase 2 complete)
-- **Next Task:** Task 3.1 — Add `concurrency` with `cancel-in-progress` (line ~140)
+- **Last Completed:** Task 5.1 — Complete verification (all phases done; Tier 3 green)
+- **Next Task:** [none] — all tasks complete
 - **Blockers:** [none]
 
 - **Next Action:** integrate-work-unit Step 1 — verify completion
 
-- **PR URL:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/155>
 - **Completed:** [none]
 
 ---
