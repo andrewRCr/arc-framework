@@ -111,23 +111,28 @@ enumerate-and-recompute (pure `classify`-side read), not embed-hash-in-check-run
           tests live in the sibling job), alongside `Quality Checks` → `Lint, Typecheck & Unit Tests`;
           `Portability (concurrency guards)` kept. Spec § D and the 3.2 task amended to record the wider scope.
 
-### `[ ]` **2.2 Wire the `classify` job to the script**
+### `[x]` **2.2 Wire the `classify` job to the script**
 
 - _Goal:_ `classify` calls `scripts/classify-change.sh`, emits the `weight` output and its reason, gains
   `checks: read`, and the heavy jobs gate on `needs.classify.outputs.weight != 'light'` — `merge-ok` unchanged.
 
-    - Grant the `classify` job `checks: read` (workflow default stays `contents: read`; no write scope added).
-    - Replace `classify`'s inline shell with a call to the script; surface `weight` + `reason` as outputs and in
-      the job summary; keep `lane` as-is.
-    - Rename `depth` → `weight` in every heavy-job `if:` condition and in the `merge-ok` rollup log line.
+- _Outcome:_ The `classify` job now delegates the weight axis to `bash scripts/classify-change.sh decide`
+  (invoked via `bash` because git records the script `100644`), appending its `weight=`/`reason=` stdout to
+  `$GITHUB_OUTPUT` and the step summary; the job gained job-level `contents: read` + `checks: read` and a
+  `GH_TOKEN` env for the live lookback (exercised only in Phase 4). All heavy-job `if:` gates and the `merge-ok`
+  log now read `weight`; `lane` and `changed_all` are unchanged. The per-push `changed_depth` block is left in
+  place but unconsumed — its removal is Task 2.3 (expand here, contract there).
 
-### `[ ]` **2.3 Retire the per-push delta machinery**
+### `[x]` **2.3 Retire the per-push delta machinery**
 
 - _Goal:_ The `before..after` latest-push file-diff logic from `97b5d299` is gone — the code-tree check
   subsumes and supersedes it — leaving no dead `changed_depth` path or stale comments.
 
-    - Remove the per-push `depth` computation and its belt-and-suspenders comments; keep `changed_all` only
-      where `lane` still needs the whole-PR set.
+- _Outcome:_ Removed the `push_before`/`push_after`/`changed_depth` block, its `changed (depth):` diagnostic,
+  and the belt-and-suspenders comments from `ci.yml`'s `classify` step; rewrote the lead comment to describe
+  only `changed_all` (still feeding `lane`) and the script-owned weight axis. `action` is retained, now only in
+  the classify diagnostic log. The verified-tree lookback in `classify-change.sh` is the sole successor to the
+  old per-push docs-skip heuristic.
 
 ## **Phase 3:** Bounded efficiency and structure/naming
 

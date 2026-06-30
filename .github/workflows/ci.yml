@@ -13,40 +13,38 @@ permissions:
 
 jobs:
   # Classify the change on two independent axes:
-  #   lane  - merge policy (auto-merge vs reviewed); see strategy-work-organization
-  #           § Auto-Merge Lane. PR-only; logic unchanged from the original.
-  #   depth - CI cost (light vs heavy). Heavy when the change touches code; light
-  #           when it is documentation/markdown only, so a docs PR or a docs-only
-  #           push skips the code suite, full-suite, and the portability matrix.
-  # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet
-  # light-depth. merge-ok rolls the gated jobs up into the single required check.
+  #   lane   - merge policy (auto-merge vs reviewed); see strategy-work-organization
+  #            § Auto-Merge Lane. PR-only; logic unchanged from the original.
+  #   weight - CI cost (light vs heavy), resolved by scripts/classify-change.sh:
+  #            heavy when the change touches the canonical code surface and that
+  #            exact code tree has not already passed the heavy suite; light for a
+  #            docs-only change or an already-verified tree. A light run skips the
+  #            code checks, the integration/e2e suite, and the portability matrix.
+  # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
+  # merge-ok rolls the gated jobs up into the single required check.
   classify:
     name: Classify lane
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
     outputs:
       lane: ${{ steps.c.outputs.lane }}
-      depth: ${{ steps.c.outputs.depth }}
+      weight: ${{ steps.c.outputs.weight }}
+      reason: ${{ steps.c.outputs.reason }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: false
       - id: c
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # Two changed-file sets drive the two axes:
-          #   changed_all   - the whole change (PR base...head, or push delta);
-          #                   drives lane (merge policy).
-          #   changed_depth - the latest push delta when resolvable, else the
-          #                   whole change; drives depth (CI cost). Using the
-          #                   latest push lets a docs-only push onto a code PR run
-          #                   light: the code was already tested on its own push,
-          #                   markdown can't change test outcomes, and the
-          #                   reviewed lane still requires human/CR sign-off.
-          #                   (Belt-and-suspenders "full-suite passed at least
-          #                   once on the PR" enforcement is intentionally out of
-          #                   scope here.)
-          # Fail safe to heavy: any uncertainty (unverifiable SHAs, force-push,
-          # empty diff) leaves depth=heavy, so code is never skipped as docs.
+          # changed_all - the whole change (PR base...head, or push delta) - drives
+          # the lane (merge policy) decision below. The weight axis (CI cost) is
+          # resolved by scripts/classify-change.sh, which derives its own change set
+          # and fail-safes to heavy on any uncertainty.
           event='${{ github.event_name }}'
           action='${{ github.event.action }}'
 
@@ -63,33 +61,15 @@ jobs:
             changed_all="$(git diff --name-only "$all_base...$all_head" 2>/dev/null || true)"
           fi
 
-          # Latest-push delta for depth (synchronize or push). PR opened/reopened
-          # has no prior head, so depth falls back to the whole change.
-          push_before=''
-          if [ "$event" = 'pull_request' ] && [ "$action" = 'synchronize' ]; then
-            push_before='${{ github.event.before }}'
-            push_after='${{ github.event.after }}'
-          elif [ "$event" = 'push' ]; then
-            push_before='${{ github.event.before }}'
-            push_after='${{ github.sha }}'
-          fi
-          changed_depth="$changed_all"
-          if [ -n "$push_before" ] \
-             && git rev-parse -q --verify "$push_before^{commit}" >/dev/null 2>&1 \
-             && git rev-parse -q --verify "$push_after^{commit}" >/dev/null 2>&1 \
-             && git merge-base --is-ancestor "$push_before" "$push_after" 2>/dev/null; then
-            changed_depth="$(git diff --name-only "$push_before..$push_after" 2>/dev/null || true)"
-          fi
-
           echo 'changed (all):'; printf '%s\n' "$changed_all"
-          echo 'changed (depth):'; printf '%s\n' "$changed_depth"
 
-          # depth=light only when the depth set is non-empty and every file is *.md.
-          depth=heavy
-          if [ -n "$changed_depth" ] && ! printf '%s\n' "$changed_depth" | grep -qvE '\.md$'; then
-            depth=light
-          fi
-          echo "depth=$depth" >> "$GITHUB_OUTPUT"
+          # weight axis: delegate to the canonical classifier. It prints
+          # `weight=` and `reason=` (GITHUB_OUTPUT lines) on stdout and a decision
+          # line on stderr; the verified-tree lookback uses the ambient token
+          # (checks: read) and runs only in live CI.
+          weight_out="$(bash scripts/classify-change.sh decide "$event" "$all_base" "$all_head")"
+          printf '%s\n' "$weight_out" >> "$GITHUB_OUTPUT"
+          { echo '### CI classification'; echo; printf '%s\n' "$weight_out" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
 
           # lane (PR only) from the WHOLE change: auto-merge lane = per-WU /
           # per-cohort planning artifacts only (PREFIX draft- / tasks- / meta- /
@@ -102,13 +82,13 @@ jobs:
             lane=auto
           fi
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
-          echo "classified lane=$lane depth=$depth (event=$event action=$action)"
+          echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
   quality:
     name: Quality Checks
     needs: classify
     # Run on every push (feedback); on a PR, only the reviewed lane. The code
-    # steps below additionally gate on depth (fail-safe: run unless explicitly
+    # steps below additionally gate on weight (fail-safe: run unless explicitly
     # light), so a docs-only change runs just the documentation linters.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.classify.outputs.lane == 'reviewed') }}
     runs-on: ubuntu-latest
@@ -126,24 +106,24 @@ jobs:
     - run: npm run lint:arc:domain-rules
     - run: npm run lint:arc:section-refs
     - run: npm run -s lint:md
-    # Code checks - only when the change touches code (depth != light).
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    # Code checks - only when the change touches code (weight != light).
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run build
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run lint:ts
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run lint:sh
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run typecheck
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run typecheck:test
-    - if: ${{ needs.classify.outputs.depth != 'light' }}
+    - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run test:unit
 
   full-suite:
     name: Full Test Suite
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.depth != 'light' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -168,7 +148,7 @@ jobs:
   portability:
     name: Portability (concurrency guards)
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.depth != 'light' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     strategy:
       fail-fast: false
       matrix:
@@ -201,4 +181,4 @@ jobs:
               failure|cancelled) echo "::error::a required job did not succeed"; exit 1 ;;
             esac
           done
-          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }} depth=${{ needs.classify.outputs.depth }})"
+          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }} weight=${{ needs.classify.outputs.weight }})"
