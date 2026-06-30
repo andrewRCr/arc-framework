@@ -157,11 +157,11 @@ export interface MutatorSpec {
    */
   clearBranchField?: boolean;
   /**
-   * Clear the meta `Current Workflow` field to `[none]`. The `activate` edge sets
-   * this: planning exits as `State: Active` takes over, so the planning-stage
-   * pointer no longer names a live sub-stage. A logical-only field write (no git
-   * op), mirroring {@link clearBranchField}; the inverse re-entry into planning
-   * re-sets the pointer via the stage-entry write.
+   * Clear the meta `Current Workflow` field to `[none]`. Edges that enter a
+   * terminal or non-planning state use this so stale workflow pointers do not
+   * survive after the phase transition. A logical-only field write (no git op),
+   * mirroring {@link clearBranchField}; re-entry into planning re-sets the
+   * pointer via the stage-entry write.
    */
   clearCurrentWorkflowField?: boolean;
 }
@@ -547,7 +547,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: SHIPPED,
     inverse: null,
     guards: [],
-    encodingUpdates: { artifacts: "relocate", clearBranchField: true, setPhase: true },
+    encodingUpdates: {
+      artifacts: "relocate",
+      clearBranchField: true,
+      setPhase: true,
+      clearCurrentWorkflowField: true,
+    },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: { reset: NONE } },
   },
@@ -557,7 +562,12 @@ export const TRANSITIONS: readonly TransitionRecord[] = [
     to: SHIPPED,
     inverse: null,
     guards: [],
-    encodingUpdates: { artifacts: "relocate", clearBranchField: true, setPhase: true },
+    encodingUpdates: {
+      artifacts: "relocate",
+      clearBranchField: true,
+      setPhase: true,
+      clearCurrentWorkflowField: true,
+    },
     sideEffects: withRender("user-workspace"),
     softFields: { nextTask: { reset: NONE }, nextAction: { reset: NONE }, lastCompleted: "leave", blockers: { reset: NONE } },
   },
