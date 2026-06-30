@@ -147,12 +147,13 @@ so the heavy jobs run rather than silently skip (§ D records why this beats a b
 
 **Code-tree hash.** Over the code-surface set (§ A): enumerate every tracked path at the ref
 (`git ls-tree -r <ref>`), keep those the canonical path set classifies as code, and hash the sorted
-`path:blob-sha` lines. Deriving the hashed set from the **same predicate** the `weight` decision uses is the
-no-drift guarantee — there is no second member list to maintain, and a code path *outside* the explicitly-named
-dirs/files (caught by the fail-safe) is still hashed, so it can never silently match a prior run and skip the
-suite. Blob SHAs are **rebase- and squash-stable** (commit SHAs churn; content hashes don't), which neutralizes
-those edges for free; a removed path simply drops from the list (its absence changes the hash). Any failure to
-compute the hash → fail-safe `weight=heavy`, never a stale hash.
+`path<TAB><mode type sha>` lines. Deriving the hashed set from the **same predicate** the `weight` decision uses
+is the no-drift guarantee — there is no second member list to maintain, and a code path *outside* the
+explicitly-named dirs/files (caught by the fail-safe) is still hashed, so it can never silently match a prior run
+and skip the suite. Tree-entry metadata is **rebase- and squash-stable** for the same tracked content and mode
+(commit SHAs churn; tree entries don't), and including mode/type means permission or object-type drift changes the
+identity instead of reusing an old success. A removed path simply drops from the list (its absence changes the
+hash). Any failure to compute the hash → fail-safe `weight=heavy`, never a stale hash.
 
 ### C. Bounded efficiency pass
 
