@@ -20,8 +20,7 @@ concurrency:
 
 jobs:
   # Classify the change on two independent axes:
-  #   lane   - merge policy (auto-merge vs reviewed); see strategy-work-organization
-  #            § Auto-Merge Lane. PR-only; logic unchanged from the original.
+  #   lane   - merge policy (auto-merge vs reviewed). PR-only.
   #   weight - CI cost (light vs heavy), resolved by scripts/classify-change.sh:
   #            heavy when the change touches the canonical code surface and that
   #            exact code tree has not already passed the heavy suite; light for a
@@ -30,7 +29,7 @@ jobs:
   # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet light.
   # merge-ok rolls the gated jobs up into the single required check.
   classify:
-    name: Classify lane
+    name: Classify lane & weight
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -78,10 +77,10 @@ jobs:
           printf '%s\n' "$weight_out" >> "$GITHUB_OUTPUT"
           { echo '### CI classification'; echo; printf '%s\n' "$weight_out" | sed 's/^/- /'; } >> "$GITHUB_STEP_SUMMARY"
 
-          # lane (PR only) from the WHOLE change: auto-merge lane = per-WU /
-          # per-cohort planning artifacts only (PREFIX draft- / tasks- / meta- /
-          # notes- / cohort-* under active/ or backlog/); else reviewed. Computed
-          # from changed_all so a docs push never flips a code PR to auto-merge.
+          # lane (PR only) from the WHOLE change: auto-merge lane = changes confined
+          # to planning/metadata files (PREFIX draft- / tasks- / meta- / notes- /
+          # cohort-* under active/ or backlog/); else reviewed. Computed from
+          # changed_all so a docs push never flips a code PR to auto-merge.
           lane=reviewed
           if [ "$event" = 'pull_request' ] && [ -n "$changed_all" ] \
              && ! printf '%s\n' "$changed_all" \
@@ -91,8 +90,8 @@ jobs:
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
           echo "classified lane=$lane (event=$event action=$action); see decide log above for weight"
 
-  quality:
-    name: Quality Checks
+  lint-typecheck-unit:
+    name: Lint, Typecheck & Unit Tests
     needs: classify
     # Run on every push (feedback); on a PR, only the reviewed lane. The code
     # steps below additionally gate on weight (fail-safe: run unless explicitly
@@ -127,8 +126,8 @@ jobs:
     - if: ${{ needs.classify.outputs.weight != 'light' }}
       run: npm run test:unit
 
-  full-suite:
-    name: Full Test Suite
+  integration-e2e:
+    name: Integration & E2E Tests
     needs: classify
     if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.weight != 'light' }}
     runs-on: ubuntu-latest
@@ -175,7 +174,7 @@ jobs:
 
   merge-ok:
     name: merge-ok
-    needs: [classify, quality, full-suite, portability]
+    needs: [classify, lint-typecheck-unit, integration-e2e, portability]
     if: ${{ !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:

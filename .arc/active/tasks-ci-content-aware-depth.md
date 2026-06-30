@@ -150,23 +150,19 @@ _Design decisions:_ `ci.yml` is not split and no jobs are added/removed (job cou
       `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`; `docs.yml`'s non-cancelling
       `pages` group left untouched.
 
-### `[ ]` **3.2 Functional naming and ARC-vocabulary scrub**
+### `[x]` **3.2 Functional naming and ARC-vocabulary scrub**
 
 - _Goal:_ Job/step names say what they do and the workflow carries no methodology vocabulary — reviewer-legible
   and compliant with the no-meta-references rule for durable config.
 
-    - Rename the `Quality Checks` job to `Lint, Typecheck & Unit Tests` and `Full Test Suite` to
-      `Integration & E2E Tests` (it runs only integration + e2e — unit tests live in the job above, so the old
-      name mis-implied containment); fix `classify`'s display name (`Classify lane`) to cover both axes. Keep
-      `Portability (concurrency guards)` (already functional).
-    - Apply those `name:` strings identically to the lookback's heavy-check-name constant (Task 2.1.b) — the
-      workflow `name:` fields and the matcher are one coupled surface; a mismatch silently defeats the skip. The
-      constant in `classify-change.sh` is the source of truth for the exact strings (matrix legs carry the
-      `(<os>)` suffix GitHub appends).
-    - Scrub methodology vocabulary from names and comments — including the `classify` comment citing
-      `strategy-work-organization § Auto-Merge Lane` (a doc-path/§ citation in durable config); keep `merge-ok`.
-      Leave the functional `lane` classification regex (the artifact-path patterns it matches) — that is
-      load-bearing logic, not vocabulary, and `lane` is unchanged.
+- _Outcome:_ Renamed jobs by both id and display name: `quality` → `lint-typecheck-unit` (Lint, Typecheck &
+  Unit Tests) and `full-suite` → `integration-e2e` (Integration & E2E Tests — the old id/name overclaimed
+  relative to its sibling jobs), and set the `classify` display name to `Classify lane & weight` (both axes);
+  kept `Portability (concurrency guards)` and `merge-ok` (the wired required check). The two heavy-job display
+  names match `HEAVY_CHECK_NAMES` in `classify-change.sh` exactly — verified against the matrix-expanded
+  portability legs — so the coupled skip-matcher surface stays intact (the matcher keys on display names, not
+  job ids). Scrubbed the `strategy-work-organization § Auto-Merge Lane` citation and the per-WU/cohort framing
+  from `ci.yml` comments, leaving the load-bearing `lane` regex and its artifact-path prefix list unchanged.
 
 ## **Phase 4:** Live CI verification
 
