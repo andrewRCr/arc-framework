@@ -8,15 +8,15 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-ci-content-aware-depth.md`
+- **Design:** `spec-ci-content-aware-depth.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** Resolved CI cost/efficiency design; draft formalization-ready
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** create-spec — formalize the resolved design in `draft-ci-content-aware-depth.md` into the spec
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
