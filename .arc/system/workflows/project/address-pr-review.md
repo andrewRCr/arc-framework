@@ -17,11 +17,19 @@ The cycle shape (fetch → triage → fix-now-commit → reply-for-defer/reject 
 → push → request-re-review → verify) is tool-agnostic — adapt commands to other review tools as needed.
 
 **Triggering reviews on this repo.** CodeRabbit here is **manual-trigger**: a review pass does not start
-on its own when commits are pushed. Each pass is requested by posting `@coderabbitai review` as a PR
-comment — both the **initial** review after the PR is opened and **every re-review** after pushing fixes.
-Request the initial review only when the user has opted into the CodeRabbit cycle for this PR; this
-workflow then drives the response loop below. (Other review tools may auto-review on push — when adapting,
-drop the explicit re-trigger and treat the push itself as the trigger.)
+on its own when commits are pushed. Two request commands, with different scope:
+
+- `@coderabbitai review` — the **initial** pass after the PR opens, and thereafter an **incremental**
+  pass over only the commits pushed since the last review.
+- `@coderabbitai full review` — a fresh **whole-PR** re-read, re-evaluating the entire diff regardless of
+  what changed since the last pass.
+
+The convergence loop usually wants whole-PR re-reads after fixes land, so `@coderabbitai full review` is
+the default for substantive re-review passes; reserve `@coderabbitai review` for the initial request and
+for narrow, explicitly-incremental or final-diff checks (§ 7). Request the initial review only when the
+user has opted into the CodeRabbit cycle for this PR; this workflow then drives the response loop below.
+(Other review tools may auto-review on push — when adapting, drop the explicit re-trigger and treat the
+push itself as the trigger.)
 
 ---
 
@@ -35,8 +43,9 @@ For each CodeRabbit review pass:
 4. Post replies + resolve threads for defer/reject (before re-requesting review, so CR doesn't re-raise)
 5. Completion doc freshness check; update if needed
 6. Push
-7. Recommend whether another pass is warranted; if so, post `@coderabbitai review` to request it —
-   otherwise resolve the fixed threads and close
+7. Recommend whether another pass is warranted; if so, post `@coderabbitai full review` (or
+   `@coderabbitai review` for a narrow incremental check) to request it — otherwise resolve the fixed
+   threads and close
 8. Post-re-review verification (auto-resolution caught fix-now threads; defer/reject stayed resolved);
    return to step 1 only when new findings justify it
 
@@ -190,12 +199,15 @@ one-line recommendation for the user to decide:
 
 - **Recommend another round** when the fix-now changes were substantive enough to plausibly introduce
   new issues, or a prior pass left material findings a re-review would re-check. On approval, post
-  `@coderabbitai review` as a PR comment (the same command that requests the initial review) to start
-  the pass.
+  `@coderabbitai full review` as a PR comment for a fresh whole-PR re-read — the convergence-loop
+  default, since fixes can interact across the diff and a whole-PR pass re-checks the PR as a whole. Use
+  `@coderabbitai review` (the incremental command) instead only when the remaining concern is a narrow,
+  final addressed-findings diff and re-reading the whole PR would just add latency.
 - **Recommend closing** when the remaining work is cosmetic, all substantive findings are resolved, or
   successive passes are returning only noise — resolve the fixed threads, address any non-inline
-  remainder, and move to merge. To stop any further auto-passes while closing out, post
-  `@coderabbitai pause` (see Tool-Specific Notes).
+  remainder, and move to merge. Each whole-PR pass costs ~5–10 minutes of latency (§ 8), so once passes
+  return only nitpicks, recommend stopping rather than looping for a clean slate. To stop any further
+  auto-passes while closing out, post `@coderabbitai pause` (see Tool-Specific Notes).
 
 The recommendation is advisory — the user decides whether to spend another round.
 
@@ -246,8 +258,11 @@ Output `0` → PR ready to merge.
   three (step 1) so body nitpicks and outside-diff notes aren't missed.
 - **Auto-resolution:** CR self-closes threads when the relevant file changed and the fix matches.
   Don't rely on it 100% — verify in step 7.
-- **Trigger:** post `@coderabbitai review` as a PR comment to request a review pass — the initial
-  review and every subsequent round are requested this way.
+- **Trigger:** two commands with different scope. `@coderabbitai review` runs the initial pass when the
+  PR opens, then **incremental** passes over commits since the last review; `@coderabbitai full review`
+  forces a fresh **whole-PR** re-read. Default to `full review` for substantive re-review passes (the
+  convergence loop wants whole-PR re-evaluation after fixes), and reserve `review` for the initial
+  request and narrow incremental / final-diff checks (§ 7).
 - **Pause / resume:** `@coderabbitai pause` suppresses any auto-review on subsequent pushes;
   `@coderabbitai resume` re-enables. This repo's cycle is manual-trigger already (a push starts no
   pass), so pause is rarely needed — relevant only if auto-review is enabled and you must push
@@ -260,14 +275,15 @@ Output `0` → PR ready to merge.
 
 ## Anti-Patterns
 
-- **Request a re-review before all cycle findings are addressed** (code or replies). Posting
-  `@coderabbitai review` on partial state confuses the diff and can resurface defer/reject items —
-  push and request the next pass only once the cycle's fixes and replies are in place.
+- **Request a re-review before all cycle findings are addressed** (code or replies). Posting a review
+  request (`@coderabbitai review` or `full review`) on partial state confuses the diff and can resurface
+  defer/reject items — push and request the next pass only once the cycle's fixes and replies are in
+  place.
 - **Reply to fix-now / silent-fix items.** CR auto-resolves on file change; replies just add
   noise. Save replies for items where the rationale isn't visible from the diff.
-- **Conflate commit or push count with review-pass count.** Wrong axis — each `@coderabbitai review`
-  you post is one pass; commit and push counts are independent. You control passes by when you
-  request them, not by batching or splitting the work.
+- **Conflate commit or push count with review-pass count.** Wrong axis — each review request
+  (`@coderabbitai review` or `full review`) you post is one pass; commit and push counts are
+  independent. You control passes by when you request them, not by batching or splitting the work.
 - **Skip the completion doc check for substantive cycles.** The completion doc IS the PR
   description; stale headline sections undermine the review it supports.
 - **Update the meta file for cycle bookkeeping** (cycle numbers, drafted replies, commit
