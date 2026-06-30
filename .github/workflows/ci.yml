@@ -12,41 +12,72 @@ permissions:
   contents: read
 
 jobs:
-  # Auto-merge lane gate (see strategy-work-organization § Auto-Merge Lane).
-  # On a PR, classify the changed paths; the heavy jobs run only on the
-  # reviewed lane, and merge-ok rolls them up into the single required check
-  # so a planning-only PR gets a green check without the heavy jobs running.
+  # Classify the change on two independent axes:
+  #   lane  - merge policy (auto-merge vs reviewed); see strategy-work-organization
+  #           § Auto-Merge Lane. PR-only; logic unchanged from the original.
+  #   depth - CI cost (light vs heavy). Heavy when the change touches code; light
+  #           when it is documentation/markdown only, so a docs PR or a docs-only
+  #           push skips the code suite, full-suite, and the portability matrix.
+  # The axes are independent: a docs PR is reviewed-lane (no auto-merge) yet
+  # light-depth. merge-ok rolls the gated jobs up into the single required check.
   classify:
     name: Classify lane
-    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     outputs:
-      lane: ${{ steps.lane.outputs.lane }}
+      lane: ${{ steps.c.outputs.lane }}
+      depth: ${{ steps.c.outputs.depth }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: false
-      - id: lane
+      - id: c
         run: |
-          base='${{ github.event.pull_request.base.sha }}'
-          head='${{ github.event.pull_request.head.sha }}'
-          changed="$(git diff --name-only "$base...$head")"
-          echo "changed paths:"; printf '%s\n' "$changed"
-          # Auto-merge lane = per-WU / per-cohort planning artifacts only,
-          # matched by PREFIX: draft- / tasks- / meta- / notes- / cohort-*
-          # under active/ or backlog/. Any other path -> reviewed lane.
-          if printf '%s\n' "$changed" \
-            | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
-            echo "lane=reviewed" >> "$GITHUB_OUTPUT"
+          # Resolve the changed-file set for this event. Fail safe to heavy: any
+          # uncertainty (unverifiable SHAs, empty diff) leaves depth=heavy, so a
+          # code change is never mistaken for docs and allowed to skip tests.
+          event='${{ github.event_name }}'
+          if [ "$event" = 'pull_request' ]; then
+            base='${{ github.event.pull_request.base.sha }}'
+            head='${{ github.event.pull_request.head.sha }}'
           else
-            echo "lane=auto" >> "$GITHUB_OUTPUT"
+            base='${{ github.event.before }}'
+            head='${{ github.sha }}'
           fi
+
+          changed=''
+          if git rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 \
+             && git rev-parse -q --verify "$head^{commit}" >/dev/null 2>&1; then
+            changed="$(git diff --name-only "$base...$head" 2>/dev/null || true)"
+          fi
+          echo 'changed paths:'; printf '%s\n' "$changed"
+
+          # depth=light only when there is at least one changed file and every
+          # changed file is markdown (*.md); anything else -> heavy.
+          depth=heavy
+          if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.md$'; then
+            depth=light
+          fi
+          echo "depth=$depth" >> "$GITHUB_OUTPUT"
+
+          # lane (PR only): auto-merge lane = per-WU / per-cohort planning
+          # artifacts only, matched by PREFIX draft- / tasks- / meta- / notes- /
+          # cohort-* under active/ or backlog/. Any other path -> reviewed lane.
+          lane=reviewed
+          if [ "$event" = 'pull_request' ] && [ -n "$changed" ] \
+             && ! printf '%s\n' "$changed" \
+                  | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
+            lane=auto
+          fi
+          echo "lane=$lane" >> "$GITHUB_OUTPUT"
+          echo "classified lane=$lane depth=$depth"
 
   quality:
     name: Quality Checks
     needs: classify
-    # Run on every push (feedback); on a PR, only the reviewed lane.
+    # Run on every push (feedback); on a PR, only the reviewed lane. The code
+    # steps below additionally gate on depth (fail-safe: run unless explicitly
+    # light), so a docs-only change runs just the documentation linters.
     if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.classify.outputs.lane == 'reviewed') }}
     runs-on: ubuntu-latest
     steps:
@@ -58,21 +89,29 @@ jobs:
         node-version: 'lts/*'
         cache: 'npm'
     - run: npm ci
-    - run: npm run build
+    # Documentation / ARC-doc linters - relevant to docs and code alike; always run.
     - run: npm run lint:arc:triggers
     - run: npm run lint:arc:domain-rules
     - run: npm run lint:arc:section-refs
     - run: npm run -s lint:md
-    - run: npm run lint:ts
-    - run: npm run lint:sh
-    - run: npm run typecheck
-    - run: npm run typecheck:test
-    - run: npm run test:unit
+    # Code checks - only when the change touches code (depth != light).
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run build
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run lint:ts
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run lint:sh
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run typecheck
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run typecheck:test
+    - if: ${{ needs.classify.outputs.depth != 'light' }}
+      run: npm run test:unit
 
   full-suite:
     name: Full Test Suite
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.depth != 'light' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -89,15 +128,15 @@ jobs:
 
   # Cross-platform confirmation for the same-machine write-safety guards. The
   # exclusive-create (`wx`/`O_EXCL`), advisory-lock (`mkdir` + `process.kill`
-  # liveness), and CAS primitives — and the bounded true-race smoke that spawns
-  # real concurrent writers — are OS-sensitive in a way the ubuntu-only jobs
+  # liveness), and CAS primitives - and the bounded true-race smoke that spawns
+  # real concurrent writers - are OS-sensitive in a way the ubuntu-only jobs
   # above can't confirm. The rest of the pipeline stays ubuntu-only by design;
   # only this suite fans out across the three GitHub-hosted runner OSes (WSL is
   # Linux syscalls, covered by the ubuntu leg).
   portability:
     name: Portability (concurrency guards)
     needs: classify
-    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' }}
+    if: ${{ !cancelled() && github.event_name == 'pull_request' && needs.classify.outputs.lane == 'reviewed' && needs.classify.outputs.depth != 'light' }}
     strategy:
       fail-fast: false
       matrix:
@@ -130,4 +169,4 @@ jobs:
               failure|cancelled) echo "::error::a required job did not succeed"; exit 1 ;;
             esac
           done
-          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }})"
+          echo "merge-ok ✓ (lane=${{ needs.classify.outputs.lane }} depth=${{ needs.classify.outputs.depth }})"
