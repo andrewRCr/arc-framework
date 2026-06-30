@@ -395,6 +395,30 @@
   retired slug; each re-points to whichever decomposition successor owns its specific dependency — a
   per-reference design call, not a blanket rename.
 
+### `[ ]` **Persist errand tip SHA so `arc errand close` auto-confirms without `--force`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
+  captured during `lifecycle-ux-polish` task generation.
+- _Concern:_ after `gh pr merge --delete-branch` deletes the local errand branch, `arc errand close` has no branch
+  ref and no stored SHA to verify containment, so it cannot auto-confirm that the errand shipped and the operator
+  falls back to `--force`. Persisting the final pushed branch tip in the errand record would let close verify
+  containment with `git merge-base --is-ancestor <record.tip> <base>` and clear the record without the flag.
+- _Approach:_ schema bump (`ErrandRecord` v2, v1-tolerant) plus a tip-refresh at the errand-branch push. An
+  open-time SHA would falsely confirm an unmerged errand; the SHA needs to refresh when the final tip is pushed.
+  That lifecycle-stateful record behavior composes with this WU's records-rehome scope.
+
+### `[ ]` **Audit whether the `session-state` method still earns its place or should be deprecated**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);
+  captured during `compaction-recovery` generate-tasks grounding audit.
+- _Concern:_ `system/methods/session-state.md` is a thin read/write contract over `meta-*`, `SESSION-NOTES`, and
+  git notes, carrying `[No override configured]`. Its override seam may be illusory because ARC hard-assumes those
+  managed-record shapes across `session-init` and `session-handoff`, so an override that changes the shape is not
+  actually viable.
+- _Approach:_ while formalizing managed records, decide whether `session-state` remains useful as a stable method
+  contract, gets narrowed to non-shape guidance, or is deprecated entirely in favor of this WU's managed-record
+  documentation.
+
 ---
 
 ## Purpose
