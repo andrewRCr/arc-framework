@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "recovery-between-wu-loci",
+  "origin": "inbox",
+  "intent": "Add out-of-WU locus recovery rule to session-recover.md (+ package mirror), keyed off harness-summary intent",
+  "branch": "fix/recovery-between-wu-loci",
+  "createdAt": "2026-06-30T13:16:26.794Z",
+  "originEntry": "Teach compaction recovery about between-WU loci"
+}
