@@ -137,27 +137,27 @@ cmd_classify() {
   echo "light"
 }
 
-# Print a deterministic, content-based identity for the code surface at <ref>:
-# enumerate every tracked path (`git ls-tree -r`), keep those the canonical set
-# classifies as code, and hash the sorted `path:blob-sha` lines. Reusing
-# is_code_surface_path is the no-drift guarantee — the hashed set is exactly what
-# classify calls code. Returns non-zero with no stdout on any failure, so callers
-# read it as fail-safe heavy rather than trusting a stale identity. Quiet: the
-# CLI wrapper below emits the user-facing diagnostics.
+# Print a deterministic identity for the code surface at <ref>: enumerate every
+# tracked path (`git ls-tree -r`), keep those the canonical set classifies as
+# code, and hash the sorted `path<TAB><mode type sha>` lines. Reusing
+# is_code_surface_path is the no-drift guarantee — the hashed set is exactly
+# what classify calls code. Returns non-zero with no stdout on any failure, so
+# callers read it as fail-safe heavy rather than trusting a stale identity.
+# Quiet: the CLI wrapper below emits the user-facing diagnostics.
 _code_tree_hash() {
   local ref="$1" listing
   if ! listing="$(git ls-tree -r "${ref}" 2>/dev/null)"; then
     return 1
   fi
 
-  # ls-tree -r lines are "<mode> blob <sha>\t<path>"; keep code-surface blobs as
-  # "path:sha", sorted for a stable serialization independent of tree order.
+  # ls-tree -r lines are "<mode> blob <sha>\t<path>"; keep the full tree entry
+  # metadata so mode/type-only changes still produce a new code-tree identity.
   local serialized
   serialized="$(
     while IFS=$'\t' read -r meta path; do
       [[ -z "${path}" ]] && continue
       if is_code_surface_path "${path}"; then
-        printf '%s:%s\n' "${path}" "${meta##* }"
+        printf '%s\t%s\n' "${path}" "${meta}"
       fi
     done <<<"${listing}" | LC_ALL=C sort
   )"

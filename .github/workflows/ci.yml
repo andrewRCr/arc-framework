@@ -105,10 +105,10 @@ jobs:
   lint-typecheck-unit:
     name: Lint, Typecheck & Unit Tests
     needs: classify
-    # Run on every push (feedback); on a PR, only the reviewed lane. The code
-    # steps below additionally gate on weight (fail-safe: run unless explicitly
-    # light), so a docs-only change runs just the documentation linters.
-    if: ${{ !cancelled() && (github.event_name != 'pull_request' || needs.classify.outputs.lane == 'reviewed') }}
+    # Run after classification on every push and PR lane. The documentation /
+    # ARC-doc linters always run; code checks additionally gate on weight
+    # (fail-safe: run unless explicitly light).
+    if: ${{ !cancelled() && needs.classify.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
@@ -187,7 +187,7 @@ jobs:
   merge-ok:
     name: merge-ok
     needs: [classify, lint-typecheck-unit, integration-e2e, portability]
-    if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+    if: ${{ always() && !cancelled() && github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     steps:
       - name: Roll up required jobs

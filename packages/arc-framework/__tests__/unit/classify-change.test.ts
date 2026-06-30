@@ -196,6 +196,25 @@ describe("classify-change.sh tree-hash", () => {
     expect(await treeHash(repo, after)).not.toBe(await treeHash(repo, before));
   });
 
+  it("changes when a code-surface file mode changes", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const before = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code",
+    );
+    await execFileAsync("git", ["update-index", "--chmod=+x", "packages/arc-framework/src/a.ts"], {
+      cwd: repo,
+    });
+    await execFileAsync("git", ["-c", "core.hooksPath=/dev/null", "commit", "-m", "mode change"], {
+      cwd: repo,
+    });
+    const { stdout: after } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: repo });
+
+    expect(await treeHash(repo, after.trim())).not.toBe(await treeHash(repo, before));
+  });
+
   it("does not change when only a genuine-docs file changes", async () => {
     const repo = await createTempRepo();
     tempDirs.push(repo);
