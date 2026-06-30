@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "housekeep-user-inbox",
+  "origin": "description",
+  "intent": "Route confirmed USER-INBOX work-unit captures to their backlog homes",
+  "branch": "chore/housekeep-user-inbox",
+  "createdAt": "2026-06-30T12:27:09.693Z"
+}
