@@ -12,12 +12,13 @@
 - **Task List:** `tasks-ci-content-aware-depth.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.3 — Code-tree hash over the canonical set (Phase 1 complete)
-- **Next Task:** Task 2.1 — Assemble the `weight` decision in the script (line ~86)
+- **Last Completed:** Task 2.3 — Retire the per-push delta machinery (Phase 2 complete)
+- **Next Task:** Task 3.1 — Add `concurrency` with `cancel-in-progress` (line ~140)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — build the `decide` subcommand's docs-only / fail-safe arms then the
-  verified-tree lookback, test-first with the Checks-API result injected (tasks-ci-content-aware-depth.md)
+- **Next Action:** Begin Task 3.1 — add a workflow-level `concurrency` group keyed on
+  `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`; leave `docs.yml`'s `pages`
+  group untouched (tasks-ci-content-aware-depth.md)
 
 - **PR URL:** [none]
 - **Completed:** [none]
