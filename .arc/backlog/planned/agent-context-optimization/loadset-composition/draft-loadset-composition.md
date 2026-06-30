@@ -32,6 +32,22 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - *Coordination:* if this becomes a cross-surface routing matrix rather than a load-set membership rule, coordinate
   with `documentation-surface-routing`; the immediate drift surfaced in always-loaded `DEV-RULES` content.
 
+### `[ ]` **Cohort coordination doc: does it earn always-loaded (full) status at session-init?**
+
+- *Routed from:* `compaction-recovery` generate-tasks grounding audit (2026-06-28); surfaced while building the
+  load-set projection.
+- *Concern:* `session-init.md` Step 3 item 11 reads the active WU's `cohort-*.md` **in full** every init when a
+  backing doc exists (gated on `cohortDocPath`) — heavier than the on-demand treatment every other sometimes-relevant
+  coordination surface gets (strategies, domain rules, methods). The probe already emits `cohortDocPath` as
+  awareness, so the full read is the demotable part. Apply the recognition-reliability rule: is the cross-member
+  sequencing the doc carries a **constraint the agent can't afford to miss** (→ earns T1/full), or
+  explicit-trigger / awareness-demotable? Genuinely open — a sufficiently **operationally lean** coordination doc may
+  *earn* the full load; the point is to decide it by the rule, not by accretion.
+- *Coordination:* `compaction-recovery`'s load-set projection faithfully mirrors current item-11 policy (cohort doc
+  as a `full` member when present), so recovery and init stay parity-identical; when this WU re-tiers the cohort
+  doc it updates `session-init.md` item 11 **and** the projection entry together (one policy, two consumers). Same
+  `session-init.md` Step 3 + `strategy-session-operations.md` § Context Loading Model surface as the entries above.
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in

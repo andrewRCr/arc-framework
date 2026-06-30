@@ -760,10 +760,10 @@ describe("executeTransition — soft-field disposition", () => {
     expect(softWrites[0]!.updates).toEqual({ "Next Task": "[none]", "Next Action": "[none]" });
   });
 
-  it("writes soft fields at the post-relocation path when the edge relocates (archive)", async () => {
+  it("writes orientation fields at the post-relocation path when the edge relocates (archive)", async () => {
     // archive (Active → Shipped): relocate + setPhase + teardown + delete, with
-    // nextTask / nextAction / blockers reset and lastCompleted left.
-    const { ctx, softWrites } = buildSpies({ metas: [ACTIVE_META] });
+    // currentWorkflow / nextTask / nextAction / blockers reset and lastCompleted left.
+    const { ctx, softWrites, currentWorkflowWrites } = buildSpies({ metas: [ACTIVE_META] });
     const toDir = ".arc/completed/2026-q2/01_demo";
 
     const outcome = await executeTransition(ctx, {
@@ -778,7 +778,8 @@ describe("executeTransition — soft-field disposition", () => {
 
     expect(outcome.status).toBe("ok");
     if (outcome.status !== "ok") return;
-    // The soft-field write targets the relocated meta, not the old active/ path.
+    // The orientation writes target the relocated meta, not the old active/ path.
+    expect(currentWorkflowWrites[0]).toEqual({ path: `${toDir}/meta-demo.md`, stage: "[none]" });
     expect(softWrites[0]!.path).toBe(`${toDir}/meta-demo.md`);
     expect(softWrites[0]!.updates).toEqual({
       "Next Task": "[none]",

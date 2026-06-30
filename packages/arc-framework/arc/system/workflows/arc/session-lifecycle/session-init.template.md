@@ -37,7 +37,8 @@ The probe returns a single JSON envelope the agent consumes:
 | `dirty`                     | Working-tree state from `git status --porcelain` (`value.state`: clean / dirty; `value.fileCount`). Folded into the user/worktree `recommendedPromptText` so Step 2 doesn't re-probe                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `extensions`                | `value.active`: the **active-extensions list** — consulted by fire-point directives in downstream workflows                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `config`                    | `value.settings`: session-relevant settings (`session.remote_sync`, `session.init_pull.worktree`, `session.init_pull.notes`, `session.init_load.notes`, `branch.protection`, `pm.mode`, `commit.format`, `commit.context_footer`, `commit.interlock`, `push.interlock`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `active`                    | Active meta file resolution (`value.resolution`: single / multiple / none; `value.path`, `value.candidates`, `value.layout`, `value.currentWorkflow`, `value.taskListPath`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `taskCursor`                | Optional deterministic task-list cursor probe (`Probe<{status: found / no-open-task / malformed / missing}>`) when `active.value.taskListPath` resolves. On success, read `taskCursor.ok === true` and branch on `taskCursor.value.status`; on failure, `taskCursor.ok === false` carries the probe error. Session-init may use a `found` cursor as a line-anchor helper for the active task-list strategic read when the meta `Next Task` triple-anchor is absent or incomplete; this helper is not thought-state and does not override a complete, matching triple-anchor. `missing` means the resolved task-list file is unavailable and hard-skips the task-list read.                                                                                                                                            |
 | `domainRules`               | `value.rules`: `{path, domain, purpose}` tuples from `DEV-RULES.{DOMAIN}.md` files; `value.warnings`: frontmatter parse diagnostics                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `recommendedCombinedPrompt` | Top-level. Composed combined-prompt text when both `worktree` and `user` resolve to `recommendedAction === "prompt"`; `null` otherwise                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `recovery`                  | Pre-computed branch-gone recovery resolution; present only on the `branch-gone` arm, and only when `roster` resolved (it consumes the roster to assemble candidates). `value.kind`: `resolved` (one high-confidence candidate), `surface` (multiple — operator chooses), or `main-fallback` (none — offer `main`). Candidates carry `branch`, optional `worktreePath`, and `proposedAction` (`switch` / `removable` / `external`). Acted on by Step 2's branch-gone recovery precondition (Step 6 narrates declines)                                                                                                                                                                                                                                                                                                  |
@@ -402,8 +403,8 @@ session-state, follow the override instead.
             Include an abort option (`[q]`). If the user aborts, surface the candidate list and halt
             session-init.
     - **Task reference format**: `**Next Task:**` uses triple-anchor format —
-      `Task 5.5 — Implement validation (line ~1903)`. All three anchors should be present; any two are
-      sufficient for reliable lookup.
+      `Task 5.5 — Implement validation (line ~1903)`. Use it for task-list anchoring only when all three
+      anchors are usable; incomplete values fall back to `taskCursor` in item 9 when available.
 
 8. **Personal session context** — read both per-WU and cross-WU surfaces. Uses `{identity}` from
    Step 1. Read directly (no `test -f` precheck — Read tool handles missing files gracefully).
@@ -454,25 +455,34 @@ freshness-check commands below), not from SESSION-NOTES prose.
 9. **Active task list** — **strategic partial read**. Reference material too large to internalize upfront;
     read other sections on-demand during work.
 
-    **Skip if** `sessionType === "planning"` (primary gate) or the active meta file is not resolved or
-    shows `**Task List:** [none]` (defense-in-depth shape checks — redundant under inference but kept as
-    direct checks).
+    **Skip if** `sessionType === "planning"` (primary gate), the active meta file is not resolved,
+    `active.value.taskListPath === null` (`**Task List:** [none]`, unsafe path, or unresolved path),
+    `taskCursor.ok === true && taskCursor.value.status === "missing"` (task-list file absent), or the
+    anchor-source rules below resolve to no current task.
 
-    - Path: `dirname(active.value.path) + '/' + <Task List value>` — the `**Task List:**` field
-      carries the bare filename (`tasks-[name].md`); the directory is the meta file's directory
-      (co-located by convention). Path-form values (legacy) work too, used as-is.
+    - Path: use `active.value.taskListPath` from the probe. Do not reconstruct it from raw meta text.
+    - **Anchor source**: Choose an anchor before any partial read. Prefer the `**Next Task:**`
+      triple-anchor when it carries usable task id, title, and line hint. If it is absent or incomplete,
+      require `taskCursor.ok === true` and `taskCursor.value.status === "found"`; use
+      `taskCursor.value.cursor.section` as the lookup anchor for the section read, and keep
+      `taskCursor.value.cursor.leaf` only as the in-section current executable. If the cursor reports
+      `no-open-task`, skip the partial read and surface that no executable checkbox is currently open.
+      If the cursor is malformed or the `taskCursor` probe failed, stop and surface the diagnostic. Do not
+      enter the graduated lookup without a chosen anchor. This is a deterministic line-anchor helper only,
+      not thought-state.
     - **Always read** — three sections, nothing else:
         1. **Header** — bullet list above the first `## **Phase` heading
-        2. **Current phase preamble** — derive the phase identifier from the current task identifier by
+        2. **Current phase preamble** — derive the phase identifier from the current section anchor by
            stripping the leaf segment (`5.3` → Phase `5`, `3.R.e` → Phase `3.R`); locate the heading with
            `^## \*\*Phase {id}:\*\*`. **Preamble boundary contract:** read from the heading line through
            the line immediately before the first `- [ ]` / `- [x]` bullet under the phase. Multi-paragraph
            framing (Purpose, Design decisions, Rationale per the codified shape) is included; task entries
            themselves are not
         3. **Current task section** — resolved via graduated lookup below
-    - **Graduated lookup** using the triple-anchor reference from `**Next Task:**`:
-        1. Jump to the line hint (`line ~N`) — if the task number matches there, done
-        2. Search for the task number (e.g., `**4.2`) if the line hint is stale
+    - **Graduated lookup** using the chosen anchor:
+        1. Jump to the line hint (`line ~N` from `Next Task`, or `taskCursor.value.cursor.section.lineHint`
+           when using the cursor) — if the anchor id matches there, done
+        2. Search for the anchor id (e.g., `**4.2`) if the line hint is stale
         3. Search for the title fragment if the task was renumbered
         4. If none resolve, report the mismatch (Step 7)
     - **Structural mapping**: Apply the Step 3 prelude rule with delimiter `^## \*\*Phase` (or

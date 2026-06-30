@@ -14,6 +14,32 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Recovery load-set emitter — a proto resolve-then-load consumer (additive `loadSet` slice)**
+
+- *Routed from:* `compaction-recovery` draft-design (2026-06-28).
+- *Seam:* `compaction-recovery`'s `session-recover` needs a deterministic "given current state, the ordered load-set
+  with read-modes." Built interim as a **minimal proto resolve-then-load**: an additive `loadSet` slice on the
+  session-init probe envelope — one shared projection encoding session-init Step 3's documented per-type loadset
+  policy (the fixed universal set + `sessionType`-selected state docs + the active-extensions slot + the cohort
+  doc; **not** `arc.methods`, which loads on-demand). Read-modes are a tagged union mirroring Step 3's three
+  disciplines (`full` / `partial-section` / `partial-strategic`). Not a competing loader — CW later subsumes this
+  projection.
+- *Interim consumer split (CW owns the session-init rewire):* `compaction-recovery` ships the slice consumed by
+  **`session-recover` only**; `session-init` Step 3 keeps its inline enumeration, **parity-tested** against the
+  projection so the two cannot drift. The prose-level rewire of `session-init` Step 3 to *consume* the slice —
+  replacing the inline item list with a loop over `loadSet` entries, across the canonical + `.template` +
+  `.contributor` copies — is **CW's deliverable**, folded into its general resolve-then-load. Rewiring the
+  most-exercised workflow now was rejected as high-risk for a benefit CW delivers as its core job.
+- *Invariant CW / `loadset-composition` rely on:* the projection resolves load-set **membership** from shared policy
+  (`loadset-composition`'s domain), never a recover-specific hardcoded list — so the subsumption is a fork-free
+  lift-and-shift. Recovery stays a *consumer* of policy, not a definer.
+- *Temporary duplication to DRY:* `session-recover` carries a short inline copy of the `partial-strategic` task-list
+  slicing contract so a freshly compacted agent does not need `session-init` in context. When CW lifts load-set
+  consumption into the general resolve-then-load substrate, factor that read-mode execution contract into one
+  shared source and have both session-init and recovery consume it.
+- *Also:* recovery is a concrete motivating case for CW's conditional-arm / `sessionType`-gated fragment declaration
+  — the load-set varies by resolved `sessionType`, exactly the resolve-then-load pattern.
+
 ### `[ ]` **Stable-anchor convention for cross-file workflow step references (ordinals → anchors)**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: composable-workflows`), work-routing-discipline housekeep

@@ -24,6 +24,17 @@
   to numbered PRD requirements. This WU owns the final task-list grammar / persistence rule and should coordinate
   that form-dependent anchor shape rather than hard-code PRD-only R-IDs.
 
+### `[ ]` **Task-list cursor marker grammar as a CLI contract**
+
+- *Routed from:* `compaction-recovery` Phase 4.R (2026-06-28).
+- *Concern:* `arc status --session-init --json`, `arc status --recover --json`, compaction seed emission, and
+  `arc recover audit --json` now derive a deterministic `taskCursor` from task-list checkbox markers. The parser
+  treats parent headings shaped like `### \`[ ]\` **<id> <title>**` and subtask bullets shaped like
+  at least four spaces followed by `- \`[ ]\` **<id> <title>**` (or plain text) as the operational cursor grammar.
+- *Coordination:* when this WU formalizes task-list marker/spacing rules, preserve or consciously migrate that
+  cursor grammar. If the convention changes, update the shared `task-list/cursor` projection and the recovery
+  audit together so agents never infer current leaf state from stale meta fields.
+
 ### `[ ]` **Per-phase approval cascade in `2_generate-tasks` audit pass (reconcile with § Scope item 3)**
 
 - *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02).

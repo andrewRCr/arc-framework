@@ -5,9 +5,10 @@ git hooks, and a CLI package — all agent-platform agnostic.
 
 ## How ARC Works
 
-**Session lifecycle:** Sessions are bounded — init via the `arc-session` skill, handoff via
-`arc-handoff`. State files: active work unit's `meta-{name}.md` (tracked, `active/`)
-and `SESSION-NOTES.md` (gitignored, `user/{identity}/`).
+**Session lifecycle:** Sessions are bounded — init via `arc-session`; recover after compaction through
+`session-recover` (hook-injected when installed; `arc-recover` skill as manual fallback); handoff via
+`arc-handoff`. State files: active work unit's
+`meta-{name}.md` (tracked, `active/`) and `SESSION-NOTES.md` (gitignored, `user/{identity}/{work-unit}/`).
 
 **Work pipeline:** PRD → task generation → task execution loop. One task = one review
 increment; see DEV-RULES.ARC § Task Execution.

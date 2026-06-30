@@ -11,7 +11,10 @@
 
 import { describe, it, expect } from "vitest";
 
-import { normalizeGitConfigValue } from "../../../src/handlers/status.js";
+import {
+  normalizeGitConfigValue,
+  resolveSessionInitDirtyState,
+} from "../../../src/handlers/status.js";
 
 describe("normalizeGitConfigValue", () => {
   it("returns null for undefined (git config key absent)", () => {
@@ -35,5 +38,38 @@ describe("normalizeGitConfigValue", () => {
   it("preserves internal whitespace and punctuation", () => {
     expect(normalizeGitConfigValue("team-lead")).toBe("team-lead");
     expect(normalizeGitConfigValue("first last")).toBe("first last");
+  });
+});
+
+describe("resolveSessionInitDirtyState", () => {
+  it("uses the compaction-seed snapshot when it is available", async () => {
+    const fallback = async () => ({ state: "clean" as const, fileCount: 0 });
+
+    await expect(resolveSessionInitDirtyState({
+      compactionSeedGitSnapshotP: Promise.resolve({
+        head: "72d145021bf4166fa70efc5b9fd11916cf0a359a",
+        uncommittedFiles: ["src/changed.ts", "README.md"],
+      }),
+      fallback,
+    })).resolves.toEqual({
+      state: "dirty",
+      fileCount: 2,
+    });
+  });
+
+  it("falls back to the primary dirty probe when the sidecar snapshot fails", async () => {
+    let fallbackCalls = 0;
+
+    await expect(resolveSessionInitDirtyState({
+      compactionSeedGitSnapshotP: Promise.reject(new Error("rev-parse failed")),
+      fallback: async () => {
+        fallbackCalls += 1;
+        return { state: "clean", fileCount: 0 };
+      },
+    })).resolves.toEqual({
+      state: "clean",
+      fileCount: 0,
+    });
+    expect(fallbackCalls).toBe(1);
   });
 });

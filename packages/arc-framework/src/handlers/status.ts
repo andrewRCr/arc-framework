@@ -22,11 +22,13 @@ import * as p from "@clack/prompts";
 import {
   buildSessionInitStatusSummary,
   buildStatusSummary,
+  runRecoverStatus,
   runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
 } from "../commands/status.js";
 import type {
+  CompactionSeedWriteStatus,
   SessionHandoffProbes,
   SessionInitProbes,
   StatusProbes,
@@ -74,7 +76,7 @@ import { runPartialPushMarkerSurface } from "../lib/session-init/partial-push-ma
 import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
 import { extractReminderEntries } from "../lib/session-init/inbox-reminders.js";
 import { shouldNudge, type NudgeMarkerState } from "../lib/session-init/nudge-rate-limit.js";
-import { runDirtyStateStatus } from "../lib/git/dirty-state.js";
+import { runDirtyStateStatus, type DirtyStateResult } from "../lib/git/dirty-state.js";
 import { runHeadHashStatus } from "../lib/git/head-hash.js";
 import { runPushabilityStatus } from "../lib/git/pushability.js";
 import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
@@ -92,7 +94,14 @@ import { createUserIOContext, gitExec } from "../lib/io-context.js";
 import { listErrandRecords, type ErrandRecord } from "../lib/errand/record.js";
 import { resolveReleaseRouting } from "../lib/release/routing.js";
 import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import {
+  emitCompactionSeed,
+  parseUncommittedFiles,
+  type CompactionSeedGitSnapshot,
+  type EmitCompactionSeedResult,
+} from "../lib/compaction-seed/emitter.js";
 import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
+import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
 import { requireArcProjectRoot } from "./shared.js";
@@ -100,12 +109,15 @@ import { requireArcProjectRoot } from "./shared.js";
 export interface StatusCliOptions {
   sessionInit?: boolean;
   sessionHandoff?: boolean;
+  recover?: boolean;
   user?: boolean;
   /** `--local`: render the user view from local refs without a network read. */
   local?: boolean;
   /** Commander's negation of `--no-fetch` (defaults to `true`); `false` skips the network read. */
   fetch?: boolean;
   json?: boolean;
+  /** With --session-init: write the machine-local compaction seed sidecar. */
+  writeCompactionSeed?: boolean;
 }
 
 /** Normalize a `git config` readback — `undefined`, empty, and whitespace-only become `null`. */
@@ -185,12 +197,18 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     slug !== undefined,
     opts.sessionInit,
     opts.sessionHandoff,
+    opts.recover,
     opts.user,
   ].filter(Boolean).length;
   if (modeCount > 1) {
     process.stderr.write(
-      "Error: a status <slug> query, --session-init, --session-handoff, and --user are mutually exclusive.\n",
+      "Error: a status <slug> query, --session-init, --session-handoff, --recover, and --user are mutually exclusive.\n",
     );
+    process.exitCode = 1;
+    return;
+  }
+  if (opts.writeCompactionSeed && !opts.sessionInit) {
+    process.stderr.write("Error: --write-compaction-seed requires --session-init.\n");
     process.exitCode = 1;
     return;
   }
@@ -289,10 +307,53 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
     return;
   }
 
+  if (opts.recover) {
+    if (!json) {
+      process.stderr.write(
+        "Error: --recover currently requires --json (interactive rendering not implemented).\n",
+      );
+      process.exitCode = 1;
+      return;
+    }
+    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const result = await runRecoverStatus({
+      identity,
+      role,
+      probes: {
+        worktree: async () => {
+          const resolved = await resolvedSettingsP;
+          const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
+          return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
+        },
+        worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+        dirty: () => runDirtyStateStatus({ exec: gitExec }),
+        extensions: () => runExtensionsSessionInitStatus({ cwd }),
+        config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
+        active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
+        releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
+        cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
+          cwd,
+          activeMetaPath,
+          fs: {
+            readFile: (path) => readFile(path, "utf8"),
+            pathExists: (path) => access(path).then(() => true, () => false),
+          },
+        }),
+        taskCursor: async (taskListPath) =>
+          resolveTaskListCursorFromFile({ cwd, taskListPath }),
+      },
+    });
+    process.stdout.write(`${JSON.stringify(result)}\n`);
+    return;
+  }
+
   if (opts.sessionInit) {
     // See sessionHandoff branch above for the rationale on caching the
     // resolution promise rather than awaiting eagerly.
     const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
+    const compactionSeedGitSnapshotP = opts.writeCompactionSeed
+      ? readCompactionSeedGitSnapshot(cwd)
+      : null;
     // Shared in-flight oracle slice — the bounded network read (live remote
     // membership → pruned-ref derivation) feeding both the errand-state and
     // materializable-WU probes. Both gate on the no-active-WU arm, so when one
@@ -365,7 +426,10 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         });
       },
       supersession: (branch) => detectSupersession({ exec: gitExec, branch }),
-      dirty: () => runDirtyStateStatus({ exec: gitExec }),
+      dirty: () => resolveSessionInitDirtyState({
+        compactionSeedGitSnapshotP,
+        fallback: () => runDirtyStateStatus({ exec: gitExec }),
+      }),
       extensions: () => runExtensionsSessionInitStatus({ cwd }),
       config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
       active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
@@ -497,8 +561,28 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
           pathExists: (path) => access(path).then(() => true, () => false),
         },
       }),
+      taskCursor: async (taskListPath) =>
+        resolveTaskListCursorFromFile({ cwd, taskListPath }),
     };
     const result = await runSessionInitStatus({ identity, role, probes });
+    if (opts.writeCompactionSeed && compactionSeedGitSnapshotP !== null) {
+      try {
+        const gitSnapshot = await compactionSeedGitSnapshotP;
+        result.compactionSeedWrite = summarizeCompactionSeedWrite(await emitCompactionSeed({
+          cwd,
+          envelope: result,
+          gitSnapshot,
+        }));
+        surfaceCompactionSeedWrite(result.compactionSeedWrite);
+      } catch (err) {
+        result.compactionSeedWrite = {
+          status: "failed",
+          reason: "git-failed",
+          message: errorMessage(err),
+        };
+        surfaceCompactionSeedWrite(result.compactionSeedWrite);
+      }
+    }
     if (json) {
       process.stdout.write(`${JSON.stringify(result)}\n`);
       return;
@@ -546,6 +630,62 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
   p.intro("arc status");
   p.note(buildStatusSummary(result), "Status");
   p.outro("Done.");
+}
+
+async function readCompactionSeedGitSnapshot(cwd: string): Promise<CompactionSeedGitSnapshot> {
+  const [headResult, statusResult] = await Promise.all([
+    gitExec("git", ["rev-parse", "HEAD"], { cwd }),
+    gitExec("git", ["status", "--porcelain=v1", "-z"], { cwd }),
+  ]);
+  return {
+    head: headResult.stdout.trim(),
+    uncommittedFiles: parseUncommittedFiles(statusResult.stdout),
+  };
+}
+
+function dirtyStateFromCompactionSeedSnapshot(snapshot: CompactionSeedGitSnapshot) {
+  const fileCount = snapshot.uncommittedFiles.length;
+  return {
+    state: fileCount === 0 ? "clean" as const : "dirty" as const,
+    fileCount,
+  };
+}
+
+export async function resolveSessionInitDirtyState(options: {
+  compactionSeedGitSnapshotP: Promise<CompactionSeedGitSnapshot> | null;
+  fallback: () => Promise<DirtyStateResult>;
+}): Promise<DirtyStateResult> {
+  if (options.compactionSeedGitSnapshotP === null) {
+    return options.fallback();
+  }
+  try {
+    return dirtyStateFromCompactionSeedSnapshot(await options.compactionSeedGitSnapshotP);
+  } catch {
+    return options.fallback();
+  }
+}
+
+function summarizeCompactionSeedWrite(result: EmitCompactionSeedResult): CompactionSeedWriteStatus {
+  if (result.status === "written") {
+    return { status: "written", path: result.path };
+  }
+  return result;
+}
+
+function surfaceCompactionSeedWrite(result: CompactionSeedWriteStatus): void {
+  if (result.status === "failed") {
+    process.stderr.write(`warn: compaction seed not written (${result.reason}): ${result.message}\n`);
+  }
+  if (result.status === "skipped" && result.reason === "identity-missing") {
+    process.stderr.write("warn: compaction seed not written: identity not configured\n");
+  }
+  if (result.status === "skipped" && result.reason === "load-set-unresolved") {
+    process.stderr.write("warn: compaction seed not written: load-set unresolved\n");
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Compact human render of a slug→state query for the non-`--json` path. */

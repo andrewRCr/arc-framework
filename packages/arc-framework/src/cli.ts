@@ -65,6 +65,7 @@ import { handleExtensionsStatus } from "./handlers/extensions.js";
 import { handleConfigStatus } from "./handlers/config.js";
 import { handleActiveStatus, handleActiveRoster, handleActiveInFlight } from "./handlers/active.js";
 import { handleStatus } from "./handlers/status.js";
+import { handleRecoverAudit, type RecoverAuditOptions } from "./handlers/recover.js";
 import { handleSync, type SyncOptions } from "./handlers/sync.js";
 import { handleUserSync } from "./handlers/user-sync.js";
 import { handleLogStandalone } from "./handlers/log.js";
@@ -488,18 +489,42 @@ program
     new Option(
       "--session-handoff",
       "Emit the session-handoff envelope for arc-handoff",
-    ).conflicts("session-init"),
+    ).conflicts(["session-init", "recover"]),
+  )
+  .addOption(
+    new Option(
+      "--recover",
+      "Emit the lean recover envelope for compaction recovery",
+    ).conflicts(["session-init", "session-handoff", "user"]),
   )
   .addOption(
     new Option(
       "--user",
       "Render the in-flight-mine view (STATUS.USER) — your work units in flight across worktrees",
-    ).conflicts(["session-init", "session-handoff"]),
+    ).conflicts(["session-init", "session-handoff", "recover"]),
   )
   .option("--local", "With --user: skip the network read; render from local refs (alias: --no-fetch)")
   .option("--no-fetch", "With --user: skip the network read; render from local refs")
+  .addOption(
+    new Option(
+      "--write-compaction-seed",
+      "With --session-init: write the machine-local compaction recovery seed",
+    ).conflicts(["recover", "session-handoff", "user"]),
+  )
   .option("--json", "Emit the typed result as JSON")
   .action(handleStatus);
+
+// --- Recover ---
+
+const recoverCmd = program
+  .command("recover")
+  .description("Recovery support commands for harness compaction");
+
+recoverCmd
+  .command("audit")
+  .description("Audit the latest compaction seed against fresh recovery state")
+  .option("--json", "Emit the typed result as JSON")
+  .action((opts: RecoverAuditOptions) => handleRecoverAudit(opts));
 
 // --- Sync (orchestrator) ---
 

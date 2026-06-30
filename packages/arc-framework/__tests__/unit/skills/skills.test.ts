@@ -14,6 +14,7 @@ import {
   validateTools,
   VALID_TOOL_IDS,
   CANONICAL_SKILLS,
+  type CanonicalSkillName,
   type SkillGenerationIO,
 } from "../../../src/lib/skills/index.js";
 
@@ -35,16 +36,23 @@ function skillMd(name: string, description: string): string {
   ].join("\n");
 }
 
-/** Build a file system map with all 5 canonical skills. */
+/** Build a file system map with all canonical skills. */
 function buildCanonicalFiles(
   skillsDir: string,
 ): Record<string, string> {
   const files: Record<string, string> = {};
-  const descriptions: Record<string, string> = {
+  const descriptions: Record<CanonicalSkillName, string> = {
     "arc-session": "Initialize and resume the active working ARC session.",
     "arc-commit": "Commit current repository changes with atomic boundaries.",
+    "arc-errand": "Run an isolated ARC errand.",
     "arc-handoff": "Update and finalize current ARC session documentation.",
+    "arc-housekeep": "Drain and route captured ARC inbox entries.",
+    "arc-inbox": "Capture deferred ARC work into the user inbox.",
+    "arc-plan": "Begin or resume ARC planning.",
+    "arc-recover": "Recover ARC context after harness compaction.",
     "arc-setup": "Run post-install ARC setup.",
+    "arc-task-audit": "Audit task readiness before implementation.",
+    "arc-task-review": "Review a completed task increment.",
     "arc-verify": "Run ARC installation health checks.",
   };
   for (const name of CANONICAL_SKILLS) {
@@ -145,7 +153,7 @@ describe("generateSkills", () => {
       io,
     );
 
-    // Two directories × 5 skills = 10 SKILL.md outputs
+    // Two directories times the canonical skill set.
     const skillOutputs = result.outputs.filter((o) =>
       o.path.endsWith("/SKILL.md"),
     );

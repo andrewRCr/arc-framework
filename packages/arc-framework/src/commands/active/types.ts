@@ -210,12 +210,29 @@ export interface ActiveSessionInitResult {
     atomic: string | null;
   };
   /**
+   * Resolved active task-list path relative to cwd, derived from the parsed
+   * `**Task List:**` field when a single meta resolves. Bare filenames and
+   * `./`-prefixed values resolve beside the meta file; other path-form values
+   * pass through normalized relative to cwd. `null` when the single resolved
+   * meta has no task list (`[none]`, missing, or equivalent) or the value is
+   * unsafe (absolute, drive-prefixed, or parent-traversing); omitted outside
+   * the single-meta arm.
+   */
+  taskListPath?: string | null;
+  /**
    * Resolved session type for per-type loadset selection. Computed from
    * `resolution` plus the resolved candidate's `**Task List:**` and
    * `**Next Action:**` fields. `null` when `resolution === "multiple"`
    * and the caller must disambiguate before computing type.
    */
   sessionType: SessionType | null;
+  /**
+   * Normalized `**Current Workflow:**` value from the single resolved meta, or
+   * `null` when absent, `[none]`, or outside the single-meta arm. Recovery keeps
+   * this as soft orientation only; workflow authority comes from `sessionType`
+   * and the projected load set.
+   */
+  currentWorkflow: string | null;
   /**
    * Resolved planning sub-stage workflow basename (`draft-design` / `create-spec`
    * / `generate-tasks`) — what session-init's planning arm loads as `<stage>.md`,

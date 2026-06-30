@@ -1,0 +1,34 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PROJECT_DIR}/.arc/system/.internal/harness-hooks/common/session-start-compact.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

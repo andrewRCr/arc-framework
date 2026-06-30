@@ -522,7 +522,7 @@ export async function executeTransition(
     // 7. Project the meta `Branch` field from the edge's branch-affecting leg.
     branchFieldWritten = await applyBranchField(ctx, record, metaPath, inputs);
 
-    // 7.5 Clear the meta `Current Workflow` when planning exits (the activate edge).
+    // 7.5 Clear the meta `Current Workflow` when the edge declares it stale.
     failedWrite = "currentWorkflowField";
     currentWorkflowCleared = await applyCurrentWorkflowField(ctx, record, metaPath, inputs);
 
@@ -761,11 +761,9 @@ async function applyBranchField(
 
 /**
  * Clear the meta `Current Workflow` field to `[none]` when the edge declares
- * `clearCurrentWorkflowField` — the `activate` exit, as `State: Active` takes
- * over and the planning-stage pointer no longer names a live sub-stage. Gated
- * identically to the soft-field pass (skipped for creation / deletion edges) and
- * a no-op on any edge that does not declare the clear. Returns `"[none]"` when
- * the clear fired, else `null`.
+ * `clearCurrentWorkflowField`. Gated identically to the soft-field pass (skipped
+ * for creation / deletion edges) and a no-op on any edge that does not declare
+ * the clear. Returns `"[none]"` when the clear fired, else `null`.
  */
 async function applyCurrentWorkflowField(
   ctx: ExecuteTransitionContext,

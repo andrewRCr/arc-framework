@@ -246,6 +246,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
       notes: ".arc/active/notes-foo.md",
       atomic: ".arc/active/atomic-foo.md",
@@ -298,6 +299,7 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.layout).toBe("lite");
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks.md");
     expect(result.companions).toBeUndefined();
   });
 
@@ -333,6 +335,45 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
+    });
+  });
+
+  it("derives companions from meta-file directory when Task List value is explicitly relative", async () => {
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# Notes\n");
+    await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# Atomic\n");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`./tasks-foo.md`",
+      }),
+    );
+
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
+    });
+
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.\\tasks-foo.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
     expect(result.companions).toEqual({
       notes: ".arc/active/notes-foo.md",
       atomic: ".arc/active/atomic-foo.md",
@@ -351,6 +392,113 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+  });
+
+  it("rejects absolute, parent-traversing, and bare dot Task List values", async () => {
+    await writeFile(
+      join(fixture.activeDir, "meta-absolute.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/absolute",
+        taskList: "`/tmp/tasks-absolute.md`",
+      }),
+    );
+
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-absolute.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-parent.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/parent",
+        taskList: "`../tasks-parent.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-parent.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-embedded-parent.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/embedded-parent",
+        taskList: "`subdir/../tasks-parent.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-embedded-parent.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-drive.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/drive",
+        taskList: "`C:\\tasks-drive.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-drive.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-drive-relative.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/drive-relative",
+        taskList: "`C:tasks-drive.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-drive-relative.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-dot.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/dot",
+        taskList: "`.`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-dot.md"));
+    await writeFile(
+      join(fixture.activeDir, "meta-dotdot.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/dotdot",
+        taskList: "`..`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
     expect(result.companions).toBeUndefined();
   });
 });
@@ -752,6 +900,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
     expect(result.sessionType).toBe("planning");
+    expect(result.currentWorkflow).toBe("create-spec");
     expect(result.planningStage).toBe("create-spec");
   });
 
@@ -762,6 +911,7 @@ describe("runActiveSessionInitStatus — planning sub-stage resolution", () => {
     );
 
     const result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.currentWorkflow).toBeNull();
     expect(result.planningStage).toBe("draft-design");
   });
 

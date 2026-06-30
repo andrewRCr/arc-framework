@@ -14,7 +14,7 @@
  */
 
 import { stat } from "node:fs/promises";
-import { join, sep } from "node:path";
+import { join, posix } from "node:path";
 
 import { readActiveMetaCandidates, stripInlineCode } from "../../lib/active/meta-reader.js";
 import { isPlanningWorkflow } from "../../lib/active/current-workflow-consistency.js";
@@ -165,6 +165,7 @@ export async function runActiveSessionInitStatus(
       path: null,
       candidates: [],
       sessionType: inferFromBranchPattern(currentBranch),
+      currentWorkflow: null,
       planningStage: null,
       warnings: [CONTRIBUTOR_IDENTITY_MISSING_WARNING],
     };
@@ -237,6 +238,7 @@ async function resolveSessionInit(
     mode: "session-init",
     layout,
     ...fields,
+    currentWorkflow: null,
     planningStage: null,
     warnings,
   };
@@ -244,8 +246,11 @@ async function resolveSessionInit(
   if (fields.resolution === "single") {
     const only = candidates[0];
     if (only !== undefined) {
-      const companions = await deriveCompanions(cwd, only.path, only.taskList);
+      const taskListPath = resolveTaskListPath(only.path, only.taskList);
+      result.taskListPath = taskListPath;
+      const companions = await deriveCompanions(cwd, taskListPath);
       if (companions !== undefined) result.companions = companions;
+      result.currentWorkflow = normalizeNullablePointer(only.currentWorkflow);
       result.planningStage = resolvePlanningStage(only, fields.sessionType);
     }
   }
@@ -274,6 +279,50 @@ function resolvePlanningStage(
     : PLANNING_ENTRY_STAGE;
 }
 
+function resolveTaskListPath(
+  statusFilePath: string,
+  taskListValue: string | null,
+): string | null {
+  if (taskListValue === null) return null;
+  const raw = normalizeArcPath(taskListValue).trim();
+  if (raw === "" || TASK_LIST_PLANNING_VALUES.has(raw)) return null;
+  if (raw === "." || raw === "..") return null;
+  if (/^[A-Za-z]:/u.test(raw)) return null;
+  const metaRelativePrefix = "./";
+  const candidate = raw.startsWith(metaRelativePrefix)
+    ? resolveMetaRelativeTaskListPath(statusFilePath, raw.slice(metaRelativePrefix.length))
+    : raw.includes("/")
+      ? raw
+      : `${statusFileDirPrefix(statusFilePath)}${raw}`;
+  if (candidate === null) return null;
+  if (candidate.split("/").some((segment) => segment === "..")) return null;
+  const normalized = posix.normalize(candidate);
+  if (
+    posix.isAbsolute(normalized)
+    || /^[A-Za-z]:/u.test(normalized)
+    || normalized === "."
+    || normalized === ".."
+    || normalized.startsWith("../")
+  ) {
+    return null;
+  }
+  return normalized;
+}
+
+function resolveMetaRelativeTaskListPath(
+  statusFilePath: string,
+  taskListPath: string,
+): string | null {
+  const segments = taskListPath.split("/");
+  if (
+    taskListPath === ""
+    || segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")
+  ) {
+    return null;
+  }
+  return `${statusFileDirPrefix(statusFilePath)}${taskListPath}`;
+}
+
 /**
  * Derive companion-file paths (`notes-{stem}.md`, `atomic-{stem}.md`) for the
  * resolved task list. Returns `undefined` when the task-list value is absent
@@ -287,15 +336,13 @@ function resolvePlanningStage(
  */
 async function deriveCompanions(
   cwd: string,
-  statusFilePath: string,
-  taskListValue: string | null,
+  taskListPath: string | null,
 ): Promise<{ notes: string | null; atomic: string | null } | undefined> {
-  if (taskListValue === null) return undefined;
-  const normalized = taskListValue.split(sep).join("/");
+  if (taskListPath === null) return undefined;
+  const normalized = taskListPath;
   const lastSlash = normalized.lastIndexOf("/");
   const filename = lastSlash >= 0 ? normalized.slice(lastSlash + 1) : normalized;
-  const dirPrefix =
-    lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : statusFileDirPrefix(statusFilePath);
+  const dirPrefix = lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
   const match = TASK_LIST_FULL_PATTERN.exec(filename);
   const stem = match?.[1];
   if (stem === undefined) return undefined;
@@ -321,7 +368,18 @@ async function fileExists(absPath: string): Promise<boolean> {
 }
 
 function statusFileDirPrefix(statusFilePath: string): string {
-  const normalized = statusFilePath.split(sep).join("/");
+  const normalized = normalizeArcPath(statusFilePath);
   const lastSlash = normalized.lastIndexOf("/");
   return lastSlash >= 0 ? normalized.slice(0, lastSlash + 1) : "";
+}
+
+function normalizeArcPath(path: string): string {
+  return path.replaceAll("\\", "/");
+}
+
+function normalizeNullablePointer(value: string | null): string | null {
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === "[none]") return null;
+  return trimmed;
 }

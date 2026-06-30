@@ -13,6 +13,7 @@
 import { describe, it, expect, vi } from "vitest";
 
 import {
+  runRecoverStatus,
   runSessionHandoffStatus,
   runSessionInitStatus,
   runStatus,
@@ -26,6 +27,7 @@ import type {
   HandoffSyncInterlock,
   SessionHandoffProbes,
   SessionInitProbes,
+  SessionRecoverProbes,
   StatusProbes,
 } from "../../../src/commands/status.js";
 import type {
@@ -68,6 +70,7 @@ import type { InboxStateResult } from "../../../src/lib/session-init/inbox-state
 import type { PartialPushMarkerSurfaceResult } from "../../../src/lib/session-init/partial-push-marker-surface.js";
 import type { RestateCandidatesResult } from "../../../src/lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../../src/lib/release/routing.js";
+import type { TaskListCursorResult } from "../../../src/lib/task-list/cursor.js";
 
 // --- Fixtures ---
 
@@ -259,6 +262,7 @@ function activeSessionInit(
     path: null,
     candidates: [],
     sessionType: "planning",
+    currentWorkflow: null,
     planningStage: null,
     warnings: [],
     ...overrides,
@@ -359,6 +363,22 @@ function sessionInitProbes(overrides: Partial<SessionInitProbes> = {}): SessionI
       async (): Promise<PartialPushMarkerSurfaceResult> => ({ markers: [] }),
     ),
     cohortDoc: vi.fn(async (): Promise<string | null> => null),
+    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
+    ...overrides,
+  };
+}
+
+function sessionRecoverProbes(overrides: Partial<SessionRecoverProbes> = {}): SessionRecoverProbes {
+  return {
+    worktree: vi.fn(async () => worktreeSync()),
+    worktreeIdentity: vi.fn(async () => worktreeIdentity()),
+    dirty: vi.fn(async () => dirtyState()),
+    extensions: vi.fn(async () => extensionsSessionInit()),
+    config: vi.fn(async () => configSessionInit()),
+    active: vi.fn(async () => activeSessionInit()),
+    releaseRouting: vi.fn(async () => releaseRouting()),
+    cohortDoc: vi.fn(async (): Promise<string | null> => null),
+    taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({ status: "no-open-task" })),
     ...overrides,
   };
 }
@@ -660,6 +680,138 @@ describe("runSessionInitStatus — orchestration", () => {
     }
   });
 
+  it("exposes a loadSet slot projected from resolved session-init state", async () => {
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      extensions: vi.fn(async () =>
+        extensionsSessionInit({ active: ["post-context-load"] })),
+      cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+      taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
+        status: "found",
+        cursor: {
+          section: { id: "1.1", title: "Do x", lineHint: 5 },
+          leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+        },
+      })),
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(true);
+    if (result.loadSet.ok) {
+      expect(result.loadSet.value.entries).toEqual(
+        expect.arrayContaining([
+          {
+            path: ".arc/active/tasks-x.md",
+            readMode: { kind: "partial-strategic" },
+          },
+          {
+            path: ".arc/backlog/planned/x/cohort-x.md",
+            readMode: { kind: "full" },
+          },
+        ]),
+      );
+      expect(result.loadSet.value.entries).not.toContainEqual({
+        path: ".arc/system/extensions/post-context-load.md",
+        readMode: { kind: "full" },
+      });
+    }
+    expect(result.extensions.ok).toBe(true);
+    if (result.extensions.ok) {
+      expect(result.extensions.value.active).toEqual(["post-context-load"]);
+    }
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1" },
+        },
+      });
+    }
+  });
+
+  it("propagates session-init cohort-doc probe failures into loadSet", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+      taskCursor,
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("cohort boom");
+    }
+    expect(result).not.toHaveProperty("cohortDocPath");
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
+  });
+
+  it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionInitProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/CON/tasks-x.md",
+        })),
+      taskCursor,
+    });
+    const result = await runSessionInitStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
+    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
+  });
+
   it("returns the session-init-scoped shape with mode=session-init", async () => {
     const probes = sessionInitProbes();
     const result = await runSessionInitStatus({
@@ -710,6 +862,226 @@ describe("runSessionInitStatus — orchestration", () => {
       expect(result.active.error.kind).toBe("runtime");
       expect(result.active.error.message).toBe("boom");
     }
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("boom");
+    }
+    expect(result.taskCursor).toBeUndefined();
+  });
+});
+
+describe("runRecoverStatus — lean recover envelope", () => {
+  it("emits exactly the state slices recovery needs", async () => {
+    const probes = sessionRecoverProbes();
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.mode).toBe("recover");
+    expect(Object.keys(result).sort()).toEqual([
+      "active",
+      "config",
+      "dirty",
+      "extensions",
+      "identity",
+      "loadSet",
+      "mode",
+      "releaseRouting",
+      "worktree",
+    ]);
+    expect(probes.worktree).toHaveBeenCalledTimes(1);
+    expect(probes.worktreeIdentity).toHaveBeenCalledTimes(1);
+    expect(probes.dirty).toHaveBeenCalledTimes(1);
+    expect(probes.extensions).toHaveBeenCalledTimes(1);
+    expect(probes.config).toHaveBeenCalledTimes(1);
+    expect(probes.active).toHaveBeenCalledTimes(1);
+    expect(probes.releaseRouting).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits every dispatch-only session-init slice", async () => {
+    const probes = sessionRecoverProbes();
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+    const skippedSlices = [
+      "user",
+      "roster",
+      "sweep",
+      "planOrphanSweep",
+      "retiredSubdirs",
+      "errandSweep",
+      "errandState",
+      "workUnitState",
+      "materializableWorkUnits",
+      "inFlightComposition",
+      "inboxState",
+      "partialPushMarker",
+      "recommendedCombinedPrompt",
+      "recovery",
+      "baseDistance",
+      "baseBranchSync",
+      "domainRules",
+    ];
+
+    for (const slice of skippedSlices) {
+      expect(Object.hasOwn(result, slice)).toBe(false);
+    }
+  });
+
+  it("propagates active probe failures into loadSet and omits taskCursor", async () => {
+    const probes = sessionRecoverProbes({
+      active: async () => { throw new Error("boom"); },
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(false);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("boom");
+    }
+    expect(result.taskCursor).toBeUndefined();
+  });
+
+  it("projects loadSet from the shared projection inputs", async () => {
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      extensions: vi.fn(async () =>
+        extensionsSessionInit({ active: ["post-context-load"] })),
+      cohortDoc: vi.fn(async () => ".arc/backlog/planned/x/cohort-x.md"),
+      taskCursor: vi.fn(async (): Promise<TaskListCursorResult> => ({
+        status: "found",
+        cursor: {
+          section: { id: "1.1", title: "Do x", lineHint: 5 },
+          leaf: { id: "1.1.a", title: "Do x child", lineHint: 9 },
+        },
+      })),
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.cohortDocPath).toBe(".arc/backlog/planned/x/cohort-x.md");
+    expect(result.loadSet.ok).toBe(true);
+    if (result.loadSet.ok) {
+      expect(result.loadSet.value.entries).toEqual(
+        expect.arrayContaining([
+          {
+            path: ".arc/active/tasks-x.md",
+            readMode: { kind: "partial-strategic" },
+          },
+          {
+            path: ".arc/backlog/planned/x/cohort-x.md",
+            readMode: { kind: "full" },
+          },
+        ]),
+      );
+      expect(result.loadSet.value.entries).not.toContainEqual({
+        path: ".arc/system/extensions/post-context-load.md",
+        readMode: { kind: "full" },
+      });
+    }
+    expect(result.extensions.ok).toBe(true);
+    if (result.extensions.ok) {
+      expect(result.extensions.value.active).toEqual(["post-context-load"]);
+    }
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1.a" },
+        },
+      });
+    }
+  });
+
+  it("propagates recover cohort-doc probe failures into loadSet", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/tasks-x.md",
+        })),
+      cohortDoc: vi.fn(async () => { throw new Error("cohort boom"); }),
+      taskCursor,
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.active.ok).toBe(true);
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.kind).toBe("runtime");
+      expect(result.loadSet.error.message).toBe("cohort boom");
+    }
+    expect(result).not.toHaveProperty("cohortDocPath");
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
+  });
+
+  it("omits the recover task cursor when load-set projection rejects the task-list path", async () => {
+    const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
+      status: "found",
+      cursor: {
+        section: { id: "1.1", title: "Do x", lineHint: 5 },
+        leaf: { id: "1.1", title: "Do x", lineHint: 5 },
+      },
+    }));
+    const probes = sessionRecoverProbes({
+      active: vi.fn(async () =>
+        activeSessionInit({
+          resolution: "single",
+          path: ".arc/active/meta-x.md",
+          sessionType: "execution",
+          planningStage: null,
+          taskListPath: ".arc/active/CON/tasks-x.md",
+        })),
+      taskCursor,
+    });
+    const result = await runRecoverStatus({
+      identity: "andrew",
+      role: "maintainer",
+      probes,
+    });
+
+    expect(result.loadSet.ok).toBe(false);
+    if (!result.loadSet.ok) {
+      expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
+    }
+    expect(taskCursor).not.toHaveBeenCalled();
+    expect(result.taskCursor).toBeUndefined();
   });
 });
 
@@ -1253,6 +1625,7 @@ describe("runSessionInitStatus — worktree slot + user qualifier", () => {
       "extensions",
       "identity",
       "inboxState",
+      "loadSet",
       "mode",
       "partialPushMarker",
       "recommendedCombinedPrompt",

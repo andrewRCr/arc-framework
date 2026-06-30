@@ -53,6 +53,8 @@ import type { ClassComposition } from "../../lib/status/class-composition.js";
 import type { RestateCandidatesResult } from "../../lib/handoff/restate-candidates.js";
 import type { ReleaseRoutingValue } from "../../lib/release/routing.js";
 import type { RecommendedAction } from "../../lib/session-init/recommended-action.js";
+import type { LoadSetManifest } from "../../lib/load-set/types.js";
+import type { TaskListCursorFileResult } from "../../lib/task-list/file-cursor.js";
 
 export type { RecommendedAction, WorktreeIdentity };
 
@@ -166,6 +168,16 @@ export interface ProbeError {
 export type Probe<T> =
   | { ok: true; value: T }
   | { ok: false; error: ProbeError };
+
+/** JSON-safe summary of a `--write-compaction-seed` attempt. */
+export type CompactionSeedWriteStatus =
+  | { status: "written"; path: string }
+  | { status: "skipped"; reason: "identity-missing" | "load-set-unresolved" }
+  | {
+    status: "failed";
+    reason: "git-failed" | "identity-invalid" | "seed-invalid" | "write-failed";
+    message: string;
+  };
 
 /** Full-mode composite result — default (no-flag) rendering. */
 export interface StatusResult {
@@ -322,12 +334,55 @@ export interface SessionInitProbeResult {
    */
   cohortDocPath?: string;
   /**
+   * Ordered context load set projected from the resolved session-init state.
+   * Purely additive: recovery consumes it as the deterministic context-load
+   * contract, while session-init keeps its existing prose-level reads for now.
+   */
+  loadSet: Probe<LoadSetManifest>;
+  /**
+   * Deterministic cursor derived from the active task-list checkbox grammar.
+   * Present only when `active.value.taskListPath` resolves and passes the same
+   * path-safety validation used by `loadSet`. Session-init may use it as a
+   * line-anchor helper for strategic reads; it is not thought-state.
+   */
+  taskCursor?: Probe<TaskListCursorFileResult>;
+  /**
+   * Present only when `--write-compaction-seed` is requested. Lets harness
+   * hooks consume the authoritative seed-write result instead of rebuilding the
+   * seed path from envelope fields.
+   */
+  compactionSeedWrite?: CompactionSeedWriteStatus;
+  /**
    * Per-channel offer text composed when both the worktree and user slots
    * resolve to `recommendedAction === "prompt"`. Null when only one channel
    * (or neither) prompts. Workflow renders verbatim instead of composing
    * combined-prompt prose itself.
    */
   recommendedCombinedPrompt: string | null;
+}
+
+/** Worktree slot in the recover envelope. No sync recommendations are attached. */
+export interface SessionRecoverWorktreeValue extends WorktreeSyncStatusResult {
+  /** Which physical worktree the recovered session occupies. */
+  identity: WorktreeIdentity;
+}
+
+/** Lean recover-mode composite result — `--recover` consumer shape. */
+export interface SessionRecoverProbeResult {
+  mode: "recover";
+  identity: StatusIdentity;
+  worktree: Probe<SessionRecoverWorktreeValue>;
+  dirty: Probe<DirtyStateResult>;
+  extensions: Probe<ExtensionsSessionInitResult>;
+  config: Probe<ConfigSessionInitResult>;
+  active: Probe<ActiveSessionInitResult>;
+  releaseRouting: Probe<ReleaseRoutingValue>;
+  /** Present only when a single active WU resolves to a coordinating cohort doc. */
+  cohortDocPath?: string;
+  /** Ordered context load set projected from the freshly resolved recover state. */
+  loadSet: Probe<LoadSetManifest>;
+  /** Deterministic task-list cursor, present only when the resolved task-list path is load-set safe. */
+  taskCursor?: Probe<TaskListCursorFileResult>;
 }
 
 /** Probe functions in full mode — bound to cwd and any required I/O. */
@@ -587,6 +642,24 @@ export interface SessionInitProbes extends SessionSharedProbes {
    * single work unit; degrades to `null` on any miss.
    */
   cohortDoc: (activeMetaPath: string) => Promise<string | null>;
+  /** Resolve the deterministic task-list cursor for a resolved task-list path. */
+  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
+}
+
+/** Probe functions in recover mode — the lean subset recovery needs. */
+export interface SessionRecoverProbes {
+  worktree: () => Promise<WorktreeSyncStatusResult>;
+  worktreeIdentity: () => Promise<WorktreeIdentity>;
+  dirty: () => Promise<DirtyStateResult>;
+  extensions: () => Promise<ExtensionsSessionInitResult>;
+  config: () => Promise<ConfigSessionInitResult>;
+  active: (
+    identity: string | null,
+    role: string | null,
+  ) => Promise<ActiveSessionInitResult>;
+  releaseRouting: () => Promise<ReleaseRoutingValue>;
+  cohortDoc: (activeMetaPath: string) => Promise<string | null>;
+  taskCursor: (taskListPath: string) => Promise<TaskListCursorFileResult>;
 }
 
 /** Probe functions in session-handoff mode — bound to cwd and any required I/O. */
@@ -608,6 +681,12 @@ export interface RunSessionInitStatusOptions {
   identity: string | null;
   role: string | null;
   probes: SessionInitProbes;
+}
+
+export interface RunRecoverStatusOptions {
+  identity: string | null;
+  role: string | null;
+  probes: SessionRecoverProbes;
 }
 
 export interface RunSessionHandoffStatusOptions {

@@ -951,18 +951,21 @@ Context monitoring is a shared responsibility between user and agent.
 
 **The user is the primary monitor.** Users have persistent visibility into context usage through
 platform-provided indicators — status bars, on-demand commands, threshold warnings. The user
-decides when to trigger handoff based on context state, work progress, and judgment about session
-quality. This is an active responsibility: check periodically, don't wait for emergencies.
+decides whether context pressure has arrived at a natural boundary or between boundaries. At a
+natural boundary, hand off, clear the harness conversation if needed, and re-enter through
+session-init for a clean episodic baseline. Between natural boundaries, recover when available;
+otherwise hand off and re-init.
 
 **The agent is the secondary safety net.** Harness-level files (e.g., `CLAUDE.md`, `AGENTS.md`)
 may define threshold-based check-in behavior — "at ~150k tokens, stop and ask." This catches
 cases where the user isn't monitoring, but it's imprecise: agents assess their own token usage
-approximately, and the check-in interrupts workflow. It's a fallback, not the designed mechanism.
+approximately, and the check-in interrupts workflow. When the fallback fires, use the same fork:
+handoff at a natural boundary; otherwise recover when available, or hand off and re-init when not.
 
 **Monitoring thresholds:**
 
-- General development: monitor from ~70% utilization, plan handoff by ~75-80%
-- Complex reasoning: consider earlier handoffs at ~60-70%
+- General development: monitor from ~70% utilization, look for a boundary by ~75-80%
+- Complex reasoning: consider the boundary-vs-pressure fork earlier, around ~60-70%
 - Light tasks: can tolerate up to ~85%
 - Large windows (500K+): same proportional thresholds apply
 
@@ -970,14 +973,34 @@ approximately, and the check-in interrupts workflow. It's a fallback, not the de
 
 ## Auto-Compaction
 
-ARC recommends disabling auto-compaction where platforms support it. This makes the user's
-monitoring role explicit: the platform warns when context is filling, and the user responds
-by triggering handoff.
+ARC treats compaction as a recoverable discontinuity, not a black box to disable. A harness
+compaction rewrites the conversation history; ARC recovery rehydrates the procedural/semantic
+context from live project state and the latest compaction seed, then verifies the recovered ARC
+state. The compacted harness summary may preserve the conversational work leaf for the agent to
+resume from, but ARC recovery does not standardize, inspect, or trust that summary as recovery
+state.
 
-**When you can't disable it:** Compensate with more frequent commits (reducing uncommitted work
-at risk) and earlier handoffs (capturing state before compaction does). Understand your
-platform's compaction behavior — when it triggers, what it preserves, how it signals — so you
-can factor it into your workflow.
+Two reset paths matter:
+
+- **`clear`** is an intentional harness reset. Use it after handoff at a natural boundary when
+  the next session benefits from a clean episodic baseline, then re-enter through session-init.
+- **`compact`** (manual or automatic) is a within-session discontinuity. Recover with
+  `session-recover` or the `arc-recover` fallback, then continue inside the same ARC session.
+
+For supported harnesses, install the opt-in compaction-recovery hook recipe during
+[initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and require
+recovery only after a `compact` event; `clear` remains deliberately unhooked for recovery. Codex may
+run a cleanup-only clear hook to remove a stale pending marker. If hooks are not installed, run the
+manual fallback when compaction erases ARC operating context.
+
+Recovery restores ARC's operating context. It does not reload on-demand context that was pulled
+mid-task before compaction. The recovery load set is ARC-owned context only; repository-root harness
+instruction files such as `AGENTS.md` and `CLAUDE.md` remain the harness baseline, not ARC recovery
+entries. ARC recovery does not add sibling harness instruction files to that load set; projects that
+want shared guidance should make each harness file reference the shared source explicitly. Reload
+on-demand material through its normal trigger when resumed work needs it again. Understand your
+platform's compaction behavior — when it triggers, what it preserves, how it signals — so the
+boundary-vs-pressure fork stays deliberate.
 
 ---
 
@@ -1052,6 +1075,7 @@ When `arc user load` or session-init's SESSION-NOTES load fails, recover by erro
 [session-loop]: ../../../system/workflows/arc/session-lifecycle/session-loop.md
 [session-init]: ../../../system/workflows/arc/session-lifecycle/session-init.md
 [session-handoff]: ../../../system/workflows/arc/session-lifecycle/session-handoff.md
+[setup-workflow]: ../../../system/workflows/arc/initial-setup/01_verify-and-configure.md
 [activate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/planning/init-work-unit.md
 [activate-wu]: ../../../system/workflows/arc/work-unit-lifecycle/activate-work-unit.md
 [integrate-plan]: ../../../system/workflows/arc/work-unit-lifecycle/integrate-work-unit.md

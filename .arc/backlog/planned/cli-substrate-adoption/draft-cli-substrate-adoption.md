@@ -31,6 +31,20 @@ post-trio architecture-remediation plans consume.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Compaction seed + recovery envelopes — hand-typed now, CSA migration target**
+
+- *Routed from:* `compaction-recovery` draft-design (2026-06-28).
+- *Seam:* the seed is another agent–CLI envelope crossing the same process boundary CSA hardens, and the `loadSet`
+  / `taskCursor` slices extend the session-init and recover envelopes. `arc recover audit --json` adds a second
+  report boundary with a typed ready/stop verdict. Pre-CSA they ship **hand-typed TypeScript** (like the current
+  envelope — typed in TS, validated by hand à la `audit-log.ts:validateEntry()`), since zod / neverthrow `Result`
+  / validate-on-emit+consume arrive with this WU. They are deliberate targets for the priority validation-surface
+  sweep — *exactly* CSA's "codify a settled shape after it ships" model; the debt is pre-budgeted.
+- *Invariant (shared with OSD):* one shared projection / one reader means CSA migrates **one** typed load-set shape,
+  one task-list cursor shape, and one recovery-audit verdict shape, not parallel agent-only variants. No new
+  *untyped* boundary is introduced, and the recovery audit is a pure function (typed-in / typed-out / `Result`) —
+  a clean CSA target.
+
 ### `[ ]` **Uniform non-interactive handling for agent-invoked prompting commands**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: cli-substrate-adoption`), agile-wu-lifecycle cohort

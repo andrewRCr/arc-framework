@@ -1,0 +1,57 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && cd \"$repo_root\" && node \"$repo_root/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do (cd /d \"%i\" && node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\") || exit /b 0",
+            "timeout": 30,
+            "statusMessage": "Writing ARC compaction seed"
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/post-compact-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs\"",
+            "timeout": 30,
+            "statusMessage": "Stopping for ARC recovery"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && node \"$repo_root/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs\" || exit /b 0",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -23,9 +23,12 @@
 
 import type {
   ProbeError,
+  RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
   RunStatusOptions,
+  SessionRecoverProbeResult,
+  SessionRecoverWorktreeValue,
   SessionHandoffResult,
   SessionInitBaseBranchSyncValue,
   SessionInitBaseDistanceValue,
@@ -57,6 +60,7 @@ import {
 import { inferRecommendedSummaryLine } from "../../lib/handoff/recommended-summary-line.js";
 import { resolveInFlightComposition } from "../../lib/session-init/in-flight-composition.js";
 import type { DirtyStateResult } from "../../lib/git/dirty-state.js";
+import { assertLoadSetPath, resolveLoadSetManifest } from "../../lib/load-set/projection.js";
 
 const IDENTITY_MISSING_MESSAGE =
   "User probe skipped: `arc.identity` is not configured in git config.";
@@ -512,12 +516,28 @@ export async function runSessionInitStatus(
       : undefined;
 
   // Cohort-doc resolution — when a single active WU resolved, locate its
-  // coordinating `cohort-<leaf>.md` so context-load can read it. Totalized to
-  // null on any miss; the call is guarded so the envelope never rejects.
-  const cohortDocPath =
-    active.ok && active.value.resolution === "single" && active.value.path !== null
-      ? await probes.cohortDoc(active.value.path).catch(() => null)
-      : null;
+  // coordinating `cohort-<leaf>.md` so context-load can read it. Probe failures
+  // propagate through loadSet because recovery must not silently drop context.
+  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
+  const cohortDocPath = cohortDoc.ok ? cohortDoc.value : null;
+  const loadSet: SessionInitProbeResult["loadSet"] = active.ok
+    ? loadSetFromState({
+      identity,
+      activeWorkUnit: activeWuName,
+      metaPath: active.value.path,
+      sessionType: active.value.sessionType,
+      planningStage: active.value.planningStage,
+      taskListPath: active.value.taskListPath ?? null,
+      activeExtensions: extensions.ok ? extensions.value.active : [],
+      cohortDocPath,
+      cohortDoc,
+    })
+    : active;
+  const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
+  const taskCursor: SessionInitProbeResult["taskCursor"] | undefined =
+    active.ok && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
 
   return {
     mode: "session-init",
@@ -545,7 +565,91 @@ export async function runSessionInitStatus(
     ...(partialPushMarker !== null ? { partialPushMarker } : {}),
     ...(inFlightComposition !== undefined ? { inFlightComposition } : {}),
     ...(cohortDocPath !== null ? { cohortDocPath } : {}),
+    loadSet,
+    ...(taskCursor !== undefined ? { taskCursor } : {}),
     recommendedCombinedPrompt: recommendations.recommendedCombinedPrompt,
+  };
+}
+
+/** Run the lean recover-mode composite probe. */
+export async function runRecoverStatus(
+  options: RunRecoverStatusOptions,
+): Promise<SessionRecoverProbeResult> {
+  const { identity, role, probes } = options;
+
+  const worktreeTask = safeProbe(() => probes.worktree());
+  const worktreeIdentityTask = safeProbe(() => probes.worktreeIdentity());
+  const dirtyTask = safeProbe(() => probes.dirty());
+  const extensionsTask = safeProbe(() => probes.extensions());
+  const configTask = safeProbe(() => probes.config());
+  const activeTask = safeProbe(() => probes.active(identity, role));
+  const releaseRoutingTask = safeProbe(() => probes.releaseRouting());
+
+  const [
+    worktree,
+    worktreeIdentitySlot,
+    dirty,
+    extensions,
+    config,
+    active,
+    releaseRouting,
+  ] = await Promise.all([
+    worktreeTask,
+    worktreeIdentityTask,
+    dirtyTask,
+    extensionsTask,
+    configTask,
+    activeTask,
+    releaseRoutingTask,
+  ]);
+
+  const worktreeIdentity: WorktreeIdentity = worktreeIdentitySlot.ok
+    ? worktreeIdentitySlot.value
+    : { kind: "primary" };
+  const enrichedWorktree: SessionRecoverProbeResult["worktree"] = worktree.ok
+    ? {
+      ok: true,
+      value: {
+        ...worktree.value,
+        identity: worktreeIdentity,
+      } satisfies SessionRecoverWorktreeValue,
+    }
+    : worktree;
+
+  const cohortDoc = await resolveCohortDoc(active, probes.cohortDoc);
+  const cohortDocPath = cohortDoc.ok ? cohortDoc.value : null;
+  const activeWuName = active.ok ? metaWorkUnitNameFromActive(active.value.path) : null;
+  const loadSet: SessionRecoverProbeResult["loadSet"] = active.ok
+    ? loadSetFromState({
+      identity,
+      activeWorkUnit: activeWuName,
+      metaPath: active.value.path,
+      sessionType: active.value.sessionType,
+      planningStage: active.value.planningStage,
+      taskListPath: active.value.taskListPath ?? null,
+      activeExtensions: extensions.ok ? extensions.value.active : [],
+      cohortDocPath,
+      cohortDoc,
+    })
+    : active;
+  const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
+  const taskCursor: SessionRecoverProbeResult["taskCursor"] | undefined =
+    active.ok && taskListPath !== null && taskListPathIsLoadSetSafe(taskListPath)
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
+
+  return {
+    mode: "recover",
+    identity: buildIdentity(identity, role),
+    worktree: enrichedWorktree,
+    dirty,
+    extensions,
+    config,
+    active,
+    releaseRouting,
+    ...(cohortDocPath !== null ? { cohortDocPath } : {}),
+    loadSet,
+    ...(taskCursor !== undefined ? { taskCursor } : {}),
   };
 }
 
@@ -558,6 +662,54 @@ function metaWorkUnitNameFromActive(path: string | null): string | null {
   if (path === null) return null;
   const match = /(?:^|\/)meta-(.+)\.md$/u.exec(path);
   return match?.[1] ?? null;
+}
+
+async function resolveCohortDoc(
+  active: { ok: true; value: ActiveSessionInitResult } | ProbeErrorSlot,
+  probe: (metaPath: string) => Promise<string | null>,
+): Promise<{ ok: true; value: string | null } | ProbeErrorSlot> {
+  if (!active.ok || active.value.resolution !== "single" || active.value.path === null) {
+    return ok(null);
+  }
+  const metaPath = active.value.path;
+  return safeProbe(() => probe(metaPath));
+}
+
+function loadSetFromState(options: {
+  identity: string | null;
+  activeWorkUnit: string | null;
+  metaPath: string | null;
+  sessionType: ActiveSessionInitResult["sessionType"];
+  planningStage: ActiveSessionInitResult["planningStage"];
+  taskListPath: string | null;
+  activeExtensions: readonly string[];
+  cohortDocPath: string | null;
+  cohortDoc: { ok: true; value: string | null } | ProbeErrorSlot;
+}): { ok: true; value: ReturnType<typeof resolveLoadSetManifest> } | ProbeErrorSlot {
+  if (!options.cohortDoc.ok) return options.cohortDoc;
+  try {
+    return ok(resolveLoadSetManifest({
+      identity: options.identity,
+      activeWorkUnit: options.activeWorkUnit,
+      metaPath: options.metaPath,
+      sessionType: options.sessionType,
+      planningStage: options.planningStage,
+      taskListPath: options.taskListPath,
+      activeExtensions: options.activeExtensions,
+      cohortDocPath: options.cohortDocPath,
+    }));
+  } catch (err) {
+    return fromRejection(err);
+  }
+}
+
+function taskListPathIsLoadSetSafe(taskListPath: string): boolean {
+  try {
+    assertLoadSetPath(taskListPath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**

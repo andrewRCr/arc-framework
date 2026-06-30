@@ -5,6 +5,7 @@
  */
 
 export {
+  runRecoverStatus,
   runStatus,
   runSessionInitStatus,
   runSessionHandoffStatus,
@@ -14,12 +15,17 @@ export {
   buildSessionInitStatusSummary,
 } from "./status/format.js";
 export type {
+  CompactionSeedWriteStatus,
   HandoffSyncInterlock,
   Probe,
   ProbeError,
+  RunRecoverStatusOptions,
   RunSessionHandoffStatusOptions,
   RunSessionInitStatusOptions,
   RunStatusOptions,
+  SessionRecoverProbeResult,
+  SessionRecoverProbes,
+  SessionRecoverWorktreeValue,
   SessionHandoffProbes,
   SessionHandoffResult,
   SessionInitProbeResult,
