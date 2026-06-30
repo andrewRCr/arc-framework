@@ -157,10 +157,12 @@ Co-located since `ci.yml` is already being edited; chosen for impact at rising c
   ref (e.g. `${{ github.workflow }}-${{ github.ref }}`) with `cancel-in-progress: true`, so a re-push cancels the
   superseded in-flight run. This is the dominant waste lever once `finalize-parallelism` spikes PR frequency.
   (`docs.yml`'s non-cancelling `pages` group is deliberately separate and stays.)
-- **Build-artifact sharing — evaluate, do not assume.** `npm run build` runs ~5× today (the `quality` /
-  `full-suite` jobs + `portability` ×3). Building once and sharing the artifact *might* help, but tsup is fast and
-  the upload/download round-trip may erase the gain — and cross-OS artifact reuse on the `portability` legs is
-  itself suspect. Measure during implementation; adopt only if net-positive. May be dropped entirely.
+- **Build-artifact sharing — evaluated against real run timings; not adopted.** `npm run build` runs ~5× today
+  (the `quality` / `full-suite` jobs + `portability` ×3), but sharing the artifact saves no billed minutes:
+  `npm ci` runs in every job regardless (the dominant cost; deps are needed to run the tests), the `tsup` build
+  is a small fraction of each job, and Actions' per-minute rounding swallows the few seconds saved — while a
+  shared-build job adds a billed minute plus serializes the matrix behind it. Net neutral-to-negative against the
+  dominant levers (docs-only/verified skip, superseded-run cancel), so it is out of scope.
 - **Dependency caching is already done** (`setup-node@v5` `cache: 'npm'` on every job) — nothing to add.
 
 ### D. Structure & naming
@@ -286,8 +288,6 @@ Resolved during the work, not deferred as debt:
 - **Final job / step display-name strings and `weight` reason values** — settled at implementation once the gate
   boundaries are final (the rename of `Quality Checks` and `Classify lane`; the `docs-only` / `verified` /
   `unverified` reason strings). The output *keys* (`lane`, `weight`) are settled — see Proposed Design § D.
-- **Build-artifact sharing** — net win or not? Measured during implementation; adopted only if positive, else
-  dropped (§ C). Not load-bearing for any other decision.
 - **Commit-enumeration range for the lookback** — `base..head` is the default; whether to widen to recent repo
   history for the rebase/squash case (vs. accept the mild re-run) is a tuning call made against live behavior, not
   a design blocker.
