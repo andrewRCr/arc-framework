@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "coderabbit-full-review-default",
+  "origin": "inbox",
+  "intent": "Distinguish @coderabbitai full review (whole-PR convergence passes) from @coderabbitai review (initial/incremental) in address-pr-review.md",
+  "branch": "chore/coderabbit-full-review-default",
+  "createdAt": "2026-06-30T13:07:39.468Z",
+  "originEntry": "Default CodeRabbit review loops to full-PR passes"
+}
