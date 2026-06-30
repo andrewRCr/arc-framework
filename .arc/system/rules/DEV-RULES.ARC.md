@@ -353,8 +353,8 @@ At a boundary, handoff captures state; the clean baseline comes from the fresh l
 `clear`. See [Session Operations Strategy][session-ops] for duration guidance.
 
 **Between natural boundaries, compact and recover.** Context pressure alone does not force
-early handoff; use recovery when the harness surfaces it, otherwise hand off and re-init.
-"Clean baseline" means a clean episodic baseline, not a lighter procedural load.
+early handoff; use harness recovery or `arc-recover` when available, otherwise hand off
+and re-init. "Clean baseline" means a clean episodic baseline, not a lighter procedural load.
 
 **Natural session boundaries:**
 

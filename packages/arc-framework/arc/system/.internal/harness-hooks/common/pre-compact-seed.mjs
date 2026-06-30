@@ -86,8 +86,17 @@ function isSafeIdentitySegment(identity) {
     && identity !== "."
     && identity !== ".."
     && !identity.startsWith(".")
+    && !hasControlCharacter(identity)
     && !/[<>:"/\\|?*]/u.test(identity)
     && !/[. ]$/u.test(identity)
     && !/^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(identity)
   );
+}
+
+function hasControlCharacter(value) {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1F || code === 0x7F) return true;
+  }
+  return false;
 }

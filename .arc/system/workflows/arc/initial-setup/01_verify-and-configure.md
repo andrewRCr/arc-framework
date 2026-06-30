@@ -307,9 +307,11 @@ and keep exact-entry idempotency. Claude Code installs only `PreCompact(manual|a
 missing immediate post-compaction context injection. Codex's pending marker is scoped to the current
 thread, and recovery restores ARC session context; repository instruction files such as `AGENTS.md`
 and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set. After writing, re-read
-the target files and ask the user to review/trust the hook definitions in the harness UI. Roll back
-by restoring the backup, or by removing only the ARC recipe entries. For Codex, remove
-`[features].hooks` only if this install created that key.
+the target files and report one line:
+`ARC post-compaction session-recovery hooks installed for <harness>.`
+Then ask the user to review/trust the hook definitions in the harness UI. Roll back by restoring
+the backup, or by removing only the ARC recipe entries. For Codex, remove `[features].hooks` only
+if this install created that key.
 
 ### Optional: Verify Installation
 

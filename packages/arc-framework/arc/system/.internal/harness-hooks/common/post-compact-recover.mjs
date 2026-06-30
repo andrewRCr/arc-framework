@@ -1,13 +1,14 @@
 import { writeFallbackPendingMarker, writePendingMarker } from "./codex-recovery-marker.mjs";
 
 let markerError = null;
+let markerPath = null;
 let fallbackMarkerSaved = false;
 try {
-  writePendingMarker();
+  markerPath = writePendingMarker().markerPath;
 } catch (error) {
   markerError = error instanceof Error ? error.message : String(error);
   try {
-    writeFallbackPendingMarker(markerError);
+    markerPath = writeFallbackPendingMarker(markerError).markerPath;
     fallbackMarkerSaved = true;
   } catch (fallbackError) {
     const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : String(fallbackError);
@@ -26,10 +27,14 @@ const systemMessage = [
   "=== ARC compaction recovery ===",
   "ARC paused after compaction, as expected, to restore ARC session context.",
   recoveryInstruction,
-].join("\n");
+  markerPath === null ? null : `Recovery marker: ${markerPath}`,
+].filter((line) => line !== null).join("\n");
 
 process.stdout.write(`${JSON.stringify({
   continue: false,
   stopReason: "ARC recovery required after compaction",
   systemMessage,
+  markerPath,
+  markerError,
+  fallbackMarkerSaved,
 })}\n`);

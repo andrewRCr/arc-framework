@@ -136,7 +136,15 @@ function normalizeSeedPath(root, seedPath) {
 }
 
 function isReservedIdentitySegment(identity) {
-  return identity.startsWith(".");
+  return identity.startsWith(".") || hasControlCharacter(identity);
+}
+
+function hasControlCharacter(value) {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code <= 0x1F || code === 0x7F) return true;
+  }
+  return false;
 }
 
 function markerDirForSeed(root, seedPath) {
