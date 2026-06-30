@@ -33,44 +33,76 @@ jobs:
           persist-credentials: false
       - id: c
         run: |
-          # Resolve the changed-file set for this event. Fail safe to heavy: any
-          # uncertainty (unverifiable SHAs, empty diff) leaves depth=heavy, so a
-          # code change is never mistaken for docs and allowed to skip tests.
+          # Two changed-file sets drive the two axes:
+          #   changed_all   - the whole change (PR base...head, or push delta);
+          #                   drives lane (merge policy).
+          #   changed_depth - the latest push delta when resolvable, else the
+          #                   whole change; drives depth (CI cost). Using the
+          #                   latest push lets a docs-only push onto a code PR run
+          #                   light: the code was already tested on its own push,
+          #                   markdown can't change test outcomes, and the
+          #                   reviewed lane still requires human/CR sign-off.
+          #                   (Belt-and-suspenders "full-suite passed at least
+          #                   once on the PR" enforcement is intentionally out of
+          #                   scope here.)
+          # Fail safe to heavy: any uncertainty (unverifiable SHAs, force-push,
+          # empty diff) leaves depth=heavy, so code is never skipped as docs.
           event='${{ github.event_name }}'
+          action='${{ github.event.action }}'
+
           if [ "$event" = 'pull_request' ]; then
-            base='${{ github.event.pull_request.base.sha }}'
-            head='${{ github.event.pull_request.head.sha }}'
+            all_base='${{ github.event.pull_request.base.sha }}'
+            all_head='${{ github.event.pull_request.head.sha }}'
           else
-            base='${{ github.event.before }}'
-            head='${{ github.sha }}'
+            all_base='${{ github.event.before }}'
+            all_head='${{ github.sha }}'
+          fi
+          changed_all=''
+          if git rev-parse -q --verify "$all_base^{commit}" >/dev/null 2>&1 \
+             && git rev-parse -q --verify "$all_head^{commit}" >/dev/null 2>&1; then
+            changed_all="$(git diff --name-only "$all_base...$all_head" 2>/dev/null || true)"
           fi
 
-          changed=''
-          if git rev-parse -q --verify "$base^{commit}" >/dev/null 2>&1 \
-             && git rev-parse -q --verify "$head^{commit}" >/dev/null 2>&1; then
-            changed="$(git diff --name-only "$base...$head" 2>/dev/null || true)"
+          # Latest-push delta for depth (synchronize or push). PR opened/reopened
+          # has no prior head, so depth falls back to the whole change.
+          push_before=''
+          if [ "$event" = 'pull_request' ] && [ "$action" = 'synchronize' ]; then
+            push_before='${{ github.event.before }}'
+            push_after='${{ github.event.after }}'
+          elif [ "$event" = 'push' ]; then
+            push_before='${{ github.event.before }}'
+            push_after='${{ github.sha }}'
           fi
-          echo 'changed paths:'; printf '%s\n' "$changed"
+          changed_depth="$changed_all"
+          if [ -n "$push_before" ] \
+             && git rev-parse -q --verify "$push_before^{commit}" >/dev/null 2>&1 \
+             && git rev-parse -q --verify "$push_after^{commit}" >/dev/null 2>&1 \
+             && git merge-base --is-ancestor "$push_before" "$push_after" 2>/dev/null; then
+            changed_depth="$(git diff --name-only "$push_before..$push_after" 2>/dev/null || true)"
+          fi
 
-          # depth=light only when there is at least one changed file and every
-          # changed file is markdown (*.md); anything else -> heavy.
+          echo 'changed (all):'; printf '%s\n' "$changed_all"
+          echo 'changed (depth):'; printf '%s\n' "$changed_depth"
+
+          # depth=light only when the depth set is non-empty and every file is *.md.
           depth=heavy
-          if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -qvE '\.md$'; then
+          if [ -n "$changed_depth" ] && ! printf '%s\n' "$changed_depth" | grep -qvE '\.md$'; then
             depth=light
           fi
           echo "depth=$depth" >> "$GITHUB_OUTPUT"
 
-          # lane (PR only): auto-merge lane = per-WU / per-cohort planning
-          # artifacts only, matched by PREFIX draft- / tasks- / meta- / notes- /
-          # cohort-* under active/ or backlog/. Any other path -> reviewed lane.
+          # lane (PR only) from the WHOLE change: auto-merge lane = per-WU /
+          # per-cohort planning artifacts only (PREFIX draft- / tasks- / meta- /
+          # notes- / cohort-* under active/ or backlog/); else reviewed. Computed
+          # from changed_all so a docs push never flips a code PR to auto-merge.
           lane=reviewed
-          if [ "$event" = 'pull_request' ] && [ -n "$changed" ] \
-             && ! printf '%s\n' "$changed" \
+          if [ "$event" = 'pull_request' ] && [ -n "$changed_all" ] \
+             && ! printf '%s\n' "$changed_all" \
                   | grep -qvE '^\.arc/(active|backlog)/([^/]+/)*(draft|tasks|meta|notes|cohort)-'; then
             lane=auto
           fi
           echo "lane=$lane" >> "$GITHUB_OUTPUT"
-          echo "classified lane=$lane depth=$depth"
+          echo "classified lane=$lane depth=$depth (event=$event action=$action)"
 
   quality:
     name: Quality Checks
