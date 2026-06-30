@@ -8,7 +8,7 @@
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** [none]
+- **Design:** `draft-ci-content-aware-depth.md`
 - **Task List:** [none]
 
 - **Current Workflow:** `draft-design`
