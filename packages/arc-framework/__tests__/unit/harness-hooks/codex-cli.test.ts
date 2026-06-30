@@ -645,7 +645,9 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       const userPromptOutput = runHookScript(userPromptScriptPath, root, env);
       const additionalContext = userPromptOutput.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("clear the markers");
-      expect(additionalContext).not.toContain("--marker");
+      expect(additionalContext.match(/--marker/gu)).toHaveLength(2);
+      expect(additionalContext).toContain(fallbackMarkerPath);
+      expect(additionalContext).toContain(scopedMarkerPath);
 
       const clearOutput = runHookScript(clearScriptPath, root, env);
       expect([...(clearOutput.removed ?? [])].sort()).toEqual([
@@ -654,6 +656,34 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       ].sort());
       expect(existsSync(fallbackMarkerPath)).toBe(false);
       expect(existsSync(scopedMarkerPath)).toBe(false);
+    });
+  });
+
+  it("does not trim identity when validating emitted seed paths", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew " },
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
+      ].join("\n"));
+
+      runHookScriptRaw(seedScriptPath, root, {
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+        CODEX_THREAD_ID: "thread-a",
+      });
+
+      expect(existsSync(join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-seed-thread-a.json",
+      ))).toBe(false);
     });
   });
 

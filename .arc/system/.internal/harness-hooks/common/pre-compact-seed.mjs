@@ -71,9 +71,7 @@ function writeHandoffFromResult(result) {
 }
 
 function expectedSeedPath(envelope) {
-  const identity = typeof envelope?.identity?.identity === "string"
-    ? envelope.identity.identity.trim()
-    : "";
+  const identity = typeof envelope?.identity?.identity === "string" ? envelope.identity.identity : "";
   if (!isSafeIdentitySegment(identity)) return null;
   return join(cwd, ".arc", "user", identity, ".internal", "compaction-seed.json");
 }

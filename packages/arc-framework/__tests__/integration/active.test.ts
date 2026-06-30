@@ -342,6 +342,44 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
     });
   });
 
+  it("derives companions from meta-file directory when Task List value is explicitly relative", async () => {
+    await writeFile(join(fixture.activeDir, "notes-foo.md"), "# Notes\n");
+    await writeFile(join(fixture.activeDir, "atomic-foo.md"), "# Atomic\n");
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`./tasks-foo.md`",
+      }),
+    );
+
+    let result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
+    });
+
+    await writeFile(
+      join(fixture.activeDir, "meta-foo.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/foo",
+        taskList: "`.\\tasks-foo.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBe(".arc/active/tasks-foo.md");
+    expect(result.companions).toEqual({
+      notes: ".arc/active/notes-foo.md",
+      atomic: ".arc/active/atomic-foo.md",
+    });
+  });
+
   it("omits companions when Task List value is `[none]`", async () => {
     await writeFile(
       join(fixture.activeDir, "meta-foo.md"),

@@ -248,6 +248,60 @@ describe("auditLoadSetManifest", () => {
     expect(result.diff.membership).toEqual({ added: [], removed: [] });
   });
 
+  it("does not hide duplicate membership drift sharing a substituted path", () => {
+    const added = auditLoadSetManifest({
+      baseline: manifest(["context/before.md"]),
+      fresh: manifest(["context/after.md", "context/after.md"]),
+    });
+    const removed = auditLoadSetManifest({
+      baseline: manifest(["context/before.md", "context/before.md"]),
+      fresh: manifest(["context/after.md"]),
+    });
+
+    expect(added.diff.pathDrifts).toHaveLength(1);
+    expect(added.diff.membership.added).toEqual([
+      {
+        path: "context/after.md",
+        readMode: { kind: "full" },
+      },
+    ]);
+    expect(removed.diff.pathDrifts).toHaveLength(1);
+    expect(removed.diff.membership.removed).toEqual([
+      {
+        path: "context/before.md",
+        readMode: { kind: "full" },
+      },
+    ]);
+  });
+
+  it("does not hide retained duplicate read-mode drift sharing a substituted path", () => {
+    const result = auditLoadSetManifest({
+      baseline: {
+        manifestVersion: LOAD_SET_MANIFEST_VERSION,
+        entries: [
+          {
+            path: "context/before.md",
+            readMode: { kind: "full" },
+          },
+          {
+            path: "context/before.md",
+            readMode: { kind: "partial-strategic" },
+          },
+        ],
+      },
+      fresh: manifest(["context/after.md", "context/before.md"]),
+    });
+
+    expect(result.diff.pathDrifts).toHaveLength(1);
+    expect(result.diff.readModeChanges).toEqual([
+      {
+        path: "context/before.md",
+        expected: { kind: "partial-strategic" },
+        actual: { kind: "full" },
+      },
+    ]);
+  });
+
   it("returns a structured diff renderable by the recovery workflow", () => {
     const result = auditLoadSetManifest({
       baseline: BASELINE,

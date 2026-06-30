@@ -30,7 +30,7 @@
 - *Concern:* `arc status --session-init --json`, `arc status --recover --json`, compaction seed emission, and
   `arc recover audit --json` now derive a deterministic `taskCursor` from task-list checkbox markers. The parser
   treats parent headings shaped like `### \`[ ]\` **<id> <title>**` and subtask bullets shaped like
-  `- \`[ ]\` **<id> <title>**` (or plain text) as the operational cursor grammar.
+  at least four spaces followed by `- \`[ ]\` **<id> <title>**` (or plain text) as the operational cursor grammar.
 - *Coordination:* when this WU formalizes task-list marker/spacing rules, preserve or consciously migrate that
   cursor grammar. If the convention changes, update the shared `task-list/cursor` projection and the recovery
   audit together so agents never infer current leaf state from stale meta fields.

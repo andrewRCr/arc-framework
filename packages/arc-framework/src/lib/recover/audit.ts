@@ -195,7 +195,7 @@ function auditTaskCursor(
   if (expected === null) {
     stopReasons.push({
       kind: "task-cursor-missing",
-      message: "seed has no task-list cursor for an execution recovery",
+      message: "seed has no task-list cursor for a recovery state that requires one",
     });
   }
 
@@ -278,12 +278,19 @@ function requiresTaskCursor(options: AuditRecoveryStateOptions): boolean {
   const freshSessionType = options.recover.active.ok
     ? options.recover.active.value.sessionType
     : null;
-  const freshCursorFound = options.recover.taskCursor?.ok === true
-    && options.recover.taskCursor.value.status === "found";
-  return options.seed.sessionType === "execution"
+  if (
+    options.seed.sessionType === "execution"
     || freshSessionType === "execution"
     || options.seed.taskCursor !== null
-    || (freshSessionType !== "planning" && freshCursorFound);
+  ) {
+    return true;
+  }
+  if (freshSessionType === "planning") return false;
+
+  const freshCursor = options.recover.taskCursor;
+  if (freshCursor === undefined) return options.seed.sessionType === "integration" || freshSessionType === "integration";
+  if (!freshCursor.ok) return true;
+  return freshCursor.value.status !== "no-open-task";
 }
 
 function normalizePaths(paths: readonly string[]): string[] {

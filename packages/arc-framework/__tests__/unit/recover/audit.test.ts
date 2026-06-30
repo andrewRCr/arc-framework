@@ -16,6 +16,7 @@ import type {
   TaskListCursor,
   TaskListCursorResult,
 } from "../../../src/lib/task-list/cursor.js";
+import type { TaskListCursorFileResult } from "../../../src/lib/task-list/file-cursor.js";
 
 const LOAD_SET = {
   manifestVersion: LOAD_SET_MANIFEST_VERSION,
@@ -431,6 +432,105 @@ describe("auditRecoveryState", () => {
 
     expect(result.status).toBe("ready");
     expect(result.taskCursor).toBeNull();
+  });
+
+  it("stops cursorless integration recovery when the fresh cursor probe fails", () => {
+    const result = auditRecoveryState({
+      seed: seed({
+        sessionType: "integration",
+        currentWorkflow: "integrate-work-unit Step 4",
+        taskCursor: null,
+      }),
+      recover: {
+        active: ok(active({
+          sessionType: "integration",
+          currentWorkflow: "integrate-work-unit Step 4",
+        })),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+        taskCursor: {
+          ok: false,
+          error: {
+            kind: "runtime",
+            message: "cursor boom",
+          },
+        },
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "task-cursor-unresolved",
+        message: "cursor boom",
+      }),
+    ]));
+  });
+
+  it("stops cursorless integration recovery when the fresh cursor probe is absent", () => {
+    const result = auditRecoveryState({
+      seed: seed({
+        sessionType: "integration",
+        currentWorkflow: "integrate-work-unit Step 4",
+        taskCursor: null,
+      }),
+      recover: {
+        active: ok(active({
+          sessionType: "integration",
+          currentWorkflow: "integrate-work-unit Step 4",
+          taskListPath: null,
+        })),
+        dirty: ok(dirty()),
+        loadSet: ok(LOAD_SET),
+      },
+      freshUncommittedFiles: [],
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "task-cursor-unresolved",
+        message: "fresh recovery probe did not resolve a task-list cursor",
+      }),
+    ]));
+  });
+
+  it("stops cursorless integration recovery on malformed or missing fresh cursor state", () => {
+    for (const taskCursor of [
+      ok({
+        status: "malformed",
+        error: {
+          line: 12,
+          message: "task marker must include an id and title",
+        },
+      } satisfies TaskListCursorFileResult),
+      ok({
+        status: "missing",
+        path: ".arc/active/tasks-missing.md",
+      } satisfies TaskListCursorFileResult),
+    ]) {
+      const result = auditRecoveryState({
+        seed: seed({
+          sessionType: "integration",
+          currentWorkflow: "integrate-work-unit Step 4",
+          taskCursor: null,
+        }),
+        recover: {
+          active: ok(active({
+            sessionType: "integration",
+            currentWorkflow: "integrate-work-unit Step 4",
+          })),
+          dirty: ok(dirty()),
+          loadSet: ok(LOAD_SET),
+          taskCursor,
+        },
+        freshUncommittedFiles: [],
+      });
+
+      expect(result.status).toBe("stop");
+      expect(result.taskCursor?.match).toBe(false);
+    }
   });
 
   it("stops for planning recovery because Current Workflow is soft after compaction", () => {

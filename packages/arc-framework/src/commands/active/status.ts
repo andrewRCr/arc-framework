@@ -288,9 +288,13 @@ function resolveTaskListPath(
   if (raw === "" || TASK_LIST_PLANNING_VALUES.has(raw)) return null;
   if (raw === "." || raw === "..") return null;
   if (/^[A-Za-z]:/u.test(raw)) return null;
-  const candidate = raw.includes("/")
-    ? raw
-    : `${statusFileDirPrefix(statusFilePath)}${raw}`;
+  const metaRelativePrefix = "./";
+  const candidate = raw.startsWith(metaRelativePrefix)
+    ? resolveMetaRelativeTaskListPath(statusFilePath, raw.slice(metaRelativePrefix.length))
+    : raw.includes("/")
+      ? raw
+      : `${statusFileDirPrefix(statusFilePath)}${raw}`;
+  if (candidate === null) return null;
   const normalized = posix.normalize(candidate);
   if (
     posix.isAbsolute(normalized)
@@ -302,6 +306,20 @@ function resolveTaskListPath(
     return null;
   }
   return normalized;
+}
+
+function resolveMetaRelativeTaskListPath(
+  statusFilePath: string,
+  taskListPath: string,
+): string | null {
+  const segments = taskListPath.split("/");
+  if (
+    taskListPath === ""
+    || segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")
+  ) {
+    return null;
+  }
+  return `${statusFileDirPrefix(statusFilePath)}${taskListPath}`;
 }
 
 /**

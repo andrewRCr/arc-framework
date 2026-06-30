@@ -111,22 +111,20 @@ export function auditLoadSetManifest(
     preliminaryAddedPaths,
     preliminaryRemovedPaths,
   });
-  const pathDriftExpectedPaths = new Set(pathDrifts.map((drift) => drift.expected.path));
-  const pathDriftActualPaths = new Set(pathDrifts.map((drift) => drift.actual.path));
+  const pathDriftIndexes = new Set(pathDrifts.map((drift) => drift.index));
+  const baselineWithoutPathDrifts = groupByPath(options.baseline.entries, pathDriftIndexes);
+  const freshWithoutPathDrifts = groupByPath(options.fresh.entries, pathDriftIndexes);
 
   const added = extraEntries({
-    candidate: freshByPath,
-    reference: baselineByPath,
-    excludedPaths: pathDriftActualPaths,
+    candidate: freshWithoutPathDrifts,
+    reference: baselineWithoutPathDrifts,
   });
   const removed = extraEntries({
-    candidate: baselineByPath,
-    reference: freshByPath,
-    excludedPaths: pathDriftExpectedPaths,
+    candidate: baselineWithoutPathDrifts,
+    reference: freshWithoutPathDrifts,
   });
-  const readModeChanges = [...baselineByPath.entries()].flatMap(([path, baselineEntries]) => {
-    if (pathDriftExpectedPaths.has(path)) return [];
-    const freshEntries = freshByPath.get(path) ?? [];
+  const readModeChanges = [...baselineWithoutPathDrifts.entries()].flatMap(([path, baselineEntries]) => {
+    const freshEntries = freshWithoutPathDrifts.get(path) ?? [];
     const retainedCount = Math.min(baselineEntries.length, freshEntries.length);
     return baselineEntries.slice(0, retainedCount).flatMap((entry, index) => {
       const freshEntry = freshEntries[index];
@@ -165,9 +163,13 @@ interface EntriesByPath {
   reference: ReadonlyMap<string, readonly LoadSetEntry[]>;
 }
 
-function groupByPath(entries: readonly LoadSetEntry[]): Map<string, LoadSetEntry[]> {
+function groupByPath(
+  entries: readonly LoadSetEntry[],
+  excludedIndexes: ReadonlySet<number> = new Set(),
+): Map<string, LoadSetEntry[]> {
   const groups = new Map<string, LoadSetEntry[]>();
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
+    if (excludedIndexes.has(index)) continue;
     const group = groups.get(entry.path) ?? [];
     group.push(entry);
     groups.set(entry.path, group);
@@ -181,11 +183,8 @@ function pathsWithExtraEntries(options: EntriesByPath): string[] {
     .map(([path]) => path);
 }
 
-function extraEntries(options: EntriesByPath & {
-  excludedPaths: ReadonlySet<string>;
-}): LoadSetEntry[] {
+function extraEntries(options: EntriesByPath): LoadSetEntry[] {
   return [...options.candidate.entries()].flatMap(([path, entries]) => {
-    if (options.excludedPaths.has(path)) return [];
     const referenceCount = options.reference.get(path)?.length ?? 0;
     return entries.slice(referenceCount);
   });
