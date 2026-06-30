@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch**                     | **Class** | **Priority** |
 | ---------- | --------- | ------------------------------ | --------- | ------------ |
-| `Planning` | `andrew`  | `chore/ci-content-aware-depth` | `Heavy`   | `P3`         |
+| `Planning` | `andrew`  | `chore/ci-content-aware-depth` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -11,12 +11,12 @@
 - **Design:** `draft-ci-content-aware-depth.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** Promoted from errand; seeded design draft
 - **Next Task:** [none]
-- **Blockers:** GitHub Actions billing-blocked — all CI fails-to-start; live-verify blocked until restored
+- **Blockers:** [none]
 
-- **Next Action:** draft-design — resolve safety-gate mechanism (Checks-API vs cache-ledger) + edge contract
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
