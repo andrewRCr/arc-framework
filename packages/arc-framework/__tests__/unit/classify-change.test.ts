@@ -299,8 +299,17 @@ describe("classify-change.sh decide (pure arms)", () => {
   ): Promise<{ weight: string | undefined; reason: string | undefined }> {
     const result = await runScript(CLASSIFY_SCRIPT, ["decide", event, base, head], { cwd: repo });
     expect(result.exitCode).toBe(0);
-    const weight = /^weight=(\S+)$/m.exec(result.stdout)?.[1];
-    const reason = /^reason=(\S+)$/m.exec(result.stdout)?.[1];
+    const lines = result.stdout.trimEnd().split("\n");
+    expect(lines).toHaveLength(2);
+    const weightLine = lines[0];
+    const reasonLine = lines[1];
+    if (weightLine === undefined || reasonLine === undefined) {
+      throw new Error("decide output lines missing after length assertion");
+    }
+    expect(weightLine).toMatch(/^weight=(light|heavy)$/);
+    expect(reasonLine).toMatch(/^reason=(docs-only|verified|unverified)$/);
+    const weight = weightLine.slice("weight=".length);
+    const reason = reasonLine.slice("reason=".length);
     return { weight, reason };
   }
 
@@ -380,6 +389,24 @@ describe("classify-change.sh decide (pure arms)", () => {
       reason: "unverified",
     });
   });
+
+  it("uses the before-to-after endpoint diff for push events", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const root = await writeAndCommit(repo, { "README.md": "base\n" }, "base");
+    const before = await writeAndCommit(
+      repo,
+      { "packages/arc-framework/src/a.ts": "export const x = 1;\n" },
+      "code before",
+    );
+    await execFileAsync("git", ["checkout", "-b", "replacement", root], { cwd: repo });
+    const after = await writeAndCommit(repo, { "README.md": "after\n" }, "docs after");
+
+    expect(await decide(repo, "push", before, after)).toEqual({
+      weight: "heavy",
+      reason: "unverified",
+    });
+  });
 });
 
 describe("classify-change.sh decide (verified-tree lookback)", () => {
@@ -453,8 +480,17 @@ describe("classify-change.sh decide (verified-tree lookback)", () => {
       env: { CLASSIFY_CHECK_RUNS_DIR: checksDir },
     });
     expect(result.exitCode).toBe(0);
-    const weight = /^weight=(\S+)$/m.exec(result.stdout)?.[1];
-    const reason = /^reason=(\S+)$/m.exec(result.stdout)?.[1];
+    const lines = result.stdout.trimEnd().split("\n");
+    expect(lines).toHaveLength(2);
+    const weightLine = lines[0];
+    const reasonLine = lines[1];
+    if (weightLine === undefined || reasonLine === undefined) {
+      throw new Error("decide output lines missing after length assertion");
+    }
+    expect(weightLine).toMatch(/^weight=(light|heavy)$/);
+    expect(reasonLine).toMatch(/^reason=(docs-only|verified|unverified)$/);
+    const weight = weightLine.slice("weight=".length);
+    const reason = reasonLine.slice("reason=".length);
     return { weight, reason };
   }
 

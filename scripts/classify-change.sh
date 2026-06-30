@@ -278,13 +278,18 @@ cmd_decide() {
   local event="${1:-}" base="${2:-}" head="${3:-}"
   local weight reason
 
-  # Whole change over base...head. Both endpoints must resolve; an unresolvable
-  # endpoint (force-push, missing ref) leaves the set empty for the fail-safe.
+  # Whole change over base/head. PRs compare merge-base to head; pushes compare
+  # the actual before→after endpoints. Both endpoints must resolve; an
+  # unresolvable endpoint leaves the set empty for the fail-safe.
   local changed=''
   if [[ -n "${base}" && -n "${head}" ]] \
      && git rev-parse -q --verify "${base}^{commit}" >/dev/null 2>&1 \
      && git rev-parse -q --verify "${head}^{commit}" >/dev/null 2>&1; then
-    changed="$(git diff --name-only "${base}...${head}" 2>/dev/null || true)"
+    if [[ "${event}" == "pull_request" ]]; then
+      changed="$(git diff --name-only "${base}...${head}" 2>/dev/null || true)"
+    else
+      changed="$(git diff --name-only "${base}" "${head}" 2>/dev/null || true)"
+    fi
   fi
 
   if [[ -z "${changed}" ]]; then
