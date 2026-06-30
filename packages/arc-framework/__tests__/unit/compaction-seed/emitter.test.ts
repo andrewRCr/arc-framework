@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -84,7 +86,7 @@ async function emit(overrides: {
 describe("resolveCompactionSeedPath", () => {
   it("targets the identity-scoped internal seed path", () => {
     expect(resolveCompactionSeedPath({ cwd: "/repo", identity: "andrew" }))
-      .toBe("/repo/.arc/user/andrew/.internal/compaction-seed.json");
+      .toBe(join("/repo", ".arc", "user", "andrew", ".internal", "compaction-seed.json"));
   });
 
   it("rejects identities that would escape the user directory", () => {

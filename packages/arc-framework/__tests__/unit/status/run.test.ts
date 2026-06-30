@@ -769,7 +769,7 @@ describe("runSessionInitStatus — orchestration", () => {
     expect(result).not.toHaveProperty("cohortDocPath");
   });
 
-  it("omits the session-init task cursor when load-set projection rejects the task-list path", async () => {
+  it("keeps the session-init task cursor when load-set projection rejects the task-list path", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
       cursor: {
@@ -798,8 +798,17 @@ describe("runSessionInitStatus — orchestration", () => {
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
     }
-    expect(taskCursor).not.toHaveBeenCalled();
-    expect(result.taskCursor).toBeUndefined();
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/CON/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1" },
+        },
+      });
+    }
   });
 
   it("returns the session-init-scoped shape with mode=session-init", async () => {
@@ -1031,7 +1040,7 @@ describe("runRecoverStatus — lean recover envelope", () => {
     expect(result).not.toHaveProperty("cohortDocPath");
   });
 
-  it("omits the recover task cursor when load-set projection rejects the task-list path", async () => {
+  it("keeps the recover task cursor when load-set projection rejects the task-list path", async () => {
     const taskCursor = vi.fn(async (): Promise<TaskListCursorResult> => ({
       status: "found",
       cursor: {
@@ -1060,8 +1069,17 @@ describe("runRecoverStatus — lean recover envelope", () => {
     if (!result.loadSet.ok) {
       expect(result.loadSet.error.message).toBe("Load-set path segment must be safe: CON");
     }
-    expect(taskCursor).not.toHaveBeenCalled();
-    expect(result.taskCursor).toBeUndefined();
+    expect(taskCursor).toHaveBeenCalledWith(".arc/active/CON/tasks-x.md");
+    expect(result.taskCursor?.ok).toBe(true);
+    if (result.taskCursor?.ok) {
+      expect(result.taskCursor.value).toMatchObject({
+        status: "found",
+        cursor: {
+          section: { id: "1.1" },
+          leaf: { id: "1.1" },
+        },
+      });
+    }
   });
 });
 

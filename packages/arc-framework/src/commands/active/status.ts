@@ -295,6 +295,7 @@ function resolveTaskListPath(
       ? raw
       : `${statusFileDirPrefix(statusFilePath)}${raw}`;
   if (candidate === null) return null;
+  if (candidate.split("/").some((segment) => segment === "..")) return null;
   const normalized = posix.normalize(candidate);
   if (
     posix.isAbsolute(normalized)

@@ -120,6 +120,7 @@ interface LoadSetEntry {
 
 /** The ordered context set; array order = read order. */
 interface LoadSetManifest {
+  manifestVersion: 1;
   entries: LoadSetEntry[];
 }
 

@@ -535,9 +535,9 @@ export async function runSessionInitStatus(
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionInitProbeResult["taskCursor"] | undefined =
-    loadSet.ok && active.ok && taskListPath !== null
-        ? await safeProbe(() => probes.taskCursor(taskListPath))
-        : undefined;
+    active.ok && taskListPath !== null
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
 
   return {
     mode: "session-init",
@@ -634,9 +634,9 @@ export async function runRecoverStatus(
     : active;
   const taskListPath = active.ok ? (active.value.taskListPath ?? null) : null;
   const taskCursor: SessionRecoverProbeResult["taskCursor"] | undefined =
-    loadSet.ok && active.ok && taskListPath !== null
-        ? await safeProbe(() => probes.taskCursor(taskListPath))
-        : undefined;
+    active.ok && taskListPath !== null
+      ? await safeProbe(() => probes.taskCursor(taskListPath))
+      : undefined;
 
   return {
     mode: "recover",

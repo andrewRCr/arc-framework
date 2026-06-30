@@ -428,6 +428,21 @@ describe("runActiveSessionInitStatus — companion-file resolution", () => {
 
     await rm(join(fixture.activeDir, "meta-parent.md"));
     await writeFile(
+      join(fixture.activeDir, "meta-embedded-parent.md"),
+      statusBody({
+        state: "Active",
+        branch: "technical/embedded-parent",
+        taskList: "`subdir/../tasks-parent.md`",
+      }),
+    );
+
+    result = await runActiveSessionInitStatus({ cwd: fixture.root, exec: defaultExec });
+    expect(result.resolution).toBe("single");
+    expect(result.taskListPath).toBeNull();
+    expect(result.companions).toBeUndefined();
+
+    await rm(join(fixture.activeDir, "meta-embedded-parent.md"));
+    await writeFile(
       join(fixture.activeDir, "meta-drive.md"),
       statusBody({
         state: "Active",

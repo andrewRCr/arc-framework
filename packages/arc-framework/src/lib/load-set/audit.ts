@@ -16,9 +16,9 @@ type AuditableLoadSetManifest = Omit<LoadSetManifest, "manifestVersion"> & {
 
 /** Membership changes between the seed baseline and the fresh manifest. */
 export interface LoadSetMembershipDiff {
-  /** Fresh entries whose paths were absent from the seed baseline. */
+  /** Fresh entries whose path occurrence is absent or extra relative to the seed baseline. */
   added: LoadSetEntry[];
-  /** Seed-baseline entries whose paths are absent from the fresh manifest. */
+  /** Seed-baseline entries whose path occurrence is absent or extra relative to the fresh manifest. */
   removed: LoadSetEntry[];
 }
 

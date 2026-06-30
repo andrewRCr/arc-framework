@@ -367,6 +367,24 @@ describe("resolveTaskListCursor", () => {
     });
   });
 
+  it("returns malformed for checkbox task headings at the wrong level", () => {
+    const result = resolveTaskListCursor(taskList([
+      "# Task List: Cursor",
+      "",
+      "#### `[ ]` **1.2 Misleveled task**",
+      "",
+      "### `[ ]` **1.3 Later valid task**",
+    ]));
+
+    expect(result).toEqual({
+      status: "malformed",
+      error: {
+        line: 3,
+        message: "parent task marker does not match task-list heading grammar",
+      },
+    });
+  });
+
   it("returns malformed for numeric third-level task identifiers", () => {
     const result = resolveTaskListCursor(taskList([
       "# Task List: Cursor",
