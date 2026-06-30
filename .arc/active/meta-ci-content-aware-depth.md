@@ -12,11 +12,12 @@
 - **Task List:** `tasks-ci-content-aware-depth.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** generate-tasks — `tasks-ci-content-aware-depth.md` finalized; WU activated
-- **Next Task:** Task 1.1 — Establish the shell-script test harness and extend lint:sh coverage
+- **Last Completed:** Task 1.3 — Code-tree hash over the canonical set (Phase 1 complete)
+- **Next Task:** Task 2.1 — Assemble the `weight` decision in the script (line ~86)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 1.1 — implement the classify-change.sh test harness + lint:sh wiring (tasks-ci-content-aware-depth.md)
+- **Next Action:** Begin Task 2.1 — build the `decide` subcommand's docs-only / fail-safe arms then the
+  verified-tree lookback, test-first with the Checks-API result injected (tasks-ci-content-aware-depth.md)
 
 - **PR URL:** [none]
 - **Completed:** [none]
