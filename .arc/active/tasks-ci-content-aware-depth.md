@@ -179,29 +179,38 @@ first-push (heavy — the verifying run) → docs follow-up (skip) → force-pus
 case (4.2) needs its own PR — a deliberately-failing commit, then a docs push, confirming no-skip + `merge-ok`
 red, then discarded.
 
-### `[ ]` **4.1 Docs-only and fixture-as-code runs**
+### `[x]` **4.1 Docs-only and fixture-as-code runs**
 
 - _Goal:_ A pure-markdown / `.arc/**` PR runs only the doc/ARC linters (full-suite + portability skip) and
   `merge-ok` passes; a fixtures-only change (`{arc,templates}/**`, `init-recipe.json`) runs the full suite.
 
-    - Reproduces the #153 / #154 case at near-zero cost (Success Criteria 1); confirms fixture-as-code (4).
+- _Outcome:_ Confirmed live (PR #155 + push runs): a docs-only changeset classifies `light`/`docs-only` with the
+  code steps skipped, and a fixtures-only change (`init-recipe.json`, resolvable base) classifies `heavy` —
+  fixture content is code. `merge-ok`-green on a standalone docs-only PR is the agreed post-merge smoke: the
+  `pull_request` trigger is `main`-only, so a true docs-only-vs-`main` PR can't run the new classifier until it
+  ships to `main`.
 
-### `[ ]` **4.2 Safety invariant — docs follow-up and red-code-then-docs**
+### `[x]` **4.2 Safety invariant — docs follow-up and red-code-then-docs**
 
 - _Goal:_ A docs-only push onto a code PR skips heavy **only** after a prior heavy run succeeded for the same
   code tree; a failed/incomplete code push followed by a docs push does **not** skip heavy and does **not** let
   `merge-ok` pass.
 
-    - These are Success Criteria 2 and 3 — the merge invariant. Confirm `merge-ok` blocks in the red case.
+- _Outcome:_ Confirmed live (PR #155; throwaway PR #156, discarded): a docs follow-up onto a verified tree skips
+  heavy (`weight=light reason=verified`, `merge-ok` green); a failed heavy run followed by a docs push does NOT
+  skip (`weight=heavy reason=unverified`) and `merge-ok` stays red. The lookback gates on prior _success_, not a
+  tree match alone — the merge invariant holds.
 
-### `[ ]` **4.3 Edge contract and concurrency**
+### `[x]` **4.3 Edge contract and concurrency**
 
 - _Goal:_ Every uncertain path fails safe to heavy and superseded runs cancel.
 
-    - Confirm force-push (no resolvable match), rebase/squash (content hash stable; out-of-range check-runs),
-      in-progress prior run, and API-error / missing-token all run heavy.
-    - Confirm `concurrency` cancels a superseded in-flight run (Success Criteria 5).
-    - Re-confirm `bab51166`'s docs-only-skip behavior under the corrected code-surface set.
+- _Outcome:_ `concurrency` cancel confirmed live (a superseding push cancelled the in-flight run). The
+  unresolvable-delta fail-safe → heavy was confirmed live incidentally via a new-branch first push (`base=0000…`
+  → empty diff → `heavy`/`unverified`). The remaining edges — rebase/out-of-range, in-progress prior run, and
+  API-error / missing-token — are deliberately offline-covered (the `decide` fail-safe arms are unit-tested) per
+  the agreed live-scope decision; each is a variation of the no-verified-match → heavy path that 4.2's red case
+  proves live. Docs-only-skip under the corrected code-surface set is re-confirmed by 4.1.
 
 ## **Phase 5:** Verification
 
@@ -211,18 +220,20 @@ red, then discarded.
 
 ## Success Criteria
 
-- `[ ]` Docs-only PR runs light — only doc/ARC linters; `Integration & E2E Tests` and `Portability` skip;
-  `merge-ok` passes (reproduces #153 / #154 at near-zero cost).
-- `[ ]` Docs-follow-up skip is safe — a code PR's docs-only latest push skips heavy only after a prior heavy run
+- `[x]` Docs-only PR runs light — only doc/ARC linters; `Integration & E2E Tests` and `Portability` skip;
+  `merge-ok` passes (reproduces #153 / #154 at near-zero cost). _Classification confirmed live;
+  `merge-ok`-green on a standalone docs-only PR is the post-merge smoke (`pull_request` trigger is `main`-only)._
+- `[x]` Docs-follow-up skip is safe — a code PR's docs-only latest push skips heavy only after a prior heavy run
   succeeded for the same code tree (confirmed live).
-- `[ ]` Red-code-then-docs does NOT merge — a failed/incomplete code push followed by a docs-only push does not
+- `[x]` Red-code-then-docs does NOT merge — a failed/incomplete code push followed by a docs-only push does not
   skip heavy and does not let `merge-ok` pass (confirmed live).
-- `[ ]` Fixture-as-code is heavy — a change touching only `packages/arc-framework/{arc,templates}/**` or
-  `init-recipe.json` classifies heavy and runs the suite.
-- `[ ]` Superseded runs cancel — a re-push cancels the in-flight prior run.
-- `[ ]` Offline tests + `shellcheck` pass — `scripts/classify-change.sh` has unit tests for path classification
+- `[x]` Fixture-as-code is heavy — a change touching only `packages/arc-framework/{arc,templates}/**` or
+  `init-recipe.json` classifies heavy and runs the suite. _Classification confirmed live; full-suite on a
+  standalone fixtures-only PR is the post-merge smoke._
+- `[x]` Superseded runs cancel — a re-push cancels the in-flight prior run.
+- `[x]` Offline tests + `shellcheck` pass — `scripts/classify-change.sh` has unit tests for path classification
   and tree hashing; `lint:sh` is clean.
-- `[ ]` No ARC vocabulary in the workflow; job/step names read functionally; `merge-ok` unchanged and still the
+- `[x]` No ARC vocabulary in the workflow; job/step names read functionally; `merge-ok` unchanged and still the
   wired required check.
 - `[ ]` All quality gates pass (tests, linting, type checking)
 - `[ ]` Ready for integration
