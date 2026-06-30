@@ -214,7 +214,13 @@ red, then discarded.
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ md lint, code lint (ts + sh), typecheck (src + test), build, and the full suite
+  (3714 passed, 1 skipped) — all green.
+- _Success criteria:_ 9 criteria all met; the 5 live-confirmable safety/efficiency criteria proven on real
+  Actions, SC1/SC4 classification confirmed live with the standalone-PR gating deferred to a post-merge smoke
+  (annotated), offline tests + `shellcheck` and the naming/`merge-ok` criteria met.
 
 ---
 
@@ -235,5 +241,5 @@ red, then discarded.
   and tree hashing; `lint:sh` is clean.
 - `[x]` No ARC vocabulary in the workflow; job/step names read functionally; `merge-ok` unchanged and still the
   wired required check.
-- `[ ]` All quality gates pass (tests, linting, type checking)
-- `[ ]` Ready for integration
+- `[x]` All quality gates pass (tests, linting, type checking)
+- `[x]` Ready for integration

@@ -16,9 +16,7 @@
 - **Next Task:** Task 3.1 — Add `concurrency` with `cancel-in-progress` (line ~140)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 3.1 — add a workflow-level `concurrency` group keyed on
-  `${{ github.workflow }}-${{ github.ref }}` with `cancel-in-progress: true`; leave `docs.yml`'s `pages`
-  group untouched (tasks-ci-content-aware-depth.md)
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
