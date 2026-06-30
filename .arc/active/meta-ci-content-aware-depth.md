@@ -12,7 +12,7 @@
 - **Task List:** `tasks-ci-content-aware-depth.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec — `spec-ci-content-aware-depth.md` finalized (detailed RFC)
+- **Last Completed:** generate-tasks — `tasks-ci-content-aware-depth.md` finalized; WU activated
 - **Next Task:** Task 1.1 — Establish the shell-script test harness and extend lint:sh coverage
 - **Blockers:** [none]
 
