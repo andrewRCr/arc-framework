@@ -14,7 +14,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 | State    | Work unit              | Priority | Owner  | Depends on | Cohort |
 | -------- | ---------------------- | -------- | ------ | ---------- | ------ |
-| Planning | ci-content-aware-depth | P2       | andrew | —          | —      |
+| Active   | ci-content-aware-depth | P2       | andrew | —          | —      |
 
 ## Ready
 
