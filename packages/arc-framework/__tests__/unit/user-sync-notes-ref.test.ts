@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { readRecentUserNotes } from "../../src/lib/user-sync/index.js";
+import { listAnnotatedNoteCommits, readRecentUserNotes } from "../../src/lib/user-sync/index.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 
 /** A 40-char hex commit from a short hex seed. */
@@ -21,7 +21,9 @@ interface NotesConfig {
   pathsByHistory?: Record<string, string[]>;
   /** `"<historyCommit>:<path>"` → note blob content. */
   contentByShow?: Record<string, string>;
+  notesListOutput?: string;
   logThrows?: boolean;
+  notesListThrows?: boolean;
 }
 
 function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
@@ -47,6 +49,10 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
       const value = content[key];
       if (value === undefined) throw new Error(`missing note content: ${key}`);
       return { stdout: value, stderr: "" };
+    }
+    if (args[0] === "notes" && args[2] === "list") {
+      if (cfg.notesListThrows) throw new Error("no such ref");
+      return { stdout: cfg.notesListOutput ?? "", stderr: "" };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
   };
@@ -123,5 +129,34 @@ describe("readRecentUserNotes", () => {
     const notes = await readRecentUserNotes(exec, "andrew");
 
     expect(notes.map((n) => n.content)).toEqual(["the-note"]);
+  });
+});
+
+describe("listAnnotatedNoteCommits", () => {
+  it("parses git notes list output into annotated commit shas", async () => {
+    const firstBlob = annotated("11");
+    const secondBlob = annotated("22");
+    const firstAnnotatedCommit = annotated("a1");
+    const secondAnnotatedCommit = annotated("b2");
+    const { exec, calls } = makeExec({
+      notesListOutput: [
+        `${firstBlob} ${firstAnnotatedCommit}`,
+        "",
+        ` ${secondBlob} ${secondAnnotatedCommit} `,
+      ].join("\n"),
+    });
+
+    const commits = await listAnnotatedNoteCommits(exec, "refs/notes/arc/user/andrew");
+
+    expect(commits).toEqual([firstAnnotatedCommit, secondAnnotatedCommit]);
+    expect(calls).toContainEqual(["notes", "--ref=refs/notes/arc/user/andrew", "list"]);
+  });
+
+  it("returns an empty set when the ref is empty or missing", async () => {
+    const empty = makeExec({ notesListOutput: "" });
+    const missing = makeExec({ notesListThrows: true });
+
+    await expect(listAnnotatedNoteCommits(empty.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
+    await expect(listAnnotatedNoteCommits(missing.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
   });
 });

@@ -71,6 +71,22 @@ export async function listChangedNotePaths(
   }
 }
 
+/** Annotated commits carrying notes on a ref, unordered as returned by git notes. */
+export async function listAnnotatedNoteCommits(
+  exec: GitExec,
+  fullRef: string,
+): Promise<string[]> {
+  try {
+    const { stdout } = await exec("git", ["notes", `--ref=${fullRef}`, "list"]);
+    return stdout
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/u)[1])
+      .filter((commit): commit is string => commit !== undefined && /^[0-9a-f]{40}$/u.test(commit));
+  } catch {
+    return [];
+  }
+}
+
 /** The annotated commit a note path addresses, or `null` when the path isn't a note. */
 export function notePathToCommit(path: string): string | null {
   const commit = path.replaceAll("/", "");

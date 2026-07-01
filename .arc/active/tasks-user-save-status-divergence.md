@@ -20,18 +20,14 @@ HEAD-reachability, reduce-to-maximal) live in a new `lib/git/ancestry.ts`, sibli
 are integration-tested against a real temporary git repo, the tier that can exercise real ancestry. See
 `spec-user-save-status-divergence.md` § Proposed Design (D5).
 
-### `[ ]` **1.1 Enumerate the annotated-note set**
+### `[x]` **1.1 Enumerate the annotated-note set**
 
 - _Goal:_ The commits carrying a user note are read in one `git notes --ref=<ref> list` call, independent of
   notes-ref history order — the candidate set, bounded by the note count on the ref.
 
-    - Add a helper to `lib/user-sync/notes-ref.ts` alongside the existing history readers; parse the
-      `<blobSha> <annotatedSha>` line pairs `list` emits into annotated commit SHAs.
-    - An absent or empty ref yields `[]` (mirrors `readNotesRefHistory`'s catch-to-empty contract).
-    - Unit-tested with an injected `exec` returning constructed `list` output.
-    - Build `test-first` (one behavior at a time):
-        - Parses `git notes list` output into the annotated commit SHAs.
-        - Returns an empty set when the ref is missing or carries no notes.
+- _Outcome:_ Added `listAnnotatedNoteCommits` in `lib/user-sync/notes-ref.ts`, exported it through the user-sync
+  barrel, and covered constructed `git notes list` parsing plus empty/missing-ref behavior in
+  `user-sync-notes-ref.test.ts`.
 
 ### `[ ]` **1.2 Filter candidates to HEAD-reachable**
 
