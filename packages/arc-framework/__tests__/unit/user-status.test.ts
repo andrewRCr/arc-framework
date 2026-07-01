@@ -1690,6 +1690,106 @@ describe("runUserSessionInitStatus", () => {
     expect(result.shouldPromptToPull).toBe(false);
   });
 
+  it("projects an empty local note result as missing freshness", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "missing",
+      commit: null,
+      commitShort: null,
+      ancestorDistance: 0,
+    });
+    expect(result.detailLines).toContain("No local user note exists for this identity.");
+  });
+
+  it("projects a reachable note at HEAD as current-head freshness", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteJSON = JSON.stringify(manifest(noteFiles));
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--short" && args[2] === currentHead) {
+          return { stdout: `${currentHead.slice(0, 7)}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === currentHead) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "--count") {
+          return { stdout: "0\n", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async (dir: string) => {
+        if (dir !== userDir) return [];
+        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+      },
+      readFile: async (path: string) => {
+        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "current-head",
+      commit: currentHead,
+      commitShort: currentHead.slice(0, 7),
+      ancestorDistance: 0,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
   it("surfaces stale local-note freshness when matching refs are behind HEAD", async () => {
     const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
     const probeIO = {

@@ -161,17 +161,15 @@ computes no history index, so it has no basis; settling it first unblocks the pr
   saved-pointer resolutions. The tests pin the projected saved-note fields plus the current and off-branch detail
   lines from the resolved note.
 
-### `[ ]` **3.3 `inspectSessionLocalNoteFreshness` projection**
+### `[x]` **3.3 `inspectSessionLocalNoteFreshness` projection**
 
 - _Goal:_ Session-init freshness projects the resolved result — `outside-head-ancestry` with the note's commit for
   a `reachableFromHead: false` result, `missing` for an empty result — never reporting a behind or off-ancestry
   note as `current-head` (D8).
 
-    - The `outside-head-ancestry` state is unchanged in shape; only the note it reports against changes. The
-      `missing` state is already wired for a null note (`sync-status.ts:332`), so the empty-result projection needs
-      no new state.
-    - Tests (coverage): off-ancestry → `outside-head-ancestry` with the commit; empty → `missing`; reachable-at-HEAD
-      → `current-head`.
+- _Outcome:_ Added session-init freshness coverage for empty note resolution (`missing`) and a reachable note at
+  HEAD (`current-head`), complementing the existing ancestor and off-ancestry assertions so the freshness surface
+  is pinned to the resolved note states.
 
 ### `[ ]` **3.4 `inspectDiskVsLocalSnapshot` coherence (spurious `mixed` no longer wrong-note-tripped)**
 
