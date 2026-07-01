@@ -245,6 +245,21 @@ describe("closeErrand", () => {
     expect(await remoteSlugs(dir)).toEqual(["needs-force"]);
   });
 
+  it("refuses an already-gone current branch without force and leaves HEAD untouched", async () => {
+    const opened = await openErrand(io, { slug: "dangling", base: "main", createdAt: CREATED_AT });
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+    // Delete the branch ref out from under HEAD — a dangling symbolic HEAD, still "on" the branch.
+    await git(dir, ["update-ref", "-d", `refs/heads/${opened.record.branch}`]);
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+
+    const result = await closeErrand(io, { slug: "dangling", base: "main" });
+
+    expect(result.kind).toBe("unsafe-reap");
+    // The rejected non-force path must not switch branches — HEAD stays put.
+    expect(await currentBranch(dir)).toBe(opened.record.branch);
+    expect(await readErrandRecord(io, "dangling")).not.toBeNull();
+  });
+
   it("propagates unexpected branch-existence lookup failures", async () => {
     const opened = await openErrand(io, { slug: "lookup-fails", base: "main", createdAt: CREATED_AT });
     await git(dir, ["switch", "main"]);

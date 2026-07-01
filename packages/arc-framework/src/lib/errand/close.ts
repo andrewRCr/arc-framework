@@ -91,7 +91,11 @@ export async function closeErrand(
   const current = await currentBranch(io.exec);
   const branchPresent = await localBranchExists(io.exec, record.branch);
   let switchedToBase = false;
-  if (!branchPresent && current === record.branch) {
+  // Hop off a dangling HEAD (the branch ref was deleted out from under us) only on
+  // the force path — the non-force `!branchPresent` arm below returns `unsafe-reap`
+  // without reaping, so it must not mutate HEAD (nor risk throwing on a conflicting
+  // checkout) on a rejected close.
+  if (params.force === true && !branchPresent && current === record.branch) {
     await io.exec("git", ["switch", params.base]);
     switchedToBase = true;
   }
