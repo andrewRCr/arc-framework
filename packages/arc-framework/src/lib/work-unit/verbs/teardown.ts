@@ -46,6 +46,7 @@
  */
 
 import type { GitExec } from "../../git/exec.js";
+import { refreshBase } from "../../git/refresh-base.js";
 import {
   resolvePrimaryWorktreePath,
   resolveWorktreePathsByBranch,
@@ -154,30 +155,6 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
     return true;
   } catch {
     return false;
-  }
-}
-
-/**
- * Resolve the authoritative base ref for the reap-safety check: fetch the remote
- * base and return `<remote>/<base>` when it resolves, so the landed-in-base leg
- * evaluates against the post-merge remote rather than a possibly-stale local
- * `base`. Best-effort — any failure (no remote, offline, unresolved ref) falls
- * back to the local `base`, preserving the prior behavior.
- *
- * @param exec - Injected git executor.
- * @param base - The local base branch name.
- * @param remote - The remote whose base ref is authoritative (default `origin`).
- * @returns `<remote>/<base>` when fetched and resolvable, else the local `base`.
- */
-async function refreshBase(exec: GitExec, base: string, remote?: string): Promise<string> {
-  const remoteName = remote ?? "origin";
-  const remoteBase = `${remoteName}/${base}`;
-  try {
-    await exec("git", ["fetch", remoteName, base]);
-    await exec("git", ["rev-parse", "--verify", "--quiet", remoteBase]);
-    return remoteBase;
-  } catch {
-    return base;
   }
 }
 
