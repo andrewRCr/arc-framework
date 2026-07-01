@@ -49,6 +49,21 @@
 - *Home note:* `in-flight-awareness` shipped Materialize but is itself shipped; landed here at drain (alt:
   `cross-machine-coherence`).
 
+### `[ ]` **Decide whether parallel errands need worktree support**
+
+- *Routed from:* live capture during errand drain follow-through (2026-07-01), while sequencing follow-up errands
+  from the primary worktree.
+- *Concern:* Errands currently run as `chore/<slug>` branches occupied in the primary worktree, while worktree
+  spawning is reserved for work units. That may be a principled boundary: errands are atomic, short-lived, and
+  executing them from the primary checkout avoids extra branch/worktree state colliding with active WUs. But the
+  parallelism GA story names "multiple in-flight work units + errands," so the closeout should explicitly verify
+  whether primary-worktree-only errands are sufficient, or whether genuinely parallel errands need worktree
+  support.
+- *Recommendation:* Treat this as a seam-audit decision, not a pre-committed feature. If the current boundary is
+  intentional, document the invariant and the reason errands stay primary-worktree-only. If real multi-in-flight
+  practice needs concurrent errands, scope the minimal worktree support and its interaction with active-WU
+  occupancy, errand close/reap, and inbox-origin cleanup.
+
 ### `[ ]` **Wire a behind-base reconcile gate into `integrate-work-unit`**
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-18);
