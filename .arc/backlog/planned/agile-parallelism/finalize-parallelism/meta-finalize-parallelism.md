@@ -17,5 +17,7 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft toward spec readiness as the agile-parallelism members approach
-  completion. The cohort closeout — not startable until its dependencies ship; the cohort archives on its ship.
+- **Next Action:** All dependencies shipped — **startable** as the agile-parallelism GA gate / cohort closeout
+  (the cohort archives on its ship). Recommended sequencing before leaning on parallelism: land
+  `interlock-release-refinement` and `roadmap-tooling` (the two concurrency friction-reducers) first, then run
+  this WU's end-to-end seam audit + worktree-default flip. Drain the Inbound Buffer at first planning iteration.

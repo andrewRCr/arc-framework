@@ -143,6 +143,35 @@
   the primary fix.
 - *Captured during:* `decompose-matrix` Phase 5 teardown investigation (2026-06-21).
 
+### `[ ]` **Add an actionlint workflow-lint gate for `.github/workflows/`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: quality-gate-hooks`), housekeep drain (2026-07-01);
+  captured during `ci-content-aware-depth` Task 2.2.
+- *Concern:* inline `run:` shell in `.github/workflows/ci.yml` (the `classify` weight-axis block, the `merge-ok`
+  rollup) is unlinted — `lint:sh` covers only `scripts/*.sh`, and a YAML parse checks well-formedness only. A
+  `needs.*` typo currently fails open to heavy with no error.
+- *Proposed:* add a `lint:workflows` script wrapping the actionlint binary (single Go binary) — shellcheck on
+  every `run:` block, `${{ }}` / `needs.*` validation, deprecated-runner / matrix checks — wired into the
+  pre-commit hook and/or the `quality` CI job. Prefer actionlint over yamllint (style noise, no shell/expression
+  coverage). Adoption may surface pre-existing inline-shell issues to fix as part of turning the gate on.
+
+### `[ ]` **Pre-commit hook runs no markdownlint — style rules (MD013 etc.) unenforced until CI**
+
+- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-07-01); captured during
+  `user-save-status-divergence` handoff. Errand-leaning, but carries a design fork → routed here as the
+  hook-gate home rather than executed blind.
+- *Concern:* the arc pre-commit hook runs **no markdownlint style pass** (content / structural checks only), so
+  MD013 line-length etc. are enforced only by the manual `npm run -s lint:md` gate + CI. Live hit: a 143-char
+  meta line passed pre-commit clean, caught only by a standalone `markdownlint-cli2` run. DEV-RULES.PROJECT
+  § Quality Gates frames markdown lint as the zero-tolerance pre-commit gate (#1), so hook behavior and the
+  stated policy diverge.
+- *Proposed (design fork):* (a) add a scoped `markdownlint-cli2` pass over staged `.md` files to the pre-commit
+  hook (catches MD013 at commit time, staged-only); or (b) if CI-only style linting is the intended design
+  (commit speed), reconcile the DEV-RULES.PROJECT § Quality Gates wording. Mirror any hook edit to the package
+  source per two-copy sync.
+- *Files:* `.arc/system/.internal/githooks/pre-commit` (+ package mirror), `.arc/system/rules/DEV-RULES.PROJECT.md`,
+  possibly `package.json` / `.markdownlint-cli2.jsonc`.
+
 ---
 
 ## Problem / Motivation

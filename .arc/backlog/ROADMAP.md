@@ -20,11 +20,12 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                    | Priority | Owner  | Depends on | Cohort                     |
 |------------------------------|----------|--------|------------|----------------------------|
 | finalize-parallelism         | P1       | andrew | —          | agile-parallelism          |
+| interlock-release-refinement | P1       | andrew | —          | approval-flow-refinement   |
+| adversarial-review           | P1       | andrew | —          | —                          |
 | pr-decomposition             | P1       | andrew | —          | —                          |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
-| interlock-release-refinement | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization       | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions           | P2       | andrew | —          | doc-conventions            |
 | composable-workflows         | P2       | andrew | —          | principle-anchored-core    |
@@ -48,6 +49,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | binary-distribution          | P3       | andrew | —          | release-readiness          |
 | docs-site-refresh            | P3       | andrew | —          | release-readiness          |
 | release-lifecycle            | P3       | andrew | —          | release-readiness          |
+| adopter-content-aware-ci     | P3       | andrew | —          | —                          |
 | adr-accept-timing            | P3       | andrew | —          | —                          |
 | arc-modes                    | P3       | andrew | —          | —                          |
 | arc-reinforce                | P3       | andrew | —          | —                          |
@@ -65,7 +67,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | rules-restructure            | P3       | andrew | —          | —                          |
 | shared-inbox-housekeep       | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                          |
+| sync-primitive-discipline    | P3       | andrew | —          | —                          |
 | synthesis-modality           | P3       | andrew | —          | —                          |
+| user-notes-retention         | P3       | andrew | —          | —                          |
 
 ## Blocked
 
