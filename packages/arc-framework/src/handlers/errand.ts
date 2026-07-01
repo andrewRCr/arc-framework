@@ -22,6 +22,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import {
   openErrand,
+  linkErrandToInbox,
   closeErrand,
   retireErrand,
   promoteErrand,
@@ -215,6 +216,106 @@ export async function handleErrandOpen(slug: string, opts: ErrandOpenOptions): P
   p.outro("Done.");
 }
 
+/** Options for the `arc errand link` subcommand. */
+export interface ErrandLinkOptions {
+  /** USER-INBOX capture title to associate with this errand. */
+  fromInbox?: string;
+}
+
+/**
+ * Link an already-open errand to a USER-INBOX capture.
+ *
+ * This is the late-adoption counterpart to `open --from-inbox`: it updates the
+ * existing errand record to carry the inbox back-pointer, so the normal close or
+ * promote path can drop the capture after the record is removed.
+ */
+export async function handleErrandLink(slug: string, opts: ErrandLinkOptions): Promise<void> {
+  p.intro("arc errand link");
+
+  const cwd = requireArcProjectRoot();
+  if (!cwd) return;
+
+  const { settings } = await readConfigSettings(cwd);
+  if (settings["branch.protection"] !== "full") {
+    p.log.error(
+      "`arc errand link` is a full-protection verb. Under partial protection an errand is a direct "
+      + "base commit — no branch, no record — so there is nothing to link.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  const originEntry = opts.fromInbox?.trim();
+  if (originEntry === undefined || originEntry === "") {
+    p.log.error("`arc errand link` requires `--from-inbox <entry-title>`.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const identity = await resolveIdentityWithPrompt(false);
+  if (!identity) {
+    p.log.error("No identity resolved — the errand record ref is identity-scoped. Set arc.identity first.");
+    process.exitCode = 1;
+    return;
+  }
+
+  const io = createUserIOContext();
+  if (!io.execInput) {
+    p.log.error("The stdin git seam is unavailable — cannot update the errand record.");
+    process.exitCode = 1;
+    return;
+  }
+
+  let result;
+  try {
+    result = await linkErrandToInbox(
+      { exec: io.exec, execInput: io.execInput, identity },
+      { slug, originEntry },
+    );
+  } catch (err) {
+    p.log.error(`Could not link the errand: ${err instanceof Error ? err.message : String(err)}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  if (result.kind === "no-record") {
+    p.log.info(`No errand record for '${slug}' — nothing to link.`);
+    p.outro("Done.");
+    return;
+  }
+
+  if (result.kind === "link-conflict") {
+    p.log.error(
+      `Errand '${slug}' is already linked to inbox capture '${result.record.originEntry ?? ""}' `
+      + `(requested '${result.requestedEntry}'). Changing an existing link is refused so the original capture `
+      + "cannot be orphaned.",
+    );
+    process.exitCode = 1;
+    return;
+  }
+
+  // Mirror the sync leg's marker discipline (see handleErrandOpen): a clean push
+  // of the update clears any stale marker; a failed push records it and is
+  // non-fatal — the update rides the next `arc sync`.
+  switch (result.push.kind) {
+    case "pushed":
+    case "reconciled":
+    case "noop":
+      await clearErrandPartialPushMarker(cwd, io, identity);
+      break;
+    case "no-remote":
+    case "conflict":
+    case "failed":
+      await recordErrandPartialPushMarker(cwd, io, identity);
+      p.log.warn(`Record-link push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
+      break;
+  }
+
+  const suffix = result.changed ? "" : " (already linked)";
+  p.log.success(`Linked errand '${slug}' to inbox capture '${result.record.originEntry ?? ""}'${suffix}.`);
+  p.outro("Done.");
+}
+
 /** Options for the `arc errand close` subcommand. */
 export interface ErrandCloseOptions {
   /** Bypass the containment safety check — the deliberate shipped / abandon override. */
@@ -314,10 +415,7 @@ export async function handleErrandClose(slug: string, opts: ErrandCloseOptions):
 
   // Drop the originating inbox capture (only inbox-promoted errands carry one);
   // idempotent — an absent entry or missing inbox file is a clean no-op.
-  if (result.record.originEntry !== undefined) {
-    const dropped = await runUserInboxRemove({ cwd, identity, slug: result.record.originEntry });
-    if (dropped.removed) p.log.info("Dropped the originating inbox capture.");
-  }
+  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
 
   p.log.success(`Closed errand '${slug}' — reaped ${result.record.branch}, record removed.`);
   p.outro("Done.");
@@ -393,6 +491,8 @@ export async function handleErrandRetire(slug: string): Promise<void> {
       p.log.warn(`Record-removal push deferred (${result.push.kind}); it reconciles on the next \`arc sync\`.`);
       break;
   }
+
+  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
 
   p.log.success(`Retired errand record '${slug}' — the branch is preserved for the promoted work unit.`);
   p.outro("Done.");
@@ -519,6 +619,8 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
       break;
   }
 
+  await dropOriginatingInboxCapture(cwd, identity, result.record.originEntry);
+
   const stage = floor === "derivation" ? "Planning (draft-design)" : "Active";
   p.log.success(
     `Promoted errand '${slug}' → work unit on ${result.branch}; minted ${result.metaPath} at ${stage}, `
@@ -530,6 +632,17 @@ export async function handleErrandPromote(slug: string, opts: ErrandPromoteOptio
     `ROADMAP regen pending (no renderer yet): \`${wuName}\` promoted to ${stage} — hand-render the readiness view.`,
   );
   p.outro("Done.");
+}
+
+/** Drop the originating capture, if the record carries a back-pointer. */
+async function dropOriginatingInboxCapture(
+  cwd: string,
+  identity: string,
+  originEntry: string | undefined,
+): Promise<void> {
+  if (originEntry === undefined) return;
+  const dropped = await runUserInboxRemove({ cwd, identity, slug: originEntry });
+  if (dropped.removed) p.log.info("Dropped the originating inbox capture.");
 }
 
 /** The current worktree's root, in `git worktree list` path form (for self-exclusion). */

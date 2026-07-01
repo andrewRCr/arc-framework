@@ -19,11 +19,13 @@ import { handleStart, type StartOptions } from "./handlers/start.js";
 import {
   handleErrandCheck,
   handleErrandOpen,
+  handleErrandLink,
   handleErrandClose,
   handleErrandRetire,
   handleErrandPromote,
   type ErrandCheckOptions,
   type ErrandOpenOptions,
+  type ErrandLinkOptions,
   type ErrandCloseOptions,
   type ErrandPromoteOptions,
 } from "./handlers/errand.js";
@@ -272,6 +274,12 @@ errand
   .option("--intent <text>", "Free-text statement of the errand's concern (default: the slug)")
   .option("--from-inbox <entry-title>", "Adopt a USER-INBOX capture (its title): inbox-origin record, dropped at close")
   .action((slug: string, opts: ErrandOpenOptions) => handleErrandOpen(slug, opts));
+
+errand
+  .command("link <slug>")
+  .description("Link an in-flight errand to a USER-INBOX capture so close/promote can drop it")
+  .requiredOption("--from-inbox <entry-title>", "USER-INBOX capture title to associate with the errand")
+  .action((slug: string, opts: ErrandLinkOptions) => handleErrandLink(slug, opts));
 
 errand
   .command("close <slug>")

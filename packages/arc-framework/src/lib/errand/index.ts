@@ -44,6 +44,12 @@ export {
 } from "./open.js";
 
 export {
+  linkErrandToInbox,
+  type LinkErrandToInboxParams,
+  type LinkErrandToInboxResult,
+} from "./link.js";
+
+export {
   closeErrand,
   type CloseErrandParams,
   type CloseErrandResult,
