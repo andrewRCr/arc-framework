@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "errand-close-base-refresh",
-  "origin": "description",
-  "intent": "Reuse teardown's base-refresh/fetch-prune in arc errand close so it leaves the primary on a fresh base after merge",
-  "branch": "fix/errand-close-base-refresh",
-  "createdAt": "2026-07-01T19:42:21.069Z"
-}
