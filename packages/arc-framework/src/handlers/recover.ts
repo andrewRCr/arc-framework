@@ -4,11 +4,8 @@
  * @module
  */
 
-import { access, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 
-import { runActiveSessionInitStatus } from "../commands/active.js";
-import { runConfigSessionInitStatus } from "../commands/config.js";
-import { runExtensionsSessionInitStatus } from "../commands/extensions.js";
 import { runRecoverStatus } from "../commands/status.js";
 import type { SessionRecoverProbeResult } from "../commands/status.js";
 import {
@@ -20,21 +17,15 @@ import {
   parseUncommittedFiles,
   resolveCompactionSeedPath,
 } from "../lib/compaction-seed/emitter.js";
-import { resolveAllSettings } from "../lib/config/resolved-settings.js";
 import type { DirtyStateResult } from "../lib/git/dirty-state.js";
 import { gitConfigGet } from "../lib/git/index.js";
-import { runWorktreeSyncStatus } from "../lib/git/worktree-sync.js";
-import { resolveWorktreeIdentity } from "../lib/git/worktree-identity.js";
-import { createUserIOContext, gitExec } from "../lib/io-context.js";
-import { resolveReleaseRouting } from "../lib/release/routing.js";
-import type { ReleaseRoutingValue } from "../lib/release/routing.js";
+import { gitExec } from "../lib/io-context.js";
 import {
   auditRecoveryState,
   type RecoveryAuditStopReason,
   type RecoveryAuditVerdict,
 } from "../lib/recover/audit.js";
-import { resolveActiveCohortDocPath } from "../lib/session-init/cohort-doc.js";
-import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
+import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface RecoverAuditOptions {
@@ -57,7 +48,6 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
   const cwd = requireArcProjectRoot();
   if (!cwd) return;
 
-  const io = createUserIOContext();
   const { identity, role } = await readIdentityPointers();
   if (identity === null) {
     writeReport(stopReport({
@@ -91,40 +81,22 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     return;
   }
 
-  const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
   let gitStatusOutputP: Promise<string> | undefined;
   const getGitStatusOutput = (): Promise<string> => {
     gitStatusOutputP ??= gitExec("git", ["status", "--porcelain=v1", "-z"])
       .then(({ stdout }) => stdout);
     return gitStatusOutputP;
   };
+  const probes = createRecoverStatusProbes({
+    cwd,
+    dirty: async () => dirtyStateFromUncommittedFiles(
+      parseUncommittedFiles(await getGitStatusOutput()),
+    ),
+  });
   const recover = await runRecoverStatus({
     identity,
     role,
-    probes: {
-      worktree: async () => {
-        const resolved = await resolvedSettingsP;
-        const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-        return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
-      },
-      worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
-      dirty: async () => dirtyStateFromUncommittedFiles(
-        parseUncommittedFiles(await getGitStatusOutput()),
-      ),
-      extensions: () => runExtensionsSessionInitStatus({ cwd }),
-      config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-      active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
-      releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-      cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-        cwd,
-        activeMetaPath,
-        fs: {
-          readFile: (path) => readFile(path, "utf8"),
-          pathExists: (path) => access(path).then(() => true, () => false),
-        },
-      }),
-      taskCursor: async (taskListPath) => resolveTaskListCursorFromFile({ cwd, taskListPath }),
-    },
+    probes,
   });
 
   let statusOutput: string;
@@ -177,14 +149,6 @@ async function readIdentityPointers(): Promise<{
     identity: normalizeGitConfigValue(identityRaw),
     role: normalizeGitConfigValue(roleRaw),
   };
-}
-
-function releaseRoutingFromSettings(settings: Awaited<ReturnType<typeof resolveAllSettings>>): ReleaseRoutingValue {
-  return resolveReleaseRouting({
-    releaseOptedIn: settings.resolved.releaseOptedIn.value === "true",
-    commitInterlock: settings.resolved.commitInterlock.value,
-    pushInterlock: settings.resolved.pushInterlock.value,
-  });
 }
 
 function writeReport(report: RecoverAuditReport, json: boolean): void {
