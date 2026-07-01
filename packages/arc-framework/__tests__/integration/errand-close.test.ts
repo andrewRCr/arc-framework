@@ -120,6 +120,9 @@ describe("closeErrand", () => {
     expect(
       (await git(dir, ["rev-parse", "--verify", "refs/remotes/origin/chore/pushed-errand"])).trim(),
     ).toMatch(/^[0-9a-f]{40}$/u);
+    // Simulate the PR merge's delete-on-merge: drop the branch on the remote,
+    // leaving the local tracking ref stale — exactly what `fetch --prune` reaps.
+    await execFileAsync("git", ["update-ref", "-d", "refs/heads/chore/pushed-errand"], { cwd: remoteDir });
 
     const result = await closeErrand(io, { slug: "pushed-errand", base: "main" });
 
@@ -140,6 +143,35 @@ describe("closeErrand", () => {
 
     expect(result.kind).toBe("closed");
     expect(await branchExists(dir, "chore/merged")).toBe(false);
+  });
+
+  it("reaps against the refreshed remote base and fast-forwards a stale local base", async () => {
+    // The real full-protection flow: the errand merges on the *remote* base, so at
+    // close time the local `base` is stale and the branch is contained only in
+    // `origin/<base>`. `close` must fetch the remote base, reap against it, and
+    // fast-forward local `main` so the primary lands current rather than stale.
+    await openErrand(io, { slug: "remote-merged", base: "main", createdAt: CREATED_AT });
+    await commitOn(dir, "errand change"); // a commit on chore/remote-merged
+    const staleMain = (await git(dir, ["rev-parse", "main"])).trim();
+    // Land the errand on origin/main (as a PR merge would), then rewind local main
+    // and hop back onto the errand branch — the stale-local, in-place-at-close state.
+    await git(dir, ["switch", "main"]);
+    await git(dir, ["merge", "--no-ff", "chore/remote-merged", "-m", "merge errand on remote"]);
+    await git(dir, ["push", "origin", "main"]);
+    await git(dir, ["reset", "--hard", staleMain]);
+    await git(dir, ["switch", "chore/remote-merged"]);
+    expect((await git(dir, ["rev-parse", "main"])).trim()).toBe(staleMain); // local base still stale
+
+    const result = await closeErrand(io, { slug: "remote-merged", base: "main" });
+
+    expect(result.kind).toBe("closed");
+    expect(await currentBranch(dir)).toBe("main"); // hopped off the reaped branch
+    expect(await branchExists(dir, "chore/remote-merged")).toBe(false);
+    // Local base fast-forwarded to the merged remote base — no manual pull needed.
+    expect((await git(dir, ["rev-parse", "main"])).trim()).toBe(
+      (await git(dir, ["rev-parse", "origin/main"])).trim(),
+    );
+    expect((await git(dir, ["rev-parse", "main"])).trim()).not.toBe(staleMain);
   });
 
   it("refuses to reap an unmerged, unpushed branch and keeps the record recoverable", async () => {

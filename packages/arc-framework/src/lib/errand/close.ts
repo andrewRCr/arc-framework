@@ -10,8 +10,10 @@
  *
  * The reap is **atomic with the record removal**: safety is checked first, so a
  * refusal never removes the record. The remote branch is never deleted (the PR
- * merge owns that); only the stale local remote-tracking ref is pruned. The
- * inbox drop is the caller's composition (file I/O over the gitignored inbox,
+ * merge owns that); the stale remote-tracking refs it left are pruned, and the
+ * local `base` is fast-forwarded to the freshly-fetched remote base so the primary
+ * lands current after the merge rather than on a stale base. The inbox drop is the
+ * caller's composition (file I/O over the gitignored inbox,
  * keyed by the record's origin back-pointer) and lands only on a successful close.
  *
  * The git seams and identity are injected (three-layer architecture).
@@ -24,6 +26,8 @@ import { readErrandRecord, removeErrandRecord, type ErrandRecord } from "./recor
 import type { ErrandRecordIO } from "./ref-tree.js";
 import { assessReapSafety } from "../git/branch-containment.js";
 import type { GitExec } from "../git/exec.js";
+import { refreshBase } from "../git/refresh-base.js";
+import { fetchPrune } from "../work-unit/mutators/fetch-prune.js";
 
 /** The default remote whose upstream containment proves preservation. */
 const DEFAULT_REMOTE = "origin";
@@ -56,9 +60,11 @@ export type CloseErrandResult =
  *
  * Resolves the record by slug — an absent record is `no-record` (nothing to
  * close). Unless `force` is set, when the branch's commits are not provably
- * preserved it returns `unsafe-reap` without removing the record. Otherwise hops
- * off the branch if occupied, force-deletes it, prunes the stale remote-tracking
- * ref, removes the record, and pushes the removal.
+ * preserved it returns `unsafe-reap` without removing the record. Otherwise
+ * fetches the authoritative remote base (so containment and the base fast-forward
+ * evaluate against the post-merge remote), hops off the branch if occupied,
+ * force-deletes it, prunes stale remote-tracking refs, fast-forwards local `base`,
+ * removes the record, and pushes the removal.
  *
  * @param io - Injected git seams and identity.
  * @param params - The errand slug, base, remote, and force override.
@@ -75,10 +81,19 @@ export async function closeErrand(
   const record = await readErrandRecord(io, slug);
   if (record === null) return { kind: "no-record", slug };
 
+  // Fetch the authoritative remote base before the containment check and the base
+  // fast-forward. Right after a remote merge the local `base` is typically stale
+  // (the merge landed on `<remote>/<base>`, not yet pulled), so a merged-into-base
+  // containment check against the local ref false-negatives a merged branch.
+  // Best-effort — offline / no-remote degrades to the local `base`.
+  const baseRef = await refreshBase(io.exec, params.base, remote);
+
   const current = await currentBranch(io.exec);
   const branchPresent = await localBranchExists(io.exec, record.branch);
+  let switchedToBase = false;
   if (!branchPresent && current === record.branch) {
     await io.exec("git", ["switch", params.base]);
+    switchedToBase = true;
   }
 
   if (params.force !== true) {
@@ -89,7 +104,15 @@ export async function closeErrand(
         reason: `'${record.branch}' is already absent locally — re-run with --force if you've verified it shipped`,
       };
     }
-    const safety = await assessReapSafety(io.exec, { branch: record.branch, base: params.base, remote });
+    // Containment is a union: the branch is preserved if it landed in the local
+    // `base` (a local merge) OR in the freshly-fetched remote base (the common
+    // state right after a remote merge, when the local `base` is still stale).
+    // Check local first, then the remote base only when it differs, so neither a
+    // locally-merged branch nor a remote-merged-but-locally-stale one false-negatives.
+    let safety = await assessReapSafety(io.exec, { branch: record.branch, base: params.base, remote });
+    if (!safety.safe && baseRef !== params.base) {
+      safety = await assessReapSafety(io.exec, { branch: record.branch, base: baseRef, remote });
+    }
     if (!safety.safe) return { kind: "unsafe-reap", record, reason: safety.reason };
   }
 
@@ -97,17 +120,32 @@ export async function closeErrand(
     // Hop off the branch before deleting it — `git branch -D` refuses the current branch.
     if (current === record.branch) {
       await io.exec("git", ["switch", params.base]);
+      switchedToBase = true;
     }
     // Containment is proven, so force-delete: `-d` re-checks base-reachability,
     // which false-negatives under squash / rebase merges.
     await io.exec("git", ["branch", "-D", record.branch]);
   }
-  // Prune the now-stale remote-tracking ref, best-effort — absent when the
-  // branch was never pushed (the merged-into-base safe path).
+
+  // Prune the stale remote-tracking refs a delete-on-merge leaves — the same
+  // `fetch --prune` leg teardown composes. Best-effort: a prune failure (offline)
+  // does not undo the completed reap.
   try {
-    await io.exec("git", ["update-ref", "-d", `refs/remotes/${remote}/${record.branch}`]);
+    await fetchPrune({ exec: io.exec }, { remote });
   } catch {
-    // No tracking ref to prune.
+    // Offline / no remote — nothing to prune.
+  }
+
+  // Land the developer on a current base: fast-forward local `base` to the
+  // refreshed remote base after hopping off the errand branch (best-effort; a
+  // non-ff local base or unresolved remote base is left as-is). Skipped when the
+  // remote base did not resolve (`baseRef === params.base`) or we never hopped.
+  if (switchedToBase && baseRef !== params.base) {
+    try {
+      await io.exec("git", ["merge", "--ff-only", baseRef]);
+    } catch {
+      // Local base ahead / unavailable — leave it as-is.
+    }
   }
 
   await removeErrandRecord(io, slug);
