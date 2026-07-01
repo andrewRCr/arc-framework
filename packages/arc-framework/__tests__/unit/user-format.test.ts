@@ -50,7 +50,6 @@ describe("buildLoadSummary — ancestor distance reporting", () => {
       ancestorDistance: 0,
       fromAncestor: false,
       reachableFromHead: false,
-      noteHistoryDistance: 0,
       currentBranch: "fix/state-ref-write-safety",
     }));
 

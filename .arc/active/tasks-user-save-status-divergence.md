@@ -140,27 +140,16 @@ _Design decisions:_ Callers project one resolved result; the divergence is proje
 `noteHistoryDistance` loses its selection meaning in Phase 2 and is dropped here (3.1) — the enumerate design
 computes no history index, so it has no basis; settling it first unblocks the projections that read it.
 
-### `[ ]` **3.1 Drop `noteHistoryDistance` and its off-ancestry display clause**
+### `[x]` **3.1 Drop `noteHistoryDistance` and its off-ancestry display clause**
 
 - _Goal:_ `noteHistoryDistance` — the walk index that ordered the old selection and has no basis under the
   enumerate design — is removed from `NearestUserNoteRef` and its readers, and the `outside-head-ancestry` summary
   drops its now-meaningless `"(N note update(s) back)"` clause; the remaining line (commit + off-branch clause)
   stands (D3, Open Question).
 
-    - Remove the field from `NearestUserNoteRef` (`types.ts:168`) and **every** reader atomically — in
-      `sync-status.ts` the `runUserStatus` pass-through (`:154`), the freshness base (`:346`), the
-      `outside-head-ancestry` display (`:590–592`), and the status / freshness result types (`types.ts:604,677`);
-      and **outside it** the `runUserLoad` return assignment (`save-load.ts:236`) and `UserLoadResult`
-      (`types.ts:105`). The `save-load.ts` reader is Phase-4 territory, but the removal must be atomic here or the
-      tree fails type-check across the Phase 3→4 boundary (`runUserLoad` is not rewritten until 4.1/4.2).
-    - _Note:_ Off-ancestry is divergent history, so no meaningful distance replaces the dropped clause
-      (`ancestorDistance` is 0 there by definition). A genuine follow-up, deferred to keep this WU scoped to the
-      selection fix: post-D8 an off-ancestry result is always this machine's own `save`, so the line could sharpen
-      to "your last save, off this branch — check out its branch to resume."
-    - _Note:_ A provenance-field change is a test-only update, not a resolution regression — keep the resolution
-      assertions (which `.commit` is returned) green.
-    - **Additional Context:** `spec-user-save-status-divergence.md` § Cross-cutting Considerations (Testing) and
-      § Open Questions.
+- _Outcome:_ Removed `noteHistoryDistance` from the user-note resolution, load, status, and session-init freshness
+  result surfaces. Off-ancestry status/load text now reports the commit and off-branch/history clause without the
+  obsolete note-ref-history distance; tests keep resolution assertions while dropping the provenance field.
 
 ### `[ ]` **3.2 `runUserStatus` / `savedCommit` projection**
 

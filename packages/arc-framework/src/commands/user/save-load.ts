@@ -255,7 +255,6 @@ export async function runUserLoad(
     fileCount: Object.keys(loadManifest.files).length,
     fromAncestor,
     ancestorDistance: search.note?.ancestorDistance ?? 0,
-    noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     // A cross-WU-only load (no per-WU note resolved — e.g. a brand-new WU loading
     // shared context before its first save) has no annotated commit to be off-
     // ancestry, so leave `reachableFromHead` undefined rather than defaulting it

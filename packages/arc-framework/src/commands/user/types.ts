@@ -101,8 +101,6 @@ export interface UserLoadResult {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the loaded ancestor note (0 when on HEAD). */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note. */
-  noteHistoryDistance?: number;
   /** Whether the annotated commit is reachable from current HEAD. */
   reachableFromHead?: boolean;
   /**
@@ -164,8 +162,6 @@ export interface NearestUserNoteRef {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the annotated commit when reachable. */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note, when known. */
-  noteHistoryDistance?: number;
 }
 
 /** Options for the add operation. */
@@ -600,8 +596,6 @@ export interface UserStatusResult {
   savedFromAncestor: boolean;
   /** Commits between HEAD and the saved note (0 when the note is at HEAD). */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note, when known. */
-  noteHistoryDistance?: number;
   /** Whether the saved note's annotated commit is reachable from current HEAD, when known. */
   savedReachableFromHead?: boolean;
   /** Human-readable "N ago" phrasing for the note commit's author date, when known. */
@@ -674,7 +668,6 @@ export interface UserSessionLocalNoteFreshness {
    */
   commitShort: string | null;
   ancestorDistance: number;
-  noteHistoryDistance?: number;
   reachableFromHead?: boolean;
   /**
    * The branch HEAD is on — names the recognizable anchor for the

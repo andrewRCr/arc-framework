@@ -151,7 +151,6 @@ export async function runUserStatus(
     savedCommit: note ? await shortHash(io.exec, note.commit) : null,
     savedFromAncestor: note ? note.fromAncestor : false,
     ancestorDistance: note?.ancestorDistance ?? 0,
-    noteHistoryDistance: note?.noteHistoryDistance,
     savedReachableFromHead: note?.reachableFromHead,
     currentBranch: note && !note.reachableFromHead ? await getCurrentBranch(io.exec) : null,
     savedAtRelative,
@@ -343,7 +342,6 @@ async function inspectSessionLocalNoteFreshness(input: {
     commit: note.commit,
     commitShort: await shortHash(input.io.exec, note.commit),
     ancestorDistance: note.ancestorDistance,
-    noteHistoryDistance: note.noteHistoryDistance,
     reachableFromHead: note.reachableFromHead,
   };
 
@@ -587,12 +585,9 @@ function renderSessionLocalNoteFreshness(
         `Latest local user note is from ${freshness.commitShort}, ${freshness.ancestorDistance} commit(s) behind HEAD.`,
       ];
     case "outside-head-ancestry": {
-      const historyDetail = freshness.noteHistoryDistance === undefined
-        ? ""
-        : ` (${freshness.noteHistoryDistance} note update(s) back)`;
       return [
         `Latest local user note is from ${freshness.commitShort}, ` +
-        `${noteOffBranchHistoryClause(freshness.currentBranch ?? null, historyDetail)}.`,
+        `${noteOffBranchHistoryClause(freshness.currentBranch ?? null)}.`,
       ];
     }
   }
@@ -609,7 +604,6 @@ interface BuildUserStatusInput {
   savedCommit: string | null;
   savedFromAncestor: boolean;
   ancestorDistance?: number;
-  noteHistoryDistance?: number;
   savedReachableFromHead?: boolean;
   /** Branch HEAD is on — names the anchor when the saved note is off the current branch's history. */
   currentBranch?: string | null;
@@ -669,7 +663,6 @@ export function buildUserStatusResult(
     remoteIdentities,
   } = input;
   const ancestorDistance = input.ancestorDistance ?? 0;
-  const noteHistoryDistance = input.noteHistoryDistance;
   const savedReachableFromHead = input.savedReachableFromHead ?? true;
   const currentBranch = input.currentBranch ?? null;
   const savedAtRelative = input.savedAtRelative ?? null;
@@ -719,7 +712,6 @@ export function buildUserStatusResult(
       savedReachableFromHead,
       currentBranch,
       ancestorDistance,
-      noteHistoryDistance,
       diskState,
       savedAtRelative,
       backupFiles,
@@ -732,7 +724,6 @@ export function buildUserStatusResult(
       savedCommit,
       savedReachableFromHead,
       ancestorDistance,
-      noteHistoryDistance,
       diskState,
       savedAtRelative,
       backupFiles,
@@ -769,7 +760,6 @@ export function buildUserStatusResult(
     savedCommit,
     savedFromAncestor,
     ancestorDistance,
-    ...(noteHistoryDistance !== undefined ? { noteHistoryDistance } : {}),
     savedReachableFromHead,
     savedAtRelative,
     unsavedDirection,
@@ -955,7 +945,6 @@ interface VerboseDetailInput {
   savedReachableFromHead: boolean;
   currentBranch: string | null;
   ancestorDistance: number;
-  noteHistoryDistance: number | undefined;
   diskState: UserSyncDiskState;
   savedAtRelative: string | null;
   backupFiles: string[];
@@ -975,7 +964,6 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
     savedReachableFromHead,
     currentBranch,
     ancestorDistance,
-    noteHistoryDistance,
     diskState,
     savedAtRelative,
     backupFiles,
@@ -1023,12 +1011,9 @@ function buildVerboseDetailLines(args: VerboseDetailInput): string[] {
   } else if (savedCommit && savedReachableFromHead && ancestorDistance === 0) {
     detailLines.push("Latest local user note is current with HEAD.");
   } else if (savedCommit) {
-    const historyDetail = noteHistoryDistance === undefined
-      ? ""
-      : ` (${noteHistoryDistance} note update(s) back)`;
     detailLines.push(
       `Latest local user note is from ${savedCommit}, ` +
-      `${noteOffBranchHistoryClause(currentBranch, historyDetail)}.`,
+      `${noteOffBranchHistoryClause(currentBranch)}.`,
     );
   } else if (!savedCommit && diskState === "different") {
     detailLines.push("No local user note exists yet for this identity.");
@@ -1058,7 +1043,6 @@ interface DefaultDetailInput {
   savedCommit: string | null;
   savedReachableFromHead: boolean;
   ancestorDistance: number;
-  noteHistoryDistance: number | undefined;
   diskState: UserSyncDiskState;
   savedAtRelative: string | null;
   backupFiles: string[];
@@ -1072,7 +1056,6 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
     savedCommit,
     savedReachableFromHead,
     ancestorDistance,
-    noteHistoryDistance,
     diskState,
     savedAtRelative,
     backupFiles,
@@ -1085,7 +1068,6 @@ function buildDefaultDetailLines(args: DefaultDetailInput): string[] {
       savedCommit,
       savedReachableFromHead,
       ancestorDistance,
-      noteHistoryDistance,
       diskState,
       savedAtRelative,
     });
@@ -1117,7 +1099,6 @@ interface DefaultContextInput {
   savedCommit: string | null;
   savedReachableFromHead: boolean;
   ancestorDistance: number;
-  noteHistoryDistance: number | undefined;
   diskState: UserSyncDiskState;
   savedAtRelative: string | null;
 }
@@ -1127,7 +1108,6 @@ function renderDefaultContextLine(args: DefaultContextInput): string | null {
     savedCommit,
     savedReachableFromHead,
     ancestorDistance,
-    noteHistoryDistance,
     diskState,
     savedAtRelative,
   } = args;
@@ -1142,10 +1122,7 @@ function renderDefaultContextLine(args: DefaultContextInput): string | null {
   } else if (savedReachableFromHead && ancestorDistance > 0) {
     position = `Note from ${savedCommit}, ${ancestorDistance} commit(s) back from HEAD`;
   } else {
-    const historyDetail = noteHistoryDistance === undefined
-      ? ""
-      : ` (${noteHistoryDistance} note update(s) back)`;
-    position = `Note from ${savedCommit}, outside HEAD ancestry${historyDetail}`;
+    position = `Note from ${savedCommit}, outside HEAD ancestry`;
   }
 
   const savedSuffix = savedAtRelative ? `, saved ${savedAtRelative}` : "";

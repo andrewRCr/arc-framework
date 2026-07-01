@@ -126,7 +126,6 @@ describe("buildUserStatusResult", () => {
       savedCommit: "abc1234",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       currentBranch: "fix/state-ref-write-safety",
       backupFiles: [],
@@ -134,8 +133,8 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
-      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
     );
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
@@ -853,7 +852,6 @@ describe("buildUserStatusResult default mode (verbose: false)", () => {
       savedCommit: "9b1c241",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       savedAtRelative: "9 hours ago",
       unsavedDirection: "edits",
@@ -863,7 +861,7 @@ describe("buildUserStatusResult default mode (verbose: false)", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Note from 9b1c241, outside HEAD ancestry (2 note update(s) back), saved 9 hours ago.",
+      "Note from 9b1c241, outside HEAD ancestry, saved 9 hours ago.",
     );
   });
 
@@ -1488,7 +1486,6 @@ describe("user sync spine", () => {
       savedCommit: "abc1234",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       currentBranch: "fix/state-ref-write-safety",
       savedAtRelative: "11 hours ago",
@@ -1499,8 +1496,8 @@ describe("user sync spine", () => {
     expect(result.spineState).toBe("remote-ahead");
     expect(result.detailLines).toContain("Saved 11 hours ago.");
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
-      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
     );
   });
 
