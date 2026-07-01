@@ -86,6 +86,25 @@
   the sweep on its working-tree read to stay in scope. Files: `lib/session-init/stale-worktree-sweep.ts`,
   `lib/work-unit/completed-index.ts`.
 
+### `[ ]` **Make cross-WU personal-state merge resolution deterministic (GA-readiness item)**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: finalize-parallelism`), housekeep drain (2026-07-01);
+  captured during `user-save-status-divergence` create-spec adversarial review (2026-06-30).
+- *Concern:* `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the
+  **same** entry identity by wall-clock note recency (LWW-vs-causal class). Exposure is **parallelism-gated** —
+  only genuinely-concurrent worktrees editing the same `WORKING-MEMORY` / `USER-INBOX` entry hit it, where
+  recency silently drops one edit and clock skew makes resolution machine-dependent. The entry-union model
+  handles concurrent edits to *different* entries cleanly; only same-entry divergence is lost.
+- *Recommendation:* **not a hard GA blocker** — narrow (same-entry-only lost update) on recoverable personal
+  state (gitignored, backed up, within `CROSS_WU_NOTE_WINDOW`). Ship as a **documented limitation + guidance**
+  (avoid concurrent same-entry edits across worktrees) with the deterministic fix as fast-follow; decide at the
+  seam audit (absorb / spawn-dependency / accept) and escalate if real multi-WU practice shows a higher
+  collision rate.
+- *Fix direction / build home:* causal ordering where ancestry-orderable, deterministic tie-break
+  (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never wall-clock. Likely build
+  home `operational-state-docs` (owns the `merge.ts` record / identity reshape). Files: `lib/user-sync/merge.ts`
+  (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts` (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`).
+
 ---
 
 ## Problem / Motivation

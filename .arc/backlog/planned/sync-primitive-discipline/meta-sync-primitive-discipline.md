@@ -1,20 +1,24 @@
-# Metadata: Interlock & Release Routing Refinement
+# Metadata: sync-primitive-discipline
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | `Heavy`   | `P1`         |
+| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
 
-- **Cohort:** `approval-flow-refinement`
+- **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-interlock-release-refinement.md`
+- **Design:** `draft-sync-primitive-discipline.md`
 - **Task List:** [none]
 
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** [none]
+- **Next Action:** —
+
+- **PR URL:** [none]
+- **Completed:** [none]
 
 ---

@@ -103,6 +103,17 @@
 - _Scope:_ Heavy — design (entry shape + decompose ownership boundary) plus multi-surface impl (session-init
   signal-leaf, `draft-design` grooming-entry, `arc-plan` skill, a CLI surface, the backfill ceremony, tests).
 
+### `[ ]` **Seam: `adversarial-review` consumes this WU's readiness criteria + leaf-magnitude lens**
+
+- _Routed from:_ housekeep drain (2026-07-01), scoping the new `adversarial-review` WU.
+- _Concern:_ `adversarial-review` delivers the fresh-subagent _mechanism_ that runs planning-stage rubrics
+  adversarially; this WU owns the _rubrics / criteria_ it runs — the `assess-spec-readiness` / open-questions
+  discipline and the leaf-magnitude / oversized-increment detector. They compose (mechanism × rubric), so
+  co-design the boundary rather than duplicating.
+- _Load-bearing overlap:_ this WU's open question **"should generate-tasks gate proactively at entry?"** is the
+  **same** question as "does an adversarial task-gen pass fire at that boundary" in `adversarial-review`. Settle
+  it once, across both.
+
 ---
 
 ## Problem / Motivation
