@@ -35,6 +35,8 @@ export {
   type RunBaseDistanceStatusOptions,
 } from "./base-distance.js";
 
+export { filterCommitsReachableFromHead } from "./ancestry.js";
+
 export {
   detectSupersession,
   type SupersessionResult,

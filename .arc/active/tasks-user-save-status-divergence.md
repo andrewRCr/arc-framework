@@ -29,20 +29,14 @@ are integration-tested against a real temporary git repo, the tier that can exer
   barrel, and covered constructed `git notes list` parsing plus empty/missing-ref behavior in
   `user-sync-notes-ref.test.ts`.
 
-### `[ ]` **1.2 Filter candidates to HEAD-reachable**
+### `[x]` **1.2 Filter candidates to HEAD-reachable**
 
 - _Goal:_ Resolution keeps exactly the candidates reachable from HEAD, using whichever of per-commit
   `merge-base --is-ancestor` or a single `git rev-list HEAD` intersection is cheaper for the repo shape (D5 step 2).
 
-    - Add the batch `git rev-list HEAD` intersection variant to `lib/git/ancestry.ts` so the dominant reachability
-      cost is one call, not N; the existing per-commit `isCommitReachableFromHead` (`save-load.ts`) is reused in
-      place for the small filtered-candidate set.
-    - An unborn HEAD (no commits) resolves to an empty reachable set (no fabricated reachability).
-    - Integration-tested against a real temporary git repo — a boundary mock could only assert its own fixture,
-      not real ancestry.
-    - Build `test-first` (one behavior at a time):
-        - Keeps commits that are ancestors of HEAD and drops those that are not.
-        - Resolves to an empty set on an unborn HEAD (no commits).
+- _Outcome:_ Added `filterCommitsReachableFromHead` in `lib/git/ancestry.ts` as the batch `rev-list HEAD`
+  intersection helper, exported it through the git barrel, and verified real ancestry plus unborn-HEAD behavior in
+  `ancestry.test.ts`.
 
 ### `[ ]` **1.3 Reduce a reachable set to its causally-maximal members**
 
