@@ -8,6 +8,7 @@ import { describe, it, expect } from "vitest";
 
 import {
   listAnnotatedNoteCommits,
+  notePathToCommit,
   readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
 } from "../../src/lib/user-sync/index.js";
@@ -15,6 +16,8 @@ import type { GitExec } from "../../src/lib/git/index.js";
 
 /** A 40-char hex commit from a short hex seed. */
 const annotated = (seed: string): string => seed.padEnd(40, "0");
+/** A 64-char hex commit from a short hex seed. */
+const annotatedSha256 = (seed: string): string => seed.padEnd(64, "0");
 /** Fan-out note path for an annotated commit (`ab/cdef…`). */
 const notePathFor = (commit: string): string => `${commit.slice(0, 2)}/${commit.slice(2)}`;
 
@@ -165,12 +168,33 @@ describe("listAnnotatedNoteCommits", () => {
     expect(calls).toContainEqual(["notes", "--ref=refs/notes/arc/user/andrew", "list"]);
   });
 
+  it("accepts SHA-256 annotated commit ids", async () => {
+    const blob = annotatedSha256("11");
+    const annotatedCommit = annotatedSha256("a1");
+    const { exec } = makeExec({
+      notesListOutput: `${blob} ${annotatedCommit}`,
+    });
+
+    await expect(listAnnotatedNoteCommits(exec, "refs/notes/arc/user/andrew"))
+      .resolves.toEqual([annotatedCommit]);
+  });
+
   it("returns an empty set when the ref is empty or missing", async () => {
     const empty = makeExec({ notesListOutput: "" });
     const missing = makeExec({ notesListThrows: true });
 
     await expect(listAnnotatedNoteCommits(empty.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
     await expect(listAnnotatedNoteCommits(missing.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
+  });
+});
+
+describe("notePathToCommit", () => {
+  it("parses SHA-1 and SHA-256 fan-out note paths", () => {
+    const sha1 = annotated("a1");
+    const sha256 = annotatedSha256("b2");
+
+    expect(notePathToCommit(notePathFor(sha1))).toBe(sha1);
+    expect(notePathToCommit(notePathFor(sha256))).toBe(sha256);
   });
 });
 

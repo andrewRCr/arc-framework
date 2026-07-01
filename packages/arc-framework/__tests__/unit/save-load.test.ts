@@ -1172,6 +1172,20 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     expect(syncState.sourceCommit).not.toBe("nh0");
   });
 
+  it("returns null instead of writing a sentinel sync state when no files are loadable", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "brand-new-wu" });
+
+    expect(result).toBeNull();
+    expect(await exists(join(cwd, SYNC_STATE_RELATIVE))).toBe(false);
+  });
+
   it("materializes an off-ancestry pointer fallback with current-WU filtering and branch labeling", async () => {
     const head = "b".repeat(40);
     const savedCommit = "a".repeat(40);

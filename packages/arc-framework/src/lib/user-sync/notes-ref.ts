@@ -16,6 +16,7 @@ import type { GitExec } from "../git/index.js";
 
 /** Notes-ref namespace for ARC user directories; `{identity}` is appended. */
 const USER_NOTES_REF = "refs/notes/arc/user";
+const GIT_OBJECT_ID_PATTERN = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/u;
 
 /**
  * How many of the most-recent notes the cross-WU merge reads. A named bound,
@@ -82,7 +83,7 @@ export async function listAnnotatedNoteCommits(
     return stdout
       .split("\n")
       .map((line) => line.trim().split(/\s+/u)[1])
-      .filter((commit): commit is string => commit !== undefined && /^[0-9a-f]{40}$/u.test(commit));
+      .filter((commit): commit is string => commit !== undefined && GIT_OBJECT_ID_PATTERN.test(commit));
   } catch {
     return [];
   }
@@ -105,7 +106,7 @@ export async function readNoteContentAtAnnotatedCommit(
 /** The annotated commit a note path addresses, or `null` when the path isn't a note. */
 export function notePathToCommit(path: string): string | null {
   const commit = path.replaceAll("/", "");
-  return /^[0-9a-f]{40}$/u.test(commit) ? commit : null;
+  return GIT_OBJECT_ID_PATTERN.test(commit) ? commit : null;
 }
 
 /** A note blob's content at a given history commit, or `null` when unreadable. */

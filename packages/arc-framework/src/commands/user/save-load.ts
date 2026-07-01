@@ -145,12 +145,13 @@ export async function runUserLoad(
   const userDir = join(cwd, ".arc", "user", identity);
   const search = await findNearestUserNote(options);
   const recentNotes = await readRecentUserNotes(io.exec, identity);
+  const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
 
   // Per-WU subdir restores from the note carrying the current WU; cross-WU flat
   // files merge across the recent-note window, so a brand-new WU still loads
   // shared context before its own note exists. There is nothing to load only
-  // when both sources are empty.
-  if (!search.note && recentNotes.length === 0) {
+  // when both sources produce no loadable content.
+  if (!search.note && Object.keys(crossWuFiles).length === 0) {
     return null;
   }
 
@@ -169,7 +170,6 @@ export async function runUserLoad(
     }
   }
 
-  const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
   let notices: LoadMessage[] = [];
