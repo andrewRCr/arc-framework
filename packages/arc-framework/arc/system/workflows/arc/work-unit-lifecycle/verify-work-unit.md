@@ -21,12 +21,12 @@ Run the full quality gate suite as defined by the project's
 [Quality Gates Strategy][quality-gates]. Even when incremental checks have been clean throughout
 implementation, the full-suite run serves as attestation that everything passes as a whole.
 
-## Step 2 — Validate Success Criteria Against PRD
+## Step 2 — Validate Success Criteria Against Design Artifact
 
-Open the PRD, walk through its success criteria, and compare each against actual outcomes.
-Then mark each criterion in the task list's Success Criteria section (see
-[task-list-formatting strategy][task-list-formatting] § Success Criteria Section for format)
-using the three-state model:
+Open the task list's upstream design/spec artifact, walk through its success criteria, and
+compare each against actual outcomes. Then mark each criterion in the task list's Success
+Criteria section (see [task-list-formatting strategy][task-list-formatting] § Success Criteria
+Section for format) using the three-state model:
 
 - `[x]` — **Met.** Criterion satisfied as planned, or addressed differently (add a
   **Deviation** note).
@@ -39,7 +39,8 @@ original text preserves intent; annotations capture reality.
 
 **Key convention:** Success criteria are only marked during this verification phase, not
 during implementation. Implementation tasks get checked as work progresses; success criteria
-get checked when the implementer steps back and validates outcomes against the PRD.
+get checked when the implementer steps back and validates outcomes against the upstream design
+artifact.
 
 ## Step 3 — Pre-align Meta File for Integration Handoff
 
