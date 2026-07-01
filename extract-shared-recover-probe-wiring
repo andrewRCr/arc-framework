@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "extract-shared-recover-probe-wiring",
-  "origin": "inbox",
-  "intent": "Extract the shared recover-mode probe bundle used by status --recover and recover audit so the two recovery entrypoints cannot drift.",
-  "branch": "chore/extract-shared-recover-probe-wiring",
-  "createdAt": "2026-07-01T21:51:26.182Z",
-  "originEntry": "Extract shared recover probe wiring"
-}
