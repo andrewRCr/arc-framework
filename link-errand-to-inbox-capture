@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "link-errand-to-inbox-capture",
-  "origin": "inbox",
-  "intent": "Let an already-open errand associate with an existing USER-INBOX capture so close/promote can reconcile the capture automatically.",
-  "branch": "chore/link-errand-to-inbox-capture",
-  "createdAt": "2026-07-01T22:04:36.709Z",
-  "originEntry": "Let an in-flight errand link to an existing inbox capture (promote/close auto-reconcile)"
-}
