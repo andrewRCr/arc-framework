@@ -96,24 +96,15 @@ the injected boundary. See `spec-user-save-status-divergence.md` § Proposed Des
   reduces through `merge-base --independent`, and resolves the singleton maximal note by annotated commit. Unit
   coverage pins singleton, linear-chain tip, older re-anchor, and far-behind/no-cap behavior.
 
-### `[ ]` **2.3 Concurrent tie-break: pointer membership, then smallest-SHA**
+### `[x]` **2.3 Concurrent tie-break: pointer membership, then smallest-SHA**
 
 - _Goal:_ When the maximal set has more than one member (genuine concurrents), resolution prefers the note whose
   commit is the pointer's `sourceCommit` when it is a member, else the lexicographically smallest annotated-commit
   SHA — never a timestamp (D2 steps 2 & 3, D7).
 
-    - _Approach:_ The pointer tie-break keys on `sourceCommit` **membership regardless of `sourceOperation`** — it
-      is the commit the working tree is synced to, and it can only ever pick an already-maximal member (D6). The
-      SHA fallback and the `list` / `merge-base` plumbing are order-independent, so this is the only residual
-      choice point and it is fully deterministic.
-    - Build `test-first` (one behavior at a time):
-        - A concurrent set whose members include the pointer's `sourceCommit` resolves to that note.
-        - A concurrent set with no pointer (or a pointer naming none of the members) resolves to the smallest-SHA
-          member — identical on every machine.
-        - Monotonic reads at fixed HEAD (as a pure-reducer property): a pointer with `op=load` whose `sourceCommit`
-          is a member still tie-breaks by membership, so a smaller-SHA sibling cannot displace the synced note.
-    - _Note:_ This asserts the reducer property alone — the spec scopes monotonic reads as a unit concern; 4.5's
-      load-path integration coverage exercises load-then-status end-to-end.
+- _Outcome:_ Concurrent maximal notes now resolve by local sync-state `sourceCommit` membership regardless of
+  `sourceOperation`, falling back to the lexicographically smallest annotated commit. Unit coverage pins save
+  pointer, no-pointer/smallest-SHA, and `op=load` monotonic-read cases.
 
 ### `[ ]` **2.4 Per-WU filter as a candidacy predicate**
 

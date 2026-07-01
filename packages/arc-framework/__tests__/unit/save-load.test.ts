@@ -46,6 +46,10 @@ interface GitMockConfig {
   annotatedNoteCommits?: string[];
   reachableHeadCommits?: string[];
   maximalCommits?: string[];
+  localSyncState?: {
+    sourceCommit: string;
+    sourceOperation: "save" | "load";
+  };
   notesHistory?: string[];
   changedPathsByNoteCommit?: Record<string, string[]>;
   missingHistoryPaths?: string[];
@@ -67,6 +71,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
   const annotatedNoteCommits = config.annotatedNoteCommits ?? [];
   const reachableHeadCommits = config.reachableHeadCommits ?? [];
   const maximalCommits = config.maximalCommits ?? reachableHeadCommits;
+  const localSyncState = config.localSyncState;
   const notesHistory = config.notesHistory ?? [];
   const changedPathsByNoteCommit = config.changedPathsByNoteCommit ?? {};
   const missingHistoryPaths = new Set(config.missingHistoryPaths ?? []);
@@ -142,7 +147,16 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
 
   const io: UserIOContext = {
     exec,
-    readFile: vi.fn(async () => ""),
+    readFile: vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json") && localSyncState !== undefined) {
+        return JSON.stringify({
+          version: 4,
+          materializedManifestHash: "hash",
+          ...localSyncState,
+        });
+      }
+      return "";
+    }),
     writeFile: vi.fn(async () => undefined),
     readDir: vi.fn(async () => []),
     mkdir: vi.fn(async () => undefined),
@@ -280,6 +294,54 @@ describe("findNearestUserNote — causally-maximal reachable resolution", () => 
     expect(result.note).toBeNull();
     expect(result.capped).toBe(false);
     expect(result.walked).toBe(0);
+  });
+
+  it("resolves a concurrent maximal note named by the local sync-state pointer", async () => {
+    const siblingA = "a".repeat(40);
+    const siblingB = "b".repeat(40);
+    const { io } = mockIO({
+      head: "f".repeat(40),
+      annotatedNoteCommits: [siblingA, siblingB],
+      reachableHeadCommits: [siblingA, siblingB],
+      maximalCommits: [siblingA, siblingB],
+      localSyncState: { sourceCommit: siblingB, sourceOperation: "save" },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(siblingB);
+  });
+
+  it("resolves the smallest SHA from a concurrent maximal set with no pointer match", async () => {
+    const smaller = "a".repeat(40);
+    const larger = "b".repeat(40);
+    const { io } = mockIO({
+      head: "f".repeat(40),
+      annotatedNoteCommits: [larger, smaller],
+      reachableHeadCommits: [larger, smaller],
+      maximalCommits: [larger, smaller],
+      localSyncState: { sourceCommit: "c".repeat(40), sourceOperation: "save" },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(smaller);
+  });
+
+  it("uses pointer membership for concurrent notes even when the pointer came from a load", async () => {
+    const smaller = "a".repeat(40);
+    const loaded = "b".repeat(40);
+    const { io } = mockIO({
+      head: "f".repeat(40),
+      annotatedNoteCommits: [smaller, loaded],
+      reachableHeadCommits: [smaller, loaded],
+      maximalCommits: [smaller, loaded],
+      localSyncState: { sourceCommit: loaded, sourceOperation: "load" },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(loaded);
   });
 });
 

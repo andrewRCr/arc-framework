@@ -531,7 +531,11 @@ async function resolveNearestUserNote(
     io.exec,
     reachableCandidates.map((candidate) => candidate.commit),
   );
-  const selected = selectSingletonMaximalCandidate(reachableCandidates, maximalCommits);
+  const selected = selectMaximalCandidate(
+    reachableCandidates,
+    maximalCommits,
+    input.localSyncState,
+  );
   if (!selected) {
     return {
       note: null,
@@ -587,14 +591,25 @@ async function buildReachableNoteCandidates(input: {
   return candidates;
 }
 
-function selectSingletonMaximalCandidate(
+function selectMaximalCandidate(
   candidates: ReachableNoteCandidate[],
   maximalCommits: string[],
+  localSyncState: ResolutionPointer | null,
 ): ReachableNoteCandidate | null {
-  if (maximalCommits.length !== 1) return null;
-  const maximal = maximalCommits[0];
-  if (maximal === undefined) return null;
-  return candidates.find((candidate) => candidate.commit === maximal) ?? null;
+  if (maximalCommits.length === 0) return null;
+
+  const maximalSet = new Set(maximalCommits);
+  const maximalCandidates = candidates.filter((candidate) => maximalSet.has(candidate.commit));
+  if (maximalCandidates.length === 0) return null;
+  if (maximalCandidates.length === 1) return maximalCandidates[0] ?? null;
+
+  const pointerMatch = maximalCandidates.find(
+    (candidate) => candidate.commit === localSyncState?.sourceCommit,
+  );
+  if (pointerMatch !== undefined) return pointerMatch;
+
+  return [...maximalCandidates]
+    .sort((left, right) => left.commit.localeCompare(right.commit))[0] ?? null;
 }
 
 /**
