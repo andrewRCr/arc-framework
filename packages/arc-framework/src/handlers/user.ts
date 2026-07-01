@@ -41,12 +41,6 @@ function shouldSkipOverwriteConfirm(yes: boolean | undefined): boolean {
   return Boolean(yes) || isNonInteractiveEnvironment();
 }
 
-/** Build the canonical "walked N ancestors" diagnostic line. */
-function walkExhaustedMessage(walked: number): string {
-  return `walked ${walked} ancestors without finding a note; `
-    + "use --max-walk to search deeper or confirm remote state with arc user status";
-}
-
 // --- Add ---
 
 export async function handleUserAdd(rawIdentity: string): Promise<void> {
@@ -296,7 +290,6 @@ export async function handleUserSave(): Promise<void> {
 
 export interface UserLoadOptions {
   yes?: boolean;
-  maxWalk?: number;
   /** Override the auto-derived current WU name. Absent → derive from active-meta / branch. */
   currentWuName?: string;
 }
@@ -325,7 +318,6 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
       cwd,
       io,
       identity,
-      maxAncestorWalk: opts.maxWalk,
       currentWuName,
     });
   } catch (err) {
@@ -340,16 +332,6 @@ export async function handleUserLoad(opts: UserLoadOptions = {}): Promise<void> 
   if (!result) {
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
-    return;
-  }
-
-  if (result.kind === "walk-exhausted") {
-    // Walk-exhausted is distinct from plain "no note" — we can't confirm
-    // whether a note exists deeper than the cap. Exit 1 signals the
-    // ambiguity; user can retry with --max-walk.
-    spinner.stop("Walk exhausted.");
-    p.log.warn(walkExhaustedMessage(result.walked));
-    process.exitCode = 1;
     return;
   }
 
@@ -527,7 +509,6 @@ export async function handleUserFetch(opts: UserFetchOptions): Promise<void> {
 export interface UserPullOptions {
   identity?: string;
   yes?: boolean;
-  maxWalk?: number;
   /** Override the auto-derived current WU name. Absent → derive from active-meta / branch. */
   currentWuName?: string;
 }
@@ -576,7 +557,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
       io,
       identity,
       force: hasLocal,
-      maxAncestorWalk: opts.maxWalk,
       currentWuName,
     });
   } catch (err) {
@@ -607,13 +587,6 @@ export async function handleUserPull(opts: UserPullOptions): Promise<void> {
   if (!result) {
     spinner.stop("No note found.");
     p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
-    process.exitCode = 1;
-    return;
-  }
-
-  if (result.kind === "walk-exhausted") {
-    spinner.stop("Walk exhausted.");
-    p.log.warn(walkExhaustedMessage(result.walked));
     process.exitCode = 1;
     return;
   }

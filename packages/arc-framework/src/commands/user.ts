@@ -78,7 +78,6 @@ export {
   type UserLoadOptions,
   type UserLoadResult,
   type UserCloseOptions,
-  type UserLoadWalkExhausted,
   type UserOpenOptions,
   type PairedPushLegOutcome,
   type PairedPushMarkerContext,

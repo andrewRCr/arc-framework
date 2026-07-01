@@ -22,6 +22,7 @@ import {
   getUserInternalDir,
   releaseAdvisoryLock,
   mergeCrossWuFile,
+  NO_COMPARABLE_SOURCE_COMMIT,
   planRetiredSubdirReconcile,
   projectManifest,
   stashedFilesInSubdir,
@@ -62,16 +63,12 @@ const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
 
-/** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
-export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
-
 type ResolutionPointer = Pick<LocalSyncState, "sourceCommit" | "sourceOperation">;
 
 interface NearestUserNoteResolutionInput {
   io: UserIOContext;
   identity: string;
   currentWuName?: string;
-  maxWalk: number;
   localSyncState: ResolutionPointer | null;
 }
 
@@ -155,18 +152,11 @@ export async function runUserLoad(
   // shared context before its own note exists. There is nothing to load only
   // when both sources are empty.
   if (!search.note && recentNotes.length === 0) {
-    if (search.capped) {
-      return {
-        kind: "walk-exhausted",
-        walked: search.walked,
-        maxWalk: search.maxWalk,
-      };
-    }
     return null;
   }
 
   let version: SyncManifest["version"] = 2;
-  let sourceCommit = recentNotes[0]?.historyCommit ?? "";
+  let sourceCommit = NO_COMPARABLE_SOURCE_COMMIT;
   let fromAncestor = false;
   const perWuFiles: Record<string, string> = {};
 
@@ -251,7 +241,7 @@ export async function runUserLoad(
   return {
     kind: "loaded",
     identity,
-    commit: await shortHash(io.exec, sourceCommit),
+    commit: await formatLoadSourceCommit(io, sourceCommit),
     fileCount: Object.keys(loadManifest.files).length,
     fromAncestor,
     ancestorDistance: search.note?.ancestorDistance ?? 0,
@@ -377,7 +367,7 @@ async function verifyMaterializedUserDir(
   commit: string,
   manifest: SyncManifest,
 ): Promise<void> {
-  const shortCommit = await shortHash(io.exec, commit);
+  const shortCommit = await formatLoadSourceCommit(io, commit);
   const expectedFiles: Record<string, string> = {};
   const readbackFiles: Record<string, string> = {};
 
@@ -403,6 +393,14 @@ async function verifyMaterializedUserDir(
       `Load verification failed for note ${shortCommit}: materialized file content did not match the loaded manifest.`,
     );
   }
+}
+
+async function formatLoadSourceCommit(
+  io: UserIOContext,
+  commit: string,
+): Promise<string> {
+  if (commit === NO_COMPARABLE_SOURCE_COMMIT) return commit;
+  return shortHash(io.exec, commit);
 }
 
 async function verifySavedNote(
@@ -487,14 +485,12 @@ export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
   const { cwd, io, identity } = options;
-  const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
   const localSyncState = await readLocalSyncState(cwd, io, identity);
 
   return resolveNearestUserNote({
     io,
     identity,
     currentWuName: options.currentWuName,
-    maxWalk,
     localSyncState,
   });
 }
@@ -502,7 +498,7 @@ export async function findNearestUserNote(
 async function resolveNearestUserNote(
   input: NearestUserNoteResolutionInput,
 ): Promise<NearestNoteSearch> {
-  const { io, identity, currentWuName, maxWalk } = input;
+  const { io, identity, currentWuName } = input;
   const ref = notesRef(identity);
   const fullRef = `refs/notes/${ref}`;
 
@@ -516,7 +512,7 @@ async function resolveNearestUserNote(
 
   const annotatedCommits = await listAnnotatedNoteCommits(io.exec, fullRef);
   if (annotatedCommits.length === 0) {
-    return { note: null, walked: 0, maxWalk, capped: false };
+    return { note: null };
   }
 
   const reachableCommits = await filterCommitsReachableFromHead(io.exec, annotatedCommits);
@@ -551,27 +547,14 @@ async function resolveNearestUserNote(
           fromAncestor: false,
           ancestorDistance: 0,
         },
-        walked: annotatedCommits.length,
-        maxWalk,
-        capped: false,
       };
     }
-    return {
-      note: null,
-      walked: annotatedCommits.length,
-      maxWalk,
-      capped: false,
-    };
+    return { note: null };
   }
 
   const content = selected.content ?? await readNoteContentAtAnnotatedCommit(io.exec, fullRef, selected.commit);
   if (content === null) {
-    return {
-      note: null,
-      walked: annotatedCommits.length,
-      maxWalk,
-      capped: false,
-    };
+    return { note: null };
   }
 
   const ancestorDistance = await countCommitsSince(io, selected.commit);
@@ -584,9 +567,6 @@ async function resolveNearestUserNote(
       fromAncestor: selected.commit !== headHash,
       ancestorDistance,
     },
-    walked: annotatedCommits.length,
-    maxWalk,
-    capped: false,
   };
 }
 

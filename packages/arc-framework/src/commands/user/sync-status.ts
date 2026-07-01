@@ -10,6 +10,7 @@ import {
 import {
   clearPartialPushMarker,
   inferUserSyncCause,
+  isComparableSourceCommit,
   projectManifest,
   readLocalSyncState,
   type UserSyncCause,
@@ -180,7 +181,9 @@ async function classifyUserSyncCause(input: {
 }): Promise<{ cause: UserSyncCause; confidence: UserSyncCauseConfidence } | undefined> {
   const { io, offline, refInspection, note, localSyncState } = input;
 
-  const sourceCommit = localSyncState?.sourceCommit ?? null;
+  const sourceCommit = isComparableSourceCommit(localSyncState?.sourceCommit)
+    ? localSyncState.sourceCommit
+    : null;
   const savedAt = localSyncState?.savedAt ?? null;
   const latestNoteRefHistoryEntry = note?.commit ?? null;
   const headReachable = sourceCommit
@@ -1503,7 +1506,10 @@ async function inspectDiskVsLocalSnapshot(
   }
 
   const materializedHash = localSyncState.materializedManifestHash;
-  if (note.commit !== localSyncState.sourceCommit) {
+  if (
+    note.commit !== localSyncState.sourceCommit
+    && isComparableSourceCommit(localSyncState.sourceCommit)
+  ) {
     const noteIsDescendant = await isAncestor(io, localSyncState.sourceCommit, note.commit);
     if (noteIsDescendant && diskHash === materializedHash) {
       return { state: "different", diskStatus: "stale", direction: "behind", missingFiles };

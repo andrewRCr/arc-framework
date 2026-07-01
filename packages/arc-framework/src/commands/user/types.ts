@@ -117,23 +117,14 @@ export interface UserLoadResult {
   messages: LoadMessage[];
 }
 
-/** Returned when ancestor walking hit its configured cap without finding a reachable note. */
-export interface UserLoadWalkExhausted {
-  kind: "walk-exhausted";
-  walked: number;
-  maxWalk: number;
-}
-
 /** Discriminated outcome of a user load or pull attempt. */
-export type UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted;
+export type UserLoadOutcome = UserLoadResult;
 
 /** Options for the load operation. */
 export interface UserLoadOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
-  maxAncestorWalk?: number;
   /**
    * Bare work-unit name of the session's current WU (e.g. `worktree-foundation`),
    * derived from active-meta / branch by the caller. When set, note resolution
@@ -147,9 +138,6 @@ export interface UserLoadOptions {
 /** Structured return from user-note resolution. */
 export interface NearestNoteSearch {
   note: NearestUserNoteRef | null;
-  walked: number;
-  maxWalk: number;
-  capped: boolean;
 }
 
 /** A note selected from the annotated commits on the user notes ref. */
@@ -444,7 +432,6 @@ export interface UserFetchOptions {
 /** Options for the pull operation. */
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
-  maxAncestorWalk?: number;
   /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
   currentWuName?: string;
 }

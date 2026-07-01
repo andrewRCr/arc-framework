@@ -27,7 +27,10 @@ import {
 import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
-import { projectManifest } from "../../src/lib/user-sync/index.js";
+import {
+  NO_COMPARABLE_SOURCE_COMMIT,
+  projectManifest,
+} from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -1430,6 +1433,28 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     expect(actionFor(state, noteCommit)).toBe(
       "inspect local working files, then run `arc user load` or `arc user save`",
     );
+  });
+
+  it("treats the no-comparable load basis as stale instead of mixed", async () => {
+    const loadedFiles = { "WORKING-MEMORY.md": "loaded-cross-wu" };
+    const loadedManifest: SyncManifest = { version: 2, files: loadedFiles };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
+      sourceOperation: "load",
+      noteCommit,
+      diskFiles: loadedFiles,
+      noteFiles: { "WORKING-MEMORY.md": "older-note" },
+      materializedManifestHash: hashSyncManifest(loadedManifest),
+      sourceIsAncestorOfNote: false,
+      reachableCommits: [noteCommit],
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("modified");
+    expect(state.diskStatus).toBe("stale");
+    expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
   });
 
   const wmEntry = (header: string, body: string): string =>
@@ -2955,5 +2980,59 @@ describe("runUserStatus userSyncCause orchestration", () => {
 
     expect(result.userSyncCause).toBeUndefined();
     expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
+  });
+
+  it("does not probe HEAD reachability for the no-comparable load basis", async () => {
+    const localHash = "a".repeat(40);
+    let sentinelHeadProbe = false;
+
+    const io = {
+      ...silentIO(async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: "deadbeef\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify"
+          && args[2] === "refs/notes/arc/user/andrew") {
+          return { stdout: `${localHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "log") return { stdout: "", stderr: "" };
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === NO_COMPARABLE_SOURCE_COMMIT
+          && args[3] === "HEAD"
+        ) {
+          sentinelHeadProbe = true;
+          throw new Error("sentinel is not a git commit");
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      }),
+      readFile: async (path: string) => {
+        if (path === "/repo/.arc/user/andrew/.internal/.sync-state.json") {
+          return JSON.stringify({
+            version: 4,
+            materializedManifestHash: "hash",
+            sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
+            sourceOperation: "load",
+          });
+        }
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+    });
+
+    expect(result.refState).toBe("local-ahead");
+    expect(sentinelHeadProbe).toBe(false);
   });
 });

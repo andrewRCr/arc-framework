@@ -376,7 +376,6 @@ userCmd
   .command("load")
   .description("Restore user directory from user notes")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserLoad);
 
 userCmd
@@ -396,7 +395,6 @@ userCmd
   .description("Fetch user notes from remote and restore them to disk")
   .option("--identity <name>", "Pull another developer's notes instead of your own")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserPull);
 
 userCmd
@@ -413,7 +411,6 @@ userCmd
   .command("sync")
   .description("Direction-aware notes-only sync — push, pull, or prompt on conflict")
   .option("-y, --yes", "Skip overwrite confirmation prompts")
-  .option("--max-walk <n>", "Max ancestors to walk when searching for a note (default: 1000)", parseInt)
   .action(handleUserSync);
 
 // --- Extensions ---

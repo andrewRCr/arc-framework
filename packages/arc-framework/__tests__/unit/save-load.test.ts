@@ -19,6 +19,7 @@ import {
   clearPartialPushMarker,
   getNotesLockPath,
   getOrCreateMachineId,
+  NO_COMPARABLE_SOURCE_COMMIT,
   readLocalSyncState,
   recordPartialPushMarker,
   writeLocalSyncState,
@@ -232,7 +233,6 @@ describe("findNearestUserNote — causally-maximal reachable resolution", () => 
     expect(result.note?.ancestorDistance).toBe(0);
     expect(result.note?.fromAncestor).toBe(false);
     expect(result.note?.reachableFromHead).toBe(true);
-    expect(result.capped).toBe(false);
   });
 
   it("resolves the tip note from a reachable linear chain", async () => {
@@ -267,7 +267,7 @@ describe("findNearestUserNote — causally-maximal reachable resolution", () => 
     expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
   });
 
-  it("finds a reachable note regardless of the ancestor-walk cap", async () => {
+  it("finds a reachable far-behind note without an ancestor-walk cap", async () => {
     const farBehind = "f".repeat(40);
     const head = "e".repeat(40);
     const { io, execCalls } = mockIO({
@@ -278,13 +278,10 @@ describe("findNearestUserNote — causally-maximal reachable resolution", () => 
       ancestorDistances: { [farBehind]: 1500 },
     });
 
-    const result = await findNearestUserNote({
-      cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 1,
-    });
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result.note?.commit).toBe(farBehind);
     expect(result.note?.ancestorDistance).toBe(1500);
-    expect(result.capped).toBe(false);
     expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
   });
 
@@ -294,8 +291,6 @@ describe("findNearestUserNote — causally-maximal reachable resolution", () => 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result.note).toBeNull();
-    expect(result.capped).toBe(false);
-    expect(result.walked).toBe(0);
   });
 
   it("resolves a concurrent maximal note named by the local sync-state pointer", async () => {
@@ -1156,6 +1151,27 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
   });
 
+  it("records a sentinel basis, not a notes-ref history commit, for cross-WU-only loads", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "brand-new-wu" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
+    const syncState = JSON.parse(
+      await readFile(join(cwd, SYNC_STATE_RELATIVE), "utf-8"),
+    ) as Record<string, unknown>;
+    expect(syncState.sourceCommit).toBe(NO_COMPARABLE_SOURCE_COMMIT);
+    expect(syncState.sourceCommit).not.toBe("nh0");
+  });
+
   it("materializes an off-ancestry pointer fallback with current-WU filtering and branch labeling", async () => {
     const head = "b".repeat(40);
     const savedCommit = "a".repeat(40);
@@ -1193,6 +1209,11 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     expect(await readFile(join(userDir, "wu-a", "SESSION-NOTES.md"), "utf-8")).toBe("a-notes");
     expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await exists(join(userDir, "wu-b", "SESSION-NOTES.md"))).toBe(false);
+    const syncState = JSON.parse(
+      await readFile(join(cwd, SYNC_STATE_RELATIVE), "utf-8"),
+    ) as Record<string, unknown>;
+    expect(syncState.sourceCommit).toBe(savedCommit);
+    expect(syncState.sourceCommit).not.toBe(NO_COMPARABLE_SOURCE_COMMIT);
   });
 });
 

@@ -225,77 +225,50 @@ the union member; 4.4 removes the member and its four consumers atomically. See
   current WU plus cross-WU files, filters out other WU subdirs, and returns the off-ancestry branch label. The
   existing implementation already satisfied the behavior.
 
-### `[ ]` **4.2 `sourceCommit` basis is never a history commit**
+### `[x]` **4.2 `sourceCommit` basis is never a history commit**
 
 - _Goal:_ When `runUserLoad` resolves no per-WU note but the cross-WU merge still materializes shared context,
   `LocalSyncState.sourceCommit` records the off-ancestry fallback's commit when present, else a defined **sentinel**
   ("no comparable saved commit") — never `recentNotes[0].historyCommit` — so a subsequent `arc user status` reads no
   spurious `mixed` (D10).
 
-    - Replace the `sourceCommit = recentNotes[0]?.historyCommit ?? ""` fallback: use the off-ancestry fallback's
-      commit when present (D8); for a genuine cross-WU-only load record the sentinel.
-    - _Approach:_ Sentinel over HEAD — HEAD reintroduces the very `mixed` this fixes, since the inspector's
-      whole-tree resolution can find a note _behind_ HEAD, making `note.commit !== HEAD` and
-      `isAncestor(HEAD, note.commit)` false → `mixed`. Guard the sentinel at every `sourceCommit → git` site: the
-      `inspectDiskVsLocalSnapshot` divergence branch (`sync-status.ts:1529–1530` — skip it, fall to hash
-      comparison) and the `headReachable` probe (`:187–188`). This task edits `inspectDiskVsLocalSnapshot` (the
-      function 3.4 also touches).
-    - _Note:_ The sentinel must be a **non-empty** string — `readLocalSyncState` rejects an empty `sourceCommit`
-      (`sync-state.ts:121`) and returns `null`, which would silently route the inspector down its `!localSyncState`
-      branch (`sync-status.ts:1519`) and pass the D10 test for the wrong reason.
-    - _Note:_ The cross-WU merge itself stays a Non-Goal — only the recorded basis is corrected, because this WU's
-      resolution change drives more traffic through the latent path.
-    - Build `test-first` (one behavior at a time):
-        - A cross-WU-only load records the sentinel, never a notes-ref history commit.
-        - A follow-up `arc user status` on that state reads no spurious `mixed` divergence (whole-tree note behind
-          HEAD included).
-        - When the off-ancestry fallback resolves a note, its commit — not the sentinel — is the recorded basis.
+- _Outcome:_ Added the non-empty `no-comparable-saved-commit` sentinel for cross-WU-only loads and guarded both
+  `sourceCommit → git` ancestry sites against it. Unit coverage now proves cross-WU-only loads never record a
+  notes-ref history commit, status reads the sentinel basis as stale rather than mixed, and off-ancestry fallback
+  loads still record the saved note's real commit.
 
-### `[ ]` **4.3 Retire the walk cap and stop producing `walk-exhausted`**
+### `[x]` **4.3 Retire the walk cap and stop producing `walk-exhausted`**
 
 - _Goal:_ The note-count walk cap and its whole `--max-walk` surface — dead once selection enumerates the annotated
   set (D5) — are retired: `DEFAULT_MAX_ANCESTOR_WALK`, the `maxAncestorWalk` option and `maxWalk` plumbing, the
   `--max-walk` flag registration and its guidance messages, and the `capped` / `walked` / `maxWalk` fields on
   `NearestNoteSearch`; `runUserLoad` stops producing the `walk-exhausted` outcome.
 
-    - Remove the `--max-walk` plumbing across `commands/user/push-fetch.ts` and the `handlers/user.ts` /
-      `handlers/user-sync.ts` option chains, the three `.option("--max-walk <n>", …)` registrations in `cli.ts`
-      (`:379,399,416` — `load` / `pull` / `sync`), and the "use `--max-walk` to search deeper" messages
-      (`handlers/user.ts:47`; `handlers/user-sync.ts:66`). Drop the `if (search.capped)` branch in `runUserLoad`
-      (co-edited with 4.1).
-    - _Note:_ Leave the `UserLoadWalkExhausted` member on the `UserLoadOutcome` union here so the four consumers
-      still typecheck — 4.4 removes the member and the consumers atomically. This keeps the tree green per phase.
-    - Tests (coverage): a reachable far-behind note is found with no cap (SC4); `runUserLoad` never returns
-      `walk-exhausted`.
+- _Outcome:_ Removed the `--max-walk` CLI flags, handler option plumbing, `maxAncestorWalk` load/pull options,
+  `NearestNoteSearch` cap fields, and the `runUserLoad` walk-exhausted branch. Coverage now asserts far-behind
+  reachable notes resolve without a cap; the legacy `UserLoadWalkExhausted` union member remains only for the 4.4
+  consumer-removal step.
 
-### `[ ]` **4.4 Remove the `walk-exhausted` outcome and its four consumers**
+### `[x]` **4.4 Remove the `walk-exhausted` outcome and its four consumers**
 
 - _Goal:_ `UserLoadWalkExhausted` is removed from the `UserLoadOutcome` union and its four now-dead consumer
   branches (`handlers/user.ts:346,614`; `handlers/user-sync.ts:281,319`) plus `walkExhaustedMessage` are deleted in
   one atomic change — a `UserLoadOutcome` consumer change the D3 call-site enumeration does not cover.
 
-    - Remove the union member, each `result.kind === "walk-exhausted"` branch, and `walkExhaustedMessage`; the plain
-      "no note found" path and its exit code remain.
-    - Tests (coverage): load / pull with a far-behind reachable note succeeds (no exit 1); a genuine no-note case is
-      unchanged.
+- _Outcome:_ Removed `UserLoadWalkExhausted`, the `walk-exhausted` consumer branches in `arc user load`, `arc user
+  pull`, and `arc user sync`, plus the now-dead diagnostic helpers and mock-only tests. The plain no-note load path
+  remains covered and unchanged.
 
-### `[ ]` **4.5 Load-parity and `sourceCommit`-basis integration coverage**
+### `[x]` **4.5 Load-parity and `sourceCommit`-basis integration coverage**
 
 - _Goal:_ End-to-end coverage confirms load parity (causally-latest reachable matching note, or the deterministic
   pointer-backed off-ancestry fallback, no cross-branch-resume regression, SC5), the no-distance-cap find (SC4), and
   the D10 basis fix (cross-WU-only load → follow-up status reads no spurious `mixed`, SC6) against a real temporary
   git repo.
 
-    - Integration / e2e tier (`__tests__/integration/` or `__tests__/e2e/`), real temporary git repo with real
-      notes — no mocked boundary.
-    - Assert the one intentional status / freshness change — no-`save`-pointer + nothing reachable reports `missing`
-      rather than a recency guess — as expected behavior, not a regression.
-    - **Additional Context:** `spec-user-save-status-divergence.md` § Cross-cutting Considerations (Testing,
-      Migration / rollout).
-    - Build `test-first` (one behavior at a time):
-        - Load materializes the causally-latest reachable matching note (per-WU filter applied).
-        - A reachable far-behind note is materialized — no distance cap.
-        - A cross-WU-only load followed by `status` reads no spurious `mixed` (D10 round-trip).
+- _Outcome:_ Added real-git integration coverage for per-WU load parity selecting the causally-latest reachable
+  matching note, capless loading of a far-behind reachable note, and the D10 cross-WU-only load → status
+  round-trip. The D10 case asserts the sentinel basis and verifies status reports stale/missing rather than mixed.
 
 ---
 

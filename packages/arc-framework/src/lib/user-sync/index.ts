@@ -73,6 +73,8 @@ export {
   clearPartialPushMarker,
   getOrCreateMachineId,
   getUserInternalDir,
+  isComparableSourceCommit,
+  NO_COMPARABLE_SOURCE_COMMIT,
   readLocalSyncState,
   recordErrandPartialPushMarker,
   recordPartialPushMarker,

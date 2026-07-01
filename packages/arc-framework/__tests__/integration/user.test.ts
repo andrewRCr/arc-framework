@@ -52,6 +52,7 @@ import {
 import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
+import { NO_COMPARABLE_SOURCE_COMMIT } from "../../src/lib/user-sync/index.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
 const recoveryOutput = createSyncOutput(false);
@@ -477,9 +478,7 @@ describe("user save and load", () => {
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
 
-    const loadResult = await runUserLoad({
-      cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
-    });
+    const loadResult = await runUserLoad({ cwd: shallowDir, io: shallowIO, identity: "test-user" });
 
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.reachableFromHead).toBeUndefined();
@@ -1067,6 +1066,87 @@ describe("user save/load — subdirectory support", () => {
     const workingMemory = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(workingMemory).toContain("**Entry B:**");
     expect(workingMemory).toContain("**Entry A:**");
+  });
+
+  it("loads the causally-latest reachable note that carries the scoped WU", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# old", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory old", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await makeCommit(tempDir, "advance to newer note");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# new", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory new", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
+    const loadedResult = expectLoaded(loadResult);
+
+    expect(loadedResult.reachableFromHead).toBe(true);
+    expect(await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8")).toBe("# new");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory new");
+  });
+
+  it("loads a reachable note far behind HEAD without a distance cap", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Deep memory", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    for (let i = 0; i < 15; i++) {
+      await makeCommit(tempDir, `advance ${i}`);
+    }
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loadedResult = expectLoaded(loadResult);
+
+    expect(loadedResult.reachableFromHead).toBe(true);
+    expect(loadedResult.ancestorDistance).toBe(15);
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Deep memory");
+  });
+
+  it("keeps cross-WU-only load status out of mixed with the sentinel basis", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "brand-new-wu",
+    });
+    expectLoaded(loadResult);
+
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+    expect(syncState.sourceCommit).toBe(NO_COMPARABLE_SOURCE_COMMIT);
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+
+    expect(status.diskStatus).not.toBe("mixed");
+    expect(status.unsavedDirection).not.toBe("mixed");
+    expect(status.diskStatus).toBe("stale");
+    expect(status.unsavedDirection).toBe("missing");
   });
 });
 
