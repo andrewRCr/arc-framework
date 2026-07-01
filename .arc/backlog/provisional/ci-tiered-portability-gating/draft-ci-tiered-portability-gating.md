@@ -15,6 +15,11 @@ matrix, however, only validates the concurrency guards (exclusive-create `wx`/`O
 `process.kill` liveness, CAS), so a code change that provably can't touch those primitives arguably needn't pay
 for the cross-OS fan-out.
 
+Live observation from PR #162: the PR-triggered CI run for a workflow-doc-only change skipped Integration/E2E and
+Portability, while the branch-push-triggered run for the same change ran both heavy jobs. The refinement should
+check event/source asymmetry as well as path tiers, and distinguish workflow markdown that can affect runtime from
+plain planning/docs markdown.
+
 ## Scope
 
 Deliberately **not** folded into `ci-content-aware-depth`: it turns the canonical code-surface set from a clean
