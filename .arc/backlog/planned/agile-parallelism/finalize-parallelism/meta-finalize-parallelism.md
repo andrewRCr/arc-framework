@@ -21,6 +21,6 @@
   (the cohort archives on its ship). Run the milestone path first (`draft-finalize-parallelism.md` § Milestone
   path): `adversarial-review` → `interlock-release-refinement` (own grooming iteration first) → `roadmap-tooling`,
   with the three pre-routed `USER-INBOX § Errand` captures interleaved. Launch this WU into a **spawned worktree,
-  never `--here`** (draft § Verification design → Launch constraint); hand-provision deps until its
-  dep-provisioning build item lands. Buffer drained 2026-07-01; gap-hunt matrix pass pending, then the draft is
-  near formalization-ready for create-spec.
+  never `--here`** (draft § Verification design → Launch constraint); hand-provision deps + the gitignored
+  harness layer until its provisioning build item lands. Buffer drained and gap-hunt matrix pass run
+  2026-07-01; the draft is formalization-ready for create-spec.

@@ -59,6 +59,14 @@ invocation point + default. Coordinate with the verify-and-configure workflow so
 agent-led part of initial ARC setup. Absorbed here rather than a scaffold-owner WU because the flip cannot be
 blessed without it.
 
+Broadened at the 2026-07-01 gap-hunt: deps are one instance of a wider class — **untracked per-checkout
+prerequisites**. A fresh worktree also lacks the harness integration layer (`.claude/` / `.codex/` / `.gemini/`
+are gitignored: skills, hooks, permission allowlists — a session launched there has no ARC skill entry, emits no
+compaction seed, and gets no post-compaction recovery injection) and the gitignored user-dir scaffold. The
+post-create seam provisions all of it: project deps (the configured command), harness files
+(`arc update`-regenerable), and the user-dir scaffold — and since bare `npx arc` in a deps-less worktree can
+resolve to an unrelated npm registry package, provisioning precedes any CLI invocation there.
+
 **2. In-place Materialize for cross-machine pickup — mirror the `--here` opt-out.** The begin-work transitions
 (`graduate` / `resume`) carry a `--here` in-place opt-out so a stub can graduate or a parked WU resume in the
 current checkout without spawning a worktree. **Materialize** — cross-machine pickup of a remote-only in-flight
@@ -68,6 +76,18 @@ machine hits the same worktree + dependency-provisioning tax the local hatch rel
 opt-out — an in-place Materialize (`git fetch` + checkout the remote WU branch in the current checkout, honoring
 the worktree-occupancy guard) alongside the default spawn. Locus-only, exactly like the local hatch: coherence
 still rests on the pushed branch + notes-sync; reuse the hatch's no-spawn reconcile-branch legs where applicable.
+
+**3. Repo-shared anchoring for per-machine sync guards (gap-hunt finding, 2026-07-01).** The notes advisory lock
+(`user/{identity}/.internal/.notes.lock`, `lib/user-sync/notes-lock.ts`) serializes writers to the repo-shared
+`refs/notes/arc/user/{identity}` — but the lock file anchors at the *worktree* root (`resolveArcRoot` walks to
+the nearest `.arc`), so it only serializes sessions inside one checkout. Post-flip, two same-machine sessions in
+different worktrees each acquire "the" lock and race the unguarded `git notes add` read-modify-write — a
+silently dropped note, the exact loss the lock exists to prevent (the non-fast-forward `cat_sort_uniq` recovery
+covers cross-*machine* divergence, not a same-machine ref clobber). Direction: anchor the lock at the git common
+dir, or retire it for the same tree-CAS the marker refs already use. Decide `.machine-id` scope with it —
+per-checkout minting makes every spawned worktree a distinct "machine" in the sync-state / errand marker trees
+(workspace-as-machine may even be the right semantic; decide it, don't drift into it). Gates wave 1 — the first
+concurrent notes sync.
 
 ### Seam-audit decisions
 
@@ -175,6 +195,92 @@ same-entry cross-WU merge loss is documented with its recovery; every loud failu
 Deliverable: a short **parallelism incident playbook** (symptom → diagnosis → recovery) distilled from the
 matrix, so the first real incident is a lookup, not an investigation.
 
+### The authored matrix skeleton — 2026-07-01 gap-hunt pass
+
+Layer 1 executed early, at grooming (a second pass on the grooming branch), so pre-FP-shaped findings could
+still reroute the milestone path — none did; all findings are FP-internal. Grounded in a two-sweep source audit
+(CLI-side writers across `packages/arc-framework/src`; workflow-instructed hand-edits across
+`system/workflows` / `methods` / skills) plus targeted path-resolution verification. Cell *verification*
+(induce the condition, observe the failure) is wave work; this skeleton and its classifications are the GA
+checklist's starting state. Disposition key: **BI-n** = committed build item above; **wave n** = verified in
+that burn-in wave; **playbook** = documented limitation / recovery entry.
+
+**A. Repo-shared surfaces — no branch isolation (common git dir or remote):**
+
+- **Base branch** — written by every merge (WU integration, errand, grooming PR; sibling machines). The remote
+  serializes the ref; nothing guards semantic drift — a behind-base branch merges stale-premise work cleanly.
+  **Silent** → pre-FP errand (behind-base reconcile gate); waves re-verify the gate fires.
+- **`refs/notes/arc/user/{id}`** (user-notes ref) — notes sync at every handoff / save, all session classes,
+  all machines. Guards: advisory lock + non-fast-forward `cat_sort_uniq` recovery — but the lock file is
+  per-checkout: same-machine cross-worktree writers race `git notes add` and drop a note. **Silent** → **BI-3**.
+- **Same-entry cross-WU resolution** (`resolveCrossWuState`) — divergent edits to one entry resolve by
+  wall-clock recency; one edit silently loses. **Silent**, narrow, recoverable → documented limitation
+  (§ Seam-audit decisions carries the fix direction).
+- **`refs/arc/user/{id}/sync-state`** (marker ref) — tree-CAS retry; concurrent publishers converge. **Loud** →
+  wave 1 verifies detectors read it *cross-worktree* (the local `.sync-state.json` cache alone would miss a
+  sibling worktree's partial-push marker).
+- **`refs/arc/user/{id}/errands`** — tree-CAS + same-slug collision surfacing (never auto-resolved). **Loud** →
+  wave 3.
+- **Worktree registry** (`git worktree` metadata) — git's own locking; a second op is refused. **Loud** →
+  playbook.
+- **Branch pushes** — single-owner per branch; non-fast-forward refused at the remote. **Loud** → playbook.
+- **`.git/config`** — lives in the common git dir, shared by all worktrees; `arc join` / `init` write it,
+  settings probes read it. Git's own config locking makes overlap **loud** → playbook (adversarial-pass row).
+- **Branch-creation ref races** — two sessions minting the same `plan/` / `chore/` / errand-slug branch; git's
+  ref locking refuses the second. **Loud** → playbook (adversarial-pass row).
+
+**B. Tracked files, branch-mediated — contention surfaces at merge:**
+
+- **`ROADMAP.md`** — hand-regenerated at every lifecycle fire-point, any lifecycle session. Concurrent regens
+  from different base states: usually a merge conflict (**loud**), but a clean merge of a stale render is
+  possible (**silent residue**) → `roadmap-tooling` (pre-FP, deterministic regen); wave 1 exercises it live.
+- **Foreign stub metas** (drain routes an Inbound-Buffer entry) vs. that WU concurrently graduating or grooming
+  — modify-vs-move across branches; git rename detection usually follows the move, but a whole-directory
+  relocation can orphan the routed entry at the old path. **Silent** → wave-verify; a drain-time
+  `arc status <slug>` check (the pre-routed `cross-wu-coordination` errand's prescription) covers the window.
+- **`completed/` archive index** — sequence numbers are scan-max-assigned per branch; two concurrent archivals
+  mint the same `NN_` and both merge cleanly. **Silent** (cosmetic) → playbook (renumber); the sweep base-ref
+  index errand reduces reliance on the directory scan.
+- **`ATOMIC-INBOX` / cohort docs / `arc-config.yml`** — drain-only writes / decompose-time authorship / rare
+  edits; overlap is a textual merge conflict. **Loud** → accept.
+
+**C. Per-checkout gitignored state — the flip multiplies checkouts; the failure mode is absence or divergence,
+not a write race:**
+
+- **Harness integration layer** (`.claude/` / `.codex/` / `.gemini/`: skills, hooks, allowlists — gitignored)
+  — absent in a fresh worktree: no ARC skill entry, no compaction-seed emission, no post-compaction recovery
+  injection, no wrapper allowlist. A session launched there runs *without* the ARC machinery and mostly won't
+  know it. **Silent** → **BI-1 (broadened)**.
+- **`node_modules`** — the known flip-decisive gap. **Loud** (gates fail) with one sharp edge (bare `npx arc`
+  resolving a foreign registry package) → **BI-1**.
+- **User files** (`USER-INBOX` / `WORKING-MEMORY` / `SESSION-NOTES`) — per-checkout copies reconciled via the
+  notes ref; entry-union handles different-entry edits; same-entry is row A-3; the three-remover `USER-INBOX`
+  line reconciliation stays a named seam suspect → wave 3.
+- **`.machine-id`** — exclusive-create mint per checkout: every spawned worktree becomes a distinct "machine"
+  in the marker trees. Possibly the right semantic, possibly drift → decide with **BI-3**.
+- **`compaction-seed.json` and sibling per-checkout markers** — overwritten in place; two sessions sharing one
+  checkout clobber each other. The recovery audit's drift checks catch the steady state (**loud**), but a
+  first-write race in a shared checkout has no baseline to drift from and stays **silent** until the next probe
+  (adversarial-pass correction); post-flip, per-session worktrees isolate it naturally. Reinforces the
+  one-session-per-checkout invariant (§ Seam-audit decisions, singleton fork).
+- **Audit log** (`.audit-log.jsonl`) — append-only, per-checkout; the trail fragments across worktrees.
+  Informational completeness gap only → note for `operational-state-docs`.
+
+**Cross-cutting — probe-snapshot staleness (TOCTOU):** every session-init freshness surface reads once and
+orients on the snapshot; a concurrent session can invalidate the premise a moment later. Bounded and
+self-correcting at the next probe → playbook, not a blocker.
+
+**Findings routed (all FP-internal — the pre-FP milestone path stands unchanged):** notes-lock scope +
+`.machine-id` semantics → **BI-3** (minted this pass); harness-layer / user-scaffold absence → **BI-1
+broadened**; the rest carry their dispositions above.
+
+An early ad-hoc adversarial pass (layer 2's mechanism, run fresh-eyes against this skeleton in the same
+grooming pass) failed to refute any routed finding — each confirmed against source
+(`lib/user-sync/sync-state.ts` path anchoring; `lib/git/worktree-scaffold.ts` provisions only the meta +
+user-open, no harness layer) — and contributed the `.git/config` and branch-creation rows plus the
+compaction-seed first-write correction above. The full pass re-runs at FP proper once `adversarial-review`
+ships its mechanism.
+
 ## Milestone path (interim sequencing record)
 
 No goal-aware-direction mechanism exists yet, so the established pre-FP sequence is recorded here as the
@@ -223,7 +329,7 @@ Natural **agile-parallelism cohort closeout** — the cohort archives on its shi
 ## Scope Estimate
 
 Large (week+), and deliberately long-*running* (the burn-in waves are calendar-gated) — broad cross-cohort
-surface carrying two committed build items alongside the audit / verify / flip / gate core. Size firms up once
+surface carrying three committed build items alongside the audit / verify / flip / gate core. Size firms up once
 the real seam count is visible.
 
 ## Continuity
@@ -235,9 +341,12 @@ the real seam count is visible.
   (§ Milestone path). Verification design settled: shared-mutable-surface matrix → adversarial checklist pass →
   staged sacrificial burn-in + containment invariants. Shape settled: one long-running phased WU, not a split
   bless. Singleton fork pre-scouted (pin-primary-to-base vs. serialization invariant) — no pre-FP exposure;
-  wave 3 decides.
-- **Open:** the GA-readiness checklist enumeration (the matrix skeleton — author at spec time); burn-in
-  workload selection (which P3 smalls / doc WUs serve as sacrificial waves — pick near start).
-- **Next:** groom-and-stop capture, then run the milestone path (adversarial-review first; pre-FP errands
-  interleaved from `USER-INBOX`). Resume via `--plan finalize-parallelism` if further shaping is wanted before
-  spec; otherwise the draft is near formalization-ready.
+  wave 3 decides. Gap-hunt matrix pass run (2026-07-01, second grooming pass): two-sweep source audit + early
+  adversarial pass → matrix skeleton authored (§ Verification design); all findings FP-internal — BI-3 minted
+  (notes-lock scope + `.machine-id` semantics), BI-1 broadened (untracked per-checkout prerequisites including
+  the harness layer); the pre-FP milestone path stands unchanged.
+- **Open:** matrix cell verification (induce the condition, observe the failure — wave work; the skeleton is
+  authored); burn-in workload selection (which P3 smalls / doc WUs serve as sacrificial waves — pick near
+  start).
+- **Next:** open the grooming PR, then run the milestone path (adversarial-review first; pre-FP errands
+  interleaved from `USER-INBOX`). The draft is formalization-ready for create-spec.
