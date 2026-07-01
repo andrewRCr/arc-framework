@@ -56,7 +56,7 @@ describe("classify-change.sh harness", () => {
     expect(result.stderr).toContain("Usage: classify-change.sh");
   });
 
-  it.each(["classify", "tree-hash", "decide"])(
+  it.each(["classify", "tree-hash", "duplicate-push", "decide"])(
     "recognizes the %s subcommand (not a usage error)",
     async (command) => {
       const result = await runScript(CLASSIFY_SCRIPT, [command]);
@@ -75,6 +75,66 @@ describe("classify-change.sh harness", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stderr).toContain("Usage: classify-change.sh");
+  });
+});
+
+describe("classify-change.sh duplicate-push", () => {
+  const tempDirs: string[] = [];
+  const headSha = "1111111111111111111111111111111111111111";
+
+  afterEach(async () => {
+    await Promise.all(tempDirs.splice(0).map((dir) => cleanupTempDir(dir)));
+  });
+
+  async function duplicatePush(
+    event: string,
+    refName: string,
+    head: string,
+    fixtures?: string,
+  ): Promise<string> {
+    const env = fixtures === undefined ? {} : { CLASSIFY_OPEN_PULLS_DIR: fixtures };
+    const result = await runScript(CLASSIFY_SCRIPT, ["duplicate-push", event, refName, head], { env });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout.trim()).toMatch(/^(true|false)$/);
+    return result.stdout.trim();
+  }
+
+  async function fixtureDir(lines: string): Promise<string> {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const pullsDir = join(repo, ".pulls");
+    await mkdir(pullsDir, { recursive: true });
+    await writeFile(join(pullsDir, `${headSha}.tsv`), lines);
+    return pullsDir;
+  }
+
+  it("is true for a push whose branch and head SHA match an open PR", async () => {
+    const pullsDir = await fixtureDir(`chore/example\t${headSha}\n`);
+
+    expect(await duplicatePush("push", "chore/example", headSha, pullsDir)).toBe("true");
+  });
+
+  it("is false for non-push events even when the head has an open PR", async () => {
+    const pullsDir = await fixtureDir(`chore/example\t${headSha}\n`);
+
+    expect(await duplicatePush("pull_request", "chore/example", headSha, pullsDir)).toBe("false");
+  });
+
+  it("is false when no open PR fixture exists for the head SHA", async () => {
+    const repo = await createTempRepo();
+    tempDirs.push(repo);
+    const pullsDir = join(repo, ".pulls");
+    await mkdir(pullsDir, { recursive: true });
+
+    expect(await duplicatePush("push", "chore/example", headSha, pullsDir)).toBe("false");
+  });
+
+  it("is false when the open PR is for a different branch or stale head", async () => {
+    const pullsDir = await fixtureDir(
+      `chore/other\t${headSha}\nchore/example\t2222222222222222222222222222222222222222\n`,
+    );
+
+    expect(await duplicatePush("push", "chore/example", headSha, pullsDir)).toBe("false");
   });
 });
 
