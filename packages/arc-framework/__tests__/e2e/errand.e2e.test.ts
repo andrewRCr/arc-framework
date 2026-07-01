@@ -311,8 +311,9 @@ describe("arc errand promote", () => {
     );
 
     expect(result.exitCode).toBe(0);
-    // Branch renamed into the WU branch; the errand name is gone.
-    expect(await git(tmpDir, ["branch", "--list", "feat/growth-feature"])).toContain("feat/growth-feature");
+    // Branch renamed into the Planning WU branch; the errand name is gone.
+    expect(await git(tmpDir, ["branch", "--list", "plan/growth-feature"])).toContain("plan/growth-feature");
+    expect(await git(tmpDir, ["branch", "--list", "feat/growth-feature"])).toBe("");
     expect(await git(tmpDir, ["branch", "--list", "fix/growing"])).toBe("");
     // Record retired from the orphan state-ref.
     await expect(git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:growing"])).rejects.toThrow();
@@ -320,7 +321,7 @@ describe("arc errand promote", () => {
     const meta = await readFile(join(tmpDir, ".arc", "active", "meta-growth-feature.md"), "utf-8");
     expect(meta).toContain("# Metadata: growth-feature");
     expect(meta).toMatch(/\bPlanning\b/u);
-    expect(meta).toContain("feat/growth-feature");
+    expect(meta).toContain("plan/growth-feature");
     expect(meta).toContain("draft-design");
   });
 
