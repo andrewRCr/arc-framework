@@ -11,12 +11,12 @@ on:
 permissions:
   contents: read
 
-# Cancel superseded PR work for the same branch. A pull_request run may cancel an
-# in-flight push or older PR run; push runs do not cancel PR runs, and duplicate
-# push runs skip downstream jobs after classification.
+# Cancel superseded work within the same event/ref lane. Push and pull_request
+# runs do not cancel each other; duplicate push runs skip downstream jobs after
+# classification when an open PR already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.event.pull_request.head.ref || github.ref_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   # Classify the change on two independent axes:
