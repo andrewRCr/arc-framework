@@ -278,9 +278,9 @@ this latent path — a regression the WU causes, and must therefore own.
 **Requirement:** `runUserLoad` must never write a notes-ref history commit as `sourceCommit`. When no per-WU note
 resolves, the recorded basis is the primitive's off-ancestry fallback commit (D8) when present; for a genuine
 cross-WU-only load (a brand-new WU loading shared context before its first per-WU note, no `save` pointer), record
-a valid branch-commit basis (current HEAD) or a defined sentinel `inspectDiskVsLocalSnapshot` treats as "no
-comparable saved commit" — never a history commit. The cross-WU *merge* itself stays a Non-Goal; only the
-`sourceCommit`-basis correctness is in scope, because the WU's own change worsens the defect.
+the defined sentinel `inspectDiskVsLocalSnapshot` treats as "no comparable saved commit" — never current HEAD and
+never a history commit. The cross-WU *merge* itself stays a Non-Goal; only the `sourceCommit`-basis correctness is
+in scope, because the WU's own change worsens the defect.
 
 ## Alternatives & Rationale
 
@@ -393,9 +393,8 @@ Validated at work-unit completion:
    asserted, not treated as a regression.
 
 6. **`sourceCommit` basis is never a history commit (D10)** — after any `arc user load` that resolves no per-WU
-   note (e.g. a cross-WU-only load), `LocalSyncState.sourceCommit` records a valid branch-commit basis (or the
-   defined sentinel), and a subsequent `arc user status` on that state does **not** report a spurious `mixed`
-   divergence.
+   note (e.g. a cross-WU-only load), `LocalSyncState.sourceCommit` records the defined sentinel, and a subsequent
+   `arc user status` on that state does **not** report a spurious `mixed` divergence.
 
 7. **Quality gates green** — type-check, lint, full test suite, and build pass.
 
