@@ -12,7 +12,7 @@
 - **Task List:** `tasks-user-save-status-divergence.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** create-spec complete — spec-user-save-status-divergence.md finalized (detailed RFC)
+- **Last Completed:** generate-tasks complete — tasks-user-save-status-divergence.md finalized (high depth)
 - **Next Task:** Begin Task 1.1 — Enumerate the annotated-note set
 - **Blockers:** [none]
 
