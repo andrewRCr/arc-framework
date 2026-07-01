@@ -1763,6 +1763,73 @@ describe("runUserSessionInitStatus", () => {
     expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
   });
 
+  it("projects an off-ancestry save pointer as outside-head-ancestry, not current", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const offBranchCommit = "a".repeat(40);
+    const currentHead = "b".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const internalDir = `${userDir}/.internal`;
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteJSON = JSON.stringify(manifest(noteFiles));
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash: hashSyncManifest(manifest(noteFiles)),
+      sourceCommit: offBranchCommit,
+      sourceOperation: "save",
+    });
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+          return { stdout: "feature/current\n", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${offBranchCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === offBranchCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async (dir: string) => {
+        if (dir !== userDir) return [];
+        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+      },
+      readFile: async (path: string) => {
+        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toMatchObject({
+      state: "outside-head-ancestry",
+      commit: offBranchCommit,
+      commitShort: offBranchCommit.slice(0, 7),
+      reachableFromHead: false,
+      currentBranch: "feature/current",
+    });
+  });
+
   it("treats fetch-blocked ancestry comparison as local continuation, not stale-note divergence", async () => {
     const probeIO = {
       ...io,

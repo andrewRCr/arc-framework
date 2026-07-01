@@ -117,26 +117,16 @@ the injected boundary. See `spec-user-save-status-divergence.md` § Proposed Des
   limited to HEAD-reachable candidates, sibling-WU notes are excluded before reduction, and whole-tree vs per-WU
   reads may resolve different commits from the same notes state.
 
-### `[ ]` **2.5 Off-ancestry fallback and the one-result return contract**
+### `[x]` **2.5 Off-ancestry fallback and the one-result return contract**
 
 - _Goal:_ When no reachable maximal note exists, the primitive returns one rich result — the pointer's own `save`
   note (per-WU filter preserved) with `reachableFromHead: false` when that commit still carries a note, else an
   empty result — never fabricating a `current` verdict; callers project this single result (D8, D2 step 5, D6).
 
-    - The pure reducer (2.2) emits this single result — both the reachable-maximal note and the off-ancestry
-      fallback are its outputs — building the `NearestUserNoteRef` return (`commit`, `reachableFromHead`,
-      `fromAncestor`, `ancestorDistance`); the off-ancestry fallback keys on `sourceOperation === "save"` (D6).
-    - Provenance fields are computed for the single resolved note post-selection — selection is by the ancestry
-      relation, not by a count. `ancestorDistance` is retained (still displayed); `noteHistoryDistance` loses its
-      selection meaning here and is dropped in 3.1.
-    - The `capped` / `walked` / `maxWalk` fields lose their selection meaning here (the enumerate design neither
-      walks nor caps); the fields themselves are removed in 4.3.
-    - Build `test-first` (one behavior at a time):
-        - Off-ancestry with a `save` pointer whose commit still carries a note → that commit, `reachableFromHead`
-          false.
-        - Off-ancestry under the per-WU filter → the pointer note only when it carries the WU's subdir.
-        - No pointer and nothing reachable (fresh clone / sibling machine on an untouched branch) → empty result.
-        - A divergent HEAD with every note off-ancestry never returns a `current` verdict.
+- _Outcome:_ `findNearestUserNote` now falls back to this machine's saved pointer note when no candidate is
+  reachable from HEAD, marks that note `reachableFromHead: false`, preserves the current-WU filter, and returns
+  empty for no-pointer / load-pointer cases. Unit coverage pins the primitive contract and the session-init
+  freshness projection as `outside-head-ancestry`, not current.
 
 ---
 

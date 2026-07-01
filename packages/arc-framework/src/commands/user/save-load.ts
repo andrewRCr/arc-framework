@@ -537,6 +537,26 @@ async function resolveNearestUserNote(
     input.localSyncState,
   );
   if (!selected) {
+    const fallback = await readOffAncestryPointerFallback({
+      io,
+      fullRef,
+      currentWuName,
+      localSyncState: input.localSyncState,
+    });
+    if (fallback !== null) {
+      return {
+        note: {
+          content: fallback.content,
+          commit: fallback.commit,
+          reachableFromHead: false,
+          fromAncestor: false,
+          ancestorDistance: 0,
+        },
+        walked: annotatedCommits.length,
+        maxWalk,
+        capped: false,
+      };
+    }
     return {
       note: null,
       walked: annotatedCommits.length,
@@ -589,6 +609,26 @@ async function buildReachableNoteCandidates(input: {
     candidates.push({ commit, content });
   }
   return candidates;
+}
+
+async function readOffAncestryPointerFallback(input: {
+  io: UserIOContext;
+  fullRef: string;
+  currentWuName: string | undefined;
+  localSyncState: ResolutionPointer | null;
+}): Promise<{ commit: string; content: string } | null> {
+  const { io, fullRef, currentWuName, localSyncState } = input;
+  if (localSyncState?.sourceOperation !== "save") return null;
+
+  const content = await readNoteContentAtAnnotatedCommit(
+    io.exec,
+    fullRef,
+    localSyncState.sourceCommit,
+  );
+  if (content === null) return null;
+  if (currentWuName !== undefined && !noteManifestContainsWu(content, currentWuName)) return null;
+
+  return { commit: localSyncState.sourceCommit, content };
 }
 
 function selectMaximalCandidate(

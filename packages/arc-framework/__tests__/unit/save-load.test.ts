@@ -518,6 +518,91 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
   });
 });
 
+describe("findNearestUserNote — off-ancestry pointer fallback", () => {
+  const manifestJson = (files: Record<string, string>): string =>
+    JSON.stringify({ version: 2, files });
+
+  it("returns this machine's saved pointer note when no notes are reachable from HEAD", async () => {
+    const pointerCommit = "a".repeat(40);
+    const { io } = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(pointerCommit);
+    expect(result.note?.reachableFromHead).toBe(false);
+    expect(result.note?.fromAncestor).toBe(false);
+    expect(result.note?.ancestorDistance).toBe(0);
+  });
+
+  it("applies the current-WU filter before returning the off-ancestry pointer note", async () => {
+    const pointerCommit = "a".repeat(40);
+    const matchingIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "wu-a/SESSION-NOTES.md": "notes" }),
+      },
+    }).io;
+    const nonmatchingIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "other-wu/SESSION-NOTES.md": "notes" }),
+      },
+    }).io;
+
+    const matching = await findNearestUserNote({
+      cwd: "/repo", io: matchingIO, identity: "andrew", currentWuName: "wu-a",
+    });
+    const nonmatching = await findNearestUserNote({
+      cwd: "/repo", io: nonmatchingIO, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(matching.note?.commit).toBe(pointerCommit);
+    expect(matching.note?.reachableFromHead).toBe(false);
+    expect(nonmatching.note).toBeNull();
+  });
+
+  it("returns no note when nothing is reachable and no local save pointer applies", async () => {
+    const noteCommit = "a".repeat(40);
+    const noPointerIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [noteCommit],
+      reachableHeadCommits: [],
+      noteContentByCommit: {
+        [noteCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    }).io;
+    const loadPointerIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [noteCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: noteCommit, sourceOperation: "load" },
+      noteContentByCommit: {
+        [noteCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    }).io;
+
+    const noPointer = await findNearestUserNote({ cwd: "/repo", io: noPointerIO, identity: "andrew" });
+    const loadPointer = await findNearestUserNote({ cwd: "/repo", io: loadPointerIO, identity: "andrew" });
+
+    expect(noPointer.note).toBeNull();
+    expect(loadPointer.note).toBeNull();
+  });
+});
+
 describe("runUserLoad — empty resolution", () => {
   it("returns null when no reachable note and no recent note source exists", async () => {
     const commit = "a".repeat(40);
