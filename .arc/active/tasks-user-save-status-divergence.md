@@ -171,19 +171,15 @@ computes no history index, so it has no basis; settling it first unblocks the pr
   HEAD (`current-head`), complementing the existing ancestor and off-ancestry assertions so the freshness surface
   is pinned to the resolved note states.
 
-### `[ ]` **3.4 `inspectDiskVsLocalSnapshot` coherence (spurious `mixed` no longer wrong-note-tripped)**
+### `[x]` **3.4 `inspectDiskVsLocalSnapshot` coherence (spurious `mixed` no longer wrong-note-tripped)**
 
 - _Goal:_ The `note.commit !== localSyncState.sourceCommit` divergence branch stops tripping spuriously — after a
   save the resolved note sits on the pointer's commit (or a legitimate descendant), so a fresh save no longer falls
   through to `diskStatus: "mixed"` / `direction: "mixed"` (D9).
 
-    - Verify the inspector inherits the corrected resolution unchanged; the genuine descendant-ahead case
-      (`noteIsDescendant && diskHash === materializedHash` → `stale` / `behind`) is preserved.
-    - _Note:_ The other spurious-`mixed` cause — a notes-ref history commit written as `sourceCommit` — is fixed in
-      4.2 (D10). A fully-clean `current` on the reproduction depends on both, so this task's tests assert the D9
-      wrong-note path only; the basis-fix assertion lands in 4.2 / 4.5.
-    - Tests (coverage): fresh save → `same` / `current` (not `mixed`); genuine note-ahead-of-materialized →
-      `stale` / `behind` preserved.
+- _Outcome:_ Added disk-vs-note regression coverage where a fresh saved note is selected over an older reachable
+  note and reports `same` / `current` rather than `mixed`. The existing descendant-ahead case now also asserts the
+  preserved `stale` / `behind` classification.
 
 ### `[ ]` **3.5 `push-recovery.ts` inherits the resolution**
 

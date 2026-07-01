@@ -1186,6 +1186,10 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     sourceOperation?: "save" | "load";
     /** Result for `git merge-base --is-ancestor <sourceCommit> <noteCommit>`. */
     sourceIsAncestorOfNote: boolean;
+    annotatedNoteCommits?: string[];
+    noteFilesByCommit?: Record<string, Record<string, string>>;
+    reachableCommits?: string[];
+    maximalCommits?: string[];
   }
 
   function buildIO(scenario: DirectionScenario): UserIOContext {
@@ -1195,7 +1199,10 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     const internalDir = `${userDir}/.internal`;
     const localNotesRef = "refs/notes/arc/user/andrew";
     const noteCommitPath = `${scenario.noteCommit.slice(0, 2)}/${scenario.noteCommit.slice(2)}`;
-    const noteJSON = JSON.stringify({ version: 2, files: scenario.noteFiles });
+    const annotatedNoteCommits = scenario.annotatedNoteCommits ?? [scenario.noteCommit];
+    const noteFilesFor = (commit: string): Record<string, string> =>
+      scenario.noteFilesByCommit?.[commit] ?? scenario.noteFiles;
+    const noteJSONFor = (commit: string): string => JSON.stringify({ version: 2, files: noteFilesFor(commit) });
     const syncStateContent = JSON.stringify({
       version: 2,
       materializedManifestHash: scenario.materializedManifestHash,
@@ -1213,10 +1220,13 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
         }
         if (args[0] === "notes" && args[2] === "list") {
-          return { stdout: `${"0".repeat(40)} ${scenario.noteCommit}\n`, stderr: "" };
+          const stdout = annotatedNoteCommits
+            .map((commit) => `${"0".repeat(40)} ${commit}`)
+            .join("\n");
+          return { stdout: `${stdout}\n`, stderr: "" };
         }
-        if (args[0] === "notes" && args[2] === "show" && args[3] === scenario.noteCommit) {
-          return { stdout: noteJSON, stderr: "" };
+        if (args[0] === "notes" && args[2] === "show" && typeof args[3] === "string") {
+          return { stdout: noteJSONFor(args[3]), stderr: "" };
         }
         if (args[0] === "log" && args.includes(localNotesRef)) {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
@@ -1225,17 +1235,17 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
           return { stdout: `${noteCommitPath}\n`, stderr: "" };
         }
         if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
-          return { stdout: noteJSON, stderr: "" };
+          return { stdout: noteJSONFor(scenario.noteCommit), stderr: "" };
         }
         if (args[0] === "rev-list" && args[1] === "HEAD") {
-          return { stdout: `${scenario.noteCommit}\n${scenario.sourceCommit}\n`, stderr: "" };
+          const reachableCommits = scenario.reachableCommits ?? [scenario.noteCommit, scenario.sourceCommit];
+          return { stdout: `${reachableCommits.join("\n")}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
           && args[1] === "--independent"
-          && args[2] === scenario.noteCommit
         ) {
-          return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
+          return { stdout: `${(scenario.maximalCommits ?? [scenario.noteCommit]).join("\n")}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
@@ -1305,6 +1315,35 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     }).actionHint;
   }
 
+  it("reads a fresh save as current when an older reachable note is also present", async () => {
+    const olderCommit = "a".repeat(40);
+    const savedCommit = "c".repeat(40);
+    const savedFiles = { "SESSION-NOTES.md": "saved-current" };
+    const savedManifest: SyncManifest = { version: 2, files: savedFiles };
+    const io = buildIO({
+      sourceCommit: savedCommit,
+      noteCommit: savedCommit,
+      annotatedNoteCommits: [olderCommit, savedCommit],
+      noteFilesByCommit: {
+        [olderCommit]: { "SESSION-NOTES.md": "older-note" },
+        [savedCommit]: savedFiles,
+      },
+      reachableCommits: [savedCommit, olderCommit],
+      maximalCommits: [savedCommit],
+      diskFiles: savedFiles,
+      noteFiles: savedFiles,
+      materializedManifestHash: hashSyncManifest(savedManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskState).toBe("same");
+    expect(state.diskStatus).toBe("current");
+    expect(state.unsavedDirection).toBeNull();
+    expect(actionFor(state, savedCommit)).toBeNull();
+  });
+
   it("flags disk as 'behind' and routes to `arc user load` when note advanced past sourceCommit while disk matches materialized", async () => {
     const diskFiles = { "SESSION-NOTES.md": "disk-content" };
     const diskManifest: SyncManifest = { version: 2, files: diskFiles };
@@ -1321,6 +1360,7 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
 
     expect(state.unsavedDirection).toBe("behind");
+    expect(state.diskStatus).toBe("stale");
     expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
   });
 
