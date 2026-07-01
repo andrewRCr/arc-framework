@@ -274,28 +274,33 @@ the union member; 4.4 removes the member and its four consumers atomically. See
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+
+- _Quality gates:_ `npm run -s lint:md`, `npm run lint:ts`, `npm run lint:sh`, `npm run typecheck`,
+  `npm run typecheck:test`, `npm test`, and `npm run build` passed; final diff is limited to verification
+  metadata.
+- _Success criteria:_ 8 criteria met; none superseded or open.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` Edge-case matrix passes — each of the nine rows resolves as specified (SC1)
+- `[x]` Edge-case matrix passes — each of the nine rows resolves as specified (SC1)
 
-- `[ ]` Surfaces agree by construction — `savedCommit`, `diskStatus`, `localNoteFreshness` read the same commit
+- `[x]` Surfaces agree by construction — `savedCommit`, `diskStatus`, `localNoteFreshness` read the same commit
   and `current` for a fresh save; the reproduction no longer reports `mixed` / stale / behind (SC2)
 
-- `[ ]` Single primitive — resolution lives in one changed primitive; every consumer inherits it with no
+- `[x]` Single primitive — resolution lives in one changed primitive; every consumer inherits it with no
   per-surface selection logic (SC3)
 
-- `[ ]` No distance-cap regression — any HEAD-reachable note is found regardless of distance behind HEAD (SC4)
+- `[x]` No distance-cap regression — any HEAD-reachable note is found regardless of distance behind HEAD (SC4)
 
-- `[ ]` Load parity — `arc user load` materializes the causally-latest reachable matching note or the
+- `[x]` Load parity — `arc user load` materializes the causally-latest reachable matching note or the
   deterministic pointer-backed off-ancestry fallback, with no cross-branch-resume regression (SC5)
 
-- `[ ]` `sourceCommit` basis is never a history commit — a subsequent `arc user status` reads no spurious
+- `[x]` `sourceCommit` basis is never a history commit — a subsequent `arc user status` reads no spurious
   `mixed` divergence (SC6)
 
-- `[ ]` All quality gates pass (tests, linting, type checking, build)
+- `[x]` All quality gates pass (tests, linting, type checking, build)
 
-- `[ ]` Ready for integration
+- `[x]` Ready for integration

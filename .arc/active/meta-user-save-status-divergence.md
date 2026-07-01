@@ -16,7 +16,7 @@
 - **Next Task:** Task 4.1 — `runUserLoad` materializes the off-ancestry pointer fallback (line ~216)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 4.1 — `runUserLoad` materializes the off-ancestry pointer fallback
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]
