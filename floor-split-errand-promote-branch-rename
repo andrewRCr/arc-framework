@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "floor-split-errand-promote-branch-rename",
+  "origin": "inbox",
+  "intent": "Floor-split errand promote branch rename so derivation crossings enter planning on plan/<name> while scale crossings keep working branches.",
+  "branch": "chore/floor-split-errand-promote-branch-rename",
+  "createdAt": "2026-07-01T20:23:41.482Z",
+  "originEntry": "Floor-split errand-promote branch rename ( for Planning crossings)"
+}
