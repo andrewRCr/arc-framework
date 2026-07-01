@@ -19,8 +19,10 @@ import {
   projectManifest,
   stashedFilesInSubdir,
   subdirsFromPaths,
+  readLocalSyncState,
   writeLocalSyncState,
   wuNameOfPath,
+  type LocalSyncState,
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
@@ -57,6 +59,16 @@ const BACKUP_RETENTION = 3;
 
 /** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
 export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
+
+type ResolutionPointer = Pick<LocalSyncState, "sourceCommit" | "sourceOperation">;
+
+interface NearestUserNoteResolutionInput {
+  io: UserIOContext;
+  identity: string;
+  currentWuName?: string;
+  maxWalk: number;
+  localSyncState: ResolutionPointer | null;
+}
 
 /**
  * Save the user directory to user notes on HEAD.
@@ -465,8 +477,23 @@ function normalizeManifest(
 export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
-  const { io, identity, currentWuName } = options;
+  const { cwd, io, identity } = options;
   const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
+  const localSyncState = await readLocalSyncState(cwd, io, identity);
+
+  return resolveNearestUserNote({
+    io,
+    identity,
+    currentWuName: options.currentWuName,
+    maxWalk,
+    localSyncState,
+  });
+}
+
+async function resolveNearestUserNote(
+  input: NearestUserNoteResolutionInput,
+): Promise<NearestNoteSearch> {
+  const { io, identity, currentWuName, maxWalk } = input;
   const ref = notesRef(identity);
   const fullRef = `refs/notes/${ref}`;
 

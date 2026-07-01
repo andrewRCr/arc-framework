@@ -76,18 +76,15 @@ that decides the winner — the seam that lets the nine-row matrix run as unit t
 the injected boundary. See `spec-user-save-status-divergence.md` § Proposed Design (D1, D2, D6, D7) and
 § Alternatives & Rationale.
 
-### `[ ]` **2.1 Wire the local sync-state pointer into resolution inputs**
+### `[x]` **2.1 Wire the local sync-state pointer into resolution inputs**
 
 - _Goal:_ `findNearestUserNote` reads the local sync-state pointer (`sourceCommit` + `sourceOperation` via
   `readLocalSyncState`) so the concurrent tie-break (D2 step 2) and off-ancestry corroboration (D8) can apply;
   an absent pointer (fresh clone / sibling machine) resolves cleanly with the pointer roles simply not applying.
 
-    - The primitive already receives `cwd` / `io` / `identity` via `UserLoadOptions`; read the pointer at entry
-      (`readLocalSyncState` is a cheap per-worktree file read, no git) and thread it into the reducer. No new
-      caller-facing option flag — the five call sites stay unchanged (D3).
-    - _Note:_ `inspectDiskVsLocalSnapshot` reads the sync state separately, so a status call reads it twice — an
-      accepted cheap redundancy, not a threaded-through pointer param. This is input plumbing; its behavior is
-      exercised by the tie-break (2.3) and fallback (2.5) matrices.
+- _Outcome:_ `findNearestUserNote` now reads `readLocalSyncState` at entry and passes a narrowed `sourceCommit` /
+  `sourceOperation` pointer through its internal resolution input, leaving caller options and current selection
+  behavior unchanged for the later reducer work.
 
 ### `[ ]` **2.2 Reachable-maximal base resolution (singleton wins)**
 
