@@ -131,6 +131,18 @@ describe("pushNotesWithReconcile", () => {
     expect(mockLog.warn).not.toHaveBeenCalled();
   });
 
+  it("no-op with an off-ancestry local note → no staleness warning", async () => {
+    mockReconcileNotesPush.mockResolvedValue({ kind: "noop" });
+    mockFindNearestUserNote.mockResolvedValue({
+      note: { reachableFromHead: false, ancestorDistance: 5 },
+    });
+
+    await pushNotesWithReconcile({ io, identity, cwd, output });
+
+    expect(mockLog.warn).not.toHaveBeenCalled();
+    expect(mockLog.info).not.toHaveBeenCalled();
+  });
+
   it("a throwing staleness probe never aborts the completed no-op push", async () => {
     mockReconcileNotesPush.mockResolvedValue({ kind: "noop" });
     // The best-effort staleness read fails — it must not propagate and discard

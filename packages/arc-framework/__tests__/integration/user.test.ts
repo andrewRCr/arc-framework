@@ -107,6 +107,11 @@ async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
   return stdout.trim();
 }
 
+async function readHead(cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
+  return stdout.trim();
+}
+
 function expectLoaded(result: UserLoadOutcome | null): UserLoadResult {
   expect(result).not.toBeNull();
   expect(result?.kind).toBe("loaded");
@@ -1545,6 +1550,71 @@ describe("user status", () => {
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const afterSave = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
     expect(afterSave.localNoteFreshness?.state).toBe("current-head");
+  });
+
+  it("reports current after a later notes-ref update lands on an older commit", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const olderCommit = await readHead(tempDir);
+    await makeCommit(tempDir, "middle commit");
+    const savedHead = await makeCommit(tempDir, "current commit");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved descendant", "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await io.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "# Older arrival" } }),
+      olderCommit,
+    );
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(status.savedCommit).toBe(saveResult.commit);
+    expect(status.diskStatus).toBe("current");
+    expect(status.savedFromAncestor).toBe(false);
+    expect(status.ancestorDistance).toBe(0);
+    expect(status.savedReachableFromHead).toBe(true);
+    expect(state.localNoteFreshness).toMatchObject({
+      state: "current-head",
+      commit: savedHead,
+      reachableFromHead: true,
+      ancestorDistance: 0,
+    });
+  });
+
+  it("reports the descendant save as current after re-anchoring its manifest to an older commit", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const olderCommit = await readHead(tempDir);
+    await makeCommit(tempDir, "middle commit");
+    const savedHead = await makeCommit(tempDir, "current commit");
+    const savedContent = "# Saved descendant";
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), savedContent, "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await io.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": savedContent } }),
+      olderCommit,
+    );
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(status.savedCommit).toBe(saveResult.commit);
+    expect(status.diskStatus).toBe("current");
+    expect(status.savedFromAncestor).toBe(false);
+    expect(status.ancestorDistance).toBe(0);
+    expect(status.savedReachableFromHead).toBe(true);
+    expect(state.localNoteFreshness).toMatchObject({
+      state: "current-head",
+      commit: savedHead,
+      reachableFromHead: true,
+      ancestorDistance: 0,
+    });
   });
 
   it("reports remote-ahead status with an actionable pull hint", async () => {

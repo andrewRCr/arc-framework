@@ -181,25 +181,23 @@ computes no history index, so it has no basis; settling it first unblocks the pr
   note and reports `same` / `current` rather than `mixed`. The existing descendant-ahead case now also asserts the
   preserved `stale` / `behind` classification.
 
-### `[ ]` **3.5 `push-recovery.ts` inherits the resolution**
+### `[x]` **3.5 `push-recovery.ts` inherits the resolution**
 
 - _Goal:_ The behind-HEAD recovery hint fires off the causally-resolved note — `handlers/push-recovery.ts` reads
   `note.reachableFromHead` / `note.ancestorDistance` from the same primitive with no per-surface logic (D3).
 
-    - Tests (coverage): a reachable-behind note → the hint with its `ancestorDistance`; an off-ancestry result →
-      no false hint.
+- _Outcome:_ Added no-op push coverage showing an off-ancestry resolved note does not emit the stale-local-note
+  hint, complementing the existing reachable-behind warning assertion.
 
-### `[ ]` **3.6 Reproduction integration tests (save → land-older-note → status)**
+### `[x]` **3.6 Reproduction integration tests (save → land-older-note → status)**
 
 - _Goal:_ The end-to-end reproduction — save a note on `C`, land a later note on older `A`, run status — reports
   `current` (not `mixed` / stale / behind), and `savedCommit` / `diskStatus` / `localNoteFreshness` agree on the
   same commit against a real temporary git repo (SC2).
 
-    - Construct a real notes ref + pointer state in `__tests__/integration/` (real git notes, no mocked boundary);
-      assert surfaces-agree-by-construction. Cover the save→re-anchor→status variant alongside save→pull→status.
-    - Build `test-first` (one behavior at a time):
-        - Save on `C`, land a later note on older `A`, run status → `current`; all three surfaces on the same commit.
-        - Save then re-anchor a note to an older commit → status still reports the descendant save as current.
+- _Outcome:_ Added real-git integration reproductions for a later older-note update with different content and for
+  re-anchoring the saved manifest onto an older commit. Both assert `runUserStatus` reports the descendant save as
+  current and `inspectUserSyncState` freshness agrees on the same HEAD note.
 
 ---
 
