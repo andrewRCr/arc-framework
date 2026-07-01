@@ -98,7 +98,9 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
     }
     if (args[0] === "notes" && args[2] === "show") {
       const commit = args[3] ?? "";
-      const content = noteContentByCommit[commit] ?? noteContent;
+      const content = Object.hasOwn(noteContentByCommit, commit)
+        ? noteContentByCommit[commit]
+        : noteContent;
       if (content === null) {
         throw new Error(`missing note: ${commit}`);
       }
@@ -390,6 +392,74 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     });
 
     expect(result.note?.commit).toBe(matchingWu);
+  });
+
+  it("reads WU-filter content only for reachable candidates before reducing", async () => {
+    const unreachable = "a".repeat(40);
+    const otherWu = "b".repeat(40);
+    const olderMatchingWu = "c".repeat(40);
+    const latestMatchingWu = "d".repeat(40);
+    const { io, execCalls } = mockIO({
+      head: latestMatchingWu,
+      annotatedNoteCommits: [unreachable, otherWu, olderMatchingWu, latestMatchingWu],
+      reachableHeadCommits: [otherWu, olderMatchingWu, latestMatchingWu],
+      maximalCommits: [latestMatchingWu],
+      noteContentByCommit: {
+        [unreachable]: null,
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [olderMatchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "older" }),
+        [latestMatchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "latest" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    const noteShowCommits = execCalls
+      .filter(([, args]) => args[0] === "notes" && args[2] === "show")
+      .map(([, args]) => args[3]);
+    const reduceCall = execCalls.find(([, args]) => (
+      args[0] === "merge-base" && args[1] === "--independent"
+    ));
+
+    expect(result.note?.commit).toBe(latestMatchingWu);
+    expect(noteShowCommits).toEqual([otherWu, olderMatchingWu, latestMatchingWu]);
+    expect(reduceCall?.[1]).toEqual([
+      "merge-base", "--independent", olderMatchingWu, latestMatchingWu,
+    ]);
+  });
+
+  it("can resolve different commits for whole-tree and per-WU reads over the same notes", async () => {
+    const matchingWu = "a".repeat(40);
+    const otherWu = "b".repeat(40);
+    const sharedState = {
+      head: otherWu,
+      annotatedNoteCommits: [matchingWu, otherWu],
+      reachableHeadCommits: [matchingWu, otherWu],
+      noteContentByCommit: {
+        [matchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "own" }),
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "sibling" }),
+      },
+    };
+    const { io: wholeTreeIo } = mockIO({
+      ...sharedState,
+      maximalCommits: [otherWu],
+    });
+    const { io: perWuIo } = mockIO({
+      ...sharedState,
+      maximalCommits: [matchingWu],
+    });
+
+    const wholeTreeResult = await findNearestUserNote({
+      cwd: "/repo", io: wholeTreeIo, identity: "andrew",
+    });
+    const perWuResult = await findNearestUserNote({
+      cwd: "/repo", io: perWuIo, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(wholeTreeResult.note?.commit).toBe(otherWu);
+    expect(perWuResult.note?.commit).toBe(matchingWu);
   });
 
   it("does not import a prior WU's notes on a fresh spawn (other-WU-only note skipped)", async () => {

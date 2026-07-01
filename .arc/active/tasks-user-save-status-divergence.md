@@ -106,21 +106,16 @@ the injected boundary. See `spec-user-save-status-divergence.md` § Proposed Des
   `sourceOperation`, falling back to the lexicographically smallest annotated commit. Unit coverage pins save
   pointer, no-pointer/smallest-SHA, and `op=load` monotonic-read cases.
 
-### `[ ]` **2.4 Per-WU filter as a candidacy predicate**
+### `[x]` **2.4 Per-WU filter as a candidacy predicate**
 
 - _Goal:_ With `currentWuName` set, only notes carrying the WU's subdir enter the candidate set the D2 rule ranges
   over — via `noteManifestContainsWu` over content read by annotated commit (1.4) — so the winner is the
   causally-latest reachable note _carrying the WU's subdir_, on every return path including the off-ancestry
   fallback (D4).
 
-    - The predicate itself is unchanged; only the set it filters changes. Order: enumerate → filter-reachable
-      (cheap ancestry) → content-read (1.4) + per-WU predicate on the **already-reachable** subset → reduce, so
-      content reads stay bounded to reachable candidates (D5) rather than every enumerated commit.
-    - Build `test-first` (one behavior at a time):
-        - With the filter active, sibling-WU notes are skipped and the WU's own causally-latest note resolves.
-        - The whole-tree result (no filter) and the per-WU result may name different commits for the same state —
-          the same algorithm over a different candidate set, not one note projected two ways.
-        - The filter is preserved on the off-ancestry fallback path (composes with 2.5).
+- _Outcome:_ Unit coverage now pins the current-WU candidacy boundary in `findNearestUserNote`: content reads are
+  limited to HEAD-reachable candidates, sibling-WU notes are excluded before reduction, and whole-tree vs per-WU
+  reads may resolve different commits from the same notes state.
 
 ### `[ ]` **2.5 Off-ancestry fallback and the one-result return contract**
 

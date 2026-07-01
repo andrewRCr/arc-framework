@@ -1214,6 +1214,12 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === scenario.noteCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
         if (args[0] === "log" && args.includes(localNotesRef)) {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1222,6 +1228,16 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
         }
         if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
           return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${scenario.noteCommit}\n${scenario.sourceCommit}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--independent"
+          && args[2] === scenario.noteCommit
+        ) {
+          return { stdout: `${scenario.noteCommit}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
@@ -1691,6 +1707,12 @@ describe("runUserSessionInitStatus", () => {
         if (args[0] === "rev-parse" && args[1] === "HEAD") {
           return { stdout: `${headCommit}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${staleNoteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === staleNoteCommit) {
+          return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+        }
         if (args[0] === "log") {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1700,10 +1722,16 @@ describe("runUserSessionInitStatus", () => {
         if (args[0] === "show") {
           return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
         }
+        if (args[0] === "merge-base" && args[1] === "--independent") {
+          return { stdout: `${staleNoteCommit}\n`, stderr: "" };
+        }
         if (args[0] === "merge-base") {
           return { stdout: "", stderr: "" };
         }
-        if (args[0] === "rev-list") {
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n${staleNoteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "--count") {
           return { stdout: "2\n", stderr: "" };
         }
         throw new Error(`unexpected command: git ${args.join(" ")}`);
@@ -1724,7 +1752,6 @@ describe("runUserSessionInitStatus", () => {
       commit: staleNoteCommit,
       commitShort: staleNoteCommit.slice(0, 7),
       ancestorDistance: 2,
-      noteHistoryDistance: 0,
       reachableFromHead: true,
     });
     expect(result.detailLines).toContain(
@@ -1872,6 +1899,12 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${noteCommit}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === noteCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
         if (args[0] === "log" && args.includes(localNotesRef)) {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1880,6 +1913,16 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
         }
         if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
           return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${noteCommit}\n${sourceCommit}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--independent"
+          && args[2] === noteCommit
+        ) {
+          return { stdout: `${noteCommit}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
