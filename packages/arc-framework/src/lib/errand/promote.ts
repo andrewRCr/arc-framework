@@ -10,11 +10,11 @@
  * over WU states an errand does not occupy).
  *
  * Which floor the work crossed routes the WU's entry stage: a **derivation**
- * crossing (design must now be authored) enters planning (`Planning` +
- * `Current Workflow: draft-design`); a **scale** crossing (a determinate concern
- * that now needs a durable cross-session plan) enters `Active` for a brief +
- * task-list backfill. Commits already exist on the branch, so neither runs an
- * activation ceremony.
+ * crossing (design must now be authored) enters planning (`plan/<name>` +
+ * `Planning` + `Current Workflow: draft-design`); a **scale** crossing (a
+ * determinate concern that now needs a durable cross-session plan) enters
+ * `Active` on `<type>/<name>` for a brief + task-list backfill. Commits already
+ * exist on the branch, so neither runs an activation ceremony.
  *
  * The git seams and identity are injected (three-layer architecture).
  *
@@ -52,7 +52,7 @@ export interface PromoteErrandParams {
   slug: string;
   /** The new work-unit name (the meta filename stem and branch leaf). */
   name: string;
-  /** The WU branch nature-type prefixing the name (`feat` / `fix` / …). */
+  /** The execution-phase branch type, used immediately for scale crossings and deferred for derivation. */
   type: string;
   /** Which floor the errand crossed — routes the entry stage. */
   floor: PromoteFloor;
@@ -79,10 +79,10 @@ const ACTIVE_DIR = ".arc/active";
  *
  * Resolves the record by slug — an absent record is `no-record`. Refuses with
  * `name-taken` when a `meta-<name>.md` already exists (no clobber of a live WU).
- * Otherwise renames the record's branch to `<type>/<name>`, writes the meta, then
- * removes the record and pushes the removal — leaving the renamed branch
- * untouched. The record is retired **last**, so any failure before it leaves the
- * errand recoverable.
+ * Otherwise renames the record's branch to the floor-routed WU branch, writes
+ * the meta, then removes the record and pushes the removal — leaving the renamed
+ * branch untouched. The record is retired **last**, so any failure before it
+ * leaves the errand recoverable.
  *
  * @param ctx - The record IO, the meta-write fs seam, and the repo root.
  * @param params - The slug, new WU name/type, crossed floor, owner, and optional priority/class.
@@ -112,7 +112,7 @@ export async function promoteErrand(
     return { kind: "name-taken", metaPath };
   }
 
-  const branch = `${type}/${name}`;
+  const branch = promotionBranchFor(params, name, type);
   // Rename the record's branch into the WU branch — preserve commits, prefix-agnostic.
   await io.exec("git", ["branch", "-m", record.branch, branch]);
 
@@ -126,6 +126,12 @@ export async function promoteErrand(
   const push = await reconcileErrandPush(io);
 
   return { kind: "promoted", record, branch, metaPath, push };
+}
+
+/** Resolve the branch a promoted errand occupies at its floor-routed entry stage. */
+function promotionBranchFor(params: PromoteErrandParams, name: string, type: string): string {
+  if (params.floor === "derivation") return `plan/${name}`;
+  return `${type}/${name}`;
 }
 
 /** Build the meta field overrides for a promotion, routed by the crossed floor. */

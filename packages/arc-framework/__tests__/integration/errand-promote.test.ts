@@ -91,7 +91,7 @@ describe("promoteErrand", () => {
     await Promise.all([dir, remoteDir].map(cleanupTempDir));
   });
 
-  it("derivation crossing → Planning meta at draft-design, branch renamed, record retired", async () => {
+  it("derivation crossing → Planning meta at draft-design, plan branch renamed, record retired", async () => {
     await openErrand(io, { slug: "growing", base: "main", type: "fix", createdAt: CREATED_AT });
     // An errand commit, so the rename has work to preserve.
     await makeCommit(dir, "errand work");
@@ -107,7 +107,8 @@ describe("promoteErrand", () => {
 
     expect(result.kind).toBe("promoted");
     // Branch renamed, commits preserved (HEAD unchanged), old name gone.
-    expect(await branchExists(dir, "feat/growth-feature")).toBe(true);
+    expect(await branchExists(dir, "plan/growth-feature")).toBe(true);
+    expect(await branchExists(dir, "feat/growth-feature")).toBe(false);
     expect(await branchExists(dir, "fix/growing")).toBe(false);
     expect((await git(dir, ["rev-parse", "HEAD"])).trim()).toBe(head);
     // Record retired locally and on the remote.
@@ -117,7 +118,7 @@ describe("promoteErrand", () => {
     const meta = await readMeta(dir, "growth-feature");
     expect(meta).toContain("# Metadata: growth-feature");
     expect(meta).toMatch(/\bPlanning\b/u);
-    expect(meta).toContain("feat/growth-feature");
+    expect(meta).toContain("plan/growth-feature");
     expect(meta).toContain("draft-design");
     expect(meta).toContain(IDENTITY);
   });
