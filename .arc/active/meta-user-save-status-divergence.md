@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `generate-tasks`
-- **Last Completed:** draft-design captured — resolution design settled (Class Heavy)
+- **Last Completed:** create-spec complete — spec-user-save-status-divergence.md finalized (detailed RFC)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
