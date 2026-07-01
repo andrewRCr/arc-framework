@@ -47,7 +47,8 @@ dependency, or infrastructure — it redefines one resolution primitive using ex
 ## Goals
 
 - **One authoritative definition of "the latest saved note,"** grounded in the saved commit's place in history,
-  shared by every read surface so they agree by construction rather than by coincidence of ordering.
+  shared by status / freshness and the per-WU load resolution path so they agree by construction rather than by
+  coincidence of ordering.
 - **Deterministic and portable.** The same repository state resolves to the same note on any machine — no
   dependence on ref-history write order or wall-clock time. The one deliberate exception is the read-your-writes
   tie-break among genuine concurrents (D2), which prefers *this* machine's own save; absent that pointer (fresh
@@ -59,7 +60,8 @@ dependency, or infrastructure — it redefines one resolution primitive using ex
   current note-count walk cap as a latent correctness cliff; cost scales with the notes ref, the axis that
   actually grows, not with how far HEAD has advanced.
 - **Single-primitive fix.** All consumers inherit the corrected resolution from one changed primitive; no
-  per-surface patching.
+  per-surface patching. `arc user load` still has its independent cross-WU flat-file merge, but its per-WU
+  note resolution uses the same primitive.
 
 ## Non-Goals
 
@@ -85,8 +87,8 @@ reachable note descends (D2 makes this precise). The local sync-state pointer se
 authority. Notes-ref write recency is dropped as **the selection criterion for the latest-saved note**; it
 survives only in the cross-WU flat-file merge (`readRecentUserNotes`), which is a non-goal of this WU.
 
-This is the single definition every read surface shares. It replaces the current "first readable note in the
-newest ref-history commit."
+This is the single definition the status / freshness surfaces and the per-WU load resolution path share. It
+replaces the current "first readable note in the newest ref-history commit."
 
 ### D2 — The resolution algorithm
 
@@ -110,9 +112,9 @@ reachable from HEAD, a note is **causally-maximal** when no *other* reachable no
    with the lexicographically smallest annotated-commit SHA — machine-independent, so every clone agrees.
 4. **Portable no-pointer base.** With no local pointer at all (fresh clone / sibling machine), steps 1 and 3
    stand unchanged; the pointer roles simply don't apply.
-5. **No reachable note.** When HEAD is divergent or every note is outside HEAD ancestry, resolve to the
-   `outside-head-ancestry` outcome (D8) — corroborate with the pointer only if it names a known commit. Never
-   fabricate a `current` verdict.
+5. **No reachable note.** When HEAD is divergent or every note is outside HEAD ancestry, return an
+   `outside-head-ancestry` result only when the pointer names a known saved commit; otherwise return empty, which
+   status and freshness project as `missing`. Never fabricate a `current` verdict.
 
 **Monotonic reads is a property of this rule, not a separate step (D6).** For a **fixed HEAD**, the base never
 selects a note an *other* reachable note descends, so the resolved note cannot regress below this machine's own
