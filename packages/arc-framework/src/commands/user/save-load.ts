@@ -580,13 +580,17 @@ async function buildReachableNoteCandidates(input: {
     return reachableCommits.map((commit) => ({ commit }));
   }
 
-  const candidates: ReachableNoteCandidate[] = [];
-  for (const commit of reachableCommits) {
-    const content = await readNoteContentAtAnnotatedCommit(io.exec, fullRef, commit);
-    if (content === null || !noteManifestContainsWu(content, currentWuName)) continue;
-    candidates.push({ commit, content });
-  }
-  return candidates;
+  const reads = await Promise.all(
+    reachableCommits.map(async (commit) => ({
+      commit,
+      content: await readNoteContentAtAnnotatedCommit(io.exec, fullRef, commit),
+    })),
+  );
+
+  return reads.filter(
+    (read): read is { commit: string; content: string } =>
+      read.content !== null && noteManifestContainsWu(read.content, currentWuName),
+  );
 }
 
 async function readOffAncestryPointerFallback(input: {
