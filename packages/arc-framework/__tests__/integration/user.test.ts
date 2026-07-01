@@ -210,7 +210,7 @@ describe("user save and load", () => {
     expect(restored).toBe("# Session Notes\nWorking on feature X");
   });
 
-  it("load walks ancestors when HEAD has no note", async () => {
+  it("load finds a reachable ancestor note when HEAD has no note", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -449,7 +449,7 @@ describe("user save and load", () => {
     await cleanupTempDir(remoteDir);
   });
 
-  it("load finds note-ref history in a shallow clone when annotated commit is beyond boundary", async () => {
+  it("load restores recent note content in a shallow clone when the annotated commit is beyond boundary", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -1005,9 +1005,9 @@ describe("user save/load — subdirectory support", () => {
 
     await rm(userDir, { recursive: true, force: true });
 
-    // Load scoped to a WU no note carries: the per-WU walk resolves to nothing,
-    // so only the cross-WU flat file restores — there is no annotated commit to
-    // be off-ancestry, and the summary must not claim one.
+    // Load scoped to a WU no note carries: per-WU resolution returns nothing, so
+    // only the cross-WU flat file restores — there is no annotated commit to be
+    // off-ancestry, and the summary must not claim one.
     const loadResult = await runUserLoad({
       cwd: tempDir, io, identity: "test-user", currentWuName: "brand-new-wu",
     });

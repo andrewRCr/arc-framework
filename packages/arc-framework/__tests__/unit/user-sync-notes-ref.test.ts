@@ -1,6 +1,6 @@
 /**
  * Unit tests for `readRecentUserNotes` — the ref-wide N-most-recent-note read
- * that backs the cross-WU merge. Distinct from the first-hit ancestor walk: it
+ * that backs the cross-WU merge. Distinct from annotated-commit resolution: it
  * returns an ordered sequence (most-recent first), bounded by the window.
  */
 

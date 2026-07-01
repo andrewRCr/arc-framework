@@ -1,12 +1,13 @@
 /**
  * User-notes-ref readers and the low-level git note-read primitives.
  *
- * Two read modes share these primitives. The first-hit ancestor walk resolves a
- * single note (the newest one carrying a given WU's subdir). The cross-WU merge
- * instead needs the most-recent *window* of notes in recency order, so it can
- * union a file's entries across saves made independently in parallel worktrees.
- * Each git command shape (`log` / `diff-tree` / `show`) lives in its own named
- * function so there is a single call site per shape.
+ * Two read modes share these primitives. Causal note resolution enumerates
+ * annotated commits and reads note content by annotated commit. The cross-WU
+ * merge instead needs the most-recent *window* of notes in recency order, so it
+ * can union a file's entries across saves made independently in parallel
+ * worktrees. Each git command shape (`notes list` / `notes show` / history
+ * reads) lives in its own named function so there is a single call site per
+ * shape.
  *
  * @module
  */
@@ -125,7 +126,7 @@ export async function readNoteContentAtHistoryCommit(
  * Read the most-recent notes from a user's notes ref, recency-ordered.
  *
  * Walks the ref's own history newest-first and collects each readable note
- * version up to `limit`. Unlike the first-hit ancestor walk, this returns an
+ * version up to `limit`. Unlike annotated-commit resolution, this returns an
  * ordered sequence (most-recent first) so the merge can resolve divergent
  * entries by recency. An empty or absent ref yields an empty sequence.
  *

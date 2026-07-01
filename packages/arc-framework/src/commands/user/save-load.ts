@@ -132,9 +132,8 @@ export async function runUserSave(
 /**
  * Load the user directory from user notes.
  *
- * Walks the user notes ref's own history looking for the newest note
- * attachment. This finds notes even when their annotated commits are outside
- * current HEAD ancestry.
+ * Resolves the per-WU note by annotated-commit ancestry, then merges recent
+ * cross-WU flat-file entries so new WUs can still load shared context.
  *
  * @param options - Load options
  * @returns Load result, or null if no note found
@@ -480,7 +479,7 @@ function normalizeManifest(
   };
 }
 
-/** Walk the user notes ref history (up to the configured cap) looking for a note. */
+/** Resolve the current user note by HEAD-reachable causal order and pointer fallback. */
 export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
@@ -634,7 +633,7 @@ function selectMaximalCandidate(
 /**
  * Best-effort extraction of a manifest's `files` map. Returns `null` when the
  * content isn't valid JSON or lacks a `files` object — callers treat that as
- * "not a usable manifest" without throwing (the note walk continues past it).
+ * "not a usable manifest" without throwing.
  */
 function parseManifestFiles(noteContent: string): Record<string, unknown> | null {
   let parsed: unknown;
