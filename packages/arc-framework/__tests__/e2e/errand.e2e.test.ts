@@ -223,6 +223,27 @@ describe("arc errand close", () => {
     expect(result.exitCode).toBe(0);
     expect(await readFile(inboxPath, "utf-8")).toContain("**Keep me**");
   });
+
+  it("drops a late-linked originating capture at close", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = "# User Inbox\n\n## Errand\n\n### `[ ]` **Link me**\n\n- _Observation:_ adopt later.\n\n---\n";
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+
+    const open = await runArc(["errand", "open", "late-adopt", "--type", "chore"], tmpDir);
+    expect(open.exitCode).toBe(0);
+    const link = await runArc(["errand", "link", "late-adopt", "--from-inbox", "Link me"], tmpDir);
+    expect(link.exitCode).toBe(0);
+    const record = await git(tmpDir, ["cat-file", "-p", "refs/arc/user/test-user/errands:late-adopt"]);
+    expect(record).toContain('"origin": "inbox"');
+    expect(record).toContain('"originEntry": "Link me"');
+
+    const close = await runArc(["errand", "close", "late-adopt"], tmpDir);
+    expect(close.exitCode).toBe(0);
+    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Link me**");
+  });
 });
 
 describe("arc errand retire", () => {
@@ -338,5 +359,25 @@ describe("arc errand promote", () => {
     const meta = await readFile(join(tmpDir, ".arc", "active", "meta-sweep-unit.md"), "utf-8");
     expect(meta).toMatch(/\bActive\b/u);
     expect(meta).not.toContain("draft-design");
+  });
+
+  it("drops a late-linked Work Unit capture when promotion retires the errand record", async () => {
+    await setFullProtection(tmpDir);
+    const inboxDir = join(tmpDir, ".arc", "user", "test-user");
+    const inboxPath = join(inboxDir, "USER-INBOX.md");
+    const inbox = "# User Inbox\n\n## Work Unit\n\n### `[ ]` **Promote me**\n\n- _Observation:_ crossed a floor.\n\n---\n";
+    await mkdir(inboxDir, { recursive: true });
+    await writeFile(inboxPath, inbox, "utf-8");
+    await runArc(["errand", "open", "growing", "--type", "fix"], tmpDir);
+
+    const link = await runArc(["errand", "link", "growing", "--from-inbox", "Promote me"], tmpDir);
+    expect(link.exitCode).toBe(0);
+    const promote = await runArc(
+      ["errand", "promote", "growing", "--name", "growth-feature", "--type", "feat", "--floor", "derivation"],
+      tmpDir,
+    );
+
+    expect(promote.exitCode).toBe(0);
+    expect(await readFile(inboxPath, "utf-8")).not.toContain("**Promote me**");
   });
 });
