@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "avoid-duplicate-pr-branch-ci",
-  "origin": "inbox",
-  "intent": "Avoid duplicate push and pull-request CI work for PR branch heads while preserving useful branch CI before a PR exists.",
-  "branch": "chore/avoid-duplicate-pr-branch-ci",
-  "createdAt": "2026-07-01T21:14:27.593Z",
-  "originEntry": "Avoid duplicate push and pull-request CI runs for PR branches"
-}
