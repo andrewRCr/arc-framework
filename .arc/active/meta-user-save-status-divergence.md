@@ -12,7 +12,7 @@
 - **Task List:** [none]
 
 - **Current Workflow:** `create-spec`
-- **Last Completed:** Errand promoted to work unit
+- **Last Completed:** draft-design captured — resolution design settled (Class Heavy)
 - **Next Task:** [none]
 - **Blockers:** [none]
 
