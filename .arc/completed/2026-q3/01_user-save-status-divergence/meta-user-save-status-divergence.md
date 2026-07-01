@@ -1,8 +1,8 @@
 # Metadata: user-save-status-divergence
 
-| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
-| ------------- | --------- | --------------------------------- | --------- | ------------ |
-| `Integrating` | `andrew`  | `fix/user-save-status-divergence` | `Heavy`   | `P2`         |
+| **State** | **Owner** | **Branch** | **Class** | **Priority** |
+| --------- | --------- | ---------- | --------- | ------------ |
+| `Shipped` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -16,10 +16,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** open the PR
+- **Next Action:** [none]
 
-- **PR URL:** [none]
-- **Completed:** [none]
+- **PR URL:** <https://github.com/andrewRCr/arc-framework/pull/157>
+- **Completed:** 2026-07-01
 
 ---
 
