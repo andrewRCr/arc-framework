@@ -114,6 +114,8 @@ Usage: classify-change.sh <command> [args...]
 Commands:
   classify <file>...        Classify a changed-file set as code (heavy) or docs (light)
   tree-hash <ref>           Compute the code-tree hash at a git ref
+  duplicate-push <event> <ref-name> <head-sha>
+                            Print true when a push run duplicates an open PR head
   decide <event> <base> <head>
                             Resolve the run weight (light|heavy) and reason for a change
 EOF
@@ -229,6 +231,45 @@ _fetch_check_runs() {
   gh api --paginate "repos/${GITHUB_REPOSITORY:-}/commits/${sha}/check-runs" \
     --jq '.check_runs[] | [.name, (.conclusion // ""), (.started_at // .completed_at // .created_at // ""), ((.id // 0) | tostring)] | @tsv' \
     2>/dev/null | _latest_check_runs || true
+}
+
+# Fetch open pull-request heads for <ref-name>/<head-sha> as normalized
+# "<head-ref>\t<head-sha>" lines. Live push runs use this to avoid duplicating
+# the pull_request run once a PR already owns the same branch head. Any lookup
+# miss or API failure yields no lines, which keeps branch CI fail-open.
+_fetch_open_pull_heads() {
+  local ref_name="$1" head_sha="$2"
+  if [[ -n "${CLASSIFY_OPEN_PULLS_DIR:-}" ]]; then
+    local fixture="${CLASSIFY_OPEN_PULLS_DIR}/${head_sha}.tsv"
+    [[ -f "${fixture}" ]] && cat "${fixture}"
+    return 0
+  fi
+
+  local repo="${GITHUB_REPOSITORY:-}" owner="${GITHUB_REPOSITORY_OWNER:-}"
+  [[ -z "${repo}" || -z "${owner}" ]] && return 0
+
+  gh api --paginate -X GET "repos/${repo}/pulls" \
+    -f state=open -f head="${owner}:${ref_name}" \
+    --jq '.[] | [.head.ref, .head.sha] | @tsv' 2>/dev/null || true
+}
+
+# duplicate-push <event> <ref-name> <head-sha> — print `true` when this is a
+# push event for a branch/head already represented by an open PR. This is a cost
+# optimization only: uncertainty prints `false` so branch CI still runs.
+cmd_duplicate_push() {
+  local event="${1:-}" ref_name="${2:-}" head_sha="${3:-}"
+  if [[ "${event}" != "push" || -z "${ref_name}" || -z "${head_sha}" ]]; then
+    echo "false"
+    return 0
+  fi
+
+  local heads
+  heads="$(_fetch_open_pull_heads "${ref_name}" "${head_sha}")"
+  if grep -qxF -- "${ref_name}"$'\t'"${head_sha}" <<<"${heads}"; then
+    echo "true"
+  else
+    echo "false"
+  fi
 }
 
 # True (exit 0) when the latest normalized check-run lines
@@ -348,6 +389,10 @@ main() {
     tree-hash)
       shift
       cmd_tree_hash "$@"
+      ;;
+    duplicate-push)
+      shift
+      cmd_duplicate_push "$@"
       ;;
     decide)
       shift

@@ -11,11 +11,11 @@ on:
 permissions:
   contents: read
 
-# Cancel a superseded in-flight run when a new commit lands on the same ref - the
-# dominant waste lever as PR frequency rises. (docs.yml's pages group is
-# deliberately non-cancelling and stays separate.)
+# Cancel superseded work within the same event/ref lane. Push and pull_request
+# runs do not cancel each other; duplicate push runs skip downstream jobs after
+# classification when an open PR already owns the same branch head.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -34,16 +34,41 @@ jobs:
     permissions:
       contents: read
       checks: read
+      pull-requests: read
     outputs:
       lane: ${{ steps.c.outputs.lane }}
       weight: ${{ steps.c.outputs.weight }}
       reason: ${{ steps.c.outputs.reason }}
+      duplicate_push: ${{ steps.duplicate.outputs.duplicate_push }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
           persist-credentials: false
+      - id: duplicate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          HEAD_SHA: ${{ github.sha }}
+          GITHUB_REPOSITORY_OWNER: ${{ github.repository_owner }}
+        run: |
+          duplicate_push="$(bash scripts/classify-change.sh duplicate-push "$EVENT_NAME" "$REF_NAME" "$HEAD_SHA")"
+          if [ "$duplicate_push" != 'true' ] && [ "$duplicate_push" != 'false' ]; then
+            echo "::error::invalid duplicate-push output: $duplicate_push"
+            exit 1
+          fi
+          echo "duplicate_push=$duplicate_push" >> "$GITHUB_OUTPUT"
+          if [ "$duplicate_push" = 'true' ]; then
+            {
+              echo '### CI duplicate push'
+              echo
+              echo 'This push run is represented by an open pull request for the same branch head.'
+              echo 'Downstream jobs are skipped; the pull_request run owns the merge signal.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
       - id: c
+        if: ${{ steps.duplicate.outputs.duplicate_push != 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_NAME: ${{ github.event_name }}
@@ -108,7 +133,7 @@ jobs:
     # Run after classification on every push and PR lane. The documentation /
     # ARC-doc linters always run; code checks additionally gate on weight
     # (fail-safe: run unless explicitly light).
-    if: ${{ !cancelled() && needs.classify.result == 'success' }}
+    if: ${{ !cancelled() && needs.classify.result == 'success' && needs.classify.outputs.duplicate_push != 'true' }}
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v5
