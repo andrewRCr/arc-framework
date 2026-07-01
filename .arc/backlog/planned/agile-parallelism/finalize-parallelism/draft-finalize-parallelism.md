@@ -10,118 +10,6 @@
 
 ---
 
-## Inbound Buffer — Pending Integration
-
-> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
-> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
-
-### `[ ]` **Worktree dependency provisioning — always-invoked post-create setup command**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-17); captured
-  during the `unit-scoped-review` planning errand (2026-06-15).
-- *Concern:* `arc start` create-new and the worktree-spawn primitives create a worktree but don't provision
-  dependencies. `node_modules` is gitignored, so a fresh worktree has none; git / shell hooks survive, but every
-  node-backed quality gate fails there (`typecheck` / `test` / `build` / `lint:ts` / `lint:md`). A doc-only WU in a
-  worktree is fine; a code WU is non-functional for its mandatory per-task quality-gate checkpoint until deps are
-  provisioned. Confirmed live 2026-06-15 (`markdownlint-cli2: Permission denied` in a worktree). Un-exercised to
-  date — no parallel code WU has actually run in a worktree yet.
-- *Proposed:* an **always-invoked** post-worktree-create setup command (e.g. `worktree.post_create`) the scaffold
-  runs on every worktree create — not optional, not a doc-only note. Sane default when unconfigured: emit a
-  help / notice (deps must be provisioned), not a silent no-op. The project supplies its command (`npm install`
-  here). Coordinate with the verify-and-configure workflow so it's configured as an agent-led part of initial ARC
-  setup. ARC owns the seam + invocation point + default; the command stays project-specific.
-- *Alt home:* the worktree-scaffold owner, if preferred over the parallelism closeout.
-
-### `[ ]` **Mirror the in-place (`--here`) opt-out onto Materialize for cross-machine WU pickup**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-17); captured
-  during `lifecycle-transition-core` Task 6.4 design discussion (2026-06-15).
-- *Concern:* `lifecycle-transition-core` adds a `--here` in-place opt-out to the begin-work transitions
-  (`graduate` / `resume`) so a stub can graduate or a parked WU resume in the current checkout without spawning a
-  worktree. **Materialize** — cross-machine pickup of a remote-only in-flight WU — is the cross-machine twin of the
-  same spawn-vs-in-place question, and is currently **spawn-only** (`git worktree add origin/<branch>`). A
-  single-checkout / heavy-toolchain dev picking up a remote WU on a second machine hits the same worktree +
-  dependency-provisioning tax the in-place hatch relieves locally.
-- *Proposed:* mirror the opt-out — an in-place Materialize (`git fetch` + checkout the remote WU branch in the
-  current checkout, honoring the worktree-occupancy guard) alongside the default spawn. Locus-only, exactly like
-  the local hatch: coherence still rests on the pushed branch + notes-sync. Reuse the hatch's no-spawn
-  reconcile-branch legs where applicable.
-- *Home note:* `in-flight-awareness` shipped Materialize but is itself shipped; landed here at drain (alt:
-  `cross-machine-coherence`).
-
-### `[ ]` **Decide whether parallel errands need worktree support**
-
-- *Routed from:* live capture during errand drain follow-through (2026-07-01), while sequencing follow-up errands
-  from the primary worktree.
-- *Concern:* Errands currently run as `chore/<slug>` branches occupied in the primary worktree, while worktree
-  spawning is reserved for work units. That may be a principled boundary: errands are atomic, short-lived, and
-  executing them from the primary checkout avoids extra branch/worktree state colliding with active WUs. But the
-  parallelism GA story names "multiple in-flight work units + errands," so the closeout should explicitly verify
-  whether primary-worktree-only errands are sufficient, or whether genuinely parallel errands need worktree
-  support.
-- *Recommendation:* Treat this as a seam-audit decision, not a pre-committed feature. If the current boundary is
-  intentional, document the invariant and the reason errands stay primary-worktree-only. If real multi-in-flight
-  practice needs concurrent errands, scope the minimal worktree support and its interaction with active-WU
-  occupancy, errand close/reap, and inbox-origin cleanup.
-
-### `[ ]` **Wire a behind-base reconcile gate into `integrate-work-unit`**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: finalize-parallelism`), housekeep drain (2026-06-18);
-  captured during `planning-pipeline-readiness` verification (Task 6.1) — surfaced live on
-  `feat/planning-pipeline-readiness` (2 behind `main`, overlapping `.arc/backlog/ROADMAP.md`).
-- *Concern:* `integrate-work-unit.md` has no in-ceremony behind-base check — it never detects that the WU branch
-  is behind `origin/<base>` nor prompts to reconcile (merge the base in) before the Step 12 merge. The
-  merge-safety cluster all shipped (`merge-safety-mechanism`'s base-distance primitive + session-init probe slot;
-  `concurrent-work-doctrine`'s behind-base-at-integration / first-in-wins reconcile convention;
-  `async-merge-lifecycle`), but the primitive's only reuse was the between-WU completion sweep (the
-  `mergeable but behindBase` awareness classification) — never wired as an in-ceremony gate in the active
-  integration flow. So a solo integrator running the workflow start-to-finish gets no reconcile prompt; they hit
-  it only at GitHub merge-time (conflict) or by recalling the doctrine independently. Touches a load-bearing
-  lifecycle workflow (`.arc/system/**`) — infra smell; sized small (one workflow step), but the holistic home is
-  this WU's end-to-end seam audit.
-- *Proposed:* add one step to `integrate-work-unit.md` (entry pre-condition, or pre-merge before Step 12) —
-  compute `origin/<base>` distance (reuse the shipped base-distance primitive, or plain `git rev-list --count`);
-  if behind, surface + prompt reconcile (merge the base in, append-only per the doctrine) before the merge. No
-  new code or design — the primitive and the reconcile doctrine both shipped; this is pure wiring. *Micro-fork to
-  settle at authoring:* placement (entry vs. pre-merge) and strength (advisory surface vs. hard interlock).
-
-### `[ ]` **Give the stale-worktree sweep a base-ref-backed shipped index**
-
-- *Routed from:* `USER-INBOX § Errand`, housekeep drain (2026-06-26); captured during
-  `stale-state-detect-and-pull` Task 3.2 (D4) design — the index-refresh fork that scoped the base-ref read to
-  the retired-subdir path.
-- *Concern:* `runStaleWorktreeSweep` (`lib/session-init/stale-worktree-sweep.ts`) resolves the shipped-WU set via
-  `readShippedWorkUnits` (`lib/work-unit/completed-index.ts`), which scans the **working-tree** `.arc/completed/`.
-  When the primary worktree sits on a feature branch — the current `arc start --here` default until this WU flips
-  worktree-by-default — its `completed/` lags `origin/main`, so the sweep can under-detect a lingering worktree
-  whose WU has already shipped (the same staleness D4 fixed for retired subdirs).
-- *Proposed:* mirror the D4 fix onto the sweep — give it the same base-ref-backed shipped read (`completed/`
-  resolved from `<base>`, freshened by the session-init base-ref ff) so it resolves correctly regardless of the
-  primary worktree's branch. D4 added that base-ref read for the retired-subdir path only, deliberately leaving
-  the sweep on its working-tree read to stay in scope. Files: `lib/session-init/stale-worktree-sweep.ts`,
-  `lib/work-unit/completed-index.ts`.
-
-### `[ ]` **Make cross-WU personal-state merge resolution deterministic (GA-readiness item)**
-
-- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: finalize-parallelism`), housekeep drain (2026-07-01);
-  captured during `user-save-status-divergence` create-spec adversarial review (2026-06-30).
-- *Concern:* `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the
-  **same** entry identity by wall-clock note recency (LWW-vs-causal class). Exposure is **parallelism-gated** —
-  only genuinely-concurrent worktrees editing the same `WORKING-MEMORY` / `USER-INBOX` entry hit it, where
-  recency silently drops one edit and clock skew makes resolution machine-dependent. The entry-union model
-  handles concurrent edits to *different* entries cleanly; only same-entry divergence is lost.
-- *Recommendation:* **not a hard GA blocker** — narrow (same-entry-only lost update) on recoverable personal
-  state (gitignored, backed up, within `CROSS_WU_NOTE_WINDOW`). Ship as a **documented limitation + guidance**
-  (avoid concurrent same-entry edits across worktrees) with the deterministic fix as fast-follow; decide at the
-  seam audit (absorb / spawn-dependency / accept) and escalate if real multi-WU practice shows a higher
-  collision rate.
-- *Fix direction / build home:* causal ordering where ancestry-orderable, deterministic tie-break
-  (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never wall-clock. Likely build
-  home `operational-state-docs` (owns the `merge.ts` record / identity reshape). Files: `lib/user-sync/merge.ts`
-  (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts` (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`).
-
----
-
 ## Problem / Motivation
 
 Parallelism is delivered piecemeal: worktree-default, multi-in-flight WUs/errands, and cross-machine coherence
@@ -130,7 +18,7 @@ on its own schedule. Seams *between* those members will otherwise only surface i
 friction-after-the-fact this closeout exists to pre-empt. Nothing today owns the end-to-end verification or a
 GA-readiness checklist; per-cohort closeout criteria are narrower than the cross-cohort whole.
 
-## Scope (audit + verify + flip + gate — NOT a redesign catch-all)
+## Scope (audit + verify + flip + gate, plus committed seam fixes — NOT a redesign catch-all)
 
 - **End-to-end trace-through** of every parallelism path — start/discovery → `init-work-unit` (worktree spawn) →
   planning → execution → integration / merge / completion → cross-machine resume — hunting seams *between* the
@@ -139,11 +27,173 @@ GA-readiness checklist; per-cohort closeout criteria are narrower than the cross
       session-init errand sweep);
     - the projection-builder consumer contract between `async-merge-lifecycle` and `cross-machine-sync-coherence`;
     - base-drift across worktrees;
-    - errand-vs-WU teardown symmetry.
+    - errand-vs-WU teardown symmetry;
+    - **the primary worktree as a contended singleton** — errands, housekeep drains, plan-grooming, and
+      base-context ceremony writes (ROADMAP regen, archival) all assume the primary checkout; concurrent
+      out-of-WU sessions compete for one resource that nothing today arbitrates.
 - **Verify the worktree-default flip in real practice** — `async-merge-lifecycle` *lands* it (create-new
   `arc start` + `init-work-unit` default); this WU *exercises* it across genuinely concurrent WUs.
 - **Own the parallelism GA-readiness checklist** — the single enumeration of what-must-be-true for
   worktree-by-default + multi-in-flight to be blessed. Exists nowhere today.
+- **Committed build items** and **seam-audit decisions** below — concerns routed in while the members shipped,
+  integrated at the 2026-07-01 planning iteration.
+
+### Committed build items
+
+Concrete gaps with settled direction — FP builds these. (Two further items from the 2026-07-01 drain — the
+behind-base reconcile gate in `integrate-work-unit` and the sweep base-ref shipped index — were split out same
+session as **pre-FP errands**, captured to `USER-INBOX § Errand` pre-routed; the § Milestone path carries their
+sequencing, and this WU's entry verifies they landed.)
+
+**1. Worktree dependency provisioning — always-invoked post-create setup command.** The flip-decisive gap:
+`arc start` create-new and the worktree-spawn primitives create a worktree but don't provision dependencies.
+`node_modules` is gitignored, so a fresh worktree has none; git / shell hooks survive, but every node-backed
+quality gate fails there (`typecheck` / `test` / `build` / `lint:ts` / `lint:md`) — confirmed live 2026-06-15
+(`markdownlint-cli2: Permission denied` in a worktree). A doc-only WU in a worktree is fine; a code WU is
+non-functional for its mandatory per-task quality-gate checkpoint until deps are provisioned. No parallel code
+WU has ever run in a worktree — this item gates the flip itself. Direction: an **always-invoked**
+post-worktree-create setup command (e.g. `worktree.post_create`) the scaffold runs on every worktree create —
+not optional, not a doc-only note. Sane default when unconfigured: emit a help / notice (deps must be
+provisioned), never a silent no-op. The project supplies its command (`npm install` here); ARC owns the seam +
+invocation point + default. Coordinate with the verify-and-configure workflow so the command is configured as an
+agent-led part of initial ARC setup. Absorbed here rather than a scaffold-owner WU because the flip cannot be
+blessed without it.
+
+**2. In-place Materialize for cross-machine pickup — mirror the `--here` opt-out.** The begin-work transitions
+(`graduate` / `resume`) carry a `--here` in-place opt-out so a stub can graduate or a parked WU resume in the
+current checkout without spawning a worktree. **Materialize** — cross-machine pickup of a remote-only in-flight
+WU — is the cross-machine twin of the same spawn-vs-in-place question and is currently **spawn-only**
+(`git worktree add origin/<branch>`); a single-checkout / heavy-toolchain dev picking up a remote WU on a second
+machine hits the same worktree + dependency-provisioning tax the local hatch relieves. Direction: mirror the
+opt-out — an in-place Materialize (`git fetch` + checkout the remote WU branch in the current checkout, honoring
+the worktree-occupancy guard) alongside the default spawn. Locus-only, exactly like the local hatch: coherence
+still rests on the pushed branch + notes-sync; reuse the hatch's no-spawn reconcile-branch legs where applicable.
+
+### Seam-audit decisions
+
+Settled *as decisions to make* — the audit resolves each; neither is a pre-committed feature.
+
+- **Parallel errands — worktree support, or a documented primary-worktree-only invariant.** Errands currently
+  run as `chore/<slug>` branches occupied in the primary worktree, while worktree spawning is reserved for work
+  units. That may be a principled boundary — errands are atomic and short-lived, and executing from the primary
+  checkout avoids extra branch/worktree state colliding with active WUs — but the GA story names "multiple
+  in-flight work units + errands," so the closeout must explicitly verify whether primary-worktree-only errands
+  suffice. **Decide empirically, not speculatively:** burn-in wave 3 (below) runs a live errand session beside
+  concurrent WU sessions; what it surfaces — occupancy collisions, close/reap interference, inbox-origin races,
+  contention on the primary singleton — is the evidence this decision consumes. If the boundary holds, document
+  the invariant and its reason; if practice needs concurrent errands, scope the minimal worktree support and its
+  interaction with active-WU occupancy, errand close/reap, and inbox-origin cleanup.
+
+  **Singleton examination (2026-07-01 grooming — the decision's design fork, pre-scouted):** contention is
+  impossible *today* by construction — pre-flip, every locus (WU via `--here`, errand, grooming, housekeep)
+  runs in the one primary checkout, serialized by the single working tree — so no pre-FP model change is
+  needed; exposure begins only when the flip moves WU sessions into worktrees. Post-flip the contenders are
+  exclusively **out-of-WU loci** (errand / housekeep / grooming / base-context ceremonies), and the fork is:
+
+    - **Pin the primary to base** — the primary never checks out feature or `chore/` branches; errands and
+      grooming spawn worktrees like WUs; the primary becomes the always-fresh orchestration + ceremony surface.
+      Dissolves the singleton *and* subsumes a whole compensation family (the base-ref-backed reads, the sweep
+      staleness class, the fetch-into-ref freshen exist because the primary may sit on a non-base branch). Cost:
+      every errand pays the worktree-spawn + dep-provisioning tax (build item 1 mitigates; doc-only errands need
+      no deps).
+    - **Keep errands-in-primary + a documented serialization invariant** — one out-of-WU session at a time,
+      operator-enforced. Cheap, solo-friendly; leaves the compensation family in place and true concurrent
+      out-of-WU sessions unarbitrated (two agents sharing one checkout share HEAD + index — not safely
+      arbitrable without real locking).
+
+  Wave 3 supplies the evidence; settle the fork at the seam audit with it.
+- **Cross-WU personal-state same-entry merge resolution (GA-readiness item).**
+  `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the **same**
+  entry identity by wall-clock note recency: recency silently drops one edit and clock skew makes resolution
+  machine-dependent. Exposure is parallelism-gated — only genuinely-concurrent worktrees editing the same
+  `WORKING-MEMORY` / `USER-INBOX` entry hit it; the entry-union model handles concurrent edits to *different*
+  entries cleanly. **Not a hard GA blocker** — narrow (same-entry-only lost update) on recoverable personal
+  state (gitignored, backed up, within `CROSS_WU_NOTE_WINDOW`). Leaning: ship GA with a **documented limitation +
+  guidance** (avoid concurrent same-entry edits across worktrees), deterministic fix as fast-follow; decide at
+  the seam audit (absorb / spawn-dependency / accept) and escalate if real multi-WU practice shows a higher
+  collision rate. Fix direction when built: causal ordering where ancestry-orderable, deterministic tie-break
+  (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never wall-clock. Likely build
+  home `operational-state-docs` (owns the `merge.ts` record / identity reshape). Files: `lib/user-sync/merge.ts`
+  (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts` (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`).
+
+## Verification design — bound the cost of the unknowns
+
+Unknown gaps cannot be enumerated away; the design goal is that discovering one never costs the work in flight
+at the time. Three layers, cheapest-first.
+
+**Shape: one long-running WU with internal phases** (settled 2026-07-01; the split-the-bless alternative — a
+separate burn-in/GA member — was declined: it would separate the checklist's author from its consumer and add a
+handoff seam to the WU that exists to hunt handoff seams). Phase 1: seam audit / build the matrix. Phase 2: the
+committed build items — item 1 gates wave 2 (code WU in a worktree), item 2 gates wave 4 (cross-machine).
+Phase 3+: the burn-in waves, during which FP is deliberately active alongside the wave workload — the observer
+WU is itself part of the concurrency under test (wave 1 is a three-in-flight state including FP). Later phases
+are calendar-gated and observational; that is the intended rhythm, not drift.
+
+**Launch constraint: never `--here`.** FP launches into a **spawned worktree** — the standing interim
+"`--here` until FP ships" default explicitly does not apply to FP itself. In-place launch would occupy the
+primary singleton for the WU's whole long-running life and exempt the observer from the very mechanics under
+test. Until build item 1 lands, provision the fresh worktree's deps by hand (`npm install`) — wave-zero
+dogfooding of the gap that item automates.
+
+**1. Systematic gap-hunt (convert unknowns to knowns).** The seam audit's method is enumeration, not recall:
+build the **shared-mutable-surface matrix** — every file, ref, or store written by more than one concurrent
+session class (base branch; ROADMAP; meta files; the `completed/` index; the user-notes ref; `USER-INBOX` /
+`WORKING-MEMORY`; errand records; nudge markers; partial-push markers; the audit log; the worktree list; config)
+crossed against the session classes that write it (WU session in a worktree, errand session, housekeep/grooming
+on primary, cross-machine sibling, CI). For each cell: who writes, on what trigger, what happens on concurrent
+write, and — the key classification — is the failure **loud** (blocked, conflicting, refused) or **silent**
+(lost update, stale read, wrong-premise work). Silent cells are the GA blockers; loud cells need only a
+documented recovery. ARC's shared-state surface is finite — this matrix is buildable and *is* the GA checklist's
+skeleton.
+
+**2. Adversarial pass over the checklist itself.** `adversarial-review` lands before this WU (milestone path
+below) — run its fresh-subagent mechanism against the seam audit and draft GA checklist with the prompt "what
+concurrent-session failure does this matrix miss?" Fresh eyes attack the enumeration's blind spots, which is
+exactly the unknown-unknowns worry stated operationally.
+
+**3. Staged burn-in with sacrificial workload (bound what's left).** Do not flip worktree-by-default and launch
+real heavy work into it. Phase the live verification as waves, each using **deliberately low-stakes work**
+(P3 smalls, doc sweeps, backlog grooming) so a discovered gap costs a cheap redo, never a compromised Heavy WU:
+
+- **Wave 1 — two doc-only WUs in parallel worktrees.** No node toolchain dependence; exercises spawn, notes
+  sync, ROADMAP contention, integration ordering.
+- **Wave 2 — one code WU + one doc WU.** First real exercise of worktree dependency provisioning + per-task
+  quality gates off-primary.
+- **Wave 3 — code WU + code WU + a live errand session.** Adds the primary-singleton contention and the
+  parallel-errand decision's evidence; first-in-wins reconcile discipline under real overlap.
+- **Wave 4 — cross-machine resume mid-flight.** Materialize (spawn and in-place) against work another machine
+  started; notes-lag and partial-push surfaces under real latency.
+
+Each wave also **verifies the detectors, not just the paths**: deliberately induce the conditions the
+session-init probe claims to catch (base drift, notes lag, behind-base at integration, stale worktree) and
+confirm the surface actually fires. A detector that silently no-ops is itself a GA blocker.
+
+**Containment invariants (GA-checklist section).** Invert prevention into blast-radius guarantees — each
+verified, not assumed: committed + pushed work is never losable; uncommitted work is never destroyed by any ARC
+verb (`worktree remove` refuses dirty; no destructive auto-actions); personal notes have a pre-load backup;
+same-entry cross-WU merge loss is documented with its recovery; every loud failure has a written recovery path.
+Deliverable: a short **parallelism incident playbook** (symptom → diagnosis → recovery) distilled from the
+matrix, so the first real incident is a lookup, not an investigation.
+
+## Milestone path (interim sequencing record)
+
+No goal-aware-direction mechanism exists yet, so the established pre-FP sequence is recorded here as the
+current milestone target (this WU is the milestone). Cross-references only — each item's substance lives in its
+own stub:
+
+1. `adversarial-review` — gates nothing, multiplies everything after it (FP's own spec/tasks consume it).
+2. `interlock-release-refinement` — approval-friction reducer that compounds across concurrent sessions; needs
+   its own grooming iteration (buffer un-drained) before start.
+3. `roadmap-tooling` — deterministic regen before regen frequency multiplies; FP's own row already broke the
+   hand-render.
+4. **This WU.**
+
+Interleaved errand-sized pre-work — all three captured to `USER-INBOX § Errand` (2026-07-01), pre-routed with
+do-not-re-route notes; this WU's entry verifies they landed: the behind-base reconcile gate (after or with IRR's
+`integrate-work-unit` edits, to avoid double-editing); the sweep base-ref index (most valuable *pre*-flip, while
+the primary sits on feature branches); `cross-wu-coordination`'s cheap-first slice (document + prescribe
+`arc status <slug>`). Additionally `sync-primitive-discipline` (its own planned stub) pulled adjacent to FP or
+named as a seam-audit input.
 
 ## Resolution model for discovered seams
 
@@ -172,5 +222,22 @@ Natural **agile-parallelism cohort closeout** — the cohort archives on its shi
 
 ## Scope Estimate
 
-Large (week+) — broad cross-cohort surface; size firms up once the member set has substantially shipped and the
-real seam count is visible.
+Large (week+), and deliberately long-*running* (the burn-in waves are calendar-gated) — broad cross-cohort
+surface carrying two committed build items alongside the audit / verify / flip / gate core. Size firms up once
+the real seam count is visible.
+
+## Continuity
+
+- **Readiness:** maturing — direction, scope, verification design, WU shape, and pre-FP sequencing are settled;
+  open items are detail-design, not fundamentals.
+- **Resolved:** inbound buffer drained (2026-07-01) — build items absorbed (two retained; two split back out as
+  pre-routed pre-FP errands), two seam-audit decisions recorded. Pre-FP audit + sequencing settled
+  (§ Milestone path). Verification design settled: shared-mutable-surface matrix → adversarial checklist pass →
+  staged sacrificial burn-in + containment invariants. Shape settled: one long-running phased WU, not a split
+  bless. Singleton fork pre-scouted (pin-primary-to-base vs. serialization invariant) — no pre-FP exposure;
+  wave 3 decides.
+- **Open:** the GA-readiness checklist enumeration (the matrix skeleton — author at spec time); burn-in
+  workload selection (which P3 smalls / doc WUs serve as sacrificial waves — pick near start).
+- **Next:** groom-and-stop capture, then run the milestone path (adversarial-review first; pre-FP errands
+  interleaved from `USER-INBOX`). Resume via `--plan finalize-parallelism` if further shaping is wanted before
+  spec; otherwise the draft is near formalization-ready.
