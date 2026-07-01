@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "generalize-verify-work-unit-wording",
-  "origin": "inbox",
-  "intent": "Generalize verify-work-unit wording from PRD to the active task list upstream design/spec artifact.",
-  "branch": "chore/generalize-verify-work-unit-wording",
-  "createdAt": "2026-07-01T20:42:19.142Z",
-  "originEntry": "Generalize `verify-work-unit` wording from PRD to spec artifact"
-}
