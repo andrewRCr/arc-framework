@@ -42,6 +42,18 @@ describe("reconcileBranch", () => {
     expect(calls).toEqual([["git", "branch", "-m", "plan/demo-wu", "feat/demo-wu"]]);
   });
 
+  it("skips a same-name rename", async () => {
+    const { ctx, calls } = buildCtx();
+
+    await reconcileBranch(ctx, {
+      mutation: "rename",
+      branch: "fix/demo-wu",
+      toBranch: "fix/demo-wu",
+    });
+
+    expect(calls).toEqual([]);
+  });
+
   it("preserves the branch at park@Active (no git invocation)", async () => {
     const { ctx, calls } = buildCtx();
 

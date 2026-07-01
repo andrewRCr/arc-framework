@@ -64,7 +64,8 @@ export type ReconcileBranchOp =
 /**
  * Reconcile a work unit's branch per `op`.
  *
- * Rotate renames locally (`git branch -m`); teardown force-deletes the local
+ * Rotate renames locally (`git branch -m`), with same-name renames treated as
+ * no-ops; teardown force-deletes the local
  * branch (`git branch -D`) then best-effort deletes the remote ref — an unpushed
  * planning branch has no remote to delete, so that failure is swallowed while the
  * authoritative local teardown still lands. Merged-safe delete removes only the
@@ -80,6 +81,7 @@ export async function reconcileBranch(
 ): Promise<void> {
   switch (op.mutation) {
     case "rename":
+      if (op.branch === op.toBranch) return;
       await ctx.exec("git", ["branch", "-m", op.branch, op.toBranch]);
       return;
     case "delete": {
