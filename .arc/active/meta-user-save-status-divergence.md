@@ -12,11 +12,11 @@
 - **Task List:** `tasks-user-save-status-divergence.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.4 — Read note content by annotated commit
-- **Next Task:** Task 2.1 — Wire the local sync-state pointer into resolution inputs (line ~79)
+- **Last Completed:** Task 2.3 — Concurrent tie-break: pointer membership, then smallest-SHA
+- **Next Task:** Task 2.4 — Per-WU filter as a candidacy predicate (line ~109)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.1 — Wire the local sync-state pointer into resolution inputs
+- **Next Action:** Start Task 2.4 — Per-WU filter as a candidacy predicate
 
 - **PR URL:** [none]
 - **Completed:** [none]
