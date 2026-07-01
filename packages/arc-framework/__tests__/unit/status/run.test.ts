@@ -297,6 +297,12 @@ function staleLocalNoteIO(): UserIOContext {
       if (args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: `${HEAD_COMMIT}\n`, stderr: "" };
       }
+      if (args[0] === "notes" && args[2] === "list") {
+        return { stdout: `${"0".repeat(40)} ${STALE_NOTE_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "notes" && args[2] === "show" && args[3] === STALE_NOTE_COMMIT) {
+        return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+      }
       if (args[0] === "log") {
         return { stdout: `${NOTE_HISTORY_COMMIT}\n`, stderr: "" };
       }
@@ -306,10 +312,16 @@ function staleLocalNoteIO(): UserIOContext {
       if (args[0] === "show") {
         return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
       }
+      if (args[0] === "merge-base" && args[1] === "--independent") {
+        return { stdout: `${STALE_NOTE_COMMIT}\n`, stderr: "" };
+      }
       if (args[0] === "merge-base") {
         return { stdout: "", stderr: "" };
       }
-      if (args[0] === "rev-list") {
+      if (args[0] === "rev-list" && args[1] === "HEAD") {
+        return { stdout: `${HEAD_COMMIT}\n${STALE_NOTE_COMMIT}\n`, stderr: "" };
+      }
+      if (args[0] === "rev-list" && args[1] === "--count") {
         return { stdout: "2\n", stderr: "" };
       }
       throw new Error(`unexpected command: git ${args.join(" ")}`);

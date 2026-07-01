@@ -27,7 +27,10 @@ import {
 import type { UserIOContext } from "../../src/commands/user.js";
 import type { SyncManifest } from "../../src/lib/git/index.js";
 import type { WorktreeSyncStatusResult } from "../../src/lib/git/worktree-sync.js";
-import { projectManifest } from "../../src/lib/user-sync/index.js";
+import {
+  NO_COMPARABLE_SOURCE_COMMIT,
+  projectManifest,
+} from "../../src/lib/user-sync/index.js";
 
 function manifest(files: Record<string, string>): SyncManifest {
   return { version: 2, files };
@@ -126,7 +129,6 @@ describe("buildUserStatusResult", () => {
       savedCommit: "abc1234",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       currentBranch: "fix/state-ref-write-safety",
       backupFiles: [],
@@ -134,8 +136,8 @@ describe("buildUserStatusResult", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
-      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
     );
     expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
   });
@@ -853,7 +855,6 @@ describe("buildUserStatusResult default mode (verbose: false)", () => {
       savedCommit: "9b1c241",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       savedAtRelative: "9 hours ago",
       unsavedDirection: "edits",
@@ -863,7 +864,7 @@ describe("buildUserStatusResult default mode (verbose: false)", () => {
     });
 
     expect(result.detailLines).toContain(
-      "Note from 9b1c241, outside HEAD ancestry (2 note update(s) back), saved 9 hours ago.",
+      "Note from 9b1c241, outside HEAD ancestry, saved 9 hours ago.",
     );
   });
 
@@ -1188,6 +1189,10 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     sourceOperation?: "save" | "load";
     /** Result for `git merge-base --is-ancestor <sourceCommit> <noteCommit>`. */
     sourceIsAncestorOfNote: boolean;
+    annotatedNoteCommits?: string[];
+    noteFilesByCommit?: Record<string, Record<string, string>>;
+    reachableCommits?: string[];
+    maximalCommits?: string[];
   }
 
   function buildIO(scenario: DirectionScenario): UserIOContext {
@@ -1197,7 +1202,10 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     const internalDir = `${userDir}/.internal`;
     const localNotesRef = "refs/notes/arc/user/andrew";
     const noteCommitPath = `${scenario.noteCommit.slice(0, 2)}/${scenario.noteCommit.slice(2)}`;
-    const noteJSON = JSON.stringify({ version: 2, files: scenario.noteFiles });
+    const annotatedNoteCommits = scenario.annotatedNoteCommits ?? [scenario.noteCommit];
+    const noteFilesFor = (commit: string): Record<string, string> =>
+      scenario.noteFilesByCommit?.[commit] ?? scenario.noteFiles;
+    const noteJSONFor = (commit: string): string => JSON.stringify({ version: 2, files: noteFilesFor(commit) });
     const syncStateContent = JSON.stringify({
       version: 2,
       materializedManifestHash: scenario.materializedManifestHash,
@@ -1214,6 +1222,15 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
         if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
           return { stdout: `${localNotesRefHash}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          const stdout = annotatedNoteCommits
+            .map((commit) => `${"0".repeat(40)} ${commit}`)
+            .join("\n");
+          return { stdout: `${stdout}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && typeof args[3] === "string") {
+          return { stdout: noteJSONFor(args[3]), stderr: "" };
+        }
         if (args[0] === "log" && args.includes(localNotesRef)) {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1221,7 +1238,17 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
           return { stdout: `${noteCommitPath}\n`, stderr: "" };
         }
         if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
-          return { stdout: noteJSON, stderr: "" };
+          return { stdout: noteJSONFor(scenario.noteCommit), stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          const reachableCommits = scenario.reachableCommits ?? [scenario.noteCommit, scenario.sourceCommit];
+          return { stdout: `${reachableCommits.join("\n")}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--independent"
+        ) {
+          return { stdout: `${(scenario.maximalCommits ?? [scenario.noteCommit]).join("\n")}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
@@ -1291,6 +1318,35 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     }).actionHint;
   }
 
+  it("reads a fresh save as current when an older reachable note is also present", async () => {
+    const olderCommit = "a".repeat(40);
+    const savedCommit = "c".repeat(40);
+    const savedFiles = { "SESSION-NOTES.md": "saved-current" };
+    const savedManifest: SyncManifest = { version: 2, files: savedFiles };
+    const io = buildIO({
+      sourceCommit: savedCommit,
+      noteCommit: savedCommit,
+      annotatedNoteCommits: [olderCommit, savedCommit],
+      noteFilesByCommit: {
+        [olderCommit]: { "SESSION-NOTES.md": "older-note" },
+        [savedCommit]: savedFiles,
+      },
+      reachableCommits: [savedCommit, olderCommit],
+      maximalCommits: [savedCommit],
+      diskFiles: savedFiles,
+      noteFiles: savedFiles,
+      materializedManifestHash: hashSyncManifest(savedManifest),
+      sourceIsAncestorOfNote: true,
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.diskState).toBe("same");
+    expect(state.diskStatus).toBe("current");
+    expect(state.unsavedDirection).toBeNull();
+    expect(actionFor(state, savedCommit)).toBeNull();
+  });
+
   it("flags disk as 'behind' and routes to `arc user load` when note advanced past sourceCommit while disk matches materialized", async () => {
     const diskFiles = { "SESSION-NOTES.md": "disk-content" };
     const diskManifest: SyncManifest = { version: 2, files: diskFiles };
@@ -1307,6 +1363,7 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
 
     expect(state.unsavedDirection).toBe("behind");
+    expect(state.diskStatus).toBe("stale");
     expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
   });
 
@@ -1376,6 +1433,28 @@ describe("inspectUserSyncState disk-vs-note direction inference", () => {
     expect(actionFor(state, noteCommit)).toBe(
       "inspect local working files, then run `arc user load` or `arc user save`",
     );
+  });
+
+  it("treats the no-comparable load basis as stale instead of mixed", async () => {
+    const loadedFiles = { "WORKING-MEMORY.md": "loaded-cross-wu" };
+    const loadedManifest: SyncManifest = { version: 2, files: loadedFiles };
+    const noteCommit = "b".repeat(40);
+    const io = buildIO({
+      sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
+      sourceOperation: "load",
+      noteCommit,
+      diskFiles: loadedFiles,
+      noteFiles: { "WORKING-MEMORY.md": "older-note" },
+      materializedManifestHash: hashSyncManifest(loadedManifest),
+      sourceIsAncestorOfNote: false,
+      reachableCommits: [noteCommit],
+    });
+
+    const state = await inspectUserSyncState({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(state.unsavedDirection).toBe("modified");
+    expect(state.diskStatus).toBe("stale");
+    expect(actionFor(state, noteCommit)).toBe("run `arc user load`");
   });
 
   const wmEntry = (header: string, body: string): string =>
@@ -1472,7 +1551,6 @@ describe("user sync spine", () => {
       savedCommit: "abc1234",
       savedFromAncestor: false,
       ancestorDistance: 0,
-      noteHistoryDistance: 2,
       savedReachableFromHead: false,
       currentBranch: "fix/state-ref-write-safety",
       savedAtRelative: "11 hours ago",
@@ -1483,8 +1561,8 @@ describe("user sync spine", () => {
     expect(result.spineState).toBe("remote-ahead");
     expect(result.detailLines).toContain("Saved 11 hours ago.");
     expect(result.detailLines).toContain(
-      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history " +
-      "(2 note update(s) back) — expected when the work was continued or integrated on another branch or machine.",
+      "Latest local user note is from abc1234, not in branch `fix/state-ref-write-safety`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
     );
   });
 
@@ -1677,6 +1755,106 @@ describe("runUserSessionInitStatus", () => {
     expect(result.shouldPromptToPull).toBe(false);
   });
 
+  it("projects an empty local note result as missing freshness", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "missing",
+      commit: null,
+      commitShort: null,
+      ancestorDistance: 0,
+    });
+    expect(result.detailLines).toContain("No local user note exists for this identity.");
+  });
+
+  it("projects a reachable note at HEAD as current-head freshness", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const currentHead = "b".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteJSON = JSON.stringify(manifest(noteFiles));
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--short" && args[2] === currentHead) {
+          return { stdout: `${currentHead.slice(0, 7)}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === currentHead) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "--count") {
+          return { stdout: "0\n", stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async (dir: string) => {
+        if (dir !== userDir) return [];
+        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+      },
+      readFile: async (path: string) => {
+        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toEqual({
+      state: "current-head",
+      commit: currentHead,
+      commitShort: currentHead.slice(0, 7),
+      ancestorDistance: 0,
+      reachableFromHead: true,
+    });
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
   it("surfaces stale local-note freshness when matching refs are behind HEAD", async () => {
     const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
     const probeIO = {
@@ -1691,6 +1869,12 @@ describe("runUserSessionInitStatus", () => {
         if (args[0] === "rev-parse" && args[1] === "HEAD") {
           return { stdout: `${headCommit}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${staleNoteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === staleNoteCommit) {
+          return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
+        }
         if (args[0] === "log") {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1700,10 +1884,16 @@ describe("runUserSessionInitStatus", () => {
         if (args[0] === "show") {
           return { stdout: JSON.stringify({ version: 2, files: {} }), stderr: "" };
         }
+        if (args[0] === "merge-base" && args[1] === "--independent") {
+          return { stdout: `${staleNoteCommit}\n`, stderr: "" };
+        }
         if (args[0] === "merge-base") {
           return { stdout: "", stderr: "" };
         }
-        if (args[0] === "rev-list") {
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${headCommit}\n${staleNoteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "--count") {
           return { stdout: "2\n", stderr: "" };
         }
         throw new Error(`unexpected command: git ${args.join(" ")}`);
@@ -1724,7 +1914,6 @@ describe("runUserSessionInitStatus", () => {
       commit: staleNoteCommit,
       commitShort: staleNoteCommit.slice(0, 7),
       ancestorDistance: 2,
-      noteHistoryDistance: 0,
       reachableFromHead: true,
     });
     expect(result.detailLines).toContain(
@@ -1734,6 +1923,73 @@ describe("runUserSessionInitStatus", () => {
       "Next step: run `arc user save` or `arc sync` before relying on handoff.",
     );
     expect(result.actionHint).toBe("run `arc user save` or `arc sync` before relying on handoff");
+  });
+
+  it("projects an off-ancestry save pointer as outside-head-ancestry, not current", async () => {
+    const sameRefHash = "dddddddddddddddddddddddddddddddddddddddd";
+    const offBranchCommit = "a".repeat(40);
+    const currentHead = "b".repeat(40);
+    const userDir = "/repo/.arc/user/andrew";
+    const internalDir = `${userDir}/.internal`;
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteJSON = JSON.stringify(manifest(noteFiles));
+    const syncStateContent = JSON.stringify({
+      version: 2,
+      materializedManifestHash: hashSyncManifest(manifest(noteFiles)),
+      sourceCommit: offBranchCommit,
+      sourceOperation: "save",
+    });
+    const probeIO = {
+      ...io,
+      exec: async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "--verify") {
+          return { stdout: `${sameRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: `${sameRefHash}\t${notesRef}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref") {
+          return { stdout: "feature/current\n", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${offBranchCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === offBranchCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${currentHead}\n`, stderr: "" };
+        }
+        throw new Error(`unexpected command: git ${args.join(" ")}`);
+      },
+      readDir: async (dir: string) => {
+        if (dir !== userDir) return [];
+        return [{ name: "SESSION-NOTES.md", size: noteFiles["SESSION-NOTES.md"].length }];
+      },
+      readFile: async (path: string) => {
+        if (path === `${userDir}/SESSION-NOTES.md`) return noteFiles["SESSION-NOTES.md"];
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserSessionInitStatus({
+      cwd: "/repo",
+      io: probeIO,
+      identity: "andrew",
+      remoteSyncEnabled: true,
+    });
+
+    expect(result.localNoteFreshness).toMatchObject({
+      state: "outside-head-ancestry",
+      commit: offBranchCommit,
+      commitShort: offBranchCommit.slice(0, 7),
+      reachableFromHead: false,
+      currentBranch: "feature/current",
+    });
   });
 
   it("treats fetch-blocked ancestry comparison as local continuation, not stale-note divergence", async () => {
@@ -1872,6 +2128,12 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
         if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
           return { stdout: `${noteCommit}\n`, stderr: "" };
         }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === noteCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
         if (args[0] === "log" && args.includes(localNotesRef)) {
           return { stdout: `${noteHistoryCommit}\n`, stderr: "" };
         }
@@ -1880,6 +2142,16 @@ describe("runUserSessionInitStatus loadNeeded probe", () => {
         }
         if (args[0] === "show" && args[1] === `${noteHistoryCommit}:${noteCommitPath}`) {
           return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${noteCommit}\n${sourceCommit}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--independent"
+          && args[2] === noteCommit
+        ) {
+          return { stdout: `${noteCommit}\n`, stderr: "" };
         }
         if (
           args[0] === "merge-base"
@@ -2330,6 +2602,163 @@ describe("runUserStatus worktree probe orchestration", () => {
   });
 });
 
+describe("runUserStatus saved-note projection", () => {
+  const userDir = "/repo/.arc/user/andrew";
+  const internalDir = `${userDir}/.internal`;
+  const localNotesRef = "refs/notes/arc/user/andrew";
+  const localNotesRefHash = "c".repeat(40);
+
+  interface ProjectionScenario {
+    head: string;
+    noteCommit: string;
+    reachableCommits: string[];
+    ancestorDistance: number;
+  }
+
+  function buildIO(scenario: ProjectionScenario): UserIOContext {
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteManifest = manifest(noteFiles);
+    const noteJSON = JSON.stringify(noteManifest);
+    const syncStateContent = JSON.stringify({
+      version: 4,
+      materializedManifestHash: hashSyncManifest(projectManifest(noteManifest)),
+      sourceCommit: scenario.noteCommit,
+      sourceOperation: "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${scenario.head}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--short" && typeof args[2] === "string") {
+          return { stdout: `${args[2].slice(0, 7)}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: "feature/status-projection\n", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === scenario.noteCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${scenario.reachableCommits.join("\n")}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${scenario.noteCommit}..HEAD`
+        ) {
+          return { stdout: `${scenario.ancestorDistance}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === "-s" && args[2] === "--format=%at") {
+          return { stdout: "1700000000\n", stderr: "" };
+        }
+        if (args[0] === "merge-base" && args[1] === "--is-ancestor" && args[3] === "HEAD") {
+          if (scenario.reachableCommits.includes(args[2] ?? "")) return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(noteFiles).map(([name, content]) => ({ name, size: content.length }));
+        }
+        if (dir === internalDir) return [];
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(noteFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("projects a reachable note at HEAD as current", async () => {
+    const head = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit: head,
+        reachableCommits: [head],
+        ancestorDistance: 0,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(head.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(false);
+    expect(result.ancestorDistance).toBe(0);
+    expect(result.savedReachableFromHead).toBe(true);
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
+  it("projects a reachable ancestor note with its distance from HEAD", async () => {
+    const head = "b".repeat(40);
+    const noteCommit = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit,
+        reachableCommits: [head, noteCommit],
+        ancestorDistance: 4,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(noteCommit.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(true);
+    expect(result.ancestorDistance).toBe(4);
+    expect(result.savedReachableFromHead).toBe(true);
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, 4 commit(s) back from HEAD.",
+    );
+  });
+
+  it("projects an off-ancestry saved pointer without reporting it current", async () => {
+    const head = "b".repeat(40);
+    const noteCommit = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit,
+        reachableCommits: [head],
+        ancestorDistance: 0,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(noteCommit.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(false);
+    expect(result.ancestorDistance).toBe(0);
+    expect(result.savedReachableFromHead).toBe(false);
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, not in branch `feature/status-projection`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
+    );
+    expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
+  });
+});
+
 describe("runUserStatus bounded notes-ref fetch", () => {
   const localHash = "a".repeat(40);
   const remoteHash = "b".repeat(40);
@@ -2551,5 +2980,59 @@ describe("runUserStatus userSyncCause orchestration", () => {
 
     expect(result.userSyncCause).toBeUndefined();
     expect(result.detailLines.some((line) => line.startsWith("Cause:"))).toBe(false);
+  });
+
+  it("does not probe HEAD reachability for the no-comparable load basis", async () => {
+    const localHash = "a".repeat(40);
+    let sentinelHeadProbe = false;
+
+    const io = {
+      ...silentIO(async (_cmd: string, args: string[]) => {
+        if (args[0] === "rev-parse" && args[1] === "HEAD") {
+          return { stdout: "deadbeef\n", stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify"
+          && args[2] === "refs/notes/arc/user/andrew") {
+          return { stdout: `${localHash}\n`, stderr: "" };
+        }
+        if (args[0] === "ls-remote") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: "", stderr: "" };
+        }
+        if (args[0] === "log") return { stdout: "", stderr: "" };
+        if (
+          args[0] === "merge-base"
+          && args[1] === "--is-ancestor"
+          && args[2] === NO_COMPARABLE_SOURCE_COMMIT
+          && args[3] === "HEAD"
+        ) {
+          sentinelHeadProbe = true;
+          throw new Error("sentinel is not a git commit");
+        }
+        throw new Error(`unexpected git call: ${args.join(" ")}`);
+      }),
+      readFile: async (path: string) => {
+        if (path === "/repo/.arc/user/andrew/.internal/.sync-state.json") {
+          return JSON.stringify({
+            version: 4,
+            materializedManifestHash: "hash",
+            sourceCommit: NO_COMPARABLE_SOURCE_COMMIT,
+            sourceOperation: "load",
+          });
+        }
+        throw new Error(`ENOENT: ${path}`);
+      },
+    };
+
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io,
+      identity: "andrew",
+    });
+
+    expect(result.refState).toBe("local-ahead");
+    expect(sentinelHeadProbe).toBe(false);
   });
 });

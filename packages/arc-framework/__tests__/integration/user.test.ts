@@ -52,6 +52,7 @@ import {
 import { pushNotesWithReconcile } from "../../src/handlers/push-recovery.js";
 import { decideSyncAction } from "../../src/handlers/user-sync.js";
 import { createSyncOutput } from "../../src/lib/sync-output.js";
+import { NO_COMPARABLE_SOURCE_COMMIT } from "../../src/lib/user-sync/index.js";
 
 /** Human-mode SyncOutput stub — delegates through the file-scoped clack mock above. */
 const recoveryOutput = createSyncOutput(false);
@@ -104,6 +105,11 @@ async function listBackupFiles(userDir: string): Promise<string[]> {
 async function readNotesRefTip(cwd: string, identity: string): Promise<string> {
   const ref = `refs/notes/arc/user/${identity}`;
   const { stdout } = await execFileAsync("git", ["rev-parse", ref], { cwd });
+  return stdout.trim();
+}
+
+async function readHead(cwd: string): Promise<string> {
+  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd });
   return stdout.trim();
 }
 
@@ -204,7 +210,7 @@ describe("user save and load", () => {
     expect(restored).toBe("# Session Notes\nWorking on feature X");
   });
 
-  it("load walks ancestors when HEAD has no note", async () => {
+  it("load finds a reachable ancestor note when HEAD has no note", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -274,7 +280,6 @@ describe("user save and load", () => {
 
     const loadedResult = expectLoaded(loadResult);
     expect(loadedResult.reachableFromHead).toBe(false);
-    expect(loadedResult.noteHistoryDistance).toBe(0);
     expect(loadedResult.currentBranch).toBe("main");
 
     const restored = await readFile(join(userDir, "SESSION-NOTES.md"), "utf-8");
@@ -444,7 +449,7 @@ describe("user save and load", () => {
     await cleanupTempDir(remoteDir);
   });
 
-  it("load finds note-ref history in a shallow clone when annotated commit is beyond boundary", async () => {
+  it("load restores recent note content in a shallow clone when the annotated commit is beyond boundary", async () => {
     const io = makeUserIO(tempDir);
     const userDir = join(tempDir, ".arc", "user", "test-user");
 
@@ -473,13 +478,10 @@ describe("user save and load", () => {
     const shallowUserDir = join(shallowDir, ".arc", "user", "test-user");
     await mkdir(shallowUserDir, { recursive: true });
 
-    const loadResult = await runUserLoad({
-      cwd: shallowDir, io: shallowIO, identity: "test-user", maxAncestorWalk: 1,
-    });
+    const loadResult = await runUserLoad({ cwd: shallowDir, io: shallowIO, identity: "test-user" });
 
     const loadedResult = expectLoaded(loadResult);
-    expect(loadedResult.reachableFromHead).toBe(false);
-    expect(loadedResult.noteHistoryDistance).toBe(0);
+    expect(loadedResult.reachableFromHead).toBeUndefined();
 
     const restored = await readFile(join(shallowUserDir, "SESSION-NOTES.md"), "utf-8");
     expect(restored).toBe("# Deep note");
@@ -1003,9 +1005,9 @@ describe("user save/load — subdirectory support", () => {
 
     await rm(userDir, { recursive: true, force: true });
 
-    // Load scoped to a WU no note carries: the per-WU walk resolves to nothing,
-    // so only the cross-WU flat file restores — there is no annotated commit to
-    // be off-ancestry, and the summary must not claim one.
+    // Load scoped to a WU no note carries: per-WU resolution returns nothing, so
+    // only the cross-WU flat file restores — there is no annotated commit to be
+    // off-ancestry, and the summary must not claim one.
     const loadResult = await runUserLoad({
       cwd: tempDir, io, identity: "test-user", currentWuName: "brand-new-wu",
     });
@@ -1064,6 +1066,87 @@ describe("user save/load — subdirectory support", () => {
     const workingMemory = await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8");
     expect(workingMemory).toContain("**Entry B:**");
     expect(workingMemory).toContain("**Entry A:**");
+  });
+
+  it("loads the causally-latest reachable note that carries the scoped WU", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# old", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory old", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await makeCommit(tempDir, "advance to newer note");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# new", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory new", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "feature-x",
+    });
+    const loadedResult = expectLoaded(loadResult);
+
+    expect(loadedResult.reachableFromHead).toBe(true);
+    expect(await readFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "utf-8")).toBe("# new");
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Memory new");
+  });
+
+  it("loads a reachable note far behind HEAD without a distance cap", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(userDir, { recursive: true });
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Deep memory", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    for (let i = 0; i < 15; i++) {
+      await makeCommit(tempDir, `advance ${i}`);
+    }
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({ cwd: tempDir, io, identity: "test-user" });
+    const loadedResult = expectLoaded(loadResult);
+
+    expect(loadedResult.reachableFromHead).toBe(true);
+    expect(loadedResult.ancestorDistance).toBe(15);
+    expect(await readFile(join(userDir, "WORKING-MEMORY.md"), "utf-8")).toBe("# Deep memory");
+  });
+
+  it("keeps cross-WU-only load status out of mixed with the sentinel basis", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+
+    await rm(userDir, { recursive: true, force: true });
+    await mkdir(join(userDir, "feature-x"), { recursive: true });
+    await writeFile(join(userDir, "feature-x", "SESSION-NOTES.md"), "# X", "utf-8");
+    await writeFile(join(userDir, "WORKING-MEMORY.md"), "# Memory", "utf-8");
+    await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await rm(userDir, { recursive: true, force: true });
+
+    const loadResult = await runUserLoad({
+      cwd: tempDir, io, identity: "test-user", currentWuName: "brand-new-wu",
+    });
+    expectLoaded(loadResult);
+
+    const syncState = await readLocalSyncStateFixture(tempDir, "test-user");
+    expect(syncState.sourceCommit).toBe(NO_COMPARABLE_SOURCE_COMMIT);
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+
+    expect(status.diskStatus).not.toBe("mixed");
+    expect(status.unsavedDirection).not.toBe("mixed");
+    expect(status.diskStatus).toBe("stale");
+    expect(status.unsavedDirection).toBe("missing");
   });
 });
 
@@ -1547,6 +1630,71 @@ describe("user status", () => {
     await runUserSave({ cwd: tempDir, io, identity: "test-user" });
     const afterSave = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
     expect(afterSave.localNoteFreshness?.state).toBe("current-head");
+  });
+
+  it("reports current after a later notes-ref update lands on an older commit", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const olderCommit = await readHead(tempDir);
+    await makeCommit(tempDir, "middle commit");
+    const savedHead = await makeCommit(tempDir, "current commit");
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), "# Saved descendant", "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await io.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": "# Older arrival" } }),
+      olderCommit,
+    );
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(status.savedCommit).toBe(saveResult.commit);
+    expect(status.diskStatus).toBe("current");
+    expect(status.savedFromAncestor).toBe(false);
+    expect(status.ancestorDistance).toBe(0);
+    expect(status.savedReachableFromHead).toBe(true);
+    expect(state.localNoteFreshness).toMatchObject({
+      state: "current-head",
+      commit: savedHead,
+      reachableFromHead: true,
+      ancestorDistance: 0,
+    });
+  });
+
+  it("reports the descendant save as current after re-anchoring its manifest to an older commit", async () => {
+    const io = makeUserIO(tempDir);
+    const userDir = join(tempDir, ".arc", "user", "test-user");
+    const olderCommit = await readHead(tempDir);
+    await makeCommit(tempDir, "middle commit");
+    const savedHead = await makeCommit(tempDir, "current commit");
+    const savedContent = "# Saved descendant";
+
+    await writeFile(join(userDir, "SESSION-NOTES.md"), savedContent, "utf-8");
+    const saveResult = await runUserSave({ cwd: tempDir, io, identity: "test-user" });
+
+    await io.writeNote(
+      "arc/user/test-user",
+      JSON.stringify({ version: 2, files: { "SESSION-NOTES.md": savedContent } }),
+      olderCommit,
+    );
+
+    const status = await runUserStatus({ cwd: tempDir, io, identity: "test-user", offline: true });
+    const state = await inspectUserSyncState({ cwd: tempDir, io, identity: "test-user" });
+
+    expect(status.savedCommit).toBe(saveResult.commit);
+    expect(status.diskStatus).toBe("current");
+    expect(status.savedFromAncestor).toBe(false);
+    expect(status.ancestorDistance).toBe(0);
+    expect(status.savedReachableFromHead).toBe(true);
+    expect(state.localNoteFreshness).toMatchObject({
+      state: "current-head",
+      commit: savedHead,
+      reachableFromHead: true,
+      ancestorDistance: 0,
+    });
   });
 
   it("reports remote-ahead status with an actionable pull hint", async () => {

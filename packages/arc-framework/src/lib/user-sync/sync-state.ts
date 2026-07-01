@@ -27,6 +27,16 @@ const MACHINE_ID_FILENAME = ".machine-id";
 const USER_INTERNAL_DIRNAME = ".internal";
 /** Notes ref prefix; mirrors the notes-ref module's internal `refs/notes/arc/user`. */
 const USER_NOTES_REF = "refs/notes/arc/user";
+/** Sentinel basis for loads that materialize shared context without a comparable branch commit. */
+export const NO_COMPARABLE_SOURCE_COMMIT = "no-comparable-saved-commit";
+
+export function isComparableSourceCommit(
+  sourceCommit: string | null | undefined,
+): sourceCommit is string {
+  return sourceCommit !== undefined
+    && sourceCommit !== null
+    && sourceCommit !== NO_COMPARABLE_SOURCE_COMMIT;
+}
 
 export interface LocalSyncState {
   version: 4;

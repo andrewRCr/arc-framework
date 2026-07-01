@@ -460,25 +460,6 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserPull).not.toHaveBeenCalled();
   });
 
-  it("threads --max-walk through to runUserPull", async () => {
-    setSyncState("remote-ahead", "same");
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
-    await handleUserSync({ maxWalk: 300 });
-
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ maxAncestorWalk: 300 }),
-    );
-  });
-
   it("pushes then loads when local note is ahead but disk is stale", async () => {
     setSyncState("local-ahead", "different", { diskStatus: "stale", unsavedDirection: "modified" });
     setPolicy("on-sync");
@@ -500,17 +481,6 @@ describe("handleUserSync direction handling", () => {
     expect(mockRunUserLoad).toHaveBeenCalledTimes(1);
   });
 
-  it("emits walk-exhausted diagnostic when pull direction hits cap without match", async () => {
-    setSyncState("remote-ahead", "same");
-    mockRunUserPull.mockResolvedValue({ kind: "walk-exhausted", walked: 1000, maxWalk: 1000 });
-
-    await handleUserSync();
-
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("walked 1000 ancestors without finding a note"),
-    );
-    expect(process.exitCode).toBe(1);
-  });
 });
 
 describe("handleUserSync push policy", () => {

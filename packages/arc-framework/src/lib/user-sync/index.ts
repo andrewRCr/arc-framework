@@ -23,7 +23,14 @@ export { matchInboxEntryTitle, parseCrossWuEntries, shapeForFile } from "./parse
 
 export { removeInboxEntry, type RemoveInboxEntryResult } from "./inbox-writer.js";
 
-export { readRecentUserNotes, CROSS_WU_NOTE_WINDOW, type RecentNote } from "./notes-ref.js";
+export {
+  listAnnotatedNoteCommits,
+  notePathToCommit,
+  readNoteContentAtAnnotatedCommit,
+  readRecentUserNotes,
+  CROSS_WU_NOTE_WINDOW,
+  type RecentNote,
+} from "./notes-ref.js";
 
 export {
   isCasRejectionError,
@@ -67,6 +74,8 @@ export {
   clearPartialPushMarker,
   getOrCreateMachineId,
   getUserInternalDir,
+  isComparableSourceCommit,
+  NO_COMPARABLE_SOURCE_COMMIT,
   readLocalSyncState,
   recordErrandPartialPushMarker,
   recordPartialPushMarker,

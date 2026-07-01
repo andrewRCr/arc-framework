@@ -444,47 +444,12 @@ describe("handleUserPull fetch+load flow", () => {
   });
 });
 
-describe("handleUserLoad walk-exhausted diagnostic", () => {
+describe("handleUserLoad empty result", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     resetMockDefaults();
     mockResolveUserIdentity.mockResolvedValue("andrew");
     process.exitCode = undefined;
-  });
-
-  it("threads --max-walk through to runUserLoad", async () => {
-    mockRunUserLoad.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
-    await handleUserLoad({ maxWalk: 500 });
-
-    expect(mockRunUserLoad).toHaveBeenCalledWith(
-      expect.objectContaining({ maxAncestorWalk: 500 }),
-    );
-  });
-
-  it("emits the walk-exhausted diagnostic and exits 1 when load returns a walk-exhausted outcome", async () => {
-    mockRunUserLoad.mockResolvedValue({ kind: "walk-exhausted", walked: 1000, maxWalk: 1000 });
-
-    await handleUserLoad({});
-
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("walked 1000 ancestors without finding a note"),
-    );
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("--max-walk"),
-    );
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("arc user status"),
-    );
-    expect(process.exitCode).toBe(1);
   });
 
   it("falls back to 'No saved user directory' without setting exit code when load returns null", async () => {
@@ -495,50 +460,8 @@ describe("handleUserLoad walk-exhausted diagnostic", () => {
     expect(mockLog.warn).toHaveBeenCalledWith(
       expect.stringContaining("No saved user directory"),
     );
-    expect(mockLog.warn).not.toHaveBeenCalledWith(
-      expect.stringContaining("walked"),
-    );
     // Plain "no note" stays at exit 0 — unambiguous state, nothing to load.
     expect(process.exitCode).toBeUndefined();
-  });
-});
-
-describe("handleUserPull walk-exhausted diagnostic", () => {
-  beforeEach(() => {
-    vi.resetAllMocks();
-    resetMockDefaults();
-    mockResolveUserIdentity.mockResolvedValue("andrew");
-    mockHasLocalNotes.mockResolvedValue(false);
-    process.exitCode = undefined;
-  });
-
-  it("threads --max-walk through to runUserPull", async () => {
-    mockRunUserPull.mockResolvedValue({
-      kind: "loaded",
-      identity: "andrew",
-      commit: "abc1234",
-      fileCount: 1,
-      fromAncestor: false,
-      ancestorDistance: 0,
-      warnings: [],
-    });
-
-    await handleUserPull({ maxWalk: 250 });
-
-    expect(mockRunUserPull).toHaveBeenCalledWith(
-      expect.objectContaining({ maxAncestorWalk: 250 }),
-    );
-  });
-
-  it("emits walk-exhausted diagnostic and sets exitCode 1 when cap hit without find", async () => {
-    mockRunUserPull.mockResolvedValue({ kind: "walk-exhausted", walked: 50, maxWalk: 50 });
-
-    await handleUserPull({});
-
-    expect(mockLog.warn).toHaveBeenCalledWith(
-      expect.stringContaining("walked 50 ancestors without finding a note"),
-    );
-    expect(process.exitCode).toBe(1);
   });
 });
 

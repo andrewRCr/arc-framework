@@ -3,7 +3,14 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 
 import {
-  deserialize, getCurrentBranch, isSafeManifestPath, serialize, shortHash, type SyncManifest,
+  deserialize,
+  filterCommitsReachableFromHead,
+  getCurrentBranch,
+  isSafeManifestPath,
+  reduceCommitsToCausallyMaximal,
+  serialize,
+  shortHash,
+  type SyncManifest,
 } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
@@ -15,12 +22,15 @@ import {
   getUserInternalDir,
   releaseAdvisoryLock,
   mergeCrossWuFile,
+  NO_COMPARABLE_SOURCE_COMMIT,
   planRetiredSubdirReconcile,
   projectManifest,
   stashedFilesInSubdir,
   subdirsFromPaths,
+  readLocalSyncState,
   writeLocalSyncState,
   wuNameOfPath,
+  type LocalSyncState,
   type MergeNote,
   type OrphanClassification,
 } from "../../lib/user-sync/index.js";
@@ -28,10 +38,8 @@ import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import {
-  listChangedNotePaths,
-  notePathToCommit,
-  readNoteContentAtHistoryCommit,
-  readNotesRefHistory,
+  listAnnotatedNoteCommits,
+  readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   type RecentNote,
 } from "../../lib/user-sync/notes-ref.js";
@@ -55,8 +63,19 @@ const BACKUP_TIMESTAMPED_PREFIX = ".pre-load-backup-";
 const BACKUP_TIMESTAMPED_SUFFIX = ".json";
 const BACKUP_RETENTION = 3;
 
-/** Default ancestor-walk cap. Aligns with common shallow-clone depth conventions. */
-export const DEFAULT_MAX_ANCESTOR_WALK = 1000;
+type ResolutionPointer = Pick<LocalSyncState, "sourceCommit" | "sourceOperation">;
+
+interface NearestUserNoteResolutionInput {
+  io: UserIOContext;
+  identity: string;
+  currentWuName?: string;
+  localSyncState: ResolutionPointer | null;
+}
+
+interface ReachableNoteCandidate {
+  commit: string;
+  content?: string;
+}
 
 /**
  * Save the user directory to user notes on HEAD.
@@ -113,9 +132,8 @@ export async function runUserSave(
 /**
  * Load the user directory from user notes.
  *
- * Walks the user notes ref's own history looking for the newest note
- * attachment. This finds notes even when their annotated commits are outside
- * current HEAD ancestry.
+ * Resolves the per-WU note by annotated-commit ancestry, then merges recent
+ * cross-WU flat-file entries so new WUs can still load shared context.
  *
  * @param options - Load options
  * @returns Load result, or null if no note found
@@ -127,24 +145,18 @@ export async function runUserLoad(
   const userDir = join(cwd, ".arc", "user", identity);
   const search = await findNearestUserNote(options);
   const recentNotes = await readRecentUserNotes(io.exec, identity);
+  const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
 
   // Per-WU subdir restores from the note carrying the current WU; cross-WU flat
   // files merge across the recent-note window, so a brand-new WU still loads
   // shared context before its own note exists. There is nothing to load only
-  // when both sources are empty.
-  if (!search.note && recentNotes.length === 0) {
-    if (search.capped) {
-      return {
-        kind: "walk-exhausted",
-        walked: search.walked,
-        maxWalk: search.maxWalk,
-      };
-    }
+  // when both sources produce no loadable content.
+  if (!search.note && Object.keys(crossWuFiles).length === 0) {
     return null;
   }
 
   let version: SyncManifest["version"] = 2;
-  let sourceCommit = recentNotes[0]?.historyCommit ?? "";
+  let sourceCommit = NO_COMPARABLE_SOURCE_COMMIT;
   let fromAncestor = false;
   const perWuFiles: Record<string, string> = {};
 
@@ -158,7 +170,6 @@ export async function runUserLoad(
     }
   }
 
-  const { files: crossWuFiles, warnings: mergeWarnings } = mergeCrossWuFromNotes(recentNotes);
   const loadManifest: SyncManifest = { version, files: { ...perWuFiles, ...crossWuFiles } };
 
   let notices: LoadMessage[] = [];
@@ -229,11 +240,10 @@ export async function runUserLoad(
   return {
     kind: "loaded",
     identity,
-    commit: await shortHash(io.exec, sourceCommit),
+    commit: await formatLoadSourceCommit(io, sourceCommit),
     fileCount: Object.keys(loadManifest.files).length,
     fromAncestor,
     ancestorDistance: search.note?.ancestorDistance ?? 0,
-    noteHistoryDistance: search.note?.noteHistoryDistance ?? 0,
     // A cross-WU-only load (no per-WU note resolved — e.g. a brand-new WU loading
     // shared context before its first save) has no annotated commit to be off-
     // ancestry, so leave `reachableFromHead` undefined rather than defaulting it
@@ -356,7 +366,7 @@ async function verifyMaterializedUserDir(
   commit: string,
   manifest: SyncManifest,
 ): Promise<void> {
-  const shortCommit = await shortHash(io.exec, commit);
+  const shortCommit = await formatLoadSourceCommit(io, commit);
   const expectedFiles: Record<string, string> = {};
   const readbackFiles: Record<string, string> = {};
 
@@ -382,6 +392,14 @@ async function verifyMaterializedUserDir(
       `Load verification failed for note ${shortCommit}: materialized file content did not match the loaded manifest.`,
     );
   }
+}
+
+async function formatLoadSourceCommit(
+  io: UserIOContext,
+  commit: string,
+): Promise<string> {
+  if (commit === NO_COMPARABLE_SOURCE_COMMIT) return commit;
+  return shortHash(io.exec, commit);
 }
 
 async function verifySavedNote(
@@ -461,12 +479,25 @@ function normalizeManifest(
   };
 }
 
-/** Walk the user notes ref history (up to the configured cap) looking for a note. */
+/** Resolve the current user note by HEAD-reachable causal order and pointer fallback. */
 export async function findNearestUserNote(
   options: UserLoadOptions,
 ): Promise<NearestNoteSearch> {
-  const { io, identity, currentWuName } = options;
-  const maxWalk = options.maxAncestorWalk ?? DEFAULT_MAX_ANCESTOR_WALK;
+  const { cwd, io, identity } = options;
+  const localSyncState = await readLocalSyncState(cwd, io, identity);
+
+  return resolveNearestUserNote({
+    io,
+    identity,
+    currentWuName: options.currentWuName,
+    localSyncState,
+  });
+}
+
+async function resolveNearestUserNote(
+  input: NearestUserNoteResolutionInput,
+): Promise<NearestNoteSearch> {
+  const { io, identity, currentWuName } = input;
   const ref = notesRef(identity);
   const fullRef = `refs/notes/${ref}`;
 
@@ -478,63 +509,135 @@ export async function findNearestUserNote(
     headHash = "";
   }
 
-  const notesHistory = await readNotesRefHistory(io.exec, fullRef, maxWalk);
-  if (notesHistory.length === 0) {
-    return { note: null, walked: 0, maxWalk, capped: false };
+  const annotatedCommits = await listAnnotatedNoteCommits(io.exec, fullRef);
+  if (annotatedCommits.length === 0) {
+    return { note: null };
   }
 
-  for (const [index, noteHistoryCommit] of notesHistory.entries()) {
-    const changedPaths = await listChangedNotePaths(io.exec, noteHistoryCommit);
-    for (const path of changedPaths) {
-      const annotatedCommit = notePathToCommit(path);
-      if (!annotatedCommit) continue;
-
-      const content = await readNoteContentAtHistoryCommit(io.exec, noteHistoryCommit, path);
-      if (!content) continue;
-
-      // Per-WU isolation: when a current WU is in play, skip notes that don't
-      // carry its subdir so the walk resolves to that WU's own save, not an
-      // older sibling's. Absent a WU (existing non-load callers), take the
-      // first readable note as before.
-      if (currentWuName !== undefined && !noteManifestContainsWu(content, currentWuName)) {
-        continue;
-      }
-
-      const reachableFromHead = headHash.length > 0
-        ? await isCommitReachableFromHead(io, annotatedCommit)
-        : false;
-      const ancestorDistance = reachableFromHead
-        ? await countCommitsSince(io, annotatedCommit)
-        : 0;
-
+  const reachableCommits = await filterCommitsReachableFromHead(io.exec, annotatedCommits);
+  const reachableCandidates = await buildReachableNoteCandidates({
+    io,
+    fullRef,
+    reachableCommits,
+    currentWuName,
+  });
+  const maximalCommits = await reduceCommitsToCausallyMaximal(
+    io.exec,
+    reachableCandidates.map((candidate) => candidate.commit),
+  );
+  const selected = selectMaximalCandidate(
+    reachableCandidates,
+    maximalCommits,
+    input.localSyncState,
+  );
+  if (!selected) {
+    const fallback = await readOffAncestryPointerFallback({
+      io,
+      fullRef,
+      currentWuName,
+      localSyncState: input.localSyncState,
+    });
+    if (fallback !== null) {
       return {
         note: {
-          content,
-          commit: annotatedCommit,
-          reachableFromHead,
-          fromAncestor: reachableFromHead && annotatedCommit !== headHash,
-          ancestorDistance,
-          noteHistoryDistance: index,
+          content: fallback.content,
+          commit: fallback.commit,
+          reachableFromHead: false,
+          fromAncestor: false,
+          ancestorDistance: 0,
         },
-        walked: index + 1,
-        maxWalk,
-        capped: false,
       };
     }
+    return { note: null };
   }
 
+  const content = selected.content ?? await readNoteContentAtAnnotatedCommit(io.exec, fullRef, selected.commit);
+  if (content === null) {
+    return { note: null };
+  }
+
+  const ancestorDistance = await countCommitsSince(io, selected.commit);
+
   return {
-    note: null,
-    walked: notesHistory.length,
-    maxWalk,
-    capped: notesHistory.length >= maxWalk,
+    note: {
+      content,
+      commit: selected.commit,
+      reachableFromHead: true,
+      fromAncestor: selected.commit !== headHash,
+      ancestorDistance,
+    },
   };
+}
+
+async function buildReachableNoteCandidates(input: {
+  io: UserIOContext;
+  fullRef: string;
+  reachableCommits: string[];
+  currentWuName: string | undefined;
+}): Promise<ReachableNoteCandidate[]> {
+  const { io, fullRef, reachableCommits, currentWuName } = input;
+  if (currentWuName === undefined) {
+    return reachableCommits.map((commit) => ({ commit }));
+  }
+
+  const reads = await Promise.all(
+    reachableCommits.map(async (commit) => ({
+      commit,
+      content: await readNoteContentAtAnnotatedCommit(io.exec, fullRef, commit),
+    })),
+  );
+
+  return reads.filter(
+    (read): read is { commit: string; content: string } =>
+      read.content !== null && noteManifestContainsWu(read.content, currentWuName),
+  );
+}
+
+async function readOffAncestryPointerFallback(input: {
+  io: UserIOContext;
+  fullRef: string;
+  currentWuName: string | undefined;
+  localSyncState: ResolutionPointer | null;
+}): Promise<{ commit: string; content: string } | null> {
+  const { io, fullRef, currentWuName, localSyncState } = input;
+  if (localSyncState?.sourceOperation !== "save") return null;
+
+  const content = await readNoteContentAtAnnotatedCommit(
+    io.exec,
+    fullRef,
+    localSyncState.sourceCommit,
+  );
+  if (content === null) return null;
+  if (currentWuName !== undefined && !noteManifestContainsWu(content, currentWuName)) return null;
+
+  return { commit: localSyncState.sourceCommit, content };
+}
+
+function selectMaximalCandidate(
+  candidates: ReachableNoteCandidate[],
+  maximalCommits: string[],
+  localSyncState: ResolutionPointer | null,
+): ReachableNoteCandidate | null {
+  if (maximalCommits.length === 0) return null;
+
+  const maximalSet = new Set(maximalCommits);
+  const maximalCandidates = candidates.filter((candidate) => maximalSet.has(candidate.commit));
+  if (maximalCandidates.length === 0) return null;
+  if (maximalCandidates.length === 1) return maximalCandidates[0] ?? null;
+
+  const pointerMatch = maximalCandidates.find(
+    (candidate) => candidate.commit === localSyncState?.sourceCommit,
+  );
+  if (pointerMatch !== undefined) return pointerMatch;
+
+  return [...maximalCandidates]
+    .sort((left, right) => left.commit.localeCompare(right.commit))[0] ?? null;
 }
 
 /**
  * Best-effort extraction of a manifest's `files` map. Returns `null` when the
  * content isn't valid JSON or lacks a `files` object — callers treat that as
- * "not a usable manifest" without throwing (the note walk continues past it).
+ * "not a usable manifest" without throwing.
  */
 function parseManifestFiles(noteContent: string): Record<string, unknown> | null {
   let parsed: unknown;
@@ -696,18 +799,6 @@ function filterManifestForWu(
     }
   }
   return { version: manifest.version, files };
-}
-
-async function isCommitReachableFromHead(
-  io: UserIOContext,
-  commit: string,
-): Promise<boolean> {
-  try {
-    await io.exec("git", ["merge-base", "--is-ancestor", commit, "HEAD"]);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function countCommitsSince(

@@ -101,8 +101,6 @@ export interface UserLoadResult {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the loaded ancestor note (0 when on HEAD). */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note. */
-  noteHistoryDistance?: number;
   /** Whether the annotated commit is reachable from current HEAD. */
   reachableFromHead?: boolean;
   /**
@@ -119,23 +117,14 @@ export interface UserLoadResult {
   messages: LoadMessage[];
 }
 
-/** Returned when ancestor walking hit its configured cap without finding a reachable note. */
-export interface UserLoadWalkExhausted {
-  kind: "walk-exhausted";
-  walked: number;
-  maxWalk: number;
-}
-
 /** Discriminated outcome of a user load or pull attempt. */
-export type UserLoadOutcome = UserLoadResult | UserLoadWalkExhausted;
+export type UserLoadOutcome = UserLoadResult;
 
 /** Options for the load operation. */
 export interface UserLoadOptions {
   cwd: string;
   io: UserIOContext;
   identity: string;
-  /** Maximum number of ancestor commits to walk. Defaults to DEFAULT_MAX_ANCESTOR_WALK. */
-  maxAncestorWalk?: number;
   /**
    * Bare work-unit name of the session's current WU (e.g. `worktree-foundation`),
    * derived from active-meta / branch by the caller. When set, note resolution
@@ -146,15 +135,12 @@ export interface UserLoadOptions {
   currentWuName?: string;
 }
 
-/** Structured return from the ancestor walk helper. */
+/** Structured return from user-note resolution. */
 export interface NearestNoteSearch {
   note: NearestUserNoteRef | null;
-  walked: number;
-  maxWalk: number;
-  capped: boolean;
 }
 
-/** A note discovered by walking the notes ref's own history. */
+/** A note selected from the annotated commits on the user notes ref. */
 export interface NearestUserNoteRef {
   content: string;
   /** Commit annotated by the user note. */
@@ -164,8 +150,6 @@ export interface NearestUserNoteRef {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the annotated commit when reachable. */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note. */
-  noteHistoryDistance: number;
 }
 
 /** Options for the add operation. */
@@ -448,7 +432,6 @@ export interface UserFetchOptions {
 /** Options for the pull operation. */
 export interface UserPullOptions extends UserFetchOptions {
   cwd: string;
-  maxAncestorWalk?: number;
   /** Current WU name forwarded to the post-fetch load. See {@link UserLoadOptions.currentWuName}. */
   currentWuName?: string;
 }
@@ -600,8 +583,6 @@ export interface UserStatusResult {
   savedFromAncestor: boolean;
   /** Commits between HEAD and the saved note (0 when the note is at HEAD). */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note, when known. */
-  noteHistoryDistance?: number;
   /** Whether the saved note's annotated commit is reachable from current HEAD, when known. */
   savedReachableFromHead?: boolean;
   /** Human-readable "N ago" phrasing for the note commit's author date, when known. */
@@ -674,7 +655,6 @@ export interface UserSessionLocalNoteFreshness {
    */
   commitShort: string | null;
   ancestorDistance: number;
-  noteHistoryDistance?: number;
   reachableFromHead?: boolean;
   /**
    * The branch HEAD is on — names the recognizable anchor for the

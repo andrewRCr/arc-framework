@@ -14,19 +14,16 @@
  * `This note is `).
  *
  * @param currentBranch - The branch HEAD is on, or `null` on a detached HEAD.
- * @param historyDetail - Optional trailing qualifier inserted after "history"
- *   (e.g. ` (2 note update(s) back)`); empty by default.
  * @returns The clause naming the branch and the benign cause.
  */
 export function noteOffBranchHistoryClause(
   currentBranch: string | null,
-  historyDetail = "",
 ): string {
   const where = currentBranch === null
     ? "this checkout's history (detached HEAD)"
     : `branch \`${currentBranch}\`'s history`;
   return (
-    `not in ${where}${historyDetail} — expected when the work was ` +
+    `not in ${where} — expected when the work was ` +
     "continued or integrated on another branch or machine"
   );
 }

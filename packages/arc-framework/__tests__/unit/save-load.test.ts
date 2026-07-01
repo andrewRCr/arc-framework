@@ -1,9 +1,8 @@
 /**
- * Unit tests for the save-load command layer (notes-ref history cap + diagnostic).
+ * Unit tests for the save-load command layer.
  *
- * Covers `findNearestUserNote`'s notes-ref history cap (default 1000), explicit
- * --max-walk override, and the discriminated walk-exhausted outcome surfaced
- * by `runUserLoad`.
+ * Covers `findNearestUserNote`'s user-note resolution plus the sync-state
+ * markers written by save/load.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -20,6 +19,7 @@ import {
   clearPartialPushMarker,
   getNotesLockPath,
   getOrCreateMachineId,
+  NO_COMPARABLE_SOURCE_COMMIT,
   readLocalSyncState,
   recordPartialPushMarker,
   writeLocalSyncState,
@@ -44,6 +44,13 @@ async function exists(path: string): Promise<boolean> {
 
 interface GitMockConfig {
   head?: string;
+  annotatedNoteCommits?: string[];
+  reachableHeadCommits?: string[];
+  maximalCommits?: string[];
+  localSyncState?: {
+    sourceCommit: string;
+    sourceOperation: "save" | "load";
+  };
   notesHistory?: string[];
   changedPathsByNoteCommit?: Record<string, string[]>;
   missingHistoryPaths?: string[];
@@ -56,14 +63,16 @@ interface GitMockConfig {
    * WU-subdir containment filtering. Falls back to `noteContent`.
    */
   noteContentByHistoryPath?: Record<string, string>;
-}
-
-function notePathFor(commit: string): string {
-  return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+  /** Per-note content keyed by annotated commit for `git notes show <commit>`. */
+  noteContentByCommit?: Record<string, string | null>;
 }
 
 function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [string, string[]][] } {
   const head = config.head ?? "h0";
+  const annotatedNoteCommits = config.annotatedNoteCommits ?? [];
+  const reachableHeadCommits = config.reachableHeadCommits ?? [];
+  const maximalCommits = config.maximalCommits ?? reachableHeadCommits;
+  const localSyncState = config.localSyncState;
   const notesHistory = config.notesHistory ?? [];
   const changedPathsByNoteCommit = config.changedPathsByNoteCommit ?? {};
   const missingHistoryPaths = new Set(config.missingHistoryPaths ?? []);
@@ -73,6 +82,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
     ? JSON.stringify({ version: 2, files: {} })
     : config.noteContent;
   const noteContentByHistoryPath = config.noteContentByHistoryPath ?? {};
+  const noteContentByCommit = config.noteContentByCommit ?? {};
 
   const execCalls: [string, string[]][] = [];
 
@@ -80,6 +90,22 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
     execCalls.push([cmd, args]);
     if (args[0] === "rev-parse" && args[1] === "HEAD") {
       return { stdout: head, stderr: "" };
+    }
+    if (args[0] === "notes" && args[2] === "list") {
+      return {
+        stdout: annotatedNoteCommits.map((commit) => `${"0".repeat(40)} ${commit}`).join("\n"),
+        stderr: "",
+      };
+    }
+    if (args[0] === "notes" && args[2] === "show") {
+      const commit = args[3] ?? "";
+      const content = Object.hasOwn(noteContentByCommit, commit)
+        ? noteContentByCommit[commit]
+        : noteContent;
+      if (content === null) {
+        throw new Error(`missing note: ${commit}`);
+      }
+      return { stdout: content ?? "", stderr: "" };
     }
     if (args[0] === "log") {
       const maxCountArg = args.find((arg) => arg.startsWith("--max-count="));
@@ -102,6 +128,12 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
       }
       return { stdout: noteContentByHistoryPath[historyPath] ?? noteContent ?? "", stderr: "" };
     }
+    if (args[0] === "rev-list" && args[1] === "HEAD") {
+      return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+    }
+    if (args[0] === "merge-base" && args[1] === "--independent") {
+      return { stdout: maximalCommits.join("\n"), stderr: "" };
+    }
     if (args[0] === "merge-base") {
       const commit = args[2] ?? "";
       if (!reachableCommits.has(commit)) {
@@ -118,7 +150,16 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
 
   const io: UserIOContext = {
     exec,
-    readFile: vi.fn(async () => ""),
+    readFile: vi.fn(async (filePath: string) => {
+      if (filePath.endsWith(".sync-state.json") && localSyncState !== undefined) {
+        return JSON.stringify({
+          version: 4,
+          materializedManifestHash: "hash",
+          ...localSyncState,
+        });
+      }
+      return "";
+    }),
     writeFile: vi.fn(async () => undefined),
     readDir: vi.fn(async () => []),
     mkdir: vi.fn(async () => undefined),
@@ -176,133 +217,128 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   };
 }
 
-describe("findNearestUserNote — notes-ref history walk", () => {
-  it("finds the newest note by walking note-ref history instead of HEAD ancestry", async () => {
-    const annotatedCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const { io, execCalls } = mockIO({
-      head: "head",
-      notesHistory: ["note-history-0"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [notePathFor(annotatedCommit)],
-      },
+describe("findNearestUserNote — causally-maximal reachable resolution", () => {
+  it("resolves a single reachable note", async () => {
+    const commit = "a".repeat(40);
+    const { io } = mockIO({
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
     });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(annotatedCommit);
-    expect(result.note!.noteHistoryDistance).toBe(0);
-    expect(result.note!.reachableFromHead).toBe(false);
-    expect(
-      execCalls.some(([, args]) => args[0] === "rev-list" && args.includes("HEAD")),
-    ).toBe(false);
+    expect(result.note?.commit).toBe(commit);
+    expect(result.note?.ancestorDistance).toBe(0);
+    expect(result.note?.fromAncestor).toBe(false);
+    expect(result.note?.reachableFromHead).toBe(true);
   });
 
-  it("applies default cap of 1000 to the note-ref history walk", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 1500 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    expect(log).toBeDefined();
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(maxCountIdx).toBeGreaterThan(-1);
-    expect(log![1][maxCountIdx + 1]).toBe("1000");
-  });
-
-  it("honors explicit maxAncestorWalk override smaller than default", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 50 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 10 });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(log![1][maxCountIdx + 1]).toBe("10");
-  });
-
-  it("honors explicit maxAncestorWalk override larger than default", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 5000 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 5000 });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(log![1][maxCountIdx + 1]).toBe("5000");
-  });
-
-  it("reports capped=true and walked=maxWalk when cap hit without match", async () => {
+  it("resolves the tip note from a reachable linear chain", async () => {
+    const older = "a".repeat(40);
+    const tip = "c".repeat(40);
     const { io } = mockIO({
-      head: "h0",
-      notesHistory: Array.from({ length: 1000 }, (_, i) => `note-history-${i}`),
+      head: tip,
+      annotatedNoteCommits: [older, tip],
+      reachableHeadCommits: [tip, older],
+      maximalCommits: [tip],
+      ancestorDistances: { [tip]: 0 },
     });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(tip);
+  });
+
+  it("keeps the descendant save when a later note update re-anchors an older commit", async () => {
+    const older = "a".repeat(40);
+    const descendant = "d".repeat(40);
+    const { io, execCalls } = mockIO({
+      head: descendant,
+      annotatedNoteCommits: [older, descendant],
+      reachableHeadCommits: [older, descendant],
+      maximalCommits: [descendant],
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(descendant);
+    expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
+  });
+
+  it("finds a reachable far-behind note without an ancestor-walk cap", async () => {
+    const farBehind = "f".repeat(40);
+    const head = "e".repeat(40);
+    const { io, execCalls } = mockIO({
+      head,
+      annotatedNoteCommits: [farBehind],
+      reachableHeadCommits: [head, farBehind],
+      maximalCommits: [farBehind],
+      ancestorDistances: { [farBehind]: 1500 },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(farBehind);
+    expect(result.note?.ancestorDistance).toBe(1500);
+    expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
+  });
+
+  it("reports no note without treating the candidate count as a walk cap", async () => {
+    const { io } = mockIO({ annotatedNoteCommits: [] });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
     expect(result.note).toBeNull();
-    expect(result.capped).toBe(true);
-    expect(result.walked).toBe(1000);
-    expect(result.maxWalk).toBe(1000);
   });
 
-  it("reports capped=false and returns the note when found within cap", async () => {
-    const annotatedCommit = "c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5";
+  it("resolves a concurrent maximal note named by the local sync-state pointer", async () => {
+    const siblingA = "a".repeat(40);
+    const siblingB = "b".repeat(40);
     const { io } = mockIO({
-      head: "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
-      notesHistory: ["note-history-0"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [notePathFor(annotatedCommit)],
-      },
-      reachableCommits: [annotatedCommit],
-      ancestorDistances: { [annotatedCommit]: 5 },
+      head: "f".repeat(40),
+      annotatedNoteCommits: [siblingA, siblingB],
+      reachableHeadCommits: [siblingA, siblingB],
+      maximalCommits: [siblingA, siblingB],
+      localSyncState: { sourceCommit: siblingB, sourceOperation: "save" },
     });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(annotatedCommit);
-    expect(result.note!.ancestorDistance).toBe(5);
-    expect(result.note!.fromAncestor).toBe(true);
-    expect(result.note!.reachableFromHead).toBe(true);
-    expect(result.note!.noteHistoryDistance).toBe(0);
-    expect(result.capped).toBe(false);
+    expect(result.note?.commit).toBe(siblingB);
   });
 
-  it("falls through deleted latest note entries to the newest readable note", async () => {
-    const deletedCommit = "dddddddddddddddddddddddddddddddddddddddd";
-    const previousCommit = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const deletedPath = notePathFor(deletedCommit);
-    const previousPath = notePathFor(previousCommit);
+  it("resolves the smallest SHA from a concurrent maximal set with no pointer match", async () => {
+    const smaller = "a".repeat(40);
+    const larger = "b".repeat(40);
     const { io } = mockIO({
-      notesHistory: ["note-history-0", "note-history-1"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [deletedPath],
-        "note-history-1": [previousPath],
-      },
-      missingHistoryPaths: [`note-history-0:${deletedPath}`],
+      head: "f".repeat(40),
+      annotatedNoteCommits: [larger, smaller],
+      reachableHeadCommits: [larger, smaller],
+      maximalCommits: [larger, smaller],
+      localSyncState: { sourceCommit: "c".repeat(40), sourceOperation: "save" },
     });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(previousCommit);
-    expect(result.note!.noteHistoryDistance).toBe(1);
-    expect(result.walked).toBe(2);
+    expect(result.note?.commit).toBe(smaller);
   });
 
-  it("reports capped=false and walked=0 when no notes ref exists", async () => {
-    const { io } = mockIO({ notesHistory: [] });
+  it("uses pointer membership for concurrent notes even when the pointer came from a load", async () => {
+    const smaller = "a".repeat(40);
+    const loaded = "b".repeat(40);
+    const { io } = mockIO({
+      head: "f".repeat(40),
+      annotatedNoteCommits: [smaller, loaded],
+      reachableHeadCommits: [smaller, loaded],
+      maximalCommits: [smaller, loaded],
+      localSyncState: { sourceCommit: loaded, sourceOperation: "load" },
+    });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).toBeNull();
-    expect(result.capped).toBe(false);
-    expect(result.walked).toBe(0);
+    expect(result.note?.commit).toBe(loaded);
   });
 });
 
@@ -310,15 +346,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
   const manifestJson = (files: Record<string, string>): string =>
     JSON.stringify({ version: 2, files });
 
-  it("resolves the most-recent note that carries the current WU's subdir", async () => {
+  it("resolves a reachable note that carries the current WU's subdir", async () => {
     const commit = "a".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({
           "wu-a/SESSION-NOTES.md": "notes",
           "WORKING-MEMORY.md": "mem",
         }),
@@ -332,18 +368,17 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note?.commit).toBe(commit);
   });
 
-  it("skips a newer note whose only subdir is a different WU", async () => {
-    const newer = "b".repeat(40);
-    const older = "c".repeat(40);
-    const newerPath = notePathFor(newer);
-    const olderPath = notePathFor(older);
+  it("skips a reachable note whose only subdir is a different WU", async () => {
+    const otherWu = "b".repeat(40);
+    const matchingWu = "c".repeat(40);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0", "nh1"],
-      changedPathsByNoteCommit: { nh0: [newerPath], nh1: [olderPath] },
-      noteContentByHistoryPath: {
-        [`nh0:${newerPath}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
-        [`nh1:${olderPath}`]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
+      head: matchingWu,
+      annotatedNoteCommits: [otherWu, matchingWu],
+      reachableHeadCommits: [otherWu, matchingWu],
+      maximalCommits: [matchingWu],
+      noteContentByCommit: {
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [matchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
       },
     });
 
@@ -351,19 +386,86 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
       cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
     });
 
-    expect(result.note?.commit).toBe(older);
-    expect(result.note?.noteHistoryDistance).toBe(1);
+    expect(result.note?.commit).toBe(matchingWu);
+  });
+
+  it("reads WU-filter content only for reachable candidates before reducing", async () => {
+    const unreachable = "a".repeat(40);
+    const otherWu = "b".repeat(40);
+    const olderMatchingWu = "c".repeat(40);
+    const latestMatchingWu = "d".repeat(40);
+    const { io, execCalls } = mockIO({
+      head: latestMatchingWu,
+      annotatedNoteCommits: [unreachable, otherWu, olderMatchingWu, latestMatchingWu],
+      reachableHeadCommits: [otherWu, olderMatchingWu, latestMatchingWu],
+      maximalCommits: [latestMatchingWu],
+      noteContentByCommit: {
+        [unreachable]: null,
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [olderMatchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "older" }),
+        [latestMatchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "latest" }),
+      },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    const noteShowCommits = execCalls
+      .filter(([, args]) => args[0] === "notes" && args[2] === "show")
+      .map(([, args]) => args[3]);
+    const reduceCall = execCalls.find(([, args]) => (
+      args[0] === "merge-base" && args[1] === "--independent"
+    ));
+
+    expect(result.note?.commit).toBe(latestMatchingWu);
+    expect(noteShowCommits).toEqual([otherWu, olderMatchingWu, latestMatchingWu]);
+    expect(reduceCall?.[1]).toEqual([
+      "merge-base", "--independent", olderMatchingWu, latestMatchingWu,
+    ]);
+  });
+
+  it("can resolve different commits for whole-tree and per-WU reads over the same notes", async () => {
+    const matchingWu = "a".repeat(40);
+    const otherWu = "b".repeat(40);
+    const sharedState = {
+      head: otherWu,
+      annotatedNoteCommits: [matchingWu, otherWu],
+      reachableHeadCommits: [matchingWu, otherWu],
+      noteContentByCommit: {
+        [matchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "own" }),
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "sibling" }),
+      },
+    };
+    const { io: wholeTreeIo } = mockIO({
+      ...sharedState,
+      maximalCommits: [otherWu],
+    });
+    const { io: perWuIo } = mockIO({
+      ...sharedState,
+      maximalCommits: [matchingWu],
+    });
+
+    const wholeTreeResult = await findNearestUserNote({
+      cwd: "/repo", io: wholeTreeIo, identity: "andrew",
+    });
+    const perWuResult = await findNearestUserNote({
+      cwd: "/repo", io: perWuIo, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(wholeTreeResult.note?.commit).toBe(otherWu);
+    expect(perWuResult.note?.commit).toBe(matchingWu);
   });
 
   it("does not import a prior WU's notes on a fresh spawn (other-WU-only note skipped)", async () => {
     const commit = "d".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
       },
     });
 
@@ -374,15 +476,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note).toBeNull();
   });
 
-  it("returns no note when no walked note carries the WU subdir", async () => {
+  it("returns no note when no reachable note carries the WU subdir", async () => {
     const commit = "e".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
       },
     });
 
@@ -393,15 +495,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note).toBeNull();
   });
 
-  it("returns the first note regardless of WU when currentWuName is absent", async () => {
+  it("returns the reachable-maximal note regardless of WU when currentWuName is absent", async () => {
     const commit = "f".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
       },
     });
 
@@ -411,24 +513,107 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
   });
 });
 
-describe("runUserLoad — walk-exhausted outcome", () => {
-  it("returns walk-exhausted with walked and maxWalk when cap hit without match", async () => {
+describe("findNearestUserNote — off-ancestry pointer fallback", () => {
+  const manifestJson = (files: Record<string, string>): string =>
+    JSON.stringify({ version: 2, files });
+
+  it("returns this machine's saved pointer note when no notes are reachable from HEAD", async () => {
+    const pointerCommit = "a".repeat(40);
     const { io } = mockIO({
-      notesHistory: Array.from({ length: 50 }, (_, i) => `note-history-${i}`),
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(pointerCommit);
+    expect(result.note?.reachableFromHead).toBe(false);
+    expect(result.note?.fromAncestor).toBe(false);
+    expect(result.note?.ancestorDistance).toBe(0);
+  });
+
+  it("applies the current-WU filter before returning the off-ancestry pointer note", async () => {
+    const pointerCommit = "a".repeat(40);
+    const matchingIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "wu-a/SESSION-NOTES.md": "notes" }),
+      },
+    }).io;
+    const nonmatchingIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [pointerCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: pointerCommit, sourceOperation: "save" },
+      noteContentByCommit: {
+        [pointerCommit]: manifestJson({ "other-wu/SESSION-NOTES.md": "notes" }),
+      },
+    }).io;
+
+    const matching = await findNearestUserNote({
+      cwd: "/repo", io: matchingIO, identity: "andrew", currentWuName: "wu-a",
+    });
+    const nonmatching = await findNearestUserNote({
+      cwd: "/repo", io: nonmatchingIO, identity: "andrew", currentWuName: "wu-a",
+    });
+
+    expect(matching.note?.commit).toBe(pointerCommit);
+    expect(matching.note?.reachableFromHead).toBe(false);
+    expect(nonmatching.note).toBeNull();
+  });
+
+  it("returns no note when nothing is reachable and no local save pointer applies", async () => {
+    const noteCommit = "a".repeat(40);
+    const noPointerIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [noteCommit],
+      reachableHeadCommits: [],
+      noteContentByCommit: {
+        [noteCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    }).io;
+    const loadPointerIO = mockIO({
+      head: "b".repeat(40),
+      annotatedNoteCommits: [noteCommit],
+      reachableHeadCommits: [],
+      localSyncState: { sourceCommit: noteCommit, sourceOperation: "load" },
+      noteContentByCommit: {
+        [noteCommit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      },
+    }).io;
+
+    const noPointer = await findNearestUserNote({ cwd: "/repo", io: noPointerIO, identity: "andrew" });
+    const loadPointer = await findNearestUserNote({ cwd: "/repo", io: loadPointerIO, identity: "andrew" });
+
+    expect(noPointer.note).toBeNull();
+    expect(loadPointer.note).toBeNull();
+  });
+});
+
+describe("runUserLoad — empty resolution", () => {
+  it("returns null when no reachable note and no recent note source exists", async () => {
+    const commit = "a".repeat(40);
+    const { io } = mockIO({
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [],
+      notesHistory: [],
     });
 
     const result = await runUserLoad({
       cwd: "/repo",
       io,
       identity: "andrew",
-      maxAncestorWalk: 50,
     });
 
-    expect(result).toEqual({
-      kind: "walk-exhausted",
-      walked: 50,
-      maxWalk: 50,
-    });
+    expect(result).toBeNull();
   });
 
   it("returns null when no notes ref exists", async () => {
@@ -751,6 +936,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (args[0] === "notes" && args[2] === "list") {
+        return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
+      }
+      if (args[0] === "notes" && args[2] === "show") {
+        return { stdout: noteContent, stderr: "" };
+      }
       if (args[0] === "log") {
         return { stdout: "note-history-0", stderr: "" };
       }
@@ -759,6 +950,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       }
       if (args[0] === "show") {
         return { stdout: noteContent, stderr: "" };
+      }
+      if (args[0] === "rev-list" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      if (args[0] === "merge-base" && args[1] === "--independent") {
+        return { stdout: head, stderr: "" };
       }
       if (args[0] === "merge-base") {
         return { stdout: "", stderr: "" };
@@ -869,17 +1066,39 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  function realFsLoadIO(manifest: SyncManifest): UserIOContext {
-    const head = "f".repeat(40);
+  function realFsLoadIO(
+    manifest: SyncManifest,
+    options: {
+      head?: string;
+      noteCommit?: string;
+      reachableHeadCommits?: string[];
+      branch?: string;
+    } = {},
+  ): UserIOContext {
+    const head = options.head ?? "f".repeat(40);
+    const noteCommit = options.noteCommit ?? head;
+    const reachableHeadCommits = options.reachableHeadCommits ?? [noteCommit];
+    const branch = options.branch ?? "fix/current";
     const noteContent = JSON.stringify(manifest);
-    const notePath = `${head.slice(0, 2)}/${head.slice(2)}`;
+    const notePath = `${noteCommit.slice(0, 2)}/${noteCommit.slice(2)}`;
     return {
       exec: vi.fn(async (cmd: string, args: string[]) => {
         if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: branch, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${noteCommit}`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show") return { stdout: noteContent, stderr: "" };
         if (args[0] === "log") return { stdout: "nh0", stderr: "" };
         if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
         if (args[0] === "show") return { stdout: noteContent, stderr: "" };
+        if (args[0] === "rev-list" && args[1] === "HEAD") return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+        if (args[0] === "merge-base" && args[1] === "--independent") {
+          return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+        }
         if (args[0] === "merge-base") return { stdout: "", stderr: "" };
         if (args[0] === "rev-list" && args[1] === "--count") return { stdout: "0", stderr: "" };
         throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -930,6 +1149,85 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     expect(result?.kind).toBe("loaded");
     expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
+  });
+
+  it("records a sentinel basis, not a notes-ref history commit, for cross-WU-only loads", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+        "WORKING-MEMORY.md": "mem",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "brand-new-wu" });
+
+    expect(result?.kind).toBe("loaded");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
+    const syncState = JSON.parse(
+      await readFile(join(cwd, SYNC_STATE_RELATIVE), "utf-8"),
+    ) as Record<string, unknown>;
+    expect(syncState.sourceCommit).toBe(NO_COMPARABLE_SOURCE_COMMIT);
+    expect(syncState.sourceCommit).not.toBe("nh0");
+  });
+
+  it("returns null instead of writing a sentinel sync state when no files are loadable", async () => {
+    const io = realFsLoadIO({
+      version: 2,
+      files: {
+        "wu-a/SESSION-NOTES.md": "a-notes",
+      },
+    });
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "brand-new-wu" });
+
+    expect(result).toBeNull();
+    expect(await exists(join(cwd, SYNC_STATE_RELATIVE))).toBe(false);
+  });
+
+  it("materializes an off-ancestry pointer fallback with current-WU filtering and branch labeling", async () => {
+    const head = "b".repeat(40);
+    const savedCommit = "a".repeat(40);
+    const io = realFsLoadIO(
+      {
+        version: 2,
+        files: {
+          "wu-a/SESSION-NOTES.md": "a-notes",
+          "wu-b/SESSION-NOTES.md": "b-notes",
+          "WORKING-MEMORY.md": "mem",
+        },
+      },
+      {
+        head,
+        noteCommit: savedCommit,
+        reachableHeadCommits: [],
+        branch: "fix/off-ancestry",
+      },
+    );
+    await writeLocalSyncState(
+      cwd, io, "andrew", "hash", savedCommit, "save", savedCommit,
+      ["wu-a/SESSION-NOTES.md", "wu-b/SESSION-NOTES.md", "WORKING-MEMORY.md"],
+    );
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "wu-a" });
+
+    expect(result).toMatchObject({
+      kind: "loaded",
+      reachableFromHead: false,
+      currentBranch: "fix/off-ancestry",
+      fromAncestor: false,
+      ancestorDistance: 0,
+    });
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(true);
+    expect(await readFile(join(userDir, "wu-a", "SESSION-NOTES.md"), "utf-8")).toBe("a-notes");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-b", "SESSION-NOTES.md"))).toBe(false);
+    const syncState = JSON.parse(
+      await readFile(join(cwd, SYNC_STATE_RELATIVE), "utf-8"),
+    ) as Record<string, unknown>;
+    expect(syncState.sourceCommit).toBe(savedCommit);
+    expect(syncState.sourceCommit).not.toBe(NO_COMPARABLE_SOURCE_COMMIT);
   });
 });
 

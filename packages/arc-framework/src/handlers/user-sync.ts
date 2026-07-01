@@ -46,7 +46,6 @@ type SyncAction = "noop" | "push" | "pull" | "load" | "push-load" | "conflict";
 
 export interface UserSyncOptions {
   yes?: boolean;
-  maxWalk?: number;
 }
 
 type DirectionParams = {
@@ -54,17 +53,11 @@ type DirectionParams = {
   io: ReturnType<typeof createUserIOContext>;
   identity: string;
   yes: boolean;
-  maxWalk?: number;
   restoreAfterPush?: boolean;
   recordPartialPushOnFailure?: boolean;
   /** Threaded into the pushability matrix for the notes-vs-worktree alignment probe. */
   worktreeBranch?: string;
 };
-
-function walkExhaustedMessage(walked: number): string {
-  return `walked ${walked} ancestors without finding a note; `
-    + "use --max-walk to search deeper or confirm remote state with arc user status";
-}
 
 export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> {
   p.intro("arc user sync");
@@ -100,7 +93,6 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
   }
   const action = decideSyncAction(state);
   const yes = Boolean(opts.yes);
-  const maxWalk = opts.maxWalk;
 
   switch (action) {
     case "noop":
@@ -118,18 +110,17 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         io,
         identity,
         yes,
-        maxWalk,
         recordPartialPushOnFailure: worktree?.state === "clean",
         worktreeBranch,
       });
       return;
     case "pull":
       p.log.info("→ Pulling the newer remote git note and restoring it to working files.");
-      await handlePullDirection({ cwd, io, identity, yes, maxWalk });
+      await handlePullDirection({ cwd, io, identity, yes });
       return;
     case "load":
       p.log.info("→ Restoring the local git note to working files.");
-      await handleLoadDirection({ cwd, io, identity, yes, maxWalk });
+      await handleLoadDirection({ cwd, io, identity, yes });
       return;
     case "push-load":
       p.log.info("→ Pushing the newer local git note, then restoring it to working files.");
@@ -138,14 +129,13 @@ export async function handleUserSync(opts: UserSyncOptions = {}): Promise<void> 
         io,
         identity,
         yes,
-        maxWalk,
         restoreAfterPush: true,
         recordPartialPushOnFailure: worktree?.state === "clean",
         worktreeBranch,
       });
       return;
     case "conflict":
-      await handleConflict({ cwd, io, identity, yes, maxWalk, worktreeBranch });
+      await handleConflict({ cwd, io, identity, yes, worktreeBranch });
       return;
   }
 }
@@ -245,7 +235,7 @@ async function degradeConflictToSaveOnly(params: DirectionParams): Promise<void>
 }
 
 async function handlePullDirection(params: DirectionParams): Promise<void> {
-  const { cwd, io, identity, yes, maxWalk } = params;
+  const { cwd, io, identity, yes } = params;
 
   const hasLocal = await hasLocalNotes(io, identity);
   if (hasLocal && !yes && !isNonInteractiveEnvironment()) {
@@ -268,19 +258,11 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
       io,
       identity,
       force: true,
-      maxAncestorWalk: maxWalk,
       currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
     if (!result) {
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (result.kind === "walk-exhausted") {
-      spinner.stop("Walk exhausted.");
-      p.log.warn(walkExhaustedMessage(result.walked));
       process.exitCode = 1;
       return;
     }
@@ -297,7 +279,7 @@ async function handlePullDirection(params: DirectionParams): Promise<void> {
 }
 
 async function handleLoadDirection(params: DirectionParams): Promise<void> {
-  const { cwd, io, identity, maxWalk } = params;
+  const { cwd, io, identity } = params;
   const spinner = p.spinner();
   spinner.start("Restoring git note to working files...");
 
@@ -306,19 +288,11 @@ async function handleLoadDirection(params: DirectionParams): Promise<void> {
       cwd,
       io,
       identity,
-      maxAncestorWalk: maxWalk,
       currentWuName: await resolveCurrentWuName(cwd, io.exec),
     });
     if (!result) {
       spinner.stop("No note found.");
       p.log.warn("No saved user directory found on HEAD or any reachable ancestor.");
-      process.exitCode = 1;
-      return;
-    }
-
-    if (result.kind === "walk-exhausted") {
-      spinner.stop("Walk exhausted.");
-      p.log.warn(walkExhaustedMessage(result.walked));
       process.exitCode = 1;
       return;
     }
