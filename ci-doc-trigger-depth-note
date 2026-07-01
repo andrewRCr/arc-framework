@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "ci-doc-trigger-depth-note",
+  "origin": "description",
+  "intent": "Route the live observation that branch-push CI can run heavy jobs for doc-only workflow changes despite PR classification skipping them.",
+  "branch": "chore/ci-doc-trigger-depth-note",
+  "createdAt": "2026-07-01T20:59:35.410Z"
+}
