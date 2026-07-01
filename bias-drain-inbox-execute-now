@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "bias-drain-inbox-execute-now",
+  "origin": "inbox",
+  "intent": "Bias drain-inbox classification toward executing genuine quick wins when execution is cheaper than route-plus-later-execute.",
+  "branch": "chore/bias-drain-inbox-execute-now",
+  "createdAt": "2026-07-01T20:48:34.109Z",
+  "originEntry": "Bias `drain-inbox` § 2 toward executing genuine quick wins over routing"
+}
