@@ -38,21 +38,15 @@ are integration-tested against a real temporary git repo, the tier that can exer
   intersection helper, exported it through the git barrel, and verified real ancestry plus unborn-HEAD behavior in
   `ancestry.test.ts`.
 
-### `[ ]` **1.3 Reduce a reachable set to its causally-maximal members**
+### `[x]` **1.3 Reduce a reachable set to its causally-maximal members**
 
 - _Goal:_ A reachable candidate set collapses to exactly its causally-maximal members — those no other member
   descends — in one `git merge-base --independent <commit>...` call (D5 step 3).
 
-    - Add the helper to `lib/git/ancestry.ts`; short-circuit 0- or 1-commit input to itself with no subprocess.
-      `merge-base --independent` is inherently distinct-safe, so no reflexive `X`-vs-`X` guard is needed.
-    - _Note:_ Never a pairwise `--is-ancestor` sweep — that is O(k²) spawns and degrades to O(n²) in the common
-      linear no-filter case (every note a HEAD ancestor).
-    - Integration-tested against a real temporary git repo (constructed commit graph), the tier that exercises
-      real reduction rather than a mocked fixture.
-    - Build `test-first` (one behavior at a time):
-        - A linear chain of reachable commits reduces to the single tip (the causally-latest).
-        - Genuine concurrents (pairwise non-ancestors) all survive the reduce.
-        - A 0- or 1-element input returns unchanged without invoking git.
+- _Outcome:_ Added `reduceCommitsToCausallyMaximal` in `lib/git/ancestry.ts` as the one-call
+  `merge-base --independent` reducer, preserving input order over git's independent set and short-circuiting
+  0- or 1-element inputs without spawning git. Real-git integration coverage verifies linear-chain and concurrent
+  commit graphs.
 
 ### `[ ]` **1.4 Read note content by annotated commit**
 

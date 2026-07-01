@@ -32,3 +32,30 @@ export async function filterCommitsReachableFromHead(
     return [];
   }
 }
+
+/**
+ * Reduce candidate commits to the members no other candidate descends.
+ *
+ * @param exec - Git executor.
+ * @param candidates - Reachable candidate commit shas to reduce.
+ * @returns Causally-maximal commits in input order, or `[]` when git cannot reduce them.
+ */
+export async function reduceCommitsToCausallyMaximal(
+  exec: GitExec,
+  candidates: string[],
+): Promise<string[]> {
+  if (candidates.length <= 1) return [...candidates];
+
+  try {
+    const { stdout } = await exec("git", ["merge-base", "--independent", ...candidates]);
+    const independent = new Set(
+      stdout
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean),
+    );
+    return candidates.filter((commit) => independent.has(commit));
+  } catch {
+    return [];
+  }
+}
