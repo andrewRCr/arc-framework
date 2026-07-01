@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "parallel-errands-finalize-note",
-  "origin": "description",
-  "intent": "Route the question of whether finalize-parallelism must support parallel errand worktrees or explicitly keep errands primary-worktree-only.",
-  "branch": "chore/parallel-errands-finalize-note",
-  "createdAt": "2026-07-01T21:10:12.053Z"
-}
