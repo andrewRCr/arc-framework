@@ -1,9 +1,8 @@
 /**
- * Unit tests for the save-load command layer (notes-ref history cap + diagnostic).
+ * Unit tests for the save-load command layer.
  *
- * Covers `findNearestUserNote`'s notes-ref history cap (default 1000), explicit
- * --max-walk override, and the discriminated walk-exhausted outcome surfaced
- * by `runUserLoad`.
+ * Covers `findNearestUserNote`'s user-note resolution plus the sync-state
+ * markers written by save/load.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -44,6 +43,9 @@ async function exists(path: string): Promise<boolean> {
 
 interface GitMockConfig {
   head?: string;
+  annotatedNoteCommits?: string[];
+  reachableHeadCommits?: string[];
+  maximalCommits?: string[];
   notesHistory?: string[];
   changedPathsByNoteCommit?: Record<string, string[]>;
   missingHistoryPaths?: string[];
@@ -56,14 +58,15 @@ interface GitMockConfig {
    * WU-subdir containment filtering. Falls back to `noteContent`.
    */
   noteContentByHistoryPath?: Record<string, string>;
-}
-
-function notePathFor(commit: string): string {
-  return `${commit.slice(0, 2)}/${commit.slice(2)}`;
+  /** Per-note content keyed by annotated commit for `git notes show <commit>`. */
+  noteContentByCommit?: Record<string, string | null>;
 }
 
 function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [string, string[]][] } {
   const head = config.head ?? "h0";
+  const annotatedNoteCommits = config.annotatedNoteCommits ?? [];
+  const reachableHeadCommits = config.reachableHeadCommits ?? [];
+  const maximalCommits = config.maximalCommits ?? reachableHeadCommits;
   const notesHistory = config.notesHistory ?? [];
   const changedPathsByNoteCommit = config.changedPathsByNoteCommit ?? {};
   const missingHistoryPaths = new Set(config.missingHistoryPaths ?? []);
@@ -73,6 +76,7 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
     ? JSON.stringify({ version: 2, files: {} })
     : config.noteContent;
   const noteContentByHistoryPath = config.noteContentByHistoryPath ?? {};
+  const noteContentByCommit = config.noteContentByCommit ?? {};
 
   const execCalls: [string, string[]][] = [];
 
@@ -80,6 +84,20 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
     execCalls.push([cmd, args]);
     if (args[0] === "rev-parse" && args[1] === "HEAD") {
       return { stdout: head, stderr: "" };
+    }
+    if (args[0] === "notes" && args[2] === "list") {
+      return {
+        stdout: annotatedNoteCommits.map((commit) => `${"0".repeat(40)} ${commit}`).join("\n"),
+        stderr: "",
+      };
+    }
+    if (args[0] === "notes" && args[2] === "show") {
+      const commit = args[3] ?? "";
+      const content = noteContentByCommit[commit] ?? noteContent;
+      if (content === null) {
+        throw new Error(`missing note: ${commit}`);
+      }
+      return { stdout: content ?? "", stderr: "" };
     }
     if (args[0] === "log") {
       const maxCountArg = args.find((arg) => arg.startsWith("--max-count="));
@@ -101,6 +119,12 @@ function mockIO(config: GitMockConfig = {}): { io: UserIOContext; execCalls: [st
         throw new Error(`missing history path: ${historyPath}`);
       }
       return { stdout: noteContentByHistoryPath[historyPath] ?? noteContent ?? "", stderr: "" };
+    }
+    if (args[0] === "rev-list" && args[1] === "HEAD") {
+      return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+    }
+    if (args[0] === "merge-base" && args[1] === "--independent") {
+      return { stdout: maximalCommits.join("\n"), stderr: "" };
     }
     if (args[0] === "merge-base") {
       const commit = args[2] ?? "";
@@ -176,127 +200,80 @@ function mockSaveIO(config: SaveMockConfig = {}): UserIOContext {
   };
 }
 
-describe("findNearestUserNote — notes-ref history walk", () => {
-  it("finds the newest note by walking note-ref history instead of HEAD ancestry", async () => {
-    const annotatedCommit = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-    const { io, execCalls } = mockIO({
-      head: "head",
-      notesHistory: ["note-history-0"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [notePathFor(annotatedCommit)],
-      },
-    });
-
-    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
-
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(annotatedCommit);
-    expect(result.note!.noteHistoryDistance).toBe(0);
-    expect(result.note!.reachableFromHead).toBe(false);
-    expect(
-      execCalls.some(([, args]) => args[0] === "rev-list" && args.includes("HEAD")),
-    ).toBe(false);
-  });
-
-  it("applies default cap of 1000 to the note-ref history walk", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 1500 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    expect(log).toBeDefined();
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(maxCountIdx).toBeGreaterThan(-1);
-    expect(log![1][maxCountIdx + 1]).toBe("1000");
-  });
-
-  it("honors explicit maxAncestorWalk override smaller than default", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 50 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 10 });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(log![1][maxCountIdx + 1]).toBe("10");
-  });
-
-  it("honors explicit maxAncestorWalk override larger than default", async () => {
-    const { io, execCalls } = mockIO({
-      notesHistory: Array.from({ length: 5000 }, (_, i) => `note-history-${i}`),
-    });
-
-    await findNearestUserNote({ cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 5000 });
-
-    const log = execCalls.find(([, args]) => args[0] === "log");
-    const maxCountIdx = log![1].indexOf("--max-count");
-    expect(log![1][maxCountIdx + 1]).toBe("5000");
-  });
-
-  it("reports capped=true and walked=maxWalk when cap hit without match", async () => {
+describe("findNearestUserNote — causally-maximal reachable resolution", () => {
+  it("resolves a single reachable note", async () => {
+    const commit = "a".repeat(40);
     const { io } = mockIO({
-      head: "h0",
-      notesHistory: Array.from({ length: 1000 }, (_, i) => `note-history-${i}`),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
     });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).toBeNull();
-    expect(result.capped).toBe(true);
-    expect(result.walked).toBe(1000);
-    expect(result.maxWalk).toBe(1000);
-  });
-
-  it("reports capped=false and returns the note when found within cap", async () => {
-    const annotatedCommit = "c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5c5";
-    const { io } = mockIO({
-      head: "c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0",
-      notesHistory: ["note-history-0"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [notePathFor(annotatedCommit)],
-      },
-      reachableCommits: [annotatedCommit],
-      ancestorDistances: { [annotatedCommit]: 5 },
-    });
-
-    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
-
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(annotatedCommit);
-    expect(result.note!.ancestorDistance).toBe(5);
-    expect(result.note!.fromAncestor).toBe(true);
-    expect(result.note!.reachableFromHead).toBe(true);
-    expect(result.note!.noteHistoryDistance).toBe(0);
+    expect(result.note?.commit).toBe(commit);
+    expect(result.note?.ancestorDistance).toBe(0);
+    expect(result.note?.fromAncestor).toBe(false);
+    expect(result.note?.reachableFromHead).toBe(true);
     expect(result.capped).toBe(false);
   });
 
-  it("falls through deleted latest note entries to the newest readable note", async () => {
-    const deletedCommit = "dddddddddddddddddddddddddddddddddddddddd";
-    const previousCommit = "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const deletedPath = notePathFor(deletedCommit);
-    const previousPath = notePathFor(previousCommit);
+  it("resolves the tip note from a reachable linear chain", async () => {
+    const older = "a".repeat(40);
+    const tip = "c".repeat(40);
     const { io } = mockIO({
-      notesHistory: ["note-history-0", "note-history-1"],
-      changedPathsByNoteCommit: {
-        "note-history-0": [deletedPath],
-        "note-history-1": [previousPath],
-      },
-      missingHistoryPaths: [`note-history-0:${deletedPath}`],
+      head: tip,
+      annotatedNoteCommits: [older, tip],
+      reachableHeadCommits: [tip, older],
+      maximalCommits: [tip],
+      ancestorDistances: { [tip]: 0 },
     });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
-    expect(result.note).not.toBeNull();
-    expect(result.note!.commit).toBe(previousCommit);
-    expect(result.note!.noteHistoryDistance).toBe(1);
-    expect(result.walked).toBe(2);
+    expect(result.note?.commit).toBe(tip);
   });
 
-  it("reports capped=false and walked=0 when no notes ref exists", async () => {
-    const { io } = mockIO({ notesHistory: [] });
+  it("keeps the descendant save when a later note update re-anchors an older commit", async () => {
+    const older = "a".repeat(40);
+    const descendant = "d".repeat(40);
+    const { io, execCalls } = mockIO({
+      head: descendant,
+      annotatedNoteCommits: [older, descendant],
+      reachableHeadCommits: [older, descendant],
+      maximalCommits: [descendant],
+    });
+
+    const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
+
+    expect(result.note?.commit).toBe(descendant);
+    expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
+  });
+
+  it("finds a reachable note regardless of the ancestor-walk cap", async () => {
+    const farBehind = "f".repeat(40);
+    const head = "e".repeat(40);
+    const { io, execCalls } = mockIO({
+      head,
+      annotatedNoteCommits: [farBehind],
+      reachableHeadCommits: [head, farBehind],
+      maximalCommits: [farBehind],
+      ancestorDistances: { [farBehind]: 1500 },
+    });
+
+    const result = await findNearestUserNote({
+      cwd: "/repo", io, identity: "andrew", maxAncestorWalk: 1,
+    });
+
+    expect(result.note?.commit).toBe(farBehind);
+    expect(result.note?.ancestorDistance).toBe(1500);
+    expect(result.capped).toBe(false);
+    expect(execCalls.some(([, args]) => args[0] === "log")).toBe(false);
+  });
+
+  it("reports no note without treating the candidate count as a walk cap", async () => {
+    const { io } = mockIO({ annotatedNoteCommits: [] });
 
     const result = await findNearestUserNote({ cwd: "/repo", io, identity: "andrew" });
 
@@ -310,15 +287,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
   const manifestJson = (files: Record<string, string>): string =>
     JSON.stringify({ version: 2, files });
 
-  it("resolves the most-recent note that carries the current WU's subdir", async () => {
+  it("resolves a reachable note that carries the current WU's subdir", async () => {
     const commit = "a".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({
           "wu-a/SESSION-NOTES.md": "notes",
           "WORKING-MEMORY.md": "mem",
         }),
@@ -332,18 +309,17 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note?.commit).toBe(commit);
   });
 
-  it("skips a newer note whose only subdir is a different WU", async () => {
-    const newer = "b".repeat(40);
-    const older = "c".repeat(40);
-    const newerPath = notePathFor(newer);
-    const olderPath = notePathFor(older);
+  it("skips a reachable note whose only subdir is a different WU", async () => {
+    const otherWu = "b".repeat(40);
+    const matchingWu = "c".repeat(40);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0", "nh1"],
-      changedPathsByNoteCommit: { nh0: [newerPath], nh1: [olderPath] },
-      noteContentByHistoryPath: {
-        [`nh0:${newerPath}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
-        [`nh1:${olderPath}`]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
+      head: matchingWu,
+      annotatedNoteCommits: [otherWu, matchingWu],
+      reachableHeadCommits: [otherWu, matchingWu],
+      maximalCommits: [matchingWu],
+      noteContentByCommit: {
+        [otherWu]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+        [matchingWu]: manifestJson({ "wu-a/SESSION-NOTES.md": "y" }),
       },
     });
 
@@ -351,19 +327,18 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
       cwd: "/repo", io, identity: "andrew", currentWuName: "wu-a",
     });
 
-    expect(result.note?.commit).toBe(older);
-    expect(result.note?.noteHistoryDistance).toBe(1);
+    expect(result.note?.commit).toBe(matchingWu);
   });
 
   it("does not import a prior WU's notes on a fresh spawn (other-WU-only note skipped)", async () => {
     const commit = "d".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "prior-wu/SESSION-NOTES.md": "old" }),
       },
     });
 
@@ -374,15 +349,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note).toBeNull();
   });
 
-  it("returns no note when no walked note carries the WU subdir", async () => {
+  it("returns no note when no reachable note carries the WU subdir", async () => {
     const commit = "e".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "WORKING-MEMORY.md": "mem" }),
       },
     });
 
@@ -393,15 +368,15 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
     expect(result.note).toBeNull();
   });
 
-  it("returns the first note regardless of WU when currentWuName is absent", async () => {
+  it("returns the reachable-maximal note regardless of WU when currentWuName is absent", async () => {
     const commit = "f".repeat(40);
-    const path = notePathFor(commit);
     const { io } = mockIO({
-      head: "head",
-      notesHistory: ["nh0"],
-      changedPathsByNoteCommit: { nh0: [path] },
-      noteContentByHistoryPath: {
-        [`nh0:${path}`]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
+      head: commit,
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [commit],
+      maximalCommits: [commit],
+      noteContentByCommit: {
+        [commit]: manifestJson({ "other-wu/SESSION-NOTES.md": "x" }),
       },
     });
 
@@ -411,24 +386,22 @@ describe("findNearestUserNote — WU-subdir containment filtering", () => {
   });
 });
 
-describe("runUserLoad — walk-exhausted outcome", () => {
-  it("returns walk-exhausted with walked and maxWalk when cap hit without match", async () => {
+describe("runUserLoad — empty resolution", () => {
+  it("returns null when no reachable note and no recent note source exists", async () => {
+    const commit = "a".repeat(40);
     const { io } = mockIO({
-      notesHistory: Array.from({ length: 50 }, (_, i) => `note-history-${i}`),
+      annotatedNoteCommits: [commit],
+      reachableHeadCommits: [],
+      notesHistory: [],
     });
 
     const result = await runUserLoad({
       cwd: "/repo",
       io,
       identity: "andrew",
-      maxAncestorWalk: 50,
     });
 
-    expect(result).toEqual({
-      kind: "walk-exhausted",
-      walked: 50,
-      maxWalk: 50,
-    });
+    expect(result).toBeNull();
   });
 
   it("returns null when no notes ref exists", async () => {
@@ -751,6 +724,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       if (args[0] === "rev-parse" && args[1] === "HEAD") {
         return { stdout: head, stderr: "" };
       }
+      if (args[0] === "notes" && args[2] === "list") {
+        return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
+      }
+      if (args[0] === "notes" && args[2] === "show") {
+        return { stdout: noteContent, stderr: "" };
+      }
       if (args[0] === "log") {
         return { stdout: "note-history-0", stderr: "" };
       }
@@ -759,6 +738,12 @@ function mockLoadIO(config: LoadMockConfig = {}): UserIOContext {
       }
       if (args[0] === "show") {
         return { stdout: noteContent, stderr: "" };
+      }
+      if (args[0] === "rev-list" && args[1] === "HEAD") {
+        return { stdout: head, stderr: "" };
+      }
+      if (args[0] === "merge-base" && args[1] === "--independent") {
+        return { stdout: head, stderr: "" };
       }
       if (args[0] === "merge-base") {
         return { stdout: "", stderr: "" };
@@ -877,9 +862,15 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
       exec: vi.fn(async (cmd: string, args: string[]) => {
         if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show") return { stdout: noteContent, stderr: "" };
         if (args[0] === "log") return { stdout: "nh0", stderr: "" };
         if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
         if (args[0] === "show") return { stdout: noteContent, stderr: "" };
+        if (args[0] === "rev-list" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "merge-base" && args[1] === "--independent") return { stdout: head, stderr: "" };
         if (args[0] === "merge-base") return { stdout: "", stderr: "" };
         if (args[0] === "rev-list" && args[1] === "--count") return { stdout: "0", stderr: "" };
         throw new Error(`unexpected git call: ${args.join(" ")}`);

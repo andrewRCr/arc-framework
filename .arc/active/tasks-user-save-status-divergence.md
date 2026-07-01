@@ -86,21 +86,15 @@ the injected boundary. See `spec-user-save-status-divergence.md` § Proposed Des
   `sourceOperation` pointer through its internal resolution input, leaving caller options and current selection
   behavior unchanged for the later reducer work.
 
-### `[ ]` **2.2 Reachable-maximal base resolution (singleton wins)**
+### `[x]` **2.2 Reachable-maximal base resolution (singleton wins)**
 
 - _Goal:_ Resolution returns the sole causally-maximal reachable note when the maximal set is a singleton — the
   unique causally-latest save — composing enumerate (1.1) → filter-reachable (1.2) → reduce (1.3) with no distance
   arithmetic, replacing the ref-history first-hit walk (D1, D2 steps 1 & 4).
 
-    - The git-plumbing composition gathers the candidate set, its reachability, the maximal set, and the pointer;
-      a **pure reducer** then decides the winner. The matrix behaviors below target the pure reducer over a
-      constructed candidate set — git is the injected boundary, not part of the unit under test.
-    - Build `test-first` (one behavior at a time):
-        - A single reachable note resolves to that note.
-        - A linear chain of reachable notes resolves to the tip (save on `A`, later save/pull on descendant `C`
-          → `C`, the sole maximal).
-        - A note re-anchored to an older commit after a newer save resolves to the descendant save — no regression.
-        - A reachable note far behind HEAD, with no near-HEAD note, is still found — no distance cap (SC4).
+- _Outcome:_ `findNearestUserNote` now enumerates annotated note commits, filters them to HEAD-reachable commits,
+  reduces through `merge-base --independent`, and resolves the singleton maximal note by annotated commit. Unit
+  coverage pins singleton, linear-chain tip, older re-anchor, and far-behind/no-cap behavior.
 
 ### `[ ]` **2.3 Concurrent tie-break: pointer membership, then smallest-SHA**
 

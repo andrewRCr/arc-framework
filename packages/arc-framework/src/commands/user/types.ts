@@ -146,7 +146,7 @@ export interface UserLoadOptions {
   currentWuName?: string;
 }
 
-/** Structured return from the ancestor walk helper. */
+/** Structured return from user-note resolution. */
 export interface NearestNoteSearch {
   note: NearestUserNoteRef | null;
   walked: number;
@@ -154,7 +154,7 @@ export interface NearestNoteSearch {
   capped: boolean;
 }
 
-/** A note discovered by walking the notes ref's own history. */
+/** A note selected from the annotated commits on the user notes ref. */
 export interface NearestUserNoteRef {
   content: string;
   /** Commit annotated by the user note. */
@@ -164,8 +164,8 @@ export interface NearestUserNoteRef {
   fromAncestor: boolean;
   /** Number of commits between HEAD and the annotated commit when reachable. */
   ancestorDistance: number;
-  /** Number of note-ref history entries walked before finding this note. */
-  noteHistoryDistance: number;
+  /** Number of note-ref history entries walked before finding this note, when known. */
+  noteHistoryDistance?: number;
 }
 
 /** Options for the add operation. */

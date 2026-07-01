@@ -3,7 +3,14 @@ import { join } from "node:path";
 import { createHash } from "node:crypto";
 
 import {
-  deserialize, getCurrentBranch, isSafeManifestPath, serialize, shortHash, type SyncManifest,
+  deserialize,
+  filterCommitsReachableFromHead,
+  getCurrentBranch,
+  isSafeManifestPath,
+  reduceCommitsToCausallyMaximal,
+  serialize,
+  shortHash,
+  type SyncManifest,
 } from "../../lib/git/index.js";
 import { ensureDir } from "../../lib/template/index.js";
 import {
@@ -30,10 +37,8 @@ import { readShippedWorkUnitsFromRef } from "../../lib/work-unit/completed-index
 import { readConfigSettings } from "../../lib/config/status-reader.js";
 import type { GitExec } from "../../lib/git/exec.js";
 import {
-  listChangedNotePaths,
-  notePathToCommit,
-  readNoteContentAtHistoryCommit,
-  readNotesRefHistory,
+  listAnnotatedNoteCommits,
+  readNoteContentAtAnnotatedCommit,
   readRecentUserNotes,
   type RecentNote,
 } from "../../lib/user-sync/notes-ref.js";
@@ -68,6 +73,11 @@ interface NearestUserNoteResolutionInput {
   currentWuName?: string;
   maxWalk: number;
   localSyncState: ResolutionPointer | null;
+}
+
+interface ReachableNoteCandidate {
+  commit: string;
+  content?: string;
 }
 
 /**
@@ -505,57 +515,86 @@ async function resolveNearestUserNote(
     headHash = "";
   }
 
-  const notesHistory = await readNotesRefHistory(io.exec, fullRef, maxWalk);
-  if (notesHistory.length === 0) {
+  const annotatedCommits = await listAnnotatedNoteCommits(io.exec, fullRef);
+  if (annotatedCommits.length === 0) {
     return { note: null, walked: 0, maxWalk, capped: false };
   }
 
-  for (const [index, noteHistoryCommit] of notesHistory.entries()) {
-    const changedPaths = await listChangedNotePaths(io.exec, noteHistoryCommit);
-    for (const path of changedPaths) {
-      const annotatedCommit = notePathToCommit(path);
-      if (!annotatedCommit) continue;
-
-      const content = await readNoteContentAtHistoryCommit(io.exec, noteHistoryCommit, path);
-      if (!content) continue;
-
-      // Per-WU isolation: when a current WU is in play, skip notes that don't
-      // carry its subdir so the walk resolves to that WU's own save, not an
-      // older sibling's. Absent a WU (existing non-load callers), take the
-      // first readable note as before.
-      if (currentWuName !== undefined && !noteManifestContainsWu(content, currentWuName)) {
-        continue;
-      }
-
-      const reachableFromHead = headHash.length > 0
-        ? await isCommitReachableFromHead(io, annotatedCommit)
-        : false;
-      const ancestorDistance = reachableFromHead
-        ? await countCommitsSince(io, annotatedCommit)
-        : 0;
-
-      return {
-        note: {
-          content,
-          commit: annotatedCommit,
-          reachableFromHead,
-          fromAncestor: reachableFromHead && annotatedCommit !== headHash,
-          ancestorDistance,
-          noteHistoryDistance: index,
-        },
-        walked: index + 1,
-        maxWalk,
-        capped: false,
-      };
-    }
+  const reachableCommits = await filterCommitsReachableFromHead(io.exec, annotatedCommits);
+  const reachableCandidates = await buildReachableNoteCandidates({
+    io,
+    fullRef,
+    reachableCommits,
+    currentWuName,
+  });
+  const maximalCommits = await reduceCommitsToCausallyMaximal(
+    io.exec,
+    reachableCandidates.map((candidate) => candidate.commit),
+  );
+  const selected = selectSingletonMaximalCandidate(reachableCandidates, maximalCommits);
+  if (!selected) {
+    return {
+      note: null,
+      walked: annotatedCommits.length,
+      maxWalk,
+      capped: false,
+    };
   }
 
+  const content = selected.content ?? await readNoteContentAtAnnotatedCommit(io.exec, fullRef, selected.commit);
+  if (content === null) {
+    return {
+      note: null,
+      walked: annotatedCommits.length,
+      maxWalk,
+      capped: false,
+    };
+  }
+
+  const ancestorDistance = await countCommitsSince(io, selected.commit);
+
   return {
-    note: null,
-    walked: notesHistory.length,
+    note: {
+      content,
+      commit: selected.commit,
+      reachableFromHead: true,
+      fromAncestor: selected.commit !== headHash,
+      ancestorDistance,
+    },
+    walked: annotatedCommits.length,
     maxWalk,
-    capped: notesHistory.length >= maxWalk,
+    capped: false,
   };
+}
+
+async function buildReachableNoteCandidates(input: {
+  io: UserIOContext;
+  fullRef: string;
+  reachableCommits: string[];
+  currentWuName: string | undefined;
+}): Promise<ReachableNoteCandidate[]> {
+  const { io, fullRef, reachableCommits, currentWuName } = input;
+  if (currentWuName === undefined) {
+    return reachableCommits.map((commit) => ({ commit }));
+  }
+
+  const candidates: ReachableNoteCandidate[] = [];
+  for (const commit of reachableCommits) {
+    const content = await readNoteContentAtAnnotatedCommit(io.exec, fullRef, commit);
+    if (content === null || !noteManifestContainsWu(content, currentWuName)) continue;
+    candidates.push({ commit, content });
+  }
+  return candidates;
+}
+
+function selectSingletonMaximalCandidate(
+  candidates: ReachableNoteCandidate[],
+  maximalCommits: string[],
+): ReachableNoteCandidate | null {
+  if (maximalCommits.length !== 1) return null;
+  const maximal = maximalCommits[0];
+  if (maximal === undefined) return null;
+  return candidates.find((candidate) => candidate.commit === maximal) ?? null;
 }
 
 /**
@@ -723,18 +762,6 @@ function filterManifestForWu(
     }
   }
   return { version: manifest.version, files };
-}
-
-async function isCommitReachableFromHead(
-  io: UserIOContext,
-  commit: string,
-): Promise<boolean> {
-  try {
-    await io.exec("git", ["merge-base", "--is-ancestor", commit, "HEAD"]);
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 async function countCommitsSince(
