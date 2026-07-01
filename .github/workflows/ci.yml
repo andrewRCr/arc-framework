@@ -34,6 +34,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      pull-requests: read
     outputs:
       lane: ${{ steps.c.outputs.lane }}
       weight: ${{ steps.c.outputs.weight }}
