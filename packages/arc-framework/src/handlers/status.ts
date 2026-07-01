@@ -104,6 +104,7 @@ import { assembleStatusUserView } from "../lib/status/assemble-user-view.js";
 import { resolveTaskListCursorFromFile } from "../lib/task-list/file-cursor.js";
 import { buildLifecycleIndex } from "../lib/work-unit/lifecycle-index.js";
 import { resolveSlugQuery, type SlugStateQuery } from "../lib/work-unit/lifecycle-query.js";
+import { createRecoverStatusProbes } from "./recover-probes.js";
 import { requireArcProjectRoot } from "./shared.js";
 
 export interface StatusCliOptions {
@@ -315,33 +316,13 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
       process.exitCode = 1;
       return;
     }
-    const resolvedSettingsP = resolveAllSettings({ cwd, exec: gitExec, readFile: io.readFile });
     const result = await runRecoverStatus({
       identity,
       role,
-      probes: {
-        worktree: async () => {
-          const resolved = await resolvedSettingsP;
-          const remoteSyncEnabled = resolved.settings["session.remote_sync"] === "enabled";
-          return runWorktreeSyncStatus({ exec: gitExec, remoteSyncEnabled });
-        },
-        worktreeIdentity: () => resolveWorktreeIdentity(gitExec),
+      probes: createRecoverStatusProbes({
+        cwd,
         dirty: () => runDirtyStateStatus({ exec: gitExec }),
-        extensions: () => runExtensionsSessionInitStatus({ cwd }),
-        config: async () => runConfigSessionInitStatus({ cwd, resolvedSettings: await resolvedSettingsP }),
-        active: (id, r) => runActiveSessionInitStatus({ cwd, identity: id, role: r, exec: gitExec }),
-        releaseRouting: async () => releaseRoutingFromSettings(await resolvedSettingsP),
-        cohortDoc: (activeMetaPath) => resolveActiveCohortDocPath({
-          cwd,
-          activeMetaPath,
-          fs: {
-            readFile: (path) => readFile(path, "utf8"),
-            pathExists: (path) => access(path).then(() => true, () => false),
-          },
-        }),
-        taskCursor: async (taskListPath) =>
-          resolveTaskListCursorFromFile({ cwd, taskListPath }),
-      },
+      }),
     });
     process.stdout.write(`${JSON.stringify(result)}\n`);
     return;
