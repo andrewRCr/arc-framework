@@ -6,7 +6,11 @@
 
 import { describe, it, expect } from "vitest";
 
-import { listAnnotatedNoteCommits, readRecentUserNotes } from "../../src/lib/user-sync/index.js";
+import {
+  listAnnotatedNoteCommits,
+  readNoteContentAtAnnotatedCommit,
+  readRecentUserNotes,
+} from "../../src/lib/user-sync/index.js";
 import type { GitExec } from "../../src/lib/git/index.js";
 
 /** A 40-char hex commit from a short hex seed. */
@@ -21,6 +25,8 @@ interface NotesConfig {
   pathsByHistory?: Record<string, string[]>;
   /** `"<historyCommit>:<path>"` → note blob content. */
   contentByShow?: Record<string, string>;
+  /** Annotated commit → note blob content. */
+  contentByAnnotatedCommit?: Record<string, string>;
   notesListOutput?: string;
   logThrows?: boolean;
   notesListThrows?: boolean;
@@ -31,6 +37,7 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
   const history = cfg.history ?? [];
   const paths = cfg.pathsByHistory ?? {};
   const content = cfg.contentByShow ?? {};
+  const annotatedContent = cfg.contentByAnnotatedCommit ?? {};
 
   const exec: GitExec = async (_cmd: string, args: string[]) => {
     calls.push(args);
@@ -53,6 +60,12 @@ function makeExec(cfg: NotesConfig = {}): { exec: GitExec; calls: string[][] } {
     if (args[0] === "notes" && args[2] === "list") {
       if (cfg.notesListThrows) throw new Error("no such ref");
       return { stdout: cfg.notesListOutput ?? "", stderr: "" };
+    }
+    if (args[0] === "notes" && args[2] === "show") {
+      const commit = args[3] ?? "";
+      const value = annotatedContent[commit];
+      if (value === undefined) throw new Error(`missing annotated note content: ${commit}`);
+      return { stdout: value, stderr: "" };
     }
     throw new Error(`unexpected git call: ${args.join(" ")}`);
   };
@@ -158,5 +171,34 @@ describe("listAnnotatedNoteCommits", () => {
 
     await expect(listAnnotatedNoteCommits(empty.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
     await expect(listAnnotatedNoteCommits(missing.exec, "refs/notes/arc/user/andrew")).resolves.toEqual([]);
+  });
+});
+
+describe("readNoteContentAtAnnotatedCommit", () => {
+  it("returns note content for an annotated commit that carries a note", async () => {
+    const commit = annotated("a1");
+    const manifest = JSON.stringify({ version: 2, files: { "WORKING-MEMORY.md": "note" } });
+    const { exec, calls } = makeExec({
+      contentByAnnotatedCommit: { [commit]: manifest },
+    });
+
+    const content = await readNoteContentAtAnnotatedCommit(
+      exec,
+      "refs/notes/arc/user/andrew",
+      commit,
+    );
+
+    expect(content).toBe(manifest);
+    expect(calls).toContainEqual(["notes", "--ref=refs/notes/arc/user/andrew", "show", commit]);
+  });
+
+  it("returns null when an annotated commit carries no readable note", async () => {
+    await expect(
+      readNoteContentAtAnnotatedCommit(
+        makeExec().exec,
+        "refs/notes/arc/user/andrew",
+        annotated("c3"),
+      ),
+    ).resolves.toBeNull();
   });
 });

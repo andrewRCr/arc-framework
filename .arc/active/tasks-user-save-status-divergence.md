@@ -48,18 +48,15 @@ are integration-tested against a real temporary git repo, the tier that can exer
   0- or 1-element inputs without spawning git. Real-git integration coverage verifies linear-chain and concurrent
   commit graphs.
 
-### `[ ]` **1.4 Read note content by annotated commit**
+### `[x]` **1.4 Read note content by annotated commit**
 
 - _Goal:_ A candidate's manifest content is read keyed on its **annotated commit** (`git notes --ref=<ref> show
   <commit>`) — the basis the per-WU predicate (D4) tests — never `readNoteContentAtHistoryCommit`, which keys on
   a notes-ref _history_ commit.
 
-    - Add the reader to `lib/user-sync/notes-ref.ts`; unreadable content returns `null` so the candidate is
-      skipped. Feeds `noteManifestContainsWu`.
-    - Unit-tested with an injected `exec` returning constructed `show` output.
-    - Build `test-first` (one behavior at a time):
-        - Returns the manifest content for an annotated commit that carries a note.
-        - Returns `null` when the commit carries no readable note.
+- _Outcome:_ Added `readNoteContentAtAnnotatedCommit` in `lib/user-sync/notes-ref.ts`, exported it through the
+  user-sync barrel, and covered `git notes show` content plus unreadable-note `null` behavior in
+  `user-sync-notes-ref.test.ts`.
 
 ---
 

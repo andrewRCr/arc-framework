@@ -87,6 +87,20 @@ export async function listAnnotatedNoteCommits(
   }
 }
 
+/** A note blob's content for an annotated commit, or `null` when unreadable. */
+export async function readNoteContentAtAnnotatedCommit(
+  exec: GitExec,
+  fullRef: string,
+  commit: string,
+): Promise<string | null> {
+  try {
+    const { stdout } = await exec("git", ["notes", `--ref=${fullRef}`, "show", commit]);
+    return stdout;
+  } catch {
+    return null;
+  }
+}
+
 /** The annotated commit a note path addresses, or `null` when the path isn't a note. */
 export function notePathToCommit(path: string): string | null {
   const commit = path.replaceAll("/", "");
