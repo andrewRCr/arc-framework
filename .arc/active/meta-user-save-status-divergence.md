@@ -1,8 +1,8 @@
 # Metadata: user-save-status-divergence
 
-| **State** | **Owner** | **Branch**                        | **Class** | **Priority** |
-| --------- | --------- | --------------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `fix/user-save-status-divergence` | `Heavy`   | `P2`         |
+| **State**     | **Owner** | **Branch**                        | **Class** | **Priority** |
+| ------------- | --------- | --------------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `fix/user-save-status-divergence` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-user-save-status-divergence.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 3.6 — Reproduction integration tests (save → land-older-note → status)
-- **Next Task:** Task 4.1 — `runUserLoad` materializes the off-ancestry pointer fallback (line ~216)
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
