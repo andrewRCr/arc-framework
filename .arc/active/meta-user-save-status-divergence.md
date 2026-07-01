@@ -1,17 +1,17 @@
 # Metadata: user-save-status-divergence
 
 | **State**  | **Owner** | **Branch**                         | **Class** | **Priority** |
-|------------|-----------|------------------------------------|-----------|--------------|
+| ---------- | --------- | ---------------------------------- | --------- | ------------ |
 | `Planning` | `andrew`  | `plan/user-save-status-divergence` | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
 
 - **Origin:** [internal]
-- **Design:** `draft-user-save-status-divergence.md`
+- **Design:** `spec-user-save-status-divergence.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** draft-design captured — resolution design settled (Class Heavy)
 - **Next Task:** [none]
 - **Blockers:** [none]
