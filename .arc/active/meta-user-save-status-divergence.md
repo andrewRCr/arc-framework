@@ -12,11 +12,11 @@
 - **Task List:** `tasks-user-save-status-divergence.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.3 — Concurrent tie-break: pointer membership, then smallest-SHA
-- **Next Task:** Task 2.4 — Per-WU filter as a candidacy predicate (line ~109)
+- **Last Completed:** Task 3.6 — Reproduction integration tests (save → land-older-note → status)
+- **Next Task:** Task 4.1 — `runUserLoad` materializes the off-ancestry pointer fallback (line ~216)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.4 — Per-WU filter as a candidacy predicate
+- **Next Action:** Start Task 4.1 — `runUserLoad` materializes the off-ancestry pointer fallback
 
 - **PR URL:** [none]
 - **Completed:** [none]
