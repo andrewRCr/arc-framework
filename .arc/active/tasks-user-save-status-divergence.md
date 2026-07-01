@@ -151,16 +151,15 @@ computes no history index, so it has no basis; settling it first unblocks the pr
   result surfaces. Off-ancestry status/load text now reports the commit and off-branch/history clause without the
   obsolete note-ref-history distance; tests keep resolution assertions while dropping the provenance field.
 
-### `[ ]` **3.2 `runUserStatus` / `savedCommit` projection**
+### `[x]` **3.2 `runUserStatus` / `savedCommit` projection**
 
 - _Goal:_ `arc user status` populates `savedCommit` / `savedFromAncestor` / `ancestorDistance` /
   `savedReachableFromHead` straight from the resolved result — the most user-visible consumer — reading `current`
   for a note reachable and at HEAD.
 
-    - `runUserStatus` already calls `findNearestUserNote({ cwd, io, identity })`; verify it inherits with no added
-      selection logic and the `savedCommit` path reads the resolved commit.
-    - Tests (coverage): reachable-at-HEAD → `current`; reachable-behind → `ancestorDistance > 0`; off-ancestry →
-      not `current`.
+- _Outcome:_ Added command-level `runUserStatus` coverage for HEAD-current, reachable-ancestor, and off-ancestry
+  saved-pointer resolutions. The tests pin the projected saved-note fields plus the current and off-branch detail
+  lines from the resolved note.
 
 ### `[ ]` **3.3 `inspectSessionLocalNoteFreshness` projection**
 

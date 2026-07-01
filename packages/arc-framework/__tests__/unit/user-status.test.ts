@@ -2437,6 +2437,163 @@ describe("runUserStatus worktree probe orchestration", () => {
   });
 });
 
+describe("runUserStatus saved-note projection", () => {
+  const userDir = "/repo/.arc/user/andrew";
+  const internalDir = `${userDir}/.internal`;
+  const localNotesRef = "refs/notes/arc/user/andrew";
+  const localNotesRefHash = "c".repeat(40);
+
+  interface ProjectionScenario {
+    head: string;
+    noteCommit: string;
+    reachableCommits: string[];
+    ancestorDistance: number;
+  }
+
+  function buildIO(scenario: ProjectionScenario): UserIOContext {
+    const noteFiles = { "SESSION-NOTES.md": "saved" };
+    const noteManifest = manifest(noteFiles);
+    const noteJSON = JSON.stringify(noteManifest);
+    const syncStateContent = JSON.stringify({
+      version: 4,
+      materializedManifestHash: hashSyncManifest(projectManifest(noteManifest)),
+      sourceCommit: scenario.noteCommit,
+      sourceOperation: "save",
+    });
+
+    return {
+      exec: async (cmd, args) => {
+        if (cmd !== "git") throw new Error(`unexpected cmd: ${cmd}`);
+        if (args[0] === "rev-parse" && args[1] === "HEAD" && args.length === 2) {
+          return { stdout: `${scenario.head}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--verify" && args[2] === localNotesRef) {
+          return { stdout: `${localNotesRefHash}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--short" && typeof args[2] === "string") {
+          return { stdout: `${args[2].slice(0, 7)}\n`, stderr: "" };
+        }
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: "feature/status-projection\n", stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "list") {
+          return { stdout: `${"0".repeat(40)} ${scenario.noteCommit}\n`, stderr: "" };
+        }
+        if (args[0] === "notes" && args[2] === "show" && args[3] === scenario.noteCommit) {
+          return { stdout: noteJSON, stderr: "" };
+        }
+        if (args[0] === "rev-list" && args[1] === "HEAD") {
+          return { stdout: `${scenario.reachableCommits.join("\n")}\n`, stderr: "" };
+        }
+        if (
+          args[0] === "rev-list"
+          && args[1] === "--count"
+          && args[2] === `${scenario.noteCommit}..HEAD`
+        ) {
+          return { stdout: `${scenario.ancestorDistance}\n`, stderr: "" };
+        }
+        if (args[0] === "show" && args[1] === "-s" && args[2] === "--format=%at") {
+          return { stdout: "1700000000\n", stderr: "" };
+        }
+        if (args[0] === "merge-base" && args[1] === "--is-ancestor" && args[3] === "HEAD") {
+          if (scenario.reachableCommits.includes(args[2] ?? "")) return { stdout: "", stderr: "" };
+          throw new Error("not an ancestor");
+        }
+        throw new Error(`unexpected git call: ${cmd} ${args.join(" ")}`);
+      },
+      readDir: async (dir) => {
+        if (dir === userDir) {
+          return Object.entries(noteFiles).map(([name, content]) => ({ name, size: content.length }));
+        }
+        if (dir === internalDir) return [];
+        return [];
+      },
+      readFile: async (path) => {
+        for (const [name, content] of Object.entries(noteFiles)) {
+          if (path === `${userDir}/${name}`) return content;
+        }
+        if (path === `${internalDir}/.sync-state.json`) return syncStateContent;
+        throw new Error(`ENOENT: ${path}`);
+      },
+      writeFile: async () => {},
+      mkdir: async () => undefined,
+      writeNote: async () => {},
+      readNote: async () => null,
+    };
+  }
+
+  it("projects a reachable note at HEAD as current", async () => {
+    const head = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit: head,
+        reachableCommits: [head],
+        ancestorDistance: 0,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(head.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(false);
+    expect(result.ancestorDistance).toBe(0);
+    expect(result.savedReachableFromHead).toBe(true);
+    expect(result.detailLines).toContain("Latest local user note is current with HEAD.");
+  });
+
+  it("projects a reachable ancestor note with its distance from HEAD", async () => {
+    const head = "b".repeat(40);
+    const noteCommit = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit,
+        reachableCommits: [head, noteCommit],
+        ancestorDistance: 4,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(noteCommit.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(true);
+    expect(result.ancestorDistance).toBe(4);
+    expect(result.savedReachableFromHead).toBe(true);
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, 4 commit(s) back from HEAD.",
+    );
+  });
+
+  it("projects an off-ancestry saved pointer without reporting it current", async () => {
+    const head = "b".repeat(40);
+    const noteCommit = "a".repeat(40);
+    const result = await runUserStatus({
+      cwd: "/repo",
+      io: buildIO({
+        head,
+        noteCommit,
+        reachableCommits: [head],
+        ancestorDistance: 0,
+      }),
+      identity: "andrew",
+      offline: true,
+    });
+
+    expect(result.savedCommit).toBe(noteCommit.slice(0, 7));
+    expect(result.savedFromAncestor).toBe(false);
+    expect(result.ancestorDistance).toBe(0);
+    expect(result.savedReachableFromHead).toBe(false);
+    expect(result.detailLines).toContain(
+      "Latest local user note is from aaaaaaa, not in branch `feature/status-projection`'s history — " +
+      "expected when the work was continued or integrated on another branch or machine.",
+    );
+    expect(result.detailLines).not.toContain("Latest local user note is current with HEAD.");
+  });
+});
+
 describe("runUserStatus bounded notes-ref fetch", () => {
   const localHash = "a".repeat(40);
   const remoteHash = "b".repeat(40);
