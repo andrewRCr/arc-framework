@@ -1071,23 +1071,39 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     await rm(cwd, { recursive: true, force: true });
   });
 
-  function realFsLoadIO(manifest: SyncManifest): UserIOContext {
-    const head = "f".repeat(40);
+  function realFsLoadIO(
+    manifest: SyncManifest,
+    options: {
+      head?: string;
+      noteCommit?: string;
+      reachableHeadCommits?: string[];
+      branch?: string;
+    } = {},
+  ): UserIOContext {
+    const head = options.head ?? "f".repeat(40);
+    const noteCommit = options.noteCommit ?? head;
+    const reachableHeadCommits = options.reachableHeadCommits ?? [noteCommit];
+    const branch = options.branch ?? "fix/current";
     const noteContent = JSON.stringify(manifest);
-    const notePath = `${head.slice(0, 2)}/${head.slice(2)}`;
+    const notePath = `${noteCommit.slice(0, 2)}/${noteCommit.slice(2)}`;
     return {
       exec: vi.fn(async (cmd: string, args: string[]) => {
         if (cmd !== "git") throw new Error(`unexpected exec: ${cmd}`);
         if (args[0] === "rev-parse" && args[1] === "HEAD") return { stdout: head, stderr: "" };
+        if (args[0] === "rev-parse" && args[1] === "--abbrev-ref" && args[2] === "HEAD") {
+          return { stdout: branch, stderr: "" };
+        }
         if (args[0] === "notes" && args[2] === "list") {
-          return { stdout: `${"0".repeat(40)} ${head}`, stderr: "" };
+          return { stdout: `${"0".repeat(40)} ${noteCommit}`, stderr: "" };
         }
         if (args[0] === "notes" && args[2] === "show") return { stdout: noteContent, stderr: "" };
         if (args[0] === "log") return { stdout: "nh0", stderr: "" };
         if (args[0] === "diff-tree") return { stdout: notePath, stderr: "" };
         if (args[0] === "show") return { stdout: noteContent, stderr: "" };
-        if (args[0] === "rev-list" && args[1] === "HEAD") return { stdout: head, stderr: "" };
-        if (args[0] === "merge-base" && args[1] === "--independent") return { stdout: head, stderr: "" };
+        if (args[0] === "rev-list" && args[1] === "HEAD") return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+        if (args[0] === "merge-base" && args[1] === "--independent") {
+          return { stdout: reachableHeadCommits.join("\n"), stderr: "" };
+        }
         if (args[0] === "merge-base") return { stdout: "", stderr: "" };
         if (args[0] === "rev-list" && args[1] === "--count") return { stdout: "0", stderr: "" };
         throw new Error(`unexpected git call: ${args.join(" ")}`);
@@ -1138,6 +1154,45 @@ describe("runUserLoad — per-WU subdir materialization filtering", () => {
     expect(result?.kind).toBe("loaded");
     expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
     expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(false);
+  });
+
+  it("materializes an off-ancestry pointer fallback with current-WU filtering and branch labeling", async () => {
+    const head = "b".repeat(40);
+    const savedCommit = "a".repeat(40);
+    const io = realFsLoadIO(
+      {
+        version: 2,
+        files: {
+          "wu-a/SESSION-NOTES.md": "a-notes",
+          "wu-b/SESSION-NOTES.md": "b-notes",
+          "WORKING-MEMORY.md": "mem",
+        },
+      },
+      {
+        head,
+        noteCommit: savedCommit,
+        reachableHeadCommits: [],
+        branch: "fix/off-ancestry",
+      },
+    );
+    await writeLocalSyncState(
+      cwd, io, "andrew", "hash", savedCommit, "save", savedCommit,
+      ["wu-a/SESSION-NOTES.md", "wu-b/SESSION-NOTES.md", "WORKING-MEMORY.md"],
+    );
+
+    const result = await runUserLoad({ cwd, io, identity: "andrew", currentWuName: "wu-a" });
+
+    expect(result).toMatchObject({
+      kind: "loaded",
+      reachableFromHead: false,
+      currentBranch: "fix/off-ancestry",
+      fromAncestor: false,
+      ancestorDistance: 0,
+    });
+    expect(await exists(join(userDir, "wu-a", "SESSION-NOTES.md"))).toBe(true);
+    expect(await readFile(join(userDir, "wu-a", "SESSION-NOTES.md"), "utf-8")).toBe("a-notes");
+    expect(await exists(join(userDir, "WORKING-MEMORY.md"))).toBe(true);
+    expect(await exists(join(userDir, "wu-b", "SESSION-NOTES.md"))).toBe(false);
   });
 });
 

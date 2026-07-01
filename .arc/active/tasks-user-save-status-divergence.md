@@ -215,19 +215,15 @@ lands green-per-phase — 4.3 stops producing `walk-exhausted` and retires the c
 the union member; 4.4 removes the member and its four consumers atomically. See
 `spec-user-save-status-divergence.md` § Proposed Design (D8, D10, D5).
 
-### `[ ]` **4.1 `runUserLoad` materializes the off-ancestry pointer fallback**
+### `[x]` **4.1 `runUserLoad` materializes the off-ancestry pointer fallback**
 
 - _Goal:_ `arc user load` materializes whatever the primitive resolves — including a `reachableFromHead: false`
   pointer fallback (per-WU filter preserved) — so single-machine cross-branch resume is not lost, labeled
   off-ancestry, never presented as current (D8).
 
-    - `runUserLoad` already materializes `search.note`; ensure the off-ancestry fallback note materializes and the
-      `reachableFromHead` / off-ancestry `currentBranch` labeling holds.
-    - _Note:_ This and 4.3 co-edit `runUserLoad`'s result-handling block (`save-load.ts:135–159`) — 4.3 removes the
-      `walk-exhausted` branch from it; sequence 4.3's removal with this fallback-materialization so the block is
-      touched coherently.
-    - Tests (coverage): an off-ancestry `save` fallback materializes the pointer note, labeled off-ancestry; the
-      per-WU filter is preserved on that path.
+- _Outcome:_ Added `runUserLoad` regression coverage proving an off-ancestry saved-pointer fallback materializes the
+  current WU plus cross-WU files, filters out other WU subdirs, and returns the off-ancestry branch label. The
+  existing implementation already satisfied the behavior.
 
 ### `[ ]` **4.2 `sourceCommit` basis is never a history commit**
 
