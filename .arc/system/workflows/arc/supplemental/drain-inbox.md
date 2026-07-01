@@ -95,6 +95,10 @@ plan the interlock (§ 3) confirms. Resolve, per entry:
   committed to sequencing the WU?), not maturity. A drain is a mechanical routing, not the maintainer-commitment
   moment, so an un-vetted capture defaults to `provisional`; a capture the maintainer commits to at the interlock
   warrants `planned`. The user decides; never hard-default silently.
+- **Execute-now bias.** When an atomic is a genuine quick win and executing it now is cheaper than routing plus a
+  later session, prefer **execute-now** over defer. Keep the bias bounded by errand character: if it crosses a
+  wrapper floor, reclassify to a stub; if context budget cannot carry it now, choose defer or fresh-session
+  execute-bound per § 6.
 - **Atomic disposition.** For each atomic, propose **execute-now**, **defer**, or **retain** (the escape-hatch) —
   acted on in § 5 / § 6.
 
