@@ -148,6 +148,50 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
   no `## Method Dependencies` row applies to the rubric-running relationship. Verified the two method copies are
   byte-identical; package-sync cleanliness is covered by the staged pre-commit script.
 
+### `[x]` **1.8 Exempt pre-wiring methods from the trigger-coverage audit**
+
+- _Goal:_ CI is green on a branch where a method legitimately lands ahead of its workflow wiring —
+  `audit-method-triggers` carries an explicit, temporary `WIRING_PENDING` allowlist (holding `adversarial-review`
+  until Phase 4 declares it) and flags any allowlisted method as stale the moment its first declaration lands, so
+  an entry cannot outlive the wiring it waits on.
+
+- _Outcome:_ `audit()` takes the allowlist as a defaulted parameter (tests inject their own), and the stale check
+  makes removal mechanical: Phase 4's first declaration turns the lingering entry into a CI failure naming it.
+
+### `[ ]` **1.9 Reshape the invocation contract to the liftable-signature form**
+
+- _Goal:_ the method reads as a declaration — signature leads, contract blocks parse, names carry code-variable
+  discipline — without minting frontmatter schema (that surface stays downstream; the body contract becomes a
+  mechanical lift when its schema arrives).
+
+    - `[ ]` **1.9.a Signature leads**
+        - Reorder the invocation-contract section to callsite signature → named inputs → return schema → prompt
+          template; add the one-line signature to the header blockquote; fold the duplicated runtime-loop statement
+          to one.
+
+    - `[ ]` **1.9.b Valid-YAML contract blocks + naming pass**
+        - Make the callsite and report-schema fences valid YAML (prose hints as comments). Rename for
+          one-concept-one-name and uniform kebab-case: `passBudget` → `pass-cap`, `artifact-locus` → `locus`,
+          `failure-rationale` → `rationale`, `what-held-up-under-attack` → `withstood`, `certification-verdict` →
+          `verdict`, `partitionMap` → `partition-map` — the last also joining the named-inputs table, marked
+          partitioned-pass-only.
+
+    - `[ ]` **1.9.c Canonical fire-point block**
+        - Document the callsite's control-point shape alongside the signature: `[!IMPORTANT]` callout with a
+          backticked `adversarial-review` method lead naming the advisory posture (surfacing the offer is
+          non-skippable; the user decides, decline proceeds), then the instantiated YAML arg-block. Mandatory
+          method calls stay unmarked fence-only; no new alert type is minted.
+
+    - `[ ]` **1.9.d Spec amendment + coordination-seam enrichment**
+        - Amend `spec-adversarial-review.md` D2 to the renamed contract fields; enrich the § Cross-cutting
+          `composable-workflows` bullet with the exemplar specifics (valid-YAML fences, the
+          method-name-as-top-level-key callsite invariant, the stop/fire callout grammar, the blockquote signature
+          line); file the matching `USER-INBOX` capture (`WU_Target: composable-workflows`).
+
+    - `[ ]` **1.9.e Reconcile both copies**
+        - `adversarial-review.md` byte-identical across `packages/arc-framework/arc/` and `.arc/`; sync check
+          clean.
+
 ## **Phase 2:** Rubric consolidation — the rubrics the mechanism runs
 
 _Purpose:_ Consolidate the rubrics into public methods: mint `design-audit`, extract `task-audit` from its skill
@@ -284,8 +328,9 @@ spec + generate-tasks / `Novel` all four (strongest framing). Each callsite is a
 `arc.methods` frontmatter declaration — **not** a `` · `#name` `` extension-fire-point marker (that marker is
 extension-only and hook-validated). Every launch stays per-invocation declinable. Each fire-point's `artifacts`
 includes authoring that boundary's non-exhaustive key-file pointer list (OQ2) — a wiring-time deliverable, not
-just the artifact chain. Detail:
-`spec-adversarial-review.md` § D5.
+just the artifact chain. The first `arc.methods` declaration to land also removes `adversarial-review` from
+`audit-method-triggers.ts`'s `WIRING_PENDING` allowlist (Task 1.8) — the audit flags the entry stale once any
+declaration exists. Detail: `spec-adversarial-review.md` § D5.
 
 ### `[ ]` **4.1 Wire the draft-readiness fire-point in `draft-design`**
 
