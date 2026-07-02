@@ -121,6 +121,11 @@ marshals args into the prompt template, spawns the pass, and verifies returned f
 | `passBudget`    | `Class`-scaled | The `Class`-scaled pass cap (D4) — set by `Class`, uniform across fire-points.                  |
 | `priorFindings` | pass ≥ 2       | Prior findings + the fixes applied to them. A deliberate **non-input on pass 1** (D6, fork F3). |
 
+Of these, `rubric` / `artifacts` / `orientation` / `priorFindings` are **subagent-context inputs** — serialized
+into each pass's prompt. `passBudget` is **not**: it is a **primary-side loop bound** the runtime applies to cap
+how many passes it spawns. The primary owns the loop — it spawns each pass, applies the exit gate (D4), and bounds
+the run by `passBudget`; a subagent performs exactly one pass and never sees the loop state.
+
 **Return type** (the output half of the contract; field-tested in the spec-stage prototype). Per finding:
 
 - `title` — one line.
@@ -137,8 +142,8 @@ Plus two **report-level** fields:
 - `certification-verdict` — a one-line verdict keyed to the fire-point's gate question (see D4 for the
   clean-vs-converged distinction it must express).
 
-**Prompt template** — owned by the method; serializes the inputs into the subagent's context and hard-codes the
-two disciplines that made the prototypes work: **fresh context per pass** and
+**Prompt template** — owned by the method; serializes the **subagent-context inputs** (not `passBudget`) into the
+subagent's context and hard-codes the two disciplines that made the prototypes work: **fresh context per pass** and
 **primary-verifies-findings-against-source**. Portable across harnesses (no per-harness profile — NG2, D8).
 
 ### D3 — Severity model (fixed core enum, rubric-interpreted)
