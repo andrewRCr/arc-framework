@@ -1,11 +1,25 @@
 # Draft: Workflow Template Loads (`arc.templates` Frontmatter)
 
+> **Re-scoped 2026-07-02** (agent-context-optimization grooming): `composable-workflows` D1 now owns the
+> **declaration-family schema** (eager `methods`, fire-point-gated `extensions`, arm-gated conditional
+> entries, authored-from `templates`); this WU is the `templates` key's **executor** — add the key per the
+> settled schema, audit authoring workflows, add role-1/role-2 declarations, retire body-prose load
+> directives. The § Graduation Trigger below is superseded by sequencing: this WU activates after
+> `composable-workflows` D1 settles (`Depends On` updated). Design content below remains valid as the
+> executor's brief — the three-role model (author-from / edit-conformant-to / see-also) carries into D1's
+> schema design as-is.
+
 ## Inbound Buffer — Pending Integration
 
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
-### `[ ]` **Distinguish eager method loading from active-gated extension checking**
+### `[x]` **Distinguish eager method loading from active-gated extension checking**
+
+- _Disposition (2026-07-02):_ Routed to `composable-workflows` D1 — the declaration-family schema rewrite
+  of `strategy-workflow-authoring.md` states the split verbs (`methods` load eagerly, `extensions` are
+  checked at fire points) as part of settling the family; the `DEV-RULES.ARC` wording fix rides the same
+  change. Original capture preserved below.
 
 - _Routed from:_ `USER-INBOX § Atomic`, housekeep drain (2026-06-10); captured during `init-work-unit` for
   `decomposition-machinery`.

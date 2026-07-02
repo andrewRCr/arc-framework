@@ -60,7 +60,10 @@ A workflow is authored as a signature-led contract plus a bounded spine:
   **conditional declaration** (arm- or `sessionType`-gated entries), so on-demand method needs are declared
   and point-scanner-validated instead of hand-written prose loads (surfaced by `assess-parallel-fit`'s
   prose-load wiring in session-init). Candidate addition: declared probe inputs — which envelope slots the
-  workflow consumes.
+  workflow consumes. **D1 settles the whole declaration family's schema** — eager `methods`,
+  fire-point-gated `extensions`, arm-gated conditional entries, and the authored-from `templates` key
+  (`draft-workflow-template-loads.md` re-scopes as that key's executor; its eager-vs-gated wording fix
+  rides this strategy rewrite).
 - **One-line signature** in a leading blockquote, `adversarial-review`-style:
   `session-init(probe) → oriented session`.
 - **Bounded spine**: the invariant step sequence, with a hard structural budget (CI-checkable — ARC already
@@ -204,6 +207,44 @@ stays, by design (the resilience path can't depend on the thing that failed).
   `out-of-wu-entry` — the signal-dispatch leaf and gate-suppressed `draft-design` entry become a
   conditional-fragment skip), and `handoff-optimization`'s lightweight errand/housekeep handoff paths.
 
+**Invocation shape (settled 2026-07-02).** Three decisions, one residue:
+
+1. **The agenda rides the envelope** — one probe run returns state + agenda; no second call, no double
+   probe cost. (The `loadSet` slice already lives there.)
+2. **The call accepts invocation signals** — repeated `--signal k=v` (e.g. `plan=<stub>`, `next`,
+   `start=<slug>`, and finding-5 overrides like `session-type=planning`); the skill invocation templates
+   pass them through. Signal-absent remains the default compile.
+3. **Recompile = re-invoke the same call with accumulated signals** — the arm-mutation and invalidation
+   patterns need no second mechanism.
+
+Residue: the spelling. Lean: a dedicated `arc agenda <ceremony>` verb over the *same handler* — compile
+is a first-class, repeated operation once recompile exists, and signals on a `status` verb are semantic
+drift — with `arc status --session-init` retained unchanged as the signal-less read and the degradation
+path. Acceptable fallback: flags on the existing verb. Final call at spec; nothing downstream depends on
+the spelling.
+
+**`offer` encoding (settled 2026-07-02).** Fixture: the combined sync prompt. Shape:
+
+```yaml
+- offer:
+    id: sync-combined
+    text:            # precomposed (recommendedCombinedPrompt); the agent never writes offer prose
+    choices:
+      - {label: pull both,     exec: "git pull --ff-only && arc user pull"}
+      - {label: worktree only, exec: "git pull --ff-only", recompile: true}
+      - {label: notes only,    exec: "arc user pull", recompile: true}
+      - {label: skip}          # bare choice = no-op; decline is always an explicit choice
+```
+
+Rules: choices are a flat closed set; a choice carries **zero or one step** as payload, reusing the step
+vocabulary (`exec`, occasionally `fragment` — branch-gone recovery's accept enters the recovery
+fragment); no offer-in-offer nesting — a follow-up interaction means the payload is a fragment.
+`recompile: true` on a choice encodes today's "re-probe when post-state ambiguity matters" judgment as a
+compile-time decision (the combined-accept case omits it, matching the current skip-re-probe rule).
+Free-text elicitation (bare `--errand`) is **not** an offer — closed choices only; elicitation lives
+fragment-interior. The same offer shape is reusable *inside* fragments (source differs — compiler-emitted
+vs. fragment-rendered — encoding doesn't).
+
 **Loops don't compile agendas.** A loop-style workflow (`process-task-loop`) is a *resident* grounding
 procedure plus event-triggered sub-protocols, not a once-through sequence — there is no session-time
 instance to compile. Loops take D1 + D2 only: a thin resident core (small *because* it stays in context
@@ -220,9 +261,18 @@ demoting constraints. (`loadset-composition` owns the canonical loop's content s
   `sessionType`, active-extension sets — anything only the probe can know.
 
 Consolidate `arc:if`-for-behavior onto composition only where the variation is actually state-dependent or
-the axes have multiplied past the inline threshold; no blanket deprecation. Boundary with
-`draft-workflow-template-loads.md`'s `arc.templates` (the declared-load sibling): same family, narrower
-scope — coordinate so load machinery isn't designed twice.
+the axes have multiplied past the inline threshold; no blanket deprecation.
+
+The binding-time rule also places **template loads** (`draft-workflow-template-loads.md`): an
+authored-from template is *workflow-static* (generate-tasks always authors from `template-tasks`), so it
+binds as a frontmatter declaration (D1), never a session-time agenda decision — and for agenda-compiled
+ceremonies the compiler simply projects declared template loads into `read` steps, same as everything
+else. Its motivation is also worth naming: the slip it captures is a *recognition-reliability* failure
+(an inline "see template" pointer missed at authoring time), and a frontmatter declaration is precisely
+the ~T1-grade explicit trigger from `loadset-composition`'s spectrum. Resolution: **this WU's D1 owns the
+declaration-family schema; workflow-template-loads stays its own small WU, re-scoped as the executor**
+(add the key, audit authoring workflows, retire body-prose load directives), now dependent on D1
+settling — its former graduation triggers are superseded by that sequencing.
 
 ## Worked example — hand-compiling session-init (2026-07-02)
 
@@ -296,10 +346,10 @@ spine, its agenda, and only the fragments it actually enters.
 
 ## Open questions
 
-- **Agenda schema residuals** — the worked example (below) settled vocabulary, ordering contract, and
-  control-flow posture (findings 1–3); residual: exact per-step arg schemas, the signal-passing shape
-  (probe flags vs. an `arc agenda` verb — either way the call accepts invocation signals, per finding 1),
-  and the `offer` choice/payload encoding.
+- **Agenda schema residuals** — the worked example settled vocabulary, ordering contract, and
+  control-flow posture; the invocation shape and `offer` encoding are settled in D3. Residual: the
+  remaining per-step arg schemas (`read` beyond the shipped read-modes, `fragment` args, `render`/`note`
+  surfaces) and the `arc agenda` verb spelling (lean recorded in D3; final call at spec).
 - **Fragment granularity + directory layout** — per-arm files vs. anchored sections loaded by range; the
   concrete `system/workflows/` reshape (candidate layout in D2); hub placement. Fragment *identity* is
   settled by lean (2026-07-02): agenda steps reference fragment ids through the D2 resolver; paths are an

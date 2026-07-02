@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `0b2ac6b5`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5ae96c63`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -45,7 +45,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | customization-arch-realign   | P3       | andrew | —          | configuration              |
 | task-list-conventions        | P3       | andrew | —          | doc-conventions            |
 | scalable-core                | P3       | andrew | —          | principle-anchored-core    |
-| workflow-template-loads      | P3       | andrew | —          | principle-anchored-core    |
 | binary-distribution          | P3       | andrew | —          | release-readiness          |
 | docs-site-refresh            | P3       | andrew | —          | release-readiness          |
 | release-lifecycle            | P3       | andrew | —          | release-readiness          |
@@ -83,6 +82,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | composable-workflows   | agent-context-optimization |
 | schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation   |
+| workflow-template-loads       | P3       | andrew | composable-workflows   | principle-anchored-core    |
 | docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness          |
 
 ### Depth 2
