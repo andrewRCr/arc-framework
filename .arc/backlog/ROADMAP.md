@@ -65,7 +65,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | quality-gate-hooks           | P3       | andrew | —          | —                          |
 | review-method-family         | P3       | andrew | —          | —                          |
 | rules-restructure            | P3       | andrew | —          | —                          |
-| shared-inbox-housekeep       | P3       | andrew | —          | —                          |
+| shared-inbox-model           | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                          |
 | sync-primitive-discipline    | P3       | andrew | —          | —                          |
 | synthesis-modality           | P3       | andrew | —          | —                          |
