@@ -69,21 +69,21 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ The method now carries the interface contract downstream callers need: named inputs, structured
   output, prompt serialization, and a canonical invocation block, without adding frontmatter schema.
 
-### `[ ]` **1.3 Author the severity model — fixed core enum + severity-vs-disposition**
+### `[x]` **1.3 Author the severity model — fixed core enum + severity-vs-disposition**
 
 - _Goal:_ findings carry a stable, ordered severity vocabulary uniform across fire-points, with severity
   (materiality) held distinct from disposition (what the primary does with a confirmed finding).
 
-    - `[ ]` **1.3.a The fixed core enum**
-        - `blocker` / `major` / `minor`, ordered. What is fixed (the levels + their ordering) vs. what a rubric
-          supplies (the per-artifact interpretation); the `minor | major` boundary as the materiality line the
-          exit gate reads.
+    - `[x]` **1.3.a The fixed core enum**
+        - Added the ordered `blocker` / `major` / `minor` enum, with fixed levels and ordering, rubric-supplied
+          interpretation, and the `minor` / `major` materiality boundary.
 
-    - `[ ]` **1.3.b Severity ≠ disposition**
-        - Disposition (fix in place / carry forward durably / drop) is the primary's, assigned at verification,
-          orthogonal to severity and available at any level. A finding the primary has acted on is _resolved_; an
-          _open_ finding above `minor` is what blocks convergence. Carry-forward is a disposition, not a fourth
-          tier and not a flatten-to-`minor`.
+    - `[x]` **1.3.b Severity ≠ disposition**
+        - Defined disposition as the primary's source-verified action, orthogonal to severity, and named
+          carry-forward as a disposition rather than a fourth tier or a flattening to `minor`.
+
+- _Outcome:_ The method now gives callers and review passes one stable severity vocabulary while preserving the
+  primary-owned disposition step that the exit gate will consume.
 
 ### `[ ]` **1.4 Author the exit gate — convergence-by-materiality + `Class`-scaled pass cap**
 

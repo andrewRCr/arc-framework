@@ -76,7 +76,7 @@ The report schema below is canonical. The primary uses it when validating a pass
 ```text
 findings:
 - title: one line
-  severity: one of the fixed core enum values supplied by the rubric context
+  severity: one of `blocker`, `major`, or `minor`
   artifact-locus: the specific passage, file, symbol, or diff region at issue
   evidence: paths and source-grounded observations
   failure-rationale: why the artifact breaks, or what two competent engineers would build differently
@@ -132,6 +132,31 @@ adversarial-review:
 
 At runtime, spawn a fresh pass with the subagent-context inputs, verify every finding against source, apply a
 primary disposition, and continue under the exit gate until convergence or `passBudget`.
+
+### Severity model
+
+Findings use a fixed, ordered severity enum across every fire-point. The levels and their ordering are part of
+the method contract; each supplied rubric interprets what those levels mean for its own artifact and maps findings
+into the enum rather than extending it.
+
+**Fixed core enum:**
+
+- `blocker` — a real correctness defect or gate-breaking gap. A certification verdict cannot read clean with a
+  live `blocker`.
+- `major` — a substantive design, grounding, or conformance problem that should resolve, but is not independently
+  ship-blocking by category alone.
+- `minor` — coherence residue, wording, or another low-materiality finding.
+
+Ordering is `blocker` > `major` > `minor`. The `minor` / `major` boundary is the materiality line the exit gate
+reads.
+
+**Severity is not disposition.** Severity measures materiality. Disposition is the primary's verified action on a
+finding: fix it in place, carry it forward durably, or drop it. The primary assigns disposition only after source
+verification.
+
+Disposition is orthogonal to severity: any severity can be fixed, carried forward, or dropped. A finding the
+primary has acted on is resolved for the loop; an open finding above `minor` is what blocks convergence.
+Carry-forward is therefore not a fourth severity, and it does not flatten a `blocker` or `major` into `minor`.
 
 ---
 
