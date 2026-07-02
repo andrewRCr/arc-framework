@@ -51,10 +51,15 @@ reviewer's *own* overreach); loop until convergence. Advisory and `Class`-scaled
 hook; what scales with `Class` (read via `classify-work-unit`, shipped) is the **default recommendation
 posture** — never the wiring, and never a hard gate: every launch stays per-invocation declinable (§ Config):
 
-- `Light` — on-request only (the agent does not recommend; the user may still invoke).
+- `Light` — not proactively recommended at any boundary.
 - `Heavy` — recommended at spec finalization + generate-tasks finalization (where the prototype evidence sits);
-  available-unrecommended at draft readiness + verify.
-- `Novel` — recommended at all four boundaries, strongest framing; plausibly multiple independent subagents.
+  not proactively recommended at draft readiness + verify.
+- `Novel` — recommended at all four boundaries, strongest framing.
+
+"Not proactively recommended" is one posture, uniform: the agent stays silent, and invocation remains available
+on request at every boundary (uniform wiring). Multi-subagent fan-out at `Novel` is a spec-time question — the
+default build is a single subagent with serial passes (the invocation contract is serial-shaped; fan-out would
+need findings-merge semantics and a cross-report clean-pass definition).
 
 This is the principle-anchored-core *"ceremony scales with `Class`, discipline doesn't"* posture, but needs
 nothing from `scalable-core` (config reform) — so this WU is independent of it. Pass-cap numbers stay spec-time
@@ -126,7 +131,8 @@ mechanism presupposes repo read access (without it, the harness-conditional degr
 
 ### Exit gate (convergence bound)
 
-"Loop until convergence" needs a bound — the `Class` floor + opt-in gate *entry*, not *exit*. Lean: exit on a
+"Loop until convergence" needs a bound — the `Class`-keyed recommendation + per-invocation opt-in gate *entry*,
+not *exit*. Lean: exit on a
 **clean pass** (zero primary-confirmed findings) or a **`Class`-scaled pass cap** (`Light` 1 · `Heavy` ~2 ·
 `Novel` ~3), whichever comes first; hitting the cap with live findings surfaces them unresolved at the interlock
 for the user's call. Exact numbers settle at spec.
@@ -183,8 +189,13 @@ rubric-supplied per stage (lean: fixed core enum, rubric maps into it).
 
 - **Pull in `arc-design-audit`** (design efficacy + fit validation) from `review-method-family`'s buffer — it is
   precisely the draft/spec rubric this mechanism runs. `design-audit` ≈ `arc-task-audit` **one rung up**: a
-  rubric method + a skill door (ad-hoc standalone re-check) + a thin workflow. (`spec-review` verifies the
-  *artifact*; `design-audit` validates the *design* — the thing self-review deliberately disclaims.)
+  rubric method + a skill door (ad-hoc standalone re-check); no dedicated workflow (per the settled factoring —
+  callsites are inline workflow blocks). Preserved framings from the departing RMF entry: read-only, standalone +
+  optional; **efficacy** = does the design solve the goal; **fit** = optimal + forward-compat, not merely
+  non-conflicting; **floored at a finished draft and point-agnostic above** (draft / spec / post-task-gen /
+  mid-impl); it is the missing *destination* for `spec-review`'s "this reopens design" pointer. (`spec-review`
+  verifies the *artifact*; `design-audit` validates the *design* — the thing self-review deliberately
+  disclaims.)
 - **Decouple `task-audit` from `arc-task-audit`:** `task-audit` becomes the DRY rubric method (sibling to
   `design-audit`); `arc-task-audit` stays the thin skill door that also houses the mid-impl-reground context
   layer.
@@ -212,7 +223,8 @@ renames that fail the standard route there, not here.
   / open-questions discipline, the leaf-magnitude detector) that this mechanism *runs*. Its entry-gate question
   ("should generate-tasks gate proactively at entry?") and this WU's finalization fire-point are **adjacent
   decisions at the same stage boundary**, not one question — co-design the generate-tasks boundary treatment
-  (entry, finalization, or both) rather than deciding either side alone. (Routed to PIM's buffer 2026-07-01.)
+  (entry, finalization, or both) rather than deciding either side alone. (Correction captured to `USER-INBOX` →
+  PIM 2026-07-01; it supersedes the drain-era buffer entry's same-question framing when it lands.)
 - **`review-method-family`** keeps its review-direction reshape and becomes a **consumer** of this WU's
   fresh-subagent primitive (rather than reinventing it); `arc-design-audit` departs its buffer to here.
 - **`composable-workflows`** consumes this WU's invocation-contract prototype (structured method inputs + the
@@ -248,11 +260,12 @@ renames that fail the standard route there, not here.
 
 ## Config / gating & cost
 
-Opt-in and **advisory even when applicable** — the agent *recommends* invoking (or not) at the `Class` floor and
-the user confirms, or requests it outright (advisory-fork rule). The launch stop is **interlock-shaped**: a
-per-invocation accept/decline with a recommendation, so a user who judges a given pass unwarranted opts out *that
-time* — no global "never run these" config is minted. Cost was ~100–140k subagent tokens per pass; the `Class`
-floor + opt-in + advisory-invoke + the exit gate keep cost proportional to the specs/task-lists that warrant it.
+Opt-in and **advisory even when applicable** — the agent *recommends* invoking (or not) per the `Class`-keyed
+posture (§ Scaling) and the user confirms, or requests it outright (advisory-fork rule). The launch stop is
+**interlock-shaped**: a per-invocation accept/decline with a recommendation, so a user who judges a given pass
+unwarranted opts out *that time* — no global "never run these" config is minted. Cost was ~100–140k subagent
+tokens per pass; the `Class`-keyed recommendation + opt-in + advisory-invoke + the exit gate keep cost
+proportional to the specs/task-lists that warrant it.
 
 Need signaled by the WU (`Class` / planning depth) is not the only axis: token budget and ceremony tolerance are
 **team preferences** that vary independently of the work. The recommendation posture carries the economics case —
@@ -276,8 +289,8 @@ edit + multi-workflow surface).
 
 ## Iteration status
 
-- **Readiness:** formalization-ready pending dogfood pass 2 (2026-07-01, fifth pass — dogfood pass-1 findings
-  folded). `Class` resolved `Heavy` at init.
+- **Readiness:** formalization-ready (2026-07-01, sixth pass — dogfood cap reached: two passes, zero
+  reopened-design findings; pass-2 coherence residue folded). `Class` resolved `Heavy` at init.
 - **Resolved, pass 1 (init):** harness-conditional subagent posture (single constitutional locus + degrade
   path); stage-keyed context provisioning; exit-gate need + clean-pass-or-cap lean; draft-stage rubric keyed to
   the existing kickback criteria (`assess-draft-readiness` bar + re-entry-valve `needs-design` gaps);
@@ -288,7 +301,7 @@ edit + multi-workflow surface).
   invocation-contract direction recorded (method-as-function prototype, body-level, CW consumes) + the CW
   coordination seam added.
 - **Resolved, pass 3:** verify fork settled (augment); § Sub-agent scope analysis recorded — the current rule is
-  stricter than ADR-002 (its own source); recommendation: sharpen generally by delegation *function*
+  narrower than ADR-002's non-prohibition posture; recommendation: sharpen generally by delegation *function*
   (derivation / execution / judgment) rather than mint a per-method carve-out. CW seam routed to `USER-INBOX` →
   `composable-workflows`; coherence pass over the accreted layers.
 - **Resolved, pass 4:** § Sub-agent scope disposition ratified (sharpen generally); socket/plug split note
@@ -297,11 +310,19 @@ edit + multi-workflow surface).
   manufactured; three caught this session's own accretion) and folded — uniform-wiring /
   `Class`-scaled-recommendation matrix (retires "`Novel` mandatory"); per-stage factoring settled by
   generalizing the rubric-consolidation pattern; `task-audit` table cell corrected (leaf-magnitude is PIM's
-  detector, joins when shipped); PIM seam reworded to adjacent-decisions co-design (routed to PIM's buffer);
-  pass-≥2 = full rubric re-run with prior findings appended; ADR-002 provenance claim softened (the rule stands
+  detector, joins when shipped); PIM seam reworded to adjacent-decisions co-design (captured to `USER-INBOX` →
+  PIM); pass-≥2 = full rubric re-run with prior findings appended; ADR-002 provenance claim softened (the rule stands
   on its own argument); stale accreted layers reconciled. Also folded: the fixed `orientation` input (the two
   briefs; goal referents rubric-keyed) and the field-tested return type into the invocation contract.
-- **Open:** spec-time calibration — pass-cap numbers, severity-enum fixity; ratify the invocation-contract
-  shape at spec.
-- **Next:** dogfood pass 2 (full rubric re-run, prior findings + fixes attached, aiming to break the fixes);
-  clean → advance the stage pointer to create-spec.
+- **Resolved, pass 6 (dogfood pass-2 fold):** pass 2 verified all 8 pass-1 fixes as resolving their findings and
+  cleared every factual claim; its 6 new findings — all coherence residue, no reopened design — confirmed and
+  folded: "+ a thin workflow" contradiction removed and the RMF-preserved framings (efficacy/fit definitions,
+  point-agnostic floor, reopens-design destination) imported into § Rubric consolidation; retired "`Class`
+  floor" vocabulary swept from § Exit gate + § Config; the not-proactively-recommended posture unified and
+  `Novel` fan-out moved to a tracked spec-time question (default: single subagent, serial); PIM routing claim
+  corrected (in transit via `USER-INBOX`, supersedes the drain-era entry); pass-3 log's provenance parenthetical
+  softened.
+- **Open:** spec-time calibration — pass-cap numbers, severity-enum fixity, `Novel` multi-subagent fan-out
+  (merge semantics); ratify the invocation-contract shape at spec.
+- **Next:** advance the stage pointer to create-spec (dogfood exit gate satisfied at cap: two passes, design
+  stable across both, residue folded).
