@@ -77,6 +77,14 @@ and teams get a `Class`-keyed recommended pass at each boundary, nothing hand-re
 - **NG6 — No mass rename.** The semantic-hygiene verb standard (§ D9) is *codified and contributed* to
   `naming-conventions`; actual renames that fail the standard route there, not here.
 
+- **NG7 — The `verify-work-unit` fire-point is spec-conformance verification, not code review.** The adversarial
+  verify confirms the delivery against the spec's success criteria (a `verify` per § D10 — *confirm against an
+  expected result*); it does **not** perform code-quality, edge-case, or maintainability review (a `review`). Code
+  review runs separately — the `pre-pr-review` extension and PR-triggered review — so the two lanes stay
+  independent. Some overlap is unavoidable (a conformance gap can also be a defect), but the **reference point** —
+  the success criteria, not code craft — keeps the mandate distinct. Load-bearing now that the pass is
+  subagent-run: without the fence, a fresh subagent's adversarial stance drifts into generic bug-hunting.
+
 ## Proposed Design
 
 The enumerable substrate the task list is built from and validated against. Ten design elements (D1–D10) plus the

@@ -365,6 +365,12 @@ just the artifact chain. Detail:
 - _Goal:_ `verify-work-unit` offers an adversarial verification pass that independently re-validates the spec's
   success criteria against the diff, **augmenting** (not replacing) the implementer's self-verify.
 
+- _Note:_ frame the mandate explicitly for the subagent — it attacks the **claim of spec-conformance**:
+  independently walk the success criteria and surface any the self-verify marked met that the diff does not
+  actually deliver (plus gaps / wrongly-superseded). The diff is **evidence for conformance**, not the target of
+  open-ended critique. This is `verify` (confirm delivery against the expected result), **not** `review` (code
+  quality / edge cases) — that runs separately in the pre-PR and PR review lanes (§ D10, NG7).
+
     - `[ ]` **4.4.a Declare the method + add the fire-point block**
         - Add an `arc.methods` block (the workflow has none today) declaring `adversarial-review`; add the
           fire-point block — the boundary's own success-criteria validation run adversarially (stage-owned, mints
