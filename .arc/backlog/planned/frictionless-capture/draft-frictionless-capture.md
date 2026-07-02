@@ -47,6 +47,12 @@ as the detector — a fresh session can't reliably know it's fresh (absence-of-s
 warm/cold marker). Sequence after both for the clean build; doable interim but would duplicate write mechanics
 OSD will re-home (rework).
 
+**Shared-inbox model seam (2026-07-02):** the cold path writes `INBOX.USER` only — never the project inbox
+(`ATOMIC-INBOX` → `INBOX.PROJECT`), whose sole write points are the drain's promotion and sweep (the
+capture-personal-first invariant in `draft-shared-inbox-model.md`). Capture-time classification (`WU_Target`
+suggestion) stays a provisional hint; the drain's disposition gate — `inbound-routing-method`'s coupling +
+horizon rubric — is authoritative, so the cold path never needs that judgment to be final at capture speed.
+
 ## Symmetry note
 
 `out-of-wu-entry` enriches the ARC session door (more entry intents honored); this WU removes the need for the
