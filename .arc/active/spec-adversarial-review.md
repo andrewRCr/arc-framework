@@ -115,42 +115,46 @@ adversarially. Invariant properties, independent of fire-point:
 
 The per-stage variation is exactly a parameter list: every fire-point invokes the same mechanism with different
 args. The method declares a structured **invocation contract** — prototyped as a structured section of the method
-**body** (prose + fenced param blocks), **not** new frontmatter keys (frontmatter schema is `composable-workflows`'
-surface to evolve; the callsite arg-block stays plain prose/fenced for now). The primary is the **runtime**: it
-marshals args into the prompt template, spawns the pass, and verifies returned findings.
+**body** (prose + valid-YAML fenced contract blocks), **not** new frontmatter keys (frontmatter schema is
+`composable-workflows`' surface to evolve; the body encoding is designed as a mechanical lift into that schema
+when it arrives). The signature leads the section — a canonical callsite block whose single top-level YAML key is
+the method name (the shape that identifies a method call wherever it appears), echoed as a one-line
+`**Signature:**` entry in the header blockquote. The primary is the **runtime**: it marshals args into the prompt
+template, spawns the pass, and verifies returned findings.
 
-**Named inputs** (Kind: per-stage, fixed, `Class`-scaled, or pass ≥ 2):
+**Named inputs** (Kind: per-stage, fixed, `Class`-scaled, pass ≥ 2, or partitioned-only):
 
-| Input           | Kind           | Contents                                                                                        |
-|-----------------|----------------|-------------------------------------------------------------------------------------------------|
-| `rubric`        | per-stage      | The rubric(s) to run adversarially, carrying their own referents (see D5, D6).                  |
-| `artifacts`     | per-stage      | The stage-keyed artifact set — the artifact under audit plus its upstream chain (D6).           |
-| `orientation`   | fixed          | `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT` — artifact-neutral shared ground truth (D6).          |
-| `passBudget`    | `Class`-scaled | The `Class`-scaled pass cap (D4) — set by `Class`, uniform across fire-points.                  |
-| `priorFindings` | pass ≥ 2       | Prior findings + the fixes applied to them. A deliberate **non-input on pass 1** (D6, fork F3). |
+| Input            | Kind             | Contents                                                                                        |
+|------------------|------------------|-------------------------------------------------------------------------------------------------|
+| `rubric`         | per-stage        | The rubric(s) to run adversarially, carrying their own referents (see D5, D6).                  |
+| `artifacts`      | per-stage        | The stage-keyed artifact set — the artifact under audit plus its upstream chain (D6).           |
+| `orientation`    | fixed            | `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT` — artifact-neutral shared ground truth (D6).          |
+| `pass-cap`       | `Class`-scaled   | The `Class`-scaled pass cap (D4) — set by `Class`, uniform across fire-points.                  |
+| `prior-findings` | pass ≥ 2         | Prior findings + the fixes applied to them. A deliberate **non-input on pass 1** (D6, fork F3). |
+| `partition-map`  | partitioned-only | Named slices + ownership boundaries; present only on a D7 partitioned pass.                     |
 
-Of these, `rubric` / `artifacts` / `orientation` / `priorFindings` are **subagent-context inputs** — serialized
-into each pass's prompt. `passBudget` is **not**: it is a **primary-side loop bound** the runtime applies to cap
+Of these, `rubric` / `artifacts` / `orientation` / `prior-findings` are **subagent-context inputs** — serialized
+into each pass's prompt. `pass-cap` is **not**: it is a **primary-side loop bound** the runtime applies to cap
 how many passes it spawns. The primary owns the loop — it spawns each pass, applies the exit gate (D4), and bounds
-the run by `passBudget`; a subagent performs exactly one pass and never sees the loop state.
+the run by `pass-cap`; a subagent performs exactly one pass and never sees the loop state.
 
 **Return type** (the output half of the contract; field-tested in the spec-stage prototype). Per finding:
 
 - `title` — one line.
 - `severity` — one of the fixed core enum (D3).
-- `artifact-locus` — the specific passage at issue.
+- `locus` — the specific passage at issue.
 - `evidence` — paths + what was found there. These are what make primary verification cheap: findings arrive
   pre-addressed.
-- `failure-rationale` — why it breaks, or what two competent engineers would build differently.
+- `rationale` — why it breaks, or what two competent engineers would build differently.
 
 Plus two **report-level** fields:
 
-- `what-held-up-under-attack` — the claims checked and cleared. Spares re-verification and gives the reviewer a
+- `withstood` — the claims checked and cleared. Spares re-verification and gives the reviewer a
   sanctioned "nothing here" — the structural guard behind zero-manufactured-findings.
-- `certification-verdict` — a one-line verdict keyed to the fire-point's gate question (see D4 for the
+- `verdict` — a one-line verdict keyed to the fire-point's gate question (see D4 for the
   clean-vs-converged distinction it must express).
 
-**Prompt template** — owned by the method; serializes the **subagent-context inputs** (not `passBudget`) into the
+**Prompt template** — owned by the method; serializes the **subagent-context inputs** (not `pass-cap`) into the
 subagent's context and hard-codes the two disciplines that made the prototypes work: **fresh context per pass** and
 **primary-verifies-findings-against-source**. Portable across harnesses (no per-harness profile — NG2, D8).
 
@@ -188,7 +192,7 @@ the pass cap is a **cost-ceiling backstop**, not the primary exit:
   `minor`** — a finding the primary has fixed, dropped, or consciously carried forward is *resolved*, so a
   legitimately carried-forward `major` does not block every pass to the cap. Zero findings (a strong clean pass) is
   one case; a pass returning only `minor` residue is the soft case — **fold the minors and exit**. The
-  `certification-verdict` (D2) distinguishes *clean* (zero) from *converged-with-minors-folded*.
+  `verdict` (D2) distinguishes *clean* (zero) from *converged-with-minors-folded*.
 - **`Class`-scaled pass cap (backstop).** `Light` 1 · `Heavy` 2 · `Novel` 3, whichever comes first with
   convergence. The cap is a cost ceiling: because convergence is the real exit, a converging run rarely reaches
   it. Reaching the cap **with live `blocker`/`major` findings** does **not** auto-resolve them — it stops the
@@ -196,7 +200,7 @@ the pass cap is a **cost-ceiling backstop**, not the primary exit:
 - **Materiality threshold is uniform**, not `Class`-keyed. `Class` already scales via the cap and the
   recommendation posture (D5); a third `Class` dependency on the convergence predicate buys complexity without a
   case.
-- **Pass ≥ 2 semantics.** A **full rubric re-run** with `priorFindings` (findings + fixes) appended as context —
+- **Pass ≥ 2 semantics.** A **full rubric re-run** with `prior-findings` (findings + fixes) appended as context —
   never a narrowed fix-only attack (which could not certify a clean pass). The re-run aims to break the prior
   fixes *within* full coverage; the cap bounds its cost.
 
@@ -216,6 +220,12 @@ adversarial pass. Generalizing the discipline across amendment sources and unify
 
 **Uniform wiring at all four boundaries**; only the *default recommendation posture* scales with `Class` (read
 via `classify-work-unit`, shipped). Every launch stays per-invocation declinable (§ Cross-cutting, Config).
+
+**Fire-point offer shape** (settled with D2's signature form): the callsite is a stop-class control point —
+surfacing the offer is never skippable; running the pass is the user's call — presented as an `[!IMPORTANT]`
+callout with a backticked `adversarial-review` method lead naming the posture, wrapping the instantiated
+signature block. No new alert type is minted (identity lives in the lead token and the callsite YAML shape, not
+the callout enum); mandatory method invocations elsewhere stay unmarked fence-only.
 
 Per-stage rubric — the **gate anatomy** read adversarially. The three planning boundaries decompose along the
 semantic-hygiene verbs (D10): an **assess** (readiness criterion), an **audit** (content vs. its external
@@ -257,7 +267,7 @@ and carries the independence property. Per pass:
 - **Goal referents** (`PROJECT-PRD` / `TECHNICAL-OVERVIEW`, or a project's equivalents) enter **rubric-keyed** —
   only where the stage's rubric names them (e.g. `design-audit`'s efficacy lens) — never as blanket baseline.
 - **Constitution / strategies** stay pointer-listed, read on demand.
-- **`priorFindings`** enters at **pass ≥ 2** only. The primary's "likely areas to break" **focus list is withheld
+- **`prior-findings`** enters at **pass ≥ 2** only. The primary's "likely areas to break" **focus list is withheld
   on pass 1** (fork F3): the motivating evidence cannot isolate its contribution, and the primary's blind spots
   are exactly what it cannot list. Passes ≥ 2 necessarily carry prior findings + fixes, so directed context enters
   there by design.
@@ -468,7 +478,15 @@ and hands the codification off.
       fresh-subagent primitive rather than reinventing it; `arc-design-audit` departs its buffer to here.
     - **`composable-workflows`** consumes this WU's invocation-contract prototype (structured method inputs + the
       uniform callsite arg-block) as the worked example for method-signature codification; the frontmatter-schema
-      and cross-file step-anchor conventions stay CW's to mint.
+      and cross-file step-anchor conventions stay CW's to mint. The exemplar's liftable specifics (settled at the
+      D2 reshape): contract blocks are **valid YAML** fences (prose hints as comments) so a future resolver
+      consumes them without migration; the **callsite invariant** — a fenced YAML block whose single top-level key
+      is the method name *is* the call expression, greppable pre-tooling; the **control-point grammar** — two
+      callout classes only (stop `[!IMPORTANT]` / fire `[!CAUTION]`; an advisory method offer is stop-class with a
+      backticked `<name>` method lead token; mandatory calls are unmarked fence-only; identity never encodes in
+      the alert type, so the enum stays GFM's renderable five); and the blockquote `**Signature:**` line as a
+      candidate house shape for parameterized methods. Whether any of these promote into
+      `strategy-workflow-authoring`'s marker inventory is CW's call — this WU uses them without codifying.
     - **`unit-scoped-review`** owns the execution-delegation scope relaxation (the plug for D8's socket) and the
       `ADR-002` amendment question for review-frequency; coordinate final `§ Sub-agent scope` wording against its
       "mechanics may delegate; judgment may not" framing.

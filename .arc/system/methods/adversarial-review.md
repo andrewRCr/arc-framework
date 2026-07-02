@@ -11,6 +11,7 @@ override-active: false
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
+> - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?) → findings report`
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
 >   primary-held judgment, and convergence-oriented follow-up. Findings are advisory until the primary verifies
 >   them against source; the method never creates a hard stage gate by itself.
@@ -51,40 +52,56 @@ stage impossible to approve.
 ### Invocation contract
 
 The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
-findings against source, applies dispositions, and decides whether the loop has converged. A subagent performs
-exactly one pass and never receives primary-side loop state.
+findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. A
+subagent performs exactly one pass and never receives primary-side loop state.
+
+**Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
+by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
+wherever it appears.
+
+```yaml
+adversarial-review:
+  rubric:          # rubric method(s) + the fire-point's gate question
+  artifacts:       # artifact under audit + upstream chain + key-file pointers
+  orientation:     # fixed set — § Context provisioning
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
+  prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
+```
 
 **Named inputs:**
 
-| Input           | Kind             | Contents                                                           |
-|-----------------|------------------|--------------------------------------------------------------------|
-| `rubric`        | per-stage        | Rubric(s) to attack, including their referents.                    |
-| `artifacts`     | per-stage        | Artifact under audit plus its upstream chain.                      |
-| `orientation`   | fixed            | Artifact-neutral briefings shared with every pass.                 |
-| `passBudget`    | `Class`-scaled   | Primary-side cap on spawned passes; not serialized.                |
-| `priorFindings` | pass two onward  | Prior findings and applied fixes; omitted from the first pass.     |
+| Input            | Kind                  | Contents                                                       |
+|------------------|-----------------------|----------------------------------------------------------------|
+| `rubric`         | per-stage             | Rubric(s) to attack, including their referents.                |
+| `artifacts`      | per-stage             | Artifact under audit plus its upstream chain.                  |
+| `orientation`    | fixed                 | Artifact-neutral briefings shared with every pass.             |
+| `pass-cap`       | `Class`-scaled        | Primary-side cap on spawned passes; not serialized.            |
+| `prior-findings` | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
+| `partition-map`  | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
 
-`rubric`, `artifacts`, `orientation`, and `priorFindings` are subagent-context inputs. Serialize them into the
-fresh pass prompt. `passBudget` is a primary-side loop bound only: the primary uses it to decide how many fresh
+`rubric`, `artifacts`, `orientation`, and `prior-findings` are subagent-context inputs. Serialize them into the
+fresh pass prompt. `pass-cap` is a primary-side loop bound only: the primary uses it to decide how many fresh
 passes it may spawn, but the subagent never sees it.
 
 **Return schema:**
 
 The report schema below is canonical. The primary uses it when validating a pass result and serializes it into
-`{reportSchema}` in the prompt template.
+`{report-schema}` in the prompt template.
 
-```text
+```yaml
 findings:
-- title: one line
-  severity: one of `blocker`, `major`, or `minor`
-  artifact-locus: the specific passage, file, symbol, or diff region at issue
-  evidence: paths and source-grounded observations
-  failure-rationale: why the artifact breaks, or what two competent engineers would build differently
+  - title:      # one line
+    severity:   # blocker | major | minor
+    locus:      # the specific passage, file, symbol, or diff region at issue
+    evidence:   # paths + source-grounded observations
+    rationale:  # why it breaks, or what two competent engineers would build differently
 
-what-held-up-under-attack:
-- claims or artifact regions checked and cleared
+withstood:
+  - # claims and artifact regions checked and cleared
 
-certification-verdict: one line keyed to the fire-point's gate question
+verdict:        # one line keyed to the fire-point's gate question
 ```
 
 **Prompt template:**
@@ -98,40 +115,37 @@ Do not rely on the primary agent's intent, unstated assumptions, or prior sessio
 Rubric:
 {rubric}
 
-Artifacts:
+Artifacts (paths — read them directly before forming any finding):
 {artifacts}
 
-Orientation:
+Orientation (paths — read them directly before forming any finding):
 {orientation}
 
 Prior findings and fixes:
-{priorFindings | "None. This is pass one."}
+{prior-findings | "None. This is pass one."}
 
 Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
 if the artifact holds up, say that plainly and specifically.
 
 Return exactly this report shape:
-{reportSchema}
+{report-schema}
 
 For each finding, include source-grounded evidence. The primary will verify every
 finding against source before acting on it.
 ```
 
-**Canonical callsite shape:**
+**Fire-point offer shape.** Launching the mechanism is user discretion, so a workflow callsite is a stop-class
+control point: surfacing the offer is never skippable; running the pass is the user's call. A fire-point wraps
+the instantiated signature block in the stop-class callout, with the method name and posture in the lead:
 
-```text
-adversarial-review:
-  rubric: <rubric method(s) and fire-point gate question>
-  artifacts: <artifact under audit + upstream chain + key-file pointers>
-  orientation:
-    - AGENT-BRIEF.ARC
-    - AGENT-BRIEF.PROJECT
-  passBudget: <Light 1 | Heavy 2 | Novel 3>
-  priorFindings: <pass two onward: prior findings + applied fixes>
+```markdown
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): {posture};
+> offer the pass and await the call — user decides; decline proceeds normally.
 ```
 
-At runtime, spawn a fresh pass with the subagent-context inputs, verify every finding against source, apply a
-primary disposition, and continue under the exit gate until convergence or `passBudget`.
+A mandatory method invocation carries no callout — an unmarked signature block is an unconditional step. The
+callout marks the user-decision control point, never method-hood itself.
 
 ### Severity model
 
@@ -141,7 +155,7 @@ into the enum rather than extending it.
 
 **Fixed core enum:**
 
-- `blocker` — a real correctness defect or gate-breaking gap. A certification verdict cannot read clean with a
+- `blocker` — a real correctness defect or gate-breaking gap. A report's `verdict` cannot read clean with a
   live `blocker`.
 - `major` — a substantive design, grounding, or conformance problem that should resolve, but is not independently
   ship-blocking by category alone.
@@ -171,18 +185,18 @@ zero-findings-based.
   does not force another pass by itself.
 - An open `blocker` or `major` finding prevents convergence.
 
-The `certification-verdict` distinguishes the clean case from the converged-with-minors-folded case.
+The `verdict` distinguishes the clean case from the converged-with-minors-folded case.
 
-**`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass budgets. Stop at the
+**`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass caps. Stop at the
 first condition reached: convergence or pass cap.
 
 Reaching the cap with live `blocker` or `major` findings does not resolve them. Stop the automatic loop and surface
 the unresolved findings at the stage interlock for the user's call.
 
 **Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the
-recommendation posture and pass budget, not the meaning of material severity.
+recommendation posture and pass cap, not the meaning of material severity.
 
-**Pass two onward.** Every pass is a full rubric re-run. Add `priorFindings` only after pass one, and include the
+**Pass two onward.** Every pass is a full rubric re-run. Add `prior-findings` only after pass one, and include the
 prior findings plus the primary's applied fixes. Do not run a narrowed fix-only attack; the later pass must still
 be able to certify the whole artifact against the rubric.
 
@@ -226,9 +240,9 @@ finding needs them.
 
 The line is ground truth in, author beliefs about the artifact out.
 
-**`priorFindings` — pass two onward only.** Omit `priorFindings` on pass one. The primary's focus list and likely
-breakpoints are exactly where its blind spots can hide, so the first pass should not inherit them. For pass two
-onward, provide the prior findings and the primary's applied fixes so the fresh pass can attack the settled
+**`prior-findings` — pass two onward only.** Omit `prior-findings` on pass one. The primary's focus list and
+likely breakpoints are exactly where its blind spots can hide, so the first pass should not inherit them. For pass
+two onward, provide the prior findings and the primary's applied fixes so the fresh pass can attack the settled
 artifact and the repairs.
 
 ### Novel partitioned fan-out hook
@@ -246,7 +260,7 @@ needs a green, consistent intermediate state. Do not treat one test as evidence 
 
 **Partition contract.** A partitioned pass supplies:
 
-- `partitionMap` — the named slices and their ownership boundaries.
+- `partition-map` — the named slices and their ownership boundaries.
 - Per-slice `rubric` — the scoped rubric for that slice.
 - Per-slice `artifacts` — the scoped artifact set plus the shared upstream chain.
 - Shared `orientation` — the fixed orientation set from this method.

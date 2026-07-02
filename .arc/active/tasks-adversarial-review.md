@@ -158,39 +158,46 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ `audit()` takes the allowlist as a defaulted parameter (tests inject their own), and the stale check
   makes removal mechanical: Phase 4's first declaration turns the lingering entry into a CI failure naming it.
 
-### `[ ]` **1.9 Reshape the invocation contract to the liftable-signature form**
+### `[x]` **1.9 Reshape the invocation contract to the liftable-signature form**
 
 - _Goal:_ the method reads as a declaration — signature leads, contract blocks parse, names carry code-variable
   discipline — without minting frontmatter schema (that surface stays downstream; the body contract becomes a
   mechanical lift when its schema arrives).
 
-    - `[ ]` **1.9.a Signature leads**
-        - Reorder the invocation-contract section to callsite signature → named inputs → return schema → prompt
-          template; add the one-line signature to the header blockquote; fold the duplicated runtime-loop statement
-          to one.
+    - `[x]` **1.9.a Signature leads**
+        - Reordered the invocation-contract section to callsite signature → named inputs → return schema → prompt
+          template; added the one-line `**Signature:**` to the header blockquote; folded the duplicated
+          runtime-loop statement to one and moved exit-gate ownership into it.
 
-    - `[ ]` **1.9.b Valid-YAML contract blocks + naming pass**
-        - Make the callsite and report-schema fences valid YAML (prose hints as comments). Rename for
-          one-concept-one-name and uniform kebab-case: `passBudget` → `pass-cap`, `artifact-locus` → `locus`,
+    - `[x]` **1.9.b Valid-YAML contract blocks + naming pass**
+        - Callsite and report-schema fences are now valid YAML (prose hints as comments; denormalized literals
+          kept with section pointers). Renamed for one-concept-one-name and uniform kebab-case: `passBudget` →
+          `pass-cap` (aligning the input with the exit gate's "cap" concept), `artifact-locus` → `locus`,
           `failure-rationale` → `rationale`, `what-held-up-under-attack` → `withstood`, `certification-verdict` →
           `verdict`, `partitionMap` → `partition-map` — the last also joining the named-inputs table, marked
-          partitioned-pass-only.
+          partitioned-pass-only. Prompt template gained the read-paths-first instruction for `artifacts` /
+          `orientation`.
 
-    - `[ ]` **1.9.c Canonical fire-point block**
-        - Document the callsite's control-point shape alongside the signature: `[!IMPORTANT]` callout with a
+    - `[x]` **1.9.c Canonical fire-point block**
+        - Documented the callsite's control-point shape alongside the signature: `[!IMPORTANT]` callout with a
           backticked `adversarial-review` method lead naming the advisory posture (surfacing the offer is
           non-skippable; the user decides, decline proceeds), then the instantiated YAML arg-block. Mandatory
-          method calls stay unmarked fence-only; no new alert type is minted.
+          method calls stay unmarked fence-only; no new alert type minted (identity lives in the lead token and
+          the callsite YAML shape, never the callout enum).
 
-    - `[ ]` **1.9.d Spec amendment + coordination-seam enrichment**
-        - Amend `spec-adversarial-review.md` D2 to the renamed contract fields; enrich the § Cross-cutting
-          `composable-workflows` bullet with the exemplar specifics (valid-YAML fences, the
-          method-name-as-top-level-key callsite invariant, the stop/fire callout grammar, the blockquote signature
-          line); file the matching `USER-INBOX` capture (`WU_Target: composable-workflows`).
+    - `[x]` **1.9.d Spec amendment + coordination-seam enrichment**
+        - Amended `spec-adversarial-review.md`: D2 renamed contract fields + liftable-encoding statement +
+          `partition-map` input row; D5 gained the settled fire-point offer shape; § Cross-cutting's
+          `composable-workflows` bullet enriched with the exemplar specifics. Enriched the existing `USER-INBOX`
+          CW capture (an entry already existed from draft-design) rather than filing a duplicate.
 
-    - `[ ]` **1.9.e Reconcile both copies**
-        - `adversarial-review.md` byte-identical across `packages/arc-framework/arc/` and `.arc/`; sync check
-          clean.
+    - `[x]` **1.9.e Reconcile both copies**
+        - `adversarial-review.md` byte-identical across `packages/arc-framework/arc/` and `.arc/`; markdown lint
+          clean corpus-wide.
+
+- _Outcome:_ The method now models the industry signature-as-data / behavior-as-body idiom within today's
+  body-prose contract model: callers read a leading signature, tooling can parse the fences, and the downstream
+  frontmatter-schema lift is mechanical rather than a migration.
 
 ## **Phase 2:** Rubric consolidation — the rubrics the mechanism runs
 
