@@ -85,26 +85,21 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ The method now gives callers and review passes one stable severity vocabulary while preserving the
   primary-owned disposition step that the exit gate will consume.
 
-### `[ ]` **1.4 Author the exit gate — convergence-by-materiality + `Class`-scaled pass cap**
+### `[x]` **1.4 Author the exit gate — convergence-by-materiality + `Class`-scaled pass cap**
 
 - _Goal:_ the loop has a bound — convergence by materiality is the primary exit; the `Class`-scaled pass cap is a
   cost-ceiling backstop, not the primary exit.
 
-    - `[ ]` **1.4.a Convergence (primary exit)**
-        - A pass converges when it surfaces no _open_ primary-confirmed finding above `minor`; zero findings
-          (clean) and minors-only-folded (the soft case — fold and exit) are the two cases the
-          `certification-verdict` distinguishes.
+    - `[x]` **1.4.a Convergence (primary exit)**
+        - Added the materiality-based convergence rule, including clean zero-finding convergence,
+          minors-only-folded convergence, resolved above-minor findings, and open above-minor blockers.
 
-    - `[ ]` **1.4.b `Class`-scaled pass cap (backstop)**
-        - `Light` 1 · `Heavy` 2 · `Novel` 3, whichever comes first with convergence; reaching the cap with live
-          `blocker`/`major` does **not** auto-resolve — it stops the loop and surfaces the unresolved findings at
-          the stage interlock. Uniform materiality threshold (not `Class`-keyed); pass ≥ 2 is a full rubric re-run
-          with `priorFindings` appended, never a fix-only attack. Numbers are a starting calibration
-          (Designed-to-evolve, OQ3).
+    - `[x]` **1.4.b `Class`-scaled pass cap (backstop)**
+        - Added `Light` 1 / `Heavy` 2 / `Novel` 3 pass budgets, cap-with-live-findings surfacing, uniform
+          materiality threshold, full re-run semantics for pass two onward, and the final-fold residual rationale.
 
-- _Note:_ the final-fold residual (the last pass's folds are not re-attacked) is what motivates the post-settle
-  coherence re-read; the method states the rationale, but the re-read itself is wired at the planning fire-points
-  (Task 4.5).
+- _Outcome:_ The method now has a bounded loop: exit on convergence first, stop at the pass cap only as a cost
+  ceiling, and surface unresolved material findings rather than auto-resolving them.
 
 ### `[ ]` **1.5 Author context provisioning and the orientation set**
 

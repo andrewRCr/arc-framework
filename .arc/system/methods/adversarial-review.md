@@ -158,6 +158,38 @@ Disposition is orthogonal to severity: any severity can be fixed, carried forwar
 primary has acted on is resolved for the loop; an open finding above `minor` is what blocks convergence.
 Carry-forward is therefore not a fourth severity, and it does not flatten a `blocker` or `major` into `minor`.
 
+### Exit gate
+
+The loop exits by convergence first and by pass cap only as a cost ceiling. Convergence is materiality-based, not
+zero-findings-based.
+
+**Convergence.** A pass converges when it surfaces no open primary-confirmed finding above `minor`.
+
+- A zero-finding report is a clean convergence.
+- A report with only `minor` findings may converge after the primary folds or disposes those findings.
+- A `blocker` or `major` finding that the primary has fixed, dropped, or carried forward durably is resolved and
+  does not force another pass by itself.
+- An open `blocker` or `major` finding prevents convergence.
+
+The `certification-verdict` distinguishes the clean case from the converged-with-minors-folded case.
+
+**`Class`-scaled pass cap.** Use `Light` 1, `Heavy` 2, and `Novel` 3 as the default pass budgets. Stop at the
+first condition reached: convergence or pass cap.
+
+Reaching the cap with live `blocker` or `major` findings does not resolve them. Stop the automatic loop and surface
+the unresolved findings at the stage interlock for the user's call.
+
+**Uniform materiality threshold.** The convergence threshold does not vary by `Class`. `Class` scales the
+recommendation posture and pass budget, not the meaning of material severity.
+
+**Pass two onward.** Every pass is a full rubric re-run. Add `priorFindings` only after pass one, and include the
+prior findings plus the primary's applied fixes. Do not run a narrowed fix-only attack; the later pass must still
+be able to certify the whole artifact against the rubric.
+
+**Final-fold residual.** The final pass's folded findings are not attacked by a successor pass. That residual is
+why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
+states the reason, while the workflow fire-points own the actual re-read step.
+
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md
