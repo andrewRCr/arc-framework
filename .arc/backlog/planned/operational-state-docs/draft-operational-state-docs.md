@@ -407,6 +407,25 @@
   open-time SHA would falsely confirm an unmerged errand; the SHA needs to refresh when the final tip is pushed.
   That lifecycle-stateful record behavior composes with this WU's records-rehome scope.
 
+### `[ ]` **`VECTOR.PROJECT` / `VECTOR.USER` join the managed-record members (goal-aware-direction)**
+
+- _Routed from:_ `goal-aware-direction` grooming (2026-07-02).
+- _Concern:_ `goal-aware-direction` mints a scope-paired direction surface — `VECTOR.PROJECT` (authored targets
+  at Now/Next/Later horizons, per-target `Owner`, maintainer-gated) and `VECTOR.USER` (private, notes-synced
+  sequencing intents). Both adopt the slug-keyed managed-entry grammar from day one (the render-before-renderer
+  pattern) and are markdown-canonical interim; the structured schemas, round-trip harness membership, and any
+  deterministic verbs' record backing land here.
+- _Substrate asks:_ (1) schema membership — including a band/horizon axis whose **required-field set varies by
+  band** (Now requires realized-by + done-signal; Later only slug + outcome); (2) the corpus conformance gate
+  validates vector slug refs (realized-by WUs/cohorts, intent refs to `INBOX.USER` entries) like `Depends On`
+  edges — dangling refs fail loud; (3) membership in the composed personal view is **derived**
+  (resolve-don't-store: the queued-set is read from `INBOX.USER` at render time, never copied), so only authored
+  intents/targets are stored state; (4) seam — the slug-keyed inbox removal primitive (one authoritative
+  remover + idempotent backstops) may also flag matching `VECTOR.USER` intent refs at errand completion, with
+  the housekeep sweep as backstop; (5) the `_Hold:_` → `_Queued:_` rename (proposed to `shared-inbox-model`,
+  which owns the retention-line semantics) reaches the inbox flag schema this WU codifies — sequence the schema
+  after that call.
+
 ### `[ ]` **Audit whether the `session-state` method still earns its place or should be deprecated**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-30);

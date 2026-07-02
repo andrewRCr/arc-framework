@@ -239,6 +239,25 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
   cohort-scoped-grooming-entry capture (`WU_Target: planning-iteration-mechanics`) — same work surfaced both,
   different domain (footer grammar vs. grooming entry).
 
+### `[ ]` **`VECTOR.{PROJECT,USER}` joins the family + explorer-sort as a naming criterion + WU short-name field**
+
+- *Routed from:* `goal-aware-direction` grooming (2026-07-02). Three related concerns:
+- *New TYPE:* `goal-aware-direction` mints a scope-paired direction surface — `VECTOR.PROJECT` (`backlog/`) /
+  `VECTOR.USER` (`user/{id}/`) — named per this convention from the start (the `STATUS.USER` forward-compat
+  pattern). A deliberate idiom departure (no mainstream tool uses a navigation metaphor as a surface name;
+  rationale recorded in `draft-goal-aware-direction.md`); the entry noun stays plain ("target").
+- *Explorer-sort as a codified criterion:* managed-doc names are chosen with explorer sort order as a design
+  input — the intended reading order is `INBOX` → (`MEMORY`) → `STATUS` → `VECTOR`, inbox always first,
+  status/vector adjacent, in both scopes. `VECTOR` was selected partly to satisfy this (candidates sorting
+  before `INBOX`, e.g. `HORIZON`, were rejected on it). Codify the criterion in
+  `strategy-file-classification.md` alongside the convention so future TYPE names get checked against it.
+- *WU short-name field:* a standardized per-WU short name (e.g. `OSD`, `FP`) for width-constrained rendered
+  surfaces — a `Short:` (or similar) meta field, minted at `arc stub` with a collision guard, resolvable via
+  `arc status <short>`; full name authoritative in prose, short form legal only in constrained render cells.
+  Convention + field + collision guard are this WU's; render consumption (overflow collapse `SAP, DM, +4`) is
+  `roadmap-tooling`'s (entry routed there 2026-07-02). Coupling: the target `Owner` field on `VECTOR.*` reuses
+  the WU field name — the pending `Owner → DRI` evaluation above covers both record types if it lands.
+
 ---
 
 ## Problem / Motivation

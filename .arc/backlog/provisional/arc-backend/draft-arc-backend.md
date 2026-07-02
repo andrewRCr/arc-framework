@@ -421,3 +421,11 @@ whole-document state with file-level reconcile. File-granular version-checked wr
 racing a drain; entry-granular operations map 1:1 onto the event log above, making the backend lift an
 operation-mapping rather than a re-derivation. This is a requirement on the record layer's shape, not on where
 records live.
+
+**Direction layer compose note (2026-07-02, goal-aware-direction grooming):** `VECTOR.PROJECT` / `VECTOR.USER`
+join the managed members. The project vector is **low-churn authored shared state** — small-structured-records
+class (LWW + history suffices; it is not the append-heavy event-log case), entry-granular and slug-keyed,
+serialized base-branch writes interim, version-checked writes at the shared tier; its authority model
+(maintainer-gated write + per-target owner + review-as-ratification) maps onto backend server-side auth with no
+model change. `VECTOR.USER` stays notes-backed per-user state (the zero-config entry tier). Composed personal-view
+membership is derived at render time (resolve-don't-store), so the backend stores only authored targets/intents.
