@@ -191,6 +191,24 @@
   table cells should match the meta bullets.
 - *Scope:* pairs with this WU's existing buffer items on uniform-columns + `render.ts`.
 
+### `[ ]` **§ Unknowns "Direction's home" resolved by `goal-aware-direction` + two render consequences**
+
+- *Routed from:* `goal-aware-direction` grooming (2026-07-02).
+- *Resolution:* the "Direction's home" open call is settled — direction gets a separate small **authored** doc
+  (`VECTOR.PROJECT`, a scope-paired target/horizon surface owned by `goal-aware-direction`); this WU's derived
+  view stays purely derived, and the earlier "now/next/later is derivable" lean is *repaired, not reopened*: the
+  missing datum was the goal itself. The freed `roadmap` name **retires** rather than transferring (transition
+  hazard; `ROADMAP.USER` idiomatically broken). Confirms the B4 render *mode* — which post-vector should consume
+  the target (goal-aware "Next") rather than priority-order alone.
+- *Vocabulary hygiene (research-grounded 2026-07-02):* a mechanical now/next/later banding over *WUs* is a
+  readiness-horizon view over outputs, not an outcome NNL roadmap (Bastow's sense) — don't name it in a way that
+  claims outcome semantics unless it consumes the vector. Keep readiness vocabulary for readiness renders.
+- *Multi-dep cell recommendation (with the over-width policy items above):* treat the rendered table as a
+  **lossy scan surface** — the lossless edge set lives in the meta and `arc status <slug>`. Render deps as WU
+  short names (the `Short:` field, convention owned by `naming-conventions`) with a deterministic overflow
+  collapse — `SAP, DM, +4` — optionally paired with a plain list section below the table for overflowed rows.
+  Unbounded inline lists are unsolvable under the 120-char budget by naming alone; boundedness is the rule.
+
 ---
 
 ## Problem / Motivation

@@ -214,6 +214,15 @@ on (it now does). The visible consequence — entries rotting — is the trigger
   cascade.
 - **`roadmap-tooling`** — optional visibility composition: pending project-inbox count / age as a derived
   `STATUS.*` line (zero mutation, concurrency-free); decide at its render-standard pass.
+- **`goal-aware-direction`** — two seams (routed at its 2026-07-02 grooming). (1) **`_Hold:_` → `_Queued:_`
+  rename proposal:** its `VECTOR.USER` composed view derives membership from the retained set, making "retain"
+  a real destination — the personal queue. `_Queued:_` names what the entry *is* (queued in my vector view)
+  rather than what it isn't, and the drain fork's four dispositions all become destinations (Route / Execute /
+  Queue / Promote); the aging nudge reads as a falsified commitment claim unchanged. This WU owns the call (the
+  retention-line semantics are its); OSD codifies the flag schema downstream. (2) **The horizon test gains its
+  missing input:** routing disposition's "is the target WU's activation horizon acceptable?" becomes cheaply
+  answerable once `VECTOR.PROJECT` exists — a WU realizing a Now/Next target has a near horizon; a WU tied to
+  no target or Later has an opaque-to-distant one.
 - **`frictionless-capture`** — composes cleanly and reinforces the model: its cold fast-path is another
   `INBOX.USER`-only writer (capture-personal-first invariant above); higher capture volume raises the value of
   the drain's promote-by-default fork and OSD's deterministic `arc inbox add`. Its capture-time judgment
