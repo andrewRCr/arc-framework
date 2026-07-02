@@ -12,11 +12,11 @@
 - **Task List:** `tasks-adversarial-review.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** [none]
-- **Next Task:** Begin Task 1.1 — Scaffold the adversarial-review method file and its invariant-properties contract
+- **Last Completed:** Task 1.7 — Reconcile both framework copies + registration
+- **Next Task:** Task 2.1 — Mint the `design-audit` method (efficacy + fit) (line ~163)
 - **Blockers:** [none]
 
-- **Next Action:** Begin implementation at Task 1.1
+- **Next Action:** Begin Task 2.1 — Mint the `design-audit` method (efficacy + fit)
 
 - **PR URL:** [none]
 - **Completed:** [none]
