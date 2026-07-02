@@ -25,6 +25,38 @@ increment = whole WU," the limit of that axis) rather than minting a canonical-b
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **`execution-delegation-doctrine` extracted upstream — re-scope reckoning + carve-out; grow pre-flight**
+
+- *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
+  (standalone planned stub).
+- *Re-scope:* the doctrine WU now owns the constitutional layer this draft carried provisionally — the
+  DEV-RULES.ARC § Sub-agent scope rewrite (prohibition → conditions), the ADR-002 two-axis reframe (execution
+  locus × gate presence), and the four-flow delegability rubric (judgment-in / context-in / verification-out /
+  learning-out). This WU's "ADR-002 / P5 reckoning" shrinks to *applying the doctrine at WU scope*; the
+  orchestration architecture becomes an instance of the doctrine's model rather than where the model is invented;
+  the eligibility predicate should be re-expressed as the WU-grain reading of the four-flow rubric. New
+  dependency edge: `execution-delegation-doctrine` lands before this WU's planning iteration.
+- *Default posture confirmed:* the doctrine settles "does widening become the default?" — no. Default scope stays
+  leaf; the eligibility read surfaces as an **advisory fork at activation** (offered with a recommendation, never
+  silent, never auto). The default *experience* lightens (decision-bearing stops); the default *posture* doesn't
+  move.
+- *Pre-flight gate grows into the capability envelope:* at batch entry, compute-request-verify the run's needed
+  capability set (edit surface from the spec's file scope, quality-gate commands from DEV-RULES.PROJECT, wrapper
+  commands) as **one deliberate grant moment** — batch mode front-loads judgment, so it front-loads trust
+  decisions the same way. ARC reads (partially), requests, advises — never sets; the user stays the grantor.
+  Covers the orchestrator *and* its subagents (subagent tool calls flow through the same harness permission
+  system).
+- *Stall taxonomy:* a mid-run harness permission prompt is a **stall** (capability gap → grant-and-resume), not a
+  break-out trigger (premise failure) — it never collapses the batch. Add an end-of-run stall report ("N prompts
+  encountered: … — add to envelope?") so runs converge toward prompt-free.
+
+---
+
 ## Problem / Motivation
 
 ARC's default review increment is one leaf task: the agent stops, reports, and waits at every checkbox. That

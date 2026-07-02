@@ -285,20 +285,42 @@ ships its mechanism.
 
 No goal-aware-direction mechanism exists yet, so the established pre-FP sequence is recorded here as the
 current milestone target (this WU is the milestone). Cross-references only — each item's substance lives in its
-own stub:
+own stub.
 
-1. `adversarial-review` — gates nothing, multiplies everything after it (FP's own spec/tasks consume it).
-2. `interlock-release-refinement` — approval-friction reducer that compounds across concurrent sessions; needs
-   its own grooming iteration (buffer un-drained) before start.
-3. `roadmap-tooling` — deterministic regen before regen frequency multiplies; FP's own row already broke the
-   hand-render.
-4. **This WU.**
+**Revised 2026-07-02** (`execution-delegation-doctrine` grooming session): the original path serialized
+`interlock-release-refinement` and `roadmap-tooling` wholly ahead of this WU, conflating "before FP starts" with
+"before the wave that needs it." FP is long-running and phased — Phase 1's matrix skeleton is already authored
+and Phase 2's build items depend on neither — so the path pulls FP's start forward:
 
-Interleaved errand-sized pre-work — all three captured to `USER-INBOX § Errand` (2026-07-01), pre-routed with
-do-not-re-route notes; this WU's entry verifies they landed: the behind-base reconcile gate (after or with IRR's
-`integrate-work-unit` edits, to avoid double-editing); the sweep base-ref index (most valuable *pre*-flip, while
-the primary sits on feature branches); `cross-wu-coordination`'s cheap-first slice (document + prescribe
-`arc status <slug>`). Additionally `sync-primitive-discipline` (its own planned stub) pulled adjacent to FP or
+1. `adversarial-review` — first, unchanged: gates nothing, multiplies everything after it (FP's own spec/tasks
+   and the layer-2 checklist pass consume it).
+2. **Pre-FP errands drain** (`USER-INBOX § Errand`, pre-routed 2026-07-01; this WU's entry verifies they
+   landed): the behind-base reconcile gate — now carrying its `integrate-work-unit` edit **alone** (the
+   "after or with IRR" ordering note is superseded; IRR rebases onto it later); the sweep base-ref index (most
+   valuable *pre*-flip); `cross-wu-coordination`'s cheap-first slice (document + prescribe `arc status <slug>`).
+3. **This WU starts** — spawned worktree per the launch constraint, spec/tasks via the adversarial mechanism,
+   then Phase 2's build items.
+4. `roadmap-tooling` — re-slotted *beside* FP Phases 1–2: needed **before wave 1** (concurrent regens), not
+   before FP's start. Full WU or its deterministic-renderer slice; decide at pickup.
+5. `interlock-release-refinement` — **inverted out of the hard path.** Its parallelism-relevant slice (the
+   integration-time interlock-stacking collapse) either slice-extracts per its own draft's ahead-of-cohort
+   extraction note, or — preferred — consumes this WU's burn-in evidence of which stops actually hurt under
+   concurrency, post-waves. Approval friction during waves is tolerable by design (sacrificial workloads,
+   loud-only); it never corrupts.
+
+**Mid-FP concurrency model (delicate — kept explicit by design).** FP active in its worktree does not serialize
+the rest of development; companion work launches while FP runs, by locus:
+
+- **The primary stays the out-of-WU surface** — errands, grooming, housekeep, and base-context ceremonies
+  (`chore/` branches), serialized by the singleton reality until the wave-3 fork settles it.
+- **Before build item 1 lands** (no automated worktree provisioning): a companion WU may run `--here` in the
+  primary when errand contention allows; code WUs stay out of worktrees.
+- **After build item 1 lands:** companion WUs launch into worktrees and double as burn-in wave workload under
+  the wave discipline (wave 1's doc-only pair first; workload selection stays this WU's open item).
+- The standing `--here` interim default (WORKING-MEMORY) dissolves **progressively with the waves** — its
+  removal trigger is build item 1 + wave verification, not "FP ships"; the WM entry is updated to match.
+
+Additionally `sync-primitive-discipline` (its own planned stub) pulled adjacent to FP or
 named as a seam-audit input.
 
 ## Resolution model for discovered seams

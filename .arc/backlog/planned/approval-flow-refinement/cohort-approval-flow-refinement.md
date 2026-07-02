@@ -66,7 +66,18 @@ is parallel-able; it shares machinery with both but gates neither.
   sibling signal — sequence, don't duplicate.
 - **The ADR-002 / P5 reckoning** — `unit-scoped-review` pushes against the bounded-session model and likely
   warrants an ADR (amend ADR-002 or a companion). The decision record's home is the WU; recorded here as the
-  cohort's most consequential constitutional seam.
+  cohort's most consequential constitutional seam. _Update 2026-07-02:_ the constitutional layer moved upstream
+  to `execution-delegation-doctrine` (below); the reckoning's home follows it, and `unit-scoped-review` applies
+  the resulting doctrine at WU scope.
+- **`execution-delegation-doctrine` (standalone)** — upstream constitutional substrate minted 2026-07-02: the
+  two-half invariant (no judgment without a gate; no gate without a decision), the DEV-RULES.ARC § Sub-agent
+  scope rewrite (prohibition → conditions), the ADR-002 two-axis reframe (execution locus × gate presence), and
+  the four-flow delegability rubric. All three members consume it: `unit-scoped-review`'s orchestration +
+  eligibility become the WU-grain application (upstream edge — land the doctrine before its planning iteration);
+  `interlock-release-refinement`'s stacking collapse + provenance gain the principle anchor, and its wrapper
+  coverage gap is upgraded to delegation-critical; `commit-increments`' gate-shaping + vocabulary likewise. It
+  does **not** gate `interlock-release-refinement` or reorder the cohort; buffer entries in each member's draft
+  carry the specifics.
 
 ### Closeout criteria
 
