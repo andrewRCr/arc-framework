@@ -190,6 +190,47 @@ be able to certify the whole artifact against the rubric.
 why the planning fire-points later wire a post-settle coherence re-read before finalization commit; this method
 states the reason, while the workflow fire-points own the actual re-read step.
 
+### Context provisioning
+
+Context provisioning gives the pass enough design-grounded material to attack the artifact while preserving the
+fresh-read property. It is a prescribed first-read path set, not a prose dump of the primary's understanding. The
+mechanism assumes the reviewer can inspect repository files directly; when that is unavailable, use the
+subagent-unavailable degrade path from [DEV-RULES.ARC § Sub-agent scope][sub-agent-scope].
+
+**`artifacts` — stage-keyed set.** Each fire-point supplies the artifact under audit plus the upstream chain that
+defines correctness for that stage:
+
+| Fire-point                  | Artifact set                                      |
+|-----------------------------|---------------------------------------------------|
+| draft readiness             | draft                                             |
+| create-spec finalization    | draft + spec                                      |
+| generate-tasks finalization | spec + task list                                  |
+| verify-work-unit            | spec + task list + the diff under verification    |
+
+Also include a non-exhaustive key-file pointer list when the stage has known implementation or reference loci.
+Keep the list neutral: "key files, not necessarily complete" is orientation, while "the files I think are
+dangerous" is author belief.
+
+At `verify-work-unit`, the pass independently re-validates the spec's success criteria against the diff. Do not
+feed it the implementer's self-verification result, and do not use `[x]` / `[~]` / `[ ]` task markings as evidence
+for whether the implementation satisfies the spec.
+
+**`orientation` — fixed set.** Every pass receives artifact-neutral project ground truth:
+
+- `AGENT-BRIEF.ARC`
+- `AGENT-BRIEF.PROJECT`
+
+Goal referents such as `PROJECT-PRD`, `TECHNICAL-OVERVIEW`, or project equivalents enter only when the supplied
+rubric names them. Constitution and strategy documents stay pointer-listed and are read on demand when a rubric or
+finding needs them.
+
+The line is ground truth in, author beliefs about the artifact out.
+
+**`priorFindings` — pass two onward only.** Omit `priorFindings` on pass one. The primary's focus list and likely
+breakpoints are exactly where its blind spots can hide, so the first pass should not inherit them. For pass two
+onward, provide the prior findings and the primary's applied fixes so the fresh pass can attack the settled
+artifact and the repairs.
+
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md

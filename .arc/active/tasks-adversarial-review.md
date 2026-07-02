@@ -101,25 +101,24 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ The method now has a bounded loop: exit on convergence first, stop at the pass cap only as a cost
   ceiling, and surface unresolved material findings rather than auto-resolving them.
 
-### `[ ]` **1.5 Author context provisioning and the orientation set**
+### `[x]` **1.5 Author context provisioning and the orientation set**
 
 - _Goal:_ the subagent receives design-not-implementation context that carries the independence property — a
   prescribed first-read path set (repo read access presupposed), not content serialized into the prompt.
 
-    - `[ ]` **1.5.a `artifacts` — the stage-keyed set**
-        - Per stage: the artifact under audit + its upstream chain (draft readiness → draft; spec → draft + spec;
-          task-gen → spec + tasks; verify → spec + tasks + the diff under verification), plus the non-exhaustive
-          key-file pointer list. At verify, the pass independently re-validates the spec's success criteria against
-          the diff, with the implementer's `[x]/[~]/[ ]` markings **withheld**.
+    - `[x]` **1.5.a `artifacts` — the stage-keyed set**
+        - Added the per-fire-point artifact matrix, non-exhaustive key-file pointer guidance, and verify-stage
+          success-criteria revalidation rule.
 
-    - `[ ]` **1.5.b `orientation` — the fixed set**
-        - `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT`: artifact-neutral ground truth in, author's beliefs about the
-          artifact out. Goal referents (`PROJECT-PRD` / `TECHNICAL-OVERVIEW` or equivalents) enter rubric-keyed
-          only; constitution / strategies stay pointer-listed, read on demand.
+    - `[x]` **1.5.b `orientation` — the fixed set**
+        - Defined fixed orientation as `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT`, with goal referents rubric-keyed
+          and constitution / strategies pointer-listed on demand.
 
-    - `[ ]` **1.5.c `priorFindings` gating**
-        - Enters at pass ≥ 2 only; the primary's pass-1 focus list is withheld (the blind spots are exactly what
-          it cannot list — fork F3).
+    - `[x]` **1.5.c `priorFindings` gating**
+        - Added pass-one withholding and pass-two-onward prior-findings / applied-fixes context rules.
+
+- _Outcome:_ The method now defines what the fresh pass receives as first-read context, keeping neutral ground
+  truth in and the primary's artifact beliefs out of the first pass.
 
 ### `[ ]` **1.6 Author the `Novel` scope-partitioned fan-out contract hook**
 
