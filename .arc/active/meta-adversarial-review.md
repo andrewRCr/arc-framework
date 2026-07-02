@@ -12,8 +12,8 @@
 - **Task List:** `tasks-adversarial-review.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.7 — Reconcile both framework copies + registration
-- **Next Task:** Task 2.1 — Mint the `design-audit` method (efficacy + fit) (line ~163)
+- **Last Completed:** Task 1.9 — Reshape the invocation contract to the liftable-signature form
+- **Next Task:** Task 2.1 — Mint the `design-audit` method (efficacy + fit) (line ~216)
 - **Blockers:** [none]
 
 - **Next Action:** Begin Task 2.1 — Mint the `design-audit` method (efficacy + fit)
