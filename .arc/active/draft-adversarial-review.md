@@ -45,6 +45,13 @@ reviewer's *own* overreach); loop until convergence. Advisory and `Class`-scaled
 | generate-tasks finalization | `task-audit` (grounding + executability); leaf-magnitude joins when `planning-iteration-mechanics` ships its detector |
 | verify-work-unit | verify rubric vs spec + tasks (augments the impl agent's self-verify) |
 
+**Gate anatomy (framing).** A stage boundary's machinery decomposes along the semantic-hygiene verbs (§
+Semantic-hygiene seam): an **assess** (the readiness criterion), an **audit** (content vs its external
+referent), a **review** (artifact-internal quality). The fire-point table is that anatomy read adversarially —
+the mechanism attacks whichever rubrics the boundary owns, while criteria ownership stays with their homes
+(readiness criteria with the stages / `planning-iteration-mechanics`; rubric content with the methods this WU
+mints or consumes). A reading aid for wiring the table, not a mandate to mint missing cells.
+
 ### Scaling (free from `Class`; not gated on `scalable-core`)
 
 **Uniform wiring, `Class`-scaled recommendation (settled 2026-07-01).** All four boundaries carry the fire-point
@@ -198,7 +205,9 @@ rubric-supplied per stage (lean: fixed core enum, rubric maps into it).
   disclaims.)
 - **Decouple `task-audit` from `arc-task-audit`:** `task-audit` becomes the DRY rubric method (sibling to
   `design-audit`); `arc-task-audit` stays the thin skill door that also houses the mid-impl-reground context
-  layer.
+  layer. The decouple also retires a layering inversion: today `generate-tasks` (an ARC-internal workflow)
+  invokes the *skill* (a harness door); post-decouple the workflow calls the `task-audit` **method** directly —
+  workflows call methods, skills are doors — while the door keeps the ad-hoc + mid-impl entries.
 - **Why these live as public methods:** each rubric gains a second caller — its ad-hoc skill *and* this
   mechanism. `spec-review` is *already* a `system/methods/` member (today's shipped model has no private tier —
   every method is public + overridable); the ≥2-callers argument is what *mints* `design-audit` and *extracts*
@@ -322,6 +331,11 @@ edit + multi-workflow surface).
   `Novel` fan-out moved to a tracked spec-time question (default: single subagent, serial); PIM routing claim
   corrected (in transit via `USER-INBOX`, supersedes the drain-era entry); pass-3 log's provenance parenthetical
   softened.
+- **Resolved, pass 7 (planning-model boundary review):** the 3-stage model reads structurally solid under this
+  WU's own use; folded the gate-anatomy framing (assess / audit / review trichotomy as the fire-point table's
+  reading aid) and the explicit layering fix (post-decouple, `generate-tasks` calls the `task-audit` method;
+  workflows call methods, skills are doors). Routed out: boundary-gate symmetry stays PIM's (already captured);
+  the general skill-door model captured to `USER-INBOX` → `skill-infrastructure-cleanup`.
 - **Open:** spec-time calibration — pass-cap numbers, severity-enum fixity, `Novel` multi-subagent fan-out
   (merge semantics); ratify the invocation-contract shape at spec.
 - **Next:** advance the stage pointer to create-spec (dogfood exit gate satisfied at cap: two passes, design
