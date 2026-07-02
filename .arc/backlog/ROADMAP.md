@@ -65,7 +65,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | quality-gate-hooks           | P3       | andrew | —          | —                          |
 | review-method-family         | P3       | andrew | —          | —                          |
 | rules-restructure            | P3       | andrew | —          | —                          |
-| shared-inbox-housekeep       | P3       | andrew | —          | —                          |
+| shared-inbox-model           | P3       | andrew | —          | —                          |
 | skill-infrastructure-cleanup | P3       | andrew | —          | —                          |
 | sync-primitive-discipline    | P3       | andrew | —          | —                          |
 | synthesis-modality           | P3       | andrew | —          | —                          |
@@ -78,6 +78,7 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | Work unit                     | Priority | Owner  | Depends on             | Cohort                     |
 |-------------------------------|----------|--------|------------------------|----------------------------|
 | unit-scoped-review            | P2       | andrew | commit-increments      | approval-flow-refinement   |
+| execution-delegation-doctrine | P2       | andrew | adversarial-review     | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
 | instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization |
@@ -86,9 +87,10 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit          | Priority | Owner  | Depends on         | Cohort            |
-|--------------------|----------|--------|--------------------|-------------------|
-| wu5-public-release | P3       | andrew | docs-content-sweep | release-readiness |
+| Work unit                  | Priority | Owner  | Depends on                    | Cohort            |
+|----------------------------|----------|--------|-------------------------------|-------------------|
+| wu5-public-release         | P3       | andrew | docs-content-sweep            | release-readiness |
+| comprehension-preservation | P3       | andrew | execution-delegation-doctrine | —                 |
 
 ---
 

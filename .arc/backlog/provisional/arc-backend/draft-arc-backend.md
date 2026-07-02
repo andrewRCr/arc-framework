@@ -12,6 +12,8 @@ establishes the shape, audience fit, and forward-compat discipline; detailed des
   content is materialized into a gitignored `.arc/`. Folds in the git-history-pollution driver, the one-knob config,
   the concurrency-with-history answer (event-log), the materialization-freshness analysis, and the operational
   gotchas surfaced in an exploratory design pass. Resolved several prior open questions; see § Open Questions.
+  Amended 2026-07-02 with shared-inbox compose notes (entry-granular record ops, tombstone events, per-entry
+  sweep version-checks) from the shared-inbox-model grooming.
 - **Origin:** Surfaced during cross-machine planning discussion 2026-05-02. Concern: current ARC architecture is
   heavily shaped around solo-dev arc-in-git; existing scaling stories (`pm.mode: external`, coord-probe, planned
   Local mode) cover narrow cases as workarounds rather than a coherent solution for the "canonical storage outside
@@ -182,7 +184,9 @@ small self-hosted store (research-grounded), per state subtype:
 
 - **Append-heavy shared records** (the shared inboxes / queues — ADR-020's "mutable shared state, unsolvable in-git")
   → **event-sourcing (append-only log).** Natural full audit trail; concurrency via optimistic append. This is the
-  one genuinely-hard core that earns the backend.
+  one genuinely-hard core that earns the backend. The log carries **removal / re-home events too** — the
+  shared-inbox model's housekeep sweep is a second writer class beyond drain appends — so the shape is
+  append-plus-tombstone, not pure append (2026-07-02, shared-inbox grooming).
 - **Small structured records** (`meta-*` fields, priority/ordering) → **server-authoritative LWW + a history table.**
   Simple, sufficient; metadata conflicts are rare and often semantically resolvable.
 - **Prose** (`draft-*`, `spec-*`) → **git merge/rebase** — the best text-merge tool there is, and ARC already drives
@@ -245,6 +249,10 @@ Surfaced in the 2026-06-10 pass; recorded so interim work and the eventual PRD c
    Rule: contributor flows must degrade gracefully when state is absent/private.
 5. **`.gitignore` airtightness.** If `.arc/` is ever accidentally un-ignored, B leaks PM into the code repo and A
    creates a gitlink mess. A pre-commit guard asserting `.arc/` stays ignored becomes load-bearing for (c).
+6. **Batch mutations over shared surfaces version-check per entry.** A long-running pass mutating many entries
+   (the shared-inbox re-homing sweep) is the multi-writer materialization-freshness hard case in miniature —
+   version-check at commit-of-decision per entry, never batch-at-end over a session-stale read
+   (2026-07-02, shared-inbox grooming).
 
 ---
 
@@ -406,3 +414,18 @@ record-canonical / markdown-is-a-projection decision is precisely Architecture B
 managed docs (inboxes, `WORKING-MEMORY`, `USER-INBOX`) are backend-canonical eventually; ADR-022's interim notes-sync
 assignment is the tier-2 bridge, not a terminal home. See `adr-022-managed-operational-state-documents.md`
 § Coordination.
+
+**Entry-granularity requirement (2026-07-02, shared-inbox grooming):** shared-mutable members (the inboxes) must be
+modeled as **sets of slug-keyed entries with entry-level operations** (append / remove / re-home), never a
+whole-document state with file-level reconcile. File-granular version-checked writes would wholesale-reject a sweep
+racing a drain; entry-granular operations map 1:1 onto the event log above, making the backend lift an
+operation-mapping rather than a re-derivation. This is a requirement on the record layer's shape, not on where
+records live.
+
+**Direction layer compose note (2026-07-02, goal-aware-direction grooming):** `VECTOR.PROJECT` / `VECTOR.USER`
+join the managed members. The project vector is **low-churn authored shared state** — small-structured-records
+class (LWW + history suffices; it is not the append-heavy event-log case), entry-granular and slug-keyed,
+serialized base-branch writes interim, version-checked writes at the shared tier; its authority model
+(maintainer-gated write + per-target owner + review-as-ratification) maps onto backend server-side auth with no
+model change. `VECTOR.USER` stays notes-backed per-user state (the zero-config entry tier). Composed personal-view
+membership is derived at render time (resolve-don't-store), so the backend stores only authored targets/intents.

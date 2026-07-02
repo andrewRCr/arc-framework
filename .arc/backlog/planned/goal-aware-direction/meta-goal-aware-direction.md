@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P2`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -15,7 +15,8 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft toward a spec when implementation comes into reach; first settle whether
-  this expands `roadmap-tooling`'s horizon view or stands as a new model above the planning substrate.
+- **Next Action:** Resume grooming via `--plan goal-aware-direction`: settle entry-grammar detail, verb naming,
+  and sequencing toward formalization-ready — model, vocabulary, scope pair, authority, and recommender posture
+  settled at the 2026-07-02 grooming.
 
 ---
