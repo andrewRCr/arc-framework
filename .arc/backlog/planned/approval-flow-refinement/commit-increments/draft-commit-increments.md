@@ -43,6 +43,17 @@
 - *Provenance:* the parallel approval-provenance-state concept (§ Unknowns) composes with its batch authorization
   (a provenance source with WU scope) and its deviation ledger. See `cohort-approval-flow-refinement.md`.
 
+### `[ ]` **Vocabulary + gate-shaping compose with `execution-delegation-doctrine`**
+
+- *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
+  (standalone planned stub).
+- *Principle anchor:* the "let agents shape completion gates" entry above is a local expression of the doctrine's
+  "no gate without a decision" half (a stop must carry a decision; separate the invariant from the literal
+  string) — anchor its design rationale there rather than deriving it locally.
+- *Vocabulary:* the review-increment term reconsideration should also accommodate the doctrine's graduated-scope
+  framing (increment scope as a parameter: leaf / phase / WU) so the rename cascade lands once across all three
+  cohort consumers and the doctrine WU.
+
 ---
 
 ## Problem / Motivation

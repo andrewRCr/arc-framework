@@ -154,6 +154,23 @@ atomic companion and the personal atomic inbox.
 - *Provenance:* the approval-provenance-state concept (this WU's watch item + `commit-increments` § Unknowns)
   composes with its WU-scoped batch authorization. See `cohort-approval-flow-refinement.md`.
 
+### `[ ]` **`execution-delegation-doctrine` grounding: decision-bearing gates, scoped provenance, wrapper coverage**
+
+- *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`
+  (standalone planned stub).
+- *Principle anchor:* the interlock-stacking audit item below gains constitutional grounding — the doctrine's
+  "no gate without a decision" half (a stop must carry a decision; confirmation-only stops are the collapse
+  candidates). Currently argued from friction + parallelism; anchor it in the principle at iteration.
+- *Provenance source type:* the approval-provenance state gains a source shape — a delegation/batch authorization
+  is provenance with declared scope (composes with `unit-scoped-review`'s batch authorization already noted in
+  the cohort doc; no structural change to this WU's routing core).
+- *Coverage mandate upgraded:* the "merge and branch-delete have no wrapper coverage today" gap (errand
+  approval-collapse item above) is now **delegation-critical**, not just errand UX — a delegated/batched run's
+  mutating tail must flow entirely through narrowly-allowlistable, validated, audited envelopes, or mid-run
+  harness permission prompts stall a run the user authorized precisely so they could step away. Wrappers stay
+  constitutionally narrow (recognize new provenance shapes; never validate *less* — ARC never self-escalates).
+  Same cohort sequence (this WU stays next after `adversarial-review`); upgraded rationale.
+
 ### `[ ]` **Audit integration-time interlock stacking — collapse over-conservative stops**
 
 - *Routed from:* `lifecycle-ux-polish` housekeep-drain discussion (2026-06-27) — raised as a session/WU-lifecycle
@@ -175,6 +192,11 @@ atomic companion and the personal atomic inbox.
   callouts. The design (where to draw them, what still gates) is the work, and it is this cohort's, not a
   `lifecycle-ux-polish` quick-win. Candidate for the same ahead-of-cohort extraction pattern this WU used for the
   no-active-WU wrapper fix, given the parallelism motivation.
+- *Sequencing update (2026-07-02):* `finalize-parallelism`'s milestone path was revised — this WU no longer
+  gates FP's start (inverted out of the hard pre-FP path). This item's options are now: slice-extract ahead of
+  the cohort as noted above, or — preferred — consume FP's burn-in evidence of which stops actually hurt under
+  real concurrency, post-waves. The behind-base reconcile-gate errand now carries its `integrate-work-unit` edit
+  alone; this WU rebases its interlock-callout edits onto it.
 
 ---
 
