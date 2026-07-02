@@ -81,6 +81,20 @@ Human readability is served, not traded: prose stays natural *within* each unit;
 spine plus an index hub for the whole picture, or one fragment for one arm — better locality than a
 910-line monolith, not worse.
 
+**The shape recurses.** A fragment is authored under the same discipline scaled down: a signature line
+(gate / fires-when, envelope inputs consumed, exit state — including a recompile exit), a bounded body
+under the same structural-budget check (per-file, so CI covers fragments for free), and the prose-economy
+test. Workflow → fragment → method is one self-similar pattern, not three conventions; the fragment
+authoring guidance lands in the same strategy section.
+
+**Adoption ladder (compliance scope).** Not every workflow earns every layer. **Level 1 — contract
+shape** (signature, frontmatter contract, prose economy): every workflow, unconditionally. **Level 2 —
+fragment extraction**: workflows with real conditional arms. **Level 3 — agenda compilation**: only
+probe-backed session ceremonies (init, recover, handoff). This WU lands the pattern + session-init;
+`handoff-optimization` and `loadset-composition` take their own surfaces; `instruction-optimization` runs
+the Level 1–2 sweep across the remaining corpus. Loop-style workflows cap at Level 2 by design — see the
+D3 note.
+
 ### D2 — The fragment substrate (mechanism)
 
 **Fragments are method-shaped, not extension-shaped.** A fragment is *pulled* by its workflow ("load this
@@ -98,6 +112,17 @@ implemented code-tier — "mechanics → CLI" is literally a fixed public method
 this WU's fragments. Cautions carried: visibility in markdown is convention + tooling, not enforcement;
 don't force the near-empty `private+overridable` cell; "method" overloads — the qualifier vocabulary needs
 settling (pairs with `lane`, below).
+
+**Sharpening (2026-07-02): fragment vs. private method.** Two kinds of would-be fragment exist, and only
+one is method-shaped. A **procedural** fragment has inputs and an outcome (branch-gone recovery: given
+candidates, recover the checkout and recompile) — that *is* a private method and takes the full contract
+shape. A **referential** slice (a conditional guidance passage, a schema excerpt) has no call semantics —
+forcing contract/override blocks onto it is ceremony without meaning; it stays gated content with an
+owner. The test: **does it have inputs and an outcome?** The worked example (below) suggests the
+referential class mostly *dissolves into `render`/`note` steps* — the CLI precomposes state-derived
+surfaces — so what survives as loadable fragments is overwhelmingly procedural, and the private-method
+model may cover nearly everything real. Keep the OO analogy where it pays (visibility ≈ private/public,
+override-policy ≈ final/virtual); don't force call semantics onto content.
 
 **Two extraction shapes**, revising the original "whole blocks only" rule:
 
@@ -129,6 +154,15 @@ Under D3 it doesn't: the compiler selects fragments; the agent reads what the ag
 maintainers, adopt the **index hub** pattern (OKF / LLM-wiki convergence): a per-directory catalog of
 entries, each a link + one-line summary (ARC's README-per-dir is the same role; the question is the
 pattern, not the filename). Coordinates with `idiomatic-alignment`.
+
+**Decomposed-workflow layout (comprehension model).** The spine doubles as the map: every fragment is
+reachable from exactly one gate line in it, so opening the spine shows the whole behavior's shape — the
+role a monolith's inline text serves today, at a fraction of the length. Candidate layout: one directory
+per decomposed workflow, the spine carrying the workflow's name at the root
+(`session-init/session-init.md`), fragments namespaced beneath (`session-init/arms/branch-gone.md`), the
+hub cataloging them — base-is-evident by naming convention, not by reading. A relationship diagram is
+*derivable* from the structured gate lines (generated graph, never hand-maintained) — the same
+managed-artifact philosophy as the schema doc.
 
 **`slug → artifact` resolver.** The composition substrate needs a canonical resolver (fragment includes,
 method resolution); the bare-slug-loading convenience case folds into it for free — the only framing under
@@ -170,6 +204,13 @@ stays, by design (the resilience path can't depend on the thing that failed).
   `out-of-wu-entry` — the signal-dispatch leaf and gate-suppressed `draft-design` entry become a
   conditional-fragment skip), and `handoff-optimization`'s lightweight errand/housekeep handoff paths.
 
+**Loops don't compile agendas.** A loop-style workflow (`process-task-loop`) is a *resident* grounding
+procedure plus event-triggered sub-protocols, not a once-through sequence — there is no session-time
+instance to compile. Loops take D1 + D2 only: a thin resident core (small *because* it stays in context
+all session) with sub-protocols as event-handler fragments loaded at their trigger point. The interlocks
+and stops stay in the core unconditionally — they are constraints, and the demotion rule already forbids
+demoting constraints. (`loadset-composition` owns the canonical loop's content split.)
+
 **Binding-time rule** (resolves the `arc:if` consolidation question): two binding times, each principled —
 
 - **Install-time** (`arc:if` conditionals stripped by `render.ts`) for **config-static** variation: cheap
@@ -183,6 +224,68 @@ the axes have multiplied past the inline threshold; no blanket deprecation. Boun
 `draft-workflow-template-loads.md`'s `arc.templates` (the declared-load sibling): same family, narrower
 scope — coordinate so load machinery isn't designed twice.
 
+## Worked example — hand-compiling session-init (2026-07-02)
+
+The forcing exercise for the agenda schema: take the current `session-init.md` (910 lines) plus two real
+probe outputs — a plain resume session and a `--plan` signal-leaf session — and hand-place every line of
+the file into exactly one of: agenda step, spine vocabulary, fragment, or delete. The compiled sketches
+below are the schema's first fixtures.
+
+**Vocabulary v1 (confirmed — nothing in the file needed an eighth type):**
+
+| Step       | Args (sketch)                                 | Session-init instances                               |
+|------------|-----------------------------------------------|------------------------------------------------------|
+| `read`     | path/id, read-mode, parallel-group, on-fail   | the 11 Step-3 items (already shipped as `loadSet`)   |
+| `exec`     | command, rationale                            | channel pulls, `arc user load`, relocate, base fetch |
+| `offer`    | precomposed text, choices, per-choice payload | sync prompts, combined prompt, displacement guard    |
+| `fragment` | id (via resolver), args                       | entry arms, locus workflows, mismatch handling       |
+| `render`   | surface id, precomposed text                  | Step-6 conditional surfaces, orientation header      |
+| `note`     | text                                          | advisories (workload, notes lag, drift)              |
+| `gate`     | interlock type, prompt                        | final proceed prompt, displacement confirm           |
+
+**Case A — plain resume (the common case):** ~12 `read` steps (the shipped `loadSet` plus
+parallel-group data replacing the parallelism prose), **zero** sync steps (every channel compiled to a
+no-op), one `render` (header), one `gate`. Nearly the entire 910-line file compiles away for the session
+that needs none of it.
+
+**Case B — `--plan` signal-leaf:** `gate` (displacement confirm, computable prompt) → `exec` (relocate,
+computable via `resolveWriteContext`) → universal `read` set → `fragment: draft-design {stub,
+grooming: true}` → locus-scoped `render`. Elicitation and stub disambiguation stay inside the fragment
+(judgment + interaction).
+
+**Findings — design requirements the exercise surfaced:**
+
+1. **Signals must reach the compiler.** `--plan` / `--errand` / `--next` arrive via skill args the probe
+   never sees; compiling the signal-leaf spine requires the probe invocation to accept them. This decides
+   half of the envelope-slice-vs-separate-call question: whichever shape, the call takes invocation
+   signals.
+2. **Recompile is the arm-mutation pattern.** Arms that mutate state (cold-start, materialize,
+   branch-gone recovery) already end in "re-run the Step 1 probe"; under the agenda they end in a
+   recompile and a fresh agenda. No nested control flow in the schema.
+3. **Emission order is the ordering contract** (e.g. notes-pull before SESSION-NOTES reads). The compiler
+   owns sequencing; no `after`/dependency fields.
+4. **Two render classes.** State-derived surfaces precompose CLI-side (`render` steps); thought-state
+   sections (Last completed / Blockers — from meta + SESSION-NOTES the agent reads) compose agent-side
+   per a spine format. The orientation format stays spine vocabulary.
+5. **An invalidation rule is required.** Agent-side reads can supersede compiler inputs — today,
+   SESSION-NOTES `Session Type:` overrides the envelope `sessionType`, which drives the load set. Spine
+   rule: contradiction between read content and a compiler input → recompile with the override passed as
+   a signal. This shrinks as `operational-state-docs` makes those fields CLI-readable (the override
+   becomes a compiler input) — a real dependency edge.
+6. **A residual envelope-literacy set survives.** A few slots are judgment *inputs* carried forward
+   (`config` settings, `releaseRouting` prefix mapping), not agenda-compilable; the spine points at them
+   and the schema doc stays out-of-band.
+7. **Probe folding earns its place** (IO's D3.1): without a freshness slot, the agenda regresses to
+   emitting raw git `exec` steps for a deterministic check.
+8. **The CLI never injects content.** Every "load" is the agent's Read tool against a compiler-resolved
+   reference + read-mode — the `loadSet` model. What's mechanized is *selection and order*, never
+   ingestion; no other mechanism exists, and none is needed.
+
+**Spine estimate:** ~120–150 lines (~4–5k tokens): step-type execution semantics, ordering + failure
+defaults (`skip-and-surface` default, per-step override), the invalidation rule, probe-failure fallback,
+orientation assembly format, authority boundaries. Against today's ~31k, a resume session reads the
+spine, its agenda, and only the fragments it actually enters.
+
 ## Resolved design questions (formerly open)
 
 - **`system/workflows/` navigability** — dissolved: agents follow the agenda, not the tree; maintainers get
@@ -193,16 +296,23 @@ scope — coordinate so load machinery isn't designed twice.
 
 ## Open questions
 
-- **Agenda schema shape** — directive granularity; how much sequencing the CLI owns vs. the spine; how
-  arms/loci are named in the agenda (fragment ids?). Design against session-init's arm set as the
-  forcing case.
+- **Agenda schema residuals** — the worked example (below) settled vocabulary, ordering contract, and
+  control-flow posture (findings 1–3); residual: exact per-step arg schemas, the signal-passing shape
+  (probe flags vs. an `arc agenda` verb — either way the call accepts invocation signals, per finding 1),
+  and the `offer` choice/payload encoding.
 - **Fragment granularity + directory layout** — per-arm files vs. anchored sections loaded by range; the
-  concrete `system/workflows/` reshape; hub placement.
+  concrete `system/workflows/` reshape (candidate layout in D2); hub placement. Fragment *identity* is
+  settled by lean (2026-07-02): agenda steps reference fragment ids through the D2 resolver; paths are an
+  implementation detail behind it.
 - **Structural budget enforcement** — line cap vs. token-estimate cap; lint-tier vs. advisory; where the
   number comes from.
-- **Envelope schema generation** — generated-from-types reference doc: this WU or
-  `schema-introspection-layer` (`architecture-remediation`)? Seam to route at spec time.
-- **`lane` adoption**, and the "method" naming overload qualifier (one vocabulary decision, taken together).
+- **Envelope schema generation** — generated-from-types reference doc. Lean (2026-07-02): **pilot the
+  shape here** (the agenda schema needs it first) and lift to `schema-introspection-layer`
+  (`architecture-remediation`) if implementation order favors it; final home decided at spec.
+- **`lane` adoption**, and the "method" naming overload qualifier (one vocabulary decision, taken
+  together) — the D2 fragment-vs-private-method sharpening narrows what needs naming: procedural
+  fragments are private methods; only the referential-slice residue needs a distinct term, if any of it
+  survives compilation into `render`/`note` steps.
 - ~~Dangling consumer~~ — *resolved 2026-07-02:* arc-plan-conductor was decomposed and abandoned in favor
   of the three structured planning-stage workflows; the loop canon's live consumers are re-derived in
   `draft-loadset-composition.md` § The Loop Canon (Conductor disposition). Its depth-selection idea
