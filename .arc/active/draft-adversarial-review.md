@@ -35,34 +35,43 @@ review, comment window, committee sign-off), not an agent mechanism — extensio
 `adversarial-review` is a **public method** (the mechanism), not an extension: fresh subagent per pass;
 adversarial stance ("try to break it; don't manufacture findings — say plainly if you can't"); the **primary
 holds judgment** — findings are PLAUSIBLE until verified against source, never blind-applied (this caught the
-reviewer's *own* overreach); loop until convergence. Advisory and `Class`-scaled. It runs the rubric each stage
-already owns:
+reviewer's *own* overreach); loop until convergence. Advisory and `Class`-scaled. It runs each stage's rubric
+(existing, or minted by this WU):
 
 | Fire-point | Rubric run adversarially |
 | --- | --- |
 | draft readiness | the existing formalization bar (`assess-draft-readiness` divergence test) + `design-audit` (efficacy + fit) |
 | create-spec finalization | `design-audit` + `spec-review` (design *and* artifact) |
-| generate-tasks finalization | `task-audit` (grounding + executability + leaf-magnitude) |
+| generate-tasks finalization | `task-audit` (grounding + executability); leaf-magnitude joins when `planning-iteration-mechanics` ships its detector |
 | verify-work-unit | verify rubric vs spec + tasks (augments the impl agent's self-verify) |
 
 ### Scaling (free from `Class`; not gated on `scalable-core`)
 
-Gate by `Class` / derivation weight via `classify-work-unit` (shipped): `Light` skip or one quick pass; `Heavy`
-full pass at spec + tasks; `Novel` mandatory, plausibly multiple independent subagents. This is the
-principle-anchored-core *"ceremony scales with `Class`, discipline doesn't"* posture, but needs nothing from
-`scalable-core` (config reform) — so this WU is independent of it. The full `Class` × fire-point matrix settles
-at spec, alongside the pass-cap numbers.
+**Uniform wiring, `Class`-scaled recommendation (settled 2026-07-01).** All four boundaries carry the fire-point
+hook; what scales with `Class` (read via `classify-work-unit`, shipped) is the **default recommendation
+posture** — never the wiring, and never a hard gate: every launch stays per-invocation declinable (§ Config):
+
+- `Light` — on-request only (the agent does not recommend; the user may still invoke).
+- `Heavy` — recommended at spec finalization + generate-tasks finalization (where the prototype evidence sits);
+  available-unrecommended at draft readiness + verify.
+- `Novel` — recommended at all four boundaries, strongest framing; plausibly multiple independent subagents.
+
+This is the principle-anchored-core *"ceremony scales with `Class`, discipline doesn't"* posture, but needs
+nothing from `scalable-core` (config reform) — so this WU is independent of it. Pass-cap numbers stay spec-time
+calibration.
 
 ### Constitutional edit — sharpen § Sub-agent scope generally (settled 2026-07-01)
 
 A carve-out naming this one method is bad constitutional hygiene — exception lists grow, and the rule's real
-defect is aim, not reach. History: DEV-RULES § Sub-agent scope ("task-list work stays in the primary's context")
-is *stricter than its own source* — ADR-002 explicitly blesses delegation for triage / exploration and bounded
-deterministic work ("not a prohibition … an explicit exception, not the expected norm"); the flat
-task-membership ban is the drift, not the doctrine. What the rule actually protects is two properties: the
-human's formative involvement in *changes* (the co-development loop — a rule for the human operator's seat, not
-for agents), and **judgment staying with the primary** (nothing lands on relayed subagent claims) — the second
-of which the current text never states.
+defect is aim, not reach. Context: the current rule bans only *task-list* delegation, so planning-stage passes
+(three of this WU's four fire-points) sit in silence rather than prohibition — the sharpening **closes a silence
+as much as it relaxes a ban**. ADR-002 is aligned in spirit — it declines to prohibit delegation ("not a
+prohibition … an explicit exception, not the expected norm") and blesses triage / exploration — though its
+exception text addresses cloud/async delegation agents and no doc records it as the rule's source, so the
+sharpened rule **stands on its own argument**, not on provenance. What the rule actually protects is two
+properties: the human's formative involvement in *changes* (the co-development loop — a rule for the human
+operator's seat, not for agents), and **judgment staying with the primary** (nothing lands on relayed subagent
+claims) — the second of which the current text never states.
 
 Proposed sharpened rule — delegate by **function**, not task-membership:
 
@@ -78,7 +87,8 @@ Proposed sharpened rule — delegate by **function**, not task-membership:
 
 Not removal: ADR-002's design center (co-development) is ARC's identity, and multi-agent harness trends make the
 guard more relevant, not less — it needs re-aiming, not retiring. No ADR amendment needed for this half (the
-sharpened rule *restores* ADR-002's actual position); `unit-scoped-review` keeps the ADR-002 amendment question
+sharpened rule is consistent with ADR-002 and changes no session-model position; the argument travels in the
+rule edit itself); `unit-scoped-review` keeps the ADR-002 amendment question
 for its review-frequency relaxation. The socket/plug split note is routed to `unit-scoped-review`'s buffer via
 `USER-INBOX` (2026-07-01); coordinate final rule wording against its "mechanics may delegate; judgment may not"
 framing when it activates.
@@ -104,12 +114,26 @@ toward what the primary already suspects, and the primary's blind spots are exac
 necessarily carry prior findings + fixes (they aim to break the fixes), so directed context enters there by
 design.
 
+**Orientation set (settled 2026-07-01).** Alongside the artifact set, every pass carries a fixed orientation
+input: `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT` — artifact-neutral shared ground truth (the surface ARC already
+maintains *as* agent orientation), identical in role in any repo since the reviewer always reviews an ARC-shaped
+artifact. Grounding raises precision (fewer noise findings to primary-verify) without biasing; the line is
+**artifact-neutral ground truth in, author's beliefs about the artifact out**. Goal referents (PROJECT-PRD /
+TECHNICAL-OVERVIEW, or the project's equivalents) enter **rubric-keyed** — where the stage's rubric names them
+(design-audit's efficacy lens) — never as blanket baseline. Constitution / strategies stay pointer-listed, read
+on demand. "Receive" means a prescribed first-read path set, not content serialized into the prompt — the
+mechanism presupposes repo read access (without it, the harness-conditional degrade path already applies).
+
 ### Exit gate (convergence bound)
 
 "Loop until convergence" needs a bound — the `Class` floor + opt-in gate *entry*, not *exit*. Lean: exit on a
 **clean pass** (zero primary-confirmed findings) or a **`Class`-scaled pass cap** (`Light` 1 · `Heavy` ~2 ·
 `Novel` ~3), whichever comes first; hitting the cap with live findings surfaces them unresolved at the interlock
 for the user's call. Exact numbers settle at spec.
+
+**Pass-≥2 semantics (settled 2026-07-01):** a **full rubric re-run** with the prior findings + fixes appended as
+context — never a narrowed fix-only attack, which could not certify a clean pass. The re-run aims at breaking
+the prior fixes *within* full coverage; the cap bounds its cost.
 
 ### Draft-stage rubric keys to the existing kickback criteria
 
@@ -142,6 +166,19 @@ callsite block stays plain prose/fenced-params for now (the cross-file step-anch
 CW-space; the `` `#name` `` marker is extension-fire-points-only). Contribute the worked prototype to CW as
 evidence for method-signature codification.
 
+Named inputs: `rubric` (stage-keyed, carrying its referents), `artifacts` (stage-keyed set), `orientation`
+(fixed: the two briefs), `passBudget`, `priorFindings` (pass ≥2 only; the focus-list exclusion is a deliberate
+non-input on pass 1).
+
+**Return type (field-tested 2026-07-01, dogfood pass 1).** The output half of the contract. Per finding:
+`title`, `severity`, `artifact-locus` (the specific passage at issue), `evidence` (paths + what was found
+there), `failure-rationale` (why it breaks / what two engineers would build differently). Plus two report-level
+fields: **what-held-up-under-attack** — the claims checked and cleared, sparing re-verification and giving the
+reviewer a sanctioned "nothing here" (the structural guard behind zero-manufactured-findings) — and a one-line
+**certification verdict** keyed to the fire-point's gate question. Evidence pointers are what make primary
+verification cheap: findings arrive pre-addressed. Spec-time detail: whether the severity enum is fixed or
+rubric-supplied per stage (lean: fixed core enum, rubric maps into it).
+
 ## Rubric consolidation (pulled into this WU)
 
 - **Pull in `arc-design-audit`** (design efficacy + fit validation) from `review-method-family`'s buffer — it is
@@ -172,9 +209,10 @@ renames that fail the standard route there, not here.
 ## Coordination seams
 
 - **`planning-iteration-mechanics`** owns the readiness *criteria* and content *lenses* (the `assess-spec-readiness`
-  / open-questions discipline, the leaf-magnitude detector) that this mechanism *runs*. Its open question
-  *"should generate-tasks gate proactively at entry?"* is the **same** question as "does an adversarial task-gen
-  pass fire there" — co-design, don't decide twice.
+  / open-questions discipline, the leaf-magnitude detector) that this mechanism *runs*. Its entry-gate question
+  ("should generate-tasks gate proactively at entry?") and this WU's finalization fire-point are **adjacent
+  decisions at the same stage boundary**, not one question — co-design the generate-tasks boundary treatment
+  (entry, finalization, or both) rather than deciding either side alone. (Routed to PIM's buffer 2026-07-01.)
 - **`review-method-family`** keeps its review-direction reshape and becomes a **consumer** of this WU's
   fresh-subagent primitive (rather than reinventing it); `arc-design-audit` departs its buffer to here.
 - **`composable-workflows`** consumes this WU's invocation-contract prototype (structured method inputs + the
@@ -199,10 +237,14 @@ renames that fail the standard route there, not here.
   fresh pass deliberately lacks.
 - **§ Sub-agent scope: sharpen generally** — delegate by function (derivation / execution / judgment), no
   per-method carve-out; see § Constitutional edit. Ratified 2026-07-01.
+- **Per-stage factoring: rubrics are methods; no per-stage workflows** — generalize the pattern § Rubric
+  consolidation already sets: each rubric is a public method; skill doors exist only where standalone ad-hoc
+  invocation earns them (`arc-task-audit` stays, `arc-design-audit` arrives); callsites are inline workflow
+  blocks per the invocation contract. `composable-workflows` may re-house under its public/private model later —
+  a forward-compat note, not an open fork. Settled 2026-07-01.
 
-**Open (settle at planning):**
-
-- **Method / skill / workflow factoring** per stage, pending the `composable-workflows` public/private model.
+**Open:** none — remaining opens are spec-time calibration (pass-cap numbers, severity-enum fixity), tracked in
+§ Iteration status.
 
 ## Config / gating & cost
 
@@ -220,22 +262,22 @@ rides `scalable-core` when it lands, not minted here (preserving this WU's indep
 
 ## Success signal
 
-On the next `Heavy`+ work unit, the wired workflows themselves recommend the pass at each boundary (nothing
-hand-remembered), and a full run either surfaces ≥1 primary-confirmed pre-impl defect or converges clean within
-the pass cap — with zero manufactured findings surviving primary verification.
+On the next `Heavy`+ work unit, the wired workflows themselves recommend the pass at each `Class`-keyed boundary
+(nothing hand-remembered), and a full run either surfaces ≥1 primary-confirmed pre-impl defect or converges clean
+within the pass cap — with zero manufactured findings surviving primary verification.
 
 ## Scope Estimate
 
 Medium — multi-surface: the `adversarial-review` method (with its invocation contract + prompt template), the
-DEV-RULES § Sub-agent scope edit (per the open disposition fork), four workflow wirings (`draft-design`,
+DEV-RULES § Sub-agent scope edit (sharpen generally, settled), four workflow wirings (`draft-design`,
 `create-spec`, `generate-tasks`, `verify-work-unit`), the `design-audit` pull-in, and the `task-audit`
 decouple; across both the package source and the `.arc/` copy. `Class` resolved `Heavy` at init (constitutional
 edit + multi-workflow surface).
 
 ## Iteration status
 
-- **Readiness:** maturing (2026-07-01, third pass) — scope settled; success signal stated; all original forks
-  settled; the § Sub-agent scope disposition is the one open design decision. `Class` resolved `Heavy` at init.
+- **Readiness:** formalization-ready pending dogfood pass 2 (2026-07-01, fifth pass — dogfood pass-1 findings
+  folded). `Class` resolved `Heavy` at init.
 - **Resolved, pass 1 (init):** harness-conditional subagent posture (single constitutional locus + degrade
   path); stage-keyed context provisioning; exit-gate need + clean-pass-or-cap lean; draft-stage rubric keyed to
   the existing kickback criteria (`assess-draft-readiness` bar + re-entry-valve `needs-design` gaps);
@@ -250,9 +292,16 @@ edit + multi-workflow surface).
   (derivation / execution / judgment) rather than mint a per-method carve-out. CW seam routed to `USER-INBOX` →
   `composable-workflows`; coherence pass over the accreted layers.
 - **Resolved, pass 4:** § Sub-agent scope disposition ratified (sharpen generally); socket/plug split note
-  routed to `USER-INBOX` → `unit-scoped-review`. Readiness re-assessed: **formalization-ready** — pending the
-  dogfood adversarial pass (pass 1, this mechanism run on its own draft) before the stage advances.
-- **Open:** per-stage factoring (waits on CW); exact pass-cap numbers + `Class` × fire-point matrix (spec);
-  ratify the invocation-contract shape at spec.
-- **Next:** run the dogfood pass, primary-verify findings, fold confirmed fixes, then advance the stage pointer
-  to create-spec.
+  routed to `USER-INBOX` → `unit-scoped-review`. Dogfood pass 1 spawned against the captured draft.
+- **Resolved, pass 5 (dogfood pass-1 fold):** all 8 findings primary-confirmed against source (zero
+  manufactured; three caught this session's own accretion) and folded — uniform-wiring /
+  `Class`-scaled-recommendation matrix (retires "`Novel` mandatory"); per-stage factoring settled by
+  generalizing the rubric-consolidation pattern; `task-audit` table cell corrected (leaf-magnitude is PIM's
+  detector, joins when shipped); PIM seam reworded to adjacent-decisions co-design (routed to PIM's buffer);
+  pass-≥2 = full rubric re-run with prior findings appended; ADR-002 provenance claim softened (the rule stands
+  on its own argument); stale accreted layers reconciled. Also folded: the fixed `orientation` input (the two
+  briefs; goal referents rubric-keyed) and the field-tested return type into the invocation contract.
+- **Open:** spec-time calibration — pass-cap numbers, severity-enum fixity; ratify the invocation-contract
+  shape at spec.
+- **Next:** dogfood pass 2 (full rubric re-run, prior findings + fixes attached, aiming to break the fixes);
+  clean → advance the stage pointer to create-spec.
