@@ -43,39 +43,31 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ The new method now exists byte-identically in the package source and project instance, with the
   invariant contract in place for later Phase 1 sections to extend.
 
-### `[ ]` **1.2 Author the invocation contract — named inputs, return type, prompt template, callsite shape**
+### `[x]` **1.2 Author the invocation contract — named inputs, return type, prompt template, callsite shape**
 
 - _Goal:_ a caller can marshal a pass without re-deriving the interface — the method carries named inputs, a
   structured return type, the prompt template that serializes the subagent-context inputs, and one canonical
   callsite arg-block the four fire-points instantiate. The primary owns the loop (spawns each pass, applies the
   exit gate, verifies findings); a subagent performs exactly one pass.
 
-- _Approach:_ structured prose + fenced param blocks in the method **body** — not frontmatter (the frontmatter
-  schema is deferred to `composable-workflows`).
+    - `[x]` **1.2.a Named inputs**
+        - Added the input table and explicitly split subagent-context inputs from the primary-side `passBudget`
+          loop bound.
 
-- _Note:_ this is the output-half contract downstream WUs consume as a worked example; keep it body-level.
+    - `[x]` **1.2.b Return type**
+        - Added one canonical report schema with per-finding fields and report-level
+          `what-held-up-under-attack` / `certification-verdict` fields.
 
-    - `[ ]` **1.2.a Named inputs**
-        - The input table with each input's Kind and Contents: `rubric` (per-stage), `artifacts` (per-stage),
-          `orientation` (fixed), `priorFindings` (pass ≥ 2, a deliberate non-input on pass 1). Distinguish these
-          **subagent-context inputs** from `passBudget` — the `Class`-scaled **primary-side loop bound** that caps
-          how many passes the primary spawns and is **never serialized into a subagent**.
+    - `[x]` **1.2.c Prompt template**
+        - Added the portable prompt template with fresh-context discipline, no-manufactured-findings language, the
+          `{reportSchema}` serialization point, and primary verification stated in the prompt itself.
 
-    - `[ ]` **1.2.b Return type**
-        - Per-finding fields (`title`, `severity`, `artifact-locus`, `evidence`, `failure-rationale`) plus the two
-          report-level fields (`what-held-up-under-attack`, `certification-verdict`).
+    - `[x]` **1.2.d Canonical callsite arg-block**
+        - Added one fenced callsite shape plus runtime steps for fresh-pass spawn, source verification, disposition,
+          and loop control.
 
-    - `[ ]` **1.2.c Prompt template**
-        - Method-owned; serializes the subagent-context inputs (not `passBudget`) and hard-codes the two
-          disciplines (fresh context per pass; primary-verifies-findings-against-source). Portable — no per-harness
-          profile. Resolves OQ1 (exact adversarial phrasing against the two disciplines).
-
-    - `[ ]` **1.2.d Canonical callsite arg-block**
-        - Define one prose/fenced arg-block shape in the method body that every fire-point instantiates — naming
-          the mechanism invocation (`rubric`, `artifacts`, `orientation`, `passBudget` as the primary's loop bound,
-          `priorFindings` on re-runs) and the runtime steps (spawn a fresh subagent with the subagent-context
-          inputs; verify each finding against source; loop under the exit gate). The 4.x wirings instantiate this
-          shape rather than re-deriving it.
+- _Outcome:_ The method now carries the interface contract downstream callers need: named inputs, structured
+  output, prompt serialization, and a canonical invocation block, without adding frontmatter schema.
 
 ### `[ ]` **1.3 Author the severity model — fixed core enum + severity-vs-disposition**
 

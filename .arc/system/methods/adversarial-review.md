@@ -48,6 +48,91 @@ regressions or second-order breaks before the stage closes.
 scales with the work unit's `Class`. It informs the stage interlock; it does not replace the interlock or make the
 stage impossible to approve.
 
+### Invocation contract
+
+The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
+findings against source, applies dispositions, and decides whether the loop has converged. A subagent performs
+exactly one pass and never receives primary-side loop state.
+
+**Named inputs:**
+
+| Input           | Kind             | Contents                                                           |
+|-----------------|------------------|--------------------------------------------------------------------|
+| `rubric`        | per-stage        | Rubric(s) to attack, including their referents.                    |
+| `artifacts`     | per-stage        | Artifact under audit plus its upstream chain.                      |
+| `orientation`   | fixed            | Artifact-neutral briefings shared with every pass.                 |
+| `passBudget`    | `Class`-scaled   | Primary-side cap on spawned passes; not serialized.                |
+| `priorFindings` | pass two onward  | Prior findings and applied fixes; omitted from the first pass.     |
+
+`rubric`, `artifacts`, `orientation`, and `priorFindings` are subagent-context inputs. Serialize them into the
+fresh pass prompt. `passBudget` is a primary-side loop bound only: the primary uses it to decide how many fresh
+passes it may spawn, but the subagent never sees it.
+
+**Return schema:**
+
+The report schema below is canonical. The primary uses it when validating a pass result and serializes it into
+`{reportSchema}` in the prompt template.
+
+```text
+findings:
+- title: one line
+  severity: one of the fixed core enum values supplied by the rubric context
+  artifact-locus: the specific passage, file, symbol, or diff region at issue
+  evidence: paths and source-grounded observations
+  failure-rationale: why the artifact breaks, or what two competent engineers would build differently
+
+what-held-up-under-attack:
+- claims or artifact regions checked and cleared
+
+certification-verdict: one line keyed to the fire-point's gate question
+```
+
+**Prompt template:**
+
+```text
+You are performing one fresh adversarial-review pass.
+
+Use only the context supplied in this prompt plus source files you inspect directly.
+Do not rely on the primary agent's intent, unstated assumptions, or prior session context.
+
+Rubric:
+{rubric}
+
+Artifacts:
+{artifacts}
+
+Orientation:
+{orientation}
+
+Prior findings and fixes:
+{priorFindings | "None. This is pass one."}
+
+Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
+if the artifact holds up, say that plainly and specifically.
+
+Return exactly this report shape:
+{reportSchema}
+
+For each finding, include source-grounded evidence. The primary will verify every
+finding against source before acting on it.
+```
+
+**Canonical callsite shape:**
+
+```text
+adversarial-review:
+  rubric: <rubric method(s) and fire-point gate question>
+  artifacts: <artifact under audit + upstream chain + key-file pointers>
+  orientation:
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  passBudget: <Light 1 | Heavy 2 | Novel 3>
+  priorFindings: <pass two onward: prior findings + applied fixes>
+```
+
+At runtime, spawn a fresh pass with the subagent-context inputs, verify every finding against source, apply a
+primary disposition, and continue under the exit gate until convergence or `passBudget`.
+
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md
