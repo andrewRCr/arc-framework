@@ -55,6 +55,25 @@
 - *Home note:* primary `inbound-routing-method` (find-the-home + write-it-in belong together); could stand alone
   as a sibling method if that WU stays narrow.
 
+### `[ ]` **Disposition gate ahead of homing — coupling + horizon tests (anti over-routing / under-execution)**
+
+- *Routed from:* `shared-inbox-model` grooming pass (2026-07-02) — surfaced deciding the shared-inbox model.
+- *Concern:* routing a capture to a backlog WU is a **scheduling decision disguised as a filing decision** — the
+  concern inherits the target WU's activation horizon, which is opaque at routing time. The current rubric
+  (domain fit + WU-floor) produces two observed failure modes: **over-routing** — a capture lands in the only
+  backlog surface touching its domain (the bucket problem) and the eventual WU inherits an accreted mess — and
+  **under-execution** — a good-fit but errand-shaped, high-value concern parks behind a WU that may not activate
+  for months, when it could simply be executed near-term.
+- *Proposed:* a **disposition tier ahead of homing**, completing the family (disposition → homing
+  (`assess-wu-target`) → integration): (1) **coupling test** — does the concern *shape the target WU's design*
+  (a design input that must be decided with the WU → route) or merely *share its domain* (a neighbor → don't
+  route on fit alone)? (2) **horizon test** — is the target WU's activation horizon acceptable for this
+  concern's value? High-value + errand-shaped + separable → the execute lane (personal errand if
+  self-committed, else the project inbox), with at most a cross-reference to the WU.
+- *Cross-refs:* `justified-deferral` (the principle backstop — anti-rider's dual, guards the same drift at
+  execution time); the shared-inbox model WU (owns the surface semantics the dispositions route onto: personal
+  retain = explicit near-term self-commitment, homeless default = promote to the project inbox).
+
 ---
 
 ## Problem / Motivation
