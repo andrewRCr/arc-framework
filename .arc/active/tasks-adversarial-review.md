@@ -208,8 +208,10 @@ second caller through Phase 4's create-spec wiring, not here.
 _Design decisions:_ `design-audit` ≈ `task-audit` one rung up — a rubric method + a thin skill door, no dedicated
 workflow. `task-audit` becomes the DRY rubric **method**; `arc-task-audit` reduces to a door that calls it and
 keeps the mid-impl-reground context layer. Standalone skill-door runs keep the native two-tier disposition
-contract; the severity interpretation is new authoring for the through-the-mechanism path (OQ4). Detail:
-`spec-adversarial-review.md` § D9.
+contract; the severity interpretation is new authoring for the through-the-mechanism path (OQ4). Both rubric
+methods adopt the signature-led contract encoding settled at Task 1.9 where they state callable inputs/outputs —
+blockquote `Signature:` line, valid-YAML contract fences, kebab-case field names; pure-guidance prose stays
+prose. Detail: `spec-adversarial-review.md` § D9.
 
 ### `[ ]` **2.1 Mint the `design-audit` method (efficacy + fit)**
 
@@ -221,9 +223,9 @@ contract; the severity interpretation is new authoring for the through-the-mecha
   from `review-method-family`'s buffer.
 
     - `[ ]` **2.1.a Author the method**
-        - Frontmatter + Workflow/When/Contract blockquote + `.override`/`.default`, carrying the efficacy + fit
-          lenses and the preserved framings: read-only, standalone + optional; floored at a finished draft and
-          point-agnostic above (draft / spec / post-task-gen / mid-impl).
+        - Frontmatter + Workflow/When/Signature/Contract blockquote + `.override`/`.default`, carrying the
+          efficacy + fit lenses and the preserved framings: read-only, standalone + optional; floored at a
+          finished draft and point-agnostic above (draft / spec / post-task-gen / mid-impl).
 
     - `[ ]` **2.1.b State the `spec-review` ↔ `design-audit` relationship**
         - In `design-audit`, name the division of labor (artifact-quality vs. design-validity) so the two methods
@@ -331,13 +333,15 @@ boundaries, retire the `generate-tasks`→skill layering inversion, and wire the
 the three planning-stage finalize points.
 
 _Design decisions:_ Uniform wiring; only the recommendation posture scales with `Class` — `Light` none / `Heavy`
-spec + generate-tasks / `Novel` all four (strongest framing). Each callsite is an inline workflow block plus an
-`arc.methods` frontmatter declaration — **not** a `` · `#name` `` extension-fire-point marker (that marker is
-extension-only and hook-validated). Every launch stays per-invocation declinable. Each fire-point's `artifacts`
-includes authoring that boundary's non-exhaustive key-file pointer list (OQ2) — a wiring-time deliverable, not
-just the artifact chain. The first `arc.methods` declaration to land also removes `adversarial-review` from
-`audit-method-triggers.ts`'s `WIRING_PENDING` allowlist (Task 1.8) — the audit flags the entry stale once any
-declaration exists. Detail: `spec-adversarial-review.md` § D5.
+spec + generate-tasks / `Novel` all four (strongest framing). Each callsite instantiates the method's canonical
+fire-point offer shape (spec D5): a stop-class `[!IMPORTANT]` callout with the backticked `adversarial-review`
+method lead naming the boundary's posture, wrapping the instantiated signature block (single top-level YAML key =
+the method name), plus an `arc.methods` frontmatter declaration — **not** a `` · `#name` `` extension-fire-point
+marker (that marker is extension-only and hook-validated). Every launch stays per-invocation declinable. Each
+fire-point's `artifacts` includes authoring that boundary's non-exhaustive key-file pointer list (OQ2) — a
+wiring-time deliverable, not just the artifact chain. The first `arc.methods` declaration to land also removes
+`adversarial-review` from `audit-method-triggers.ts`'s `WIRING_PENDING` allowlist (Task 1.8) — the audit flags
+the entry stale once any declaration exists. Detail: `spec-adversarial-review.md` § D5.
 
 ### `[ ]` **4.1 Wire the draft-readiness fire-point in `draft-design`**
 
