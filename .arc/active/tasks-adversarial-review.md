@@ -120,35 +120,33 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
 - _Outcome:_ The method now defines what the fresh pass receives as first-read context, keeping neutral ground
   truth in and the primary's artifact beliefs out of the first pass.
 
-### `[ ]` **1.6 Author the `Novel` scope-partitioned fan-out contract hook**
+### `[x]` **1.6 Author the `Novel` scope-partitioned fan-out contract hook**
 
 - _Goal:_ the contract admits a `Novel`-only, default-off partitioned pass 1 without a later breaking change —
   the hook, not orchestration.
 
-- _Approach:_ design only the contract surface (per-subagent scoped `rubric`/`artifacts`, a partition map, the
-  seam-ownership rule, disjoint merge, cross-report convergence); do not build orchestration and do not default it
-  on.
+    - `[x]` **1.6.a Entry test — partition-ability**
+        - Added the `Novel`-only, default-off entry test for orthogonal slices with ownable seams, explicitly
+          distinguished from deliverable bisectability.
 
-    - `[ ]` **1.6.a Entry test — partition-ability**
-        - Slices must be orthogonal with ownable seams (the `assess-cohort-fit` orthogonality discriminator one
-          altitude down); state it as **explicitly distinct** from `pr-decomposition`'s bisectability test.
+    - `[x]` **1.6.b Seam-ownership rule**
+        - Added the downstream blast-radius ownership rule and the dense-seam fallback to a dedicated seam /
+          integration slice.
 
-    - `[ ]` **1.6.b Seam-ownership rule**
-        - The slice that originates a change owns its downstream blast radius; where seams are dense, a dedicated
-          seam/integration slice owns them (else partitioning orphans seam defects — the mechanism's strongest
-          point).
+    - `[x]` **1.6.c Merge and convergence**
+        - Added the partition contract, report concatenation, and cross-report convergence as an AND over slice
+          reports with no open finding above `minor`.
 
-    - `[ ]` **1.6.c Merge and convergence**
-        - Disjoint responsibility → merge is concatenation; cross-report convergence is a trivial AND (no slice's
-          report carries a finding above `minor`). Primary-proposed, `Novel`-only, entry-test-gated.
+- _Outcome:_ The method now carries a future-compatible `Novel` fan-out hook without adding orchestration or
+  making partitioned review automatic.
 
-### `[ ]` **1.7 Reconcile both framework copies + registration**
+### `[x]` **1.7 Reconcile both framework copies + registration**
 
 - _Goal:_ `adversarial-review.md` is byte-identical across both copies and the pre-commit sync check is clean.
 
-- _Note:_ skip the README `## Index` — its retirement is a separately-captured errand, so new methods are
-  discoverable via the directory + their frontmatter; no `## Method Dependencies` row either (that table tracks
-  override-consistency coupling, not the rubric-running relation).
+- _Outcome:_ Kept README registration untouched by design: the method is discoverable by directory/frontmatter, and
+  no `## Method Dependencies` row applies to the rubric-running relationship. Verified the two method copies are
+  byte-identical; package-sync cleanliness is covered by the staged pre-commit script.
 
 ## **Phase 2:** Rubric consolidation — the rubrics the mechanism runs
 

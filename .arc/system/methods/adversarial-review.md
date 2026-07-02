@@ -231,6 +231,37 @@ breakpoints are exactly where its blind spots can hide, so the first pass should
 onward, provide the prior findings and the primary's applied fixes so the fresh pass can attack the settled
 artifact and the repairs.
 
+### Novel partitioned fan-out hook
+
+The standard run is one fresh subagent per pass. For `Novel` work only, the primary may propose a partitioned pass
+one when the surface is wide enough that one reviewer would spread thin and the surface admits a clean partition.
+This hook is default off and contract-only; it does not add orchestration or make fan-out automatic.
+
+**Entry test — partition-ability.** Partition only when slices are orthogonal and have ownable seams. Orthogonality
+means a reviewer can own a slice's responsibility without relying on another slice's unresolved judgment. If seams
+are dense everywhere, stay with the standard single-reviewer pass.
+
+This is distinct from deliverable bisectability. A review slice needs attention partition; a PR or deliverable cut
+needs a green, consistent intermediate state. Do not treat one test as evidence for the other.
+
+**Partition contract.** A partitioned pass supplies:
+
+- `partitionMap` — the named slices and their ownership boundaries.
+- Per-slice `rubric` — the scoped rubric for that slice.
+- Per-slice `artifacts` — the scoped artifact set plus the shared upstream chain.
+- Shared `orientation` — the fixed orientation set from this method.
+
+Each subagent keeps full repository read access, but its mandate is scoped to its slice.
+
+**Seam-ownership rule.** The slice that originates a change owns its downstream blast radius. Where seams are too
+dense for origin ownership, create a dedicated seam or integration slice. Partitioning must not orphan seam
+defects.
+
+**Merge and convergence.** Because responsibility is disjoint, merge reports by concatenation rather than
+deduplicating overlap. A partitioned pass converges only when no slice report carries an open finding above
+`minor`; cross-report convergence is a simple AND over slice reports. After merging, the primary applies the same
+source verification, disposition, and exit-gate rules as a standard pass.
+
 ---
 
 [draft-design]: ../workflows/arc/draft-design.md
