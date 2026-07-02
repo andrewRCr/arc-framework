@@ -26,32 +26,22 @@ prototypes work — fresh-context-per-pass and primary-verifies-findings-against
 defaulted-off contract hook, not orchestration. The method is _the mechanism_ — it runs a supplied rubric
 adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-review.md` § D1–D7.
 
-### `[ ]` **1.1 Scaffold the method file and its invariant-properties contract**
+### `[x]` **1.1 Scaffold the method file and its invariant-properties contract**
 
 - _Goal:_ `adversarial-review.md` exists as a method whose five invariant properties are stated as the contract
   any override must preserve to remain adversarial-review at all.
 
-- _Approach:_ mirror the sibling method shape (`spec-review.md`) — frontmatter (`name`, `description`,
-  `override-active: false`), `# Method:` heading, the Workflow / When / Contract blockquote, `.override` (`[No
-  override configured]`), then the `.default` body.
+    - `[x]` **1.1.a Create the file and header blockquote**
+        - Added `adversarial-review.md` in both framework copies with frontmatter, the `# Method:` heading, the
+          Workflow / When / Contract blockquote, `.override`, and `.default` sections.
 
-- _Note:_ the harness-conditional posture (fresh subagent when the harness supports one) + the degrade path live
-  once in `§ Sub-agent scope` (Task 3.2, the single constitutional locus); the method **references** that locus,
-  never restates it — an intra-WU forward reference (Phase 3 authors the clause; reference it even though this
-  phase lands first, don't inline it).
+    - `[x]` **1.1.b State the five invariant properties as the contract**
+        - Stated fresh context, adversarial stance, primary-held judgment, convergence looping, and advisory
+          `Class` scaling as the method identity contract, with `DEV-RULES.ARC § Sub-agent scope` as the single
+          harness/degrade locus.
 
-    - `[ ]` **1.1.a Create the file and header blockquote**
-        - Workflow: the four fire-point workflows (`draft-design`, `create-spec`, `generate-tasks`,
-          `verify-work-unit`). When: a stage boundary runs its readiness / finalize / verification gate. Contract:
-          run a supplied rubric adversarially via a fresh subagent, primary holding judgment, looping to
-          convergence — advisory, never a hard gate.
-
-    - `[ ]` **1.1.b State the five invariant properties as the contract**
-        - Fresh subagent per pass; adversarial stance (with the do-not-manufacture / say-so-plainly clause);
-          primary holds judgment (every finding PLAUSIBLE until verified against source); loop to convergence
-          (later passes break the prior fixes); advisory and `Class`-scaled. Frame drop-these-and-it-is-no-longer
-          -adversarial-review; note the contract is advisory under today's methods-README model — stated, not
-          enforced.
+- _Outcome:_ The new method now exists byte-identically in the package source and project instance, with the
+  invariant contract in place for later Phase 1 sections to extend.
 
 ### `[ ]` **1.2 Author the invocation contract — named inputs, return type, prompt template, callsite shape**
 
