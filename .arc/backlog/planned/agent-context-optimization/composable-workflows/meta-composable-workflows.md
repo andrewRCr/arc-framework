@@ -4,7 +4,7 @@
 | ---------- | --------- | ---------- | --------- | ------------ |
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P2`         |
 
-- **Cohort:** `principle-anchored-core`
+- **Cohort:** `agent-context-optimization`
 - **Depends On:** `work-organization-reform`
 
 - **Origin:** [internal]
@@ -15,9 +15,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Expand the stub into a design pass — settle the core-vs-fragment boundary for
-  resolve-then-load and the `system/workflows/` navigability/reshape question. Coordinate with the
-  agent-context-optimization cohort (shared "reduce agent context/instruction load" goal) and with
-  `adr-020`'s resolve-then-load requirement.
+- **Next Action:** Continue grooming against the consolidated draft (2026-07-02 rewrite): settle the
+  § Open questions — agenda schema shape, fragment granularity / directory layout, structural-budget
+  enforcement — then spec. Cohort keystone: siblings consume D1 (contract shape) and D3 (agenda) once
+  settled; see `cohort-agent-context-optimization.md` § Sequencing.
 
 ---

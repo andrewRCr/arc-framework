@@ -5,7 +5,7 @@
 | `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** `agent-context-optimization`
-- **Depends On:** `handoff-optimization`
+- **Depends On:** `composable-workflows`
 
 - **Origin:** [internal]
 - **Design:** `draft-instruction-optimization.md`

@@ -4,7 +4,10 @@
 workflow without degrading handoff quality. Handoff sibling to the shipped Session-Init
 Optimization WU.
 
-- **State:** Draft — captured 2026-05-09 from a mid-session friction audit. No PRD yet.
+- **State:** Draft — captured 2026-05-09 from a mid-session friction audit; re-anchored 2026-07-02
+  (grooming session): structured Persistent Context triggers elevated to co-headline scope (item 3 — the
+  evidence hardened), CW-consumer items marked, cohort sequencing stated against
+  `cohort-agent-context-optimization.md`. No PRD yet.
 - **Created:** 2026-05-09
 - **Origin:** Recurring observation that `/arc-handoff` runs to summary in 3+ minutes
   even on sessions where most of the handoff context is unchanged. Triage during Release
@@ -19,7 +22,10 @@ Optimization WU.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **SESSION-NOTES post-WOR model cleanup**
+### `[x]` **SESSION-NOTES post-WOR model cleanup**
+
+- *Disposition (2026-07-02):* Integrated as a standing scope item (see § Scope) — a coordinated
+  template + workflows + CLI retirement sweep, unchanged in substance from the capture below.
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: TBD`), work-routing-discipline housekeep drain (2026-06-01).
 - *Concern:* WOR moved SESSION-NOTES to WU-scoped subdirs (`user/{id}/<wu>/`) but left the pre-WOR single-doc
@@ -36,16 +42,16 @@ Optimization WU.
   is/isn't written; same file, adjacent concern — one coordinated sweep (its notes § Coordination write-back
   specifics names this WU as the owner).
 
-### `[ ]` **Give session-handoff a codified lightweight path for errand/housekeep sessions**
+### `[x]` **Give session-handoff a codified lightweight path for errand/housekeep sessions**
 
+- *Disposition (2026-07-02):* Integrated as a **CW-gated scope item** (see § Scope) — session-handoff's
+  entry-mode paths (active-WU / between-WUs / errand / housekeep) become fragments under
+  `draft-composable-workflows.md` D2/D3, and this WU authors the handoff instances once that design
+  settles. Named there as an early consumer. Original concern preserved: the agent currently exercises
+  judgment to abstain from heavier active-WU steps (meta-file commit, SESSION-NOTES write) instead of
+  never seeing them.
 - *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: handoff-optimization`), housekeep drain (2026-06-27);
   captured 2026-06-26, between-WUs reflection.
-- *Concern:* the between-WUs / errand-session handoff paths work today, but the agent must exercise judgment to
-  abstain from the heavier active-WU steps (meta-file commit, SESSION-NOTES write, etc.). A more intentionally
-  lightweight path — resolve-then-load only the applicable fragments, rather than carrying every branch inline and
-  instructing the agent to skip the inapplicable ones — would remove that judgment load.
-- *Approach:* fits this WU's purpose (reduce agent-reasoning load in handoff); the enabling mechanism is
-  `composable-workflows` (resolve-then-load composition). Cross-reference both at iteration.
 
 ---
 
@@ -118,13 +124,17 @@ lowest:
    frame. Skip-threshold judgment becomes mechanical: agent compares current
    intended-write to that snapshot, and skips when no field crossed the threshold.
 
-3. **Structured Persistent Context triggers.** Persistent Context entries currently
-   carry a freeform `_Remove when:_` line. Move to structured triggers (e.g.,
+3. **Structured Persistent Context triggers — elevated to co-headline (2026-07-02).** Persistent
+   Context entries currently carry a freeform `_Remove when:_` line. Move to structured triggers (e.g.,
    `trigger.refExists: refs/notes/...`, `trigger.fileExists: ...`,
    `trigger.commitContains: ...`) that the CLI evaluates at probe time. Surface
    "ready to remove" entries in a slot. Existing entries need migration; future
    authoring requires the structured shape. Convention change in `session-handoff.md`
    § Persistent Context.
+   *Elevation evidence:* WORKING-MEMORY has grown to ~226 lines / ~3.5k tokens of rich prose, re-read at
+   every session-init **and** re-judged entry-by-entry at every handoff — the largest single
+   agent-judgment cost in the ceremony and a per-session read cost besides. ADR-022 already claims the
+   record-schema side; this item is its evaluator. Rank it with item 1, not below it.
 
 4. **Pass 2 hint surface (low priority, possibly infeasible).** Pass 2's
    "not in any durable tracked source" criterion would require semantic search across
@@ -206,6 +216,17 @@ lowest:
   probe-1 / probe-2 collapse, skip-threshold mechanization, persistent-context
   evaluation slot consumption, handoff-commit rendering consumption.
 
+- **Lightweight entry-mode paths** (CW-gated; from the 2026-06-27 capture) — errand / housekeep /
+  between-WUs handoffs load only their applicable fragments instead of carrying every active-WU step
+  inline. Sequenced after `composable-workflows`' fragment design settles; this WU authors the handoff
+  fragments as an early consumer.
+
+- **SESSION-NOTES post-WOR model cleanup** (from the 2026-06-01 capture) — retire the pre-WOR single-doc
+  residue: template drift ("Completed Work", `status-{name}.md`), the dead `**Working On:**` field and its
+  markers, the H1 → `# Session Notes: {WU Name}` seeding via `arc user open`, and the live consumer rewire
+  (session-init multi-candidate disambiguation precedence #1 in `commands/active/status.ts`, circular
+  under WU-scoping) + `session-handoff.md` step 2 / skeleton (+ test).
+
 - **Tests** for the new CLI surfaces (recompute helper, status-field-delta slot,
   persistent-context trigger evaluator, handoff-commit renderer).
 
@@ -227,6 +248,12 @@ lowest:
   Same pattern: shift work from agent reasoning to CLI mechanism, with `sessionType`
   inference and `recommendedAction` slots being the canonical examples. This WU
   applies the same playbook to the handoff side.
+
+- **Composable Workflows** (`draft-composable-workflows.md`) — cohort keystone (joined
+  2026-07-02; see `cohort-agent-context-optimization.md`). Gates only the lightweight
+  entry-mode paths scope item; the CLI items (1, 2, 5, 6) and the trigger evaluator (3)
+  are CW-independent and stay opportunistic. session-handoff is named there as the
+  second agenda consumer after session-init.
 
 - **User Sync UX Polish** (✅ Complete) — handoff-interior toggle pattern lives
   here; this WU composes against that substrate.
@@ -275,9 +302,10 @@ lowest:
   workflow update + tests.
 - Verification + buffer: ~0.5 session.
 
-**Sequencing.** No hard dependencies. Independent of the parallelism trio. Could
-slot in opportunistically between major WUs. If the friction continues to compound,
-consider before Worktree Foundation; otherwise treat as opportunistic.
+**Sequencing.** No hard dependencies for the CLI items (1, 2, 5, 6) or the trigger evaluator (3) —
+slot in opportunistically between major WUs, per `cohort-agent-context-optimization.md`. The
+lightweight entry-mode paths item alone waits on `composable-workflows`' fragment design settling.
+WOR has shipped, so item 6's upstream convention (Task 6.1.e) is established.
 
 **PRD-time clarifications expected.**
 
