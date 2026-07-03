@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "compaction-recovery-seed-hardening",
-  "origin": "description",
-  "intent": "Make compaction recovery robust to untracked-directory dirty paths and stale fallback seeds",
-  "branch": "fix/compaction-recovery-seed-hardening",
-  "createdAt": "2026-07-03T17:37:20.795Z"
-}
