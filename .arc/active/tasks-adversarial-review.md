@@ -213,7 +213,7 @@ methods adopt the signature-led contract encoding settled at Task 1.9 where they
 blockquote `Signature:` line, valid-YAML contract fences, kebab-case field names; pure-guidance prose stays
 prose. Detail: `spec-adversarial-review.md` § D9.
 
-### `[ ]` **2.1 Mint the `design-audit` method (efficacy + fit)**
+### `[x]` **2.1 Mint the `design-audit` method (efficacy + fit)**
 
 - _Goal:_ `design-audit` exists as a public rubric method that validates a **design** (not the artifact) —
   efficacy (does the design solve the goal) and fit (optimal + forward-compatible, not merely non-conflicting).
@@ -222,16 +222,19 @@ prose. Detail: `spec-adversarial-review.md` § D9.
   verifies the artifact, `design-audit` validates the design that self-review deliberately disclaims. Pulled in
   from `review-method-family`'s buffer.
 
-    - `[ ]` **2.1.a Author the method**
-        - Frontmatter + Workflow/When/Signature/Contract blockquote + `.override`/`.default`, carrying the
-          efficacy + fit lenses and the preserved framings: read-only, standalone + optional; floored at a
-          finished draft and point-agnostic above (draft / spec / post-task-gen / mid-impl).
+    - `[x]` **2.1.a Author the method**
+        - `system/methods/design-audit.md`, signature-led per the exemplar: `design-audit(design, goal-referents?)
+          → findings`, named-inputs table, `.override`/`.default` skeleton. Carries the preserved framings —
+          read-only, standalone + optional, floored at a finished draft — with the four audit points rendered as
+          the per-point question the same two lenses answer; mid-impl framed as the escalation point (task-level
+          drift belongs to `task-audit`; reach here when a confirmed finding reopens design).
 
-    - `[ ]` **2.1.b State the `spec-review` ↔ `design-audit` relationship**
-        - In `design-audit`, name the division of labor (artifact-quality vs. design-validity) so the two methods
-          compose rather than overlap.
+    - `[x]` **2.1.b State the `spec-review` ↔ `design-audit` relationship**
+        - § Relationship to `spec-review`: artifact-quality vs. design-validity division of labor, `spec-review`'s
+          "reopens design" route named as this rubric's destination; "certify the record / certify the decisions
+          it records — neither subsumes the other."
 
-### `[ ]` **2.2 Add the `arc-design-audit` skill door**
+### `[x]` **2.2 Add the `arc-design-audit` skill door**
 
 - _Goal:_ `design-audit` is invokable ad hoc via a thin skill door that carries only door-work
   (trigger/awareness + dispatch to the method), mirroring `arc-task-audit`'s door role.
@@ -239,25 +242,32 @@ prose. Detail: `spec-adversarial-review.md` § D9.
 - _Approach:_ create the canonical `SKILL.md` under `.internal/skills/arc-design-audit/` in both copies; read-only
   posture, do not invoke proactively. It departs `review-method-family`'s buffer to here.
 
-### `[ ]` **2.3 Extract `task-audit` into a method; reduce `arc-task-audit` to a door**
+- _Outcome:_ Door authored with a deliberately different framing than `arc-task-audit`'s (settled at batch
+  approval): the trigger text grounds the door in the between-ceremony moments no workflow fire-point covers —
+  a design whose world moved, a groomed draft before promotion, the reopened-design destination — with mid-impl
+  as a rare escalation tail, explicitly **not** a pre-task ritual. The door earns its keep on the planning side,
+  not by symmetry with the task-audit door.
+
+### `[x]` **2.3 Extract `task-audit` into a method; reduce `arc-task-audit` to a door**
 
 - _Goal:_ `task-audit` is the DRY rubric **method**; `arc-task-audit` is a thin door that calls it and retains the
   mid-impl-reground context layer — the layering inversion is retired at the extraction, and the `generate-tasks`
   callsite repoint follows in Task 4.3.
 
-    - `[ ]` **2.3.a Author `system/methods/task-audit.md`**
-        - Carry the rubric the skill holds today — the grounding floor, the eight issue categories, the two audit
-          depths (`grounding-only` / `full`), structured-findings grouping, recommend-actions, **and the native
-          two-tier disposition** (`Fix before starting` / `Carry as context`) — as the method. The two-tier
-          disposition stays the standalone + `generate-tasks` output contract, alongside the new category→severity
-          interpretation (Task 2.4.b) added for the through-the-mechanism path.
+    - `[x]` **2.3.a Author `system/methods/task-audit.md`**
+        - Signature-led (`task-audit(scope, depth?) → findings`); carries the full rubric from the skill —
+          grounding floor (always runs), eight issue categories at `full` depth, `grounding-only` short-circuit,
+          structured-findings grouping with cross-cutting summary, recommend-actions, the native two-tier
+          disposition, and the carry-as-context durable-home rule — plus the derivation-chain framing pairing it
+          with `design-audit` (last link / first link).
 
-    - `[ ]` **2.3.b Reduce `arc-task-audit` to a door**
-        - Keep trigger/awareness, the two caller inputs (scope, depth), dispatch to the `task-audit` method, and
-          the mid-impl-reground context layer. Remove the now-stale "Also invoked by `generate-tasks`" caller claim
-          and its link — superseded by Task 4.3.b's repoint (the workflow calls the method directly).
+    - `[x]` **2.3.b Reduce `arc-task-audit` to a door**
+        - Door now carries trigger/awareness (pre-impl pause + mid-impl reground, named explicitly), the two
+          caller inputs, active-task-list context resolution, and dispatch to the method; the "Also invoked by
+          `generate-tasks`" claim and its link are gone. Added a one-line onward route: a finding implicating the
+          _design_ routes to the `arc-design-audit` door.
 
-### `[ ]` **2.4 Author the per-rubric category→severity interpretations**
+### `[x]` **2.4 Author the per-rubric category→severity interpretations**
 
 - _Goal:_ `design-audit` and `task-audit` each map their findings into the fixed `blocker`/`major`/`minor` enum so
   the exit gate can read them — new authoring, since neither carries a severity concept today (OQ4).
@@ -267,15 +277,30 @@ prose. Detail: `spec-adversarial-review.md` § D9.
   disposition at whatever severity. The interpretation is for the through-the-mechanism path; standalone skill-door
   runs keep the native two-tier.
 
-    - `[ ]` **2.4.a `design-audit` category→severity interpretation**
+    - `[x]` **2.4.a `design-audit` category→severity interpretation**
+        - Severity-keyed (per the mechanism's severity-model shape): efficacy breaks and masked fundamentals read
+          `blocker`; substantive fit / partial-efficacy problems `major`; optimality residue `minor`. Standalone
+          door runs report the same three levels as recommendations — no exit-gate semantics (no native legacy
+          contract to preserve, so one interpretation serves both paths).
 
-    - `[ ]` **2.4.b `task-audit` category→severity interpretation + the two-axis reconciliation**
+    - `[x]` **2.4.b `task-audit` category→severity interpretation + the two-axis reconciliation**
+        - `blocker` = the gate can't certify tasks against design (ungrounded referent, reopened design,
+          decomposition-invalidating assumption); `major` = substantive grounding/planning problems; `minor` =
+          residue. Reconciliation states the axes compose: the native tiers are dispositions (fix-here vs.
+          carry-forward at any severity); through the mechanism the rubric reports severity and the primary
+          assigns disposition; standalone runs keep the native two-tier as their output contract.
 
-### `[ ]` **2.5 Reconcile both framework copies + registration**
+### `[x]` **2.5 Reconcile both framework copies + registration**
 
 - _Goal:_ `design-audit.md`, `task-audit.md`, and both skill doors (`arc-design-audit`, the reduced
   `arc-task-audit`) are identical across both copies and the sync check is clean (README `## Index` skipped per
   the pending retirement).
+
+- _Outcome:_ All four files verified byte-identical across `packages/arc-framework/arc/` and `.arc/`; harness
+  copies hand-synced (`.claude/skills/`, incl. the new `arc-design-audit`). Registration beyond the skipped README
+  Index: `design-audit` + `task-audit` added to `WIRING_PENDING` in `audit-method-triggers.ts` — both methods land
+  ahead of their Phase 4 `arc.methods` declarations, and the stale-entry check makes removal mechanical when the
+  wiring lands.
 
 ## **Phase 3:** Constitutional edit — `DEV-RULES.ARC § Sub-agent scope`
 

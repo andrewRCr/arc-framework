@@ -149,6 +149,8 @@ export function buildCoverageMap(
  */
 export const WIRING_PENDING: ReadonlySet<string> = new Set([
   "adversarial-review",
+  "design-audit",
+  "task-audit",
 ]);
 
 /** Format a diagnostic for a method missing its workflow declaration. */
