@@ -16,11 +16,11 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Resume grooming via `--plan knowledge-architecture` — iterate the draft's
-  § Concern-by-concern positions into evaluated findings (walk the strategy corpus against the intended
-  taxonomy; inventory today's awareness paths), then work the strategies-layer justification to a leaning.
-  Extraction negotiations with `loadset-composition` / `rules-restructure` land at those WUs' planning
-  touchpoints.
+- **Next Action:** Resume grooming via `--plan knowledge-architecture` — settle the ID scheme and
+  operation-vocabulary home, run the full-corpus schema validation (both directions), author the
+  constraint-relocation list, and take the extraction negotiations (rules-restructure, placement
+  thresholds) with the ratified verdict in hand. Keep `strategy-knowledge-evolution.md` (the interim
+  forward-compat check-doc) in sync as principles settle or revise.
 
 - **PR URL:** [none]
 - **Completed:** [none]
