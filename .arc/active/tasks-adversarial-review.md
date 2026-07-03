@@ -379,54 +379,57 @@ wiring-time deliverable, not just the artifact chain. The first `arc.methods` de
 `adversarial-review` from `audit-method-triggers.ts`'s `WIRING_PENDING` allowlist (Task 1.8) — the audit flags
 the entry stale once any declaration exists. Detail: `spec-adversarial-review.md` § D5.
 
-### `[ ]` **4.1 Wire the draft-readiness fire-point in `draft-design`**
+### `[x]` **4.1 Wire the draft-readiness fire-point in `draft-design`**
 
 - _Goal:_ `draft-design` offers the adversarial pass at the formalization-readiness / capture gate, running the
   existing readiness bar (`assess-draft-readiness` divergence test) + `design-audit` (efficacy + fit)
   adversarially, with the `Class`-scaled posture.
 
-    - `[ ]` **4.1.a Declare methods + add the fire-point block**
+    - `[x]` **4.1.a Declare methods + add the fire-point block**
         - Add `adversarial-review` (and `design-audit`) to the `arc.methods` frontmatter; add the inline fire-point
           block at the readiness / capture gate — rubric = readiness divergence test + `design-audit`; artifacts =
           the draft; per-invocation declinable.
 
-    - `[ ]` **4.1.b Recommendation posture**
+    - `[x]` **4.1.b Recommendation posture**
         - Not proactively recommended at draft readiness for `Light` / `Heavy`; recommended at `Novel` (strongest
           framing).
 
-### `[ ]` **4.2 Wire the create-spec finalization fire-point**
+- _Outcome:_ Fire-point placed in § Capture the draft ahead of the existing `workflow-interlock`, scoped to
+  draft-producing paths (`medium` / `high` — the `low` determinacy-confirm has no draft at the rubric's floor);
+  key-file pointers rendered as "the implementation loci the design names."
+
+### `[x]` **4.2 Wire the create-spec finalization fire-point**
 
 - _Goal:_ `create-spec` offers the adversarial pass at Finalize, running `design-audit` + `spec-review` (design
   _and_ artifact) adversarially, alongside the existing non-adversarial self-review — supplying `spec-review`'s
   second caller.
 
-    - `[ ]` **4.2.a Declare methods + add the fire-point block**
+    - `[x]` **4.2.a Declare methods + add the fire-point block**
         - Add `adversarial-review` (+ `design-audit`) to `arc.methods` (`spec-review` already declared); add the
           fire-point block at Finalize (around Gate 1) — rubric = `design-audit` + `spec-review`; artifacts =
           the draft and spec. Keep it distinct from the `pre-spec-finalization-review` team extension already there.
 
-    - `[ ]` **4.2.b Recommendation posture**
+    - `[x]` **4.2.b Recommendation posture**
         - Recommended at `Heavy` + `Novel` (the prototype evidence sits here); not proactively at `Light`.
 
-### `[ ]` **4.3 Wire the generate-tasks finalization fire-point + retire the layering inversion**
+### `[x]` **4.3 Wire the generate-tasks finalization fire-point + retire the layering inversion**
 
 - _Goal:_ `generate-tasks` offers the adversarial pass at Finalize (`task-audit` run adversarially) _and_ its
   grounding-audit procedure calls the `task-audit` method directly rather than the `arc-task-audit` skill —
   retiring the workflow→skill inversion (depends on Task 2.3).
 
-    - `[ ]` **4.3.a Declare the method + add the fire-point block**
+    - `[x]` **4.3.a Declare the method + add the fire-point block**
         - Add `adversarial-review` to `arc.methods`; fire-point block at Finalize — rubric = `task-audit`
           (grounding + executability); artifacts = spec + task list; posture recommended at `Heavy` + `Novel`. Note
           the leaf-magnitude detector joins the rubric when `planning-iteration-mechanics` ships it (not now).
 
-    - `[ ]` **4.3.b Repoint the grounding-audit procedure to the method**
-        - Change the grounding-audit invocation from the `arc-task-audit` skill to the `task-audit` method
-          (workflows call methods; skills are doors) — the inversion retirement. Re-validate that the workflow's
-          downstream prose still resolves against the method's output — the Finalize checklist and grounding-audit
-          steps key off the native `Fix before starting` / `Carry as context` disposition (preserved per Task
-          2.3.a).
+    - `[x]` **4.3.b Repoint the grounding-audit procedure to the method**
+        - § Audit the phase now invokes the `task-audit` method via the unmarked canonical YAML callsite (a
+          mandatory call carries no callout), with the skill link-ref replaced by the method's. Downstream prose
+          re-validated: the confirm gate, revision steps, and Finalize checklist all key off the native
+          `Fix before starting` / `Carry as context` disposition, which the method preserves verbatim.
 
-### `[ ]` **4.4 Wire the `verify-work-unit` adversarial verify**
+### `[x]` **4.4 Wire the `verify-work-unit` adversarial verify**
 
 - _Goal:_ `verify-work-unit` offers an adversarial verification pass that independently re-validates the spec's
   success criteria against the diff, **augmenting** (not replacing) the implementer's self-verify.
@@ -437,16 +440,16 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
   open-ended critique. This is `verify` (confirm delivery against the expected result), **not** `review` (code
   quality / edge cases) — that runs separately in the pre-PR and PR review lanes (§ D10, NG7).
 
-    - `[ ]` **4.4.a Declare the method + add the fire-point block**
+    - `[x]` **4.4.a Declare the method + add the fire-point block**
         - Add an `arc.methods` block (the workflow has none today) declaring `adversarial-review`; add the
           fire-point block — the boundary's own success-criteria validation run adversarially (stage-owned, mints
           no rubric); artifacts = spec + tasks + the diff under verification, with the implementer's markings
           withheld and the primary comparing the independent result to the self-verify.
 
-    - `[ ]` **4.4.b Recommendation posture**
+    - `[x]` **4.4.b Recommendation posture**
         - Recommended at `Novel`; not proactively at `Light` / `Heavy`.
 
-### `[ ]` **4.5 Wire the post-settle coherence re-read at the three planning-stage finalize points**
+### `[x]` **4.5 Wire the post-settle coherence re-read at the three planning-stage finalize points**
 
 - _Goal:_ each planning stage re-fires its own coherence check over the settled artifact as the last step before
   the finalize commit, closing the staleness the mechanism's final-fold opens.
@@ -455,19 +458,28 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
   the advisory adversarial pass. Generalizing across amendment sources and unifying it cross-stage is
   `planning-iteration-mechanics`' (routed seam).
 
-    - `[ ]` **4.5.a `draft-design`** — re-fire the readiness/coherence check at the capture gate before the
+    - `[x]` **4.5.a `draft-design`** — re-fire the readiness/coherence check at the capture gate before the
       capture commit.
 
-    - `[ ]` **4.5.b `create-spec`** — re-fire `spec-review`'s coherence slice over the settled spec as the last
+    - `[x]` **4.5.b `create-spec`** — re-fire `spec-review`'s coherence slice over the settled spec as the last
       step before the finalize commit (after Gate 2).
 
-    - `[ ]` **4.5.c `generate-tasks`** — re-fire the final suite-coherence read over the settled task list before
+    - `[x]` **4.5.c `generate-tasks`** — re-fire the final suite-coherence read over the settled task list before
       the finalize commit (planning-stages only; `verify-work-unit` gets no re-read).
 
-### `[ ]` **4.6 Reconcile both framework copies across all wired workflows**
+- _Outcome:_ All three re-reads wired as conditional-on-folds re-fires of each stage's _existing_ check (readiness
+  coherence / `spec-review` coherence slice / Final suite-coherence pass), placed as the last step before each
+  ceremony commit — nothing minted, per the always-on in-context framing.
+
+### `[x]` **4.6 Reconcile both framework copies across all wired workflows**
 
 - _Goal:_ all four workflow edits and the coherence re-read are identical across both copies and the sync check is
   clean.
+
+- _Outcome:_ All four workflows mirrored (verified by the framework-sync test in the full suite; `generate-tasks`
+  mirrors to its `.template.md` package name — zero template-token divergence). With every declaration live,
+  `WIRING_PENDING` emptied in `audit-method-triggers.ts` — the trigger audit now passes on real `arc.methods`
+  coverage for all three consolidated methods.
 
 ## **Phase 5:** Verification
 

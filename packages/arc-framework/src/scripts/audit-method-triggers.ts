@@ -147,11 +147,7 @@ export function buildCoverageMap(
  * temporary: once a listed method gains any declaration, the audit flags the
  * entry as stale so it cannot outlive the wiring.
  */
-export const WIRING_PENDING: ReadonlySet<string> = new Set([
-  "adversarial-review",
-  "design-audit",
-  "task-audit",
-]);
+export const WIRING_PENDING: ReadonlySet<string> = new Set<string>();
 
 /** Format a diagnostic for a method missing its workflow declaration. */
 export function formatMethodDiagnostic(name: string): string {

@@ -6,6 +6,8 @@ arc:
     - resolve-planning-depth
     - classify-work-unit
     - test-first
+    - task-audit
+    - adversarial-review
 ---
 
 # Workflow: Generate Task List
@@ -261,14 +263,20 @@ of gates following the substantive phase count rather than the resolved level.
 
 ### Audit the phase
 
-Invoke the [arc-task-audit][arc-task-audit] skill scoped to the phase, at the depth the resolved level selects:
-`grounding-only` at `low`, `full` at `medium` / `high`. The skill defines each depth — `grounding-only` is the
-named-files-and-symbols-exist floor, never dropped.
+Run the [task-audit method][task-audit] scoped to the phase, at the depth the resolved level selects:
+
+```yaml
+task-audit:
+  scope:  # the phase under audit
+  depth:  # grounding-only at low; full at medium / high
+```
+
+The method defines each depth — `grounding-only` is the named-files-and-symbols-exist floor, never dropped.
 
 The level only sets a generation-time default, not a ceiling — the full audit stays available on demand
 mid-implementation, regardless of the resolved level or `Class`.
 
-Generation-time framing differs from the skill's typical pre-impl use:
+Generation-time framing differs from the audit's typical pre-impl use:
 
 - **Greenfield:** the task list was just authored. Codebase drift is unlikely; file-path / symbol assumptions
   are common. Focus on grounding (verifying named files and symbols exist).
@@ -397,11 +405,34 @@ flows). When it applies, persist the deterministic finalize facts — `arc final
 field model in one call. generate-tasks is the planning terminus, so no stage advance or boundary sentinel;
 `activate` clears `Current Workflow`. The write rides this ceremony commit.
 
+The finalization boundary also carries an advisory adversarial fire-point — the audit rubric run from fresh
+context over the finished suite (the per-phase gates above audited each phase as authored; this pass attacks
+the whole):
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; available
+> on request at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+
+```yaml
+adversarial-review:
+  rubric:          # task-audit (grounding + executability), full depth
+  artifacts:       # spec-{name}.md + tasks-{name}.md + non-exhaustive key-file pointers
+  orientation:
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  prior-findings:  # pass two onward; omitted on pass one
+```
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop after the pre-save checklist passes. Surface the task list location for review;
 > await direction before the meta update and commit.
 
 Bundle the task list with the planning-state meta update (above).
+
+**Post-settle coherence re-read** (always-on, in-context): when folds landed after the Final suite-coherence
+pass — adversarial-pass findings, review amendments — re-fire that pass over the settled task list as the last
+step before the commit below. The final pass's folds are otherwise never re-attacked.
 
 > [!CAUTION]
 > `commit-interlock` release — commit as `workflowCommit`:
@@ -443,7 +474,7 @@ Activation can be deferred if planning ahead. Activate when implementation is ab
 [arc-methods-cwu]: ../../methods/classify-work-unit.md
 [arc-methods-tf]: ../../methods/test-first.md
 [task-list-formatting]: ../../../reference/strategies/arc/strategy-task-list-formatting.md
-[arc-task-audit]: ../../.internal/skills/arc-task-audit/SKILL.md
+[task-audit]: ../../methods/task-audit.md
 [template-tasks]: ../../../reference/templates/arc/work-unit/template-tasks.md
 [init-work-unit]: work-unit-lifecycle/planning/init-work-unit.md
 [arc-config]: ../../arc-config.yml

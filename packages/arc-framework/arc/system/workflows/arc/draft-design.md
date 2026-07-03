@@ -9,6 +9,8 @@ arc:
     - classify-work-unit
     - assess-cohort-fit
     - assess-draft-readiness
+    - adversarial-review
+    - design-audit
 ---
 
 # Workflow: Draft Design
@@ -153,6 +155,25 @@ accretion is real.
 
 ## Capture the draft
 
+On a draft-producing path (`medium` / `high`), the readiness boundary carries an advisory adversarial
+fire-point — the gate's own rubrics run from fresh context:
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel` (strongest framing);
+> available on request at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds
+> normally.
+
+```yaml
+adversarial-review:
+  rubric:          # assess-draft-readiness divergence test + design-audit (efficacy + fit)
+  artifacts:       # draft-{name}.md + non-exhaustive key-file pointers (the implementation loci the design names)
+  orientation:
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  prior-findings:  # pass two onward; omitted on pass one
+```
+
 > [!IMPORTANT]
 > `workflow-interlock`: Stop when the draft (or determinacy confirmation) is ready. Surface it for review; await
 > approval before persisting `Class` and committing the capture.
@@ -181,6 +202,11 @@ a complete outcome, not an incomplete forward path. Capture the draft to the gro
 the stage pointer**: the stub stays in its backlog state, and the session resumes by re-invoking `--plan <stub>`.
 The tracked `draft-*` is the continuity artifact — pausing is commit + push; write no marker and no new durable
 state.
+
+**Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
+adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
+coherence check, re-fired) as the last step before the capture commit. The final pass's folds are otherwise
+never re-attacked.
 
 What is staged sets the commit shape: a `medium` / `high` path bundles the `draft-*` with the meta `Class` +
 `Design` writes; a `low` path that produced no draft writes only the meta, landing as a dedicated `chore(arc):`
