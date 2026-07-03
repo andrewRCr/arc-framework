@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "stale-worktree-base-ref-index",
+  "origin": "description",
+  "intent": "Read shipped WUs for stale-worktree sweep from the base ref instead of the current working tree",
+  "branch": "fix/stale-worktree-base-ref-index",
+  "createdAt": "2026-07-03T18:12:34.040Z"
+}
