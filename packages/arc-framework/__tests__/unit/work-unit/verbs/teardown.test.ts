@@ -467,4 +467,18 @@ describe("runBranchTeardown — recordless cheap branches", () => {
     expect(result.reason).toMatch(/chore\/<slug>|cheap branches/i);
     expect(calls).toEqual([]);
   });
+
+  it.each(["chore/", "chore/groom demo", "chore/groom/demo"])(
+    "refuses malformed chore branch `%s` before the absence fallback",
+    async (branch) => {
+      const { ctx, calls } = buildCtx([], { branches: [] });
+
+      const result = await runBranchTeardown(ctx, { branch, base: "main" });
+
+      expect(result.status).toBe("rejected");
+      if (result.status !== "rejected") return;
+      expect(result.reason).toMatch(/slug-safe/i);
+      expect(calls).toEqual([]);
+    },
+  );
 });

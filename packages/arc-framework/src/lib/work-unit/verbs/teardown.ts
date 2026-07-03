@@ -57,6 +57,7 @@ import { isShipped } from "../lifecycle-resolver.js";
 import { fetchPrune } from "../mutators/fetch-prune.js";
 import { reconcileBranch } from "../mutators/reconcile-branch.js";
 import { reconcileWorktree } from "../mutators/reconcile-worktree.js";
+import { isSlugSafe } from "../slug.js";
 
 /** The seams `runTeardown` drives — the git executor (pinned to cwd), the index scan, and the locus-hop. */
 export interface TeardownContext {
@@ -309,10 +310,13 @@ export async function runBranchTeardown(
 ): Promise<TeardownResult> {
   const branch = params.branch.trim();
   if (branch === "") return { status: "rejected", reason: "`--branch` requires a branch name." };
-  if (!branch.startsWith(CHEAP_BRANCH_PREFIX) || branch.length === CHEAP_BRANCH_PREFIX.length) {
+  const slug = branch.startsWith(CHEAP_BRANCH_PREFIX) ? branch.slice(CHEAP_BRANCH_PREFIX.length) : "";
+  if (!branch.startsWith(CHEAP_BRANCH_PREFIX) || !isSlugSafe(slug)) {
     return {
       status: "rejected",
-      reason: "`arc teardown --branch` is only for recordless `chore/<slug>` cheap branches.",
+      reason:
+        "`arc teardown --branch` is only for recordless `chore/<slug>` cheap branches " +
+        "with a slug-safe suffix.",
     };
   }
   if (branch === params.base) {

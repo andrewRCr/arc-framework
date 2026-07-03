@@ -49,6 +49,17 @@ describe("arc teardown (CLI surface)", () => {
     expect(result.stdout + result.stderr).toMatch(/chore\/<slug>|cheap branches/i);
   });
 
+  it("refuses malformed branch-scoped chore values before treating them as absent", async () => {
+    tmpDir = await createTempRepo();
+    await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
+
+    const result = await runArc(["teardown", "--branch", "chore/groom demo"], tmpDir);
+
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout + result.stderr).toMatch(/slug-safe/i);
+    expect(result.stdout + result.stderr).not.toMatch(/already reaped/i);
+  });
+
   it("accepts an already-absent recordless chore branch as an idempotent no-op", async () => {
     tmpDir = await createTempRepo();
     await runArc(["init", "--yes", "--name", "test-project"], tmpDir);
