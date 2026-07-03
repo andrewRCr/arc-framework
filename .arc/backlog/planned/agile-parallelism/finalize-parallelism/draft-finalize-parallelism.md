@@ -122,6 +122,10 @@ Settled *as decisions to make* — the audit resolves each; neither is a pre-com
       arbitrable without real locking).
 
   Wave 3 supplies the evidence; settle the fork at the seam audit with it.
+  Include the related batch-errand question in that decision: ARC has sequential errand execution, but no
+  explicit "batch errand" wrapper for a coherent set of small concerns, so FP should decide whether batching
+  is only an operator convenience under the primary-worktree serialization invariant or a first-class
+  concurrent-errand shape that needs its own lifecycle support.
 - **Cross-WU personal-state same-entry merge resolution (GA-readiness item).**
   `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the **same**
   entry identity by wall-clock note recency: recency silently drops one edit and clock skew makes resolution
