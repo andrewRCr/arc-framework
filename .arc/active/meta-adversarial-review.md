@@ -12,11 +12,12 @@
 - **Task List:** `tasks-adversarial-review.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 1.9 — Reshape the invocation contract to the liftable-signature form
-- **Next Task:** Task 2.1 — Mint the `design-audit` method (efficacy + fit) (line ~216)
+- **Last Completed:** Task 4.6 — Reconcile both framework copies across all wired workflows
+- **Next Task:** Task 5.1 — Complete verification (line ~486)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 2.1 — Mint the `design-audit` method (efficacy + fit)
+- **Next Action:** Begin Task 5.1 — verification via `verify-work-unit.md`; dogfood the `generate-tasks`
+  adversarial `task-audit` pass + post-settle re-read by hand per the task note
 
 - **PR URL:** [none]
 - **Completed:** [none]
