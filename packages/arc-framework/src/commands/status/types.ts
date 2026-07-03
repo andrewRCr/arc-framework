@@ -562,8 +562,8 @@ export interface SessionInitProbes extends SessionSharedProbes {
   /**
    * Stale-worktree sweep resolver. Receives the already-resolved roster and the
    * session's worktree identity from the orchestrator; the handler binds the
-   * cwd, base branch, and `.arc/completed/` reader. Called ONLY in the primary
-   * worktree when the roster resolved.
+   * base branch and git executor. Called ONLY in the primary worktree when the
+   * roster resolved.
    */
   sweep: (
     roster: WorktreeRosterResult,

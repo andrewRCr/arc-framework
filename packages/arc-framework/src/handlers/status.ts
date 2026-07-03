@@ -447,10 +447,8 @@ export async function handleStatus(slug: string | undefined, opts: StatusCliOpti
         return runStaleWorktreeSweep({
           roster,
           worktreeIdentity,
-          cwd,
           baseBranch: resolved.settings["branch.base"],
           exec: gitExec,
-          fs: { readdir: (path) => readdir(path) },
         });
       },
       planOrphanSweep: async (worktreeIdentity) => {
