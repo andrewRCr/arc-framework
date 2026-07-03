@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "methods-readme-drop-index",
-  "origin": "inbox",
-  "intent": "Remove hand-maintained methods README index",
-  "branch": "chore/methods-readme-drop-index",
-  "createdAt": "2026-07-03T18:43:40.911Z",
-  "originEntry": "Ditch the hand-maintained `## Index` in `system/methods/README.md`"
-}
