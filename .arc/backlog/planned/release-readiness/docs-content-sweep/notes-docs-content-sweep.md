@@ -543,8 +543,8 @@ adopters new to the planning pipeline; it exhausts the readiness states agents m
 
 **Stylistic integration notes:** Trimmed workflow retains the 4-step discovery protocol
 (ROADMAP → backlog artifacts → report → propose) but no longer enumerates readiness
-permutations — those are non-operational for agent execution and belong alongside
-`plan-arc-modes.md` / planning-pipeline docs. Re-frame the "agent discovers / user decides"
+permutations — those are non-operational for agent execution and belong alongside the
+planning-pipeline docs. Re-frame the "agent discovers / user decides"
 closing for the docs audience as a principle statement rather than a behavioral restatement.
 
 ## Entry 13 — session-init.md § Context-mismatch examples — dropped illustrations
@@ -641,7 +641,7 @@ List — pedagogical decision aid for adopters reading about how ARC routes inci
 
 **Stylistic integration notes:** Trimmed workflow keeps the key distinction ("Sequential steps
 toward one goal = atomic. Distinct phases with different objectives = task list.") plus a
-pointer to [manage-incidental-work.md][manage-incidental]. The ✅/❌ criteria enumeration is
+pointer to `manage-incidental-work.md` (workflow since retired). The ✅/❌ criteria enumeration is
 valuable when learning the distinction; redundant when re-scanning the workflow every session.
 Consider retaining the visual ✅/❌ convention on the docs page — it reads well in a reference
 context even when it's noise in agent context.
@@ -2540,7 +2540,6 @@ slides off.
 [core-philosophy]: https://andrewrcr.github.io/arc-framework/philosophy/
 [arc-methods-session]: ../../../../system/methods/session-state.md
 [dev-rules-arc]: ../../../../system/rules/DEV-RULES.ARC.md
-[manage-incidental]: ../../../../system/workflows/arc/supplemental/manage-incidental-work.md
 [work-org]: ../../../../reference/strategies/arc/strategy-work-organization.md
 [work-org-branches]: ../../../../reference/strategies/arc/strategy-work-organization.md#task-lists-and-branches
 [discovery-checklist]: ../../../../reference/strategies/arc/strategy-work-planning.md#discovery-checklist

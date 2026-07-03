@@ -7,7 +7,10 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 `plan-instruction-optimization.md`, `plan-documentation-surface-routing.md`, and
 `plan-handoff-optimization.md`.
 
-- **State:** Draft — pre-PRD exploration captured 2026-05-21 from a maintainer-side exploratory session.
+- **State:** Draft — pre-PRD exploration captured 2026-05-21; re-anchored 2026-07-02 (grooming session):
+  Layers 2–3 re-based on the shipped `loadSet` manifest, the loop canon framed as a `composable-workflows`
+  pattern instance (joint design), buffer items integrated. The decision rule (§ Working Framing) is
+  unchanged — it survived the re-anchor intact and remains this WU's durable contribution.
 - **Created:** 2026-05-21
 - **Origin:** Surfaced 2026-05-21 revisiting whether QUICK-REFERENCE earns always-loaded status, and
   more broadly whether improved models change ARC's prior "don't go all-in on JIT" stance. The revisit
@@ -21,7 +24,13 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Document-tier placement thresholds for always-loaded surfaces**
+### `[x]` **Document-tier placement thresholds for always-loaded surfaces**
+
+- *Disposition (2026-07-02):* Integrated into Layer 1 — the placement thresholds land in
+  `strategy-session-operations.md` together with the demotion rule **and** instruction-optimization's
+  tier-aware dedup principle as one coherent section (the three are the same principle family; the
+  cross-surface-matrix contingency still routes to `documentation-surface-routing` if it outgrows
+  load-set membership).
 
 - *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
   `class-model-foundation` task generation.
@@ -32,7 +41,12 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
 - *Coordination:* if this becomes a cross-surface routing matrix rather than a load-set membership rule, coordinate
   with `documentation-surface-routing`; the immediate drift surfaced in always-loaded `DEV-RULES` content.
 
-### `[ ]` **Cohort coordination doc: does it earn always-loaded (full) status at session-init?**
+### `[x]` **Cohort coordination doc: does it earn always-loaded (full) status at session-init?**
+
+- *Disposition (2026-07-02):* Integrated into the Layer 2 audit scope. With the `loadSet` manifest
+  shipped, the re-tier is a one-policy-point edit (projection + `session-init.md` item 11 together, per
+  the parity coordination below) — decide it by the recognition-reliability rule during the audit, not
+  as a standalone question.
 
 - *Routed from:* `compaction-recovery` generate-tasks grounding audit (2026-06-28); surfaced while building the
   load-set projection.
@@ -47,6 +61,19 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
   as a `full` member when present), so recovery and init stay parity-identical; when this WU re-tiers the cohort
   doc it updates `session-init.md` item 11 **and** the projection entry together (one policy, two consumers). Same
   `session-init.md` Step 3 + `strategy-session-operations.md` § Context Loading Model surface as the entries above.
+
+### `[ ]` **Process-task-loop's four config-coupled seams (input to the loop-canon content split)**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03); source analysis in `draft-arc-modes.md` prior to that
+  re-scope (git history) § Lite Process-Task-Loop.
+- *Concern:* the dissolved Lite analysis validated exactly four places where the task loop couples to the
+  WU-lifecycle / Planning-Module surface: (1) branch ↔ task-list coupling at loop entry, (2) the verification
+  pointer, (3) the `## Next Step` → integrate-work-unit handoff, and (4) Incidental Work Management — whose
+  "for later" capture arm still lacks a module-off specification (scalable-core owns the *drain* conditional,
+  not this in-loop capture arm). These are **config-static** seams, a different cut from the state-dependent
+  sub-protocols the Loop Canon already lists (crash recovery, deferred review, gate failure, completion notes) —
+  useful when deciding core-vs-fragment-vs-install-render per `composable-workflows`' binding-time rule. The
+  line-number anchors in the source are stale; the seam identities are the payload.
 
 ## Problem / Motivation
 
@@ -128,6 +155,11 @@ complementary and should land coherently.
 the reason. Expected outcome: briefs and DEV-RULES stay (constraints / low-cost narrative — demoting
 constraints is the riskiest move and the rule forbids it); QUICK-REFERENCE's residual demotes;
 process-task-loop splits (Layer 3).
+*Re-base (2026-07-02):* the audit's object is now the shipped **`loadSet` manifest** — the probe's
+projection of Step 3 policy (with read-modes), parity-tested against the workflow's inline enumeration.
+Audit the manifest entries, not prose recollections of the load set; include the cohort-doc entry (from
+the buffer) and WORKING-MEMORY (whose per-session read cost `handoff-optimization`'s structured-trigger
+item attacks from the other side).
 
 **Layer 3 — Execution.** The demotions that pass the rule:
 
@@ -135,6 +167,11 @@ process-task-loop splits (Layer 3).
   drop the session-init partial read, fold the role's canonical guidance into the appropriate
   template(s), and (instance hygiene) relocate this repo's content. Small, clean.
 - **process-task-loop core/detail split** — see § The Loop Canon.
+
+*Execution note (2026-07-02):* every demotion or re-tier lands as a policy edit to the `loadSet`
+projection + the `session-init.md` Step 3 surface together (one policy, two consumers, parity-tested) —
+materially cheaper than the pre-manifest assumption, and the same seam `composable-workflows`' Step 3
+rewire later consumes.
 
 ## The Loop Canon
 
@@ -156,10 +193,23 @@ handling, completion-notes discipline) pulled by explicit triggers at their step
 T1 execution-session baseline and tightens the loop where adherence wobbles — the structural fix
 expected to resolve the occasional loop-step slip.
 
-**Forward-compat with arc-plan-conductor.** Because conductor's planning loops will consume this
-pattern, the loop-canon design must be *informed by* conductor's intent — read
-`plan-arc-plan-conductor.md` §§ 10, 17 and the `refine-plan-loop` / `refine-prototype-loop` contracts
-during design so the canon generalizes cleanly rather than baking in execution-only assumptions.
+*Re-anchor (2026-07-02):* this split is a **`composable-workflows` pattern instance** — the thin core is
+a D1 bounded spine, the sub-protocols are D2 fragments (likely the procedure-library shape), and the
+explicit triggers are exactly D2's fragment gates. Design it jointly: CW owns the mechanism (fragment
+model, contract shape, loading), this WU owns the loop's *content* policy (what's core, what's
+triggered, where the stops sit) and remains the loop canon's author. The former "DRY loop-template"
+open question folds into CW's D1 template deliverable.
+
+**Conductor disposition (resolved 2026-07-02).** arc-plan-conductor was decomposed and its central idea —
+a pre-implementation planning-stage orchestrator — abandoned in favor of the three structured
+planning-stage workflows (`draft-design`, `create-spec`, `generate-tasks`). Its planned `refine-plan-loop`
+/ `refine-prototype-loop` contracts no longer exist as consumers. **Re-derived consumer set for the loop
+canon:** `process-task-loop` (the execution loop) plus the loop-shaped passes already inside the planning
+stages — `draft-design`'s `high`-path iterative shaping loop and `generate-tasks`' depth-sliced pass
+structure. Three-plus live loops still justify the canon on the original "three loops sharing a pattern"
+test; what dissolves is the *sequencing* motivation ("land before conductor") — this WU's early-run case
+now rests on its own T1-trim merits. Design the canon against the live loops, not execution-only
+assumptions.
 
 **DRY loop-template (open).** Whether to extract the pattern into a codified artifact (a loop-flavored
 companion to `template-workflow.md`, plus a `strategy-workflow-authoring.md` section) is left open —
@@ -184,13 +234,13 @@ authoring a loop template.)
   WU's decision rule; IO's tier-aware-dedup principle). Whoever lands first establishes the section;
   the other extends. Coordinate.
 
-### With `arc-plan-conductor`
+### With the planning-stage workflows (formerly `arc-plan-conductor`)
 
-- **Inverted dependency.** Conductor *depends on* this WU for the loop canon; this WU does not depend
-  on conductor. This WU should land first (at least the loop-canon piece) — conductor cannot consume a
-  pattern that does not yet exist. Capture as a depends-on note on conductor's meta at kickoff.
-- Relative scope: this WU is the smaller, more bounded effort; conductor is large. The ordering is
-  feasible precisely because of that asymmetry.
+- Conductor was decomposed and abandoned (see § The Loop Canon, Conductor disposition); the loop canon's
+  planning-side consumers are now the loop-shaped passes inside `draft-design` and `generate-tasks`.
+  When the canon lands, evaluate whether those passes adopt it as-is or only inherit its shape via
+  `composable-workflows` D1 — the residual seam worth checking, since the old conductor coordination
+  notes assumed consumers that no longer exist.
 
 ### Cohort
 
@@ -199,8 +249,7 @@ authoring a loop template.)
 
 ## Sequencing
 
-- **Hard prereq: post-WOR integration.** WOR reshapes lifecycle workflows, the `active/` structure,
-  meta-file shape, and session-init item numbering — concurrent work tangles.
+- **Hard prereq satisfied (2026-07-02):** WOR shipped; the post-WOR integration condition is met.
 - **Not gated on handoff-opt.** Unlike its cohort siblings, this WU does not share handoff-opt's
   session-handoff surfaces or the `recommendedSummaryLine` symmetry. Its only hard prereq is post-WOR.
   This decoupling is what lets it slot in early enough to **precede arc-plan-conductor**.
@@ -209,16 +258,16 @@ authoring a loop template.)
 
 ## Scope Estimate
 
-**Bounded — feels small-to-medium**, lighter than the conductor work it unblocks. Precise scope
+**Bounded — feels small-to-medium.** Precise scope
 deferred to PRD time (the loop split is the heaviest single piece and could be split out if scope
 balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), Layer 3 QUICK-REFERENCE
 (~0.5), process-task-loop core/detail split + loop-canon (~1–1.5), verification (~0.5).
 
 ## Open Questions (PRD-time)
 
-- **DRY loop-template ownership** — extract the loop pattern into a codified template +
-  `strategy-workflow-authoring.md` section here, leave it to arc-plan-conductor, or treat as a
-  standalone? Lean: flag here, decide owner at kickoff.
+- **DRY loop-template ownership** — *resolved 2026-07-02:* the template/strategy codification is
+  `composable-workflows`' D1 deliverable; this WU authors the canonical loop *content* against it (see
+  § The Loop Canon re-anchor).
 - **QUICK-REFERENCE end state** — drop the env-context T1 read entirely, or keep a minimal
   always-loaded stub? Depends on whether any environment fact is needed pervasively enough to earn T1
   independent of an explicit trigger.
@@ -240,12 +289,17 @@ balloons). Rough shape: Layer 1 principle (~0.5 session), Layer 2 audit (~0.5), 
 
 ## Sibling Work Units
 
+- `composable-workflows` — cohort keystone (joined 2026-07-02; see `cohort-agent-context-optimization.md`).
+  Owns the fragment mechanism the loop split instantiates and the Step 3 rewire consuming the `loadSet`
+  seam; this WU's Layers 1–2 are CW-independent and run early.
 - `instruction-optimization` — direct sibling. process-task-loop structural work moves here; IO Pillar
-  1 prose-compression folds/sequences; Pillar 4 stays in IO. Shared `strategy-session-operations.md`
-  edit surface.
+  1 prose-compression folds/sequences after the split; IO's former Pillar 4 now lives in
+  `composable-workflows`. Shared `strategy-session-operations.md` edit surface (see the integrated
+  thresholds buffer item above).
 - `documentation-surface-routing` — cohort sibling. Precedent for the absorb-a-sibling's-pillar move.
 - `handoff-optimization` — cohort sibling. Not a prereq for this WU (surfaces don't overlap).
-- `arc-plan-conductor` — downstream consumer of the loop canon; this WU sequences ahead of it.
+- planning-stage workflows (`draft-design` / `generate-tasks`) — the loop canon's planning-side
+  consumers after conductor's decomposition; see § Coordination.
 - `workflow-template-loads` (provisional) — possible runtime-loading mechanism for a loop template;
   distinct concern (template *loading*, not loop *authoring*).
 

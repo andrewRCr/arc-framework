@@ -529,7 +529,7 @@ item is urgent enough to run as an atomic task list before the consolidated swee
 - **Feeds this plan:** `prd-session-init-optimization.md` (produces content
   contributions via `notes-docs-content-sweep.md` staging file)
 - **Does not block:** `plan-arcd-rebrand.md`, `plan-arc-plan-conductor.md`,
-  `plan-arc-modes.md`
+  `draft-local-mode.md`
 
 ## References
 

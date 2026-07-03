@@ -2,7 +2,7 @@
 
 | **State**  | **Owner** | **Branch** | **Class** | **Priority** |
 | ---------- | --------- | ---------- | --------- | ------------ |
-| `Planning` | `andrew`  | [none]     | [TBD]     | `P3`         |
+| `Planning` | `andrew`  | [none]     | `Heavy`   | `P3`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -15,7 +15,9 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** First planning iteration — integrate the inbound thinking, settle the cohort question with
-  `quality-gate-hooks` (sibling candidate), and decide which mechanical checks migrate out of that WU's buffer.
+- **Next Action:** Groomed to formalization-ready (2026-07-02): charter settled (`arc lint` umbrella; four
+  content checks absorbed from `quality-gate-hooks`; standalone siblings — no cohort; semantic sweep on-demand +
+  boundary nudge), buffer drained, `Class` resolved `Heavy`. Next: `arc start` → create-spec off the groomed
+  draft.
 
 ---

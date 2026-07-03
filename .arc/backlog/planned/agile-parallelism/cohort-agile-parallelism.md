@@ -350,8 +350,8 @@ cross-machine discovery and the advisory concurrency check.
   reconciled to the 4-state machine under 7.5.a (Superseded becomes an `**Superseded By:**` annotation, not
   a state value), and § ROADMAP's In-Flight tier is redefined as location-based under 7.5.c (`active/**`).
   No follow-on for the cohort.
-- **arc-modes re-scope** (queued on its own meta `**Next Action:**`): Lite cut, post-WOR de-stale,
-  local-mode rename.
+- **arc-modes re-scope** — executed 2026-07-03: Lite cut, WU renamed to `local-mode`
+  (`draft-local-mode.md`).
 - **AWL generic artifact-model prefix mentions** (`plan-*` / PRD in the tier-model body): left during the
   WOR-terminology sweep — entangled with AWL's tier ↔ spec-form coupling, deferred to arc-plan Conductor.
 
