@@ -62,6 +62,19 @@ sibling in the agent-context-optimization cohort (renaming to `instruction-disci
   doc it updates `session-init.md` item 11 **and** the projection entry together (one policy, two consumers). Same
   `session-init.md` Step 3 + `strategy-session-operations.md` § Context Loading Model surface as the entries above.
 
+### `[ ]` **Process-task-loop's four config-coupled seams (input to the loop-canon content split)**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03); source analysis in `draft-arc-modes.md` prior to that
+  re-scope (git history) § Lite Process-Task-Loop.
+- *Concern:* the dissolved Lite analysis validated exactly four places where the task loop couples to the
+  WU-lifecycle / Planning-Module surface: (1) branch ↔ task-list coupling at loop entry, (2) the verification
+  pointer, (3) the `## Next Step` → integrate-work-unit handoff, and (4) Incidental Work Management — whose
+  "for later" capture arm still lacks a module-off specification (scalable-core owns the *drain* conditional,
+  not this in-loop capture arm). These are **config-static** seams, a different cut from the state-dependent
+  sub-protocols the Loop Canon already lists (crash recovery, deferred review, gate failure, completion notes) —
+  useful when deciding core-vs-fragment-vs-install-render per `composable-workflows`' binding-time rule. The
+  line-number anchors in the source are stale; the seam identities are the payload.
+
 ## Problem / Motivation
 
 ARC front-loads a fixed set of constitutional + state documents at every session-init (T1/T2 in

@@ -85,11 +85,11 @@ external-tool-as-canonical and force migration later.** Current planned external
 The boundary is **PM state-and-design vs. PM machinery**, drawn at the directory level so a single artifact group
 never splits arbitrarily:
 
-| Class | Members | Tier | Configurable? |
-| --- | --- | --- | --- |
-| **Machinery** | `system/**` (workflows, rules, methods, templates) | **tracked** | No — versions with checkout so behavior pins to the code (`git checkout <sha>` reproduces agent behavior) |
-| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | **materialized** | No — pure churn, no review value |
-| **Authored design** | `draft-*`, `spec-*` | **materialized (default)** | **Yes — one knob** |
+| Class                 | Members                                                                                    | Tier                       | Configurable?                                                                                             |
+|-----------------------|--------------------------------------------------------------------------------------------|----------------------------|-----------------------------------------------------------------------------------------------------------|
+| **Machinery**         | `system/**` (workflows, rules, methods, templates)                                         | **tracked**                | No — versions with checkout so behavior pins to the code (`git checkout <sha>` reproduces agent behavior) |
+| **Operational state** | `meta-*`, `tasks-*`, inboxes, `STATUS`/`ROADMAP`, notes, `WORKING-MEMORY`, `SESSION-NOTES` | **materialized**           | No — pure churn, no review value                                                                          |
+| **Authored design**   | `draft-*`, `spec-*`                                                                        | **materialized (default)** | **Yes — one knob**                                                                                        |
 
 ### The one knob
 
@@ -128,11 +128,11 @@ reference-don't-embed (a tracked artifact must never embed materialized content 
 
 The tiers are **not three designs** — they are the same git-backing-store substrate at increasing multiplicity:
 
-| Tier | Canonical store | Materialized to | Scale | State |
-| --- | --- | --- | --- | --- |
-| **In-repo** | the code repo (tracked `.arc/`) | n/a | solo / small team, no constraints | Current |
-| **Local** | a separate **private git repo** (`~/.arc-state/{id}/`) | gitignored `.arc/` | single-user, multi-machine; privacy | Planned |
-| **Backend** | that repo, **hosted + shared + coordinated** | gitignored `.arc/` | multi-user / team | North star |
+| Tier        | Canonical store                                        | Materialized to    | Scale                               | State      |
+|-------------|--------------------------------------------------------|--------------------|-------------------------------------|------------|
+| **In-repo** | the code repo (tracked `.arc/`)                        | n/a                | solo / small team, no constraints   | Current    |
+| **Local**   | a separate **private git repo** (`~/.arc-state/{id}/`) | gitignored `.arc/` | single-user, multi-machine; privacy | Planned    |
+| **Backend** | that repo, **hosted + shared + coordinated**           | gitignored `.arc/` | multi-user / team                   | North star |
 
 **Local *is* tier-2 of the materialized substrate; the Backend is its hosted form; team is the multi-writer
 config.** Local mode landing first is structurally important — the backend is mostly "Local, hosted." This unifies
@@ -319,7 +319,7 @@ deviation is a genuine ARC value-prop.
 
 - **`prd-user-sync-ux.md`** — hardens the user-notes sync state machine the backend's sync layer extends. Not a hard
   dependency for PRD promotion, but the backend's sync composes more cleanly if it lands first.
-- **Local mode (`plan-arc-modes.md` § Mode 2)** — the backend *is* Local hosted; Local landing first is structurally
+- **Local mode (`draft-local-mode.md`)** — the backend *is* Local hosted; Local landing first is structurally
   important. Co-design the storage abstraction at Local's PRD time.
 - **`operational-state-docs` (ADR-022)** — the record/projection engine the materialization layer renders through;
   storage-agnostic records lift into the backing store without reshaping.
@@ -382,7 +382,7 @@ their own promotion time. (Not re-audited in the 2026-06-10 pass — the model s
 
 | Item                                      | Status      | Notes                                                                                                                                            |
 |-------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
-| `plan-arc-modes.md`                       | Co-design   | Local mode shares substantial structure with backend tier but was designed in vacuum. Scope storage-abstraction sketch at Local PRD time.        |
+| `draft-local-mode.md`                     | Co-design   | Local mode shares substantial structure with backend tier but was designed in vacuum. Scope storage-abstraction sketch at Local PRD time.        |
 | `plan-coord-probe.md`                     | Compatible  | Read-only advisory probe. Model extends naturally to "query the backend for where I'm working." No rework.                                       |
 | `plan-worktree-foundation.md`             | Flag at PRD | Currently designed around in-repo git worktrees. In backend tier, worktree-per-WU concept maps to per-WU materialized views. Assess at PRD time. |
 | `plan-concurrent-work-conventions.md`     | Flag at PRD | Currently scoped to same-identity solo concurrency. Backend tier introduces multi-developer concurrency. Boundary needs review at PRD time.      |

@@ -15,10 +15,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Refine `plan-scalable-core.md` toward PRD-readiness — settle the open questions
-  (tracker-shape ownership pending sibling sequencing; resolve-then-load core/extension boundary;
-  config-key naming) and confirm the owned implementation slice against `adr-020`. Builds on
-  work-organization-reform's shipped floor; sequencing relative to arc-modes / agile-wu-lifecycle /
-  arc-plan-conductor is open.
+- **Next Action:** Refine `draft-scalable-core.md` toward PRD-readiness — integrate the inbound buffer
+  (2026-07-03 routed entries from the local-mode re-scope), settle the open questions (tracker-shape
+  ownership pending coord-probe sequencing; resolve-then-load core/extension boundary; config-key naming)
+  and confirm the owned implementation slice against `adr-020`. Builds on work-organization-reform's
+  shipped floor.
 
 ---

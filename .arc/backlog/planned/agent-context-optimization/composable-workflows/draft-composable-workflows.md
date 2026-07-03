@@ -395,6 +395,12 @@ this map records that nothing dropped silently:
 - **`adr-020` §9** establishes the resolve-then-load requirement; this WU owns the mechanism. The move out
   of `principle-anchored-core` is cohort mechanics, not thesis divergence — the work still serves "scale
   grammar, never scale discipline."
+- **`draft-scalable-core.md`** — first declared *consumer* of the mechanism (its § Open questions defers the
+  core/extension cut here). Its two named workflow seams arrive as config-static gates: session-init Step 5's
+  next-work discovery (unconditional `backlog/ROADMAP.md` read needs the Planning-Module guard) and the
+  archive sweep (`archive.preserve`). Both sit squarely under the binding-time rule — config-static, so
+  install-time unless the axes multiply; if session-init is agenda-compiled by then, the compiler carries the
+  gate. Its install-time surface (the `01_verify-and-configure` guided walkthrough) is out of this WU's scope.
 - **`cohort-agent-context-optimization.md`** — layers model, keystone sequencing, cohort rename decision.
   Siblings: `draft-loadset-composition.md` (loop canon = D1/D2 instance, designed jointly; load-set policy
   stays its domain), `draft-handoff-optimization.md` (lightweight paths consume D3; CLI items independent),
