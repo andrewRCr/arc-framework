@@ -212,9 +212,21 @@ implementation-detail latitude ARC already grants is unchanged.
 
 ### Sub-agent scope
 
-**Task-list work stays in the primary agent's context.** Delegating a task to a sub-agent bypasses
-the co-development loop and the mandatory review stop — the developer can't contribute context,
-judgment, or course correction to work they don't see.
+**Delegation follows function, not task-list membership.** Two properties hold regardless of what
+delegates: the human's formative involvement in changes, and judgment staying with the primary agent.
+
+- **Derivation** — read-only work (search, research, review, finding-generation): freely delegable.
+  Outputs are advisory until the primary verifies them against source.
+- **Execution** — work that lands in the increment: stays with the primary while per-increment
+  co-development is in force; delegable only under an explicit, user-approved relaxation — never
+  inferred, never self-invoked.
+- **Judgment** — validation against ground truth, break-out detection, gates, commits: never
+  delegates, under any mode.
+
+**Harness-conditional clause** (stated once here; callsites reference it, never restate it): use a
+fresh subagent when the harness supports one — fresh context, at the primary's own capability by
+default. When subagents are unavailable, skip with a note (delegated review is advisory) or run a
+manual fresh-session pass; never a primary-context self-pass presented as independent.
 
 ### Task granularity
 

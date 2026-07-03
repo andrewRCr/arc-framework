@@ -315,38 +315,49 @@ model names or spawn mechanics), so EDD's later rewrite and the future `arc-peer
 reverse it. Consistent with `ADR-002`'s non-prohibition posture — no ADR amendment for this half. Detail:
 `spec-adversarial-review.md` § D8.
 
-### `[ ]` **3.1 Rewrite `§ Sub-agent scope` as the delegate-by-function rule**
+### `[x]` **3.1 Rewrite `§ Sub-agent scope` as the delegate-by-function rule**
 
 - _Goal:_ `§ Sub-agent scope` reads as a delegate-by-function rule that sanctions read-only review delegation and
   closes the current planning-stage _silence_, replacing the task-list-membership ban — protecting the two
   properties (the human's formative involvement in changes; judgment staying with the primary).
 
-    - `[ ]` **3.1.a Derivation tier**
-        - Read-only (search, research, review, finding-generation) — freely delegable; outputs advisory until the
-          primary verifies them against source. `adversarial-review` becomes the paradigm case, not an exception.
+    - `[x]` **3.1.a Derivation tier**
+        - Landed as written: read-only work freely delegable, outputs advisory until source-verified. The
+          "paradigm case" framing stayed out of the rule text (rationale, not operational) per the
+          token-efficiency bar.
 
-    - `[ ]` **3.1.b Execution tier**
-        - Work that lands in the increment — stays with the primary while per-increment co-development is in force;
-          delegable only under an explicit, user-approved scope relaxation. Build the relaxation **socket**;
-          do not pre-approve the plug (`unit-scoped-review`'s orchestration mode is the intended plug).
+    - `[x]` **3.1.b Execution tier**
+        - Landed with the socket worded "explicit, user-approved relaxation — never inferred, never
+          self-invoked": "scope" dropped from the spec's phrasing at the EDD-coordination check, since
+          `execution-delegation-doctrine`'s per-leaf delegation moves the execution locus while gates stay
+          unmoved and must fit the same socket. No plug named in the rule text.
 
-    - `[ ]` **3.1.c Judgment tier**
-        - Validation against ground truth, break-out detection, gates, commits — never delegates, under any mode.
+    - `[x]` **3.1.c Judgment tier**
+        - Landed as written — never delegates, under any mode.
 
-### `[ ]` **3.2 State the harness-conditional clause and the degrade path**
+### `[x]` **3.2 State the harness-conditional clause and the degrade path**
 
 - _Goal:_ the harness-conditional posture lives here once as the single constitutional locus (callsites reference,
   never restate) — use a fresh subagent when the harness supports one; no per-harness agent-profile fleet.
 
-    - `[ ]` **3.2.a The clause**
-        - Fresh subagent when the harness supports one; no profile fleet maintained (grounds the prompt-over-profile
-          choice).
+    - `[x]` **3.2.a The clause**
+        - **Deviation (settled at the EDD-coordination check):** the "no per-harness agent-profile fleet"
+          sentence stays spec-side (D8/NG2 grounding) and is _not_ in the constitutional text —
+          `execution-delegation-doctrine`'s settled agent-role taxonomy ships `arc-worker`/`arc-peer` profiles
+          later, and constitutional no-fleet text would have to be reversed. The rule carries the clause with
+          parity stated semantically ("the primary's own capability by default" — EDD's inherit-by-default
+          fallback, `arc-peer`-retrofittable).
 
-    - `[ ]` **3.2.b The degrade path**
-        - When subagents are unavailable: skip with a note (the mechanism is advisory), or run a manual
-          fresh-session pass — **never** a primary-context self-pass presented as independent.
+    - `[x]` **3.2.b The degrade path**
+        - Landed as written: skip with a note (delegated review is advisory) or a manual fresh-session pass;
+          never a primary-context self-pass presented as independent.
 
-### `[ ]` **3.3 Reconcile both framework copies**
+- _Outcome:_ D8 amended in `spec-adversarial-review.md` alongside the edit: records the spec-side no-fleet
+  placement, the socket rewording, and the `ADR-002`-modernization re-homing to `execution-delegation-doctrine`
+  (per its 2026-07-02 grooming) — replacing the stale "`unit-scoped-review` retains the `ADR-002` amendment
+  question" line.
+
+### `[x]` **3.3 Reconcile both framework copies**
 
 - _Goal:_ the `§ Sub-agent scope` edit is identical in `DEV-RULES.ARC` across both copies and the sync check is
   clean.

@@ -324,15 +324,21 @@ states):
 
 **Harness-conditional clause, stated once here** (single constitutional locus — DRY; callsites reference it, never
 restate it): *use a fresh subagent when the harness supports one.* No per-harness agent-profile fleet is
-maintained (which also grounds the prompt-over-profile choice, NG2). **Degrade path** when subagents are
-unavailable: skip with a note (the mechanism is advisory), or run a manual fresh-session pass — **never** a
-primary-context self-pass presented as independent.
+maintained (which also grounds the prompt-over-profile choice, NG2) — a WU-scoped design position that stays
+spec-side by deliberate coordination: `execution-delegation-doctrine`'s settled agent-role taxonomy ships exactly
+such profiles later, so the constitutional text carries only the clause + degrade path, with parity stated
+semantically ("the primary's own capability by default" — EDD's inherit-by-default fallback). **Degrade path**
+when subagents are unavailable: skip with a note (the mechanism is advisory), or run a manual fresh-session pass —
+**never** a primary-context self-pass presented as independent.
 
 This is a re-aim, **not** a removal: co-development stays ARC's identity, and multi-agent harness trends make the
 guard more relevant. No ADR amendment is needed for this half — the sharpened rule is consistent with `ADR-002`'s
 non-prohibition posture and changes no session-model position; the argument travels in the rule edit itself.
-`unit-scoped-review` retains the `ADR-002` amendment question for its review-frequency relaxation. Coordinate
-final rule wording against its "mechanics may delegate; judgment may not" framing when it activates.
+The `ADR-002` modernization now rides `execution-delegation-doctrine` (its 2026-07-02 grooming;
+`unit-scoped-review`'s reckoning shrinks to applying that doctrine at WU scope). Rule wording was coordinated
+against EDD's "mechanics may delegate; judgment may not" framing at this edit: the execution socket reads
+"explicit, user-approved relaxation" (not "scope relaxation" — EDD's per-leaf delegation moves the execution
+locus while gates stay unmoved, and must fit the socket).
 
 ### D9 — Rubric consolidation (the rubrics the mechanism runs)
 
