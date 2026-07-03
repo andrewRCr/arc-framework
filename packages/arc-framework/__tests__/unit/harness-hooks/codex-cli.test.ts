@@ -304,7 +304,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("clears a prior seed handoff when the PreCompact seed write fails", () => {
+  it("replaces a prior seed handoff with failure details when the PreCompact seed command fails", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
       const handoffPath = writeSeedHandoff(root, env);
@@ -314,11 +314,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
       });
 
-      expect(existsSync(handoffPath)).toBe(false);
+      expect(readJson<{ kind: string; reason: string }>(handoffPath)).toMatchObject({
+        kind: "codex-compaction-recovery-seed-failure",
+        reason: "seed command exited 1",
+      });
     });
   });
 
-  it("does not write a seed handoff when seed writing is skipped", () => {
+  it("writes failure details when seed writing is skipped", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
@@ -335,17 +338,20 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         CODEX_THREAD_ID: "thread-a",
       });
 
-      expect(existsSync(join(
+      expect(readJson<{ kind: string; reason: string }>(join(
         root,
         ".arc",
         "user",
         ".internal",
         "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(false);
+      ))).toMatchObject({
+        kind: "codex-compaction-recovery-seed-failure",
+        reason: "seed write skipped (identity-missing)",
+      });
     });
   });
 
-  it("does not write a seed handoff for invalid emitted seed paths", () => {
+  it("writes failure details for invalid emitted seed paths", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
@@ -363,13 +369,66 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         CODEX_THREAD_ID: "thread-a",
       });
 
-      expect(existsSync(join(
+      expect(readJson<{ kind: string; reason: string }>(join(
         root,
         ".arc",
         "user",
         ".internal",
         "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(false);
+      ))).toMatchObject({
+        kind: "codex-compaction-recovery-seed-failure",
+        reason: "seed command reported an unexpected seed path",
+      });
+    });
+  });
+
+  it("preserves seed-write failure details in fallback recovery instructions", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew" },
+          compactionSeedWrite: {
+            status: "failed",
+            reason: "seed-invalid",
+            message: "compaction-seed: value does not match schema v1",
+          },
+        })}\n`)});`,
+      ].join("\n"));
+
+      const env = {
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+        CODEX_THREAD_ID: "thread-a",
+      };
+      runHookScriptRaw(seedScriptPath, root, env);
+
+      const output = runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
+      expect(output.systemMessage).toContain("ARC compaction seed write failed before compaction");
+      expect(output.systemMessage).toContain("seed-invalid");
+
+      const fallbackMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-pending-thread-a.json",
+      );
+      const marker = readJson<{ fallback: boolean; reason: string; seedPath: null }>(fallbackMarkerPath);
+      expect(marker).toMatchObject({
+        fallback: true,
+        seedPath: null,
+      });
+      expect(marker.reason).toContain("seed-invalid");
+
+      const userPromptOutput = runHookScript(userPromptScriptPath, root, {
+        ARC_HOOK_ARC_COMMAND: "npx arc",
+        CODEX_THREAD_ID: "thread-a",
+      });
+      const additionalContext = userPromptOutput.hookSpecificOutput?.additionalContext ?? "";
+      expect(additionalContext).toContain("Seed issue detected");
+      expect(additionalContext).toContain("npx arc status --session-init --write-compaction-seed --json");
+      expect(additionalContext).toContain("npx arc recover audit --json");
+      expect(additionalContext).toContain("seed-invalid");
     });
   });
 
@@ -688,13 +747,16 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         CODEX_THREAD_ID: "thread-a",
       });
 
-      expect(existsSync(join(
+      expect(readJson<{ kind: string; reason: string }>(join(
         root,
         ".arc",
         "user",
         ".internal",
         "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(false);
+      ))).toMatchObject({
+        kind: "codex-compaction-recovery-seed-failure",
+        reason: "seed command reported a written seed for an unsafe identity",
+      });
     });
   });
 
@@ -716,13 +778,16 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         CODEX_THREAD_ID: "thread-a",
       });
 
-      expect(existsSync(join(
+      expect(readJson<{ kind: string; reason: string }>(join(
         root,
         ".arc",
         "user",
         ".internal",
         "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(false);
+      ))).toMatchObject({
+        kind: "codex-compaction-recovery-seed-failure",
+        reason: "seed command reported a written seed for an unsafe identity",
+      });
     });
   });
 
