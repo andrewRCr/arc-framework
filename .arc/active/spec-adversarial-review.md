@@ -108,8 +108,8 @@ adversarially. Invariant properties, independent of fire-point:
 - **Primary holds judgment** — every returned finding is **PLAUSIBLE until the primary verifies it against
   source**; findings are never blind-applied. (In prototyping this caught the reviewer's *own* overreach.)
 - **Loop to convergence** — repeat passes under the exit gate (D4); later passes aim to break the *prior fixes*.
-- **Advisory and `Class`-scaled** — the launch is a per-invocation accept/decline with a recommendation; it never
-  hard-gates a stage.
+- **Advisory and `Class`-scaled** — the launch is a per-invocation accept/decline offer whose recommendation
+  posture scales with `Class`; it never hard-gates a stage.
 
 ### D2 — Invocation contract (the method as a function)
 
@@ -133,10 +133,11 @@ template, spawns the pass, and verifies returned findings.
 | `prior-findings` | pass ≥ 2         | Prior findings + the fixes applied to them. A deliberate **non-input on pass 1** (D6, fork F3). |
 | `partition-map`  | partitioned-only | Named slices + ownership boundaries; present only on a D7 partitioned pass.                     |
 
-Of these, `rubric` / `artifacts` / `orientation` / `prior-findings` are **subagent-context inputs** — serialized
-into each pass's prompt. `pass-cap` is **not**: it is a **primary-side loop bound** the runtime applies to cap
-how many passes it spawns. The primary owns the loop — it spawns each pass, applies the exit gate (D4), and bounds
-the run by `pass-cap`; a subagent performs exactly one pass and never sees the loop state.
+Of these, `rubric` / `artifacts` / `orientation` / `prior-findings`, and `partition-map` (when present) are
+**subagent-context inputs** — serialized into each pass's prompt. `pass-cap` is **not**: it is a **primary-side
+loop bound** the runtime applies to cap how many passes it spawns. The primary owns the loop — it spawns each
+pass, applies the exit gate (D4), and bounds the run by `pass-cap`; a subagent performs exactly one pass and never
+sees the loop state.
 
 **Return type** (the output half of the contract; field-tested in the spec-stage prototype). Per finding:
 
@@ -154,9 +155,10 @@ Plus two **report-level** fields:
 - `verdict` — a one-line verdict keyed to the fire-point's gate question (see D4 for the
   clean-vs-converged distinction it must express).
 
-**Prompt template** — owned by the method; serializes the **subagent-context inputs** (not `pass-cap`) into the
-subagent's context and hard-codes the two disciplines that made the prototypes work: **fresh context per pass** and
-**primary-verifies-findings-against-source**. Portable across harnesses (no per-harness profile — NG2, D8).
+**Prompt template** — owned by the method; serializes the **subagent-context inputs** (including `partition-map`
+when present, not `pass-cap`) into the subagent's context and hard-codes the two disciplines that made the
+prototypes work: **fresh context per pass** and **primary-verifies-findings-against-source**. Portable across
+harnesses (no per-harness profile — NG2, D8).
 
 ### D3 — Severity model (fixed core enum, rubric-interpreted)
 
@@ -239,12 +241,12 @@ referent), a **review** (artifact-internal quality); the `verify-work-unit` boun
 | generate-tasks finalization | `task-audit` (grounding + executability); the leaf-magnitude detector joins when `planning-iteration-mechanics` ships it               |
 | verify-work-unit            | the boundary's own success-criteria validation, run adversarially — stage-owned (NG4), mints no method; augments the self-verify (NG3) |
 
-**Recommendation posture** ("not proactively recommended" = the agent stays silent, invocation still available on
-request — one uniform posture, uniform wiring):
+**Recommendation posture** ("neutral offer" = surface the offer without recommending that it run; the user still
+decides — one uniform posture, uniform wiring):
 
-- **`Light`** — not proactively recommended at any boundary.
+- **`Light`** — neutral offer at every boundary.
 - **`Heavy`** — recommended at spec finalization + generate-tasks finalization (where the prototype evidence
-  sits); not proactively recommended at draft readiness + verify.
+  sits); neutral offer at draft readiness + verify.
 - **`Novel`** — recommended at all four boundaries, strongest framing.
 
 This is the "ceremony scales with `Class`, discipline doesn't" posture; it needs nothing from `scalable-core`.
@@ -460,9 +462,10 @@ and hands the codification off.
   mechanism's own passes at this WU's own planning stages (this spec stage is one), and the success signal (§
   Success Criteria) on the next `Heavy`+ WU. Any CLI-touching surface that emerges (none currently planned — the
   invocation contract is method-body prose, not a new `arc` verb) would carry the standard vitest tiers.
-- **User-facing impact.** Agents and teams get a `Class`-keyed recommended adversarial pass at each planning and
-  verification boundary, wired into the workflows themselves — nothing hand-remembered. The pass is always
-  declinable per-invocation; a `Light` WU sees no proactive nudge.
+- **User-facing impact.** Agents and teams get an always-surfaced adversarial-review offer at each planning and
+  verification boundary, with `Class`-keyed recommendation posture wired into the workflows themselves — nothing
+  hand-remembered. The pass is always declinable per-invocation; a `Light` WU sees neutral offers rather than
+  recommendations.
 - **Coordination seams** (routed to the named WUs, not owned here):
     - **`planning-iteration-mechanics`** owns the readiness *criteria* and content *lenses* this mechanism runs
       (the `assess-*-readiness` / open-questions discipline, the leaf-magnitude detector). Its entry-gate question
@@ -508,8 +511,9 @@ and hands the codification off.
 
 ## Success Criteria
 
-- **SC1 — Wired, not hand-remembered.** On the next `Heavy`+ work unit, the wired workflows themselves recommend
-  the adversarial pass at each `Class`-keyed boundary (D5) with no hand-invocation.
+- **SC1 — Wired, not hand-remembered.** On the next `Heavy`+ work unit, the wired workflows surface the
+  adversarial pass at all four fire-points and recommend it only where the `Class` threshold is met (D5), with no
+  hand-invocation.
 - **SC2 — Effective and honest.** A full run either surfaces **≥ 1 primary-confirmed defect the default review
   missed** (a pre-impl defect at the three planning boundaries; a verification gap at `verify-work-unit`) or
   **converges clean within the pass cap** (D4), with **zero manufactured findings surviving primary

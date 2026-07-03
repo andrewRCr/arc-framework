@@ -410,7 +410,7 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
           the draft and spec. Keep it distinct from the `pre-spec-finalization-review` team extension already there.
 
     - `[x]` **4.2.b Recommendation posture**
-        - Recommended at `Heavy` + `Novel` (the prototype evidence sits here); not proactively at `Light`.
+        - Recommended at `Heavy` + `Novel` (the prototype evidence sits here); neutral offer at `Light`.
 
 ### `[x]` **4.3 Wire the generate-tasks finalization fire-point + retire the layering inversion**
 
@@ -447,7 +447,7 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
           withheld and the primary comparing the independent result to the self-verify.
 
     - `[x]` **4.4.b Recommendation posture**
-        - Recommended at `Novel`; not proactively at `Light` / `Heavy`.
+        - Recommended at `Novel`; neutral offer at `Light` / `Heavy`.
 
 ### `[x]` **4.5 Wire the post-settle coherence re-read at the three planning-stage finalize points**
 
@@ -494,8 +494,8 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
 
 ## Success Criteria
 
-- `[x]` SC1 — Wired, not hand-remembered: on the next `Heavy`+ WU the workflows recommend the pass at each
-  `Class`-keyed boundary with no hand-invocation
+- `[x]` SC1 — Wired, not hand-remembered: on the next `Heavy`+ WU the workflows surface the pass at all four
+  fire-points and recommend it only where the `Class` threshold is met, with no hand-invocation
     - **Verification note:** workflow wiring is present; live downstream confirmation occurs on the next `Heavy`+ WU
       that exercises the boundary.
 - `[x]` SC2 — Effective and honest: a full run surfaces ≥ 1 primary-confirmed defect the default review missed, or

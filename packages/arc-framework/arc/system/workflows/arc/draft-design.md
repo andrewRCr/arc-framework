@@ -160,8 +160,8 @@ fire-point — the gate's own rubrics run from fresh context:
 
 > [!IMPORTANT]
 > `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel` (strongest framing);
-> available on request at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds
-> normally.
+> surface a neutral offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline
+> proceeds normally.
 
 ```yaml
 adversarial-review:

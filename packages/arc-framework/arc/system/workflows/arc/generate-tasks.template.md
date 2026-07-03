@@ -410,8 +410,8 @@ context over the finished suite (the per-phase gates above audited each phase as
 the whole):
 
 > [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; available
-> on request at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
+> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
 
 ```yaml
 adversarial-review:

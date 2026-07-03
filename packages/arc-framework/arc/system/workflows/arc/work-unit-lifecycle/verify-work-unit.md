@@ -55,8 +55,8 @@ open-ended quality critique (that runs in the review lanes). Withhold the implem
 markings from the pass; the primary compares the independent result to the self-verify.
 
 > [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; available on
-> request at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
+> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
 
 ```yaml
 adversarial-review:

@@ -210,8 +210,8 @@ The finalization boundary also carries an advisory adversarial fire-point — de
 fresh context, distinct from both the self-review above and any team extension:
 
 > [!IMPORTANT]
-> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; available
-> on request at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
+> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
 
 ```yaml
 adversarial-review:

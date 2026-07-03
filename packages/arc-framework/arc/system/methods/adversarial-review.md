@@ -11,7 +11,8 @@ override-active: false
 > - **When:** A stage boundary runs its readiness, finalization, task-generation, or work-unit verification gate
 >   and has a supplied rubric to attack.
 >
-> - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?) → findings report`
+> - **Signature:** `adversarial-review(rubric, artifacts, orientation, pass-cap, prior-findings?,
+>   partition-map?)` → findings report
 > - **Contract:** Given a supplied rubric and stage artifacts, run that rubric adversarially with fresh context,
 >   primary-held judgment, and convergence-oriented follow-up. Findings are advisory until the primary verifies
 >   them against source; the method never creates a hard stage gate by itself.
@@ -45,9 +46,9 @@ never applied blindly.
 passes attack the settled artifact and the prior fixes, not only the original report, so the loop can catch
 regressions or second-order breaks before the stage closes.
 
-**Advisory and `Class`-scaled.** Launching the mechanism is an accept-or-decline recommendation whose posture
-scales with the work unit's `Class`. It informs the stage interlock; it does not replace the interlock or make the
-stage impossible to approve.
+**Advisory and `Class`-scaled.** Launching the mechanism is an accept-or-decline offer whose recommendation
+posture scales with the work unit's `Class`. It informs the stage interlock; it does not replace the interlock or
+make the stage impossible to approve.
 
 ### Invocation contract
 
@@ -68,6 +69,7 @@ adversarial-review:
     - AGENT-BRIEF.PROJECT
   pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3 (§ Exit gate)
   prior-findings:  # pass two onward — prior findings + applied fixes; omitted on pass one
+  partition-map:   # partitioned pass only — named slices + ownership boundaries; omitted otherwise
 ```
 
 **Named inputs:**
@@ -81,9 +83,9 @@ adversarial-review:
 | `prior-findings` | pass two onward       | Prior findings and applied fixes; omitted from the first pass. |
 | `partition-map`  | partitioned pass only | Named slices + ownership boundaries (§ Novel fan-out hook).    |
 
-`rubric`, `artifacts`, `orientation`, and `prior-findings` are subagent-context inputs. Serialize them into the
-fresh pass prompt. `pass-cap` is a primary-side loop bound only: the primary uses it to decide how many fresh
-passes it may spawn, but the subagent never sees it.
+`rubric`, `artifacts`, `orientation`, `prior-findings`, and `partition-map` (when present) are subagent-context
+inputs. Serialize them into the fresh pass prompt. `pass-cap` is a primary-side loop bound only: the primary uses
+it to decide how many fresh passes it may spawn, but the subagent never sees it.
 
 **Return schema:**
 
@@ -123,6 +125,9 @@ Orientation (paths — read them directly before forming any finding):
 
 Prior findings and fixes:
 {prior-findings | "None. This is pass one."}
+
+Partition map:
+{partition-map | "None. This is a standard non-partitioned pass."}
 
 Attack the artifact against the rubric. Try to break it. Do not manufacture findings:
 if the artifact holds up, say that plainly and specifically.
