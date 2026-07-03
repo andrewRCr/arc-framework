@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "interlock-scaling-planning-notes",
-  "origin": "description",
-  "intent": "Route interlock-scaling and trust-grant considerations to IRR and FP",
-  "branch": "chore/interlock-scaling-planning-notes",
-  "createdAt": "2026-07-03T18:54:18.614Z"
-}
