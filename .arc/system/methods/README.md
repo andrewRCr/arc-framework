@@ -20,20 +20,6 @@ frontmatter (`arc.methods`) — see [Workflow Authoring Strategy][workflow-autho
 **Classification:** Configurable — preserved through three-way merge during framework updates. For the full
 configurability model, see [Configurability Architecture Strategy][config-arch].
 
-## Index
-
-- [commit-format](commit-format.md) — commit message structure, types, scope, body
-- [commit-footer](commit-footer.md) — `Context:` footer patterns
-- [issue-triage](issue-triage.md) — severity triage, fix-vs-defer decisions
-- [test-first](test-first.md) — decision tree by change type
-- [testing-standards](testing-standards.md) — execution-time testing discipline (mocking, assertions, error paths)
-- [classify-work-unit](classify-work-unit.md) — boundary-test triage + estimate-vs-realized ratchet for `Class`
-- [assess-cohort-fit](assess-cohort-fit.md) — upper-bound WU-vs-cohort boundary test (decompose, or stay one WU)
-- [session-state](session-state.md) — reading and writing session state
-- [diff-review](diff-review.md) — aggregate diff review activity
-- [review-triage](review-triage.md) — classifying and acting on review findings
-- [quality-gate-commands](quality-gate-commands.md) — project quality gate definitions
-
 ## Method Dependencies
 
 Overriding a method without updating its related methods may produce inconsistent behavior. Check related methods
