@@ -273,24 +273,45 @@ procedurally):
 - **Physically split fragments + composed human views** — storage is fragment-shaped; hubs or projections
   reassemble the readable whole.
 
-### The three-way on-demand boundary (crispness is a design requirement)
+### The on-demand boundary — two orthogonal axes (refined 2026-07-03; crispness is a design requirement)
 
 A unified `arc.knowledge`-style fire-site declaration invites the question: what belongs in knowledge vs
-a method vs the workflow body/fragments themselves? Working cut — by what the agent *does* with the
-content:
+a method vs the workflow body/fragments themselves? Refined cut, aligned with `composable-workflows`'
+OO-flavored direction — two orthogonal axes, with overridability reclassified as a capability flag
+(methods *can* be virtual; that is not what makes them methods):
 
-- **Workflow body / fragments** — *do*: the imperative steps of the procedure being executed; owned by
-  its workflow.
-- **Method** — *apply*: a recurring, contract-shaped sub-operation (given X, resolve Y) invoked from
-  multiple workflows; distinctively **overridable** per project (`.default` / `.override`).
-- **Knowledge** — *know*: declarative domain models, rules-of-the-domain, reference facts; consulted to
-  inform judgment, not executed; no override mechanic (a team doesn't override facts — it authors its own
-  knowledge beside the shipped set).
+- **Kind axis** — *procedure* (imperative: executed or applied) vs *knowledge* (declarative: consulted to
+  inform judgment).
+- **Visibility / fan-in axis** — *private* (single consumer; lives inline in its owner) vs *public*
+  (multiple consumers; extracted into a contract-shaped unit, declared at fire sites).
 
-Known blur to resolve at schema time: decision-model methods (e.g. `classify-work-unit`) sit near the
-knowledge line — the boundary tests read like knowledge, the triage procedure like a method. The cut must
-answer such cases mechanically or authoring/maintenance suffers; validate it against the corpus in both
-directions (strategies that should become methods; methods that are knowledge in method clothing).
+The mapping: **methods** = public procedure (multiple callers; virtual when marked); **workflow
+fragments** = private procedure ("private methods" of their owning workflow); **knowledge units** =
+public knowledge (extracted, declared); a workflow's own inline reference material = private knowledge
+(stays in the body). The analogy should extend cleanly precisely because workflow fragments *are*
+procedure.
+
+**Extraction rule (answers "what goes in the base vs a unit"):** extraction is forced by fan-in (a second
+consumer) or by an orthogonal surface need (projection/audience, lint target) — never by content-kind
+aesthetics. The DRY discipline from code (don't extract before the second caller), applied to
+instruction content.
+
+**Transitive declaration (encapsulation applied to loading):** each artifact declares only what its own
+body consumes. A workflow declares the knowledge its body reads; a method declares its own knowledge
+dependencies in its own frontmatter; a workflow never re-declares what its declared methods need.
+Loading resolves the transitive closure, deduped (a unit shared by two declared methods loads once).
+The closure is CLI-computable — deterministic, manifest-emittable, parity-testable — and extends the
+existing author-side declaration rule (`strategy-workflow-authoring`) unchanged in spirit. Analogy note:
+the *mechanics* are a module/import graph (declare at point of use, resolve transitively) more than OO;
+the *rationale* is OO encapsulation — a caller depends on the method's contract, never its
+implementation, and the method's knowledge deps are implementation.
+
+Schema-time questions: closure-depth policy (may knowledge declare knowledge? lean — cross-references
+freely, load-bearing declarations depth-capped to keep closures bounded); the decision-model blur
+(`classify-work-unit`-like methods whose boundary tests read as knowledge and triage as procedure — the
+two-axis cut suggests splitting the contract from the model where the model gains a second consumer, and
+not before). Validate against the corpus in both directions (strategies that should become methods;
+methods that are knowledge in method clothing).
 
 ### Single-source projection (the no-drift direction)
 
@@ -415,9 +436,14 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
   requirement; projection direction adopted as a *compatibility* target, pipeline out of scope;
   skill-description firing-condition seam landed in `draft-skill-infrastructure-cleanup.md` (direct
   edit sanctioned on this grooming branch).
+- **Resolved (pass 4, 2026-07-03):** boundary model refined to two orthogonal axes (kind ×
+  visibility/fan-in) per the CW OO direction — overridability is a capability flag, not a definition;
+  fan-in extraction rule adopted (second consumer forces extraction); transitive declaration adopted
+  (methods declare their own knowledge deps; loading resolves the deduped closure, CLI-computable).
 - **Open (new):** realization shape per artifact (addressable monolith vs split-plus-composed-view);
-  the decision-model-method blur cases (`classify-work-unit`-like); audience/projection tags in the
-  contract schema.
+  closure-depth policy for knowledge-declaring-knowledge; the decision-model-method blur cases
+  (`classify-work-unit`-like — split contract from model at the second consumer, not before);
+  audience/projection tags in the contract schema.
 - **Next:** design the awareness-contract schema — frontmatter shape, `arc.knowledge`-style fire-site
   declaration, index emission, audience/projection tags — and validate the three-way cut against the
   corpus in both directions; author the constraint-relocation list; take the extraction negotiations
