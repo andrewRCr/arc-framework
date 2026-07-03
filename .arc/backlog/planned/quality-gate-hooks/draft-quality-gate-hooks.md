@@ -5,73 +5,6 @@
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **Sweep and enforce against adopter-facing transitional framing**
-
-- *Routed from:* `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during
-  `class-model-foundation` Task 2.5.
-- *Concern:* DEV-RULES.PROJECT already forbids transitional / historical framing in adopter-facing surfaces, but
-  shipped methodology content still needs a grep-driven sweep for phrases like "retired from prior",
-  "replaced by", "under the old model", and "formerly". Preserve useful present-tense guidance while removing
-  framework-evolution narration.
-- *Enforcement angle:* consider folding the search terms into this WU's forbidden-pattern hook family alongside
-  adopter-language and movable-artifact reference checks, with allowlists for legitimate internal-dev or
-  historical-completion contexts.
-
-### `[ ]` **Enhanced link validation — reference-style compliance + hook hardening**
-
-- *Routed from:* `BACKLOG-INBOX`, work-routing-discipline retirement pass (2026-06-01). Folded here because the
-  hook-hardening lobe is a tier-to-hook-stage check (Tier 3 + CI) this WU owns; the link-reanchor counterpart
-  routed to `roadmap-tooling` (lifecycle file-move CLI).
-- *Concern:* two related gaps surfaced when LSP integration revealed mixed link styles and stale cross-file
-  references the existing `validate-links.sh` pre-commit hook didn't catch. (a) DEV-RULES.PROJECT
-  § Documentation Standards prefers reference-style for cross-file links, but the codebase is mixed. (b) The hook
-  validates only staged files — when a file is moved/renamed (e.g., archival), broken outgoing links from
-  un-staged files go undetected (a stale archived-WU reference surfaced long after archival).
-- *Proposed (two lobes; can split):* (1) **Reference-style compliance sweep** — audit `.arc/` and the
-  `packages/arc-framework/arc/` mirror; convert inline `[text](../path/to/file.md)` cross-file links to
-  reference-style with an EOF link block (same-directory / one-level-up targets may stay inline). (2) **Hook
-  hardening** on `validate-links.sh` — a `npm run lint:links` whole-tree scan wired into Tier 3 + CI; expanded
-  candidate set when commits delete/rename `.md` files; optional anchor validation for `file.md#section`;
-  optional dup-definition detection.
-- *Scope:* M overall (S for hook hardening; S–M for the sweep, link-volume dependent).
-
-### `[ ]` **Forbidden-pattern pre-commit checks: adopter-language + path-style WU-artifact refs**
-
-- *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02) — two captures bundled (each flags "same
-  shape, same hook file" as the other).
-- *Concern:* two mechanical content rules currently rely on agent attention + manual review, and both have
-  drawn real slips. (a) **`adopter`/`adopters` in adopter-facing surfaces** — DEV-RULES.PROJECT § Audience
-  Boundaries forbids framework-author-POV `adopter` language in the adopter-facing surface set; an "adopter
-  onboarding" example slipped into `commit-format.md`, caught only at pre-commit review. (b) **Path-style refs
-  to movable WU artifacts** — DEV-RULES.ARC § Documentation Boundaries requires backticked-filename-only refs;
-  a migration sweep found ~14 non-compliant path-style refs across 9 files, with no mechanical enforcement.
-- *Proposed:* a pre-commit hook (or markdownlint custom rule) flagging each forbidden pattern in staged content
-  — `\badopters?\b` under the adopter-facing surface globs, and path-style
-  `(active|backlog)/.../(prd|plan|tasks|notes|meta|atomic)-*.md` refs (plus link defs) elsewhere. Allowlist
-  mechanism for the rare legitimate framework-author-audience use and for fenced code blocks / historical
-  completion-note records. Mirrors the existing `commit-msg` hook + smoke-test pattern; one sweep for both
-  (same hook file).
-- *Scope:* Atomic-tier each (~30-60 min); bundle as one. Sibling of the link-validation hook-hardening buffer
-  entry above — all three are staged-content pre-commit checks this WU's hook-integration surface can absorb (or
-  consciously reject against the § Out-of-scope "existing structural CHECKs are framework-owned" line).
-
-### `[ ]` **Relocatability enforcement: source-side movable-artifact link-defs (hook + sweep)**
-
-- *Routed from:* `USER-INBOX § Backlog` (`WU_Target: quality-gate-hooks`), agile-wu-lifecycle cohort housekeep
-  drain (2026-06-04). The original capture bundled two structural guards under one hook file; graduation split
-  ownership — this is the **relocatability** half (`class-model-foundation` § Scope routes relocatability
-  *enforcement* here), the **cohort↔dir** half re-homed to `decomposition-machinery`. Captured 2026-06-03.
-- *Concern:* DEV-RULES.ARC § `.arc/` artifact references is framed target-side ("don't link *to* a movable
-  artifact"); the dual is a movable artifact's *own* outbound relative-path links, which break when it moves
-  between lifecycle dirs — even links to stable docs. A sweep found ~38 path-style link-defs in active/backlog
-  movable artifacts today.
-- *Proposed:* extend this WU's already-captured forbidden-pattern hook (the sibling "Forbidden-pattern
-  pre-commit checks" entry above) to also flag source-side path-style link-defs inside movable artifacts, and run
-  the ~38-def sweep. This is the enforcement half of the AWL relocatability invariant — the *rule generalization*
-  itself is owned by `class-model-foundation` (its "Generalize the movable-artifact reference rule" buffer entry).
-- *Coordinates with:* the cohort-field↔dir guard in `decomposition-machinery` (same original capture, sibling
-  hook-file family) and the rule-side entry in `class-model-foundation`.
-
 ### `[ ]` **Markdown-formatting enforcement: table-align auto-fix + emphasis/emoji rules at commit-gate**
 
 - *Routed from:* the `markdown-formatting` WU (`../markdown-formatting/draft-markdown-formatting.md`),
@@ -124,7 +57,7 @@
 - *Proposed:* add a Tier-1 lint rule scoped to the exported surface (e.g. `eslint-plugin-jsdoc`'s `require-jsdoc`
   with `publicOnly`) so the existing policy is enforced at the right altitude, rather than adopting CodeRabbit's
   blanket all-functions threshold. Settle the exact rule set + severity at authoring. Sibling of this WU's
-  existing forbidden-pattern / link-validation commit-gate checks.
+  commit-gate dispatch checks.
 
 ### `[ ]` **E2E-coverage + seam-assertion guards for destructive lifecycle verbs**
 
@@ -373,6 +306,11 @@ shipped ARC defaults.
 
 ### Out of scope
 
+- Knowledge-base content checks — cross-reference / link validation, forbidden-pattern content rules
+  (adopter-language, path-style movable-artifact refs, transitional framing), relocatability link-defs, and
+  their one-time sweeps. These are `knowledge-lint`'s charter (settled at its 2026-07-02 grooming; this WU's
+  buffer entries for them migrated there). This WU's gate dispatch invokes `arc lint` exactly as it invokes
+  the adopter's configured linters — dispatch stays here, check content lives there.
 - Switching ARC's shipped hook script format (stays shell-based in `.arc/system/.internal/githooks/`).
   Hook-manager integration is already handled per ADR-014.
 - Rewriting or consolidating the existing 14 structural CHECKs. Framework-owned and fine.

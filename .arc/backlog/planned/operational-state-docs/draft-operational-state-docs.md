@@ -1,6 +1,8 @@
 # Draft: Managed Operational-State Document Model
 
-- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate.
+- **State:** Draft — pre-PRD. Spawned by ADR-022 as its implementation substrate. **Decomposition cut-map settled
+  at the 2026-07-02 grooming (§ Decomposition)** — `decompose-work-unit` is the next action; the inbound buffer
+  distributes to members per the routing map there rather than integrating into this body.
 - **Created:** 2026-05-27
 - **Origin:** [internal] — ADR-022 (`adr-022-managed-operational-state-documents.md`).
 
@@ -78,6 +80,11 @@
   change lands. Shares one substrate with the read-time half: **resolve a referenced WU's lifecycle state** (is X
   shipped? — a `completed/` check). Coordinates with `decomposition-machinery` (authors live-gate edges) and
   `roadmap-tooling` (render de-emphasis).
+- _Reframe (2026-07-02 grooming — shipped as behavior):_ `lifecycle-transition-core` Task 4.7 delivered
+  discharge-at-activation on the markdown substrate (`discharge-dep-edges.ts` — live-gate treatment, resolves
+  satisfied edges at `shipped ∨ integrating`, no mirrored lineage field, identifier-list round-trip preserved).
+  The design above is done; this WU's remaining slice is the **re-home onto records** — the list mutation maps
+  1:1 onto a structured `dependsOn` record (zero-reshape lift), keeping the shipped readiness policy.
 
 ### `[ ]` **Reconcile the interim title-keyed parser to the slug-keyed grammar + codify field ordering**
 
@@ -214,6 +221,9 @@
   since the field can lag the directory (same Axis-1 git-is-truth logic session-init uses).
 - _Scope:_ routed here rather than folded into `doc-cascade-sweep` because it is CLI code + tests, a distinct
   concern from the Light doc-sweep.
+- _Reframe (2026-07-02 grooming — shipped as behavior):_ the slug → state resolver shipped in
+  `lifecycle-state-resolver` (`arc status <slug>`). The CLI design above is done; this WU's remaining slice is
+  re-homing the read onto records at the substrate migration.
 
 ### `[ ]` **Lifecycle-complete cohort membership — graduated-vs-removed validator fix + cohort-doc archival loop**
 
@@ -252,6 +262,11 @@
   mature state), not breakage. Do **not** relocate the doc on last-member-_activation_ — `active/` is flat by design
   (no cohort home), and relocating there would fight the flat-`active/` invariant. Relocation happens once, at
   last-member-_ship_ (already dm's design).
+- _Reframe (2026-07-02 grooming — partially shipped):_ `lifecycle-transition-core` Task 6.1/6.2 delivered the
+  lifecycle-complete membership resolution, archival-trigger wiring, and archive + cohort-doc sweep (approach
+  items 1 and 3). Still genuinely this WU's: the **validator fix (condition c)** and the corpus-wide conformance
+  gate's cohort-doc-presence extension; the shipped membership resolution re-homes onto records at the substrate
+  migration.
 
 ### `[ ]` **WORKING-MEMORY parser silently drops wrapped or colon-less entry headers**
 
@@ -288,36 +303,20 @@
 - _Note:_ ties together the Dependency-edge lifecycle entry (the dep-edge half) and the corpus-wide conformance gate
   entry (the enforcement vehicle) — it is the _framing_ that unifies them, not a separate build.
 
-### `[ ]` **Re-home three cohort-shipped behaviors onto records (dep-edge discharge, slug resolver, cohort-membership/archival)**
+### `[ ]` **Re-home the errand record onto records + live-PR merge-status read for `arc errand close`**
 
-- _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: operational-state-docs`), housekeep drain (2026-06-17);
-  consolidates two captures — `lifecycle-transition-core` Task 4.7 (2026-06-15) and session-init forward-compat
-  (2026-06-16).
-- _Concern:_ the `lifecycle-state-machine` cohort has now **delivered as behaviors** (against the markdown
-  substrate) three items this buffer still frames as OSD "build" work — see the existing entries **Dependency-edge
-  lifecycle semantics (gate vs. lineage)**, **CLI primitive: resolve a WU's lifecycle state by slug**, and
-  **Lifecycle-complete cohort membership — validator fix + cohort-doc archival loop**. Specifically: the slug→state
-  resolver shipped in `lifecycle-state-resolver`; the cohort-membership / archival trigger + archive & cohort-doc
-  sweep in `lifecycle-transition-core` Task 6.1/6.2; dep-edge discharge-at-activate in Task 4.7
-  (`src/lib/work-unit/side-effects/discharge-dep-edges.ts`, already preserving the identifier-list backtick
-  round-trip — treats `Depends On` as the live gate, resolves satisfied edges `shipped ∨ integrating`, no mirrored
-  lineage field).
-- _Approach:_ at OSD's next planning iteration, **reframe those three buffer entries from build-tasks to "re-home
-  onto records"** so OSD doesn't double-plan. For the dep-edge discharge specifically the list mutation maps 1:1
-  onto a structured `dependsOn` record — a **zero-reshape lift**, keeping the shipped readiness policy (`shipped ∨
-  integrating`) and the gate-only treatment; OSD's slice is the record / projection substrate, not the discharge
-  logic. The **validator-fix** and **corpus-conformance-gate** portions stay genuinely OSD's (unbuilt). The
-  2026-06-16 write-path-enforcement entry already reframed only the consistency-hook framing — not these three.
-- _Also — a 4th re-home target + a read-side consumer (housekeep drain 2026-06-21; from errand-lattice Task 3.2,
-  2026-06-19):_ the **errand record** (shipped via errand-lattice, distinct provenance from the three cohort
-  behaviors above) is a 4th surface to re-home onto records. Its consumer `arc errand close` reaps containment-safe
-  (delete only when commits are provably preserved on `origin/<branch>` or in `base`) and ships a `--force` escape
-  for the rest; one narrow case still needs the flag — a **squash-merge whose remote-tracking ref was already
-  pruned** (commits exist under no name git can check). A live-PR merge-status read (read-side external state:
-  `awaiting-merge` / `merged-cleanup`) would let `close` recognize the merged PR and auto-clear the reap without
-  `--force`. Low priority — `--force` already covers it; this removes the manual flag in a rare window and depends
-  on OSD's live-PR-read substrate (behind CSA). OSD owns the errand record's projection + read-side external state;
-  `close` is the consumer.
+- _Routed from:_ housekeep drains 2026-06-17 / 2026-06-21 (from errand-lattice Task 3.2, 2026-06-19); the
+  surviving slice of a consolidator entry whose other three re-home targets were folded into their own entries
+  as dated reframes at the 2026-07-02 grooming.
+- _Concern:_ the **errand record** (shipped via errand-lattice) is a 4th surface to re-home onto records. Its
+  consumer `arc errand close` reaps containment-safe (delete only when commits are provably preserved on
+  `origin/<branch>` or in `base`) and ships a `--force` escape for the rest; one narrow case still needs the
+  flag — a **squash-merge whose remote-tracking ref was already pruned** (commits exist under no name git can
+  check). A live-PR merge-status read (read-side external state: `awaiting-merge` / `merged-cleanup`) would let
+  `close` recognize the merged PR and auto-clear the reap without `--force`.
+- _Scope:_ low priority — `--force` already covers it; this removes the manual flag in a rare window and depends
+  on OSD's live-PR-read substrate (behind CSA). OSD owns the errand record's projection + read-side external
+  state; `close` is the consumer.
 
 ### `[ ]` **Pair OSD's `arc inbox add` managed-write with the shipped inbox-remove half (I/O symmetry + kills append drift)**
 
@@ -473,10 +472,56 @@ substrate today; the surfaces are otherwise built piecemeal, each coining its ow
 Subsumes the `USER-INBOX` "structured-storage + routed-write" capture (Move B for `WORKING-MEMORY` /
 `USER-INBOX`) and `cli-substrate-adoption`'s "Complete-Migration" placeholder for the managed-doc surfaces.
 
+## Decomposition (cut-map, settled 2026-07-02)
+
+The concern exceeds one WU on the orthogonality discriminator, not size alone: the inbound buffer's ~17 pending
+entries sort into distinct concern families with independent deliverable boundaries, and each surviving family
+independently clears the WU floor. `assess-cohort-fit` verdict: **cohort of three**, delivered as a stack.
+`decompose-work-unit` (backlog-stub-source arm, its own `chore/decompose-*` branch) consumes this map; the
+origin WU retires into the cohort, its draft content and buffer distributing per the routing below.
+
+**Members** (cohort `operational-state-docs`):
+
+1. **`managed-record-substrate`** (est. `Heavy`) — the keystone: structured schemas as a model (incl. the
+   `identifier-list` cardinality axis and band-varying required-field sets), the render + reconcile projection
+   engine, the reconciled-editable-region write primitive, the round-trip harness, `structural_contract`
+   annotation + manifest wiring, migration of the markdown-canonical members — with the **session-surface
+   re-homes as its migration phase** (dep-edge discharge, slug resolver, cohort-membership resolution, errand
+   record v2 + live-PR read: zero-reshape lifts too thin for a standalone member, per the lower rail). Owns the
+   ADR-022 alignment edits and the Accepted flip at its activation.
+2. **`corpus-conformance-gate`** (est. `Light`) — corpus-wide schema validation wired to a gate
+   (timing-independent, closes the concurrent-merge drift gap), the cohort-doc-presence extension plus the
+   mandatory-vs-doc-iff-coordinating convention settle, the write-path-enforcement framing (CLI-mutate +
+   consistency-hook), the cohort-membership validator fix (condition c), and VECTOR slug-ref validation as those
+   surfaces land. **Orthogonal to the projection engine** — validation over the stored corpus, deliverable
+   before or parallel to the substrate; its schema source is CSA's zod meta record, so it sequences after CSA,
+   not after the substrate.
+3. **`user-surface-records`** (est. `Heavy`) — the USER-INBOX / WORKING-MEMORY / ATOMIC-INBOX record family:
+   slug-keyed entry identity decoupled from rendered headers, tombstones as non-projected record fields + the
+   TTL config knob, the wrapped-header silent-drop hardening, `arc inbox add` paired with the shipped remove
+   half, and the `§ Atomic` flag schema (`_Awaiting:_`; sequenced after `shared-inbox-model`'s `_Hold:_` →
+   `_Queued:_` call).
+
+**Dependency edges:** `managed-record-substrate` ← `cli-substrate-adoption`; `corpus-conformance-gate` ←
+`cli-substrate-adoption`; `user-surface-records` ← `managed-record-substrate`.
+
+**Buffer routing map** (consumed at the decompose ceremony; entries listed by heading):
+
+- → `managed-record-substrate`: compaction seed projection; `parseMetaRecord` fallback; dep-edge reframe;
+  title-keyed→slug-keyed _grammar codification_ (the schema half; the inbox writer half → user-surface);
+  `identifier-list` valueClass; slug-resolver reframe; cohort-membership reframe (re-home portion); errand
+  record + live-PR read; errand tip SHA; `VECTOR.*` membership (schema half); `session-state` method audit;
+  ADR-022 re-point (rides the ADR alignment set).
+- → `corpus-conformance-gate`: corpus-wide conformance gate; write-path enforcement framing; cohort-doc
+  presence; cohort-membership validator fix (condition c); `VECTOR.*` ref-validation ask.
+- → `user-surface-records`: slug-keyed parser reconcile + field ordering (writer half); `_Awaiting:_` flag;
+  tombstones out of rendered files; tombstone TTL config; WORKING-MEMORY parser drops; `arc inbox add` pairing;
+  entry-identity decoupling.
+
 ## Kickoff (first action)
 
-**Flip `adr-022` Proposed → Accepted.** This WU's activation is the ADR's flip trigger (ADR-022 Status); do
-it as the first action on activation, before substrate work begins.
+**Flip `adr-022` Proposed → Accepted.** The ADR's flip trigger (ADR-022 Status) — post-decomposition this rides
+`managed-record-substrate`'s activation, as the first action before substrate work begins.
 
 ## Dependencies and Sequencing
 
@@ -485,6 +530,16 @@ it as the first action on activation, before substrate work begins.
 - Coordinates with `roadmap-tooling` (the `STATUS.*` renderer is an instance of the render engine),
   `meta-file-tracking-model` (the meta-storage slice — provisional), and `cross-machine-sync-coherence`
   (transport hardening for notes-synced members).
+- **`knowledge-lint`** (boundary, settled at its 2026-07-02 grooming) — standing consistency enforcement over
+  `.arc/` splits by document class: this WU owns record-schema conformance (round-trip harness + corpus gate)
+  over the managed class; `knowledge-lint` owns the durable prose corpus no schema governs. Resolve-don't-store
+  means rendered projections need no lint coverage — this WU shrinks that WU's surface by construction. The
+  corpus conformance gate may surface as a check family under its `arc lint` umbrella; coordinate the
+  family-registration seam at spec time.
+- **`composable-workflows`** (downstream consumer, 2026-07-02 grooming) — its agenda-compiler invalidation rule
+  shrinks as this WU makes session fields (e.g. the SESSION-NOTES `Session Type:` override) CLI-readable record
+  fields the compiler consumes — a real dependency edge; its generated-from-types envelope-schema pilot applies
+  ADR-022's managed-records philosophy to documentation and coordinates with this WU's schema-home question.
 - Forward-compat self-check against `strategy-storage-evolution`: the record layer stays storage-agnostic so
   records lift to the backend tier without reshaping.
 
