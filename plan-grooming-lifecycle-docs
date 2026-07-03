@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "plan-grooming-lifecycle-docs",
+  "origin": "inbox",
+  "intent": "Document --plan grooming branch entry and ship paths",
+  "branch": "chore/plan-grooming-lifecycle-docs",
+  "createdAt": "2026-07-03T18:46:17.090Z",
+  "originEntry": "Document the `--plan` grooming ship path (groom-and-stop covers pause, not ship)"
+}
