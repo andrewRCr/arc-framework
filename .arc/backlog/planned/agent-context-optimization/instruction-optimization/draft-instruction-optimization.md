@@ -27,6 +27,18 @@ the cohort layers model — see `cohort-agent-context-optimization.md`.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **arc-modes dissolved → `local-mode`: prune the Lite probe-shape callbacks**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03).
+- *Concern:* this draft's § Forward-Compat Callbacks ("arc-modes Lite/Local probe shape") and the
+  § composability notes referencing `plan-arc-modes.md` are half-moot. Lite is dead (ADR-020; ratified at the
+  2026-07-03 re-scope — the WU renamed to `local-mode`, Lite content cut): there is no Lite probe shape to
+  design for, and the shipped multi-WU probe runs tier-agnostic on the invariant floor. The **surviving**
+  composability concern is the storage axis: Local's session-init pre-check (halt on missing `.arc/`, surface
+  `arc backing status` degraded state) — see `draft-local-mode.md` § Session-init pre-check. At integration:
+  drop the Lite arms of the callback, re-point the concern at the storage axis, and update the stale
+  `plan-arc-modes.md` filename refs.
+
 ### `[x]` **CLI helper for the session-init strategic partial-read of the task list (concretizes Pillar 3 / D3.2)**
 
 - *Disposition (2026-07-02):* Integrated into Pillar 3 D3.2, which is now a **reconciliation** — the shipped

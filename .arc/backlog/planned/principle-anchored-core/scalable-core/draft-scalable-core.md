@@ -36,6 +36,68 @@
 - *Downstream:* resolves `release-ceremony-commits`'s audit null-collision (zero-candidate accept currently shares
   `wu: null` with a nameless lite WU) — once lite is gone, null unambiguously means "no active WU."
 
+### `[ ]` **Configuration-transition machinery from the dissolved Lite↔Full switch design**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` prior to that
+  re-scope (git history) § Graduation / Downgrade Paths.
+- *Concern:* this WU's owned `arc reconfigure` slice currently designs one edge (toggle-pipeline-off with staged
+  content). The dissolved Lite↔Full switch already worked the general problem and its machinery transfers intact:
+  **(1) orphan taxonomy** — Category A manifest-tracked files the new configuration excludes (change-plan +
+  existing removal UX handles free), Category B off-manifest runtime user artifacts (filesystem walk, reported
+  per-top-level-directory, never per-file), Category C semantic decay split into C1 grep-able stale references
+  and C2 conceptual decay (agent-led review pass); **(2) entry-state gate** — refuse a destructive transition
+  unless the operator has put the system in a valid state first (invocation-as-assertion with a verified
+  precondition); **(3) CLI-mechanical / advisory-workflow split** — CLI self-sufficient for the deterministic
+  parts, a supplemental workflow as the documented entrypoint adding the judgment pass; **(4) descope guard** —
+  ship the up-direction only if the down-direction proves costly. Toggling the Planning Module off produces
+  exactly the A/B/C1/C2 categories.
+
+### `[ ]` **Recipe / prompt / config-template mechanism bundle (designed for Lite, needed by the reform)**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
+  (git history) §§ Installation Type Recipe Mechanism, Prompt Orchestration and Recipe Authority, Lite Config
+  Template Mechanism, Configuration Identity.
+- *Concern:* three fully-specified, axis-agnostic mechanisms with code-verified landscapes back this WU's owned
+  recipe/config/validation slice; none are recorded in ADR-020 or this draft: **(1) symmetric-additive recipe
+  bucketing** — per-axis additive buckets, no subtraction/precedence/two-recipes (rejections documented), whole-file
+  gating only for files with no cross-axis content, within-file gating otherwise, no combinatorial pair buckets;
+  **(2) prompt gating** — a recipe `show_when` field reusing the existing condition grammar, a pure
+  `shouldShowPrompt()` helper, skipped-prompt defaults from the recipe `default` field, and the drift-test pattern
+  (recipe prompt IDs vs exported constants). Includes the finding that `recipe.prompts` is validated but never
+  consumed — seven hand-coded sites duplicate prompt knowledge (vestigial-metadata cleanup has no owner);
+  **(3) templated config** — `.template.yml` rename (render pipeline is already extension-agnostic; manifest keys
+  by output path, so zero migration), composition order tokens → conditionals → overrides (overrides last so keys
+  inside stripped blocks can't be overridden back in). Plus the consumer read-path doctrine (axis fields live in
+  the manifest only; hooks branch on already-resolved downstream keys; workflows/agents never see an axis at
+  runtime) and the manifest-vs-config placement reasoning for install-shape axes.
+- *Caveat:* landscapes read 2026-04; re-verify against the current CLI before reuse. One undesigned seam: ADR-020
+  §8's walkthrough is agent-led while this machinery is CLI prompts — non-interactive (`--yes` / CI) paths need
+  the CLI mechanism regardless; the interactive split between walkthrough and CLI prompting is nobody's design yet.
+
+### `[ ]` **Guided-init inputs from the dissolved Lite design (floor, patterns, evidence)**
+
+- *Routed from:* `local-mode` re-scope groom (2026-07-03); full detail in `draft-arc-modes.md` pre-re-scope
+  (git history) §§ Lite Initial Setup, Mode Fit Communication, Research Findings, Quick-Start / On-Ramp Angle.
+- *Concern:* inputs for this WU's owned init-workflow reshape: **(1) the minimum-viable-init floor** — the
+  load-bearing set the opt-down endpoint must still guarantee (agent config, identity, the session-loaded project
+  docs) plus the deliberately-absent list; **(2) agent-led in-workflow opt-in** as the mechanism for optional
+  artifacts (install-time prompt and CLI flag both rejected on discoverability/ceremony grounds); **(3) the
+  equal-peers prompt doctrine** — peers listed without pre-selection, work-shape (not duration) discriminators,
+  transition path named, `--yes` errors when an axis has no back-compat default; **(4) the no-detect-and-advise
+  principle** — the framework never counts-and-advises on WIP/complexity/fit; upfront clarity + easy transitions
+  instead (a framework-wide commitment recorded only in the dissolved design); **(5) research evidence** — PSP
+  discipline-is-scale-independent (the unrecorded empirical underwriting of ADR-020's invariant floor), the
+  15–20% ceremony-proportionality threshold, ~2wk/2–8wk/>8wk duration banding, signal-based outgrowth triggers
+  (unplanned work emerging, scope clarification >10% of time, task count past working memory, concurrent streams),
+  and the solo keep/abandon adoption split; **(6) an unweighed argument** — ADR-020 §8's default-on stance was
+  argued from informed consent and never weighed the adoption-funnel case for presenting the minimal region as
+  the recommended start for solo/trial adopters. Surface it deliberately at the walkthrough design (intersects
+  `cold-start-init-polish`).
+- *Also:* the dissolved design committed to a strategy-content audit sweep (config-coupled in-doc surfaces —
+  tables, example blocks — across all framework strategies; 3-of-4 drift hit rate when last run) and a
+  settings-applicability inventory (which keys exist/force/shift per toggle state). Both exceed this draft's
+  two-doc prose sweep; adopt or consciously reject at integration.
+
 ---
 
 ## Problem / Motivation
@@ -76,7 +138,8 @@ This WU is both a coordinating north star (ADR-020) and a bounded implementation
 
 What it **steers** (via ADR-020 cross-refs, executed elsewhere): the spec-template family and intent-
 verification scaling (agile-wu-lifecycle), single-entry workflow scaling (arc-plan-conductor), Lite/Local
-(arc-modes), the tracker `coord.adapter` surface (coord-probe), shared-file concurrency conventions
+(the Lite steer is executed — dissolved at arc-modes' 2026-07-03 re-scope to `local-mode`; Local rides
+`local-mode` as the storage axis), the tracker `coord.adapter` surface (coord-probe), shared-file concurrency conventions
 (concurrent-work-conventions), and the mutable-shared-state backend (arc-backend).
 
 ## Validated seam inventory
@@ -115,14 +178,16 @@ mode-orthogonal. Concrete seams:
 
 - **Tracker-shape ownership** — ADR-020 fixes the invariants (orthogonality; per-WU `Origin` + project-level
   pointer; multi-tracker foreclosed) but explicitly does not bless the inherited `Origin` + `coord.adapter`
-  decomposition as optimal. If scalable-core sequences ahead of arc-modes/coord-probe, the refined shape
-  should land here; otherwise at whichever leads. Resolve at sequencing.
+  decomposition as optimal. If scalable-core sequences ahead of coord-probe, the refined shape should land
+  here; otherwise there (arc-modes left this fork at its 2026-07-03 re-scope — `local-mode` is storage-axis
+  only, no tracker deliverable). Resolve at sequencing.
 - **Resolve-then-load boundary** — where the core/extension cut falls for the inline-gated backlog steps,
-  and how `system/workflows/` stays navigable. Owned by `plan-composable-workflows.md`; this WU is a
-  consumer.
-- **Config-key naming** — exact tokens (`pm.enabled`? `planning.enabled`?), and how they reconcile with
-  arc-modes' planned `pm.mode → pm.layer` rename (which this thesis turns from an enum-rename into a
-  boolean).
+  and how `system/workflows/` stays navigable. Owned by `draft-composable-workflows.md`; this WU is a
+  consumer (its § Relationship to other work registers this WU's session-init Step 5 and archive-sweep
+  seams as config-static gate cases under its binding-time rule).
+- **Config-key naming** — exact tokens (`pm.enabled`? `planning.enabled`?). The `pm.mode → pm.layer`
+  enum-rename once planned under arc-modes is superseded — this thesis makes the key a boolean, and that
+  scope dissolved at arc-modes' 2026-07-03 re-scope.
 - **Reconfigure transition** — what happens to staged `backlog/` content when the Planning Module is toggled
   off (push external / archive / error).
 
@@ -131,7 +196,8 @@ mode-orthogonal. Concrete seams:
 Medium–Large. The artifact surface barely moves; the payload is config-model + recipe + scaffolding +
 prose + a handful of workflow seams, plus the consolidation of the scattered external-setup surface.
 **Builds on** work-organization-reform's shipped floor (always-present `meta-*`, tier-invariant
-disciplines). Sequencing relative to the steered WUs (arc-modes, agile-wu-lifecycle, arc-plan-conductor,
-coord-probe) is undecided and partly determines tracker-shape ownership.
+disciplines). Sequencing relative to coord-probe is undecided and determines tracker-shape ownership; the
+other originally-steered WUs have since shipped (agile-wu-lifecycle), decomposed (arc-plan-conductor), or
+re-scoped (arc-modes → `local-mode`).
 
 ---
