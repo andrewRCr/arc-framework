@@ -184,6 +184,13 @@ shape. Cross-references resolve through it.
 <!-- Three-tier amendment model (strategy-adr-methodology.md): corrections fixed directly; amendments
 appended as dated annotations below; supersession via a new ADR + a Status update here. -->
 
+**2026-07-03 — arc-modes disposition executed.** The § Coordination steer to `plan-arc-modes.md` landed at
+that WU's re-scope groom (earlier than its PRD): Lite content cut wholesale; the WU renamed to `local-mode`
+(design now `draft-local-mode.md`), scoped to the Local storage axis and reframed as tier-2 of the
+git-backing-store substrate per `strategy-storage-evolution.md` § The Storage Model. The
+`team.mode → team.enabled` rename disposition rides `local-mode`'s grooming (ownership vs. scalable-core's
+config-schema reform to be settled there).
+
 ---
 
 [adr-009]: adr-009-simplify-pm-layers-to-mode-based-selection.md

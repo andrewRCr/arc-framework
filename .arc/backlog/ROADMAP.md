@@ -50,7 +50,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | release-lifecycle            | P3       | andrew | —          | release-readiness          |
 | adopter-content-aware-ci     | P3       | andrew | —          | —                          |
 | adr-accept-timing            | P3       | andrew | —          | —                          |
-| arc-modes                    | P3       | andrew | —          | —                          |
 | arc-reinforce                | P3       | andrew | —          | —                          |
 | cohort-cut-coherence         | P3       | andrew | —          | —                          |
 | cold-start-init-polish       | P3       | andrew | —          | —                          |
@@ -87,10 +86,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 
 ### Depth 2
 
-| Work unit                  | Priority | Owner  | Depends on                    | Cohort            |
-|----------------------------|----------|--------|-------------------------------|-------------------|
-| wu5-public-release         | P3       | andrew | docs-content-sweep            | release-readiness |
-| comprehension-preservation | P3       | andrew | execution-delegation-doctrine | —                 |
+| Work unit                  | Priority | Owner  | Depends on                                                  | Cohort            |
+|----------------------------|----------|--------|-------------------------------------------------------------|-------------------|
+| wu5-public-release         | P3       | andrew | docs-content-sweep                                          | release-readiness |
+| comprehension-preservation | P3       | andrew | execution-delegation-doctrine                               | —                 |
+| local-mode                 | P3       | andrew | operational-state-docs, scalable-core, composable-workflows | —                 |
 
 ---
 

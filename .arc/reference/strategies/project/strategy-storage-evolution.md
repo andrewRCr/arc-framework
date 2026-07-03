@@ -196,7 +196,7 @@ This list is not exhaustive — other touchpoints surface during co-design.
 
 - **`draft-arc-backend.md`** — the north-star target: full model (the line, the one knob, materialization A/B,
   concurrency-with-history, gotchas), audience fit, sequencing, blast-radius/migration audit, backlog compat audit.
-- **`draft-arc-modes.md`** — Lite + Local modes. Local is tier-2 of the materialized substrate; its backing-store
+- **`draft-local-mode.md`** — Local mode, tier-2 of the materialized substrate; its backing-store
   mechanics generalize to the hosted (backend) case.
 - **`adr-020-adopt-principle-anchored-scalable-core.md`** — the derived-vs-mutated split; mutable shared state
   (inbox drains, ordering) is the backend's canonical responsibility (→ event-log).
