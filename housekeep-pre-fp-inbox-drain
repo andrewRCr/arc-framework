@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "housekeep-pre-fp-inbox-drain",
+  "origin": "description",
+  "intent": "Route pre-FP inbox entries to their homes",
+  "branch": "chore/housekeep-pre-fp-inbox-drain",
+  "createdAt": "2026-07-03T17:13:40.317Z"
+}
