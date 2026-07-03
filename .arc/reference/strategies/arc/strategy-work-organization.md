@@ -356,6 +356,14 @@ The partition is the forcing function: when a member's section starts filling wi
 tasks, that visible smell *is* the signal the content belongs in its spec, with only a pointer left behind. The
 boundary holds because crossing it looks wrong in the doc, not because a reviewer must police it.
 
+**Cross-cohort coordination stays coordination, not membership.** When a member or cohort needs to coordinate
+with work outside its own cohort, record the seam in the cohort doc's optional `### Cross-cohort` section and
+express hard sequencing with ordinary WU-level `Depends On` edges. The section names the outside home and the
+coordinated concern; it does not make the outside WU a member, and it never creates multi-cohort membership.
+A WU's `Cohort` value names the one grouping whose closeout criteria and per-member partition it lives under. If
+the same WU genuinely belongs to two closeout definitions, the work is miscut: split the work, or merge the
+groupings. Use `### Cross-cohort` for named coordination across boundaries, not shared residence.
+
 **Relocatability and reference hygiene.** `cohort-{name}.md` is a movable `.arc/` artifact, exactly like a WU's
 `meta-* / draft-* / spec-* / tasks-*`: it relocates with its directory — `backlog/planned/<cohort>[/<subcohort>]/`
 → `completed/<dated>/<NN>a_cohort-<name>/` when the cohort's last member ships — as a pure `git mv` with no
