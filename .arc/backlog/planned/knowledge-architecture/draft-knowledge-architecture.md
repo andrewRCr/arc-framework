@@ -395,6 +395,43 @@ Still open in the sketch:
   ROADMAP", "route discovered work") for conditions to reference; where that enum lives and how it stays
   honest (probe-emitted? convention?) is schema-time design.
 
+### Command reference — the index-native case (2026-07-03)
+
+Command-reference content (QUICK-REFERENCE's actual role) looks like a grey-area tier problem —
+always-loaded is unjustified when no command fires that session; on-demand risks the expensive
+awareness failure (an agent burning enormous manual effort on what one known command resolves, e.g.
+MD060 table alignment vs `markdown-table-formatter`). The model dissolves it via a property unique to
+this content kind: **the awareness/body split is extreme, and awareness ≈ payload.** "Symptom/operation
+→ command" fits in a fire line; for many commands the fire line *is* the full useful content. Command
+reference is **index-native knowledge**: not a document needing a tier, but a collection of
+fire-line-sized **capability cards**, grouped into card *sets* (quality-gate set, formatting set, ARC
+CLI set), most of them project-owned content in framework-shaped slots.
+
+Layered awareness model (most→least deterministic):
+
+1. **Emitted remedies** — the sharpest trigger is the symptom itself: gates, hooks, and CLI output carry
+   the fix command at failure time (MD060 failure output names the formatter invocation). No loading at
+   all; the determinism chain applied to command awareness. Idiom: Rust diagnostics (error → suggested
+   fix), shell command-not-found handlers.
+2. **Hard-triggered card sets** at operations — the gate-running step loads the gate cards; commit
+   compose loads the commit set. Largely exists today via workflow/method wiring.
+3. **Index fire lines** for the emergent residue — awareness ≈ payload makes cards the index's
+   best-value occupants.
+4. **Self-describing CLI backstop** — one taught pattern (`npm run` listing, `arc --help`) covers the
+   tail at search-tier reliability. Idiom: uniform script namespaces.
+5. **Harness-native persistent surfaces** as progressive enhancement — CLAUDE.md-style command sections,
+   MCP tool definitions for the highest-value few, where the harness provides them (same
+   adapt-not-adopt posture as skills).
+
+**Blur-case evidence banked:** `quality-gate-commands` is a "method" with no contract (no given-X-
+resolve-Y) — an info fetch, i.e. *knowledge in method clothing*, exactly the corpus-validation
+direction-2 case the two-axis cut predicted. What it borrows from methodhood is the override mechanic,
+which under this model dissolves into **project ownership of card content** (the framework ships the
+slot, the project fills it — Configurable-class, like `DEV-RULES.PROJECT`, which already duplicates the
+gate commands today; the duplication is itself a finding). QUICK-REFERENCE's end state: dissolves into
+card sets + index emission — its naming problem evaporates with the artifact; the always-loaded env
+slice remains `loadset-composition`'s T1 call (coordinate).
+
 ### Single-source projection (the no-drift direction)
 
 Kind C (explanation) points at a larger possibility: knowledge authored once and **projected** to both
@@ -536,8 +573,15 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
   candidates extended (`data` strong late entry on the canonical OO bundle symmetry; `attributes` UML
   pair) plus the anti-conflation principle (primitive name ≠ structural position; kind vocabulary and
   declaration key are separate naming slots).
+- **Resolved (pass 7, 2026-07-03):** command reference identified as index-native knowledge
+  (awareness ≈ payload; capability cards in project-owned sets); five-layer command-awareness model
+  (emitted remedies → triggered card sets → index fire lines → self-describing CLI backstop →
+  harness-native surfaces); `quality-gate-commands` banked as the predicted knowledge-in-method-clothing
+  blur case, its override mechanic dissolving into project ownership of card content; QUICK-REFERENCE
+  end state = dissolution into card sets (naming problem evaporates; env-slice T1 call stays with
+  `loadset-composition`).
 - **Next:** settle the ID scheme and the operation-vocabulary home; full corpus validation of the
   schema (both directions); author the constraint-relocation list; take the extraction negotiations
-  (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the ratified verdict in
-  hand. Draft is approaching **maturing** — consider a coherence-consolidation rewrite next session
+  (rules-restructure, placement thresholds — QUICK-REFERENCE resolved above) with the ratified verdict
+  in hand. Draft is approaching **maturing** — consolidation rewrite queued as the immediate next move
   (the passes are accreting; per draft-design's interim-softcap lean).
