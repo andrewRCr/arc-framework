@@ -13,6 +13,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
+> *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
+
+### `[ ]` **Align with the knowledge-architecture model: orphan semantics, incoming families, registry posture**
+
+- *Routed from:* `knowledge-architecture` grooming (2026-07-03), direct-edit routing on its grooming branch.
+- *Concern:* `knowledge-architecture` redefines the knowledge corpus's awareness/loading model in ways that touch
+  three points of this charter. (1) **Family 4's orphan semantics:** that model derives access paths from
+  structure — a knowledge unit is an orphan iff no consumer declares it *and* it carries no `fire` line — which
+  dissolves the link-graph root-set open question for the knowledge corpus; a link-graph orphan check specced now
+  would be replaced by the structural definition. (2) **Incoming families:** it hands this WU new check families
+  (awareness-contract schema validity, directive-form `fire` lines, buried-constraint heuristics) through the same
+  family-registration seam minted for `operational-state-docs`. (3) **Family 5 shrinkage:** its index surface is
+  generated from `fire` lines, removing the `STRATEGY-INDEX` successor from the parity surface (consistent with
+  this WU's ditch-or-generate posture).
+- *Fold-in:* spec `arc lint` as a family **registry** (already the OSD seam's direction) so those families slot in
+  without reshaping the umbrella; scope family 4 to the non-knowledge doc tree, or defer it pending the
+  awareness-contract schema.
+- *Soft ordering (deliberately not a `Depends On` edge — too coarse; it would block standing hygiene value):* most
+  of this charter is knowledge-architecture-independent and proceeds freely (families 1–3, the umbrella, the
+  semantic sweep). If this WU specs first, family 4 defers or scopes down and the registry posture covers the
+  rest; if `knowledge-architecture` settles its schema first, family 4 adopts the structural orphan definition
+  outright. Recorded in both drafts.
+
+---
+
 ## Problem / Motivation
 
 Karpathy's LLM-wiki and Google's OKF both name three operations over a markdown knowledge base: ingest, query, and

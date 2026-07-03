@@ -45,3 +45,8 @@ mode is active (`pm.mode: arc-in-git` in `arc-config.yml`).
   for plans / PRDs touching storage, multi-user concerns, or external-tool integration
     - Consult when: authoring or iterating plans / PRDs that affect WU-artifact storage, multi-user / multi-machine
       concerns, external-tool integration boundaries, WU/branch coupling, or new configuration axes
+- `project/strategy-knowledge-evolution.md` - **In-development.** Knowledge-layer placement and forward-compat
+  principles for guidance content, trigger/index surfaces, and loading mechanisms
+    - Consult when: authoring or iterating plans / PRDs that place or relocate agent-facing guidance content, grow
+      always-loaded context, add trigger / index / description surfaces, name new doc families, or add loading /
+      awareness mechanics
