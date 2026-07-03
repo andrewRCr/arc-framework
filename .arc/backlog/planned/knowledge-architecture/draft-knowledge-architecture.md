@@ -329,6 +329,20 @@ name (it conflated four kinds). Candidates, with leans:
 - **`canon`** (`arc.canon:`) — distinctive, collision-free, echoes the original "authoritative,
   canonical deep-dive" strategy intent. Cost: slightly precious; unfamiliar as an artifact-family noun.
 - **`knowledge`** (`arc.knowledge:`) — the safe self-describing default; bulky in declarations and prose.
+- **`data`** (`arc.data:`) — *strong late entry.* The canonical OO bundle is literally "data + methods" —
+  a more fundamental symmetry than `statics`, without the static-*methods* flaw. Costs: modern usage
+  connotes structured/machine data, so prose doctrine as "data" reads oddly at first; very generic for
+  grep/prose.
+- **`attributes`** — the UML class-compartment pair (attributes + operations/methods); textbook symmetry.
+  Costs: HTML/XML-attribute and frontmatter-key collisions in a markdown-heavy system. (`fields` and
+  `properties` share the symmetry but collide worse: meta-file fields; properties/config files.)
+
+**Anti-conflation principle (2026-07-03):** the primitive's name must not encode structural position —
+`reference/` is a directory (where some units happen to live), not the primitive. This weakens
+`reference` as the *primitive* name while leaving it intact as *kind* vocabulary: kind A remains
+"reference-kind content" (Diátaxis) regardless of what the declaration key is called. Two naming slots,
+solved separately: the kind vocabulary (Diátaxis terms, descriptive) and the primitive/declaration key
+(`arc.<X>:`, structural).
 
 Kind-C (explanation) content is deliberately *not* this family — it is the projected/relocatable layer
 and may carry a separate name (Diátaxis "explanation", or plain docs vocabulary). Final naming
@@ -356,15 +370,30 @@ compose the generated index surface (the `STRATEGY-INDEX` successor). Lintable (
 schema validity, directive-form `fire` lines, orphaned units (no consumer and no index presence),
 buried-constraint heuristics.
 
-Open in the sketch:
+**Tier question resolved by corpus pressure-test (2026-07-03): tier is *derived*, not declared — on
+either side.** Running the schema against concrete units dissolved the per-unit vs per-edge fork:
 
-- **Tier per unit, or per consumer edge?** The same unit might be hard-triggered from one workflow and
-  indexed for emergent access — if so, `tier` is a property of the *edge* (declaration site), not the
-  unit, and the unit-side field collapses to just the `fire` text for the indexed path.
+- The motivating "wants both tiers" example (append-only-until-integration) turned out to be a **kind-B
+  constraint mislabeled as a unit** — constraints relocate to always-loaded/gate surfaces; they never get
+  unit contracts. The model self-corrected: when a unit seems to need both a hard trigger and index
+  presence for safety, that's the miss-cost axis saying it isn't a unit at all.
+- Genuine kind-A units tested tier-stable once triggers anchor to **operations, not workflows**: the
+  render standard fires on "rendering ROADMAP" wherever that occurs (any ceremony, or ad-hoc); the errand
+  decision matrix fires on "routing discovered work." Workflows are *sites where operations occur* —
+  operation-anchored conditions cover ad-hoc invocation for free.
+- Remaining resolution: **no `tier` field anywhere.** Access paths are derived from structure — a unit is
+  fire-site-loaded iff ≥1 consumer declares it; index-present iff it carries a `fire` line; always-loaded
+  iff in the loadSet manifest. These are independent facts, combinations legal, all CLI-computable. A
+  unit with no consumer and no `fire` line is an **orphan** (lint). The miss-cost axis governs authoring
+  (constraint content must never be index-only) as a lintable heuristic, not a schema field.
+
+Still open in the sketch:
+
 - **ID scheme** — path-is-ID (OKF) vs an explicit `name` field; interacts with the forced `type` layer
   and relocatability rules.
-- Whether kind-B constraints are a `type` of their own or purely a placement outcome (relocated to
-  always-loaded surfaces, so never unit-schema'd at all).
+- **Operation vocabulary** — operation-anchored triggers need a modest named-operation set ("render
+  ROADMAP", "route discovered work") for conditions to reference; where that enum lives and how it stays
+  honest (probe-emitted? convention?) is schema-time design.
 
 ### Single-source projection (the no-drift direction)
 
@@ -501,7 +530,14 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
   `statics` runner-up on declaration-surface symmetry, `canon`, `knowledge`); awareness-contract schema
   first sketch drafted (unit frontmatter + consumer-side declaration + CLI closure/index emission +
   lint surface).
-- **Next:** settle the tier-per-unit vs tier-per-edge question and the ID scheme; validate the schema
-  and the two-axis cut against the corpus in both directions; author the constraint-relocation list;
-  take the extraction negotiations (QUICK-REFERENCE identity, rules-restructure, placement thresholds)
-  with the ratified verdict in hand.
+- **Resolved (pass 6, 2026-07-03):** tier question dissolved — no `tier` field; access paths derived
+  from structure (consumers → fire-site load; `fire` line → index presence; loadSet → always), orphan
+  lint, miss-cost as authoring heuristic; triggers anchor to *operations*, not workflows; naming
+  candidates extended (`data` strong late entry on the canonical OO bundle symmetry; `attributes` UML
+  pair) plus the anti-conflation principle (primitive name ≠ structural position; kind vocabulary and
+  declaration key are separate naming slots).
+- **Next:** settle the ID scheme and the operation-vocabulary home; full corpus validation of the
+  schema (both directions); author the constraint-relocation list; take the extraction negotiations
+  (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the ratified verdict in
+  hand. Draft is approaching **maturing** — consider a coherence-consolidation rewrite next session
+  (the passes are accreting; per draft-design's interim-softcap lean).
