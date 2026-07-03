@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "route-batch-errands-to-fp",
+  "origin": "description",
+  "intent": "Route the batch-errands shape question into finalize-parallelism",
+  "branch": "chore/route-batch-errands-to-fp",
+  "createdAt": "2026-07-03T18:08:46.133Z"
+}
