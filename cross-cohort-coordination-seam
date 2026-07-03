@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "cross-cohort-coordination-seam",
+  "origin": "inbox",
+  "intent": "Codify cross-cohort coordination seam conventions",
+  "branch": "chore/cross-cohort-coordination-seam",
+  "createdAt": "2026-07-03T18:38:29.616Z",
+  "originEntry": "Codify the cross-cohort coordination seam convention in `strategy-work-organization`"
+}
