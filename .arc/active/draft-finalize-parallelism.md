@@ -75,8 +75,10 @@ foreign-registry hazard fired live), so the project hook (`worktree.post_create`
 registered list of gitignored harness dirs (`.claude/`, `.codex/`, `.gemini/`, `.opencode/`, …) and mirrors
 whatever the primary has — zero per-harness knowledge, covers harnesses ARC has never heard of. The
 `arc update`-style **regeneration** path (claude/codex reference impls + registration at `verify-and-configure`
-/ an add-agent workflow — the hooks / release-wrapper precedent) is the clean evolution; its timing is a
-spec-time decision (possibly in-FP rather than downstream). Unconfigured default stays notice-not-silent.
+/ an add-agent workflow — the hooks / release-wrapper precedent) is the clean evolution; timing settled
+2026-07-03: **downstream** — BI-1 ships copy-from-primary plus the registered-dir list as the designed seam,
+and the regen path routes to the verify-and-configure / add-agent owner post-FP (§ Resolution model handles
+escalation if the waves surface drift pain). Unconfigured default stays notice-not-silent.
 
 **2. In-place Materialize for cross-machine pickup — mirror the `--here` opt-out.** The begin-work transitions
 (`graduate` / `resume`) carry a `--here` in-place opt-out so a stub can graduate or a parked WU resume in the
@@ -119,8 +121,13 @@ dropped context. Settled direction — **layered model**:
   existing handoff idiom applied at spawn (the notes ref is checkout- and branch-independent) — so the worktree
   session boots rich instead of cold.
 - **(c) Sugar, harness-conditional:** where the harness can relocate a live session into a worktree, offer the
-  hop — Claude Code has this today (`EnterWorktree`); research item: verify Codex CLI's equivalent — target
-  Claude Code + Codex support out of the gate.
+  hop. Researched 2026-07-03 — two capability tiers, surfaced per harness (never hidden). Claude Code supports
+  **true relocate** (`EnterWorktree`). Codex CLI has **no live-session relocate** (the analog exists only in
+  the Codex desktop app; CLI feature requests are open and unscheduled) — its supported shape is
+  **spawn-anchored**: launch a fresh session in the worktree (`codex --cd <path>` interactive;
+  `codex exec --cd <path>` non-interactive), which layer (b)'s mini-handoff makes first-class — the fresh
+  session boots rich, so spawn-anchored ≈ relocate minus live context. Caveat: Codex has known cwd-confusion
+  bugs when run inside a linked worktree — re-verify at build time.
 
 Carries the **spawn-mode ceremony-locus fix**: during FP's graduation the `start` transition staged the
 backlog→active relocation in the **primary's** index (on `main`) and opened the per-WU user workspace in the
@@ -136,10 +143,14 @@ re-render learns to wrap at 120. Verify via a wave-2 re-graduation. Files: `src/
 `src/lib/git/worktree-scaffold.ts`, `src/lib/work-unit/executor-context.ts`, `src/lib/active/meta-reader.ts`
 (`renderBullets` wrap).
 
-Open design item (spec-time): interlock semantics for shell-invoked start — the explicit user invocation
-arguably *is* the approval (release-wrapper reasoning); settle deliberately, don't drift into it. Coordination:
-composes with the singleton fork below (pin-primary-to-base — the primary as permanent orchestration surface);
-ceremony-commit determinism depends on `roadmap-tooling`.
+Interlock semantics for shell-invoked start (settled 2026-07-03): the explicit user invocation **is** the
+approval — release-wrapper reasoning: the ceremony's content is deterministic (relocation, meta writes,
+formulaic message), so no judgment remains for a gate to protect. Scoped narrowly: the release covers the
+ceremony's own commit + push only; the command prints exactly what it committed and pushed (audit visibility);
+in-session starts keep their normal workflow gates. Coordination: composes with the singleton fork below
+(pin-primary-to-base — the primary as permanent orchestration surface); ceremony-commit determinism depends on
+`roadmap-tooling`; the transition rework shares surface with `graduation-cleanup`'s flip-time history-hygiene
+ceremony — coordinate or sequence at its pickup.
 
 **5. Graduate-transition crash class — silent reconcile bail + non-atomic partial state (wave-zero fold,
 2026-07-03; absorbed per § Resolution model).** FP's first `arc start` crashed mid-transition:
@@ -187,15 +198,44 @@ Settled *as decisions to make* — the audit resolves each; neither is a pre-com
       out-of-WU sessions unarbitrated (two agents sharing one checkout share HEAD + index — not safely
       arbitrable without real locking).
 
-  Wave 3 supplies the evidence; settle the fork at the seam audit with it.
-  Include the related batch-errand question in that decision: ARC has sequential errand execution, but no
-  explicit "batch errand" wrapper for a coherent set of small concerns, so FP should decide whether batching
-  is only an operator convenience under the primary-worktree serialization invariant or a first-class
-  concurrent-errand shape that needs its own lifecycle support.
+  Wave 3 supplies the evidence; settle the fork at the seam audit with it. **Fork-input note (2026-07-03
+  settle pass):** BI-1's provisioning manifest and BI-4's CLI-complete start shrink pin-primary's stated cost —
+  the worktree tax approaches one command, and doc-only errands need no deps — while its benefit side
+  (dissolves the singleton, subsumes the base-ref compensation family) is untouched. The fork enters wave 3
+  with a **recorded leaning toward pin-primary**; the wave confirms or refutes a leaning rather than opening a
+  neutral question.
+
+  **Batch-errand sub-decision (coupled — decide with the fork).** ARC has sequential errand execution but no
+  explicit batch shape for a coherent set of small concerns. Recorded leaning (2026-07-03, ergonomics-driven):
+  errands are *determinate and low-risk by design*, so the target DX is **one dedicated errand/housekeep
+  session draining to completion under a single primary agent** — the operator scopes and approves up front,
+  then stays hands-off except for surfaced judgment calls and warranted review gates; the primary dispatches,
+  executes, and verifies, potentially isolating each errand on its own branch/worktree *mechanically* while
+  attention stays single-locus. Errand parallelism, if real, lives **under one primary agent in one session,
+  not across parallel harness sessions** — session-per-errand is the anti-goal. Exits at the seam audit:
+  (i) codified sequential drain (exists today as the housekeep + `run-errand` loop; document as the pattern);
+  (ii) orchestrated drain (the primary dispatches errand executions to subagents on isolated branches — needs
+  the delegation-relaxation socket and non-interactive gate handling); (iii) first-class concurrent-errand
+  lifecycle (only if evidence demands it). Within exit (ii), the isolation mechanics resolve by concurrency,
+  not preference: **concurrent** dispatch requires per-errand worktrees — shared-checkout concurrency is
+  already ruled unsafe by the singleton analysis (shared HEAD + index) — while **primary-managed overlap
+  boundaries** is the sequential shape in one checkout. Leaning: sequential-first — the drain bottleneck is
+  operator attention and primary verification, not execution wall-clock; escalate to worktree-dispatch only if
+  wave evidence shows batches stalling on execution time (post-BI-1 the spawn tax is one command). Coupling:
+  under pin-primary the drain session is the primary's
+  natural tenant and per-errand worktrees are orchestration mechanics, not operator burden — the two leanings
+  reinforce each other. Seams (recorded here; route captures at planning close): the execution-delegation
+  relaxation is `execution-delegation-doctrine`'s doctrine — errands are its natural standing-relaxation case;
+  gate intensity under a trust grant is `interlock-release-refinement`'s model; BI-4's invocation-is-approval
+  reasoning extends to orchestrator-invoked ceremony steps and coordinates with `cli-substrate-adoption`'s
+  uniform non-interactive contract.
   During the burn-in, also record interlock-friction evidence by work character: which errand / grooming stops
   carried real judgment, which were routine confirmations after an explicit trust grant, and which reviewed-lane
-  surfaces still needed human eyes. Feed that evidence to `interlock-release-refinement`'s interlock-intensity /
-  trust-grant model; FP supplies observations, not the approval model.
+  surfaces still needed human eyes — plus **drain-shape evidence**: did the batch want sequential or dispatched
+  execution; batch size and file-overlap frequency; the post-BI-1 spawn cost in practice; and where the
+  operator actually needed to intervene. Feed that evidence to
+  `interlock-release-refinement`'s interlock-intensity / trust-grant model; FP supplies observations, not the
+  approval model.
 - **Cross-WU personal-state same-entry merge resolution (GA-readiness item).**
   `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the **same**
   entry identity by wall-clock note recency: recency silently drops one edit and clock skew makes resolution
@@ -209,6 +249,16 @@ Settled *as decisions to make* — the audit resolves each; neither is a pre-com
   (lexicographically-smallest annotated-commit SHA) where genuinely concurrent — never wall-clock. Likely build
   home `operational-state-docs` (owns the `merge.ts` record / identity reshape). Files: `lib/user-sync/merge.ts`
   (`resolveCrossWuState`), `lib/user-sync/notes-ref.ts` (`readRecentUserNotes` / `CROSS_WU_NOTE_WINDOW`).
+- **`/arc-shift` revival — routed here by the cohort doc (decide post-waves).** The deferred mid-session
+  cross-worktree shift verb: its premise requires real worktrees-in-use, so `cohort-agile-parallelism.md`
+  routed the revival call to FP, where the substrate becomes real. Decide with burn-in evidence — did an
+  investigation-shaped detour actually surface during the waves? — and evaluate the cohort doc's alternative
+  framing (PR-review checkout into a transient worktree with live review context) as the likelier earning
+  case. Exits per the cohort record: revive the narrow verb (a `shift-work-unit.md` workflow + thin skill,
+  uncommitted-work gate first), materialize a provisional stub, or dismiss. Coordination note: BI-4's
+  spawn-anchored hop overlaps the investigation case's mechanics (a fresh session in the target worktree), so
+  revival must argue value *beyond* a rich-booted fresh session — carrying live, expensive-to-reconstruct
+  context is the differentiator.
 
 ## Verification design — bound the cost of the unknowns
 
@@ -227,8 +277,9 @@ are calendar-gated and observational; that is the intended rhythm, not drift.
 **Launch constraint: never `--here`.** FP launches into a **spawned worktree** — the standing interim
 "`--here` until FP ships" default explicitly does not apply to FP itself. In-place launch would occupy the
 primary singleton for the WU's whole long-running life and exempt the observer from the very mechanics under
-test. Until build item 1 lands, provision the fresh worktree's deps by hand (`npm install`) — wave-zero
-dogfooding of the gap that item automates.
+test. Discharged wave-zero (2026-07-03): FP's worktree was provisioned by hand — the full manifest (deps via
+install → build → re-install, harness-layer copy, user dir), not bare `npm install`; the friction captures from
+that provisioning fed BI-1's enrichment and minted BI-4 / BI-5.
 
 **1. Systematic gap-hunt (convert unknowns to knowns).** The seam audit's method is enumeration, not recall:
 build the **shared-mutable-surface matrix** — every file, ref, or store written by more than one concurrent
@@ -258,6 +309,32 @@ real heavy work into it. Phase the live verification as waves, each using **deli
   parallel-errand decision's evidence; first-in-wins reconcile discipline under real overlap.
 - **Wave 4 — cross-machine resume mid-flight.** Materialize (spawn and in-place) against work another machine
   started; notes-lag and partial-push surfaces under real latency.
+
+**Workload selection basis (codified 2026-07-03).** A wave workload qualifies when it is: **sacrificial** —
+Light-class, small, cheap to redo (sacrificial means cheap to redo, never valueless — real backlog items whose
+delivery is wanted anyway); **wave-shape-matched** — wave 1 doc-only (no node toolchain), wave 2 exactly one
+code WU (first BI-1 exercise), wave 3 code + code + live errand; **surface-disjoint from FP's own build items**
+— nothing touching user-sync, scaffold, or start-transition code, else a workload failure contaminates the
+observer; **mutually disjoint on code surfaces** — contention belongs on the shared ARC surfaces under test
+(ROADMAP, notes ref, base branch), not on co-edited modules; **outside the milestone path** —
+`roadmap-tooling` (pre-wave-1 dependency) and `interlock-release-refinement` (consumes wave evidence) are
+excluded by role; **completable within its wave's observation window**; and **spec-ready in time** — few picks
+are spec-ready today, so a pick must clear its own Light-scaled planning pipeline (draft → spec → tasks) before
+its wave launches; groom picks in the primary during FP Phases 1–2 (the mid-FP companion lane) so no wave gates
+on planning. Risk decays across waves as surfaces verify: waves 1–2 carry strictly sacrificial picks; later
+waves may carry higher-value (still Light, still disjoint) work as the verified surface grows — and the
+Heavy/Novel backlog advances meanwhile via grooming sessions in the primary (planning is cheap and off the
+burn-in surface), queuing as the GA bless's first consumers.
+
+**Provisional slate (2026-07-03; confirm Class resolution and spec readiness at pickup).** Wave 1:
+`inbound-routing-method` + `adr-accept-timing` (Light, doc/method-shaped, disjoint). Wave 2 code:
+`cli-test-hardening` (Light; exercises the full node gate suite; touches tests, not source); doc partner from
+the `[TBD]` pool (`synthesis-modality` / `cohort-cut-coherence` — resolve Class at pickup). Wave 3:
+`ci-cross-platform-hardening` + one further Light code pick + the live errand drain, which doubles as the
+drain-shape evidence collector. `skill-infrastructure-cleanup` is excluded — it overlaps BI-1's harness-layer
+surface now, or will as it iterates. The Heavy/Novel queue (`pr-decomposition`, `commit-increments`,
+`execution-delegation-doctrine`, `goal-aware-direction`, …) is deliberately not workload: it grooms in the
+primary during the waves and queues as the GA bless's first consumers.
 
 Each wave also **verifies the detectors, not just the paths**: deliberately induce the conditions the
 session-init probe claims to catch (base drift, notes lag, behind-base at integration, stale worktree) and
@@ -436,7 +513,8 @@ the real seam count is visible.
 ## Continuity
 
 - **Readiness:** formalization-ready — direction, scope, verification design, WU shape, and pre-FP sequencing
-  are settled; the wave-zero fold's two flagged decisions deliberately carry to spec entry (below).
+  are settled; the wave-zero fold's two flagged decisions settled 2026-07-03 (below); remaining open items are
+  wave work and the workload picks, not design.
 - **Resolved:** inbound buffer drained (2026-07-01) — build items absorbed (two retained; two split back out as
   pre-routed pre-FP errands), two seam-audit decisions recorded. Pre-FP audit + sequencing settled
   (§ Milestone path). Verification design settled: shared-mutable-surface matrix → adversarial checklist pass →
@@ -449,11 +527,15 @@ the real seam count is visible.
   post-graduation): BI-4 minted (worktree launch bridge — layered model, carrying the spawn-mode ceremony-locus
   fix), BI-5 minted (graduate-transition crash class, absorbed per § Resolution model), BI-1 enriched to an
   ordered provisioning manifest, matrix row added (spawn-mode transition writes); `USER-INBOX` captures cleared
-  at absorption.
+  at absorption. Settle pass run same session (2026-07-03): pre-FP errands verified landed (behind-base gate
+  PR #181; sweep base-ref index PR #180; the `arc status <slug>` prescription in DEV-RULES + strategy) —
+  § Milestone path item 2's entry obligation discharged; shell-start interlock settled (invocation-is-approval,
+  BI-4); harness-regen timing settled (downstream, BI-1); Codex research resolved (no live relocate —
+  spawn-anchored via `--cd`; two surfaced capability tiers, BI-4c); `/arc-shift` revival added as a third
+  seam-audit decision (routed from the cohort doc); workload selection basis codified (§ Verification design).
 - **Open:** matrix cell verification (induce the condition, observe the failure — wave work; the skeleton is
-  authored); burn-in workload selection (which P3 smalls / doc WUs serve as sacrificial waves — pick near
-  start); two spec-time decisions from the wave-zero fold — interlock semantics for shell-invoked start (BI-4)
-  and the harness-regen path timing, in-FP vs. downstream (BI-1).
-- **Next:** verify the pre-FP errands landed (§ Milestone path item 2), run the advisory adversarial pass over
-  the consolidated draft, then cross into create-spec. Near start: pick the burn-in wave workloads and slot
-  `roadmap-tooling` (full or renderer slice) before wave 1.
+  authored); burn-in workload slate is recorded provisionally (basis codified; confirm each pick's Class
+  resolution and spec readiness at pickup); orchestrated-drain shape (sequential-first leaning recorded —
+  wave 3 evidence decides).
+- **Next:** finalize the burn-in workload picks, run the advisory adversarial pass over the consolidated
+  draft, then cross into create-spec; slot `roadmap-tooling` (full or renderer slice) before wave 1.
