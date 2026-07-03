@@ -10,10 +10,10 @@
   `state-ref-write-safety`, `out-of-wu-entry`, `lifecycle-closeout`
 
 - **Origin:** [internal]
-- **Design:** `draft-finalize-parallelism.md`
+- **Design:** `spec-finalize-parallelism.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `create-spec`
+- **Current Workflow:** `generate-tasks`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
