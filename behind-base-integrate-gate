@@ -1,9 +1,0 @@
-{
-  "version": 1,
-  "slug": "behind-base-integrate-gate",
-  "origin": "inbox",
-  "intent": "Add a behind-base reconcile gate to integrate-work-unit",
-  "branch": "fix/behind-base-integrate-gate",
-  "createdAt": "2026-07-03T18:30:17.812Z",
-  "originEntry": "Wire a behind-base reconcile gate into `integrate-work-unit`"
-}
