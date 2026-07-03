@@ -1,8 +1,0 @@
-{
-  "version": 1,
-  "slug": "capture-arc-verify-staleness",
-  "origin": "description",
-  "intent": "Route stale arc-verify / verify-integrity finding to skill-infrastructure-cleanup",
-  "branch": "chore/capture-arc-verify-staleness",
-  "createdAt": "2026-07-03T19:35:55.627Z"
-}
