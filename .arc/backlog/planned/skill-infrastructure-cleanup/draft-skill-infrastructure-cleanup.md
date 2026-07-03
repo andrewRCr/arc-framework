@@ -29,6 +29,22 @@
   resume-detection misrouting). `operational-state-docs` (owns the record substrate the fix types) is the
   alternative home.
 
+### `[ ]` **Rewrite SKILL.md descriptions in directive firing-condition form**
+
+- _Routed from:_ `knowledge-architecture` grooming (2026-07-03), external-research finding folded there.
+- _Concern:_ ARC skill descriptions are passive/summary-style ("Commit pending changes following ARC
+  atomicity discipline…") — the weakest-firing description style measured: ~77–87% activation for passive
+  phrasing vs ~100% for directive phrasing ("ALWAYS invoke when {triggers}; do not {default action}
+  directly") in a 650-trial practitioner study (blog-grade, directional; cross-validated by
+  Cursor-ecosystem experience with description-requested rules silently not firing). Descriptions are the
+  sole pre-load trigger signal on description-firing harnesses, so this is a low-cost, evidence-backed
+  reliability lever.
+- _Fold-in:_ rewrite each `SKILL.md` description to name its triggers and the default behavior to
+  suppress; same every-SKILL.md + package-mirror + harness-regen surface as the frontmatter item below.
+- _Coordination:_ `knowledge-architecture` owns the cross-family firing-condition _authoring standard_
+  (shared with its knowledge-index entries); this WU owns the skill-side rewrite pass. Confirm the seam at
+  planning iteration.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)
