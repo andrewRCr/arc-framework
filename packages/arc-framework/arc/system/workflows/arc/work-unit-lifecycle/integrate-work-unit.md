@@ -91,12 +91,12 @@ step:
 | ---------------------------- | -------------------------- | ------------------------------------------------------ |
 | No PR open for the WU branch | transition                 | Step 2 (pre-PR review → open the PR)                   |
 | PR open, not merged          | transition, PR open        | Step 4 (review iteration → Phase 2)                    |
-| PR already merged            | transition, PR open, merge | post-merge tail — Step 12 close, then Step 13 teardown |
+| PR already merged            | transition, PR open, merge | post-merge tail — Step 13 close, then Step 14 teardown |
 
 Resolve PR state with `gh pr view {type}/{name} --json state,mergedAt` (fall back to `gh pr list --head
 {type}/{name}`); resolve worktree/branch presence with `git worktree list` and `git branch --list {type}/{name}`.
 Within Phase 2, pick up at the first step whose product isn't already present — composition already written into
-the meta's archive-phase sections, a sweep already committed — observe, don't redo. The tail steps (Steps 12–13
+the meta's archive-phase sections, a sweep already committed — observe, don't redo. The tail steps (Steps 13–14
 below) are individually re-runnable and no-op when their target is already gone, so an over-eager resume costs
 nothing.
 
@@ -245,7 +245,7 @@ Read `archive.cadence` from [`arc-config.yml`][arc-config]:
   `completed/<dated>/{NN}_{name}/meta-{name}.md`, the logical `Branch → [none]`, the `PR URL` / `Completed`
   finalize-fact write (sourcing the PR URL from this ceremony's open PR), and ROADMAP regen per its
   cadence-invariant body — the **mergeable** ship, which rides this PR. Physical branch/worktree teardown is
-  **not** archive's: it is Step 13's post-merge cleanup below. Returns; resume at Step 12.
+  **not** archive's: it is Step 14's post-merge cleanup below. Returns; resume at Step 12.
 - **`manual`**: Skip inline invocation. Archive runs separately post-merge via explicit `archive-work-unit.md`
   invocation. Step 12's push covers completion content only under this cadence.
 
@@ -266,9 +266,44 @@ an actionable message; user fix-and-retries or explicit-invoke bypasses. Otherwi
 
 After push, the PR is ready for merge per `merge.strategy` in [`arc-config.yml`][arc-config].
 
+### 13) Behind-base reconcile gate and merge
+
+Immediately before surfacing the merge approval gate, fetch the integration base and compute the WU branch's
+distance from `origin/{base-branch}`:
+
+```bash
+git fetch origin {base-branch}
+git rev-list --left-right --count HEAD...origin/{base-branch}
+```
+
+Read the output as `{ahead} {behind}`. If the read fails, stop and surface the failure — do not merge against an
+unknown base.
+
+If `{behind}` is non-zero, the branch is stale against the base. Reconcile before merge:
+
+> [!IMPORTANT]
+> `workflow-interlock`: Stop before merge. Surface the behind count and any known overlapping paths; await
+> explicit "reconcile base" direction before merging `origin/{base-branch}` into the WU branch and pushing the
+> reconcile result.
+
+On approval, merge the base in append-only, resolve conflicts if any, re-run Tier 1 quality gates, then push the
+updated branch:
+
+```bash
+git merge --no-edit origin/{base-branch}
+```
+
+Before pushing the reconcile commit, repeat the Step 12 pre-push extension check when active.
+
+> [!CAUTION]
+> `push-interlock` release — `workflowPush`: `origin {type}/{name}`.
+
+Do not rebase, amend, force-push, or otherwise rewrite the pushed WU branch. Re-run the distance check after the
+push; repeat the reconcile loop until `{behind}` is `0`.
+
 > [!IMPORTANT]
 > `integration-interlock`: Stop before merge. Surface PR status (open threads, required approvals, checks) and
-> merge method; await explicit integration approval before merging.
+> merge method, including the behind-base clean result; await explicit integration approval before merging.
 
 ```bash
 gh pr merge {pr-number} --merge   # or --squash / --rebase per config
@@ -288,7 +323,7 @@ This is an **individually re-runnable** step, not just the tail of a synchronous
 the owning caller of `arc user close` — a merge that landed while no session attended it has no other closer.
 `arc user close` no-ops when the subdir is already retired, so a re-run is safe.
 
-### 13) Post-merge worktree cleanup
+### 14) Post-merge worktree cleanup
 
 After `arc user close`, run `arc teardown <wu-name>` under the pre-merge `integration-interlock` approval — no
 second prompt fires. This is the **physical** branch/worktree teardown the archive sweep (Step 11) deferred: it
