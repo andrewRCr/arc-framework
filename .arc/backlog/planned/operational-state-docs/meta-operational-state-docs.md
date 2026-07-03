@@ -15,10 +15,10 @@
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** On activation, flip `adr-022` to Accepted (this WU's explicit first action), then build
-  the substrate: structured schemas for the managed-doc surfaces `cli-substrate-adoption` does not cover, the
-  render+reconcile projection engine, the reconciled-editable-region write primitive, the
-  `structural_contract` classification annotation + manifest wiring, the round-trip test harness, and
-  migration of the current markdown-canonical documents.
+- **Next Action:** Decomposition cut-map settled at the 2026-07-02 grooming (draft § Decomposition): a
+  three-member `operational-state-docs` cohort — `managed-record-substrate` (keystone; absorbs the
+  session-surface re-homes and the ADR-022 flip), `corpus-conformance-gate` (after CSA, engine-independent),
+  `user-surface-records` (after the substrate). Next: run `decompose-work-unit` (backlog-stub-source arm) on
+  the cut-map; the inbound buffer distributes per the draft's routing map.
 
 ---
