@@ -256,6 +256,62 @@ reference-vs-explanation cut enforced by miss-cost × trigger-knowability. Wheth
 survives — and for which kind — is a naming decision for the redesign, coordinated with
 `naming-conventions`.
 
+## Architecture directions (working — verdict ratified 2026-07-03)
+
+### Author for humans, address for agents
+
+Operational reference must be lean and composable at consumption time — never "load the whole domain doc
+for one relevant section" — but knowledge content, even more than procedural, must stay coherently
+human-readable; blind sharding into agent-sized chunks fails the human half of the audience. Treat
+fragmenting as an *addressing* concern, not necessarily a *storage* concern. Two realization shapes,
+likely mixed per artifact, designed jointly with `composable-workflows` (which faces the same tension
+procedurally):
+
+- **Fragment-addressable monoliths** — files stay whole and readable; stable section anchors +
+  partial-read machinery give agents section-level loads (already ARC practice: session-init's
+  section-level reads, the one-grep-offset-compute rule).
+- **Physically split fragments + composed human views** — storage is fragment-shaped; hubs or projections
+  reassemble the readable whole.
+
+### The three-way on-demand boundary (crispness is a design requirement)
+
+A unified `arc.knowledge`-style fire-site declaration invites the question: what belongs in knowledge vs
+a method vs the workflow body/fragments themselves? Working cut — by what the agent *does* with the
+content:
+
+- **Workflow body / fragments** — *do*: the imperative steps of the procedure being executed; owned by
+  its workflow.
+- **Method** — *apply*: a recurring, contract-shaped sub-operation (given X, resolve Y) invoked from
+  multiple workflows; distinctively **overridable** per project (`.default` / `.override`).
+- **Knowledge** — *know*: declarative domain models, rules-of-the-domain, reference facts; consulted to
+  inform judgment, not executed; no override mechanic (a team doesn't override facts — it authors its own
+  knowledge beside the shipped set).
+
+Known blur to resolve at schema time: decision-model methods (e.g. `classify-work-unit`) sit near the
+knowledge line — the boundary tests read like knowledge, the triage procedure like a method. The cut must
+answer such cases mechanically or authoring/maintenance suffers; validate it against the corpus in both
+directions (strategies that should become methods; methods that are knowledge in method clothing).
+
+### Single-source projection (the no-drift direction)
+
+Kind C (explanation) points at a larger possibility: knowledge authored once and **projected** to both
+the in-repo agent-native surface and the external human-facing docs layer — drift impossible by
+construction. Under that model the in-repo layer's pitch sharpens from a redundancy apology to a feature:
+agent-native, no MCP or network required, and *composed* rather than duplicated. Audience keeps it
+honest:
+
+- **Composes:** team-facing methodology/domain knowledge — ARC's own docs site for adopters, an org's
+  engineering wiki; same audience family as the in-repo layer, so one source can serve both.
+- **Does not compose:** end-product user documentation — different audience, different content; already
+  excluded by § Scope boundary.
+
+Forward-compat: convergent with — not additional to — ARC's standing direction: ADR-022
+record/projection, `arc-backend`'s record→markdown materialization model, `strategy-storage-evolution`'s
+tracked-vs-materialized line (the knowledge source need not live in the code repo), and
+`idiomatic-alignment`'s OKF projection-readiness thread. **Scope guard:** this WU designs the knowledge
+model to be projection-*compatible* (source-of-truth shape, fragment addressing, audience tags); building
+the projection pipeline is `arc-backend` / docs-tooling territory, not here.
+
 ## Relationship to other work
 
 - `loadset-composition` — closest sibling; owns T1 boundary + demotion rule + QUICK-REFERENCE T1 call +
@@ -353,8 +409,17 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
   method-shaped (mechanize, don't redesign); explanation concentration in four files with
   `testing-methodology` as the validated two-layer template; buried-constraints defect list identified;
   fragment-granularity conclusion (contracts attach to sections, not files).
-- **Next:** ratify (or revise) the four-kind strategies-layer verdict with the maintainer; then design
-  the awareness-contract schema (frontmatter shape, `arc.knowledge`-style fire-site declaration, index
-  emission) against the ratified verdict; author the constraint-relocation list; take the extraction
-  negotiations (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the verdict in
+- **Resolved (pass 3, 2026-07-03):** four-kind verdict **ratified**; author-for-humans /
+  address-for-agents adopted as a design constraint (fragmenting is addressing, not necessarily
+  storage); three-way on-demand boundary working cut (do / apply / know) with crispness a first-class
+  requirement; projection direction adopted as a *compatibility* target, pipeline out of scope;
+  skill-description firing-condition seam landed in `draft-skill-infrastructure-cleanup.md` (direct
+  edit sanctioned on this grooming branch).
+- **Open (new):** realization shape per artifact (addressable monolith vs split-plus-composed-view);
+  the decision-model-method blur cases (`classify-work-unit`-like); audience/projection tags in the
+  contract schema.
+- **Next:** design the awareness-contract schema — frontmatter shape, `arc.knowledge`-style fire-site
+  declaration, index emission, audience/projection tags — and validate the three-way cut against the
+  corpus in both directions; author the constraint-relocation list; take the extraction negotiations
+  (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the ratified verdict in
   hand.
