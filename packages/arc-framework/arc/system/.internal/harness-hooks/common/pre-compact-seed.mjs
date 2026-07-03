@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 
-import { clearSeedHandoff, writeSeedHandoff } from "./codex-recovery-marker.mjs";
+import { clearSeedHandoff, writeSeedHandoff, writeSeedHandoffFailure } from "./codex-recovery-marker.mjs";
 
 const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
@@ -55,19 +55,36 @@ function shouldRetryAfterBuild(result) {
 }
 
 function writeHandoffFromResult(result) {
-  if (result.status === 0 && typeof result.stdout === "string") {
-    const envelope = JSON.parse(result.stdout);
-    const write = envelope?.compactionSeedWrite;
-    const expectedPath = expectedSeedPath(envelope);
-    if (
-      write?.status === "written"
-      && typeof write.path === "string"
-      && expectedPath !== null
-      && samePath(write.path, expectedPath)
-    ) {
-      writeSeedHandoff(write.path);
-    }
+  if (result.status !== 0) {
+    writeSeedHandoffFailure(seedCommandFailureMessage(result));
+    return;
   }
+  if (typeof result.stdout !== "string") {
+    writeSeedHandoffFailure("seed command produced no JSON envelope");
+    return;
+  }
+
+  let envelope;
+  try {
+    envelope = JSON.parse(result.stdout);
+  } catch (err) {
+    writeSeedHandoffFailure(`seed command produced malformed JSON: ${errorMessage(err)}`);
+    return;
+  }
+
+  const write = envelope?.compactionSeedWrite;
+  const expectedPath = expectedSeedPath(envelope);
+  if (
+    write?.status === "written"
+    && typeof write.path === "string"
+    && expectedPath !== null
+    && samePath(write.path, expectedPath)
+  ) {
+    writeSeedHandoff(write.path);
+    return;
+  }
+
+  writeSeedHandoffFailure(seedWriteFailureMessage(write, expectedPath));
 }
 
 function expectedSeedPath(envelope) {
@@ -99,4 +116,40 @@ function hasControlCharacter(value) {
     if (code <= 0x1F || code === 0x7F) return true;
   }
   return false;
+}
+
+function seedCommandFailureMessage(result) {
+  const status = result.status === null ? "unknown" : String(result.status);
+  const signal = typeof result.signal === "string" ? ` signal ${result.signal}` : "";
+  const error = result.error instanceof Error ? result.error.message : null;
+  const stderr = firstNonEmptyLine(result.stderr);
+  const stdout = firstNonEmptyLine(result.stdout);
+  const detail = stderr ?? stdout ?? error;
+  return `seed command exited ${status}${signal}${detail ? `: ${detail}` : ""}`;
+}
+
+function seedWriteFailureMessage(write, expectedPath) {
+  if (write?.status === "written") {
+    if (expectedPath === null) return "seed command reported a written seed for an unsafe identity";
+    return "seed command reported an unexpected seed path";
+  }
+  if (typeof write?.status === "string") {
+    const reason = typeof write.reason === "string" ? ` (${write.reason})` : "";
+    const message = typeof write.message === "string" ? `: ${write.message}` : "";
+    return `seed write ${write.status}${reason}${message}`;
+  }
+  return "seed command did not report compactionSeedWrite";
+}
+
+function firstNonEmptyLine(value) {
+  if (typeof value !== "string") return null;
+  for (const line of value.split(/\r?\n/u)) {
+    const trimmed = line.trim();
+    if (trimmed.length > 0) return trimmed;
+  }
+  return null;
+}
+
+function errorMessage(err) {
+  return err instanceof Error ? err.message : String(err);
 }

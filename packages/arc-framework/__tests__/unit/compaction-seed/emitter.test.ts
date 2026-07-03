@@ -126,6 +126,7 @@ describe("parseUncommittedFiles", () => {
       parseUncommittedFiles([
         "?? zeta.txt",
         "?? Zeta.txt",
+        "?? .arc/backlog/provisional/new-stub/",
         " M src/b.ts",
         "R  src/new.ts",
         "src/old.ts",
@@ -133,6 +134,7 @@ describe("parseUncommittedFiles", () => {
         "",
       ].join("\0")),
     ).toEqual([
+      ".arc/backlog/provisional/new-stub",
       "Zeta.txt",
       "src/a.ts",
       "src/b.ts",
@@ -167,6 +169,22 @@ describe("emitCompactionSeed", () => {
       expect(result.seed.uncommittedFiles).toEqual([
         ".arc/active/tasks-compaction-recovery.md",
         "packages/arc-framework/src/lib/compaction-seed/emitter.ts",
+      ]);
+    }
+  });
+
+  it("canonicalizes untracked directory paths before schema validation", async () => {
+    const result = await emit({
+      uncommittedFiles: [
+        ".arc/backlog/provisional/new-stub/",
+        ".arc/backlog/provisional/new-stub",
+      ],
+    });
+
+    expect(result.status).toBe("written");
+    if (result.status === "written") {
+      expect(result.seed.uncommittedFiles).toEqual([
+        ".arc/backlog/provisional/new-stub",
       ]);
     }
   });

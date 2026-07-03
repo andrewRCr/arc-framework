@@ -102,11 +102,24 @@ export function parseUncommittedFiles(stdout: string): string[] {
     if (record.length < 4) continue;
     const status = record.slice(0, 2);
     const path = record.slice(3);
-    if (path.length > 0) paths.push(path);
+    const normalizedPath = normalizeUncommittedPath(path);
+    if (normalizedPath !== null) paths.push(normalizedPath);
     if (status.includes("R") || status.includes("C")) index++;
   }
 
-  return [...new Set(paths)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+  return canonicalizeUncommittedFiles(paths);
+}
+
+function canonicalizeUncommittedFiles(paths: readonly string[]): string[] {
+  return [...new Set(paths
+    .map(normalizeUncommittedPath)
+    .filter((path): path is string => path !== null))]
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+function normalizeUncommittedPath(path: string): string | null {
+  const normalizedPath = path.replace(/\/+$/u, "");
+  return normalizedPath.length > 0 ? normalizedPath : null;
 }
 
 /** Emit the current compaction seed to disk, returning a non-throwing result. */
@@ -128,7 +141,7 @@ export async function emitCompactionSeed(
   const currentWorkflow = options.envelope.active.ok
     ? options.envelope.active.value.currentWorkflow
     : null;
-  const uncommittedFiles = [...options.gitSnapshot.uncommittedFiles];
+  const uncommittedFiles = canonicalizeUncommittedFiles(options.gitSnapshot.uncommittedFiles);
   const taskCursor =
     options.envelope.active.ok
       && options.envelope.active.value.sessionType !== "planning"

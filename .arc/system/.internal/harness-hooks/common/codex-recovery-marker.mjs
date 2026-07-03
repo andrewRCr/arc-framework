@@ -14,6 +14,8 @@ const seedHandoffFileBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
 const recoveryPayloadSchemaVersion = 1;
 const seedHandoffMaxAgeMs = 10 * 60 * 1000;
+const seedHandoffKind = "codex-compaction-recovery-seed";
+const seedFailureKind = "codex-compaction-recovery-seed-failure";
 
 export function resolveRepoRoot() {
   const cwd = hookProjectDir();
@@ -161,7 +163,7 @@ export function writeSeedHandoff(seedPath) {
   mkdirSync(handoffDir, { recursive: true });
   writeFileSync(handoffPath, `${JSON.stringify({
     schemaVersion: recoveryPayloadSchemaVersion,
-    kind: "codex-compaction-recovery-seed",
+    kind: seedHandoffKind,
     scope: {
       kind: scope.kind,
       id: scope.id,
@@ -175,6 +177,29 @@ export function writeSeedHandoff(seedPath) {
   return { root, handoffPath, seedPath: normalizedSeedPath };
 }
 
+export function writeSeedHandoffFailure(reason = null) {
+  const root = resolveRepoRoot();
+  const scope = currentScope();
+  const handoffDir = globalInternalDir(root);
+  const handoffPath = join(handoffDir, seedHandoffFileName(scope));
+
+  mkdirSync(handoffDir, { recursive: true });
+  writeFileSync(handoffPath, `${JSON.stringify({
+    schemaVersion: recoveryPayloadSchemaVersion,
+    kind: seedFailureKind,
+    scope: {
+      kind: scope.kind,
+      id: scope.id,
+    },
+    codexThreadId: scope.codexThreadId,
+    hookParentPid: scope.hookParentPid,
+    emittedAt: new Date().toISOString(),
+    reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
+  }, null, 2)}\n`);
+
+  return { root, handoffPath };
+}
+
 export function clearSeedHandoff() {
   const root = resolveRepoRoot();
   const scope = currentScope();
@@ -186,9 +211,10 @@ export function clearSeedHandoff() {
 function readSeedHandoff(root, scope) {
   const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
   const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
+  const kind = handoff?.kind;
   if (
     handoff?.schemaVersion !== recoveryPayloadSchemaVersion
-    || handoff?.kind !== "codex-compaction-recovery-seed"
+    || (kind !== seedHandoffKind && kind !== seedFailureKind)
   ) {
     throw new Error(`Invalid ARC recovery seed handoff: ${handoffPath}`);
   }
@@ -199,6 +225,12 @@ function readSeedHandoff(root, scope) {
   const handoffAgeMs = Date.now() - emittedAtMs;
   if (!Number.isFinite(emittedAtMs) || handoffAgeMs < 0 || handoffAgeMs > seedHandoffMaxAgeMs) {
     throw new Error(`Stale ARC recovery seed handoff: ${handoffPath}`);
+  }
+  if (kind === seedFailureKind) {
+    const reason = typeof handoff.reason === "string" && handoff.reason.trim().length > 0
+      ? `: ${singleLine(handoff.reason)}`
+      : "";
+    throw new Error(`ARC compaction seed write failed before compaction${reason}`);
   }
   return {
     seedPath: normalizeSeedPath(root, handoff.seedPath),
@@ -254,7 +286,7 @@ export function writeFallbackPendingMarker(reason = null) {
     hookParentPid: scope.hookParentPid,
     emittedAt: new Date().toISOString(),
     fallback: true,
-    reason: typeof reason === "string" && reason.trim().length > 0 ? reason : null,
+    reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
     seedPath: null,
     seedHandoffPath: null,
   }, null, 2)}\n`);
@@ -282,10 +314,14 @@ export function findPendingMarkers() {
       let emittedAt = null;
       let scopeMatches = true;
       let seedPath = null;
+      let fallback = false;
+      let reason = null;
       try {
         const marker = JSON.parse(readFileSync(markerPath, "utf8"));
         emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
         seedPath = typeof marker.seedPath === "string" ? marker.seedPath : null;
+        fallback = marker.fallback === true;
+        reason = typeof marker.reason === "string" ? singleLine(marker.reason) : null;
         scopeMatches = marker.scope === undefined
           || (marker.scope.kind === scope.kind && marker.scope.id === scope.id);
       } catch {
@@ -294,7 +330,7 @@ export function findPendingMarkers() {
 
       if (!scopeMatches) continue;
 
-      markers.push({ markerPath, emittedAt, seedPath });
+      markers.push({ markerPath, emittedAt, seedPath, fallback, reason });
     }
   }
 
@@ -341,4 +377,8 @@ function isMarkerFileName(markerFile) {
 
   const suffix = markerFile.slice(prefix.length, -".json".length);
   return suffix.length > 0 && /^(?:[A-Za-z0-9._-]|%[0-9A-F]{2})+$/u.test(suffix);
+}
+
+function singleLine(value) {
+  return value.replace(/[\x00-\x1F\x7F]+/gu, " ").trim();
 }
