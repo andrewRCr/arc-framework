@@ -51,16 +51,16 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
   exit gate, verifies findings); a subagent performs exactly one pass.
 
     - `[x]` **1.2.a Named inputs**
-        - Added the input table and explicitly split subagent-context inputs from the primary-side `passBudget`
+        - Added the input table and explicitly split subagent-context inputs from the primary-side `pass-cap`
           loop bound.
 
     - `[x]` **1.2.b Return type**
         - Added one canonical report schema with per-finding fields and report-level
-          `what-held-up-under-attack` / `certification-verdict` fields.
+          `withstood` / `verdict` fields.
 
     - `[x]` **1.2.c Prompt template**
         - Added the portable prompt template with fresh-context discipline, no-manufactured-findings language, the
-          `{reportSchema}` serialization point, and primary verification stated in the prompt itself.
+          `{report-schema}` serialization point, and primary verification stated in the prompt itself.
 
     - `[x]` **1.2.d Canonical callsite arg-block**
         - Added one fenced callsite shape plus runtime steps for fresh-pass spawn, source verification, disposition,
@@ -114,7 +114,7 @@ adversarially; it is not itself a rubric. Full design detail: `spec-adversarial-
         - Defined fixed orientation as `AGENT-BRIEF.ARC` + `AGENT-BRIEF.PROJECT`, with goal referents rubric-keyed
           and constitution / strategies pointer-listed on demand.
 
-    - `[x]` **1.5.c `priorFindings` gating**
+    - `[x]` **1.5.c `prior-findings` gating**
         - Added pass-one withholding and pass-two-onward prior-findings / applied-fixes context rules.
 
 - _Outcome:_ The method now defines what the fresh pass receives as first-read context, keeping neutral ground
