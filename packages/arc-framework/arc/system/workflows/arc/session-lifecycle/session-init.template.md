@@ -138,8 +138,11 @@ capture-seeded `--errand` reads it).
 2. **Displacement guard** — active WU or dirty checkout present → confirm once before relocating; nothing
    checked out → proceed silently.
 3. **Relocate** via `resolveWriteContext` — full protection → short-lived branch off `branch.base`; partial →
-   direct base commit. From a linked worktree on a WU branch the relocate resolves to the **primary's** base
-   context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree is never disturbed.
+   direct base commit. For `--plan <stub>` under full protection, cut the interim grooming branch as
+   `chore/groom-<slug>` from the base (`git switch -c chore/groom-<slug> {base-branch}`) until a grooming-open
+   primitive owns the branch record. From a linked worktree on a WU branch the relocate resolves to the
+   **primary's** base context (the `relocate` verdict carries `primaryWorktreePath`), so the active WU's worktree
+   is never disturbed.
 4. **Sync notes, then load universal context only** — run the conditional sync pulls' notes channel (the
    worktree channel is skipped per above), then Step 3 items 1–6 and WORKING-MEMORY (item 8.2); skip every
    WU-artifact read (SESSION-NOTES, active task list, lifecycle workflow).
