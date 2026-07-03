@@ -1,6 +1,6 @@
 # Roadmap: ARC Framework Development
 
-> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `b48d1346`.
+> **Generated from meta files — re-render at ceremony boundaries.** Last rendered against `5ae96c63`.
 
 This view is a derived readiness and dependency map. Tier membership follows dependency satisfaction: a
 unit is Ready once the units it depends on have shipped, and Blocked units are banded by how many
@@ -24,11 +24,11 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | adversarial-review           | P1       | andrew | —          | —                          |
 | pr-decomposition             | P1       | andrew | —          | —                          |
 | roadmap-tooling              | P1       | andrew | —          | —                          |
+| composable-workflows         | P2       | andrew | —          | agent-context-optimization |
 | loadset-composition          | P2       | andrew | —          | agent-context-optimization |
 | commit-increments            | P2       | andrew | —          | approval-flow-refinement   |
 | check-id-stabilization       | P2       | andrew | —          | architecture-remediation   |
 | naming-conventions           | P2       | andrew | —          | doc-conventions            |
-| composable-workflows         | P2       | andrew | —          | principle-anchored-core    |
 | cli-substrate-adoption       | P2       | andrew | —          | —                          |
 | cross-wu-coordination        | P2       | andrew | —          | —                          |
 | frictionless-capture         | P2       | andrew | —          | —                          |
@@ -45,7 +45,6 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | customization-arch-realign   | P3       | andrew | —          | configuration              |
 | task-list-conventions        | P3       | andrew | —          | doc-conventions            |
 | scalable-core                | P3       | andrew | —          | principle-anchored-core    |
-| workflow-template-loads      | P3       | andrew | —          | principle-anchored-core    |
 | binary-distribution          | P3       | andrew | —          | release-readiness          |
 | docs-site-refresh            | P3       | andrew | —          | release-readiness          |
 | release-lifecycle            | P3       | andrew | —          | release-readiness          |
@@ -81,8 +80,9 @@ path lives in each meta's Cohort field. Cohort membership is a logical grouping,
 | execution-delegation-doctrine | P2       | andrew | adversarial-review     | —                          |
 | operational-state-docs        | P2       | andrew | cli-substrate-adoption | —                          |
 | documentation-surface-routing | P3       | andrew | handoff-optimization   | agent-context-optimization |
-| instruction-optimization      | P3       | andrew | handoff-optimization   | agent-context-optimization |
+| instruction-optimization      | P3       | andrew | composable-workflows   | agent-context-optimization |
 | schema-introspection-layer    | P3       | andrew | cli-substrate-adoption | architecture-remediation   |
+| workflow-template-loads       | P3       | andrew | composable-workflows   | principle-anchored-core    |
 | docs-content-sweep            | P3       | andrew | docs-site-refresh      | release-readiness          |
 
 ### Depth 2

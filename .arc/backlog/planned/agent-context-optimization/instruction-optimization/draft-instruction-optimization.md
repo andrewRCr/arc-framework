@@ -1,13 +1,17 @@
 # Draft: Instruction Optimization
 
-**Purpose:** Tighten ARC's agent-facing instruction surface — workflow prose, skill-load patterns,
-and probe-envelope extensions — across the workflows and methods not addressed by the prior two
-optimization WUs in the series. Third sibling to Session-Init Optimization and Handoff Optimization.
+**Purpose:** The agent-context-optimization cohort's execution tail: ship the residual probe-envelope
+extension batch (Pillar 3) and apply `composable-workflows`' workflow contract shape across the workflow
+and method corpus no sibling restructures (Pillar 1, re-anchored). Identity re-stated 2026-07-02 against
+the cohort layers model — see `cohort-agent-context-optimization.md`.
 
-- **State:** Draft — pre-PRD exploration captured 2026-05-09 from external-research-informed audit.
-  Iteration expected before PRD promotion. Sequencing deferred until Handoff Optimization
-  (`plan-handoff-optimization.md`) lands and the parallelism trio + Work Organization Reform
-  (`prd-work-organization-reform.md`) shapes settle.
+- **State:** Draft — pre-PRD exploration captured 2026-05-09; re-anchored 2026-07-02 (grooming session).
+  The 2026-05-09 audit's findings remain a valid inventory, but its token estimates predate two months of
+  session-init growth (now 910 lines / ~31k metered tokens) — re-measure at PRD time, and read the
+  growth-rate framing in `draft-composable-workflows.md` § Problem / Motivation first. Pillar 2 is
+  absorbed (documentation-surface-routing) and Pillar 4 subsumed (`composable-workflows` D3); sequencing
+  keys on `composable-workflows` design settling, with the former hard handoff-optimization prerequisite
+  reduced to D3.4's shared-helper coordination.
 - **Created:** 2026-05-09
 - **Origin:** Surfaced 2026-05-09 from a token-efficiency audit of ARC's instruction surface.
   Audit found two prior WUs already covering most of the surface (Session-Init Optimization
@@ -23,7 +27,12 @@ optimization WUs in the series. Third sibling to Session-Init Optimization and H
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
-### `[ ]` **CLI helper for the session-init strategic partial-read of the task list (concretizes Pillar 3 / D3.2)**
+### `[x]` **CLI helper for the session-init strategic partial-read of the task list (concretizes Pillar 3 / D3.2)**
+
+- *Disposition (2026-07-02):* Integrated into Pillar 3 D3.2, which is now a **reconciliation** — the shipped
+  `taskCursor` slot (via `compaction-recovery`) already resolves section + leaf ids, titles, and line hints;
+  the embed-vs-subcommand tension below is settled *embed-adjacent* by the agenda model (the `loadSet`
+  read-mode entry, not raw task content in the probe). See revised D3.2.
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: instruction-optimization`), work-routing-discipline
   housekeep drain (2026-06-01).
@@ -39,7 +48,11 @@ optimization WUs in the series. Third sibling to Session-Init Optimization and H
   gracefully*; round-trip-test against `template-tasks.md`. Files: new CLI command + extraction lib (+ tests);
   rewire session-init item 9 (Framework, two-copy).
 
-### `[ ]` **Add session-init Step 2 entry-dispatch arms to Pillar 4 surface candidates**
+### `[x]` **Add session-init Step 2 entry-dispatch arms to Pillar 4 surface candidates**
+
+- *Disposition (2026-07-02):* Superseded with the rest of Pillar 4 — the entry-dispatch arms are now named
+  directly in `draft-composable-workflows.md` D2 (extraction shape 1) as first-class fragment candidates,
+  which is where the whole session-init decomposition lives. Nothing residual here.
 
 - *Routed from:* `USER-INBOX § Backlog` (`WU_Target: instruction-optimization`), work-routing-discipline
   housekeep drain (2026-06-01).
@@ -119,15 +132,26 @@ Three theses, one per pillar:
    that knowledge as a routing card lets the agent skip reading content for branches that won't
    fire. This generalizes Thesis 3's "envelope drives composition" (Pillar 3 D3.4) into "envelope
    drives content loading."
+   > *Re-anchor (2026-07-02):* this thesis matured into the **session-agenda model** and now lives in
+   > `draft-composable-workflows.md` D3 — the probe emits an ordered agenda (the shipped `loadSet` slice is
+   > the seed), not just a section list. This WU consumes that mechanism rather than designing it.
 
 ---
 
 ## Pillar 1: Workflow Prose Density Audit
 
+> **Re-anchor (2026-07-02).** Prose-compression is no longer this pillar's frame: table-izing a section a
+> session shouldn't be reading at all optimizes the wrong layer. The pillar's execution shape is now
+> **apply the `composable-workflows` D1 contract shape** (bounded spine, fragments, schema out-of-band,
+> precomposed text) to each file below as it's touched — with the table/compression findings kept as a
+> per-file findings inventory for that pass. Files a sibling restructures (session-init: CW's rewire;
+> process-task-loop: loadset-composition's split; session-handoff: handoff-optimization) leave only their
+> *residual* findings here. Token estimates are 2026-05-09-stale; re-measure at PRD time.
+
 Audit completed 2026-05-09. Findings cite `session-init.md`, `session-handoff.md`,
 `3_process-task-loop.md`, `prepare-commits.md`, `manage-incidental-work.md`, `verify-work-unit.md`,
 and methods/extensions. Lifecycle workflows reshaped by Work Organization Reform
-(`prd-work-organization-reform.md`) are excluded from initial scope.
+(`prd-work-organization-reform.md`, since shipped) were excluded from initial scope.
 
 ### Estimated impact
 
@@ -237,74 +261,12 @@ redundancy.
 
 ## Pillar 2: Skill Cache Discipline
 
-> **Fold-in (2026-05-20):** This pillar's scope absorbed into
-> `plan-documentation-surface-routing.md` (sibling WU). Mechanism choice (A/B/C/hybrid) decided
-> at that WU's PRD time; implementation lands there. Content preserved below for rationale until
-> this plan's own PRD trims it formally.
-
-### The arc-commit case
-
-`arc-commit/SKILL.md` Step 3 explicitly directs the agent to read `commit-format.md` +
-`commit-context-format.md` on every fire, with the reasoning *"both paths require this — the format
-spec includes context footer patterns that are not safe to assume from memory."*
-
-Combined token cost: ~870 tokens per fire. Under `commit_interlock: on-task-approval` (default once
-Session-Operational Flow shipped) with multi-commit sessions, this compounds linearly:
-
-- 3 commits = ~2600 tokens of method re-loads
-- 6 commits = ~5200 tokens
-- 10 commits = ~8700 tokens
-
-The defensive re-read is correct in principle — format-detail drift is real and the failure mode
-(malformed commit) is high-cost. The cost of the safety net is what's compounding.
-
-### Other skills (audit)
-
-- **arc-resume** is session-init; no re-load issue (canonical entry).
-- **arc-handoff** loads `session-handoff.md` fresh on invocation but does not re-read items 1-6
-  from session-init's load set. No re-load overlap.
-- **arc-task-audit** re-reads the active status file (partial-to-partial) and a wider task-list
-  scope. The wider task-list read is legitimate — audit scope exceeds session-init's partial read.
-- **arc-task-review** has a small overlap on task-list completion notes. Minimal cost.
-- **arc-verify** is CLI-driven; no overlap.
-- **arc-plan** loads outside session-init's surface (plan docs, ADRs, project strategies, codebase).
-  Possible ROADMAP re-read in next-work-discovery scenarios. Minimal cost.
-
-**arc-commit is the outlier.** The other skills do not have meaningful per-fire re-load costs.
-
-### Mechanism options for arc-commit specifically
-
-Three candidates, ranked by likely fit:
-
-**A. Session-init load-set inclusion.** Add `commit-format.md` + `commit-context-format.md` to
-session-init's load set when `commit_interlock != manual` (i.e., when commits will fire mid-session).
-Cost: ~870 tokens added to session-init orientation budget; benefit: zero re-loads across the
-session. Net positive at ≥1 commit per session (the typical case under interlock release modes).
-Trade-off: orientation budget pressure — the work that Session-Init Optimization just trimmed gets
-partially undone.
-
-**B. Cache hint in the skill body.** Modify arc-commit Step 3 to direct: "Read these unless they
-were loaded earlier in this session — the format spec includes context footer patterns that are
-not safe to assume from memory." The agent self-asserts whether the file is in context. Cost:
-relies on agent honesty about context; benefit: zero CLI/structural change. Trade-off: weakens the
-safety property the original prose set up; agents may drift in asserting context-presence.
-
-**C. Compact reference card in session-init.** Generate a short reference card (~150 tokens) at
-session-init time summarizing the load-bearing format patterns (regex, footer shape, scope tokens) —
-included in the orientation. arc-commit reads only the full method when a complex commit warrants
-it (see `prepare-commits.md`). Cost: structural change to skill behavior + reference-card
-generation; benefit: reduces both load-set bloat (vs. A) and drift risk (vs. B).
-
-PRD-time decision. **Lean B for incrementality** — cheap to ship, easy to reverse — with **A as the
-harder fallback** if the cache-hint pattern proves unreliable. **C is the architecturally cleanest**
-but requires the most design work and ties to the broader question of "what session-init
-pre-computes for skill consumption."
-
-### Generalization risk
-
-Whatever pattern lands for arc-commit will set precedent for future skill cache-discipline
-questions. Worth surfacing in the PRD: is this a case-by-case fix or a framework-level cache hint
-that other skills can opt into?
+> **Fold-in (2026-05-20), trimmed at the 2026-07-02 iteration:** This pillar's scope is absorbed into
+> `draft-documentation-surface-routing.md` (sibling WU) — the arc-commit ~870-token per-fire re-read, the
+> mechanism options (A: load-set inclusion / B: cache hint / C: reference card, with the recorded leans),
+> the per-skill audit finding arc-commit the sole outlier, and the generalization-risk note all live there
+> now. One addition since: whatever mechanism lands should consume the cohort's explicit-trigger pattern
+> (`cohort-agent-context-optimization.md` L4), not a bespoke shape.
 
 ---
 
@@ -341,11 +303,20 @@ both ends.
 
 **Impact:** 1-3 tool calls eliminated + ~50 tokens of decision prose.
 
-### D3.2 — currentTask slot for graduated lookup (recommended biggest lift)
+### D3.2 — currentTask slot for graduated lookup — **largely shipped; residual reconciliation**
 
-**Current:** `session-init.md` Step 3 item 9 has the agent run a graduated lookup (line hint →
-task-number search → title search) on the active task list, then a grep for phase delimiters to
-compute partial-read offsets. ~280 tokens of "how to find your spot" prose plus a structural
+> **Re-anchor (2026-07-02):** `compaction-recovery` shipped `taskCursor` — deterministic section + leaf
+> resolution with ids, titles, and line hints — covering the core of this slot. Session-init item 9 already
+> consumes it as the anchor fallback. **Residual scope:** (1) the phase-preamble boundary offsets
+> (`phaseHeadingLine` / `phasePreambleEndLine` below) are still agent-computed via the structural-mapping
+> grep — fold them into the cursor *or* express the whole partial read as a `loadSet` read-mode payload
+> (the agenda-consistent shape; lean this); (2) the workflow-prose collapse this slot was meant to unblock
+> (graduated lookup + structural mapping, ~280 tokens) lands with `composable-workflows`' session-init
+> rewire, not as a standalone edit. The original proposal is preserved below as the residual's reference.
+
+**Current (as of 2026-05-09):** `session-init.md` Step 3 item 9 has the agent run a graduated lookup
+(line hint → task-number search → title search) on the active task list, then a grep for phase delimiters
+to compute partial-read offsets. ~280 tokens of "how to find your spot" prose plus a structural
 mapping rule.
 
 **Proposed:** New envelope slot:
@@ -373,15 +344,11 @@ time; this is resolution at read time.
 **Impact:** ~150 tokens of workflow prose + 1 grep tool call eliminated. **Unblocks Pillar 1 finding
 A3** — `session-init.md` L205-L233 collapses from ~28 lines to ~10.
 
-### D3.3 — lifecycleWorkflow path in envelope
+### D3.3 — lifecycleWorkflow path in envelope — **shipped via `loadSet`**
 
-**Current:** `session-init.md` Step 3 item 10 dispatches `sessionType` to one of three workflow
-files. Probe already produces `sessionType`; the workflow path is hardcoded in agent prose.
-
-**Proposed:** Add `lifecycleWorkflow: { path: string | null }` to `active` slot.
-
-**Impact:** Marginal — ~40 tokens, 0 tool calls. Worthwhile only as a freebie when CLI changes in
-this area are already happening.
+> **Re-anchor (2026-07-02):** the shipped `loadSet` slice already emits the `sessionType`-selected
+> lifecycle workflow as a full-read entry (e.g. `process-task-loop.md` on execution sessions). The prose
+> dispatch in item 10 collapses with `composable-workflows`' Step 3 rewire. Closed; nothing residual.
 
 ### D3.4 — recommendedOrientationPrelude slot
 
@@ -421,145 +388,60 @@ here so the next iteration doesn't re-derive the exclusion.
 
 ### Aggregate ranking
 
-| Candidate              | Tokens saved | Tool calls saved | Conflicts                                              |
-|------------------------|--------------|------------------|--------------------------------------------------------|
-| D3.1 freshness         | ~50          | 1-3              | None — pairs with handoff-opt                          |
-| D3.2 currentTask       | ~150         | 1                | None — recommended biggest lift                        |
-| D3.3 lifecycleWorkflow | ~40          | 0                | None                                                   |
-| D3.4 orientationPrelude| ~150         | 0                | Symmetric with handoff-opt's `recommendedSummaryLine`  |
-| D3.5 mismatches        | ~50          | 0-N              | None                                                   |
+| Candidate               | Tokens saved | Tool calls saved | Status / conflicts (2026-07-02)                                              |
+|-------------------------|--------------|------------------|------------------------------------------------------------------------------|
+| D3.1 freshness          | ~50          | 1-3              | **Open** — pairs with handoff-opt                                            |
+| D3.2 currentTask        | ~150         | 1                | **Largely shipped** (`taskCursor`); residual above                           |
+| D3.3 lifecycleWorkflow  | ~40          | 0                | **Shipped** (`loadSet`)                                                      |
+| D3.4 orientationPrelude | ~150         | 0                | **Open** — build with handoff-opt's `recommendedSummaryLine` (shared helper) |
+| D3.5 mismatches         | ~50          | 0-N              | **Open** — low priority                                                      |
 
 ---
 
-## Pillar 4: Conditional Content Loading
+## Pillar 4: Conditional Content Loading — **subsumed by `composable-workflows` D3**
 
-Pillars 1-3 reduce the cost of session-init's load-everything-then-dispatch shape (compress prose,
-fold computation into envelope, eliminate skill re-loads) without changing the shape itself.
-Pillar 4 changes the shape: agent loads only the workflow content that the probe state rules in.
-
-### Motivation
-
-The 99% session-init case needs identity present + single status file resolved + clean worktree
-(or single-channel pull) + execution session-type + standard freshness + no orientation surfaces
-beyond Active work state. Everything else — multiple-candidate disambiguation, identity-absent
-fallback, probe-failure fallback, detached-head / diverged / dirty surfaces, conflict notes,
-cross-machine resume gap, partial-push coherence, local-ahead notes — is content the agent reads
-but doesn't use in any given session.
-
-Surfaced concretely by Task 3.13 - `tasks-work-organization-reform.md` (Step 6 fifth conditional
-surface for local-ahead notes plus a new Step 1 paragraph explaining the two-layer
-`state` / `refState` model). Each addition is principled in isolation; the trajectory is
-monotonic.
-
-### Mechanism options
-
-**P4.1 — Probe-rendered routing card.** Envelope adds `applicableSections: string[]` top-level
-slot listing conditional sections live this session (e.g.,
-`["dirty", "local-ahead-notes", "execution-session"]`). Workflow doc retains all sections, each
-with an anchor. Agent partial-reads only listed sections plus always-loaded core (step framing,
-load order, output discipline). Generalizes Pillar 3 D3.4 (composes one specific section's
-content) to "declare which sections to load."
-
-**P4.2 — Split core + edge files.** `session-init-core.md` (always loaded, ~80-120 lines) plus
-per-edge or grouped edge files loaded on probe-triggered conditions. Cleaner separation than
-P4.1; cost is source-of-truth dispersion — the failure mode Pillar 1's cross-file de-dup audit
-specifically warns against.
-
-**P4.3 — JIT loading discipline in workflow body.** Keep one file. Discipline conditional
-sections to begin with explicit "Skip unless probe slot X is Y" gates. No CLI change. Agent
-partial-read discipline carries savings; dispatch decision stays agent-side.
-
-### Recommended lean (PRD-time)
-
-**P4.1 with light P4.3 discipline.** Mirrors Pillar 3's envelope-as-canonical-dispatch-authority
-pattern — the probe already knows which sections apply; surfacing that as a routing card is
-incremental. P4.2 splits source-of-truth in the way the cross-file de-dup audit flagged as the
-failure mode. P4.3 alone leaves dispatch agent-side and doesn't compound with the envelope
-architecture established by prior optimization WUs.
-
-### Surface candidates (initial sketch)
-
-- `session-init.md` Step 6 conditional orientation surfaces (worktree state variants, dirty,
-  local-ahead notes) — anchored, routed.
-- `session-init.md` Step 1 conditional rules — identity-absent, role-contributor switch,
-  probe-failure fallback. These are "load on condition" content within Step 1 itself.
-- `session-init.md` Step 3 item 7 multiple-candidate disambiguation prose — load only when
-  `active.resolution === "multiple"`.
-- `session-init.md` Step 5 freshness check + next-work-discovery — load only when applicable
-  (composes with D3.1 and D3.5).
-- `session-init.md` Step 7 mismatch handling — load only when probe surfaces mismatches (depends
-  on D3.5).
-
-### Sequencing
-
-**Hard prerequisite: handoff-opt lands first** (shared rationale with Pillars 1-3). **Soft
-prerequisite: Pillar 3 D3.x slots ship first** — P4.1's routing card consumes the same envelope
-the D3.x extensions populate; designing the routing card before D3.x stabilizes risks schema
-churn.
-
-**Composability:** arc-modes Lite/Full split needs mode-awareness on the `applicableSections`
-schema (see § Forward-Compat Callbacks). Worktree Foundation's worktree-aware probe doesn't
-directly interact with section routing.
-
-### Conflict check
-
-- **D3.4 (`recommendedOrientationPrelude`):** P4.1 generalizes the pattern; both ship together
-  cleanly — routing card declares which sections to load, D3.4 composes the literal text one of
-  those sections (orientation prelude) emits.
-- **Pillar 1 prose-density compression:** complementary — compressed sections that are also
-  conditionally loaded compound the savings.
-- **Handoff-opt:** session-handoff carries the same load-everything-then-dispatch shape; P4.1's
-  routing-card mechanism extends to handoff naturally. Cross-WU candidate to share helper.
-
-### Estimated impact
-
-Hard to quantify pre-PRD. Bounded estimate: in happy-path sessions (most sessions),
-routing-card-driven loading could reduce workflow-prose read by ~40-60% (Step 6 conditional
-sections are ~45 lines; Step 1 edge-case prose is ~15 of ~50 lines; Steps 3 / 5 / 7 each have
-~30-50% conditional content). Edge-case sessions consume the same content as today; savings are
-mode-dependent, not universal — but the mode that benefits is the common one.
+> **Re-anchor (2026-07-02):** this pillar's mechanism question (P4.1 routing card / P4.2 split files /
+> P4.3 JIT discipline) is resolved — and dissolved — by the session-agenda model in
+> `draft-composable-workflows.md` D3: the compiler *is* P4.1 (probe-authoritative selection) selecting
+> P4.2-style fragments, with the source-of-truth-dispersion objection answered by the agenda (agents never
+> navigate the fragment tree) and index hubs (maintainers do). The motivating observation stands and moved
+> with it: the 99% session-init case uses a small fraction of what it reads, and each new conditional
+> surface has been a monotonic always-read addition (surfaced concretely at Task 3.13 —
+> `tasks-work-organization-reform.md`).
+>
+> **Carried over as CW input — the surface-candidate inventory:** Step 6 conditional orientation surfaces;
+> Step 1 conditional rules (identity-absent, contributor switch — probe-failure fallback stays inline by
+> design, D3.6); Step 3 item 7 multiple-candidate disambiguation; Step 5 freshness + next-work discovery;
+> Step 7 mismatch handling; Step 2 entry-dispatch arms (from this draft's inbound buffer). The arc-modes
+> Lite/Full schema-awareness note transfers to CW's agenda-schema design (see § Forward-Compat Callbacks).
+> Nothing else residual here.
 
 ---
 
 ## Recommended Biggest Lift
 
-**D3.2 (currentTask slot).** Rationale:
-
-1. Compounds with prior session-init optimizations. Per-file methods/extensions architecture already
-   established the pattern; this is the most expensive remaining piece of prose-driven dispatch in
-   `session-init.md`.
-2. Eliminates a real tool call per session. Tool-call cost is round-trip latency, not just tokens.
-3. Zero conflict with handoff-opt. Different surface, complementary pattern.
-4. Unblocks the largest single-file prose compression in the audit (`session-init.md` L205-L233
-   collapses from ~28 lines to ~10).
-5. Single deliverable shape — pure CLI addition + workflow prose simplification. No handler-tier
-   refactor, no new CLI subcommand, no migration.
-
-If WU scope permits one task only, this is it. Roughly 1 session of work.
-
-The runner-up — D3.1 freshness — is cheaper to ship but saves less prose. D3.4
-(`recommendedOrientationPrelude`) is architecturally elegant but should be designed *with*
-handoff-opt's `recommendedSummaryLine` to share the helper, so it's better scoped as a follow-up
-after handoff-opt lands.
+> **Re-anchor (2026-07-02):** the original recommendation here — D3.2 — has largely shipped as
+> `taskCursor`, vindicating the pick. The WU's biggest remaining lift is no longer an envelope slot: it is
+> the **D1 contract-shape application pass** across the corpus no sibling restructures (Pillar 1's
+> re-anchored execution shape), gated on `composable-workflows` settling. Within Pillar 3's residual
+> batch, D3.1 (freshness) + D3.4 (orientation prelude, built with handoff-opt's `recommendedSummaryLine`
+> as a shared helper) are the priority pair; D3.5 and the D3.2 residual ride along opportunistically.
 
 ---
 
 ## Sequencing
 
-**Hard prerequisite: handoff-opt lands first.** Two reasons:
+**Hard prerequisite: `composable-workflows` design settles first** (not necessarily ships) — this WU's
+Pillar 1 execution shape *is* the application of CW's D1 pattern, and its Pillar 4 content lives there.
+Meta `Depends On` updated accordingly (2026-07-02).
 
-1. D3.4's `recommendedOrientationPrelude` is symmetric with handoff-opt's `recommendedSummaryLine`.
-   Designing this WU after handoff-opt means we extend the existing helper rather than
-   duplicate-then-merge.
-2. Pillar 1's `session-handoff.md` findings (Pass-2 prose compression, skip-threshold dispatch) need
-   to compose with handoff-opt's mechanization of those same surfaces. Doing them in parallel risks
-   scope confusion.
+**Soft coordination: handoff-optimization** — downgraded from the former hard prerequisite. The surviving
+reason is D3.4's shared helper with `recommendedSummaryLine` (design together, whichever activates first),
+plus staying out of session-handoff's restructured surfaces (Pillar 1 keeps only residual findings there).
 
-**Soft prerequisite: parallelism trio + work-organization-reform direction settled.** Most of this
-WU's surface is unaffected (session-init prose, methods, skills are not directly restructured by
-those WUs), but `manage-incidental-work.md` Pause/Resume sits at the boundary and needs ownership
-clarity. Acceptable to start the WU before those land if Pillar 1's E2 finding is excluded from
-initial scope and revisited as a follow-up.
+**Resolved since capture:** Work Organization Reform shipped; the parallelism-trio settling condition is
+OBE. `manage-incidental-work.md` Pause/Resume ownership (the E2 boundary item) remains a PRD-time call —
+Worktree Foundation obsoleted the protocol's premise (see the Pillar 1 finding's update note).
 
 **Composability with mode-aware probe (arc-modes).** Lite mode is noted in `plan-arc-modes.md`
 as needing its own composite-probe shape. Any envelope extension in this WU should design for
@@ -588,9 +470,10 @@ consistency.
 >   mode awareness
 > - `recommendedOrientationPrelude` — applies; composition logic may differ slightly under Lite
 > - `mismatches` — applies; mismatch shapes may differ
-> - `applicableSections` (Pillar 4) — Lite's compact workflow has a different conditional surface
->   than Full; the section vocabulary itself is mode-dependent. Schema needs Lite/Full split or a
->   per-mode section catalog.
+> - agenda / section routing (formerly `applicableSections`, Pillar 4 — now CW's agenda schema) — Lite's
+>   compact workflows have a different conditional surface than Full; the fragment vocabulary itself is
+>   mode-dependent. Transferred to `draft-composable-workflows.md`'s agenda-schema design as a
+>   mode-awareness requirement.
 >
 > Revisit slot schemas with Lite probe shape in scope.
 
@@ -711,8 +594,16 @@ returning to if the question surfaces concretely; not architecting speculatively
   the pattern: shift mechanical work from agent reasoning to CLI mechanism via probe envelope
   expansion + frontmatter-triggered loading. This WU extends that pattern into workflow body prose,
   skill-load discipline, and the next batch of envelope extensions.
+- **Composable Workflows** (`draft-composable-workflows.md`) — **cohort keystone; hard prerequisite.**
+  Owns the workflow contract shape this WU applies (Pillar 1), the agenda/fragment mechanism that subsumed
+  Pillar 4, and the session-init rewire that collapses the prose D3.2/D3.3 targeted. Joined the cohort
+  2026-07-02.
+- **Loadset Composition** (`draft-loadset-composition.md`) — sibling. Owns T1 load-set policy and the
+  process-task-loop core/detail split; this WU's prose-compression findings on that file fold in or
+  sequence after the split. Shared `strategy-session-operations.md` edit surface (its demotion rule + this
+  WU's tier-aware dedup principle land coherently — whoever lands first establishes the section).
 - **Handoff Optimization** (`plan-handoff-optimization.md`) — sibling. Same playbook
-  applied to session-handoff. **Hard prerequisite for sequencing** — see § Sequencing.
+  applied to session-handoff. **Soft coordination** (downgraded 2026-07-02) — see § Sequencing.
 - **Documentation Surface Routing** (`plan-documentation-surface-routing.md`) — sibling.
   Absorbs this plan's Pillar 2 (skill cache discipline for `arc-commit`) and Pillar 1 cross-file
   de-dup items (atomicity rules across 3 surfaces; atomic-vs-task-list decision across 2
@@ -735,34 +626,24 @@ returning to if the question surfaces concretely; not architecting speculatively
 
 ## Scope Estimate
 
-**Medium.** ~4-7 sessions ballpark with Pillar 4 in scope (~3-5 without), depending on PRD-time
-scope decisions. Roughly:
+**Small-to-medium after the 2026-07-02 re-anchor** (~2.5-4 sessions): Pillars 2 and 4 left the WU, and
+half of Pillar 3 shipped externally. Roughly:
 
-- **Pillar 3 (probe envelope extensions):** ~1.5-2 sessions. D3.2 (~1 session as the seed PR), plus
-  D3.1 / D3.3 / D3.5 as follow-up tasks (~0.5-1 session combined). D3.4 deferred until handoff-opt
-  lands.
-- **Pillar 4 (conditional content loading):** ~1-2 sessions. P4.1 CLI inference + `applicableSections`
-  slot + anchor convention on workflow doc + per-section partial-read discipline + tests.
-  Soft-prereq on Pillar 3 D3.x sequencing.
-- **Pillar 2 (skill cache discipline):** ~0.5-1 session. arc-commit-specific fix; mechanism
-  decision (A/B/C) at PRD time.
-- **Pillar 1 (workflow prose density):** ~1-1.5 sessions. Distributed across files; can ship
-  incrementally as atomic tasks within the WU.
-- **Cross-file de-dup:** ~0.5 session. Pure consolidation work.
+- **Pillar 3 residual (envelope batch):** ~1-1.5 sessions. D3.1 + D3.4 (shared helper with handoff-opt)
+  as the pair; D3.5 + the D3.2 read-range residual opportunistic.
+- **Pillar 1 (contract-shape application pass):** ~1-1.5 sessions. Per-file application of CW's D1 across
+  the non-restructured corpus, findings inventory in hand; ships incrementally as atomic tasks.
+- **Cross-file de-dup:** ~0.5 session. Pure consolidation work (tier-aware — see the principle in
+  Pillar 1).
 - **Verification + buffer:** ~0.5 session.
 
 **PRD-time clarifications expected.**
 
-- Pillar 2 mechanism choice (A: load-set inclusion / B: cache hint / C: reference card).
-- Pillar 4 mechanism choice (P4.1: routing card / P4.2: split files / P4.3: JIT discipline) plus
-  whether to extend to handoff-opt's workflow as a cross-WU helper.
 - D3.4 sequencing: build alongside handoff-opt's `recommendedSummaryLine` (shared helper) or
   standalone follow-up?
-- E2 (Pause/Resume) ownership: this WU or work-organization-reform?
+- E2 (Pause/Resume) ownership and disposition, post-Worktree-Foundation.
 - Whether Pillar 1 ships as one atomic-tasks-driven phase or splits into per-file PRs.
-- Whether the WU splits into multiple WUs along pillar lines (each pillar is internally coherent
-  and could ship independently) or stays unified. Pillar 4 in particular is a natural split point
-  if scope discipline argues for a focused conditional-loading WU.
+- Re-measured token baselines (the 2026-05-09 estimates are stale).
 
 ## Coordination — ADR-022
 
