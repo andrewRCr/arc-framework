@@ -126,6 +126,10 @@ Settled *as decisions to make* — the audit resolves each; neither is a pre-com
   explicit "batch errand" wrapper for a coherent set of small concerns, so FP should decide whether batching
   is only an operator convenience under the primary-worktree serialization invariant or a first-class
   concurrent-errand shape that needs its own lifecycle support.
+  During the burn-in, also record interlock-friction evidence by work character: which errand / grooming stops
+  carried real judgment, which were routine confirmations after an explicit trust grant, and which reviewed-lane
+  surfaces still needed human eyes. Feed that evidence to `interlock-release-refinement`'s interlock-intensity /
+  trust-grant model; FP supplies observations, not the approval model.
 - **Cross-WU personal-state same-entry merge resolution (GA-readiness item).**
   `mergeCrossWuFile → resolveCrossWuState` (`lib/user-sync/merge.ts`) resolves divergent edits to the **same**
   entry identity by wall-clock note recency: recency silently drops one edit and clock skew makes resolution
@@ -309,8 +313,8 @@ and Phase 2's build items depend on neither — so the path pulls FP's start for
 5. `interlock-release-refinement` — **inverted out of the hard path.** Its parallelism-relevant slice (the
    integration-time interlock-stacking collapse) either slice-extracts per its own draft's ahead-of-cohort
    extraction note, or — preferred — consumes this WU's burn-in evidence of which stops actually hurt under
-   concurrency, post-waves. Approval friction during waves is tolerable by design (sacrificial workloads,
-   loud-only); it never corrupts.
+   concurrency and which were not decision-bearing after a trust grant, post-waves. Approval friction during waves
+   is tolerable by design (sacrificial workloads, loud-only); it never corrupts.
 
 **Mid-FP concurrency model (delicate — kept explicit by design).** FP active in its worktree does not serialize
 the rest of development; companion work launches while FP runs, by locus:
