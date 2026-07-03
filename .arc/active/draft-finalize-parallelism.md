@@ -36,7 +36,7 @@ GA-readiness checklist; per-cohort closeout criteria are narrower than the cross
 - **Own the parallelism GA-readiness checklist** — the single enumeration of what-must-be-true for
   worktree-by-default + multi-in-flight to be blessed. Exists nowhere today.
 - **Committed build items** and **seam-audit decisions** below — concerns routed in while the members shipped,
-  integrated at the 2026-07-01 planning iteration.
+  integrated at the 2026-07-01 planning iteration and the 2026-07-03 wave-zero fold.
 
 ### Committed build items
 
@@ -45,7 +45,7 @@ behind-base reconcile gate in `integrate-work-unit` and the sweep base-ref shipp
 session as **pre-FP errands**, captured to `USER-INBOX § Errand` pre-routed; the § Milestone path carries their
 sequencing, and this WU's entry verifies they landed.)
 
-**1. Worktree dependency provisioning — always-invoked post-create setup command.** The flip-decisive gap:
+**1. Worktree dependency provisioning — always-invoked post-create manifest.** The flip-decisive gap:
 `arc start` create-new and the worktree-spawn primitives create a worktree but don't provision dependencies.
 `node_modules` is gitignored, so a fresh worktree has none; git / shell hooks survive, but every node-backed
 quality gate fails there (`typecheck` / `test` / `build` / `lint:ts` / `lint:md`) — confirmed live 2026-06-15
@@ -63,9 +63,20 @@ Broadened at the 2026-07-01 gap-hunt: deps are one instance of a wider class —
 prerequisites**. A fresh worktree also lacks the harness integration layer (`.claude/` / `.codex/` / `.gemini/`
 are gitignored: skills, hooks, permission allowlists — a session launched there has no ARC skill entry, emits no
 compaction seed, and gets no post-compaction recovery injection) and the gitignored user-dir scaffold. The
-post-create seam provisions all of it: project deps (the configured command), harness files
-(`arc update`-regenerable), and the user-dir scaffold — and since bare `npx arc` in a deps-less worktree can
-resolve to an unrelated npm registry package, provisioning precedes any CLI invocation there.
+post-create seam provisions all of it — and since bare `npx arc` in a deps-less worktree can resolve to an
+unrelated npm registry package, provisioning precedes any CLI invocation there.
+
+Enriched at the 2026-07-03 wave-zero dogfood (hand-provisioning FP's own worktree): the seam is an **ordered
+manifest**, not a single command — (1) project deps script, (2) registered harness dirs, (3) user-dir scaffold
+at the correct locus (build item 4's ceremony-locus fix). Deps alone took install → build → re-install before
+`npx arc` resolved (workspace bin links live at gitignored `dist/`, absent at install time → no bin link; the
+foreign-registry hazard fired live), so the project hook (`worktree.post_create`) is a *script*, not
+`npm install`. Harness layers provision by **copy-from-primary as the universal default**: ARC keeps a
+registered list of gitignored harness dirs (`.claude/`, `.codex/`, `.gemini/`, `.opencode/`, …) and mirrors
+whatever the primary has — zero per-harness knowledge, covers harnesses ARC has never heard of. The
+`arc update`-style **regeneration** path (claude/codex reference impls + registration at `verify-and-configure`
+/ an add-agent workflow — the hooks / release-wrapper precedent) is the clean evolution; its timing is a
+spec-time decision (possibly in-FP rather than downstream). Unconfigured default stays notice-not-silent.
 
 **2. In-place Materialize for cross-machine pickup — mirror the `--here` opt-out.** The begin-work transitions
 (`graduate` / `resume`) carry a `--here` in-place opt-out so a stub can graduate or a parked WU resume in the
@@ -88,6 +99,61 @@ dir, or retire it for the same tree-CAS the marker refs already use. Decide `.ma
 per-checkout minting makes every spawned worktree a distinct "machine" in the sync-state / errand marker trees
 (workspace-as-machine may even be the right semantic; decide it, don't drift into it). Gates wave 1 — the first
 concurrent notes sync.
+
+**4. Worktree launch bridge — one-session init as the worktree-by-default ergonomic target (wave-zero fold,
+2026-07-03).** FP's own graduation — the first spawned-worktree launch — exposed the init ergonomics gap: the
+session that runs `init-work-unit` stays in the primary while the WU lives in the new worktree, so starting one
+WU takes two agent sessions with no context bridge between them. The in-place model hid the distinction between
+the *orchestration locus* (discovery + graduation ceremony) and the *WU locus* (the work); worktrees separate
+them physically. Materialize already works "CLI mechanics, then a session resumes there" — local start is its
+local twin, so the shape is sound; the friction is the mechanical tail leaking into the init session and the
+dropped context. Settled direction — **layered model**:
+
+- **(a) Substrate, harness-agnostic:** make `arc start` CLI-complete — spawn, provision, relocate, reconcile,
+  ceremony commit, push — invocable from a session *or* the bare shell; the first worktree session is then a
+  plain Resume. The three judgment steps blocking this are all eliminable: `Next Action` has the deterministic
+  `[begin current workflow]` sentinel, ROADMAP regen becomes deterministic when `roadmap-tooling` lands
+  (pre-wave-1 on the milestone path anyway), and graduation commit messages are formulaic
+  (`chore(arc): graduate <name> into active`).
+- **(b) Bridge:** `init-work-unit` ends with a mini-handoff into the spawned WU's seeded SESSION-NOTES — the
+  existing handoff idiom applied at spawn (the notes ref is checkout- and branch-independent) — so the worktree
+  session boots rich instead of cold.
+- **(c) Sugar, harness-conditional:** where the harness can relocate a live session into a worktree, offer the
+  hop — Claude Code has this today (`EnterWorktree`); research item: verify Codex CLI's equivalent — target
+  Claude Code + Codex support out of the gate.
+
+Carries the **spawn-mode ceremony-locus fix**: during FP's graduation the `start` transition staged the
+backlog→active relocation in the **primary's** index (on `main`) and opened the per-WU user workspace in the
+**primary's** user dir — correct under `--here` (invoking checkout = plan branch), wrong under spawn, where the
+init commit must land on the plan branch (the worktree session resolves its active WU from `.arc/active/` on
+*its* checkout, and the push step pushes the plan branch; precedent: `partial-push-marker`'s init commit rode
+its WU branch to `main` via the final PR). Every prior graduate was `--here`, so the locus assumption never
+surfaced. Recovered by hand 2026-07-03 (moves replicated in the worktree, committed `42f34628` on the plan
+branch, primary reset clean); also caught en route: the meta reconcile's bullet re-render collapses a multi-line
+`Depends On` to a ~250-char single line (no 120 re-wrap), and the user-open ran against the primary's disk.
+Fix: spawn-mode transition targets the spawned worktree for relocation staging + user-open, and the bullet
+re-render learns to wrap at 120. Verify via a wave-2 re-graduation. Files: `src/commands/start.ts`,
+`src/lib/git/worktree-scaffold.ts`, `src/lib/work-unit/executor-context.ts`, `src/lib/active/meta-reader.ts`
+(`renderBullets` wrap).
+
+Open design item (spec-time): interlock semantics for shell-invoked start — the explicit user invocation
+arguably *is* the approval (release-wrapper reasoning); settle deliberately, don't drift into it. Coordination:
+composes with the singleton fork below (pin-primary-to-base — the primary as permanent orchestration surface);
+ceremony-commit determinism depends on `roadmap-tooling`.
+
+**5. Graduate-transition crash class — silent reconcile bail + non-atomic partial state (wave-zero fold,
+2026-07-03; absorbed per § Resolution model).** FP's first `arc start` crashed mid-transition:
+`reconcileMetaFields` (the populate-when-absent healer) anchors the field block on the H1 + closing `---` rule
+and **silently no-ops when it can't anchor** — FP's meta predated the closing-rule convention, so the heal
+bailed and the fail-loud `Current Workflow` stage write threw (`Cannot set meta field`). The transition left
+partial state with no rollback: worktree + branch created, relocation staged, meta `Branch` cell already
+written; recovery was manual (unwind, append `---`, re-run — the healer then correctly backfilled
+`Current Workflow`, `PR URL`, `Completed`). Two facets, sized differently: **(a)** the healer's anchor bail —
+heal the missing rule or fail loud *pre-flight* (validate meta shape before any mutation; `arc verify` candidate
+check for old-shape metas) — errand-sized if FP spins it out; **(b)** transition atomicity — order mutations
+validate-first / rollback-on-throw, or document the recovery. The silent-heal-then-loud-crash composition is
+the sharp edge; the manual recovery is playbook material either way. Files: `src/lib/active/meta-reader.ts`
+(`reconcileMetaFields` anchor, `replaceBulletField` throw), `src/commands/start.ts` (mutation ordering).
 
 ### Seam-audit decisions
 
@@ -152,7 +218,8 @@ at the time. Three layers, cheapest-first.
 **Shape: one long-running WU with internal phases** (settled 2026-07-01; the split-the-bless alternative — a
 separate burn-in/GA member — was declined: it would separate the checklist's author from its consumer and add a
 handoff seam to the WU that exists to hunt handoff seams). Phase 1: seam audit / build the matrix. Phase 2: the
-committed build items — item 1 gates wave 2 (code WU in a worktree), item 2 gates wave 4 (cross-machine).
+committed build items — item 1 gates wave 2 (code WU in a worktree), item 2 gates wave 4 (cross-machine);
+item 4's ceremony-locus fix verifies via a wave-2 re-graduation.
 Phase 3+: the burn-in waves, during which FP is deliberately active alongside the wave workload — the observer
 WU is itself part of the concurrency under test (wave 1 is a three-in-flight state including FP). Later phases
 are calendar-gated and observational; that is the intended rhythm, not drift.
@@ -266,6 +333,10 @@ not a write race:**
   line reconciliation stays a named seam suspect → wave 3.
 - **`.machine-id`** — exclusive-create mint per checkout: every spawned worktree becomes a distinct "machine"
   in the marker trees. Possibly the right semantic, possibly drift → decide with **BI-3**.
+- **Spawn-mode transition writes** — the graduate transition stages the relocation and runs user-open against
+  the *invoking* checkout instead of the spawned worktree (correct under `--here` only; unseen pre-FP because
+  every prior graduate was `--here`). Wrong-locus writes, **silent** until the worktree session fails to resolve
+  its WU → **BI-4** (ceremony-locus fix); wave-2 re-graduation verifies.
 - **`compaction-seed.json` and sibling per-checkout markers** — overwritten in place; two sessions sharing one
   checkout clobber each other. The recovery audit's drift checks catch the steady state (**loud**), but a
   first-write race in a shared checkout has no baseline to drift from and stays **silent** until the next probe
@@ -359,13 +430,13 @@ Natural **agile-parallelism cohort closeout** — the cohort archives on its shi
 ## Scope Estimate
 
 Large (week+), and deliberately long-*running* (the burn-in waves are calendar-gated) — broad cross-cohort
-surface carrying three committed build items alongside the audit / verify / flip / gate core. Size firms up once
+surface carrying five committed build items alongside the audit / verify / flip / gate core. Size firms up once
 the real seam count is visible.
 
 ## Continuity
 
-- **Readiness:** maturing — direction, scope, verification design, WU shape, and pre-FP sequencing are settled;
-  open items are detail-design, not fundamentals.
+- **Readiness:** formalization-ready — direction, scope, verification design, WU shape, and pre-FP sequencing
+  are settled; the wave-zero fold's two flagged decisions deliberately carry to spec entry (below).
 - **Resolved:** inbound buffer drained (2026-07-01) — build items absorbed (two retained; two split back out as
   pre-routed pre-FP errands), two seam-audit decisions recorded. Pre-FP audit + sequencing settled
   (§ Milestone path). Verification design settled: shared-mutable-surface matrix → adversarial checklist pass →
@@ -374,9 +445,15 @@ the real seam count is visible.
   wave 3 decides. Gap-hunt matrix pass run (2026-07-01, second grooming pass): two-sweep source audit + early
   adversarial pass → matrix skeleton authored (§ Verification design); all findings FP-internal — BI-3 minted
   (notes-lock scope + `.machine-id` semantics), BI-1 broadened (untracked per-checkout prerequisites including
-  the harness layer); the pre-FP milestone path stands unchanged.
+  the harness layer); the pre-FP milestone path stands unchanged. Wave-zero captures folded (2026-07-03,
+  post-graduation): BI-4 minted (worktree launch bridge — layered model, carrying the spawn-mode ceremony-locus
+  fix), BI-5 minted (graduate-transition crash class, absorbed per § Resolution model), BI-1 enriched to an
+  ordered provisioning manifest, matrix row added (spawn-mode transition writes); `USER-INBOX` captures cleared
+  at absorption.
 - **Open:** matrix cell verification (induce the condition, observe the failure — wave work; the skeleton is
   authored); burn-in workload selection (which P3 smalls / doc WUs serve as sacrificial waves — pick near
-  start).
-- **Next:** open the grooming PR, then run the milestone path (adversarial-review first; pre-FP errands
-  interleaved from `USER-INBOX`). The draft is formalization-ready for create-spec.
+  start); two spec-time decisions from the wave-zero fold — interlock semantics for shell-invoked start (BI-4)
+  and the harness-regen path timing, in-FP vs. downstream (BI-1).
+- **Next:** verify the pre-FP errands landed (§ Milestone path item 2), run the advisory adversarial pass over
+  the consolidated draft, then cross into create-spec. Near start: pick the burn-in wave workloads and slot
+  `roadmap-tooling` (full or renderer slice) before wave 1.
