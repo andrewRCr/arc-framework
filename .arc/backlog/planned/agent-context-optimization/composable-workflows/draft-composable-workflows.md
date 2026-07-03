@@ -14,6 +14,22 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Consume `adversarial-review`'s method invocation-contract prototype**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: composable-workflows`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` design.
+- _Concern:_ `adversarial-review` has produced the first rich method-as-function prototype: valid-YAML contract
+  blocks, callsite YAML whose single top-level key is the method name, return-schema fields, and a rendered
+  control-point grammar that keeps alert type separate from method identity.
+- _Fold-in:_ use the prototype as evidence for D1/D2's resolver and visibility model. Decide which parts belong
+  in `strategy-workflow-authoring`'s marker inventory, and keep the extension fire-point `#name` marker reserved
+  for extensions rather than generic callsites.
+
 ## Problem / Motivation
 
 ARC's workflows scale across modes, tiers, and session states via **carry-and-skip**: inline conditionals
@@ -80,7 +96,7 @@ Two absorbed conventions ride along: referencing **external/harness skills** fro
 frontmatter; project-level only, never shipped surfaces; author for graceful degradation), and the
 **stable-anchor rule** for cross-file references (below, D2).
 
-Human readability is served, not traded: prose stays natural *within* each unit; a maintainer reads the
+Human readability is served, not traded: prose stays natural _within_ each unit; a maintainer reads the
 spine plus an index hub for the whole picture, or one fragment for one arm — better locality than a
 910-line monolith, not worse.
 
@@ -100,8 +116,8 @@ D3 note.
 
 ### D2 — The fragment substrate (mechanism)
 
-**Fragments are method-shaped, not extension-shaped.** A fragment is *pulled* by its workflow ("load this
-block when gate X holds"), not *fired* by the framework at a fire-point. Model fragments as a point in the
+**Fragments are method-shaped, not extension-shaped.** A fragment is _pulled_ by its workflow ("load this
+block when gate X holds"), not _fired_ by the framework at a fire-point. Model fragments as a point in the
 existing method space by giving methods two orthogonal properties:
 
 - **visibility**: `public` (many callers via `arc.methods`) | `private` (callable only by one owning
@@ -118,11 +134,11 @@ settling (pairs with `lane`, below).
 
 **Sharpening (2026-07-02): fragment vs. private method.** Two kinds of would-be fragment exist, and only
 one is method-shaped. A **procedural** fragment has inputs and an outcome (branch-gone recovery: given
-candidates, recover the checkout and recompile) — that *is* a private method and takes the full contract
+candidates, recover the checkout and recompile) — that _is_ a private method and takes the full contract
 shape. A **referential** slice (a conditional guidance passage, a schema excerpt) has no call semantics —
 forcing contract/override blocks onto it is ceremony without meaning; it stays gated content with an
 owner. The test: **does it have inputs and an outcome?** The worked example (below) suggests the
-referential class mostly *dissolves into `render`/`note` steps* — the CLI precomposes state-derived
+referential class mostly _dissolves into `render`/`note` steps_ — the CLI precomposes state-derived
 surfaces — so what survives as loadable fragments is overwhelmingly procedural, and the private-method
 model may cover nearly everything real. Keep the OO analogy where it pays (visibility ≈ private/public,
 override-policy ≈ final/virtual); don't force call semantics onto content.
@@ -132,9 +148,9 @@ override-policy ≈ final/virtual); don't force call semantics onto content.
 1. **Whole conditional arms** — mode/state-gated steps extract as self-contained fragments (session-init's
    branch-gone recovery, materialize, cold-start, signal-leaf spine; the Step 6 conditional surfaces).
 2. **Procedure library + thin orchestration paths** — from the `generate-tasks` 5.R.2 worked example: depth
-   axes are often *one* shared pipeline sliced into different review-increment cadences, not N procedures.
+   axes are often _one_ shared pipeline sliced into different review-increment cadences, not N procedures.
    Separate procedure-identity (invariant, stopless) from increment-cadence (a depth-selected grouping of
-   procedures + its stop). A thin orchestration fragment referencing procedure fragments is *more*
+   procedures + its stop). A thin orchestration fragment referencing procedure fragments is _more_
    DRY-aligned than a fat self-contained block. `generate-tasks` shipped D-shaped (depth paths as spine,
    procedures as referenced library) — concrete input for where the cut falls.
 
@@ -152,7 +168,7 @@ lowest-friction). Heading slugs remain the zero-marker fallback. Includes fixing
 refs + the DEV-RULES.ARC "item 10" ref. Intra-file "see Step N" may stay.
 
 **Navigability is a maintainer concern only.** The original central open question — "decomposing into
-core + fragments risks death-by-a-thousand-includes" — assumed the *agent* navigates the fragment tree.
+core + fragments risks death-by-a-thousand-includes" — assumed the _agent_ navigates the fragment tree.
 Under D3 it doesn't: the compiler selects fragments; the agent reads what the agenda lists. For
 maintainers, adopt the **index hub** pattern (OKF / LLM-wiki convergence): a per-directory catalog of
 entries, each a link + one-line summary (ARC's README-per-dir is the same role; the question is the
@@ -164,7 +180,7 @@ role a monolith's inline text serves today, at a fraction of the length. Candida
 per decomposed workflow, the spine carrying the workflow's name at the root
 (`session-init/session-init.md`), fragments namespaced beneath (`session-init/arms/branch-gone.md`), the
 hub cataloging them — base-is-evident by naming convention, not by reading. A relationship diagram is
-*derivable* from the structured gate lines (generated graph, never hand-maintained) — the same
+_derivable_ from the structured gate lines (generated graph, never hand-maintained) — the same
 managed-artifact philosophy as the schema doc.
 
 **`slug → artifact` resolver.** The composition substrate needs a canonical resolver (fragment includes,
@@ -183,11 +199,11 @@ deterministic shell tail (`gh pr merge`, `arc user close`, switch/pull base, `gi
 ### D3 — The session-agenda compiler (mechanism)
 
 The probe stops describing state and starts emitting an **agenda**: an ordered list of step instances the
-session executes. The shipped `loadSet` slice (`entries: [{path, readMode}]`) *is* the seed — extend the
+session executes. The shipped `loadSet` slice (`entries: [{path, readMode}]`) _is_ the seed — extend the
 family toward a small, stable **step-type vocabulary** (order ~8–10: read, pull, prompt-with-text,
 load-fragment, render-precomposed, dispatch-to-locus, …). The core workflow then documents the
-*vocabulary* — how to execute each step type, the failure fallback, output discipline, orientation format —
-and stops documenting the *branching*, which is unbounded and growing. The probe-failure prose fallback
+_vocabulary_ — how to execute each step type, the failure fallback, output discipline, orientation format —
+and stops documenting the _branching_, which is unbounded and growing. The probe-failure prose fallback
 stays, by design (the resilience path can't depend on the thing that failed).
 
 - **First consumer: the `session-init` Step 3 rewire** — already this WU's recorded deliverable from the
@@ -195,7 +211,7 @@ stays, by design (the resilience path can't depend on the thing that failed).
   across canonical + `.template` + `.contributor` copies; the interim parity test pins the two until then).
   The invariant relied on: the projection resolves membership from shared policy (`loadset-composition`'s
   domain), never a consumer-specific hardcoded list — subsumption stays a fork-free lift-and-shift, and
-  recovery remains a policy *consumer*. The temporary duplication to DRY at rewire: `session-recover`'s
+  recovery remains a policy _consumer_. The temporary duplication to DRY at rewire: `session-recover`'s
   inline copy of the `partial-strategic` read-mode contract factors into one shared source both consumers
   load.
 - **Deterministic method resolution.** Resolving a declared method — fragment selection,
@@ -217,7 +233,7 @@ stays, by design (the resilience path can't depend on the thing that failed).
 3. **Recompile = re-invoke the same call with accumulated signals** — the arm-mutation and invalidation
    patterns need no second mechanism.
 
-Residue: the spelling. Lean: a dedicated `arc agenda <ceremony>` verb over the *same handler* — compile
+Residue: the spelling. Lean: a dedicated `arc agenda <ceremony>` verb over the _same handler_ — compile
 is a first-class, repeated operation once recompile exists, and signals on a `status` verb are semantic
 drift — with `arc status --session-init` retained unchanged as the signal-less read and the degradation
 path. Acceptable fallback: flags on the existing verb. Final call at spec; nothing downstream depends on
@@ -242,12 +258,12 @@ fragment); no offer-in-offer nesting — a follow-up interaction means the paylo
 `recompile: true` on a choice encodes today's "re-probe when post-state ambiguity matters" judgment as a
 compile-time decision (the combined-accept case omits it, matching the current skip-re-probe rule).
 Free-text elicitation (bare `--errand`) is **not** an offer — closed choices only; elicitation lives
-fragment-interior. The same offer shape is reusable *inside* fragments (source differs — compiler-emitted
+fragment-interior. The same offer shape is reusable _inside_ fragments (source differs — compiler-emitted
 vs. fragment-rendered — encoding doesn't).
 
-**Loops don't compile agendas.** A loop-style workflow (`process-task-loop`) is a *resident* grounding
+**Loops don't compile agendas.** A loop-style workflow (`process-task-loop`) is a _resident_ grounding
 procedure plus event-triggered sub-protocols, not a once-through sequence — there is no session-time
-instance to compile. Loops take D1 + D2 only: a thin resident core (small *because* it stays in context
+instance to compile. Loops take D1 + D2 only: a thin resident core (small _because_ it stays in context
 all session) with sub-protocols as event-handler fragments loaded at their trigger point. The interlocks
 and stops stay in the core unconditionally — they are constraints, and the demotion rule already forbids
 demoting constraints. (`loadset-composition` owns the canonical loop's content split.)
@@ -264,10 +280,10 @@ Consolidate `arc:if`-for-behavior onto composition only where the variation is a
 the axes have multiplied past the inline threshold; no blanket deprecation.
 
 The binding-time rule also places **template loads** (`draft-workflow-template-loads.md`): an
-authored-from template is *workflow-static* (generate-tasks always authors from `template-tasks`), so it
+authored-from template is _workflow-static_ (generate-tasks always authors from `template-tasks`), so it
 binds as a frontmatter declaration (D1), never a session-time agenda decision — and for agenda-compiled
 ceremonies the compiler simply projects declared template loads into `read` steps, same as everything
-else. Its motivation is also worth naming: the slip it captures is a *recognition-reliability* failure
+else. Its motivation is also worth naming: the slip it captures is a _recognition-reliability_ failure
 (an inline "see template" pointer missed at authoring time), and a frontmatter declaration is precisely
 the ~T1-grade explicit trigger from `loadset-composition`'s spectrum. Resolution: **this WU's D1 owns the
 declaration-family schema; workflow-template-loads stays its own small WU, re-scoped as the executor**
@@ -322,13 +338,13 @@ grooming: true}` → locus-scoped `render`. Elicitation and stub disambiguation 
    rule: contradiction between read content and a compiler input → recompile with the override passed as
    a signal. This shrinks as `operational-state-docs` makes those fields CLI-readable (the override
    becomes a compiler input) — a real dependency edge.
-6. **A residual envelope-literacy set survives.** A few slots are judgment *inputs* carried forward
+6. **A residual envelope-literacy set survives.** A few slots are judgment _inputs_ carried forward
    (`config` settings, `releaseRouting` prefix mapping), not agenda-compilable; the spine points at them
    and the schema doc stays out-of-band.
 7. **Probe folding earns its place** (IO's D3.1): without a freshness slot, the agenda regresses to
    emitting raw git `exec` steps for a deterministic check.
 8. **The CLI never injects content.** Every "load" is the agent's Read tool against a compiler-resolved
-   reference + read-mode — the `loadSet` model. What's mechanized is *selection and order*, never
+   reference + read-mode — the `loadSet` model. What's mechanized is _selection and order_, never
    ingestion; no other mechanism exists, and none is needed.
 
 **Spine estimate:** ~120–150 lines (~4–5k tokens): step-type execution semantics, ordering + failure
@@ -351,7 +367,7 @@ spine, its agenda, and only the fragments it actually enters.
   remaining per-step arg schemas (`read` beyond the shipped read-modes, `fragment` args, `render`/`note`
   surfaces) and the `arc agenda` verb spelling (lean recorded in D3; final call at spec).
 - **Fragment granularity + directory layout** — per-arm files vs. anchored sections loaded by range; the
-  concrete `system/workflows/` reshape (candidate layout in D2); hub placement. Fragment *identity* is
+  concrete `system/workflows/` reshape (candidate layout in D2); hub placement. Fragment _identity_ is
   settled by lean (2026-07-02): agenda steps reference fragment ids through the D2 resolver; paths are an
   implementation detail behind it.
 - **Structural budget enforcement** — line cap vs. token-estimate cap; lint-tier vs. advisory; where the
@@ -363,10 +379,10 @@ spine, its agenda, and only the fragments it actually enters.
   together) — the D2 fragment-vs-private-method sharpening narrows what needs naming: procedural
   fragments are private methods; only the referential-slice residue needs a distinct term, if any of it
   survives compilation into `render`/`note` steps.
-- ~~Dangling consumer~~ — *resolved 2026-07-02:* arc-plan-conductor was decomposed and abandoned in favor
+- ~~Dangling consumer~~ — _resolved 2026-07-02:_ arc-plan-conductor was decomposed and abandoned in favor
   of the three structured planning-stage workflows; the loop canon's live consumers are re-derived in
   `draft-loadset-composition.md` § The Loop Canon (Conductor disposition). Its depth-selection idea
-  survives *inside* those stages — still the tier-axis instance of resolve-then-load, now consumed via D1
+  survives _inside_ those stages — still the tier-axis instance of resolve-then-load, now consumed via D1
   rather than a conductor surface.
 
 ## Buffer dispositions (consolidated 2026-07-02)
@@ -395,7 +411,7 @@ this map records that nothing dropped silently:
 - **`adr-020` §9** establishes the resolve-then-load requirement; this WU owns the mechanism. The move out
   of `principle-anchored-core` is cohort mechanics, not thesis divergence — the work still serves "scale
   grammar, never scale discipline."
-- **`draft-scalable-core.md`** — first declared *consumer* of the mechanism (its § Open questions defers the
+- **`draft-scalable-core.md`** — first declared _consumer_ of the mechanism (its § Open questions defers the
   core/extension cut here). Its two named workflow seams arrive as config-static gates: session-init Step 5's
   next-work discovery (unconditional `backlog/ROADMAP.md` read needs the Planning-Module guard) and the
   archive sweep (`archive.preserve`). Both sit squarely under the binding-time rule — config-static, so

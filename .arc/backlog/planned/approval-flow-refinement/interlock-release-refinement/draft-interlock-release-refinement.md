@@ -23,6 +23,19 @@ atomic companion and the personal atomic inbox.
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Fold in the dotfiles safety-gate audit**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: interlock-release-refinement`), housekeep drain
+  (2026-07-03); captured during the dotfiles-ai safety-gate audit.
+- *Concern:* the external safety-gate audit sharpened IRR on four fronts: branch-delete is a high-frequency
+  prompt source but only force-delete shapes still need wrapper coverage; approval provenance cannot be enforced
+  by harness prefix rules and likely needs an interlock-release token; Codex now hard-denies destructive git
+  hidden inside shell wrappers, so workflows should emit direct commands; `gh api` mutations remain outside
+  Codex prompt coverage and should be owned by merge-ceremony wrappers where relevant.
+- *Fold-in:* re-scope branch-delete wrapper work to force-delete-only, evaluate a nonce/token provenance
+  handshake, add a direct-commands-only note for interlock-adjacent workflow prose, and carry the `gh api` gap
+  into merge-ceremony coverage.
+
 ### `[ ]` **Teach `arc release` to accept no-active-WU ceremony commits/pushes (archival + errands)**
 
 - *Routed from:* `USER-INBOX § Atomic`, work-routing-discipline housekeep drain (2026-06-01); errand instance

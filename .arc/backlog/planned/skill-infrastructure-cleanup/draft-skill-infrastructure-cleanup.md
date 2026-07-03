@@ -13,6 +13,16 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Codify the skill-door model**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: skill-infrastructure-cleanup`), housekeep drain
+  (2026-07-03); captured during `adversarial-review` planning.
+- _Concern:_ ARC skills are doors. Their bodies legitimately carry exactly the door-work: trigger/awareness, the
+  interface contract, and any entry triage/dispatch judgment. Thin dispatchers are correct where triage is
+  trivial; `arc-commit` is the non-trivial triage instance, not a universal shape to grow every skill toward.
+- _Fold-in:_ define a body-content test ("is this door-work?") in the skill authoring cleanup, then sweep
+  existing skills for duplicated procedure or missing triage.
+
 ### `[ ]` **Type `--plan` grooming branches so bare-landing resume routes them as grooming, not errands**
 
 - _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD` → routed here at drain), housekeep drain
@@ -28,6 +38,10 @@
 - _Home note:_ routed here for the interrupted-session-detection theme (the symptom is session-init
   resume-detection misrouting). `operational-state-docs` (owns the record substrate the fix types) is the
   alternative home.
+- _Reframe (2026-07-03 housekeep):_ the branch-containment reap capture adds fresh evidence from hand-rolled
+  `--plan` branches: a future mint primitive (for example `arc plan open <slug>`) should mint a typed record and
+  accept a target set, so a bare landing routes as grooming and not as an errand. Coordinate the target-set shape
+  with `planning-iteration-mechanics`.
 
 ### `[ ]` **Rewrite SKILL.md descriptions in directive firing-condition form**
 

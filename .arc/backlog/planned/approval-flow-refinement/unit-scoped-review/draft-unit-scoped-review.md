@@ -30,6 +30,16 @@ increment = whole WU," the limit of that axis) rather than minting a canonical-b
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Consume the delegation-relaxation socket from `adversarial-review`**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: unit-scoped-review`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` planning.
+- *Concern:* `adversarial-review` sharpens DEV-RULES § Sub-agent scope by function: derivation delegable,
+  execution held by the primary unless an explicit user-approved relaxation applies, judgment never delegated.
+  This WU's orchestration mode is the intended consumer of that execution-relaxation socket.
+- *Fold-in:* coordinate final wording at activation so USR plugs into the constitutional rule rather than
+  restating or weakening it. Keep the ADR-002 / P5 review-frequency reckoning here as USR's own deliverable.
+
 ### `[ ]` **`execution-delegation-doctrine` extracted upstream — re-scope reckoning + carve-out; grow pre-flight**
 
 - *Routed from:* `--plan` grooming session (2026-07-02) that minted `execution-delegation-doctrine`

@@ -19,6 +19,27 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Co-design the generate-tasks boundary with `adversarial-review`**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
+  (2026-07-03); captured during `adversarial-review` planning.
+- _Concern:_ `adversarial-review` wires an adversarial `task-audit` pass at generate-tasks finalization, while
+  this WU owns the adjacent question of whether generate-tasks needs an entry/spec-readiness gate. These are
+  adjacent decisions at the same stage boundary, not one duplicated question.
+- _Fold-in:_ co-design entry gate vs finalization pass vs both. Keep the leaf-magnitude detector's landing spot
+  this WU's call, with the adversarial task-generation rubric as a second consumer.
+
+### `[ ]` **Codify planning closeout and keep task lists implementation-only**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: planning-iteration-mechanics`), housekeep drain
+  (2026-07-03); captured during `adversarial-review` task generation.
+- _Concern:_ coordination-seam routing is planning-stage work whose evidence lives in the planning record and
+  gitignored captures, not in the implementation task list. Success criteria should be tracked at the earliest
+  boundary whose validator can see the evidence.
+- _Fold-in:_ add a planning-closeout gate at the generate-tasks finalization boundary that verifies coordination
+  seams/captures are routed. Derive the task-list-formatting rule that task-list success criteria stay
+  implementation-verifiable.
+
 ### `[ ]` **`assess-spec-readiness` — codify the spec-readiness check + open-questions discipline (draft/spec asymmetry)**
 
 - _Routed from:_ `USER-INBOX § Backlog` (`WU_Target: planning-iteration-mechanics`), housekeep drain (2026-06-19);
@@ -97,6 +118,11 @@
   `chore/groom-<cohort>` off base, scoped to the cohort doc + named members, landing one backlog PR owned by no
   member's WU branch. Lift the cohort-doc backfill out of `decompose-work-unit` as a shared ceremony; define the
   ownership boundary with decompose (which owns the branch pattern + mint); reuse the cohort-consistency guard.
+- _Reframe (2026-07-03 housekeep):_ branch-containment/grooming teardown friction sharpened this from
+  cohort-only to a more general **planning-grooming entry**: one committable branch may need to cover an arbitrary
+  set of stubs/cohort docs, not just one cohort. Coordinate with `skill-infrastructure-cleanup`'s typed
+  grooming-branch record item; the future mint primitive should identify the grooming target set and avoid bare
+  `chore/` branches being misread as errands.
 - _Forward-compat:_ the shared-ceremony lift should compose with `composable-workflows`' conditional-fragment
   composition (the same substrate the adjacent `--plan` gate-suppression entry routes to) — treat the
   cohort-doc-author fragment as a candidate early consumer.

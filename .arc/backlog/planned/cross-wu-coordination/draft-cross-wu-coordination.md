@@ -72,28 +72,14 @@ shared-contract-no-single-member-owns is what justifies a cohort doc over a sing
 rename/broaden `cross-wu-forward-compat` in place: forward-compat is one *mode* of cross-WU awareness, not the
 whole — the name would lie once the cohort-specific half is folded in.)
 
-## Cheap-first slice — surface + prescribe the shipped slug→state resolver
+## Cheap-first slice — shipped: surface + prescribe the slug→state resolver
 
-A narrow, shippable-ahead-of-the-cohort slice (retires the standing WORKING-MEMORY dep-edge-state-blindness note's
-manual `completed/`-check crutch in favor of the shipped verb):
+`lifecycle-closeout` shipped the cheap-first slice: `arc status <slug>` appears in QUICK-REFERENCE § ARC CLI
+Commands and DEV-RULES.ARC § Verify before assuming now tells agents to resolve a WU's lifecycle state by slug
+rather than infer from directory, branch, or state-blind `Depends On` prose. This draft's coordination design can
+lean on the shipped resolver directly.
 
-- **What shipped:** `lifecycle-state-resolver` shipped `arc status <slug>` — returns the lifecycle `state` enum
-  (incl. `shipped`), plus `occupied` / `shipped` / `dependsOn` edge-states (JSON-able). But **nothing in ARC tells
-  an agent it exists or when to use it** — absent from QUICK-REFERENCE entirely (grep-confirmed 2026-06-19), and no
-  planning workflow/method prescribes resolving a referenced WU's state. So agents still reason about referenced
-  WUs from state-blind prose/edges. Hit live: errand-lattice create-spec assumed `lifecycle-transition-core`'s
-  crossing-edge firing points were a clean downstream Non-Goal when it had **shipped** — the edges actually needed
-  updating, caught only on review.
-- **Scope:** (a) document `arc status <slug>` in QUICK-REFERENCE § ARC CLI Commands; (b) prescribe it at planning
-  grounds-reads — when reasoning about a referenced WU's state (`Depends On`, a draft's "X is downstream/pending",
-  a cross-ref), resolve via `arc status <slug>` rather than trusting the state-blind edge/prose. The
-  high-salience-but-non-redundant placement (QUICK-REF + DEV-RULES § Verify-before-assuming, a planning method, or
-  each planning workflow) is the judgment call.
-- **Why it can ship first:** it is the discoverability + interim-prescription slice none of the structural WUs
-  explicitly own — the resolver itself shipped; OSD owns the *structural* dep-edge lifecycle resolution; this WU
-  owns the read/write-back/verify backstop. This slice is the cheap interim that leans on what already shipped.
-- **Could it be its own small stub instead?** Yes — it's self-contained. Folded here because it is the same
-  relatedness-at-planning spine; split it back out if this WU's scope tightens.
+The remaining cross-WU-coordination work is the broader read/write-back/verify backstop, not command surfacing.
 
 ## Boundaries (related stubs — don't merge)
 

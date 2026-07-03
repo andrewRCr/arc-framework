@@ -5,6 +5,15 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Consume `adversarial-review`'s fresh-subagent primitive**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: review-method-family`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` task generation.
+- _Concern:_ `adversarial-review` now owns the fresh-subagent adversarial-review mechanism and the `design-audit`
+  method. This WU should consume that primitive for its review-direction reshape rather than reinvent it.
+- _Fold-in:_ wire RMF's self / peer / response review directions onto the shipped invocation contract, and drop
+  the old `design-audit` / `arc-design-audit` buffer item as departed.
+
 ### `[ ]` **PR body orientation should surface non-internal `Origin`**
 
 - _Routed from:_ `USER-INBOX § Backlog`, housekeep drain (2026-06-06); captured during

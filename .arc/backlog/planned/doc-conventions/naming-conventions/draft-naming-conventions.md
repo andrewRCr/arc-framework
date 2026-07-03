@@ -21,6 +21,28 @@ collapse, `STATUS` / `MEMORY` / `NOTES` families). The work is naming + cascade;
 > *Routed-in concerns pending holistic integration into the body at this WU's next planning iteration*
 > *(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration.*
 
+### `[ ]` **Name extensions by fire-point, not intended action**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` planning.
+- *Concern:* extensions are hook points whose `.actions` payload is project-configured, so names should describe
+  the fire point rather than an intended action. `pre-spec-finalization-review` and the broader `*-review`
+  family bake "review" into the seam; point-named extensions such as `post-context-load` and `pre-activation`
+  are the better precedent.
+- *Fold-in:* codify "extensions are named by hook point" as a naming standard before any rename cascade. Treat
+  renames as breaking migrations because names appear in workflow fire-point markers, point-scanner validation,
+  and project-configured extension files.
+
+### `[ ]` **Codify the semantic-hygiene verb standard**
+
+- *Routed from:* `USER-INBOX § Work Unit` (`WU_Target: naming-conventions`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` task generation.
+- *Concern:* `adversarial-review` forced a latent verb taxonomy open: `audit` = grounded validation against an
+  external referent; `review` = internal artifact/diff quality; `assess` = readiness or fit; `verify` = confirm
+  against an expected result; `check` = cheap precondition guard.
+- *Fold-in:* codify the standard here. Renames that fail it should route as judged follow-through, not a mass
+  sweep in the originating WU.
+
 ### `[ ]` **Broaden scope to prose/vocabulary conventions (general naming-conventions WU)**
 
 - *Routed from:* decided at the work-routing-discipline housekeep drain (2026-06-01).

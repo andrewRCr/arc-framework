@@ -13,6 +13,19 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Shared inbox staleness nudge supersedes the "nudge-free" assumption**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: operational-state-docs`), housekeep drain
+  (2026-07-03); captured during `shared-inbox-model` grooming (2026-07-02).
+- _Concern:_ this draft's inbound `_Awaiting:_` evaluation-model note describes the shared inbox as
+  sweep-based and nudge-free. `shared-inbox-model` has since settled the opposite: the project inbox gets a
+  session-init staleness probe plus once-per-calendar-day nudge (count + oldest age), with `_Awaiting:_`
+  entries suppressing the age nudge.
+- _Fold-in:_ amend the evaluation-model sentence at OSD's next planning iteration: shared inbox records are
+  sweep-based **and age-nudged**, with `_Awaiting:_` as the nudge suppressor. Also carry forward the
+  concurrency shape from `draft-arc-backend.md` / `draft-shared-inbox-model.md`: shared-mutable inbox records
+  are entry-granular (slug-keyed add / remove / re-home), never whole-document state.
+
 ### `[ ]` **Compaction seed as a read-only projection over managed records (sibling to `STATUS.*`)**
 
 - _Routed from:_ `compaction-recovery` draft-design (2026-06-28).
