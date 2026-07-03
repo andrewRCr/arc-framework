@@ -16,6 +16,17 @@
 > _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
 > _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
 
+### `[ ]` **Coordinate adversarial verify cardinality and partition criteria**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: pr-decomposition`), housekeep drain (2026-07-03);
+  captured during `adversarial-review` create-spec.
+- _Concern:_ `adversarial-review` wires an adversarial pass at `verify-work-unit`; this WU owns whether that
+  verify runs once at the terminal deliverable or per deliverable in a multi-PR WU. It also owns the distinction
+  between WU/cohort orthogonality and PR-stack bisectability: the same seam can be "do not cut here" for PRs but
+  "cover carefully" for review.
+- _Fold-in:_ decide terminal-vs-per-deliverable adversarial verify and integrate the
+  orthogonality-vs-bisectability distinction into this WU's partition/coherency pass.
+
 ### `[ ]` **Add `assess-cohort-fit.md` to the multi-PR coherency-pass touchpoint list**
 
 - _Routed from:_ `single-owner-wu-model` Task 3.2 (Phase 3 PR-cardinality de-weld), via USER-INBOX drain

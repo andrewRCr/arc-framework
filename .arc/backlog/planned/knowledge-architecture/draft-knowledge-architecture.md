@@ -13,19 +13,34 @@
 
 ---
 
+## Inbound Buffer — Pending Integration
+
+> _Routed-in concerns pending holistic integration into the body at this WU's next planning iteration_
+> _(`drain-inbox § 5`); each carries its origin. Integrate — or consciously reject — at iteration._
+
+### `[ ]` **Document the final guidance-surface model authoritatively**
+
+- _Routed from:_ `USER-INBOX § Work Unit` (`WU_Target: TBD`), housekeep drain (2026-07-03); original capture was
+  the stale "codify ARC's surface architecture" entry from `adversarial-review` planning.
+- _Disposition:_ preserve the intent, not the stale detail. The old capture's proposed surface taxonomy and
+  relationship rules predate this draft's knowledge-architecture model and should not be imported wholesale.
+- _Intent to retain:_ when this WU builds and migrates ARC to the new model, make sure the model's shape is
+  documented in an authoritative home so future framework work does not re-derive where guidance surfaces belong,
+  how they are named, and how agents become aware of them.
+
 ## Problem / Motivation
 
-ARC's *procedural* content (workflows, methods, extensions) has a heavily developed — partly still
+ARC's _procedural_ content (workflows, methods, extensions) has a heavily developed — partly still
 pending — architecture: deterministic loading (`loadSet` manifest), fragment composition
 (`composable-workflows`), instruction-budget discipline (`instruction-optimization`), and a principled
-always-loaded boundary (`loadset-composition`). The *non-procedural* knowledge layer grew by accretion
+always-loaded boundary (`loadset-composition`). The _non-procedural_ knowledge layer grew by accretion
 and has had no equivalent pass. Four axes of concern:
 
-1. **Taxonomy & semantic boundaries.** What each artifact type is *for* is under-specified, so content
+1. **Taxonomy & semantic boundaries.** What each artifact type is _for_ is under-specified, so content
    placement is judgment-call-heavy and boundaries blur. Strategies are the sharpest case: "authoritative,
    canonical deep-dive on a domain" in intent, loose buckets in practice — the holding pen for anything
    on-demand-worthy that doesn't earn an always-loaded slot.
-2. **Layer justification.** Strategies function as an internal docs layer *between* always-loaded session
+2. **Layer justification.** Strategies function as an internal docs layer _between_ always-loaded session
    context and any actual docs layer (external site, organizational wiki). Does that layer deserve to
    exist as a first-class concept — or only as an optional tier for teams without a docs site? The
    settled line ("rationale goes to the docs site; strategies carry operational context, easier frontline
@@ -38,14 +53,14 @@ and has had no equivalent pass. Four axes of concern:
 4. **Awareness & access.** How does an agent learn that not-always-loaded content exists and load it at
    the right moment? Today: an index with implicit awareness (`STRATEGY-INDEX`, the 60–75% recognition
    tier), a partial always-load (QUICK-REFERENCE's env section), scattered "consult X" pointers, and
-   intent without mechanism — on-demand briefs and domain rules are *designed for* but have no loading
+   intent without mechanism — on-demand briefs and domain rules are _designed for_ but have no loading
    machinery, and the task-list `Additional context:` field could feed one but nothing tells the writing
    agent to populate it. The every-session vs on-demand boundary is ad hoc where it should be a decision
    rule.
 
 The prize: a unified progressive-disclosure model for non-procedural content that is mechanical, testable,
-and DRY — to whatever degree the procedural side's determinism transfers to content that is *consulted*
-rather than *executed*.
+and DRY — to whatever degree the procedural side's determinism transfers to content that is _consulted_
+rather than _executed_.
 
 ## Surface inventory (the audit object)
 
@@ -57,7 +72,7 @@ Non-procedural, agent-facing, in-repo:
   allows additional on-demand briefs (no mechanism yet)
 - `system/rules/` — `DEV-RULES.ARC`, `DEV-RULES.PROJECT`, plus the designed `DEV-RULES.{DOMAIN}` /
   `DOMAIN-RULES.*` class (`rules-restructure`)
-- `reference/QUICK-REFERENCE.md` — really *command lookup*: ensure the agent knows authoritative command
+- `reference/QUICK-REFERENCE.md` — really _command lookup_: ensure the agent knows authoritative command
   reference exists and loads sections on demand; the always-loaded env slice is already half-demoted
 - `reference/PROJECT-PRD.md`, `reference/TECHNICAL-OVERVIEW.md`
 - Excluded: `adr/` and `supplemental/` (own methodologies), `templates/` (authoring inputs), procedural
@@ -70,16 +85,16 @@ Non-procedural, agent-facing, in-repo:
 
 - **The determinism chain** (`agent-context-optimization` cohort thesis): if the CLI can compute it, the
   CLI computes it; if computed, no document restates it; if conditional, it doesn't load until its
-  condition is true. The knowledge-layer analogue must handle a "condition" that is *relevance to the
-  work in hand*, not always a probe-computable state.
+  condition is true. The knowledge-layer analogue must handle a "condition" that is _relevance to the
+  work in hand_, not always a probe-computable state.
 - **Recognition-reliability spectrum** (`loadset-composition`): always-present ~100% / explicit trigger
   85–95% / indexed-implicit awareness 60–75% / search 20–40%. `STRATEGY-INDEX` sits squarely in the
   weakest deliberate tier; any redesign moves access toward explicit triggers.
 - **Resolve-then-load / manifest** (`composable-workflows`, `loadSet`): the load set as a testable
   projection rather than prose enumeration — a knowledge-layer equivalent makes "what loads when" a
   parity-tested artifact instead of scattered instructions.
-- **Fix-shape precedent** (`documentation-surface-routing`): root cause split as *content failure* (rules
-  scattered, no canonical home) + *mechanism failure* (guidance not salient at the moment of use); fix
+- **Fix-shape precedent** (`documentation-surface-routing`): root cause split as _content failure_ (rules
+  scattered, no canonical home) + _mechanism failure_ (guidance not salient at the moment of use); fix
   both or drift continues. The same diagnosis applies to strategy consultation.
 
 ### External idiom pool (adopt / adapt / inform)
@@ -94,7 +109,7 @@ shipped/planned machinery; these external idioms inform, and are adopted or adap
   manual); practitioner consensus that deterministic attachment outperforms description-requested supports
   mechanical-where-structural.
 - **Agent skills (Claude Code)** — three-level progressive disclosure. The load-bearing insight: descriptions
-  are authored as *firing conditions* and are *persistently re-presented* by the harness each turn. ARC is
+  are authored as _firing conditions_ and are _persistently re-presented_ by the harness each turn. ARC is
   harness-agnostic and cannot assume persistent re-presentation — its analogue must be fire-site
   re-presentation (workflow steps, CLI-emitted manifests/agendas). Adapt, not adopt.
 - **llms.txt / OKF** — index-as-spec-shaped-artifact; path-is-ID + type-in-frontmatter (the latter now forced
@@ -107,16 +122,16 @@ Two axes place every non-procedural artifact; the two on-demand tiers coexist by
 - **Miss-cost.** What does a session lose if this content fails to load at its moment? High miss-cost —
   constraints, safety, non-negotiables — earns `always` or a hard trigger, never the indexed tier. (Extends
   `loadset-composition`'s "never demote a constraint"; LC's demotion rule is adopted as the load-side half
-  of the every-session/on-demand boundary, and this model authors the content-side half — what *kind* of
+  of the every-session/on-demand boundary, and this model authors the content-side half — what _kind_ of
   content belongs at which tier — superseding the ad-hoc line.)
-- **Trigger-knowability.** Is the moment of relevance *structural* — identifiable at authoring time by a
-  computable condition (operation, lifecycle stage, path/domain match, config state) — or *emergent* —
+- **Trigger-knowability.** Is the moment of relevance _structural_ — identifiable at authoring time by a
+  computable condition (operation, lifecycle stage, path/domain match, config state) — or _emergent_ —
   arising from the content of the work in ways no pre-computed condition captures?
     - Structural → **hard trigger**, mechanically evaluated (probe/manifest) — parity with the procedural side.
-    - Emergent → **indexed**, where the index entry is authored as a *firing condition* ("when X, load Y"),
+    - Emergent → **indexed**, where the index entry is authored as a _firing condition_ ("when X, load Y"),
       never a title or summary. So understood, the indexed tier is not implicit awareness — it is an explicit
       trigger relocated into context with the body left on disk. Its reliability is a function of
-      firing-condition authoring discipline plus the condition's *persistence* in context; both are designable
+      firing-condition authoring discipline plus the condition's _persistence_ in context; both are designable
       (tiny index, fire-site re-presentation) and lintable (`knowledge-lint`).
 
 Mismatches are the failure modes: hard triggers on emergent-relevance content go brittle (glob/condition
@@ -131,7 +146,7 @@ mid-session), and no mechanical standing or testability.
   directive phrasing ("ALWAYS invoke when {triggers}; do not {default action} directly") reached ~100%
   (20.6× odds ratio — single 650-trial practitioner study, directional not load-bearing, but
   cross-validated by Cursor-ecosystem experience where description-requested rules are the tier that
-  silently never fires). Firing conditions name the trigger *and* the default behavior to suppress.
+  silently never fires). Firing conditions name the trigger _and_ the default behavior to suppress.
 - **Index-awareness is strictly weaker than fire-site re-presentation.** llms.txt is the cautionary tale:
   a passively-available index shows near-zero measured effect even on crawlers. An index earns
   reliability only when something actively surfaces its entries into the live instruction stream (a
@@ -140,13 +155,13 @@ mid-session), and no mechanical standing or testability.
 - **ARC already ships the validated pattern — generalize it, don't invent beside it.** The procedural side
   runs a three-tier hybrid today: rules (always) / **methods (deterministic fire-site attachment via
   workflow-frontmatter declarations)** / skills (semantic firing, harness-native, Claude-Code-only). The
-  methods mechanism sidesteps the entire semantic-firing failure catalog because the workflow step *is*
+  methods mechanism sidesteps the entire semantic-firing failure catalog because the workflow step _is_
   the trigger, restated in its own text — simultaneously the lost-in-the-middle mitigation. The knowledge
   layer's hard-trigger leg is a generalized `arc.methods`-style declaration, not new machinery.
 - **Lean-always pressure is now quantified.** Instruction-following peaks around 150–200 simultaneous
   instructions and degrades toward ~68% at 500 (IFScale), with measurable early-position bias — numeric
   backing for the instruction-budget thesis and for a minimal `always` tier.
-- Evidence honesty: no published study cleanly quantifies recall *by loading tier*; the tier percentages
+- Evidence honesty: no published study cleanly quantifies recall _by loading tier_; the tier percentages
   in `research-instruction-reliability.md` remain experience-calibrated, backed by adjacent
   (instruction-count and position) findings.
 
@@ -159,7 +174,7 @@ reference graph (references to each strategy from `system/**`). Four findings:
    strategies are 65–80% operational reference with clear structural consumption moments
    (`adr-methodology`, `file-classification`, `quality-gates`, `task-list-formatting`,
    `workflow-authoring`, `configurability-architecture`, `planning-module`; `package-project-sync` on the
-   project side). For these, hard-trigger formalization is *mechanization of existing practice*, not
+   project side). For these, hard-trigger formalization is _mechanization of existing practice_, not
    redesign. The reference graph corroborates: consultation is already fire-site-shaped at the head
    (`work-organization` 43 procedural references, `task-list-formatting` 12, `session-operations` 9) with
    a long tail at ≤1 reference.
@@ -167,7 +182,7 @@ reference graph (references to each strategy from `system/**`). Four findings:
    checkpoints), `interlock-release-wrappers` (~55%, self-described architectural reference),
    `storage-evolution` (~40%, self-labeled direction doc), `testing-methodology` (~45%). The Diátaxis
    reference-vs-explanation violation is concentrated here — **except** `testing-methodology`, which is
-   *deliberately* the rationale layer over its two operational methods (`test-first`,
+   _deliberately_ the rationale layer over its two operational methods (`test-first`,
    `testing-standards`): not a violation but the validated two-layer pattern, and the template for how
    kind-C content (below) coexists with operational methods.
 3. **Buried constraints are the sharpest defect.** Hard invariants sit mid-document in on-demand files:
@@ -195,15 +210,15 @@ reference graph (references to each strategy from `system/**`). Four findings:
   the generalized methods mechanism). The bulk of the corpus by volume.
 - **(B) Hard constraints** → `always` tier or gate-site placement; never mid-document on-demand. Small
   volume, highest miss-cost.
-- **(C) Explanation / rationale / direction** → the one kind whose *location* is legitimately variable:
+- **(C) Explanation / rationale / direction** → the one kind whose _location_ is legitimately variable:
   docs site when one exists and is maintained, an explicitly-labeled in-repo explanation surface when
   not. The architecture is identical either way; only the storage differs — this dissolves the
   "strategies layer: mandatory or optional?" question (the layer isn't optional; its location is).
 - **(D) Emergent-relevance doctrine** → directive firing-condition index.
 
-Under this verdict the strategies layer as a *category* dissolves into per-fragment awareness contracts;
+Under this verdict the strategies layer as a _category_ dissolves into per-fragment awareness contracts;
 the "strategies vs docs site" line stops being fiat ("rationale there, operational here") and becomes the
-reference-vs-explanation cut enforced by miss-cost × trigger-knowability. Whether the *name* "strategy"
+reference-vs-explanation cut enforced by miss-cost × trigger-knowability. Whether the _name_ "strategy"
 survives — and for which kind — is a naming decision (§ Naming), coordinated with `naming-conventions`.
 The on-demand extensions both settled families were designed for (additional briefs, domain rules) become
 instances of the same general mechanism, not per-family solutions.
@@ -214,18 +229,18 @@ instances of the same general mechanism, not per-family solutions.
 
 A unified fire-site declaration invites the question: what belongs in a knowledge unit vs a method vs the
 workflow body/fragments themselves? The cut, aligned with `composable-workflows`' OO-flavored direction —
-two orthogonal axes, with overridability reclassified as a capability flag (methods *can* be virtual;
+two orthogonal axes, with overridability reclassified as a capability flag (methods _can_ be virtual;
 that is not what makes them methods):
 
-- **Kind axis** — *procedure* (imperative: executed or applied) vs *knowledge* (declarative: consulted to
+- **Kind axis** — _procedure_ (imperative: executed or applied) vs _knowledge_ (declarative: consulted to
   inform judgment).
-- **Visibility / fan-in axis** — *private* (single consumer; lives inline in its owner) vs *public*
+- **Visibility / fan-in axis** — _private_ (single consumer; lives inline in its owner) vs _public_
   (multiple consumers; extracted into a contract-shaped unit, declared at fire sites).
 
 The mapping: **methods** = public procedure (multiple callers; virtual when marked); **workflow
 fragments** = private procedure ("private methods" of their owning workflow); **knowledge units** =
 public knowledge (extracted, declared); a workflow's own inline reference material = private knowledge
-(stays in the body). The analogy extends cleanly precisely because workflow fragments *are* procedure.
+(stays in the body). The analogy extends cleanly precisely because workflow fragments _are_ procedure.
 
 **Extraction rule (answers "what goes in the base vs a unit"):** extraction is forced by fan-in (a second
 consumer) or by an orthogonal surface need (projection/audience, lint target) — never by content-kind
@@ -238,8 +253,8 @@ dependencies in its own frontmatter; a workflow never re-declares what its decla
 Loading resolves the transitive closure, deduped (a unit shared by two declared methods loads once).
 The closure is CLI-computable — deterministic, manifest-emittable, parity-testable — and extends the
 existing author-side declaration rule (`strategy-workflow-authoring`) unchanged in spirit. Analogy note:
-the *mechanics* are a module/import graph (declare at point of use, resolve transitively) more than OO;
-the *rationale* is OO encapsulation — a caller depends on the method's contract, never its
+the _mechanics_ are a module/import graph (declare at point of use, resolve transitively) more than OO;
+the _rationale_ is OO encapsulation — a caller depends on the method's contract, never its
 implementation, and the method's knowledge deps are implementation.
 
 Schema-time questions: closure-depth policy (may knowledge declare knowledge? lean — cross-references
@@ -263,7 +278,7 @@ fire: >-                             # indexed tier: the directive firing condit
 audience: team | agent               # projection tag (single-source projection direction)
 ```
 
-Consumer side: workflows *and methods* declare their own units (key name pending § Naming); the CLI
+Consumer side: workflows _and methods_ declare their own units (key name pending § Naming); the CLI
 resolves the deduped transitive closure and emits it in the manifest; indexed units' `fire` lines
 compose the generated index surface (the `STRATEGY-INDEX` successor). Lintable (`knowledge-lint` seam):
 schema validity, directive-form `fire` lines, orphaned units (no consumer and no index presence),
@@ -294,7 +309,7 @@ Two supporting results from the pressure test:
   presence for safety, that's the miss-cost axis saying it isn't a unit at all.
 - Genuine kind-A units are tier-stable once triggers anchor to **operations, not workflows**: the render
   standard fires on "rendering ROADMAP" wherever that occurs (any ceremony, or ad-hoc); the errand
-  decision matrix fires on "routing discovered work." Workflows are *sites where operations occur* —
+  decision matrix fires on "routing discovered work." Workflows are _sites where operations occur_ —
   operation-anchored conditions cover ad-hoc invocation for free.
 
 ### Command reference — index-native knowledge
@@ -304,9 +319,9 @@ always-loaded is unjustified when no command fires that session; on-demand risks
 awareness failure (an agent burning enormous manual effort on what one known command resolves, e.g.
 MD060 table alignment vs `markdown-table-formatter`). The model dissolves it via a property unique to
 this content kind: **the awareness/body split is extreme, and awareness ≈ payload.** "Symptom/operation
-→ command" fits in a fire line; for many commands the fire line *is* the full useful content. Command
+→ command" fits in a fire line; for many commands the fire line _is_ the full useful content. Command
 reference is **index-native knowledge**: not a document needing a tier, but a collection of
-fire-line-sized **capability cards**, grouped into card *sets* (quality-gate set, formatting set, ARC
+fire-line-sized **capability cards**, grouped into card _sets_ (quality-gate set, formatting set, ARC
 CLI set), most of them project-owned content in framework-shaped slots.
 
 Layered awareness model (most→least deterministic):
@@ -326,7 +341,7 @@ Layered awareness model (most→least deterministic):
    adapt-not-adopt posture as skills).
 
 **Blur-case evidence banked:** `quality-gate-commands` is a "method" with no contract (no given-X-
-resolve-Y) — an info fetch, i.e. *knowledge in method clothing*, exactly the corpus-validation
+resolve-Y) — an info fetch, i.e. _knowledge in method clothing_, exactly the corpus-validation
 direction-2 case the two-axis cut predicted. What it borrows from methodhood is the override mechanic,
 which under this model dissolves into **project ownership of card content** (the framework ships the
 slot, the project fills it — Configurable-class, like `DEV-RULES.PROJECT`, which already duplicates the
@@ -339,7 +354,7 @@ slice remains `loadset-composition`'s T1 call (coordinate).
 Operational reference must be lean and composable at consumption time — never "load the whole domain doc
 for one relevant section" — but knowledge content, even more than procedural, must stay coherently
 human-readable; blind sharding into agent-sized chunks fails the human half of the audience. Treat
-fragmenting as an *addressing* concern, not necessarily a *storage* concern. Two realization shapes,
+fragmenting as an _addressing_ concern, not necessarily a _storage_ concern. Two realization shapes,
 likely mixed per artifact, designed jointly with `composable-workflows` (which faces the same tension
 procedurally):
 
@@ -354,7 +369,7 @@ procedurally):
 Kind C (explanation) points at a larger possibility: knowledge authored once and **projected** to both
 the in-repo agent-native surface and the external human-facing docs layer — drift impossible by
 construction. Under that model the in-repo layer's pitch sharpens from a redundancy apology to a feature:
-agent-native, no MCP or network required, and *composed* rather than duplicated. Audience keeps it
+agent-native, no MCP or network required, and _composed_ rather than duplicated. Audience keeps it
 honest:
 
 - **Composes:** team-facing methodology/domain knowledge — ARC's own docs site for adopters, an org's
@@ -366,31 +381,31 @@ Forward-compat: convergent with — not additional to — ARC's standing directi
 record/projection, `arc-backend`'s record→markdown materialization model, `strategy-storage-evolution`'s
 tracked-vs-materialized line (the knowledge source need not live in the code repo), and
 `idiomatic-alignment`'s OKF projection-readiness thread. **Scope guard:** this WU designs the knowledge
-model to be projection-*compatible* (source-of-truth shape, fragment addressing, audience tags); building
+model to be projection-_compatible_ (source-of-truth shape, fragment addressing, audience tags); building
 the projection pipeline is `arc-backend` / docs-tooling territory, not here.
 
 ## Naming (candidates + leans; final call with `naming-conventions`)
 
 **Anti-conflation principle — two naming slots, solved separately.** The primitive's name must not encode
 structural position: `reference/` is a directory (where some units happen to live), not the primitive.
-The *kind vocabulary* (Diátaxis terms, descriptive — kind A stays "reference-kind content" regardless of
-key) and the *primitive/declaration key* (`arc.<X>:`, structural) are separate decisions.
+The _kind vocabulary_ (Diátaxis terms, descriptive — kind A stays "reference-kind content" regardless of
+key) and the _primitive/declaration key_ (`arc.<X>:`, structural) are separate decisions.
 
 The extracted public-knowledge unit needs a family name — "strategy" doesn't survive the verdict as that
 name (it conflated four kinds). Candidates, with leans:
 
-- **`reference`** (`arc.reference:`) — *kind-slot lean.* Names what the content is (Diátaxis: reference)
-  and is human-legible without OO literacy; weakened as the *primitive* name by the anti-conflation
+- **`reference`** (`arc.reference:`) — _kind-slot lean._ Names what the content is (Diátaxis: reference)
+  and is human-legible without OO literacy; weakened as the _primitive_ name by the anti-conflation
   principle (collides with the `reference/` directory's structural position). Costs: generic; mild prose
   overload with git refs.
-- **`data`** (`arc.data:`) — *strong candidate for the declaration key.* The canonical OO bundle is
-  literally "data + methods" — a more fundamental symmetry than `statics`, without the static-*methods*
+- **`data`** (`arc.data:`) — _strong candidate for the declaration key._ The canonical OO bundle is
+  literally "data + methods" — a more fundamental symmetry than `statics`, without the static-_methods_
   flaw. Costs: modern usage connotes structured/machine data, so prose doctrine as "data" reads oddly at
   first; very generic for grep/prose.
 - **`statics`** (`arc.statics:`) — declaration-surface runner-up, from the static-readonly-data
   intuition; `arc.methods` / `arc.statics` reads as a natural pair, which is its real strength. Costs:
   in web tooling "statics" means static assets; and in OO, `static` modifies procedures too (static
-  *methods*), so the noun alone doesn't say *data* — the contrast carries the meaning only next to
+  _methods_), so the noun alone doesn't say _data_ — the contrast carries the meaning only next to
   `arc.methods`.
 - **`canon`** (`arc.canon:`) — distinctive, collision-free, echoes the original "authoritative,
   canonical deep-dive" strategy intent. Cost: slightly precious; unfamiliar as an artifact-family noun.
@@ -399,7 +414,7 @@ name (it conflated four kinds). Candidates, with leans:
   Costs: HTML/XML-attribute and frontmatter-key collisions in a markdown-heavy system. (`fields` and
   `properties` share the symmetry but collide worse: meta-file fields; properties/config files.)
 
-Kind-C (explanation) content is deliberately *not* this family — it is the projected/relocatable layer
+Kind-C (explanation) content is deliberately _not_ this family — it is the projected/relocatable layer
 and may carry a separate name (Diátaxis "explanation", or plain docs vocabulary). Final naming
 coordinates with `naming-conventions` (`TYPE.QUALIFIER`, prefix scheme) and the forced
 frontmatter-`type` layer.
@@ -444,12 +459,12 @@ awareness/access model. Splits are agreed at each sibling's planning touchpoint,
   semantic sweep proceed freely; its orphan family defers to — or, if this WU's schema settles first,
   adopts — the structural orphan definition (§ Access paths are derived), and its `arc lint` registry
   receives this WU's families through the family-registration seam.
-- `skill-infrastructure-cleanup` — ARC's skills are the live *semantic-firing* tier (harness-native,
+- `skill-infrastructure-cleanup` — ARC's skills are the live _semantic-firing_ tier (harness-native,
   Claude-Code-only today); their descriptions belong to the same firing-condition authoring discipline as
   the knowledge index, even though skill bodies are procedural. Actionable insight routed there
   (2026-07-03, landed in `draft-skill-infrastructure-cleanup.md`): current `SKILL.md` descriptions are
   passive/summary-style — the weakest firing style per the research; rewrite in directive
-  firing-condition form. Seam lean: this WU owns the cross-family description-authoring *standard*; SIC
+  firing-condition form. Seam lean: this WU owns the cross-family description-authoring _standard_; SIC
   owns the skill-file mechanics and the rewrite pass.
 - `docs-site-refresh` / `docs-content-sweep` — the external docs layer whose existence drives the
   layer-justification question; the kind-C location call is settled jointly (ARC's own site is stale,
