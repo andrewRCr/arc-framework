@@ -28,7 +28,8 @@ start.
 ## Planning-entry gate
 
 **Grooming-entry skip.** A `--plan <stub>` grooming session enters already on a committable grooming branch —
-skip this gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
+under full protection, session-init's signal-leaf relocate uses `chore/groom-<slug>` cut from the base. Skip this
+gate and continue to **Resolve depth & Class**. The gate still runs on every other entry.
 
 Before drafting, run the mechanical preflight — it resolves whether a draft can be committed from the current
 context and routes so a draft never lands where it can't be committed:
@@ -203,6 +204,12 @@ the stage pointer**: the stub stays in its backlog state, and the session resume
 The tracked `draft-*` is the continuity artifact — pausing is commit + push; write no marker and no new durable
 state.
 
+**Ship instead of pause (optional).** After the capture commit and push, a path-pure grooming branch may ship as a
+lean PR on the auto-merge lane: one-line Summary, Test Plan only when non-obvious, then native auto-merge per the
+[merge-gate setup][setup-merge-gate]. Resolve the merge method from the repository/ruleset or config surface; do
+not assume the repo's advertised default is the allowed method. After the PR lands, return to the base checkout,
+fast-forward it, and remove the local grooming branch if it is still present.
+
 **Post-settle coherence re-read** (always-on, in-context): when folds landed after the readiness read —
 adversarial-pass findings, review amendments — re-read the settled draft for coherence (the readiness bar's
 coherence check, re-fired) as the last step before the capture commit. The final pass's folds are otherwise
@@ -236,4 +243,5 @@ planning-depth level is never recorded.
 [assess-cohort-fit]: ../../methods/assess-cohort-fit.md
 [assess-draft-readiness]: ../../methods/assess-draft-readiness.md
 [template-draft]: ../../../reference/templates/arc/work-unit/template-draft.md
+[setup-merge-gate]: supplemental/setup-merge-gate.md
 [dev-rules-arc]: ../../../system/rules/DEV-RULES.ARC.md
