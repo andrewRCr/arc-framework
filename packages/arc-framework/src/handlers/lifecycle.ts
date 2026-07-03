@@ -66,7 +66,7 @@ import { planAbandon, runAbandon } from "../lib/work-unit/verbs/abandon.js";
 import { runIntegrate } from "../lib/work-unit/verbs/integrate.js";
 import { runReopen } from "../lib/work-unit/verbs/reopen.js";
 import { runArchive } from "../lib/work-unit/verbs/archive.js";
-import { runTeardown } from "../lib/work-unit/verbs/teardown.js";
+import { runBranchTeardown, runTeardown } from "../lib/work-unit/verbs/teardown.js";
 import { runSetStage } from "../lib/work-unit/verbs/set-stage.js";
 import {
   runFinalizeStage,
@@ -858,6 +858,8 @@ export async function handleArchive(slug: string | undefined, opts: ArchiveOptio
 
 /** Options for `arc teardown`. */
 export interface TeardownOptions {
+  /** Reap a recordless cheap branch by exact name. */
+  branch?: string;
   /** Force the un-shipped / `abandoned` mode: cleanup of a retired / parked origin (unmerged branch). */
   force?: boolean;
 }
@@ -875,7 +877,13 @@ export interface TeardownOptions {
  *   force-deletes it. The caller asserts the work is conserved (the flag is that
  *   authorization); refuses a `completed/` WU (use the default path).
  *
- * Requires an explicit name — a retired WU has no `active/` meta to default from.
+ * `arc teardown --branch chore/<slug>` is the recordless cheap-branch sibling:
+ * it skips the WU arc-state gate but keeps the merged-safe containment check,
+ * worktree hop, and prune mechanics. It is mutually exclusive with `<name>` and
+ * `--force`.
+ *
+ * The WU path requires an explicit name — a retired WU has no `active/` meta to
+ * default from.
  */
 export async function handleTeardown(name: string | undefined, opts: TeardownOptions = {}): Promise<void> {
   p.intro("arc teardown");
@@ -883,7 +891,17 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   if (base === null) return;
 
   const wuName = name?.trim();
-  if (!wuName) {
+  const branchArg = opts.branch?.trim();
+  if (branchArg !== undefined && branchArg !== "") {
+    if (wuName) {
+      refuse("`arc teardown --branch <branch>` cannot also take a work-unit name.");
+      return;
+    }
+    if (opts.force === true) {
+      refuse("`arc teardown --branch <branch>` is always merged-safe; `--force` is only for work-unit teardown.");
+      return;
+    }
+  } else if (!wuName) {
     refuse("`arc teardown <name>` requires the work-unit name to clean up.");
     return;
   }
@@ -904,9 +922,35 @@ export async function handleTeardown(name: string | undefined, opts: TeardownOpt
   // cwd (the dangling-locus failure the out-of-band move exists to avoid).
   let locus = base.cwd;
   const exec: GitExec = (cmd, args, opts) => base.io.exec(cmd, args, { cwd: locus, ...opts });
+  if (branchArg !== undefined && branchArg !== "") {
+    const result = await runBranchTeardown(
+      { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
+      { branch: branchArg, base: baseBranch },
+    );
+    if (result.status === "rejected") {
+      refuse(result.reason);
+      return;
+    }
+
+    const branchLine =
+      result.branch === null
+        ? `${branchArg} (already reaped)`
+        : `${result.branch} ${result.branchDeleted ? "(deleted)" : "(left intact)"}`;
+    const lines = [
+      `Branch:    ${branchLine}`,
+      `Worktree:  ${result.worktreeRemoved ?? "(none — in-place)"}`,
+      `Prune:     ${result.pruned ? "done" : "skipped"}`,
+    ];
+    p.note(lines.join("\n"), "Branch torn down");
+    for (const notice of result.notices) p.log.warn(notice);
+    if (result.suggestion !== null) p.log.info(result.suggestion);
+    p.outro("Done.");
+    return;
+  }
+
   const result = await runTeardown(
     { cwd: base.cwd, exec, indexFs: lifecycleFs, chdir: (dir) => { process.chdir(dir); locus = dir; } },
-    { name: wuName, base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
+    { name: wuName ?? "", base: baseBranch, mode: opts.force ? "abandoned" : "shipped" },
   );
   if (result.status === "rejected") {
     refuse(result.reason);

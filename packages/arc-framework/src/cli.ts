@@ -219,6 +219,7 @@ program
 program
   .command("teardown [name]")
   .description("Post-merge cleanup of a shipped work unit: reap the merged branch, remove the worktree, prune stale refs")
+  .option("--branch <branch>", "Reap a merged recordless chore/<slug> branch by exact name")
   .option(
     "--force",
     "Force-tear down a retired/parked origin (unmerged branch): accept non-completed/ arc-state; caller asserts conservation",
