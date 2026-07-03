@@ -100,6 +100,18 @@ export interface TeardownParams {
   suggestion?: string;
 }
 
+/** Inputs for reaping a recordless cheap branch by exact branch name. */
+export interface BranchTeardownParams {
+  /** Exact branch name to reap. Only `chore/<slug>` cheap branches are accepted. */
+  branch: string;
+  /** Base branch — the merged-into target the reap oracle checks, and the relocation target for an in-place branch. */
+  base: string;
+  /** Remote whose ref the containment check reads and the prune cleans (default `origin`). */
+  remote?: string;
+  /** Ephemeral next-step suggestion to surface (advisory; never persisted). */
+  suggestion?: string;
+}
+
 /** The outcome of a `teardown` attempt — a rejection, or the completed cleanup. */
 export type TeardownResult =
   | { status: "rejected"; reason: string }
@@ -118,6 +130,8 @@ export type TeardownResult =
       /** The ephemeral next-step suggestion, surfaced not persisted. */
       suggestion: string | null;
     };
+
+const CHEAP_BRANCH_PREFIX = "chore/";
 
 /**
  * Resolve the WU's local branch by enumerating `refs/heads` and matching the slug.
@@ -158,6 +172,163 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
   }
 }
 
+interface TeardownBranchProjectionParams {
+  branch: string | null;
+  base: string;
+  remote?: string;
+  mode: TeardownMode;
+  suggestion?: string;
+}
+
+async function teardownBranchProjection(
+  ctx: TeardownContext,
+  params: TeardownBranchProjectionParams,
+): Promise<TeardownResult> {
+  const { cwd, exec, chdir } = ctx;
+  const { branch, base, remote, mode, suggestion } = params;
+  const notices: string[] = [];
+
+  // Refresh the base before the reap-safety check and any in-place relocation. The
+  // landed-in-base leg checks patch-equivalence against `base`, but right after a
+  // remote merge the *local* `base` is typically stale (the merge is on
+  // `origin/<base>`, not yet pulled), so checking the local ref false-negatives a
+  // merged branch — the order-dependence that forced a manual fetch + retry. Fetch
+  // `origin/<base>` and evaluate against that authoritative ref instead. Best-effort:
+  // offline / no-remote degrades to the local ref (prior behavior). Only meaningful
+  // when a branch remains to reap.
+  const baseRef = branch === null ? base : await refreshBase(exec, base, remote);
+
+  // Worktree arm: tear down a *linked* worktree (distinct from the primary). The
+  // in-place arm (branch in the primary worktree) and an already-removed worktree
+  // are presence-guarded no-ops. Worktree first, so the branch delete is not refused
+  // for a checked-out branch.
+  let worktreeRemoved: string | null = null;
+  if (branch !== null) {
+    const byBranch = await resolveWorktreePathsByBranch(exec);
+    const worktreePath = byBranch.get(branch);
+    const primary = await resolvePrimaryWorktreePath(exec);
+    if (worktreePath !== undefined && worktreePath !== primary) {
+      try {
+        await reconcileWorktree({ exec, chdir }, { mutation: "teardown", worktreePath, currentLocus: cwd });
+      } catch (err) {
+        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+      }
+      worktreeRemoved = worktreePath;
+    } else if (worktreePath === primary) {
+      // In-place arm: the branch is checked out in the *primary* worktree, so the
+      // delete would be refused ("branch used by worktree"). Relocate the primary
+      // onto `base` first (a linked worktree is torn down above; an unmapped branch
+      // — already switched away — needs no relocation).
+      try {
+        await exec("git", ["switch", base], { cwd: primary });
+      } catch (err) {
+        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
+      }
+      // Land the developer on a current base: fast-forward local `base` to the
+      // refreshed remote base (best-effort; a non-ff or unavailable base is left
+      // as-is). Skipped when the remote base did not resolve (`baseRef === base`).
+      if (baseRef !== base) {
+        try {
+          await exec("git", ["merge", "--ff-only", baseRef], { cwd: primary });
+        } catch {
+          // Non-fast-forwardable (local base ahead) or unavailable — leave it as-is.
+        }
+      }
+      notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
+    }
+  }
+
+  // Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated,
+  // local-only delete; a refusal (branch ahead of / no upstream) leaves the branch
+  // intact, surfaced rather than dropping work. `abandoned`: a caller-authorized
+  // force delete (local + remote) — the retired origin's branch is unmerged by
+  // construction, so containment would always refuse; the caller's conservation
+  // gate is the safety. The local force-delete is authoritative, so a remote-ref
+  // cleanup failure degrades to a notice (best-effort, like the prune leg) rather
+  // than discarding the completed work.
+  let branchDeleted = false;
+  if (branch !== null) {
+    if (mode === "shipped") {
+      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
+      branchDeleted = !(await branchExists(exec, branch));
+      if (!branchDeleted) {
+        notices.push(
+          `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
+            `(unpushed, unmerged commits would be lost).`,
+        );
+      }
+    } else {
+      try {
+        await reconcileBranch({ exec }, { mutation: "delete", branch, remote });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        // The local force-delete runs before the remote-ref cleanup, so a branch
+        // that still exists means the local `git branch -D` is what failed — a
+        // force-mode failure, not a best-effort remote miss. Reject rather than
+        // reporting a torn-down branch that is in fact still present. A remote-only
+        // failure (local delete landed) degrades to a notice, like the prune leg.
+        if (await branchExists(exec, branch)) {
+          return { status: "rejected", reason: `Could not force-delete local branch \`${branch}\` (${detail}).` };
+        }
+        notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
+      }
+      branchDeleted = !(await branchExists(exec, branch));
+    }
+  }
+
+  // Prune the stale remote-tracking ref a delete-on-merge left — last, after the
+  // containment check read it. Best-effort: a prune failure (offline) does not undo
+  // the completed branch/worktree teardown.
+  let pruned = false;
+  try {
+    await fetchPrune({ exec }, { remote });
+    pruned = true;
+  } catch (err) {
+    notices.push(`Could not prune stale tracking refs (${err instanceof Error ? err.message : String(err)}).`);
+  }
+
+  return {
+    status: "torn-down",
+    branch,
+    branchDeleted,
+    worktreeRemoved,
+    pruned,
+    notices,
+    suggestion: suggestion ?? null,
+  };
+}
+
+/**
+ * Reap a recordless cheap branch by exact name. This is the branch-scoped sibling
+ * of WU teardown's physical cleanup: no WU arc-state gate, no errand record, but
+ * the same merged-safe containment check, worktree hop, and prune mechanics.
+ */
+export async function runBranchTeardown(
+  ctx: TeardownContext,
+  params: BranchTeardownParams,
+): Promise<TeardownResult> {
+  const branch = params.branch.trim();
+  if (branch === "") return { status: "rejected", reason: "`--branch` requires a branch name." };
+  if (!branch.startsWith(CHEAP_BRANCH_PREFIX) || branch.length === CHEAP_BRANCH_PREFIX.length) {
+    return {
+      status: "rejected",
+      reason: "`arc teardown --branch` is only for recordless `chore/<slug>` cheap branches.",
+    };
+  }
+  if (branch === params.base) {
+    return { status: "rejected", reason: "`arc teardown --branch` refuses to target the configured base branch." };
+  }
+
+  const present = await branchExists(ctx.exec, branch);
+  return teardownBranchProjection(ctx, {
+    branch: present ? branch : null,
+    base: params.base,
+    remote: params.remote,
+    mode: "shipped",
+    suggestion: params.suggestion,
+  });
+}
+
 /**
  * Run `teardown`: gate on arc-state (mode-keyed — see {@link TeardownMode}),
  * resolve the WU branch, then compose the cleanup legs in their constraint-safe
@@ -172,7 +343,7 @@ async function branchExists(exec: GitExec, branch: string): Promise<boolean> {
  * @returns A rejection or the completed cleanup report.
  */
 export async function runTeardown(ctx: TeardownContext, params: TeardownParams): Promise<TeardownResult> {
-  const { cwd, exec, indexFs, chdir } = ctx;
+  const { cwd, exec, indexFs } = ctx;
   const { name, base, remote, suggestion } = params;
   const mode: TeardownMode = params.mode ?? "shipped";
 
@@ -202,115 +373,11 @@ export async function runTeardown(ctx: TeardownContext, params: TeardownParams):
   if ("error" in resolved) return { status: "rejected", reason: resolved.error };
   const branch = resolved.branch;
 
-  const notices: string[] = [];
-
-  // Refresh the base before the reap-safety check and any in-place relocation. The
-  // landed-in-base leg checks patch-equivalence against `base`, but right after a
-  // remote merge the *local* `base` is typically stale (the merge is on
-  // `origin/<base>`, not yet pulled), so checking the local ref false-negatives a
-  // merged branch — the order-dependence that forced a manual fetch + retry. Fetch
-  // `origin/<base>` and evaluate against that authoritative ref instead. Best-effort:
-  // offline / no-remote degrades to the local ref (prior behavior). Only meaningful
-  // when a branch remains to reap.
-  const baseRef = branch === null ? base : await refreshBase(exec, base, remote);
-
-  // 3. Worktree arm: tear down a *linked* worktree (distinct from the primary). The
-  //    in-place arm (branch in the primary worktree) and an already-removed worktree
-  //    are presence-guarded no-ops. Worktree first, so the branch delete in step 4
-  //    is not refused for a checked-out branch.
-  let worktreeRemoved: string | null = null;
-  if (branch !== null) {
-    const byBranch = await resolveWorktreePathsByBranch(exec);
-    const worktreePath = byBranch.get(branch);
-    const primary = await resolvePrimaryWorktreePath(exec);
-    if (worktreePath !== undefined && worktreePath !== primary) {
-      try {
-        await reconcileWorktree({ exec, chdir }, { mutation: "teardown", worktreePath, currentLocus: cwd });
-      } catch (err) {
-        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
-      }
-      worktreeRemoved = worktreePath;
-    } else if (worktreePath === primary) {
-      // In-place arm: the branch is checked out in the *primary* worktree, so the
-      // step-4 delete would be refused ("branch used by worktree"). Relocate the
-      // primary onto `base` first (a linked worktree is torn down above; an
-      // unmapped branch — already switched away — needs no relocation).
-      try {
-        await exec("git", ["switch", base], { cwd: primary });
-      } catch (err) {
-        return { status: "rejected", reason: err instanceof Error ? err.message : String(err) };
-      }
-      // Land the developer on a current base: fast-forward local `base` to the
-      // refreshed remote base (best-effort; a non-ff or unavailable base is left
-      // as-is). Skipped when the remote base did not resolve (`baseRef === base`).
-      if (baseRef !== base) {
-        try {
-          await exec("git", ["merge", "--ff-only", baseRef], { cwd: primary });
-        } catch {
-          // Non-fast-forwardable (local base ahead) or unavailable — leave it as-is.
-        }
-      }
-      notices.push(`Relocated the primary worktree to \`${base}\` before reaping \`${branch}\`.`);
-    }
-  }
-
-  // 4. Branch delete — mode-keyed. `shipped`: the merged-safe, containment-gated,
-  //    local-only delete; a refusal (branch ahead of / no upstream) leaves the
-  //    branch intact, surfaced rather than dropping work. `abandoned`: a
-  //    caller-authorized force delete (local + remote) — the retired origin's
-  //    branch is unmerged by construction, so containment would always refuse;
-  //    the caller's conservation gate is the safety. The local force-delete is
-  //    authoritative, so a remote-ref cleanup failure degrades to a notice
-  //    (best-effort, like the prune leg) rather than discarding the completed work.
-  let branchDeleted = false;
-  if (branch !== null) {
-    if (mode === "shipped") {
-      await reconcileBranch({ exec }, { mutation: "delete-merged", branch, base: baseRef, remote });
-      branchDeleted = !(await branchExists(exec, branch));
-      if (!branchDeleted) {
-        notices.push(
-          `Branch \`${branch}\` is not contained on its upstream or landed in \`${baseRef}\` — left intact ` +
-            `(unpushed, unmerged commits would be lost).`,
-        );
-      }
-    } else {
-      try {
-        await reconcileBranch({ exec }, { mutation: "delete", branch, remote });
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        // The local force-delete runs before the remote-ref cleanup, so a branch
-        // that still exists means the local `git branch -D` is what failed — a
-        // force-mode failure, not a best-effort remote miss. Reject rather than
-        // reporting a torn-down branch that is in fact still present. A
-        // remote-only failure (local delete landed) degrades to a notice, like
-        // the prune leg.
-        if (await branchExists(exec, branch)) {
-          return { status: "rejected", reason: `Could not force-delete local branch \`${branch}\` (${detail}).` };
-        }
-        notices.push(`Could not delete the remote branch \`${branch}\` (${detail}).`);
-      }
-      branchDeleted = !(await branchExists(exec, branch));
-    }
-  }
-
-  // 5. Prune the stale remote-tracking ref a delete-on-merge left — last, after the
-  //    step-4 containment check read it. Best-effort: a prune failure (offline) does
-  //    not undo the completed branch/worktree teardown.
-  let pruned = false;
-  try {
-    await fetchPrune({ exec }, { remote });
-    pruned = true;
-  } catch (err) {
-    notices.push(`Could not prune stale tracking refs (${err instanceof Error ? err.message : String(err)}).`);
-  }
-
-  return {
-    status: "torn-down",
+  return teardownBranchProjection(ctx, {
     branch,
-    branchDeleted,
-    worktreeRemoved,
-    pruned,
-    notices,
-    suggestion: suggestion ?? null,
-  };
+    base,
+    remote,
+    mode,
+    suggestion,
+  });
 }

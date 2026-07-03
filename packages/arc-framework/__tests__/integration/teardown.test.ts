@@ -30,7 +30,11 @@ import { join } from "node:path";
 import { setupMultiClone, type MultiClone } from "../helpers/multi-clone.js";
 import type { GitExec } from "../../src/lib/git/exec.js";
 import type { LifecycleIndexFs } from "../../src/lib/work-unit/lifecycle-index.js";
-import { runTeardown, type TeardownContext } from "../../src/lib/work-unit/verbs/teardown.js";
+import {
+  runBranchTeardown,
+  runTeardown,
+  type TeardownContext,
+} from "../../src/lib/work-unit/verbs/teardown.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -151,6 +155,30 @@ async function shipFeature(
     await git(cloneA, ["update-ref", "-d", `refs/remotes/origin/${branch}`]);
   }
   await git(cloneA, ["checkout", opts?.endOn ?? "main"]);
+}
+
+/** Build the post-squash state for a recordless cheap branch. */
+async function shipCheapBranch(h: MultiClone, branch: string): Promise<void> {
+  const { cloneA, origin } = h;
+  const file = branch.replace("/", "-") + ".txt";
+
+  await git(cloneA, ["checkout", "main"]);
+  await git(cloneA, ["checkout", "-b", branch]);
+  await writeFile(join(cloneA, file), "cheap-branch work\n");
+  await git(cloneA, ["add", file]);
+  await git(cloneA, ["commit", "-m", `chore: ${branch}`]);
+  await git(cloneA, ["push", "-u", "origin", branch]);
+
+  await git(cloneA, ["checkout", "main"]);
+  await git(cloneA, ["merge", "--squash", branch]);
+  await git(cloneA, ["commit", "-m", `squash: ${branch}`]);
+  await git(cloneA, ["push", "origin", "main"]);
+
+  // Simulate delete-on-merge plus a local prune: no upstream ref remains to prove
+  // preservation, and `git branch -d` would still reject the squash-rewritten tip.
+  await git(origin, ["update-ref", "-d", `refs/heads/${branch}`]);
+  await git(cloneA, ["update-ref", "-d", `refs/remotes/origin/${branch}`]);
+  await git(cloneA, ["checkout", "main"]);
 }
 
 describe("arc teardown — merge-strategy-independent branch reaping", () => {
@@ -279,6 +307,32 @@ describe("arc teardown — merge-strategy-independent branch reaping", () => {
       expect(await git(h.cloneA, ["rev-parse", "--abbrev-ref", "HEAD"])).toBe("main");
       expect(await branchPresent(h.cloneA, "feat/demo")).toBe(false);
       expect(result.notices.some((n) => /relocated the primary worktree/iu.test(n))).toBe(true);
+    } finally {
+      await h.cleanup();
+    }
+  });
+});
+
+describe("arc teardown --branch — recordless cheap branches over real git", () => {
+  it("reaps a merged recordless chore branch when the tracking ref is pruned", async () => {
+    const h = await setupMultiClone();
+    const branch = "chore/groom-demo";
+    try {
+      await shipCheapBranch(h, branch);
+      await expect(
+        git(h.cloneA, ["merge-base", "--is-ancestor", branch, "main"]),
+      ).rejects.toThrow();
+      await expect(
+        git(h.cloneA, ["rev-parse", "--verify", "--quiet", `refs/remotes/origin/${branch}`]),
+      ).rejects.toThrow();
+
+      const result = await runBranchTeardown(teardownCtx(h.cloneA), { branch, base: "main" });
+
+      expect(result.status).toBe("torn-down");
+      if (result.status !== "torn-down") return;
+      expect(result.branch).toBe(branch);
+      expect(result.branchDeleted).toBe(true);
+      expect(await branchPresent(h.cloneA, branch)).toBe(false);
     } finally {
       await h.cleanup();
     }

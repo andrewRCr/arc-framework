@@ -9,7 +9,11 @@
 
 import { describe, it, expect } from "vitest";
 
-import { runTeardown, type TeardownContext } from "../../../../src/lib/work-unit/verbs/teardown.js";
+import {
+  runBranchTeardown,
+  runTeardown,
+  type TeardownContext,
+} from "../../../../src/lib/work-unit/verbs/teardown.js";
 import type { GitExec } from "../../../../src/lib/git/exec.js";
 import type { LifecycleIndexFs, DirEntry } from "../../../../src/lib/work-unit/lifecycle-index.js";
 
@@ -100,6 +104,7 @@ interface ExecOptions {
 function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] } {
   const calls: string[][] = [];
   const branches = opts.branches ?? [];
+  const deletedBranches = new Set<string>();
   const exec: GitExec = async (cmd, args) => {
     calls.push([cmd, ...args]);
     const sub = args[0];
@@ -109,10 +114,17 @@ function buildExec(opts: ExecOptions = {}): { exec: GitExec; calls: string[][] }
     if (sub === "rev-list") return { stdout: "" }; // contained → safe
     if (sub === "branch" && args[1] === "-D") {
       if (opts.branchDeleteThrows) throw new Error("git branch -D failed");
+      const deleted = args[2];
+      if (deleted !== undefined) deletedBranches.add(deleted);
       return { stdout: "" };
     }
     if (sub === "show-ref") {
       if (opts.branchSurvivesDelete) return { stdout: "" };
+      const ref = args[args.length - 1];
+      const branch = ref?.startsWith("refs/heads/") ? ref.slice("refs/heads/".length) : undefined;
+      if (branch !== undefined && branches.includes(branch) && !deletedBranches.has(branch)) {
+        return { stdout: "" };
+      }
       throw new Error("not found"); // ref gone → deleted
     }
     if (sub === "fetch") return { stdout: "" };
@@ -414,5 +426,45 @@ describe("runTeardown — abandoned mode (un-shipped / force)", () => {
     const removeIdx = calls.findIndex((c) => c[1] === "worktree" && c[2] === "remove");
     const deleteIdx = calls.findIndex((c) => c[1] === "branch" && c[2] === "-D");
     expect(removeIdx).toBeLessThan(deleteIdx);
+  });
+});
+
+describe("runBranchTeardown — recordless cheap branches", () => {
+  it("reaps an exact recordless chore branch without an arc-state gate", async () => {
+    const { ctx, calls } = buildCtx([], { branches: ["chore/groom-demo"] });
+
+    const result = await runBranchTeardown(ctx, { branch: "chore/groom-demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branch).toBe("chore/groom-demo");
+    expect(result.branchDeleted).toBe(true);
+    expect(calls).toContainEqual(["git", "branch", "-D", "chore/groom-demo"]);
+    // No lifecycle-index gate: this path is for branch projections with no WU meta.
+    expect(calls.some((c) => c[1] === "for-each-ref")).toBe(false);
+  });
+
+  it("is idempotent when the recordless branch is already absent", async () => {
+    const { ctx, calls } = buildCtx([], { branches: [] });
+
+    const result = await runBranchTeardown(ctx, { branch: "chore/groom-demo", base: "main" });
+
+    expect(result.status).toBe("torn-down");
+    if (result.status !== "torn-down") return;
+    expect(result.branch).toBeNull();
+    expect(result.branchDeleted).toBe(false);
+    expect(calls.some((c) => c[1] === "branch" && c[2] === "-D")).toBe(false);
+    expect(calls).toContainEqual(["git", "fetch", "--prune", "origin"]);
+  });
+
+  it("refuses non-chore branches so WU and errand records keep their authoritative teardown paths", async () => {
+    const { ctx, calls } = buildCtx([], { branches: ["feat/demo"] });
+
+    const result = await runBranchTeardown(ctx, { branch: "feat/demo", base: "main" });
+
+    expect(result.status).toBe("rejected");
+    if (result.status !== "rejected") return;
+    expect(result.reason).toMatch(/chore\/<slug>|cheap branches/i);
+    expect(calls).toEqual([]);
   });
 });
