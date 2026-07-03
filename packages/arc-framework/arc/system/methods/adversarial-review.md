@@ -54,7 +54,9 @@ make the stage impossible to approve.
 
 The primary agent is the runtime. It marshals the fire-point inputs, spawns each fresh pass, verifies returned
 findings against source, applies dispositions, and decides under the exit gate whether the loop has converged. A
-subagent performs exactly one pass and never receives primary-side loop state.
+subagent performs exactly one pass. It receives only the pass-specific context serialized from the
+subagent-context inputs below; it never receives private loop-control state such as `pass-cap`, convergence
+decisions, or spawn bookkeeping.
 
 **Signature — canonical callsite.** The fenced block below is the call expression: a workflow invokes the method
 by instantiating it. Its single top-level key is the method name — the shape that identifies a method call
@@ -85,7 +87,7 @@ adversarial-review:
 
 `rubric`, `artifacts`, `orientation`, `prior-findings`, and `partition-map` (when present) are subagent-context
 inputs. Serialize them into the fresh pass prompt. `pass-cap` is a primary-side loop bound only: the primary uses
-it to decide how many fresh passes it may spawn, but the subagent never sees it.
+it to decide how many fresh passes it may spawn, but the subagent never sees that bound.
 
 **Return schema:**
 

@@ -137,7 +137,7 @@ Of these, `rubric` / `artifacts` / `orientation` / `prior-findings`, and `partit
 **subagent-context inputs** — serialized into each pass's prompt. `pass-cap` is **not**: it is a **primary-side
 loop bound** the runtime applies to cap how many passes it spawns. The primary owns the loop — it spawns each
 pass, applies the exit gate (D4), and bounds the run by `pass-cap`; a subagent performs exactly one pass and never
-sees the loop state.
+sees private loop-control state such as `pass-cap`, convergence decisions, or spawn bookkeeping.
 
 **Return type** (the output half of the contract; field-tested in the spec-stage prototype). Per finding:
 

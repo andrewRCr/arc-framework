@@ -7,12 +7,12 @@ disable-model-invocation: false
 # ARC Task Audit
 
 Standalone door to the [`task-audit` method][task-audit-method] — audit tasks-as-written against the codebase
-they will execute in. Read-only — no edits, no implementation. The user decides when the cost of an audit is
-justified; never invoke this proactively before starting tasks.
+they will execute in. Read-only — no edits, no implementation. The task loop may suggest this door when an audit
+would earn its cost; run it only after an explicit user request or approval, never as an automatic task-start step.
 
-**When this door earns its use:**
+**When this door earns a suggestion or explicit request:**
 
-- **Pre-implementation pause.** Before a new phase or task, explicitly re-ground the task-as-written prior to
+- **Pre-implementation pause.** Before a new phase or task, explicitly re-ground the task-as-written before
   implementation — surface assumptions, masked decisions, and scope gaps while they are still cheap to fix.
 - **Mid-impl reground.** Work drift has occurred — the codebase moved under the task list (parallel work landed,
   earlier tasks reshaped the surface), and the remaining tasks need re-validation against current reality before
