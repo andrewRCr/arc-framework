@@ -10,6 +10,8 @@ arc:
     - assess-cohort-fit
     - assess-draft-readiness
     - spec-review
+    - adversarial-review
+    - design-audit
   extensions:
     - pre-spec-finalization-review
 ---
@@ -204,6 +206,24 @@ re-entry (route it to the design, never patch it into the spec).
   [`.actions`][pre-spec-finalization-review] — a team's own spec-review ceremony layered on the default
   self-review. Otherwise, skip.
 
+The finalization boundary also carries an advisory adversarial fire-point — design _and_ artifact attacked from
+fresh context, distinct from both the self-review above and any team extension:
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Heavy` / `Novel`; surface a
+> neutral offer at `Light`. Offer the pass and await the call — user decides; decline proceeds normally.
+
+```yaml
+adversarial-review:
+  rubric:          # design-audit (efficacy + fit) + spec-review (coherence + grounding, at the resolved form)
+  artifacts:       # spec-{name}.md + draft-{name}.md (when one fed it) + non-exhaustive key-file pointers
+  orientation:
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  prior-findings:  # pass two onward; omitted on pass one
+```
+
 > [!IMPORTANT]
 > `workflow-interlock` — Gate 1 (review / iterate): Stop after the spec is saved and self-reviewed. Surface the
 > spec location and the self-review findings for a full read and feedback. Iteration loops here against the saved
@@ -240,6 +260,10 @@ Documents).
    `**Next Action:**` to the `[begin current workflow]` boundary sentinel in one step, so a fresh session after
    handoff resumes in generate-tasks. Skip otherwise (no meta file exists pre-init under non-planning-branch
    flows).
+
+**Post-settle coherence re-read** (always-on, in-context): when folds landed after the self-review —
+adversarial-pass findings, Gate 1 iteration amendments — re-fire `spec-review`'s coherence slice over the
+settled spec as the last step before the commit below. The final pass's folds are otherwise never re-attacked.
 
 After substeps 1-3, stage all edits — spec save (Write and save), any promotion-write inbox deletion (Write and
 save, arc-in-git), draft deletion + `notes-*` migration, meta update.

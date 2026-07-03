@@ -141,9 +141,25 @@ export function buildCoverageMap(
   return { methods, extensions, parseDiagnostics };
 }
 
+/**
+ * Methods minted ahead of their workflow wiring — exempt from the coverage
+ * requirement until their `arc.methods` declarations land. Entries are
+ * temporary: once a listed method gains any declaration, the audit flags the
+ * entry as stale so it cannot outlive the wiring.
+ */
+export const WIRING_PENDING: ReadonlySet<string> = new Set<string>();
+
 /** Format a diagnostic for a method missing its workflow declaration. */
 export function formatMethodDiagnostic(name: string): string {
   return `Method "${name}" has no workflow declaration. Add ${name} to some workflow's arc.methods frontmatter field.`;
+}
+
+/** Format a diagnostic for a declared method still listed as wiring-pending. */
+export function formatStaleAllowlistDiagnostic(
+  name: string,
+  files: string[],
+): string {
+  return `Method "${name}" is declared by ${files.join(", ")} but still listed in WIRING_PENDING. Remove the allowlist entry.`;
 }
 
 /** Format a diagnostic for an extension missing its workflow declaration. */
@@ -155,11 +171,14 @@ export function formatExtensionDiagnostic(name: string): string {
  * Run the audit end-to-end against a corpus.
  *
  * Exposed as a pure function so tests can point it at a fixture tree.
+ * `wiringPending` exempts named methods from the coverage requirement;
+ * a declared method still listed there fails as a stale allowlist entry.
  */
 export async function audit(
   methodsDir: string,
   extensionsDir: string,
   workflowsDir: string,
+  wiringPending: ReadonlySet<string> = WIRING_PENDING,
 ): Promise<AuditResult> {
   const methodNames = enumerateMethods(methodsDir);
   const extensionNames = enumerateExtensions(extensionsDir);
@@ -171,7 +190,11 @@ export async function audit(
   const cov = buildCoverageMap(methodNames, extensionNames, workflows);
   const diagnostics: string[] = [...cov.parseDiagnostics];
   for (const [name, files] of cov.methods) {
-    if (files.length === 0) diagnostics.push(formatMethodDiagnostic(name));
+    if (files.length === 0) {
+      if (!wiringPending.has(name)) diagnostics.push(formatMethodDiagnostic(name));
+    } else if (wiringPending.has(name)) {
+      diagnostics.push(formatStaleAllowlistDiagnostic(name, files));
+    }
   }
   for (const [name, files] of cov.extensions) {
     if (files.length === 0) diagnostics.push(formatExtensionDiagnostic(name));

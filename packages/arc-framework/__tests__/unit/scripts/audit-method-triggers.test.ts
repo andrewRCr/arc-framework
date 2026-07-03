@@ -227,4 +227,28 @@ describe("audit", () => {
     expect(result.pass).toBe(false);
     expect(result.diagnostics.some((d) => d.includes("\"post-x\"") && d.includes("arc.extensions"))).toBe(true);
   });
+
+  it("passes when an undeclared method is listed as wiring-pending", async () => {
+    const methods = writeMethodsDir(["alpha", "beta"]);
+    const extensions = writeExtensionsDir([]);
+    const workflows = join(tmp, "workflows");
+    mkdirSync(workflows, { recursive: true });
+    writeWorkflow("workflows/one.md", ["alpha"], []);
+    const result = await audit(methods, extensions, workflows, new Set(["beta"]));
+    expect(result.pass).toBe(true);
+    expect(result.diagnostics).toEqual([]);
+  });
+
+  it("fails with a stale-allowlist diagnostic when a wiring-pending method gains a declaration", async () => {
+    const methods = writeMethodsDir(["alpha"]);
+    const extensions = writeExtensionsDir([]);
+    const workflows = join(tmp, "workflows");
+    mkdirSync(workflows, { recursive: true });
+    writeWorkflow("workflows/one.md", ["alpha"], []);
+    const result = await audit(methods, extensions, workflows, new Set(["alpha"]));
+    expect(result.pass).toBe(false);
+    expect(
+      result.diagnostics.some((d) => d.includes("\"alpha\"") && d.includes("WIRING_PENDING")),
+    ).toBe(true);
+  });
 });

@@ -1,6 +1,9 @@
 ---
 purpose: Execute the task list's verification phase — Tier 3 gates, success criteria, completion notes.
 audience: agent
+arc:
+  methods:
+    - adversarial-review
 ---
 
 # Workflow: Verify Completion
@@ -41,6 +44,30 @@ original text preserves intent; annotations capture reality.
 during implementation. Implementation tasks get checked as work progresses; success criteria
 get checked when the implementer steps back and validates outcomes against the upstream design
 artifact.
+
+### Adversarial verify (advisory)
+
+The boundary carries an advisory adversarial fire-point that **augments** the self-verify above, never replaces
+it: a fresh pass independently re-validates the spec's success criteria against the diff. The mandate is
+**verify**, not review — the pass attacks the _claim of spec-conformance_ (criteria marked met that the diff
+does not deliver, gaps, wrongly-superseded items); the diff is evidence for conformance, not the target of
+open-ended quality critique (that runs in the review lanes). Withhold the implementer's `[x]` / `[~]` / `[ ]`
+markings from the pass; the primary compares the independent result to the self-verify.
+
+> [!IMPORTANT]
+> `adversarial-review` method — advisory fire-point (`Class`-scaled): recommend at `Novel`; surface a neutral
+> offer at `Light` / `Heavy`. Offer the pass and await the call — user decides; decline proceeds normally.
+
+```yaml
+adversarial-review:
+  rubric:          # the spec's success criteria, validated adversarially (stage-owned; no separate rubric method)
+  artifacts:       # spec-{name}.md + tasks-{name}.md (markings withheld) + the diff under verification
+  orientation:
+    - AGENT-BRIEF.ARC
+    - AGENT-BRIEF.PROJECT
+  pass-cap:        # per Class — Light 1 / Heavy 2 / Novel 3
+  prior-findings:  # pass two onward; omitted on pass one
+```
 
 ## Step 3 — Pre-align Meta File for Integration Handoff
 
