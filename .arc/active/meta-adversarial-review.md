@@ -1,8 +1,8 @@
 # Metadata: adversarial-review
 
-| **State** | **Owner** | **Branch**                | **Class** | **Priority** |
-| --------- | --------- | ------------------------- | --------- | ------------ |
-| `Active`  | `andrew`  | `feat/adversarial-review` | `Heavy`   | `P1`         |
+| **State**     | **Owner** | **Branch**                | **Class** | **Priority** |
+| ------------- | --------- | ------------------------- | --------- | ------------ |
+| `Integrating` | `andrew`  | `feat/adversarial-review` | `Heavy`   | `P1`         |
 
 - **Cohort:** [none]
 - **Depends On:** [none]
@@ -12,11 +12,11 @@
 - **Task List:** `tasks-adversarial-review.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 4.6 — Reconcile both framework copies across all wired workflows
-- **Next Task:** Task 5.1 — Complete verification (line ~486)
+- **Last Completed:** Task 5.1 — Complete verification
+- **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** integrate-work-unit Step 1 — verify completion
+- **Next Action:** open the PR
 
 - **PR URL:** [none]
 - **Completed:** [none]
