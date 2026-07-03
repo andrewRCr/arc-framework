@@ -313,6 +313,59 @@ two-axis cut suggests splitting the contract from the model where the model gain
 not before). Validate against the corpus in both directions (strategies that should become methods;
 methods that are knowledge in method clothing).
 
+### Naming the knowledge unit (candidates + leans; final call with `naming-conventions`)
+
+The extracted public-knowledge unit needs a family name — "strategy" doesn't survive the verdict as that
+name (it conflated four kinds). Candidates, with leans:
+
+- **`reference`** (reference units; `arc.reference:`) — *primary lean.* Names what the content is
+  (Diátaxis: reference), matches the already-shipped `.arc/reference/` directory, and is human-legible
+  without OO literacy. Costs: generic; mild prose overload with git refs.
+- **`statics`** (`arc.statics:`) — *declaration-surface runner-up*, from the static-readonly-data
+  intuition. `arc.methods` / `arc.statics` reads as a natural pair, which is its real strength. Costs:
+  in web tooling "statics" means static assets; and in OO, `static` modifies procedures too (static
+  *methods*), so the noun alone doesn't say *data* — the contrast carries the meaning only next to
+  `arc.methods`.
+- **`canon`** (`arc.canon:`) — distinctive, collision-free, echoes the original "authoritative,
+  canonical deep-dive" strategy intent. Cost: slightly precious; unfamiliar as an artifact-family noun.
+- **`knowledge`** (`arc.knowledge:`) — the safe self-describing default; bulky in declarations and prose.
+
+Kind-C (explanation) content is deliberately *not* this family — it is the projected/relocatable layer
+and may carry a separate name (Diátaxis "explanation", or plain docs vocabulary). Final naming
+coordinates with `naming-conventions` (`TYPE.QUALIFIER`, prefix scheme) and the forced
+frontmatter-`type` layer.
+
+### Awareness-contract schema (first sketch — iterate)
+
+Unit-side frontmatter, strawman:
+
+```yaml
+type: reference                      # the forced frontmatter-type layer
+name: concurrent-work/append-only    # stable ID (path-is-ID candidate — see open question)
+tier: triggered | indexed            # `always` may live only in the loadSet manifest, not per-unit
+trigger:                             # triggered: machine-evaluable structural condition
+  workflow: integrate-work-unit      #   …or a path / domain / config-state condition
+fire: >-                             # indexed: the directive firing condition the index emits
+  ALWAYS load before {operation}; do not {default action} directly.
+audience: team | agent               # projection tag (single-source projection direction)
+```
+
+Consumer side: workflows *and methods* declare their own units (key name pending § Naming); the CLI
+resolves the deduped transitive closure and emits it in the manifest; indexed units' `fire` lines
+compose the generated index surface (the `STRATEGY-INDEX` successor). Lintable (`knowledge-lint` seam):
+schema validity, directive-form `fire` lines, orphaned units (no consumer and no index presence),
+buried-constraint heuristics.
+
+Open in the sketch:
+
+- **Tier per unit, or per consumer edge?** The same unit might be hard-triggered from one workflow and
+  indexed for emergent access — if so, `tier` is a property of the *edge* (declaration site), not the
+  unit, and the unit-side field collapses to just the `fire` text for the indexed path.
+- **ID scheme** — path-is-ID (OKF) vs an explicit `name` field; interacts with the forced `type` layer
+  and relocatability rules.
+- Whether kind-B constraints are a `type` of their own or purely a placement outcome (relocated to
+  always-loaded surfaces, so never unit-schema'd at all).
+
 ### Single-source projection (the no-drift direction)
 
 Kind C (explanation) points at a larger possibility: knowledge authored once and **projected** to both
@@ -444,8 +497,11 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
   closure-depth policy for knowledge-declaring-knowledge; the decision-model-method blur cases
   (`classify-work-unit`-like — split contract from model at the second consumer, not before);
   audience/projection tags in the contract schema.
-- **Next:** design the awareness-contract schema — frontmatter shape, `arc.knowledge`-style fire-site
-  declaration, index emission, audience/projection tags — and validate the three-way cut against the
-  corpus in both directions; author the constraint-relocation list; take the extraction negotiations
-  (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the ratified verdict in
-  hand.
+- **Resolved (pass 5, 2026-07-03):** unit-naming candidates recorded with leans (`reference` primary,
+  `statics` runner-up on declaration-surface symmetry, `canon`, `knowledge`); awareness-contract schema
+  first sketch drafted (unit frontmatter + consumer-side declaration + CLI closure/index emission +
+  lint surface).
+- **Next:** settle the tier-per-unit vs tier-per-edge question and the ID scheme; validate the schema
+  and the two-axis cut against the corpus in both directions; author the constraint-relocation list;
+  take the extraction negotiations (QUICK-REFERENCE identity, rules-restructure, placement thresholds)
+  with the ratified verdict in hand.
