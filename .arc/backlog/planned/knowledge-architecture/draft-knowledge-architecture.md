@@ -439,6 +439,11 @@ awareness/access model. Splits are agreed at each sibling's planning touchpoint,
   precedent (content + mechanism) and shared "canonical home + thin per-site alignment" architecture.
 - `knowledge-lint` — enforcement-side sibling; whatever taxonomy/boundary rules this WU codifies become
   lintable surface (schema validity, directive-form fire lines, orphans, buried-constraint heuristics).
+  Seam recorded in `draft-knowledge-lint.md` (2026-07-03) as **soft ordering, not a meta dep**: its
+  KA-independent families (cross-references, forbidden patterns, relocatability), umbrella command, and
+  semantic sweep proceed freely; its orphan family defers to — or, if this WU's schema settles first,
+  adopts — the structural orphan definition (§ Access paths are derived), and its `arc lint` registry
+  receives this WU's families through the family-registration seam.
 - `skill-infrastructure-cleanup` — ARC's skills are the live *semantic-firing* tier (harness-native,
   Claude-Code-only today); their descriptions belong to the same firing-condition authoring discipline as
   the knowledge index, even though skill bodies are procedural. Actionable insight routed there
