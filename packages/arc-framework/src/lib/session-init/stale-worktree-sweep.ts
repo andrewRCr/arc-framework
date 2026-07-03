@@ -2,7 +2,7 @@
  * Stale-worktree sweep — candidate enumeration.
  *
  * Anchored at the main (primary) worktree, the sweep cross-references the
- * in-flight worktree roster against the `completed/` archive and surfaces every
+ * in-flight worktree roster against the base ref's `completed/` archive and surfaces every
  * lingering worktree whose WU has already shipped — closing the
  * spawn-on-A / integrate-on-B / never-reopen-A's-worktree gap. Outside the
  * primary worktree (the resume-a-WU path) it returns nothing, so the common
@@ -30,7 +30,7 @@ import type {
   WorktreeRosterEntry,
   WorktreeRosterResult,
 } from "../git/worktree-roster.js";
-import { isShippedWorkUnit, readShippedWorkUnits, type CompletedIndexFs } from "../work-unit/completed-index.js";
+import { isShippedWorkUnit, readShippedWorkUnitsFromRef } from "../work-unit/completed-index.js";
 
 export interface StaleWorktreeSweepInput {
   /** Identity-filtered in-flight worktree roster (reused from the session-init roster slot). */
@@ -91,13 +91,9 @@ export interface RunStaleWorktreeSweepOptions {
   roster: WorktreeRosterResult;
   /** Physical-worktree identity — the sweep runs only when `primary`. */
   worktreeIdentity: WorktreeIdentity;
-  /** Main-worktree checkout root containing `.arc/completed/`. */
-  cwd: string;
   /** Integration base branch short-name (e.g. `main`); the merged check targets `origin/<base>`. */
   baseBranch: string;
   exec: GitExec;
-  /** Reads `.arc/completed/` for the shipped-WU set; injected for testability. */
-  fs: CompletedIndexFs;
   /** Reads a worktree's ownership marker; injected for testability. */
   readMarker?: (worktreePath: string) => Promise<WorktreeMarkerReadResult>;
 }
@@ -109,17 +105,21 @@ export interface RunStaleWorktreeSweepOptions {
  * Outside the primary worktree the candidate set is empty, so no per-worktree
  * signals are gathered and the result carries no worktrees.
  *
- * @param options - Roster, identity, repo root, base branch, and I/O bindings
+ * @param options - Roster, identity, base branch, and I/O bindings
  * @returns The swept worktrees with cleanup dispositions, plus warnings
  */
 export async function runStaleWorktreeSweep(
   options: RunStaleWorktreeSweepOptions,
 ): Promise<StaleWorktreeSweepResult> {
-  const { roster, worktreeIdentity, cwd, baseBranch, exec, fs } = options;
+  const { roster, worktreeIdentity, baseBranch, exec } = options;
   const readMarker = options.readMarker ?? readWorktreeMarker;
   const integrationTarget = `origin/${baseBranch}`;
 
-  const shipped = await readShippedWorkUnits({ cwd, fs });
+  if (worktreeIdentity.kind !== "primary") {
+    return { worktrees: [], warnings: roster.warnings };
+  }
+
+  const shipped = await readShippedWorkUnitsFromRef(exec, integrationTarget);
   const { candidates, warnings } = findStaleWorktreeCandidates({ roster, shipped, worktreeIdentity });
 
   const worktrees = await Promise.all(

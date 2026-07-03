@@ -6,16 +6,19 @@
  * layout from the work-organization model). Cohort closeout entries use
  * `NNa_cohort-<slug>/` and are deliberately excluded from the WU index.
  *
- * - **Read side** — {@link readShippedWorkUnits} scans every quarter once into a
- *   set of WU-name slugs; {@link branchToWorkUnitSlug} normalizes a branch
+ * - **Read side** — {@link readShippedWorkUnits} scans the working-tree archive,
+ *   while {@link readShippedWorkUnitsFromRef} scans a base ref's archive. Both
+ *   produce WU-name slugs; {@link branchToWorkUnitSlug} normalizes a branch
  *   (`feat/foo` / `plan/foo` → `foo`) to that key; {@link isShippedWorkUnit} joins
  *   the two. Shared by every shipped-WU consumer (the main-worktree stale-worktree
- *   sweep, the retired-subdir reconciliation) so the normalization is defined once.
+ *   sweep, retired-subdir reconciliation, user-sync reconciliation) so the
+ *   normalization is defined once.
  * - **Write side** — {@link computeArchiveDestination} computes the dated/numbered
  *   destination an `archive` sweep relocates into: the quarter from an injected
  *   clock and the next completion-order `NN` from a scan of that quarter.
  *
- * The check is local filesystem only — no git, no network.
+ * The working-tree scan is local filesystem only; ref-tree consumers inject the
+ * git runner for branch-independent shipped-state reads.
  *
  * @module
  */

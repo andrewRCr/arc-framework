@@ -5,7 +5,6 @@ import {
   runStaleWorktreeSweep,
 } from "../../../src/lib/session-init/stale-worktree-sweep.js";
 import type { WorktreeRosterResult } from "../../../src/lib/git/worktree-roster.js";
-import type { CompletedIndexFs } from "../../../src/lib/work-unit/completed-index.js";
 import type { GitExec } from "../../../src/lib/git/exec.js";
 import type { WorktreeMarkerReadResult } from "../../../src/lib/git/worktree-marker.js";
 
@@ -64,27 +63,6 @@ describe("findStaleWorktreeCandidates", () => {
   });
 });
 
-const completed = "/repo/.arc/completed";
-
-/** Completed archive containing the shipped WU `work-organization-reform`. */
-function completedFs(): CompletedIndexFs {
-  const dirs: Record<string, string[]> = {
-    [completed]: ["2026-q2"],
-    [`${completed}/2026-q2`]: ["10_work-organization-reform"],
-  };
-  return {
-    readdir: async (path) => {
-      const entry = dirs[path.replace(/\/$/u, "")];
-      if (entry === undefined) {
-        const err = new Error(`ENOENT: ${path}`) as Error & { code?: string };
-        err.code = "ENOENT";
-        throw err;
-      }
-      return entry;
-    },
-  };
-}
-
 /** Roster with a single shipped-WU worktree. */
 function shippedRoster(): WorktreeRosterResult {
   return {
@@ -99,9 +77,20 @@ function shippedRoster(): WorktreeRosterResult {
   };
 }
 
-/** git stub: `status --porcelain` reflects `clean`; `cherry` reflects `merged` (landed-in-base). */
-function buildExec(opts: { clean: boolean; merged: boolean }): GitExec {
+/**
+ * git stub: `ls-tree` reflects the base-ref shipped set, `status --porcelain`
+ * reflects `clean`, and `cherry` reflects `merged` (landed-in-base).
+ */
+function buildExec(opts: { clean: boolean; merged: boolean; shippedFromRef?: boolean }): GitExec {
   return (async (_cmd: string, args: string[]) => {
+    if (args[0] === "ls-tree") {
+      return {
+        stdout: opts.shippedFromRef === false
+          ? ""
+          : ".arc/completed/2026-q2/10_work-organization-reform/meta-work-organization-reform.md\n",
+        stderr: "",
+      };
+    }
     if (args[0] === "status") {
       return { stdout: opts.clean ? "" : " M file.ts\n", stderr: "" };
     }
@@ -131,10 +120,8 @@ function runSweep(opts: {
   return runStaleWorktreeSweep({
     roster: opts.roster ?? shippedRoster(),
     worktreeIdentity: { kind: "primary" },
-    cwd: "/repo",
     baseBranch: "main",
     exec: buildExec({ clean: opts.clean, merged: opts.merged }),
-    fs: completedFs(),
     readMarker: async () => opts.marker,
   });
 }
@@ -180,13 +167,23 @@ describe("runStaleWorktreeSweep", () => {
     const result = await runStaleWorktreeSweep({
       roster: shippedRoster(),
       worktreeIdentity: { kind: "linked", path: "/wt/wor" },
-      cwd: "/repo",
       baseBranch: "main",
       exec: buildExec({ clean: true, merged: true }),
-      fs: completedFs(),
       readMarker: async () => presentMarker,
     });
 
     expect(result.worktrees).toEqual([]);
+  });
+
+  it("reads shipped WUs from the base ref instead of the working tree", async () => {
+    const result = await runStaleWorktreeSweep({
+      roster: shippedRoster(),
+      worktreeIdentity: { kind: "primary" },
+      baseBranch: "main",
+      exec: buildExec({ clean: true, merged: true, shippedFromRef: true }),
+      readMarker: async () => presentMarker,
+    });
+
+    expect(result.worktrees).toHaveLength(1);
   });
 });
