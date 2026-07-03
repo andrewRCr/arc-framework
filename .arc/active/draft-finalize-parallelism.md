@@ -54,10 +54,10 @@ non-functional for its mandatory per-task quality-gate checkpoint until deps are
 WU has ever run in a worktree — this item gates the flip itself. Direction: an **always-invoked**
 post-worktree-create setup command (e.g. `worktree.post_create`) the scaffold runs on every worktree create —
 not optional, not a doc-only note. Sane default when unconfigured: emit a help / notice (deps must be
-provisioned), never a silent no-op. The project supplies its command (`npm install` here); ARC owns the seam +
-invocation point + default. Coordinate with the verify-and-configure workflow so the command is configured as an
-agent-led part of initial ARC setup. Absorbed here rather than a scaffold-owner WU because the flip cannot be
-blessed without it.
+provisioned), never a silent no-op. The project supplies its command — a *script* here, not bare `npm install`
+(see the enrichment below); ARC owns the seam + invocation point + default. Coordinate with the
+verify-and-configure workflow so the command is configured as an agent-led part of initial ARC setup. Absorbed
+here rather than a scaffold-owner WU because the flip cannot be blessed without it.
 
 Broadened at the 2026-07-01 gap-hunt: deps are one instance of a wider class — **untracked per-checkout
 prerequisites**. A fresh worktree also lacks the harness integration layer (`.claude/` / `.codex/` / `.gemini/`
@@ -96,11 +96,13 @@ still rests on the pushed branch + notes-sync; reuse the hatch's no-spawn reconc
 the nearest `.arc`), so it only serializes sessions inside one checkout. Post-flip, two same-machine sessions in
 different worktrees each acquire "the" lock and race the unguarded `git notes add` read-modify-write — a
 silently dropped note, the exact loss the lock exists to prevent (the non-fast-forward `cat_sort_uniq` recovery
-covers cross-*machine* divergence, not a same-machine ref clobber). Direction: anchor the lock at the git common
-dir, or retire it for the same tree-CAS the marker refs already use. Decide `.machine-id` scope with it —
-per-checkout minting makes every spawned worktree a distinct "machine" in the sync-state / errand marker trees
-(workspace-as-machine may even be the right semantic; decide it, don't drift into it). Gates wave 1 — the first
-concurrent notes sync.
+covers cross-*machine* divergence, not a same-machine ref clobber). Direction settled (2026-07-03, adversarial
+pass 1): **re-anchor the lock at the git common dir** — a contained path change to the proven mechanism,
+serializing all same-machine worktrees; the principled evolution (rewriting the notes save as ref-CAS with
+retry) routes to `sync-primitive-discipline`, already named FP-adjacent. `.machine-id` settles with it as
+**workspace-as-machine**: minted at the git common dir, so worktrees share one machine identity — the
+semantically correct reading (worktrees *are* one machine) and the end of marker-tree pollution from
+per-checkout mints. Gates wave 1 — the first concurrent notes sync.
 
 **4. Worktree launch bridge — one-session init as the worktree-by-default ergonomic target (wave-zero fold,
 2026-07-03).** FP's own graduation — the first spawned-worktree launch — exposed the init ergonomics gap: the
@@ -159,11 +161,13 @@ and **silently no-ops when it can't anchor** — FP's meta predated the closing-
 bailed and the fail-loud `Current Workflow` stage write threw (`Cannot set meta field`). The transition left
 partial state with no rollback: worktree + branch created, relocation staged, meta `Branch` cell already
 written; recovery was manual (unwind, append `---`, re-run — the healer then correctly backfilled
-`Current Workflow`, `PR URL`, `Completed`). Two facets, sized differently: **(a)** the healer's anchor bail —
-heal the missing rule or fail loud *pre-flight* (validate meta shape before any mutation; `arc verify` candidate
-check for old-shape metas) — errand-sized if FP spins it out; **(b)** transition atomicity — order mutations
-validate-first / rollback-on-throw, or document the recovery. The silent-heal-then-loud-crash composition is
-the sharp edge; the manual recovery is playbook material either way. Files: `src/lib/active/meta-reader.ts`
+`Current Workflow`, `PR URL`, `Completed`). Remedies settled (2026-07-03, adversarial pass 1), both facets
+absorbed in FP: **(a)** pre-flight meta-shape validation that fails loud with an actionable error before any
+mutation, plus an `arc verify` check for old-shape metas — no extension of silent healing (notice-not-silent);
+**(b)** validate-first mutation ordering — all validation precedes any mutation, shrinking the partial-state
+window to near zero; the residual (a crash mid-mutation after validation passed) gets a playbook recovery
+entry, not rollback machinery. The silent-heal-then-loud-crash composition was the sharp edge; pre-flight
+validation removes its trigger. Files: `src/lib/active/meta-reader.ts`
 (`reconcileMetaFields` anchor, `replaceBulletField` throw), `src/commands/start.ts` (mutation ordering).
 
 ### Seam-audit decisions
@@ -222,9 +226,9 @@ Settled *as decisions to make* — the audit resolves each; neither is a pre-com
   boundaries** is the sequential shape in one checkout. Leaning: sequential-first — the drain bottleneck is
   operator attention and primary verification, not execution wall-clock; escalate to worktree-dispatch only if
   wave evidence shows batches stalling on execution time (post-BI-1 the spawn tax is one command). Coupling:
-  under pin-primary the drain session is the primary's
-  natural tenant and per-errand worktrees are orchestration mechanics, not operator burden — the two leanings
-  reinforce each other. Seams (recorded here; route captures at planning close): the execution-delegation
+  under pin-primary the drain session is the primary's natural tenant and per-errand worktrees are orchestration
+  mechanics, not operator burden — the two leanings reinforce each other. Seams (recorded here; route captures
+  at planning close): the execution-delegation
   relaxation is `execution-delegation-doctrine`'s doctrine — errands are its natural standing-relaxation case;
   gate intensity under a trust grant is `interlock-release-refinement`'s model; BI-4's invocation-is-approval
   reasoning extends to orchestrator-invoked ceremony steps and coordinates with `cli-substrate-adoption`'s
@@ -268,8 +272,10 @@ at the time. Three layers, cheapest-first.
 **Shape: one long-running WU with internal phases** (settled 2026-07-01; the split-the-bless alternative — a
 separate burn-in/GA member — was declined: it would separate the checklist's author from its consumer and add a
 handoff seam to the WU that exists to hunt handoff seams). Phase 1: seam audit / build the matrix. Phase 2: the
-committed build items — item 1 gates wave 2 (code WU in a worktree), item 2 gates wave 4 (cross-machine);
-item 4's ceremony-locus fix verifies via a wave-2 re-graduation.
+committed build items — item 1 gates **all worktree waves** (its harness-layer leg: wave-1 sessions without it
+would run silently outside the ARC machinery, contaminating the evidence) and its node-deps leg specifically
+gates wave 2 (code WU in a worktree); item 2 gates wave 4 (cross-machine); item 4's ceremony-locus fix verifies
+via a wave-2 re-graduation.
 Phase 3+: the burn-in waves, during which FP is deliberately active alongside the wave workload — the observer
 WU is itself part of the concurrency under test (wave 1 is a three-in-flight state including FP). Later phases
 are calendar-gated and observational; that is the intended rhythm, not drift.
@@ -370,7 +376,10 @@ that burn-in wave; **playbook** = documented limitation / recovery entry.
   (§ Seam-audit decisions carries the fix direction).
 - **`refs/arc/user/{id}/sync-state`** (marker ref) — tree-CAS retry; concurrent publishers converge. **Loud** →
   wave 1 verifies detectors read it *cross-worktree* (the local `.sync-state.json` cache alone would miss a
-  sibling worktree's partial-push marker).
+  sibling worktree's partial-push marker). Classification premise shifted with BI-3's workspace-as-machine
+  settle (adversarial pass 2): same-workspace worktrees now share one marker key, and the publish sits outside
+  the notes lock's span — wave 1's verification explicitly includes the shared-key same-workspace case
+  (misordered sibling publishes; low materiality — TTL-bounded, presentation-only, a later push subsumes).
 - **`refs/arc/user/{id}/errands`** — tree-CAS + same-slug collision surfacing (never auto-resolved). **Loud** →
   wave 3.
 - **Worktree registry** (`git worktree` metadata) — git's own locking; a second op is refused. **Loud** →
@@ -409,7 +418,8 @@ not a write race:**
   notes ref; entry-union handles different-entry edits; same-entry is row A-3; the three-remover `USER-INBOX`
   line reconciliation stays a named seam suspect → wave 3.
 - **`.machine-id`** — exclusive-create mint per checkout: every spawned worktree becomes a distinct "machine"
-  in the marker trees. Possibly the right semantic, possibly drift → decide with **BI-3**.
+  in the marker trees. Settled with **BI-3**: workspace-as-machine — minted at the git common dir, worktrees
+  share one machine identity.
 - **Spawn-mode transition writes** — the graduate transition stages the relocation and runs user-open against
   the *invoking* checkout instead of the spawned worktree (correct under `--here` only; unseen pre-FP because
   every prior graduate was `--here`). Wrong-locus writes, **silent** until the worktree session fails to resolve
@@ -472,7 +482,8 @@ the rest of development; companion work launches while FP runs, by locus:
 - **Before build item 1 lands** (no automated worktree provisioning): a companion WU may run `--here` in the
   primary when errand contention allows; code WUs stay out of worktrees.
 - **After build item 1 lands:** companion WUs launch into worktrees and double as burn-in wave workload under
-  the wave discipline (wave 1's doc-only pair first; workload selection stays this WU's open item).
+  the wave discipline (wave 1's doc-only pair first; the provisional slate in § Verification design names the
+  picks, confirmed at pickup).
 - The standing `--here` interim default (WORKING-MEMORY) dissolves **progressively with the waves** — its
   removal trigger is build item 1 + wave verification, not "FP ships"; the WM entry is updated to match.
 
@@ -491,16 +502,18 @@ This WU **gates** completion, so it cannot route a fix back to an already-shippe
 
 ## Dependencies
 
-Explicit — it is the closeout:
+Explicit — it is the closeout. All named dependencies have shipped as of 2026-07-03; FP is the cohort's last
+unshipped member:
 
-- `concurrent-work-conventions` members: `concurrent-work-doctrine` (shipped), `merge-safety-mechanism` (shipped),
+- `concurrent-work-conventions` members (all shipped): `concurrent-work-doctrine`, `merge-safety-mechanism`,
   `async-merge-lifecycle`, `single-owner-wu-model`.
-- `cross-machine-coherence` members: `partial-push-marker`, `stale-state-detect-and-pull` (decomposed from
-  `cross-machine-sync-coherence` 2026-06-25; `coord-probe` relocated standalone as the external-coord
+- `cross-machine-coherence` members (shipped): `partial-push-marker`, `stale-state-detect-and-pull` (decomposed
+  from `cross-machine-sync-coherence` 2026-06-25; `coord-probe` relocated standalone as the external-coord
   enhancement and dropped from this gate).
-- `state-ref-write-safety` — the single-machine state-ref CAS (shed from the cross-machine WU at decomposition).
-- `out-of-wu-entry`.
-- The worktree-default flip (within `async-merge-lifecycle`'s scope).
+- `state-ref-write-safety` (shipped) — the single-machine state-ref CAS (shed from the cross-machine WU at
+  decomposition).
+- `out-of-wu-entry` (shipped).
+- The worktree-default flip — landed within `async-merge-lifecycle`'s scope; this WU exercises it.
 
 Natural **agile-parallelism cohort closeout** — the cohort archives on its ship.
 
@@ -533,9 +546,17 @@ the real seam count is visible.
   BI-4); harness-regen timing settled (downstream, BI-1); Codex research resolved (no live relocate —
   spawn-anchored via `--cd`; two surfaced capability tiers, BI-4c); `/arc-shift` revival added as a third
   seam-audit decision (routed from the cohort doc); workload selection basis codified (§ Verification design).
+  Adversarial pass 1 run (2026-07-03, fresh subagent per the mechanism): 1 blocker + 1 major confirmed against
+  source and settled — BI-3 direction fixed (common-dir lock re-anchor + workspace-as-machine `.machine-id`;
+  ref-CAS evolution routed to `sync-primitive-discipline`), BI-5 remedies fixed (fail-loud pre-flight +
+  validate-first ordering + playbook residual; spin-out hedge dropped); two minors folded (wave-gating wording,
+  dependency shipped-annotations). Adversarial pass 2 run same session: verdict **ready** — all pass-1 fixes
+  verified holding against source; two minors folded (matrix row A-4 re-annotated for the workspace-as-machine
+  shared-key case — publish sits outside the notes-lock span, verified; BI-1 direction wording reconciled to
+  the script-not-command enrichment). Converged at pass 2 of the `Heavy` cap.
 - **Open:** matrix cell verification (induce the condition, observe the failure — wave work; the skeleton is
   authored); burn-in workload slate is recorded provisionally (basis codified; confirm each pick's Class
   resolution and spec readiness at pickup); orchestrated-drain shape (sequential-first leaning recorded —
   wave 3 evidence decides).
-- **Next:** finalize the burn-in workload picks, run the advisory adversarial pass over the consolidated
-  draft, then cross into create-spec; slot `roadmap-tooling` (full or renderer slice) before wave 1.
+- **Next:** cross into create-spec (the adversarial loop converged 2026-07-03); slot `roadmap-tooling` (full or
+  renderer slice) before wave 1; confirm the provisional slate picks at pickup.

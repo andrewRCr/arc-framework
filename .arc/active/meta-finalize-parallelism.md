@@ -13,15 +13,12 @@
 - **Design:** `draft-finalize-parallelism.md`
 - **Task List:** [none]
 
-- **Current Workflow:** `draft-design`
+- **Current Workflow:** `create-spec`
 - **Last Completed:** [none]
 - **Next Task:** [none]
 - **Blockers:** [none]
 
-- **Next Action:** Iterate the draft in this worktree, then proceed to `create-spec` via the adversarial
-  mechanism — the draft is formalization-ready (pre-start milestone path fully discharged 2026-07-03; worktree
-  hand-provisioned: deps + harness layer + user dir, the wave-zero dogfood of build item 1). Near start: pick
-  the burn-in wave workloads, and slot `roadmap-tooling` (full or renderer slice) before wave 1.
+- **Next Action:** [begin current workflow]
 
 - **PR URL:** [none]
 - **Completed:** [none]
