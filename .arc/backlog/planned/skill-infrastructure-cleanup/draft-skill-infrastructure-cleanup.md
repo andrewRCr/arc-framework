@@ -59,6 +59,18 @@
   (shared with its knowledge-index entries); this WU owns the skill-side rewrite pass. Confirm the seam at
   planning iteration.
 
+### `[ ]` **Refresh or retire the stale `arc-verify` / `verify-integrity` surface**
+
+- _Routed from:_ `finalize-parallelism` preflight errand drain (2026-07-03); surfaced when a broad "verify the
+  queue is empty" instruction was interpreted as an `arc-verify` health check.
+- _Concern:_ `arc-verify` still sends agents to early-development `verify-integrity.sh`. The script has drifted
+  against current ARC surfaces: it expects retired workflow filenames, treats bash-invoked `0644` helper scripts
+  as broken, warns on Husky-managed hooks despite documented support, and is unclear against the newer
+  `arc health` diagnostic path. As a result, `arc-verify` is noisy enough to mislead handoff / setup work.
+- _Fold-in:_ when re-evaluating `arc-verify` placement, decide whether to retire the shell verifier in favor of
+  `arc health`, keep it as a narrower install-health diagnostic, or replace the skill entry with workflow / CLI
+  guidance that reflects the current health surface.
+
 ---
 
 ## Scope (routed captures — iterate into a plan)
