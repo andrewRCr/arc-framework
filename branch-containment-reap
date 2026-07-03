@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "slug": "branch-containment-reap",
+  "origin": "inbox",
+  "intent": "Expose containment-safe teardown for merged chore branches",
+  "branch": "fix/branch-containment-reap",
+  "createdAt": "2026-07-03T19:05:40.336Z",
+  "originEntry": "Expose the branch-containment reap to non-errand `chore/` branches (grooming teardown gap)"
+}
