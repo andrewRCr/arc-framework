@@ -16,8 +16,7 @@
 - **Next Task:** Task 5.1 — Complete verification (line ~486)
 - **Blockers:** [none]
 
-- **Next Action:** Begin Task 5.1 — verification via `verify-work-unit.md`; dogfood the `generate-tasks`
-  adversarial `task-audit` pass + post-settle re-read by hand per the task note
+- **Next Action:** integrate-work-unit Step 1 — verify completion
 
 - **PR URL:** [none]
 - **Completed:** [none]

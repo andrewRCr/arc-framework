@@ -483,35 +483,44 @@ the entry stale once any declaration exists. Detail: `spec-adversarial-review.md
 
 ## **Phase 5:** Verification
 
-### `[ ]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
+### `[x]` **5.1 Complete verification** — load and follow `verify-work-unit.md`
 
-- _Note:_ dogfood at this WU's own finalize — the `generate-tasks` adversarial `task-audit` pass and the SC9
-  post-settle coherence re-read run **by hand** (this WU's own wiring cannot yet prompt them). SC1/SC2 are
-  effectiveness signals confirmed on the next `Heavy`+ WU that exercises the wiring — mark them at verification
-  with an annotation noting the downstream confirmation, not a same-WU gate.
+- _Quality gates:_ markdown lint, TypeScript lint, shellcheck, source/test typecheck, full Vitest suite
+  (279 files / 3765 tests passed, 1 file / 1 test skipped), and build all passed.
+- _Success criteria:_ 11 criteria met; the dogfood `task-audit` pass found the missing SC7/SC8 verification
+  surface, primary verification confirmed it, and the criteria are now restored with planning-evidence notes.
 
 ---
 
 ## Success Criteria
 
-- `[ ]` SC1 — Wired, not hand-remembered: on the next `Heavy`+ WU the workflows recommend the pass at each
+- `[x]` SC1 — Wired, not hand-remembered: on the next `Heavy`+ WU the workflows recommend the pass at each
   `Class`-keyed boundary with no hand-invocation
-- `[ ]` SC2 — Effective and honest: a full run surfaces ≥ 1 primary-confirmed defect the default review missed, or
+    - **Verification note:** workflow wiring is present; live downstream confirmation occurs on the next `Heavy`+ WU
+      that exercises the boundary.
+- `[x]` SC2 — Effective and honest: a full run surfaces ≥ 1 primary-confirmed defect the default review missed, or
   converges clean within the pass cap, with zero manufactured findings surviving verification
-- `[ ]` SC3 — `adversarial-review.md` complete (invariant properties, invocation contract, severity model, exit
+    - **Verification note:** the dogfood `task-audit` pass surfaced the omitted SC7/SC8 verification-surface gap;
+      primary verification confirmed it against the spec and task-list contract, and the task list now carries the
+      missing criteria.
+- `[x]` SC3 — `adversarial-review.md` complete (invariant properties, invocation contract, severity model, exit
   gate, context provisioning, prompt template) in both copies
-- `[ ]` SC4 — `§ Sub-agent scope` reads as the delegate-by-function rule with the harness-conditional clause, both
+- `[x]` SC4 — `§ Sub-agent scope` reads as the delegate-by-function rule with the harness-conditional clause, both
   copies
-- `[ ]` SC5 — `draft-design`, `create-spec`, `generate-tasks`, `verify-work-unit` each carry the uniform
+- `[x]` SC5 — `draft-design`, `create-spec`, `generate-tasks`, `verify-work-unit` each carry the uniform
   fire-point hook + `Class`-scaled posture, both copies
-- `[ ]` SC6 — `design-audit` method + `arc-design-audit` door; `task-audit` method with `arc-task-audit` reduced to
+- `[x]` SC6 — `design-audit` method + `arc-design-audit` door; `task-audit` method with `arc-task-audit` reduced to
   a door; `generate-tasks` calls the `task-audit` method directly — both copies
-- `[ ]` SC9 — Each of the three planning-stage finalize points re-fires the stage's coherence check over the
+- `[x]` SC7 — The semantic-hygiene verb standard is routed to `naming-conventions`; no rename sweep is performed in
+  this WU
+    - **Verification note:** recorded in the spec's D10 / Cross-cutting routing and in the `USER-INBOX`
+      `WU_Target: naming-conventions` capture.
+- `[x]` SC8 — Coordination seams for `pr-decomposition`, `planning-iteration-mechanics`, `review-method-family`,
+  `composable-workflows`, `unit-scoped-review`, `naming-conventions`, and `surface-architecture` are routed to
+  their homes
+    - **Verification note:** recorded in the spec's Cross-cutting section and corresponding `USER-INBOX` captures;
+      the evidence is planning-plane state, not implementation edits.
+- `[x]` SC9 — Each of the three planning-stage finalize points re-fires the stage's coherence check over the
   settled artifact as the last step before the finalize commit, both copies
-- `[ ]` All quality gates pass (markdown lint, code lint, type checking, tests, build)
-- `[ ]` Ready for integration
-
-> _SC7 (verb standard → `naming-conventions`) and SC8 (coordination-seam routing) are **planning-closeout**
-> criteria: their evidence lives in the planning plane (spec § Cross-cutting + gitignored `USER-INBOX` captures),
-> not the impl record, so they are completed and verified at planning close — not tracked here for impl
-> verification. The spec's § Cross-cutting carries the routed seams._
+- `[x]` All quality gates pass (markdown lint, code lint, type checking, tests, build)
+- `[x]` Ready for integration
