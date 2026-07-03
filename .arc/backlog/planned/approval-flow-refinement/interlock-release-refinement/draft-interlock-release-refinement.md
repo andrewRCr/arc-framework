@@ -110,6 +110,29 @@ atomic companion and the personal atomic inbox.
   commit-interlock inclusive-semantic item below. All three are facets of "one approval, then routing follows
   opt-in + interlock mode."
 
+### `[ ]` **Scale interlock intensity by work character, decision density, and explicit trust grants**
+
+- *Routed from:* pre-`finalize-parallelism` errand drain (2026-07-03), after several tiny routing / grooming /
+  markdown errands made the flat ceremony cost visible.
+- *Concern:* ARC already separates **review lane** from work wrapper — code and constitutional surfaces stay
+  reviewed-lane, while low-risk planning grooming may auto-merge. The interlock model has not made the analogous
+  separation: trivial errands and tiny markdown/routing changes still pay roughly the same approval cadence as
+  code or design-authority work. That is a trust/autonomy mismatch, not just prompt-count friction: the operator
+  may want eyes on some reviewed-lane changes while also granting the agent autonomy for known-safe errand classes
+  ("lint green → commit, PR, and auto-merge this grooming cleanup; stop for code, design authority, conflicts, or
+  uncertainty").
+- *Fold-in:* design a unified **interlock-intensity / trust-grant model** rather than one-off collapses. Inputs to
+  price: work character (`Errand` vs WU), artifact/lane risk (code, design-authority, constitutional docs, movable
+  planning artifacts), decision density / ambiguity, ownership context (self-review vs team/foreign-owner), and an
+  explicit approval-provenance source with declared scope. The floor remains EDD's principle: no judgment without
+  a gate, and no gate without a decision. Outputs may include configurable/autonomy modes for errand and grooming
+  tails, but must preserve CI, `pre-merge-review` when active, lane requirements, and no self-escalation beyond the
+  human's declared grant.
+- *Composition:* generalizes the errand approval-collapse and integration-stacking items; coordinates with
+  `unit-scoped-review` for the WU-scale application and `execution-delegation-doctrine` for the constitutional
+  anchor. `finalize-parallelism` burn-in should feed concrete evidence of which stops are decision-bearing versus
+  routine confirmation under real errand / grooming batches.
+
 ### `[ ]` **Audit interlock-marker convention adoption across remaining workflows**
 
 - *Routed from:* `ATOMIC-INBOX`, shared-inbox sweep (2026-06-02). Filed here for concern-adjacency with the
