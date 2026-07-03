@@ -81,6 +81,75 @@ Non-procedural, agent-facing, in-repo:
   (rules scattered, no canonical home) + *mechanism failure* (guidance not salient at the moment of use);
   fix both or drift continues. The same diagnosis plausibly applies to strategy consultation.
 
+### External idiom pool (adopt / adapt / inform)
+
+Stance: never slavish to idiom, never bucking it without principled reason. First-line inputs are ARC's own
+shipped/planned machinery; these external idioms inform, and are adopted or adapted where they compose:
+
+- **Diátaxis** — the reference-vs-explanation cut is the principled basis the "operational in strategies /
+  rationale on the docs site" line has lacked; the failure mode it names (explanation mixed into reference
+  degrades both) is a candidate diagnosis for the loose-bucket feel of today's strategies.
+- **Cursor rules** — a shipped trigger vocabulary (`alwaysApply` / glob-attached / description-requested /
+  manual); practitioner consensus that deterministic attachment outperforms description-requested supports
+  mechanical-where-structural.
+- **Agent skills (Claude Code)** — three-level progressive disclosure. The load-bearing insight: descriptions
+  are authored as *firing conditions* and are *persistently re-presented* by the harness each turn. ARC is
+  harness-agnostic and cannot assume persistent re-presentation — its analogue must be fire-site
+  re-presentation (workflow steps, CLI-emitted manifests/agendas). Adapt, not adopt.
+- **llms.txt / OKF** — index-as-spec-shaped-artifact; path-is-ID + type-in-frontmatter (the latter now forced
+  here — see § Relationship to other work).
+
+### Placement principle (working synthesis, 2026-07-03 pass)
+
+Two axes place every non-procedural artifact; the two on-demand tiers coexist by principle, not hedging:
+
+- **Miss-cost.** What does a session lose if this content fails to load at its moment? High miss-cost —
+  constraints, safety, non-negotiables — earns `always` or a hard trigger, never the indexed tier. (Extends
+  `loadset-composition`'s "never demote a constraint.")
+- **Trigger-knowability.** Is the moment of relevance *structural* — identifiable at authoring time by a
+  computable condition (workflow step, lifecycle stage, path/domain match, config state) — or *emergent* —
+  arising from the content of the work in ways no pre-computed condition captures?
+    - Structural → **hard trigger**, mechanically evaluated (probe/manifest) — parity with the procedural side.
+    - Emergent → **indexed**, where the index entry is authored as a *firing condition* ("when X, load Y"),
+      never a title or summary. So understood, the indexed tier is not implicit awareness — it is an explicit
+      trigger relocated into context with the body left on disk. Its reliability is a function of
+      firing-condition authoring discipline plus the condition's *persistence* in context; both are designable
+      (tiny index, fire-site re-presentation) and lintable (`knowledge-lint`).
+
+Mismatches are the failure modes: hard triggers on emergent-relevance content go brittle (glob/condition
+sprawl, false negatives, maintenance drag); judgment firing on structural content wastes reliability the
+machine could supply. `STRATEGY-INDEX`'s existing "Consult when:" lines show the index is already
+half-shaped for this; its weaknesses are thin conditions, the one-shot init read (salience decays
+mid-session), and no mechanical standing or testability.
+
+**Research grounding (2026-07-03 light pass — the principle held, with sharpenings):**
+
+- **Directive, not merely condition-shaped.** Passive "use when X" descriptions activate ~77–87%;
+  directive phrasing ("ALWAYS invoke when {triggers}; do not {default action} directly") reached ~100%
+  (20.6× odds ratio — single 650-trial practitioner study, directional not load-bearing, but
+  cross-validated by Cursor-ecosystem experience where description-requested rules are the tier that
+  silently never fires). Firing conditions name the trigger *and* the default behavior to suppress.
+- **Index-awareness is strictly weaker than fire-site re-presentation.** llms.txt is the cautionary tale:
+  a passively-available index shows near-zero measured effect even on crawlers. An index earns
+  reliability only when something actively surfaces its entries into the live instruction stream (a
+  workflow step, a CLI emission, a lint). Lost-in-the-middle findings independently support re-presenting
+  instructions near the point of use as an empirical mitigation, not just a design preference.
+- **ARC already ships the validated pattern — generalize it, don't invent beside it.** The procedural side
+  runs a three-tier hybrid today: rules (always) / **methods (deterministic fire-site attachment via
+  workflow-frontmatter declarations)** / skills (semantic firing, harness-native, Claude-Code-only). The
+  methods mechanism sidesteps the entire semantic-firing failure catalog because the workflow step *is*
+  the trigger, restated in its own text — simultaneously the lost-in-the-middle mitigation. The knowledge
+  layer's hard-trigger leg is plausibly an `arc.methods`-style declaration generalized to knowledge
+  content (`arc.knowledge`?), not new machinery.
+- **Lean-always pressure is now quantified.** Instruction-following peaks around 150–200 simultaneous
+  instructions and degrades toward ~68% at 500 (IFScale), with measurable early-position bias — numeric
+  backing for the instruction-budget thesis and for a minimal `always` tier.
+- Evidence honesty: no published study cleanly quantifies recall *by loading tier*; the tier percentages
+  in `research-instruction-reliability.md` remain experience-calibrated, backed by adjacent
+  (instruction-count and position) findings.
+
+Pending: the corpus walk classifying each artifact on the two axes (running 2026-07-03).
+
 ### Unified model & extraction posture
 
 This WU's deliverable is the **unified model**, owned in one place. Where a sibling WU currently carries a
@@ -130,6 +199,63 @@ Extraction candidates (leans, to be negotiated — see § Relationship to other 
   never demote constraints) as the load-side half; author the content-side half (what *kind* of content
   belongs at which tier) as part of the unified model, superseding the ad-hoc line.
 
+## Corpus walk — findings (2026-07-03)
+
+Full-corpus profile (content-kind mix + consumption moments for all 16 strategies) plus the procedural
+reference graph (references to each strategy from `system/**`). Four findings:
+
+1. **The bucket is less loose than it feels — the head of the corpus is method-shaped.** Seven of 13 ARC
+   strategies are 65–80% operational reference with clear structural consumption moments
+   (`adr-methodology`, `file-classification`, `quality-gates`, `task-list-formatting`,
+   `workflow-authoring`, `configurability-architecture`, `planning-module`; `package-project-sync` on the
+   project side). For these, hard-trigger formalization is *mechanization of existing practice*, not
+   redesign. The reference graph corroborates: consultation is already fire-site-shaped at the head
+   (`work-organization` 43 procedural references, `task-list-formatting` 12, `session-operations` 9) with
+   a long tail at ≤1 reference.
+2. **Four files are explanation-heavy** — `concurrent-work` (~45% explanation incl. philosophy
+   checkpoints), `interlock-release-wrappers` (~55%, self-described architectural reference),
+   `storage-evolution` (~40%, self-labeled direction doc), `testing-methodology` (~45%). The Diátaxis
+   reference-vs-explanation violation is concentrated here — **except** `testing-methodology`, which is
+   *deliberately* the rationale layer over its two operational methods (`test-first`,
+   `testing-standards`): not a violation but the validated two-layer pattern, and the template for how
+   kind-C content (below) coexists with operational methods.
+3. **Buried constraints are the sharpest defect.** Hard invariants sit mid-document in on-demand files:
+   append-only-until-integration (`concurrent-work`); cut→occupy, the one-level nesting cap, spec-flow
+   invariants, single-branch-per-WU (`work-organization`); the integration-interlock and push-ordering
+   invariants (`session-operations`); the nine forward-compat principles (`storage-evolution`);
+   destructive-flag rules (`interlock-release-wrappers`, `workflow-authoring`). By the miss-cost axis this
+   is exactly the placement the principle forbids — highest-miss-cost content in the lowest-reliability
+   position. Deliverable: a constraint-relocation list (targets: always-loaded rules surfaces, or the
+   fire-sites gating the operations). Seam: relocation-list authorship is this WU's; execution ownership
+   is negotiated with `rules-restructure` at its touchpoint.
+4. **The classification unit is the section, not the file.** The two giants (`work-organization` 1426
+   lines, `session-operations` 1091) are bundles of many distinct structural moments, and procedural
+   references already target sections (`§ Errand Work Class`, `§ Render standard`). Awareness contracts
+   attach at fragment granularity — the same conclusion `composable-workflows` reached for procedural
+   content, which strengthens the shared-substrate case. The genuinely emergent-relevance residue is
+   small (`concurrent-work`'s judgment doctrine, `testing-methodology`'s content-driven relevance, the
+   strategic-awareness passages) — the mechanical share of the corpus is large.
+
+### Strategies-layer verdict (leaning, pending ratification)
+
+"Strategy" as a category conflates four content kinds that the placement principle separates:
+
+- **(A) Operational reference with structural triggers** → hard-trigger tier (fire-site declaration via
+  the generalized methods mechanism). The bulk of the corpus by volume.
+- **(B) Hard constraints** → `always` tier or gate-site placement; never mid-document on-demand. Small
+  volume, highest miss-cost.
+- **(C) Explanation / rationale / direction** → the one kind whose *location* is legitimately variable:
+  docs site when one exists and is maintained, an explicitly-labeled in-repo explanation surface when
+  not. The architecture is identical either way; only the storage differs — this dissolves the
+  "strategies layer: mandatory or optional?" question (the layer isn't optional; its location is).
+- **(D) Emergent-relevance doctrine** → directive firing-condition index.
+
+Under this verdict the strategies layer as a *category* dissolves into per-fragment awareness contracts;
+the "strategies vs docs site" line stops being fiat ("rationale there, operational here") and becomes the
+reference-vs-explanation cut enforced by miss-cost × trigger-knowability. Whether the *name* "strategy"
+survives — and for which kind — is a naming decision for the redesign, coordinated with
+`naming-conventions`.
+
 ## Relationship to other work
 
 - `loadset-composition` — closest sibling; owns T1 boundary + demotion rule + QUICK-REFERENCE T1 call +
@@ -138,8 +264,10 @@ Extraction candidates (leans, to be negotiated — see § Relationship to other 
 - `rules-restructure` — owns `DOMAIN-RULES.*` rename + auto-load wiring; candidate for partial extraction
   or wholesale absorption (open). Its trigger-model alternatives (extension declaration / path heuristics /
   user-invoked) are a concrete design input to the general awareness mechanism.
-- `idiomatic-alignment` — frontmatter-`type` / path-is-ID / index-correspondence; consumed as
-  classification-layer input.
+- `idiomatic-alignment` — **extraction agreed (2026-07-03): this WU forces the frontmatter-`type`
+  decision** — the awareness contract rides frontmatter, so the type layer is settled here as its enabling
+  substrate. IA keeps the OKF correspondence documentation and projection-readiness threads; seam to be
+  confirmed at IA's planning touchpoint.
 - `naming-conventions` (doc-conventions) — `TYPE.QUALIFIER` hub renames + file-classification
   codification; any renames this WU proposes (QUICK-REFERENCE, strategy prefix) coordinate there.
 - `composable-workflows` — fragment/resolve-then-load substrate; the mechanized form of any
@@ -149,6 +277,12 @@ Extraction candidates (leans, to be negotiated — see § Relationship to other 
   precedent (content + mechanism) and shared "canonical home + thin per-site alignment" architecture.
 - `knowledge-lint` — enforcement-side sibling; whatever taxonomy/boundary rules this WU codifies become
   lintable surface.
+- `skill-infrastructure-cleanup` — ARC's skills are the live *semantic-firing* tier (harness-native,
+  Claude-Code-only today); their descriptions belong to the same firing-condition authoring discipline as
+  the knowledge index, even though skill bodies are procedural. Actionable insight surfaced 2026-07-03,
+  routing there: current `SKILL.md` descriptions are passive/summary-style — the weakest firing style per
+  the research; rewrite in directive firing-condition form. Lean on the seam: this WU owns the
+  cross-family description-authoring *standard*; SIC owns the skill-file mechanics and the rewrite pass.
 - `docs-site-refresh` / `docs-content-sweep` — the external docs layer whose existence drives the
   layer-justification question; the strategies-vs-docs-site line must be settled jointly (ARC's own site
   is stale, which is itself evidence about the two-layer model's maintenance economics).
@@ -171,9 +305,12 @@ Extraction candidates (leans, to be negotiated — see § Relationship to other 
 
 - Whether the strategies layer survives as a category, becomes optional-when-docs-site-exists, or is
   restructured into something else entirely — the central open design question.
-- Whether a unified mechanical progressive-disclosure model is *viable* for knowledge content, or whether
-  relevance-triggered loading irreducibly needs judgment (making explicit-trigger authoring discipline,
-  not mechanism, the real deliverable).
+- How far the mechanical share extends in practice — which content proves structural vs emergent on the
+  trigger-knowability axis; answered by the corpus walk, not a priori. Working stance: mechanical where
+  possible/viable, judgment-fired where the relevance is genuinely emergent.
+- Whether firing-condition persistence can be made reliable harness-agnostically — without the
+  skills-style per-turn re-presentation, fire-site re-presentation and manifest emission must carry the
+  salience load; unvalidated.
 - How much of the awareness mechanism is probe-computable (à la `domainRules` slot) vs authored
   (declarations in workflows/task lists) vs indexed (a sharper successor to `STRATEGY-INDEX`).
 - Assumption: audit-first is the right shape — evaluate the current architecture before committing to an
@@ -194,14 +331,30 @@ threads coordinate with `loadset-composition` (whichever runs first re-anchors t
 
 ## Continuity
 
-- **Readiness:** rough — first-pass capture from the framing session; direction real, fundamentals open.
+- **Readiness:** rough, moving toward maturing — the mechanism-side fundamentals now have a working shape
+  (placement principle); the taxonomy-side fundamentals (strategies-layer justification) remain open.
 - **Resolved:** scope framing (four axes + surface inventory); extraction posture (unified model owns the
   cross-surface concerns, siblings keep crisp mechanisms, splits agreed at planning touchpoints);
-  standalone at mint; audit-first shape.
-- **Open:** strategies-layer justification and end-state; the awareness/access mechanism's shape and how
-  mechanical it can be; extraction calls per sibling (QUICK-REFERENCE identity, rules-restructure partial
-  vs wholesale, placement-thresholds ownership); classification-layer ownership; cohort home; whether this
-  WU stays one unit or decomposes after the audit.
-- **Next:** iterate § Concern-by-concern into evaluated findings (walk the actual strategy corpus against
-  the intended taxonomy; inventory every awareness path an agent has today); then work the
-  strategies-layer justification question to a leaning.
+  standalone at mint; audit-first shape; **ordering** — mechanism first, taxonomy against it, extraction
+  falls out (the spine test: an artifact type earns existence by a distinct awareness contract, not a
+  distinct name); **frontmatter-`type` decision forced here** (extraction from `idiomatic-alignment`);
+  **placement principle** (miss-cost × trigger-knowability; both on-demand tiers legitimate — hard
+  triggers where structural, firing-condition index where emergent; working, pending research grounding);
+  idiom stance (adopt/adapt/inform, never slavish, never bucked without reason).
+- **Open:** strategies-layer justification and end-state; trigger-evaluator mechanism shape (probe slot vs
+  manifest vs both); harness-agnostic firing-condition persistence design; extraction calls per sibling
+  (QUICK-REFERENCE identity, rules-restructure partial vs wholesale, placement-thresholds ownership);
+  cohort home; whether this WU decomposes after the audit.
+- **Resolved (research pass, 2026-07-03):** placement principle held and sharpened — directive firing
+  conditions; index-awareness strictly weaker than fire-site re-presentation; the hard-trigger leg
+  generalizes the shipped methods mechanism rather than inventing parallel machinery; skills identified
+  as the live semantic tier, description-standard seam routed to `skill-infrastructure-cleanup`.
+- **Resolved (corpus walk, 2026-07-03):** findings 1–4 in § Corpus walk — head of corpus is
+  method-shaped (mechanize, don't redesign); explanation concentration in four files with
+  `testing-methodology` as the validated two-layer template; buried-constraints defect list identified;
+  fragment-granularity conclusion (contracts attach to sections, not files).
+- **Next:** ratify (or revise) the four-kind strategies-layer verdict with the maintainer; then design
+  the awareness-contract schema (frontmatter shape, `arc.knowledge`-style fire-site declaration, index
+  emission) against the ratified verdict; author the constraint-relocation list; take the extraction
+  negotiations (QUICK-REFERENCE identity, rules-restructure, placement thresholds) with the verdict in
+  hand.
