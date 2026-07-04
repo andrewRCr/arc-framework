@@ -137,7 +137,13 @@ interface ArmContext {
 /** Resolve `branch.base`, `worktree.location_template`, and the `{repo}` basename from config + git. */
 async function resolveSpawnConfig(
   ctx: ArmContext,
-): Promise<{ baseBranch: string; locationTemplate: string; repo: string; teamMode: boolean } | null> {
+): Promise<{
+  baseBranch: string;
+  locationTemplate: string;
+  postCreateScript: string;
+  repo: string;
+  teamMode: boolean;
+} | null> {
   const { settings } = await readConfigSettings(ctx.cwd);
   const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
   if (primaryWorktreePath === null) {
@@ -148,6 +154,7 @@ async function resolveSpawnConfig(
   return {
     baseBranch: settings["branch.base"],
     locationTemplate: settings["worktree.location_template"],
+    postCreateScript: settings["worktree.post_create"],
     repo: basename(primaryWorktreePath),
     teamMode: settings["team.mode"] === "true",
   };
@@ -182,6 +189,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
     ].join("\n"),
     "Spawned",
   );
+  if (r.postCreateNotice) p.log.info(r.postCreateNotice);
   p.outro("Done.");
 }
 
@@ -259,6 +267,7 @@ async function graduate(
       cls,
       baseBranch: config.baseBranch,
       locationTemplate: config.locationTemplate,
+      postCreateScript: config.postCreateScript,
       repo: config.repo,
       spawningIdentity: ctx.identity,
     },
@@ -343,7 +352,13 @@ async function resume(wuName: string, opts: StartOptions, ctx: ArmContext): Prom
         rmdir: (path) => rmdir(path),
       },
     },
-    { name: wuName, locationTemplate: config.locationTemplate, repo: config.repo, spawningIdentity: ctx.identity },
+    {
+      name: wuName,
+      locationTemplate: config.locationTemplate,
+      postCreateScript: config.postCreateScript,
+      repo: config.repo,
+      spawningIdentity: ctx.identity,
+    },
   );
   if (result.status === "rejected") {
     p.log.error(result.reason);

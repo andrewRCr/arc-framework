@@ -25,6 +25,7 @@ const FULL_SETTINGS: ConfigSettings = {
   "branch.base": "main",
   "branch.protection": "full",
   "worktree.location_template": "../{repo}.{branch}",
+  "worktree.post_create": "",
   "commit.format": "conventional",
   "commit.context_footer": "required",
   "commit.custom_pattern": "",

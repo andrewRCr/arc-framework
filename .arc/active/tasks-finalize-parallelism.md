@@ -109,12 +109,10 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
   npm-registry package before provisioning runs — provisioning must precede any CLI invocation there.
 - **Additional Context:** `spec-finalize-parallelism.md` § Committed build items (BI-1).
 
-    - `[ ]` **2.1.a `worktree.post_create` deps-script invocation point**
-        - Build `test-first` (one behavior at a time):
-            - a configured `worktree.post_create` script runs on every worktree create, before any CLI use
-            - an unconfigured `worktree.post_create` emits the "deps must be provisioned" notice, not a no-op
-            - a configured script that exits non-zero fails loud and aborts provisioning — never continuing to
-              CLI use in a still-deps-less worktree (the ordering invariant BI-1 exists to protect)
+    - `[x]` **2.1.a `worktree.post_create` deps-script invocation point**
+        - Spawned worktrees now read `worktree.post_create`, run a configured script immediately after
+          `git worktree add`, surface an unconfigured deps-provisioning notice, and fail loud before marker /
+          scaffold follow-on work if the script exits non-zero.
 
     - `[ ]` **2.1.b Registered-harness-dir copy-from-primary**
         - The registered-dir list lives under the `worktree.*` config namespace (sibling to `worktree.post_create`),
@@ -133,6 +131,12 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
         - Build `test-first` (one behavior at a time):
             - provisioning registers the marker's ignore rule (or writes it to an already-ignored path) so an
               arc-spawned worktree leaves a clean tree
+
+    - `[ ]` **2.1.e Self-hosting `worktree.post_create` script wiring**
+        - Add this repo's post-create deps script and wire `.arc/system/arc-config.yml` to it, while keeping the
+          packaged `arc-config.yml` default empty so adopters opt into their own command.
+        - The command uses the dogfooded install → build → install sequence needed for this workspace's gitignored
+          `dist/` bin links, and Wave 2 verifies it in a fresh spawned code worktree.
 
 ### `[ ]` **2.2 BI-2 — In-place Materialize for cross-machine pickup**
 

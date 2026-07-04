@@ -29,8 +29,8 @@ async function createFixture(): Promise<Fixture> {
 }
 
 describe("readConfigSettings — AGENT_CONSUMABLE_KEYS", () => {
-  it("enumerates the 22 agent-consumable keys", () => {
-    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(22);
+  it("enumerates the 23 agent-consumable keys", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toHaveLength(23);
   });
 
   it("excludes all hooks.* keys", () => {
@@ -120,6 +120,7 @@ describe("readConfigSettings — user-supplied values", () => {
       "branch.base: develop",
       "branch.protection: full",
       "worktree.location_template: .worktrees/{branch}",
+      "worktree.post_create: npm run setup:worktree",
       "commit.format: custom",
       "commit.context_footer: disabled",
       "commit.custom_pattern: ^FOO-.+",
@@ -145,6 +146,7 @@ describe("readConfigSettings — user-supplied values", () => {
     const result = await readConfigSettings(fixture.root);
     expect(result.settings["branch.base"]).toBe("develop");
     expect(result.settings["worktree.location_template"]).toBe(".worktrees/{branch}");
+    expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
     expect(result.settings["commit.format"]).toBe("custom");
     expect(result.settings["pm.mode"]).toBe("arc-in-git");
     expect(result.settings["user.notes_push"]).toBe("manual");
@@ -488,5 +490,35 @@ describe("readConfigSettings — worktree.location_template", () => {
       expect(result.defaultsApplied).not.toContain("worktree.location_template");
       expect(result.warnings).toHaveLength(0);
     }
+  });
+});
+
+describe("readConfigSettings — worktree.post_create", () => {
+  let fixture: Fixture;
+  beforeEach(async () => {
+    fixture = await createFixture();
+  });
+  afterEach(async () => {
+    await rm(fixture.root, { recursive: true, force: true });
+  });
+
+  it("is an agent-consumable key", () => {
+    expect(AGENT_CONSUMABLE_KEYS).toContain("worktree.post_create");
+  });
+
+  it("applies an empty default when absent", async () => {
+    await writeFile(fixture.configPath, "pm.mode: arc-in-git\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["worktree.post_create"]).toBe("");
+    expect(result.defaultsApplied).toContain("worktree.post_create");
+    expect(result.warnings).toHaveLength(0);
+  });
+
+  it("passes any on-disk value through verbatim (freeform script)", async () => {
+    await writeFile(fixture.configPath, "worktree.post_create: npm run setup:worktree\n");
+    const result = await readConfigSettings(fixture.root);
+    expect(result.settings["worktree.post_create"]).toBe("npm run setup:worktree");
+    expect(result.defaultsApplied).not.toContain("worktree.post_create");
+    expect(result.warnings).toHaveLength(0);
   });
 });

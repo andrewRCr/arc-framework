@@ -83,6 +83,8 @@ export type ReconcileWorktreeOp =
       wuName: string;
       /** Identity creating the worktree — the ownership marker. */
       spawningIdentity: string;
+      /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
+      postCreateScript?: string;
       /** Marker timestamp (epoch millis); injectable for tests. */
       now?: number;
     }
@@ -111,8 +113,12 @@ export type ReconcileWorktreeOp =
 
 /** Outcome of a {@link reconcileWorktree} call. */
 export type ReconcileWorktreeResult =
-  | { mutation: "spawn"; worktreePath: string; branch: string }
+  | { mutation: "spawn"; worktreePath: string; branch: string; postCreateNotice?: string }
   | { mutation: "teardown"; worktreePath: string; locusHopped: boolean };
+
+/** Notice surfaced when the project has not configured its worktree provisioning script. */
+const POST_CREATE_UNCONFIGURED_NOTICE =
+  "No `worktree.post_create` script configured; deps must be provisioned before running ARC commands in this worktree.";
 
 /**
  * Whether `locus` sits inside (or at) `worktreePath` — the self-teardown test.
@@ -121,6 +127,13 @@ export type ReconcileWorktreeResult =
 function isSelfTeardown(worktreePath: string, locus: string): boolean {
   const rel = relative(resolve(worktreePath), resolve(locus));
   return rel === "" || (!rel.startsWith("..") && !isAbsolute(rel));
+}
+
+/** Shell invocation for a project-supplied post-create script. */
+function postCreateShellCommand(script: string): { cmd: string; args: string[] } {
+  return process.platform === "win32"
+    ? { cmd: "cmd.exe", args: ["/d", "/s", "/c", script] }
+    : { cmd: "sh", args: ["-c", script] };
 }
 
 /**
@@ -166,13 +179,31 @@ export async function reconcileWorktree(
         ? ["worktree", "add", worktreePath, op.branch]
         : ["worktree", "add", worktreePath, "-b", op.branch, op.base];
     await ctx.exec("git", add);
+    const postCreateScript = op.postCreateScript?.trim();
+    let postCreateNotice: string | undefined;
+    if (postCreateScript) {
+      const { cmd, args } = postCreateShellCommand(postCreateScript);
+      try {
+        await ctx.exec(cmd, args, { cwd: worktreePath });
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        throw new Error(`worktree.post_create failed: ${detail}`, { cause: err });
+      }
+    } else {
+      postCreateNotice = POST_CREATE_UNCONFIGURED_NOTICE;
+    }
     await writeWorktreeOwnershipMarker(worktreePath, {
       createdByArc: true,
       wuName: op.wuName,
       spawningIdentity: op.spawningIdentity,
       now: op.now,
     });
-    return { mutation: "spawn", worktreePath, branch: op.branch };
+    return {
+      mutation: "spawn",
+      worktreePath,
+      branch: op.branch,
+      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+    };
   }
 
   const { worktreePath, currentLocus } = op;

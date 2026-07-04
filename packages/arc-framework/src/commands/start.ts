@@ -130,6 +130,8 @@ export interface GraduateSpawnParams extends GraduateBaseParams {
   repo: string;
   /** Identity graduating the WU — the worktree ownership marker. */
   spawningIdentity: string;
+  /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
+  postCreateScript?: string;
 }
 
 /**
@@ -194,6 +196,7 @@ export async function runGraduate(
           repo: params.repo,
           wuName: params.name,
           spawningIdentity: params.spawningIdentity,
+          postCreateScript: params.postCreateScript,
         },
     class: params.cls,
   };
@@ -433,6 +436,8 @@ export interface CreateNewResult {
   branch: string;
   /** The resolved WU name (meta filename / H1 / user subdir). */
   wuName: string;
+  /** Notice surfaced when no post-create provisioning script is configured. */
+  postCreateNotice?: string;
 }
 
 /** No-throw outcome — a refusal carries a reason instead of throwing. */
@@ -474,6 +479,7 @@ export async function runCreateNew(
   const { settings } = await readConfigSettings(params.worktreePath);
   const baseBranch = settings["branch.base"];
   const locationTemplate = settings["worktree.location_template"];
+  const postCreateScript = settings["worktree.post_create"];
 
   const primaryWorktreePath = await resolvePrimaryWorktreePath(ctx.io.exec);
   if (primaryWorktreePath === null) {
@@ -487,8 +493,9 @@ export async function runCreateNew(
 
   // Spawn leg: cut the branch + worktree and write the ARC-created marker.
   let worktreePath: string;
+  let postCreateNotice: string | undefined;
   try {
-    ({ worktreePath } = await reconcileWorktree(
+    const spawnResult = await reconcileWorktree(
       { exec: ctx.io.exec, chdir: (dir) => { process.chdir(dir); } },
       {
         mutation: "spawn",
@@ -498,8 +505,14 @@ export async function runCreateNew(
         repo,
         wuName,
         spawningIdentity: params.identity,
+        postCreateScript,
       },
-    ));
+    );
+    if (spawnResult.mutation !== "spawn") {
+      return { ok: false, reason: "could not spawn the worktree: unexpected teardown result from spawn leg" };
+    }
+    worktreePath = spawnResult.worktreePath;
+    postCreateNotice = spawnResult.postCreateNotice;
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return { ok: false, reason: `could not spawn the worktree: ${message}` };
@@ -521,7 +534,15 @@ export async function runCreateNew(
     return { ok: false, reason: `could not scaffold the work unit: ${message}` };
   }
 
-  return { ok: true, value: { worktreePath, branch, wuName } };
+  return {
+    ok: true,
+    value: {
+      worktreePath,
+      branch,
+      wuName,
+      ...(postCreateNotice === undefined ? {} : { postCreateNotice }),
+    },
+  };
 }
 
 /**

@@ -60,7 +60,7 @@ vi.mock("../../../src/lib/active/meta-reader.js", () => ({
 
 vi.mock("../../../src/lib/config/status-reader.js", () => ({
   readConfigSettings: async () => ({
-    settings: { "branch.base": "main", "worktree.location_template": "../{repo}-{branch}" },
+    settings: { "branch.base": "main", "worktree.location_template": "../{repo}-{branch}", "worktree.post_create": "" },
   }),
 }));
 

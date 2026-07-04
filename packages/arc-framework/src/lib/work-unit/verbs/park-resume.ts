@@ -123,6 +123,8 @@ export interface ResumeSpawnParams {
   repo: string;
   /** Identity re-attaching the WU — the worktree ownership marker. */
   spawningIdentity: string;
+  /** Project-supplied post-create provisioning script, run inside the new worktree when configured. */
+  postCreateScript?: string;
 }
 
 /**
@@ -415,6 +417,7 @@ export async function runResume(ctx: ParkContext, params: ResumeParams): Promise
           repo: params.repo,
           wuName: name,
           spawningIdentity: params.spawningIdentity,
+          postCreateScript: params.postCreateScript,
         },
   };
 

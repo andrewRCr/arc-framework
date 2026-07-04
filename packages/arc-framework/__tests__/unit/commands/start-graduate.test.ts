@@ -97,6 +97,7 @@ interface Harness {
   calls: string[];
   reconcileCalls: ReconcileCall[];
   stageWrites: StageWrite[];
+  worktreeOps: unknown[];
 }
 
 function buildCtx(
@@ -107,6 +108,7 @@ function buildCtx(
   const calls: string[] = [];
   const reconcileCalls: ReconcileCall[] = [];
   const stageWrites: StageWrite[] = [];
+  const worktreeOps: unknown[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -128,6 +130,7 @@ function buildCtx(
       calls.push(`branch:${op.mutation}`);
     },
     reconcileWorktree: async (op) => {
+      worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "spawn"
         ? { mutation: "spawn", worktreePath: "/repo/../wt", branch: op.branch }
@@ -154,7 +157,7 @@ function buildCtx(
     },
   };
 
-  return { ctx, calls, reconcileCalls, stageWrites };
+  return { ctx, calls, reconcileCalls, stageWrites, worktreeOps };
 }
 
 const BASE = {
@@ -194,6 +197,17 @@ describe("runGraduate — backlog stub onto its branch", () => {
 
     expect(result.status).toBe("graduated");
     expect(calls).toContain("relocate:.arc/backlog/planned/widget->.arc/active");
+  });
+
+  it("threads the configured post-create script into spawned graduate worktrees", async () => {
+    const { ctx, worktreeOps } = buildCtx([
+      { slug: "widget", tier: "backlog/planned", subdir: "widget", state: "Planning", cls: "Light" },
+    ]);
+
+    const result = await runGraduate(ctx, { ...BASE, cls: "Light", postCreateScript: "npm run setup:worktree" });
+
+    expect(result.status).toBe("graduated");
+    expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
   });
 
   it("graduates in place (no worktree spawned) when inPlace is set", async () => {

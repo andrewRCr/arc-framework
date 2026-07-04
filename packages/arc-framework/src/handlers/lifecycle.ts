@@ -619,6 +619,7 @@ export async function handleResume(slug: string | undefined, opts: ResumeOptions
   const result = await runResume(ctx, {
     name: target,
     locationTemplate: settings["worktree.location_template"],
+    postCreateScript: settings["worktree.post_create"],
     repo: basename(primaryWorktreePath),
     spawningIdentity: base.identity,
   });

@@ -29,6 +29,8 @@ interface MockOptions {
   worktreeList?: string;
   /** `git rev-parse --show-toplevel` output for the in-place current-worktree resolution. */
   toplevel?: string;
+  /** Make the configured post-create script fail. */
+  failPostCreate?: boolean;
 }
 
 /**
@@ -40,6 +42,7 @@ function buildCtx(opts: MockOptions = {}): { ctx: ReconcileWorktreeContext; even
   const events: Event[] = [];
   const exec: GitExec = async (cmd, args) => {
     events.push([cmd, ...args]);
+    if (cmd !== "git" && opts.failPostCreate === true) throw new Error("exit 42");
     if (args[0] === "status") return { stdout: opts.status ?? "" };
     if (args[0] === "worktree" && args[1] === "list") return { stdout: opts.worktreeList ?? "" };
     if (args[0] === "rev-parse" && args[1] === "--show-toplevel") return { stdout: `${opts.toplevel ?? ""}\n` };
@@ -92,7 +95,7 @@ describe("reconcileWorktree — spawn", () => {
       now: Date.parse("2026-06-15T12:00:00.000Z"),
     });
 
-    expect(result).toEqual({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
+    expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "plan/demo-wu" });
     expect(events).toEqual([
       ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
     ]);
@@ -102,6 +105,81 @@ describe("reconcileWorktree — spawn", () => {
       kind: "present",
       marker: { spawnedByArc: true, wuName: "demo-wu", spawningIdentity: "andrew" },
     });
+  });
+
+  it("returns an actionable notice when no post-create script is configured", async () => {
+    const { ctx } = buildCtx();
+    const template = join(root, "{repo}.{branch}");
+
+    const result = await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      branch: "plan/demo-wu",
+      base: "main",
+      locationTemplate: template,
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+    });
+
+    expect(result).toMatchObject({
+      mutation: "spawn",
+      postCreateNotice: expect.stringMatching(/deps must be provisioned/i),
+    });
+  });
+
+  it("runs a configured post-create script after worktree add and before returning", async () => {
+    const { ctx, events } = buildCtx();
+    const template = join(root, "{repo}.{branch}");
+    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const postCreateCommand =
+      process.platform === "win32"
+        ? ["cmd.exe", "/d", "/s", "/c", "npm run wt:post-create"]
+        : ["sh", "-c", "npm run wt:post-create"];
+
+    await reconcileWorktree(ctx, {
+      mutation: "spawn",
+      branch: "plan/demo-wu",
+      base: "main",
+      locationTemplate: template,
+      repo: "demo",
+      wuName: "demo-wu",
+      spawningIdentity: "andrew",
+      postCreateScript: "npm run wt:post-create",
+    });
+
+    expect(events).toEqual([
+      ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      postCreateCommand,
+    ]);
+  });
+
+  it("fails loud and writes no marker when the configured post-create script fails", async () => {
+    const { ctx, events } = buildCtx({ failPostCreate: true });
+    const template = join(root, "{repo}.{branch}");
+    const expectedPath = resolveWorktreeLocation({ template, repo: "demo", branch: "plan/demo-wu" });
+    const postCreateCommand =
+      process.platform === "win32"
+        ? ["cmd.exe", "/d", "/s", "/c", "npm run wt:post-create"]
+        : ["sh", "-c", "npm run wt:post-create"];
+
+    await expect(
+      reconcileWorktree(ctx, {
+        mutation: "spawn",
+        branch: "plan/demo-wu",
+        base: "main",
+        locationTemplate: template,
+        repo: "demo",
+        wuName: "demo-wu",
+        spawningIdentity: "andrew",
+        postCreateScript: "npm run wt:post-create",
+      }),
+    ).rejects.toThrow(/worktree\.post_create.*exit 42/i);
+
+    expect(events).toEqual([
+      ["git", "worktree", "add", expectedPath, "-b", "plan/demo-wu", "main"],
+      postCreateCommand,
+    ]);
+    expect(await readWorktreeMarker(expectedPath)).toEqual({ kind: "absent" });
   });
 
   it("re-attaches an existing branch (bare add, no -b) and still marks the worktree for resume", async () => {
@@ -122,7 +200,7 @@ describe("reconcileWorktree — spawn", () => {
       now: Date.parse("2026-06-15T12:00:00.000Z"),
     });
 
-    expect(result).toEqual({ mutation: "spawn", worktreePath: expectedPath, branch: "feat/demo-wu" });
+    expect(result).toMatchObject({ mutation: "spawn", worktreePath: expectedPath, branch: "feat/demo-wu" });
     expect(events).toEqual([["git", "worktree", "add", expectedPath, "feat/demo-wu"]]);
 
     const marker = await readWorktreeMarker(expectedPath);

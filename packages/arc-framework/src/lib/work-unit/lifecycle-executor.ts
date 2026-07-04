@@ -326,7 +326,7 @@ export type TransitionOutcome =
       legsFired: EncodingLeg[];
       /** The side-effects that fired, in declared order. */
       sideEffectsFired: SideEffectId[];
-      /** Advisories surfaced by side-effects (e.g. the interim ROADMAP-regen line). */
+      /** Advisories surfaced by encoding legs or side-effects (e.g. post-create notices / regen lines). */
       advisories: string[];
       /** The soft fields written (reset constants + supplied inputs). */
       softFieldsWritten: MetaFieldName[];
@@ -482,10 +482,12 @@ export async function executeTransition(
   // 5. Fire the encoding legs in canonical order; a throw stops the bundle and
   //    reports what landed (recoverable, never silently half-applied).
   const legsFired: EncodingLeg[] = [];
+  const advisories: string[] = [];
   for (const leg of LEG_ORDER) {
     if (!legDeclared(record, leg)) continue;
     try {
-      await fireLeg(ctx, leg, record, slug, metaPath, inputs);
+      const advisory = await fireLeg(ctx, leg, record, slug, metaPath, inputs);
+      if (typeof advisory === "string" && advisory !== "") advisories.push(advisory);
     } catch (err) {
       return {
         status: "encoding-failed",
@@ -498,7 +500,6 @@ export async function executeTransition(
   }
 
   // 6. Fire declared side-effects — only now that the encoding succeeded.
-  const advisories: string[] = [];
   const sideEffectsFired: SideEffectId[] = [];
   for (const id of record.sideEffects) {
     const handler = ctx.sideEffects?.[id];
@@ -655,7 +656,7 @@ async function fireLeg(
   slug: string,
   metaPath: string | null,
   inputs: TransitionInputs,
-): Promise<void> {
+): Promise<string | undefined> {
   const e = record.encodingUpdates;
   switch (leg) {
     case "setPhase": {
@@ -663,7 +664,7 @@ async function fireLeg(
         throw new Error("set-phase requires a resolved meta path and target phase.");
       }
       await ctx.setPhase({ metaPath, phase: record.to.phase });
-      return;
+      return undefined;
     }
     case "artifacts": {
       const disposition = e.artifacts;
@@ -674,21 +675,21 @@ async function fireLeg(
           throw new Error("relocate-artifacts requires a source meta path and a `toDir`.");
         }
         await ctx.relocateArtifacts({ slug, fromDir, toDir: inputs.toDir });
-        return;
+        return undefined;
       }
       // scaffold / remove — presence of the runner is validated up front.
       await ctx.scaffoldOrRemove?.({ disposition, slug, fromDir, toDir: inputs.toDir ?? null });
-      return;
+      return undefined;
     }
     case "reconcileWorktree": {
       if (inputs.worktreeOp === undefined) throw new Error("reconcile-worktree requires a `worktreeOp`.");
-      await ctx.reconcileWorktree(inputs.worktreeOp);
-      return;
+      const result = await ctx.reconcileWorktree(inputs.worktreeOp);
+      return result.mutation === "spawn" ? result.postCreateNotice : undefined;
     }
     case "reconcileBranch": {
       if (inputs.branchOp === undefined) throw new Error("reconcile-branch requires a `branchOp`.");
       await ctx.reconcileBranch(inputs.branchOp);
-      return;
+      return undefined;
     }
   }
 }

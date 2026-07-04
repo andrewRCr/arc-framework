@@ -117,12 +117,14 @@ interface Harness {
   calls: string[];
   writes: { path: string; content: string }[];
   removals: string[];
+  worktreeOps: unknown[];
 }
 
 function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
   const calls: string[] = [];
   const writes: Harness["writes"] = [];
   const removals: string[] = [];
+  const worktreeOps: unknown[] = [];
 
   const sideEffects: Partial<Record<SideEffectId, SideEffectHandler>> = {};
   for (const id of ["reconcile-roadmap", "reconcile-status-user", "user-workspace"] satisfies SideEffectId[]) {
@@ -144,6 +146,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
       calls.push(`branch:${op.mutation}${op.mutation === "delete" ? `:${op.branch}` : ""}`);
     },
     reconcileWorktree: async (op) => {
+      worktreeOps.push(op);
       calls.push(op.mutation === "spawn" && op.inPlace ? "worktree:spawn:in-place" : `worktree:${op.mutation}`);
       return op.mutation === "teardown"
         ? { mutation: "teardown", worktreePath: op.worktreePath, locusHopped: true }
@@ -181,7 +184,7 @@ function buildCtx(metas: MetaSpec[], occupancyOk = true): Harness {
     },
   };
 
-  return { ctx: { executor, fs }, calls, writes, removals };
+  return { ctx: { executor, fs }, calls, writes, removals, worktreeOps };
 }
 
 const ACTIVE: MetaSpec = {
@@ -391,6 +394,15 @@ describe("runResume — the inverse", () => {
     // The tracked-branch pointer-record is removed and its emptied dir pruned.
     expect(removals).toContain("/repo/.arc/backlog/planned/foo/meta-foo.md");
     expect(removals).toContain("rmdir:/repo/.arc/backlog/planned/foo");
+  });
+
+  it("threads the configured post-create script into spawned resume worktrees", async () => {
+    const { ctx, worktreeOps } = buildCtx([PARKED]);
+
+    const result = await runResume(ctx, { ...BASE_RESUME, postCreateScript: "npm run setup:worktree" });
+
+    expect(result.status).toBe("resumed");
+    expect(worktreeOps[0]).toMatchObject({ mutation: "spawn", postCreateScript: "npm run setup:worktree" });
   });
 
   it("re-attaches in place (`--here`) — removes the pointer but defers the checkout", async () => {
