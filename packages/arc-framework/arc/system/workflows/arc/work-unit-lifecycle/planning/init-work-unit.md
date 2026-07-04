@@ -159,9 +159,24 @@ arc start {name} --here   # in-place: cut the branch in the current checkout, no
 
 The placement mode follows [§ Execution Modes](#execution-modes) — worktree-creating by default, `--here` when
 spawning is unavailable or single-checkout development is wanted. The `worktree-occupancy` guard refuses an
-in-place initialization into a checkout already holding an active WU. The relocation `git mv` is staged but **not**
-committed (the executor never commits) — it bundles into the init commit below with Step 4's reconcile edits.
-`arc start` surfaces an interim ROADMAP-regen advisory; Step 5 is where the hand-render lands.
+in-place initialization into a checkout already holding an active WU. Spawned `arc start` paths stage the
+relocation / scaffold, refresh the project readiness view, commit the start ceremony, push `plan/{name}`, and
+seed SESSION-NOTES with the committed handoff anchor.
+
+On a spawned start, consume the emitted `Next session` recipe before continuing. The common invariant is the
+spawned worktree root: post-create provisioning and registered harness-dir copy have already run there, so the
+next session's effective config and scripts resolve from that root. Do not continue planning from the invoking
+checkout after a spawned start succeeds.
+
+- **Claude Code** — if `EnterWorktree` is available, call it with the emitted worktree path, then re-run
+  `/arc-session` in the relocated session.
+- **Codex CLI** — no live-session relocate. Do not launch nested Codex from a shell escape inside the current
+  session. Tell the user to open a fresh terminal (or end this session and reuse the terminal), run
+  `codex --cd <worktree-path>`, then invoke `$arc-session`. The seeded SESSION-NOTES is the handoff bridge; the
+  invoking no-active-WU session needs no handoff unless extra context surfaced after the start and has not been
+  captured.
+- **Other harnesses** — enter the emitted worktree root by the harness-native mechanism, then invoke that
+  harness's ARC session entry. Record only capability differences forced by the harness's own discovery model.
 
 The meta-file carries the intentional metadata backfilled at backlog-stub creation (`Origin`,
 `Owner`, `Depends On`, `Cohort`); Step 4's Path A reconciles `Design`, `Current Workflow`, and

@@ -33,6 +33,7 @@ import { parseMetaRecord } from "../lib/active/meta-reader.js";
 import { readConfigSettings } from "../lib/config/status-reader.js";
 import { isProtectedBranch } from "../lib/release/interlock-validation.js";
 import { resolvePrimaryWorktreePath } from "../lib/git/worktree-roster.js";
+import { renderWorktreeEntryRecipe } from "../lib/harness/worktree-entry.js";
 import { getInternalTemplatePath } from "../lib/paths.js";
 import { createUserIOContext } from "../lib/io-context.js";
 import { ensureDir } from "../lib/template/files.js";
@@ -226,6 +227,7 @@ async function createNew(wuName: string, opts: StartOptions, ctx: ArmContext): P
     commit: ceremony.commit,
   });
   p.log.info(`Committed ${ceremony.commit} and pushed ${r.branch}.`);
+  reportWorktreeEntryRecipe(r.worktreePath);
   p.outro("Done.");
 }
 
@@ -357,6 +359,7 @@ async function graduate(
       commit: ceremony.commit,
     });
     p.log.info(`Committed ${ceremony.commit} and pushed ${result.branch}.`);
+    reportWorktreeEntryRecipe(result.worktreePath);
   }
   p.outro("Done.");
 }
@@ -513,6 +516,10 @@ function reportAdvisories(outcome: TransitionOutcome): void {
   if (outcome.status === "ok") {
     for (const advisory of outcome.advisories) p.log.info(advisory);
   }
+}
+
+function reportWorktreeEntryRecipe(worktreePath: string): void {
+  p.note(renderWorktreeEntryRecipe({ worktreePath }), "Next session");
 }
 
 interface StartCeremonyOptions {

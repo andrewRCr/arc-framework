@@ -178,6 +178,12 @@ describe("handleStart — dispatch orchestration", () => {
       { cwd: "/repos/myrepo.plan-widget" },
     );
     expect(mockLog.info).toHaveBeenCalledWith("Committed abc1234 and pushed plan/widget.");
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "Codex CLI: open a fresh terminal or end this session, then run `codex --cd /repos/myrepo.plan-widget`",
+      ),
+      "Next session",
+    );
     expect(process.exitCode).toBeUndefined();
   });
 
@@ -234,6 +240,10 @@ describe("handleStart — dispatch orchestration", () => {
       { cwd: "/repos/myrepo.plan-widget" },
     );
     expect(mockLog.info).toHaveBeenCalledWith("Committed def5678 and pushed plan/widget.");
+    expect(mockNote).toHaveBeenCalledWith(
+      expect.stringContaining("Claude Code: use `EnterWorktree`"),
+      "Next session",
+    );
     expect(process.exitCode).toBeUndefined();
   });
 

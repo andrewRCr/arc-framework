@@ -225,12 +225,12 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
         - Long identifier-list bullets now wrap on item boundaries at 120 columns, so multi-value `Depends On`
           re-renders as markdown-valid continuation lines while parsing back to the canonical comma-joined value.
 
-    - `[ ]` **2.4.f Harness-conditional relocate / spawn-anchored hop**
-        - Claude Code true relocate (`EnterWorktree`); Codex spawn-anchored (`codex --cd <path>`, made
-          first-class by 2.4.b's mini-handoff). Re-verify Codex's linked-worktree cwd behavior at build time.
-          Harness integration — validated manually / in e2e, not unit. Prefer a common generated-recipe invariant
-          where effective config and scripts share one install root; record per-harness capability variance only
-          where the harness's own discovery model forces it.
+    - `[x]` **2.4.f Harness-conditional relocate / spawn-anchored hop**
+        - Spawned start ceremonies now emit a `Next session` recipe with one common root invariant (enter the
+          spawned worktree after post-create provisioning and registered harness-dir copy) plus capability-specific
+          recipes for Claude Code `EnterWorktree`, Codex fresh-session `codex --cd <path>`, and other harnesses.
+          `init-work-unit` now consumes that recipe instead of continuing from the invoking checkout. Codex
+          `--cd <DIR>` support was re-verified against the installed CLI help.
 
     - `[ ]` **2.4.g Worktree path naming across activation**
         - Verify whether branch/path parity is load-bearing after `plan/<slug>` branches activate to
