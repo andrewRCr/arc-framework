@@ -1,11 +1,11 @@
 import {
   buildRecoveryInstructions,
   claimPendingInjection,
-  drainStdin,
+  readHookInput,
 } from "./codex-recovery-marker.mjs";
 
-drainStdin();
-const { claimed } = claimPendingInjection();
+const { sessionId } = readHookInput();
+const { claimed } = claimPendingInjection(sessionId);
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 
 // Inject once, at the first tool boundary after compaction. The atomic claim in

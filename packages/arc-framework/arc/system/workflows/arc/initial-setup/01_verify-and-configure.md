@@ -189,9 +189,11 @@ Install discipline:
 - The installed events are harness-specific: Claude Code installs only `PreCompact(manual|auto)` and
   `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`, `PostToolUse`,
   `UserPromptSubmit`, and cleanup-only `SessionStart(clear)`; Codex `PreCompact` writes a
-  thread-scoped pending marker beside the seed, the first tool boundary after compaction injects
-  recovery context mid-turn (`PostToolUse`), and `UserPromptSubmit` re-injects at each prompt until
-  recovery clears the marker. Recovery restores ARC session context; repository instruction
+  session-scoped pending marker beside the seed, the first tool boundary after compaction injects
+  recovery context mid-turn (`PostToolUse`), and `UserPromptSubmit` is the turn-boundary backstop
+  when no tool call follows. The two channels share an atomic per-marker claim, so recovery injects
+  exactly once and later boundaries stay silent until recovery clears the marker. Recovery restores
+  ARC session context; repository instruction
   files such as `AGENTS.md` and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set.
   Do not add Codex `SessionStart(compact)` or a catch-all `SessionStart` matcher, and do not make
   `SessionStart(clear)` inject recovery.
