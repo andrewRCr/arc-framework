@@ -211,13 +211,13 @@ here; the arms below are the **signal-absent** path.
   non-empty) or a remote-only errand (`errandState.value.materializable.candidates` includes a `chore/<slug>`
   branch with no local worktree and no backing meta). Surface the candidates and ask which to materialize when
   more than one is present; never guess — the candidate list *is* the correctness mechanism (you pick a real
-  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: `git worktree add <path>
-  origin/<branch>` at the path resolved from `worktree.location_template` (`{repo}` → repo name, `{branch}` →
-  branch with `/` slugged to `-`), then `arc user pull` to load its notes; **re-run the Step 1 probe** and
-  proceed as **Resume**. For an errand: `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**,
-  and proceed as **Errand-resume**. The candidate surface already excludes any entry checked out locally (the
-  oracle's `remoteOnly` filter); as a backstop, git refuses a double checkout, so an already-materialized branch
-  resolves to its existing worktree rather than erroring into a second one.
+  in-flight entry, so a phantom / typo'd name is impossible). For a work unit: run `arc materialize <name>` (or
+  `arc materialize <name> --here` when explicitly materializing in the current checkout), then `arc user pull` to
+  load its notes; **re-run the Step 1 probe** and proceed as **Resume**. For an errand:
+  `git worktree add <path> origin/<branch>`, **re-run the Step 1 probe**, and proceed as **Errand-resume**. The
+  candidate surface already excludes any entry checked out locally (the oracle's `remoteOnly` filter); as a
+  backstop, git refuses a double checkout, so an already-materialized branch resolves to its existing worktree
+  rather than erroring into a second one.
 
 **Cold-start** and **Materialize** are the only arms peeled off before context-load — each mints or fetches
 state, then re-runs the probe and re-enters as **Resume** or **Errand-resume**. **Resume**, **Errand-resume**,

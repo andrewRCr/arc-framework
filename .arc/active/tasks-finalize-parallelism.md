@@ -133,32 +133,21 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
   provisioning wiring are landed. The user-dir scaffold leg moved to Task 2.4.d so it runs after Task 2.4.c
   corrects the spawn-mode ceremony locus it depends on.
 
-### `[ ]` **2.2 BI-2 — In-place Materialize for cross-machine pickup**
+### `[x]` **2.2 BI-2 — In-place Materialize for cross-machine pickup**
 
 - _Goal:_ Materialize can check out a remote-only in-flight WU into the current checkout without spawning, under
   the worktree-occupancy guard — the cross-machine twin of the `--here` opt-out.
-- _Approach:_ Materialize is agent-driven bash today (`git worktree add` → `arc user pull`), outside
-  `executeTransition`, so the occupancy guard never runs for it. BI-2 makes materialize a guarded `from: null`
-  transition edge (the scaffold / create-new precedent). A remote-only WU has no local from-state, so the CLI
-  command reads the remote ref as a pre-step and supplies slug/branch via `TransitionInputs` — the executor
-  stays local-index-only (it does not read remote metas).
 
-    - `[ ]` **2.2.a Add the guarded materialize transition edge**
-        - Add a `from: null` materialize edge to the transition table; the CLI command fetches the remote ref and
-          passes slug/branch through `TransitionInputs`, leaving `executeTransition`'s local-only index unchanged.
-        - _Note:_ materialize is a new verb (not the `start@null` scaffold edge, whose `artifacts: "scaffold"` is
-          wrong for a remote pickup whose meta rides the branch), so it carries the `VERBS` obligations — an
-          inverse-pair decision and its `MARKED_ILLEGAL` totality cells (or, if overloading `start@null`, a
-          `commitment` disambiguator in `selectEdge`).
-        - Build `test-first` (one behavior at a time):
-            - the in-place variant's op is `{mutation: "spawn", inPlace: true, createBranch: false}` (reusing the
-              `--here` `git checkout` leg, which DWIM-attaches the fetched remote branch); `inPlace: true` is never
-              the guard's exempt case, so `materializesInCurrentCheckout` (`lib/work-unit/lifecycle-guards.ts`)
-              enforces the occupancy guard
-            - the guard refuses in-place materialize when the current checkout already holds another active WU
-            - the spawn variant (`inPlace: false`, a new worktree) attaches the remote branch explicitly
-              (`git worktree add -b <branch> <path> origin/<branch>` — a bare `git worktree add <path> <branch>`
-              won't DWIM a remote-only branch without `--guess-remote`), and is correctly exempt from the guard
+    - `[x]` **2.2.a Add the guarded materialize transition edge**
+        - Added `materialize@null` as its own lifecycle edge plus `arc materialize [slug]` CLI wiring. The command
+          resolves the selected remote-only candidate, fetches its branch, and passes slug/branch inputs into the
+          local-index executor.
+        - In-place materialize uses the existing checkout leg with `createBranch: false` and remains under the
+          occupancy guard; fresh-worktree materialize creates the local branch from `origin/<branch>` while
+          declaring that it does not materialize artifacts in the current checkout, so the guard exempts it.
+
+- _Outcome:_ Remote-only WU pickup now runs through guarded lifecycle machinery via `arc materialize`, and
+  session-init guidance points work-unit materialize through that command before `arc user pull`.
 
 ### `[ ]` **2.3 BI-3 — Repo-shared anchoring for per-machine sync guards**
 

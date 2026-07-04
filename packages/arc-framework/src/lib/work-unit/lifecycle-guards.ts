@@ -108,12 +108,15 @@ export interface WorktreeOccupancyDeps {
  *
  * A non-spawn / absent worktree op enforces (safe default).
  */
-function materializesInCurrentCheckout(
-  inputs: { worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean } },
-): boolean {
+function materializesInCurrentCheckout(inputs: {
+  worktreeOp?: { mutation: string; inPlace?: boolean; createBranch?: boolean };
+  materializesCurrentCheckout?: boolean;
+}): boolean {
   const op = inputs.worktreeOp;
   if (op?.mutation !== "spawn") return true;
-  return !(op.inPlace !== true && op.createBranch === false);
+  if (op.inPlace === true) return true;
+  if (inputs.materializesCurrentCheckout !== undefined) return inputs.materializesCurrentCheckout;
+  return op.createBranch !== false;
 }
 
 /**

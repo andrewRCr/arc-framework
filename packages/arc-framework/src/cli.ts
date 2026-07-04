@@ -39,6 +39,7 @@ import {
   handleDemote,
   handlePark,
   handleResume,
+  handleMaterialize,
   handleActivate,
   handleDeactivate,
   handleIntegrate,
@@ -52,6 +53,7 @@ import {
   type StubOptions,
   type ParkOptions,
   type ResumeOptions,
+  type MaterializeOptions,
   type ActivateOptions,
   type IntegrateOptions,
   type ReopenOptions,
@@ -176,6 +178,15 @@ program
   )
   .option("--here", "Re-attach in the current worktree instead of spawning a new one")
   .action((slug: string | undefined, opts: ResumeOptions) => handleResume(slug, opts));
+
+program
+  .command("materialize [slug]")
+  .description(
+    "Pick up a remote-only in-flight work unit. Default spawns a fresh worktree; "
+    + "`--here` checks it out in the current worktree.",
+  )
+  .option("--here", "Check out in the current worktree instead of spawning a new one")
+  .action((slug: string | undefined, opts: MaterializeOptions) => handleMaterialize(slug, opts));
 
 program
   .command("activate [slug]")

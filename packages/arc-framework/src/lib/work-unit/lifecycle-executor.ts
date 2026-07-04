@@ -83,6 +83,13 @@ export interface TransitionInputs {
   prWithdrawMode?: "close" | "draft";
   /** Explicit confirmation for a destructive cascade — the `confirmation` guard input (`abandon`). */
   confirmed?: boolean;
+  /**
+   * Override for the `worktree-occupancy` guard's placement test. Fresh worktree
+   * spawns normally infer this from `worktreeOp.createBranch`, but remote
+   * materialize creates a local branch in the new worktree while landing no
+   * artifacts in the current checkout.
+   */
+  materializesCurrentCheckout?: boolean;
   /** The ephemeral next-step suggestion to surface (advisory; never persisted). */
   suggestion?: string;
   /**

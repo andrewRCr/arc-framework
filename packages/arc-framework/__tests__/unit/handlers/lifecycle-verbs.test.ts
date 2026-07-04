@@ -11,6 +11,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 const mockLogError = vi.fn();
 const mockLogInfo = vi.fn();
 const mockNote = vi.fn();
+const mockIoExec = vi.fn();
 vi.mock("@clack/prompts", () => ({
   intro: vi.fn(),
   outro: vi.fn(),
@@ -26,7 +27,7 @@ vi.mock("../../../src/handlers/shared.js", () => ({
 
 vi.mock("../../../src/lib/io-context.js", () => ({
   createUserIOContext: () => ({
-    exec: vi.fn(),
+    exec: mockIoExec,
     readFile: vi.fn(async () => "meta"),
     writeFile: vi.fn(),
     mkdir: vi.fn(),
@@ -104,6 +105,26 @@ vi.mock("../../../src/lib/work-unit/verbs/park-resume.js", () => ({
   runResume: (...a: unknown[]) => mockRunResume(...a),
 }));
 
+const mockRunMaterialize = vi.fn();
+vi.mock("../../../src/lib/work-unit/verbs/materialize.js", () => ({
+  runMaterialize: (...a: unknown[]) => mockRunMaterialize(...a),
+}));
+
+const mockResolveInFlightBranchSet = vi.fn();
+vi.mock("../../../src/lib/git/remote-ref-reader.js", () => ({
+  resolveInFlightBranchSet: (...a: unknown[]) => mockResolveInFlightBranchSet(...a),
+}));
+
+const mockDeriveInFlight = vi.fn();
+vi.mock("../../../src/lib/git/in-flight-derivation.js", () => ({
+  deriveInFlight: (...a: unknown[]) => mockDeriveInFlight(...a),
+}));
+
+const mockFindMaterializableWorkUnits = vi.fn();
+vi.mock("../../../src/lib/session-init/materializable-work-units.js", () => ({
+  findMaterializableWorkUnits: (...a: unknown[]) => mockFindMaterializableWorkUnits(...a),
+}));
+
 const mockRunActivate = vi.fn();
 const mockRunDeactivate = vi.fn();
 vi.mock("../../../src/lib/work-unit/verbs/activate-deactivate.js", () => ({
@@ -152,6 +173,7 @@ const {
   handleDemote,
   handlePark,
   handleResume,
+  handleMaterialize,
   handleActivate,
   handleDeactivate,
   handleIntegrate,
@@ -173,6 +195,7 @@ beforeEach(() => {
     metaPath: ".arc/backlog/planned/foo/meta-foo.md",
   });
   mockRunResume.mockResolvedValue({ status: "resumed", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
+  mockRunMaterialize.mockResolvedValue({ status: "materialized", outcome: okOutcome, branch: "feat/foo", inPlace: false });
   mockRunActivate.mockResolvedValue({ status: "activated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunDeactivate.mockResolvedValue({ status: "deactivated", outcome: okOutcome, metaPath: ".arc/active/meta-foo.md" });
   mockRunAbandon.mockResolvedValue({ status: "abandoned", outcome: okOutcome });
@@ -196,6 +219,10 @@ beforeEach(() => {
       teardown: { slug: "mono", branch: "plan/mono" },
     },
   });
+  mockIoExec.mockResolvedValue({ stdout: "", stderr: "" });
+  mockResolveInFlightBranchSet.mockResolvedValue({ branches: ["feat/foo"], reachable: true });
+  mockDeriveInFlight.mockResolvedValue([{ kind: "work-unit", name: "foo", branch: "feat/foo", remoteOnly: true }]);
+  mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "foo", branch: "feat/foo" }] });
 });
 
 afterEach(() => {
@@ -332,6 +359,52 @@ describe("handleResume", () => {
     await handleResume("foo", { here: true });
     expect(mockRunResume).toHaveBeenCalledTimes(1);
     expect(mockRunResume.mock.calls[0]?.[1]).toEqual({ name: "foo", inPlace: true });
+  });
+});
+
+describe("handleMaterialize", () => {
+  it("fetches the selected remote ref and dispatches runMaterialize with the spawn config", async () => {
+    await handleMaterialize("foo");
+
+    expect(mockIoExec).toHaveBeenCalledWith("git", [
+      "fetch",
+      "origin",
+      "+refs/heads/feat/foo:refs/remotes/origin/feat/foo",
+    ]);
+    expect(mockRunMaterialize).toHaveBeenCalledTimes(1);
+    expect(mockRunMaterialize.mock.calls[0]?.[1]).toMatchObject({
+      name: "foo",
+      branch: "feat/foo",
+      locationTemplate: "../{repo}-{branch}",
+      repo: "myrepo",
+      spawningIdentity: "andrew",
+    });
+  });
+
+  it("dispatches an in-place materialize under `--here` after fetching the remote ref", async () => {
+    await handleMaterialize("foo", { here: true });
+
+    expect(mockIoExec).toHaveBeenCalledWith("git", [
+      "fetch",
+      "origin",
+      "+refs/heads/feat/foo:refs/remotes/origin/feat/foo",
+    ]);
+    expect(mockRunMaterialize).toHaveBeenCalledTimes(1);
+    expect(mockRunMaterialize.mock.calls[0]?.[1]).toEqual({
+      name: "foo",
+      branch: "feat/foo",
+      inPlace: true,
+    });
+  });
+
+  it("refuses when the requested slug is not a remote-only materialize candidate", async () => {
+    mockFindMaterializableWorkUnits.mockReturnValue({ candidates: [{ name: "bar", branch: "feat/bar" }] });
+
+    await handleMaterialize("foo");
+
+    expect(mockRunMaterialize).not.toHaveBeenCalled();
+    expect(mockLogError).toHaveBeenCalled();
+    expect(process.exitCode).toBe(1);
   });
 });
 
