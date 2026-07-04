@@ -12,11 +12,11 @@
 - **Task List:** `tasks-finalize-parallelism.md`
 
 - **Current Workflow:** [none]
-- **Last Completed:** Task 2.2 — BI-2 — In-place Materialize for cross-machine pickup
-- **Next Task:** Task 2.3.a — Re-anchor the notes lock at the git common dir (line ~162)
+- **Last Completed:** Task 2.3 — BI-3 — Repo-shared anchoring for per-machine sync guards
+- **Next Task:** Task 2.4.a — CLI-complete `arc start` substrate (line ~200)
 - **Blockers:** [none]
 
-- **Next Action:** Start Task 2.3.a — re-anchor `getNotesLockPath` to the git common dir
+- **Next Action:** Start Task 2.4.a — build the CLI-complete `arc start` substrate
 
 - **PR URL:** [none]
 - **Completed:** [none]
