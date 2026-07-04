@@ -117,14 +117,12 @@ after the recovery load set has been read. Otherwise skip.
 Before resuming work, apply this precedence rule internally: the recovered ARC operating context
 is authoritative for ARC procedure and state; the harness summary is authoritative only for the
 volatile in-progress locus. Do not paste recovered files or print precedence language to the
-developer. If a user-visible recovery note is useful, keep it to one terse status line:
-
-```text
-ARC post-compaction session recovery complete.
-```
+developer, and keep any recovery note brief. Do not emit a formal "recovery complete" status line:
+on the Codex pending-marker path the clear command below prints a `COMPLETE` banner, and on Claude
+Code the opening boundary marker plus a brief conversational note suffice.
 
 If recovery was injected from Codex's pending-marker channel (a mid-turn tool-boundary injection, or
-the user-prompt backstop), clear the current thread's marker only after the recovery load set is
+the user-prompt channel), clear the current thread's marker only after the recovery load set is
 rehydrated and the verdict is ready. Use the exact marker path from the injected recovery
 instructions.
 
@@ -140,7 +138,8 @@ On Windows `cmd.exe`:
 for /f "delims=" %i in ('git rev-parse --show-toplevel') do node "%i\.arc\system\.internal\harness-hooks\common\clear-codex-recovery-pending.mjs" --marker "<marker-path-from-recovery-instructions>"
 ```
 
-If recovery stops for direction, leave the marker in place.
+Clearing the marker prints an `=== ARC post-compaction recovery: COMPLETE ===` banner that closes the
+recovery window the injected `PENDING` banner opened. If recovery stops for direction, leave the marker in place.
 
 Resume from the harness-summary locus, bounded by the recovered ARC context, without a routine
 prompt:

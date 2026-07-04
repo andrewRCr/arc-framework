@@ -131,6 +131,8 @@ describe("Claude Code compaction recovery hook recipe", () => {
     });
     expect(output.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
     expect(output.hookSpecificOutput?.additionalContext).toContain("arc recover audit --json");
+    // Single boundary marker (no PENDING/COMPLETE bracket) — Claude injects immediately.
+    expect(output.hookSpecificOutput?.additionalContext).toContain("=== ARC post-compaction recovery ===");
   });
 
   it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
