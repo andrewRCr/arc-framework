@@ -137,6 +137,13 @@ machine hits the same worktree + dependency-provisioning tax the local hatch rel
 opt-out — an in-place Materialize (`git fetch` + checkout the remote WU branch in the current checkout, honoring
 the worktree-occupancy guard) alongside the default spawn. Locus-only, exactly like the local hatch: coherence
 still rests on the pushed branch + notes-sync; reuse the hatch's no-spawn reconcile-branch legs where applicable.
+Mechanism: materialize is agent-driven bash today (outside `executeTransition`), so the occupancy guard never
+runs for it — BI-2 makes materialize a guarded `from: null` transition edge (the scaffold / create-new
+precedent). Since a remote-only WU has no local from-state, the CLI command reads the remote ref as a pre-step
+and supplies slug/branch via `TransitionInputs`; the executor stays local-index-only. The in-place variant's op
+is `{mutation: "spawn", inPlace: true, createBranch: false}` (reusing the `--here` legs); `inPlace: true` is
+never the guard's exempt case, so the occupancy guard enforces. The spawn variant (`inPlace: false`, a new
+worktree) is correctly exempt.
 
 **BI-3 — Repo-shared anchoring for per-machine sync guards.** The notes advisory lock
 (`lib/user-sync/notes-lock.ts`) serializes writers to the repo-shared `refs/notes/arc/user/{identity}`, but the
@@ -286,7 +293,9 @@ surface.
 not assumed: committed + pushed work is never losable; uncommitted work is never destroyed by any ARC verb
 (`worktree remove` refuses dirty; no destructive auto-actions); personal notes have a pre-load backup; same-entry
 cross-WU merge loss is documented with its recovery; every loud failure has a written recovery path. Deliverable:
-a short **parallelism incident playbook** (symptom → diagnosis → recovery) distilled from the matrix.
+a short **parallelism incident playbook** (symptom → diagnosis → recovery) distilled from the matrix, authored
+into `strategy-concurrent-work.md` (adopter-facing, co-located with the doctrine reconciliation); the
+GA-readiness checklist stays WU-internal as a one-time gate record.
 
 ### The authored matrix skeleton (Layer-1 pass, 2026-07-01)
 
