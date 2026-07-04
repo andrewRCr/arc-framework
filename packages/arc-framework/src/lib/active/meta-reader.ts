@@ -323,6 +323,9 @@ function capitalizeFirst(value: string): string {
 /** Whether a value is an `http(s)` URL — the `url` value class's autolink test. */
 const HTTP_URL_RE = /^https?:\/\//i;
 
+/** Managed bullet lines target the project markdown wrap column. */
+const META_BULLET_WRAP_COLUMN = 120;
+
 /**
  * Format a field value for the markdown projection per its value class. Bracket
  * sentinels and the em-dash placeholder render bare (the bracket is itself the
@@ -372,11 +375,11 @@ function renderCoreTable(valueOf: (field: MetaFieldDescriptor) => string): strin
 }
 
 /**
- * Render the non-core fields as ordered bullet groups, blank-line separated. A
- * multi-line narrative value (e.g. a wrapped `Next Action`) renders its first
- * line after the label and indents each continuation two spaces to align under
- * the bullet — list-continuation-valid markdown that {@link parseMetaRecord}
- * recovers unchanged.
+ * Render the non-core fields as ordered bullet groups, blank-line separated.
+ * Multi-line values render their first line after the label and indent each
+ * continuation two spaces to align under the bullet — list-continuation-valid
+ * markdown that {@link parseMetaRecord} recovers unchanged. Identifier lists
+ * additionally wrap on item boundaries at the project markdown column.
  */
 function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[] {
   const lines: string[] = [];
@@ -384,11 +387,47 @@ function renderBullets(valueOf: (field: MetaFieldDescriptor) => string): string[
   for (const field of META_FIELDS) {
     if (field.render !== "bullet") continue;
     if (prevGroup !== null && field.group !== prevGroup) lines.push("");
-    const [first, ...rest] = formatValue(valueOf(field), field.valueClass).split("\n");
-    lines.push(`- **${field.name}:** ${first}`);
+    const prefix = `- **${field.name}:** `;
+    const [first = "", ...rest] = renderBulletValueLines(field, valueOf(field), prefix.length);
+    lines.push(`${prefix}${first}`);
     for (const continuation of rest) lines.push(`  ${continuation}`);
     prevGroup = field.group;
   }
+  return lines;
+}
+
+function renderBulletValueLines(
+  field: MetaFieldDescriptor,
+  value: string,
+  firstPrefixLength: number,
+): string[] {
+  if (field.valueClass !== "identifier-list" || value === PLACEHOLDER || isSentinel(value)) {
+    return formatValue(value, field.valueClass).split("\n");
+  }
+
+  const items = parseIdentifierList(value).map((item) => `\`${item}\``);
+  if (items.length === 0) return [formatValue(value, field.valueClass)];
+  return wrapCommaList(items, firstPrefixLength);
+}
+
+function wrapCommaList(items: readonly string[], firstPrefixLength: number): string[] {
+  const lines: string[] = [];
+  let current = "";
+  let prefixLength = firstPrefixLength;
+
+  items.forEach((item, index) => {
+    const segment = index === items.length - 1 ? item : `${item},`;
+    const candidate = current === "" ? segment : `${current} ${segment}`;
+    if (current !== "" && prefixLength + candidate.length > META_BULLET_WRAP_COLUMN) {
+      lines.push(current);
+      current = segment;
+      prefixLength = 2;
+      return;
+    }
+    current = candidate;
+  });
+
+  if (current !== "") lines.push(current);
   return lines;
 }
 
@@ -880,12 +919,23 @@ export function parseMetaRecord(content: string): MetaRecord {
     // autolink (a real URL) before the backtick strip (a non-URL ref); narrative
     // keeps its code spans. (Core table values arrive pre-stripped and are all
     // non-narrative, so the strip is a no-op there.)
+    if (raw === null || field.valueClass === "narrative") {
+      record[field.name] = raw;
+      continue;
+    }
+
+    const stripped = stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
     record[field.name] =
-      raw === null || field.valueClass === "narrative"
-        ? raw
-        : stripInlineCode(field.valueClass === "url" ? stripAutolink(raw) : raw);
+      field.valueClass === "identifier-list" ? normalizeIdentifierListValue(stripped) : stripped;
   }
   return record;
+}
+
+function normalizeIdentifierListValue(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "" || trimmed === PLACEHOLDER || isSentinel(trimmed)) return trimmed;
+  const items = parseIdentifierList(trimmed);
+  return items.length === 0 ? trimmed : items.join(", ");
 }
 
 /** Strip a surrounding `<…>` autolink to its bare target, leaving other forms intact. */

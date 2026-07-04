@@ -90,6 +90,30 @@ describe("identifier-list fields — per-element backtick render", () => {
     expect(md).not.toContain("`alpha, beta`"); // never the compound whole-value span
   });
 
+  it("wraps a long Depends On list at 120 columns without changing the parsed value", () => {
+    const dependencies = [
+      "first-parallelism-foundation",
+      "second-parallelism-foundation",
+      "third-parallelism-foundation",
+      "fourth-parallelism-foundation",
+      "fifth-parallelism-foundation",
+      "sixth-parallelism-foundation",
+      "seventh-parallelism-foundation",
+    ];
+    const md = renderMetaFile("foo", { "Depends On": dependencies.join(", ") });
+    const lines = md.split("\n");
+    const start = lines.findIndex((line) => line.startsWith("- **Depends On:**"));
+    const dependsOnLines: string[] = [];
+    for (const line of lines.slice(start)) {
+      if (dependsOnLines.length > 0 && line.trim() === "") break;
+      dependsOnLines.push(line);
+    }
+
+    expect(dependsOnLines.length).toBeGreaterThan(1);
+    expect(dependsOnLines.every((line) => line.length <= 120)).toBe(true);
+    expect(parseMetaRecord(md)["Depends On"]).toBe(dependencies.join(", "));
+  });
+
   it("renders a two-value Design as two discrete backticked tokens", () => {
     const md = renderMetaFile("foo", { Design: "spec-a.md, spec-b.md" });
     expect(md).toContain("- **Design:** `spec-a.md`, `spec-b.md`");

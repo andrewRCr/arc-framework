@@ -221,9 +221,9 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
           locus for graduate spawn; create-new uses the scaffold path's seed. Identity-global user files remain
           excluded and stay with BI-6's canonical binding work.
 
-    - `[ ]` **2.4.e `renderBullets` 120-wrap for multi-line `Depends On`**
-        - Build `test-first` (one behavior at a time):
-            - a multi-value `Depends On` re-renders wrapped at 120, not collapsed to a single ~250-char line
+    - `[x]` **2.4.e `renderBullets` 120-wrap for multi-line `Depends On`**
+        - Long identifier-list bullets now wrap on item boundaries at 120 columns, so multi-value `Depends On`
+          re-renders as markdown-valid continuation lines while parsing back to the canonical comma-joined value.
 
     - `[ ]` **2.4.f Harness-conditional relocate / spawn-anchored hop**
         - Claude Code true relocate (`EnterWorktree`); Codex spawn-anchored (`codex --cd <path>`, made
