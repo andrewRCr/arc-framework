@@ -1,4 +1,2 @@
-# Codex still requires the hooks feature toggle (verified on codex-cli 0.142.5);
-# absent it, configured hooks are silently skipped.
 [features]
 hooks = true
