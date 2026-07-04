@@ -265,22 +265,45 @@ internal decomposition; the grounding audit (Pass 3) can still split any parent 
 
     - `[ ]` **2.6.a User-surface resolver by semantic scope**
         - Build `test-first` (one behavior at a time):
+            - Codify the interim `UserSurfaceResolver` contract before wiring callers: visible identity-global
+              surfaces use one canonical machine-local materialization, with the primary worktree's
+              `.arc/user/{identity}/` root as the zero-config backing store unless the call site is explicitly
+              machine-internal; repo-shared common-dir helpers remain for hidden internal stores such as locks /
+              machine id.
+            - Load-set / compaction-seed / nudge-marker contracts consume resolver-produced identity-global paths
+              rather than assuming active-checkout-relative `.arc/user/{identity}/...` paths from linked worktrees.
             - `USER-INBOX`, `WORKING-MEMORY`, `STATUS.USER`, and identity-global nudge markers resolve to the
               canonical root from primary and linked worktrees
             - WU-scoped SESSION-NOTES resolves to the active worktree's per-WU subdir
-            - session-init inbox/reminder/working-memory reads use the canonical identity-global paths
+            - All identity-global readers and writers are routed through the resolver: `arc user add`,
+              `arc user inbox-remove` / errand cleanup, `STATUS.USER` cache read/write, session-init
+              inbox/reminder/working-memory/load-set surfaces, and `arc user status` drift inspection.
+            - Shipped workflow/skill guidance that currently tells agents to edit
+              `.arc/user/{identity}/{USER-INBOX,WORKING-MEMORY}.md` directly is updated to use the resolver-backed
+              path/command surface, so linked-worktree sessions cannot recreate divergent checkout-local copies.
 
     - `[ ]` **2.6.b Notes save/load split-source handling**
         - Build `test-first` (one behavior at a time):
-            - `arc user save` serializes the current WU's SESSION-NOTES from the active worktree and cross-WU
-              records from the canonical identity-global root
-            - `arc user load` / `arc user pull` restore each surface to its semantic locus without importing a
-              sibling WU's SESSION-NOTES into the current worktree
+            - `arc user save` derives/passes the current WU, then serializes one logical manifest from two physical
+              loci: current WU `SESSION-NOTES.md` from the active worktree and identity-global flat files from the
+              canonical root.
+            - `arc user load` / `arc user pull` materialize each manifest entry to its semantic locus: current WU
+              per-WU files into the active worktree and identity-global flat files into the canonical root, without
+              importing a sibling WU's SESSION-NOTES into the current worktree.
+            - Save/load verification, pre-load backups, backup listing, and sync-status/drift inspection compare the
+              same logical split manifest they materialize, not one checkout-local `userDir`.
+            - Legacy root-level `SESSION-NOTES.md` from old manifests never becomes identity-global state: load may
+              migrate it to the current WU only when no WU-scoped notes entry exists; otherwise preserve it via
+              backup/notice, and save excludes any new flat root `SESSION-NOTES.md`.
 
     - `[ ]` **2.6.c Divergent-copy migration and teardown guard**
         - Detect existing linked-worktree copies of identity-global files, reconcile them once into the canonical
           root with merge-aware behavior, and ensure worktree teardown cannot silently delete the only copy of a
           capture that has not reached notes.
+        - The guard runs at the common worktree-removal path, not only during the first migration, because ignored
+          `.arc/user/*` edits do not make a linked worktree dirty. Cleanup-offer probes surface the same risk.
+        - Test that a git-clean linked worktree containing only ignored identity-global user captures is reconciled
+          or refused before `git worktree remove` can delete it.
 
 ## **Phase 3:** Burn-in wave 1 — two doc-only WUs
 
