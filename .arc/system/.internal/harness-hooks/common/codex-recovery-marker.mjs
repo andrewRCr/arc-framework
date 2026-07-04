@@ -405,7 +405,8 @@ export function buildRecoveryInstructions({ markers, arcCommand }) {
 
   return [
     recoveryPendingBanner,
-    "Agent instructions — complete before resuming project work:",
+    "Agent instructions — complete before resuming project work.",
+    "Recovery is mandatory even if your context feels sufficient: compaction loss is silent, so you cannot tell from inside what was dropped.",
     "1. Follow .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
     auditInstruction,
     "3. Recovered ARC context governs procedure and state; the harness summary covers only the volatile work locus — re-verify any actions taken since compaction against it.",

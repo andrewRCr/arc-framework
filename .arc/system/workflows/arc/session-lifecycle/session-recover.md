@@ -14,8 +14,11 @@ Use this workflow only after a harness compaction event, or from the manual `arc
 fallback when a developer notices compaction erased ARC operating context. Recovery rehydrates
 the context-load layer from live state plus the latest compaction seed. It does not reconstruct
 the just-before-compaction action; the harness compaction summary owns that volatile current
-leaf. Recovery does not run session-init, sync, pull, discover next work, relocate, commit,
-push, or prompt on a clean path.
+leaf — but that precedence governs reconciliation *after* the audit, and is never grounds to skip
+recovery. Run the audit whenever a compaction injection fires, even if your remaining context feels
+sufficient: compaction loss is silent, so you cannot tell from inside what was dropped. Recovery
+does not run session-init, sync, pull, discover next work, relocate, commit, push, or prompt on a
+clean path.
 
 ## 1. Run The Deterministic Recovery Audit
 

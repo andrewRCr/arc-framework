@@ -530,7 +530,9 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       expect(output.hookSpecificOutput).toMatchObject({ hookEventName: "PostToolUse" });
       const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("=== ARC post-compaction recovery: PENDING ===");
-      expect(additionalContext).toContain("Agent instructions — complete before resuming project work:");
+      expect(additionalContext).toContain("Agent instructions — complete before resuming project work.");
+      // The audit is mandatory even when residual context feels sufficient — compaction loss is silent.
+      expect(additionalContext).toContain("mandatory even if your context feels sufficient");
       expect(additionalContext).toContain("session-recover.md");
       expect(additionalContext).toContain("2. Audit command: arc recover audit --json.");
       expect(additionalContext).toContain(
