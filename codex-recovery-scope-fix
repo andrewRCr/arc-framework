@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "slug": "codex-recovery-scope-fix",
+  "origin": "description",
+  "intent": "Fix Codex compaction-recovery scope mismatch: ppid fallback can't match markers across hook processes, so recovery injection silently never fires when CODEX_THREAD_ID is unset",
+  "branch": "fix/codex-recovery-scope-fix",
+  "createdAt": "2026-07-04T20:58:58.299Z"
+}
