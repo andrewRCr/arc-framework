@@ -100,14 +100,11 @@ wave-gating relationships (BI-1 harness leg + BI-3 → wave 1; BI-1 node-deps le
 enforced in the wave preambles, not here. BI-1 and BI-4 carry the most subtasks — kept as single parents with
 internal decomposition; the grounding audit (Pass 3) can still split either if it proves overcommitted.
 
-### `[ ]` **2.1 BI-1 — Worktree dependency provisioning manifest**
+### `[x]` **2.1 BI-1 — Worktree dependency provisioning manifest**
 
 - _Goal:_ A spawned worktree comes up fully working — project deps provisioned, harness layer present, user dir
   scaffolded, marker tree clean — via an ordered post-create manifest, and emits an actionable notice (never a
   silent no-op) when the deps step is unconfigured.
-- _Context:_ The manifest is ordered because bare `npx arc` in a deps-less worktree can resolve an unrelated
-  npm-registry package before provisioning runs — provisioning must precede any CLI invocation there.
-- **Additional Context:** `spec-finalize-parallelism.md` § Committed build items (BI-1).
 
     - `[x]` **2.1.a `worktree.post_create` deps-script invocation point**
         - Spawned worktrees now read `worktree.post_create`, run a configured script immediately after
@@ -128,11 +125,13 @@ internal decomposition; the grounding audit (Pass 3) can still split either if i
           once before writing `worktree-marker.json`, and verifies a real spawned worktree no longer reports the
           marker in `git status`.
 
-    - `[ ]` **2.1.e Self-hosting `worktree.post_create` script wiring**
-        - Add this repo's post-create deps script and wire `.arc/system/arc-config.yml` to it, while keeping the
-          packaged `arc-config.yml` default empty so adopters opt into their own command.
-        - The command uses the dogfooded install → build → install sequence needed for this workspace's gitignored
-          `dist/` bin links, and Wave 2 verifies it in a fresh spawned code worktree.
+    - `[x]` **2.1.e Self-hosting `worktree.post_create` script wiring**
+        - Added this repo's install-build-install post-create script and wired `.arc/system/arc-config.yml` to run
+          it, while leaving the packaged `arc-config.yml` default empty for adopter projects.
+
+- _Outcome:_ BI-1's post-create invocation, registered harness copy, marker ignore, and self-hosting
+  provisioning wiring are landed. The user-dir scaffold leg moved to Task 2.4.d so it runs after Task 2.4.c
+  corrects the spawn-mode ceremony locus it depends on.
 
 ### `[ ]` **2.2 BI-2 — In-place Materialize for cross-machine pickup**
 

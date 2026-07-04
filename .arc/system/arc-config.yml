@@ -47,7 +47,7 @@ worktree.location_template: ../{repo}.{branch}
 # Runs inside the new worktree after `git worktree add` and before ARC uses
 # that checkout for follow-on work. Leave empty to surface a deps-provisioning
 # notice instead of silently doing nothing.
-worktree.post_create: ""
+worktree.post_create: bash scripts/worktree-post-create.sh
 
 # Comma-separated list of top-level gitignored harness directories to copy
 # from the primary checkout into ARC-created linked worktrees. ARC copies only
