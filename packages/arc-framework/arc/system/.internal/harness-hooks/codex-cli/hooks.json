@@ -6,24 +6,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && cd \"$repo_root\" && node \"$repo_root/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do (cd /d \"%i\" && node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\") || exit /b 0",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && cd \"$repo_root\" && ARC_HOOK_HARNESS=codex-cli node \"$repo_root/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do (cd /d \"%i\" && set \"ARC_HOOK_HARNESS=codex-cli\" && node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\") || exit /b 0",
             "timeout": 30,
             "statusMessage": "Writing ARC compaction seed"
           }
         ]
       }
     ],
-    "PostCompact": [
+    "PostToolUse": [
       {
-        "matcher": "manual|auto",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/post-compact-recover.mjs\"",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs\"",
-            "timeout": 30,
-            "statusMessage": "Stopping for ARC recovery"
+            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/post-tool-use-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\post-tool-use-recover.mjs\"",
+            "timeout": 30
           }
         ]
       }
