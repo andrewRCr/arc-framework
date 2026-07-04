@@ -18,6 +18,11 @@ import type {
   TaskListCursor,
 } from "../task-list/cursor.js";
 import type { TaskListCursorFileResult } from "../task-list/file-cursor.js";
+import {
+  defaultCommittedProgressResolver,
+  type CommittedProgress,
+  type CommittedProgressResolver,
+} from "./committed-progress.js";
 
 /** Stop reason categories emitted by the recovery audit. */
 export type RecoveryAuditStopKind =
@@ -54,6 +59,30 @@ export interface RecoveryAuditDirtyFiles {
   pathSetMatch: boolean;
   dirtyStateConsistent: boolean | null;
   match: boolean;
+  /**
+   * True when the path-set differs but the difference is fully explained by
+   * commits made since the seed (see {@link RecoveryAuditExplainedDrift}) — so it
+   * does not contribute a stop reason.
+   */
+  explainedByCommittedProgress: boolean;
+}
+
+/**
+ * Drift the audit classified as expected progression rather than a stop signal.
+ *
+ * Recorded for transparency when a drift reason was suppressed because it is
+ * fully accounted for by committed work since the seed. The verdict stays binary
+ * ready/stop; an explained reason simply does not push a stop.
+ */
+export interface RecoveryAuditExplainedDrift {
+  kind: "dirty-path-drift";
+  message: string;
+  detail: {
+    /** Seed-expected dirty paths now absent because they were committed since the seed. */
+    resolvedPaths: string[];
+    /** The seed head those paths were committed after. */
+    committedSince: string;
+  };
 }
 
 /** Task-cursor comparison carried by the audit result. */
@@ -68,6 +97,8 @@ export interface RecoveryAuditVerdict {
   status: "ready" | "stop";
   ready: boolean;
   stopReasons: RecoveryAuditStopReason[];
+  /** Drift that was suppressed as expected progression; never gates the verdict. */
+  explainedDrift: RecoveryAuditExplainedDrift[];
   loadSetAudit: LoadSetAuditVerdict | null;
   dirtyFiles: RecoveryAuditDirtyFiles;
   taskCursor: RecoveryAuditTaskCursor | null;
@@ -89,13 +120,24 @@ export interface AuditRecoveryStateOptions {
   recover: RecoveryAuditProbeState;
   /** Fresh dirty-file path set from `git status --porcelain=v1 -z`. */
   freshUncommittedFiles: readonly string[];
+  /**
+   * Resolves committed-progress evidence for explained-drift classification.
+   * Injected in tests; defaults to a real git query against the current repo.
+   */
+  resolveCommittedProgress?: CommittedProgressResolver;
 }
 
 /** Audit fresh recovery state against the compaction seed. */
-export function auditRecoveryState(options: AuditRecoveryStateOptions): RecoveryAuditVerdict {
+export async function auditRecoveryState(
+  options: AuditRecoveryStateOptions,
+): Promise<RecoveryAuditVerdict> {
+  const resolveCommittedProgress = options.resolveCommittedProgress ?? defaultCommittedProgressResolver;
+  const committedProgress = await resolveCommittedProgress(options.seed.head);
+
   const stopReasons: RecoveryAuditStopReason[] = [];
+  const explainedDrift: RecoveryAuditExplainedDrift[] = [];
   const loadSetAudit = auditLoadSet(options, stopReasons);
-  const dirtyFiles = auditDirtyFiles(options, stopReasons);
+  const dirtyFiles = auditDirtyFiles(options, stopReasons, explainedDrift, committedProgress);
   const taskCursor = auditTaskCursor(options, stopReasons);
   auditPlanningWorkflow(options, stopReasons);
 
@@ -103,6 +145,7 @@ export function auditRecoveryState(options: AuditRecoveryStateOptions): Recovery
     status: stopReasons.length === 0 ? "ready" : "stop",
     ready: stopReasons.length === 0,
     stopReasons,
+    explainedDrift,
     loadSetAudit,
     dirtyFiles,
     taskCursor,
@@ -139,6 +182,8 @@ function auditLoadSet(
 function auditDirtyFiles(
   options: AuditRecoveryStateOptions,
   stopReasons: RecoveryAuditStopReason[],
+  explainedDrift: RecoveryAuditExplainedDrift[],
+  committedProgress: CommittedProgress | null,
 ): RecoveryAuditDirtyFiles {
   const expected = normalizePaths(options.seed.uncommittedFiles);
   const actual = normalizePaths(options.freshUncommittedFiles);
@@ -150,6 +195,24 @@ function auditDirtyFiles(
       || (dirtyProbeState === "dirty" && actual.length === 0)
     );
   const dirtyStateConsistent = options.recover.dirty.ok ? !dirtyProbeContradiction : null;
+
+  // Path drift is "explained" only when the working tree is a strict subset of the
+  // seed's expected set, and every seed-expected path now absent left the dirty set
+  // by being committed since the seed head (HEAD advanced past it). Any unexpected
+  // new dirt, an uncommitted disappearance, or a dirty-state contradiction is not
+  // committed progress and stays a genuine stop.
+  const actualSet = new Set(actual);
+  const expectedSet = new Set(expected);
+  const nowMissing = expected.filter((path) => !actualSet.has(path));
+  const newDirt = actual.filter((path) => !expectedSet.has(path));
+  const explainedByCommittedProgress = !pathSetMatch
+    && !dirtyProbeContradiction
+    && newDirt.length === 0
+    && nowMissing.length > 0
+    && committedProgress !== null
+    && committedProgress.advanced
+    && nowMissing.every((path) => committedProgress.files.has(path));
+
   const match = pathSetMatch && dirtyStateConsistent === true;
 
   if (!options.recover.dirty.ok) {
@@ -159,7 +222,7 @@ function auditDirtyFiles(
       detail: options.recover.dirty.error,
     });
   }
-  if (!pathSetMatch || dirtyProbeContradiction) {
+  if ((!pathSetMatch || dirtyProbeContradiction) && !explainedByCommittedProgress) {
     stopReasons.push({
       kind: "dirty-path-drift",
       message: dirtyProbeContradiction
@@ -171,9 +234,19 @@ function auditDirtyFiles(
         dirty: options.recover.dirty.ok ? options.recover.dirty.value : null,
       },
     });
+  } else if (explainedByCommittedProgress) {
+    explainedDrift.push({
+      kind: "dirty-path-drift",
+      message:
+        "seed-expected dirty files are absent because they were committed since the seed; drift is expected progression",
+      detail: {
+        resolvedPaths: nowMissing,
+        committedSince: options.seed.head,
+      },
+    });
   }
 
-  return { expected, actual, pathSetMatch, dirtyStateConsistent, match };
+  return { expected, actual, pathSetMatch, dirtyStateConsistent, match, explainedByCommittedProgress };
 }
 
 function dirtyProbeContradictionMessage(state: DirtyStateResult["state"]): string {

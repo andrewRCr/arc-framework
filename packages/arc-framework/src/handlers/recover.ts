@@ -116,7 +116,7 @@ export async function handleRecoverAudit(opts: RecoverAuditOptions): Promise<voi
     return;
   }
 
-  const verdict = auditRecoveryState({
+  const verdict = await auditRecoveryState({
     seed: parsedSeed.seed,
     recover,
     freshUncommittedFiles: parseUncommittedFiles(statusOutput),
@@ -180,6 +180,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
     status: "stop",
     ready: false,
     stopReasons: [reason],
+    explainedDrift: [],
     loadSetAudit: null,
     dirtyFiles: {
       expected: [],
@@ -187,6 +188,7 @@ function stopVerdict(reason: RecoveryAuditStopReason): RecoveryAuditVerdict {
       pathSetMatch: false,
       dirtyStateConsistent: null,
       match: false,
+      explainedByCommittedProgress: false,
     },
     taskCursor: null,
   };

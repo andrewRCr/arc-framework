@@ -11,7 +11,11 @@ import {
   LOAD_SET_MANIFEST_VERSION,
   type LoadSetManifest,
 } from "../../../src/lib/load-set/types.js";
-import { auditRecoveryState } from "../../../src/lib/recover/audit.js";
+import {
+  auditRecoveryState,
+  type AuditRecoveryStateOptions,
+} from "../../../src/lib/recover/audit.js";
+import type { CommittedProgressResolver } from "../../../src/lib/recover/committed-progress.js";
 import type {
   TaskListCursor,
   TaskListCursorResult,
@@ -120,9 +124,22 @@ function ok<T>(value: T): Probe<T> {
   return { ok: true, value };
 }
 
+// The audit resolves committed-progress evidence via git; unit tests inject a
+// deterministic resolver. Default is "no evidence" (null), which leaves every
+// existing drift a genuine stop exactly as before the explained-drift gate.
+const noCommittedProgress: CommittedProgressResolver = () => Promise.resolve(null);
+
+function committedProgress(files: string[], advanced = true): CommittedProgressResolver {
+  return () => Promise.resolve({ advanced, files: new Set(files) });
+}
+
+function runAudit(options: AuditRecoveryStateOptions): Promise<Awaited<ReturnType<typeof auditRecoveryState>>> {
+  return auditRecoveryState({ resolveCommittedProgress: noCommittedProgress, ...options });
+}
+
 describe("auditRecoveryState", () => {
-  it("returns ready when load-set, dirty paths, and execution cursor match the seed", () => {
-    const result = auditRecoveryState({
+  it("returns ready when load-set, dirty paths, and execution cursor match the seed", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -137,12 +154,14 @@ describe("auditRecoveryState", () => {
       status: "ready",
       ready: true,
       stopReasons: [],
+      explainedDrift: [],
       dirtyFiles: {
         expected: [],
         actual: [],
         pathSetMatch: true,
         dirtyStateConsistent: true,
         match: true,
+        explainedByCommittedProgress: false,
       },
       taskCursor: {
         expected: CURSOR,
@@ -151,8 +170,8 @@ describe("auditRecoveryState", () => {
     });
   });
 
-  it("stops on load-set drift and dirty path drift", () => {
-    const result = auditRecoveryState({
+  it("stops on load-set drift and dirty path drift", async () => {
+    const result = await runAudit({
       seed: seed({
         uncommittedFiles: ["src/original.ts"],
       }),
@@ -186,11 +205,146 @@ describe("auditRecoveryState", () => {
       pathSetMatch: false,
       dirtyStateConsistent: true,
       match: false,
+      explainedByCommittedProgress: false,
     });
   });
 
-  it("stops when the dirty probe claims clean but porcelain paths are present", () => {
-    const result = auditRecoveryState({
+  it("treats dirty-path drift as ready when the absent files were committed since the seed", async () => {
+    const result = await runAudit({
+      seed: seed({ uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      // src/b.ts left the dirty set by being committed; only src/a.ts remains.
+      freshUncommittedFiles: ["src/a.ts"],
+      resolveCommittedProgress: committedProgress(["src/b.ts"]),
+    });
+
+    expect(result.status).toBe("ready");
+    expect(result.ready).toBe(true);
+    expect(result.stopReasons).toEqual([]);
+    expect(result.explainedDrift).toEqual([
+      {
+        kind: "dirty-path-drift",
+        message:
+          "seed-expected dirty files are absent because they were committed since the seed; drift is expected progression",
+        detail: {
+          resolvedPaths: ["src/b.ts"],
+          committedSince: seed().head,
+        },
+      },
+    ]);
+    expect(result.dirtyFiles.pathSetMatch).toBe(false);
+    expect(result.dirtyFiles.match).toBe(false);
+    expect(result.dirtyFiles.explainedByCommittedProgress).toBe(true);
+  });
+
+  it("stops dirty-path drift when unexpected new dirt appeared alongside committed progress", async () => {
+    const result = await runAudit({
+      seed: seed({ uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 2 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      // src/b.ts committed, but src/c.ts is new, unexplained dirt.
+      freshUncommittedFiles: ["src/a.ts", "src/c.ts"],
+      resolveCommittedProgress: committedProgress(["src/b.ts"]),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons.map((reason) => reason.kind)).toContain("dirty-path-drift");
+    expect(result.explainedDrift).toEqual([]);
+    expect(result.dirtyFiles.explainedByCommittedProgress).toBe(false);
+  });
+
+  it("stops dirty-path drift when an absent file was not committed since the seed", async () => {
+    const result = await runAudit({
+      seed: seed({ uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: ["src/a.ts"],
+      // HEAD advanced, but src/b.ts is not among the committed files.
+      resolveCommittedProgress: committedProgress([]),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons.map((reason) => reason.kind)).toContain("dirty-path-drift");
+    expect(result.explainedDrift).toEqual([]);
+  });
+
+  it("stops dirty-path drift when HEAD did not advance past the seed head", async () => {
+    const result = await runAudit({
+      seed: seed({ uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: ["src/a.ts"],
+      resolveCommittedProgress: committedProgress(["src/b.ts"], false),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons.map((reason) => reason.kind)).toContain("dirty-path-drift");
+    expect(result.explainedDrift).toEqual([]);
+  });
+
+  it("stops dirty-path drift when committed progress cannot be resolved", async () => {
+    const result = await runAudit({
+      seed: seed({ uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        dirty: ok(dirty({ state: "dirty", fileCount: 1 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: ["src/a.ts"],
+      // Unresolved git evidence must never widen the gate — stays a stop.
+      resolveCommittedProgress: noCommittedProgress,
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons.map((reason) => reason.kind)).toContain("dirty-path-drift");
+    expect(result.explainedDrift).toEqual([]);
+  });
+
+  it("does not explain away a dirty-state contradiction even when files were committed", async () => {
+    const result = await runAudit({
+      seed: seed({ dirty: true, uncommittedFiles: ["src/a.ts", "src/b.ts"] }),
+      recover: {
+        active: ok(active()),
+        // Probe claims clean, but src/a.ts is present — a contradiction, never explained.
+        dirty: ok(dirty({ state: "clean", fileCount: 0 })),
+        loadSet: ok(LOAD_SET),
+        taskCursor: ok(cursorResult()),
+      },
+      freshUncommittedFiles: ["src/a.ts"],
+      resolveCommittedProgress: committedProgress(["src/b.ts"]),
+    });
+
+    expect(result.status).toBe("stop");
+    expect(result.stopReasons).toMatchObject([
+      {
+        kind: "dirty-path-drift",
+        message: "fresh dirty-file path set contradicts the clean dirty-state probe",
+      },
+    ]);
+    expect(result.explainedDrift).toEqual([]);
+    expect(result.dirtyFiles.explainedByCommittedProgress).toBe(false);
+  });
+
+  it("stops when the dirty probe claims clean but porcelain paths are present", async () => {
+    const result = await runAudit({
       seed: seed({
         dirty: true,
         uncommittedFiles: ["src/changed.ts"],
@@ -211,6 +365,7 @@ describe("auditRecoveryState", () => {
       pathSetMatch: true,
       dirtyStateConsistent: false,
       match: false,
+      explainedByCommittedProgress: false,
     });
     expect(result.stopReasons).toMatchObject([
       {
@@ -220,8 +375,8 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
-  it("stops when the dirty probe claims dirty but porcelain paths are absent", () => {
-    const result = auditRecoveryState({
+  it("stops when the dirty probe claims dirty but porcelain paths are absent", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -239,6 +394,7 @@ describe("auditRecoveryState", () => {
       pathSetMatch: true,
       dirtyStateConsistent: false,
       match: false,
+      explainedByCommittedProgress: false,
     });
     expect(result.stopReasons).toMatchObject([
       {
@@ -248,8 +404,8 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
-  it("stops on unresolved dirty probes without reporting path drift", () => {
-    const result = auditRecoveryState({
+  it("stops on unresolved dirty probes without reporting path drift", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -270,12 +426,13 @@ describe("auditRecoveryState", () => {
       pathSetMatch: true,
       dirtyStateConsistent: null,
       match: false,
+      explainedByCommittedProgress: false,
     });
     expect(result.stopReasons.map((reason) => reason.kind)).toEqual(["dirty-unresolved"]);
   });
 
-  it("stops when an execution seed lacks a task-list cursor", () => {
-    const result = auditRecoveryState({
+  it("stops when an execution seed lacks a task-list cursor", async () => {
+    const result = await runAudit({
       seed: seed({ taskCursor: null }),
       recover: {
         active: ok(active()),
@@ -293,8 +450,8 @@ describe("auditRecoveryState", () => {
     expect(result.taskCursor?.match).toBe(false);
   });
 
-  it("stops when the fresh task-list cursor diverges from the seed", () => {
-    const result = auditRecoveryState({
+  it("stops when the fresh task-list cursor diverges from the seed", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -327,8 +484,8 @@ describe("auditRecoveryState", () => {
     });
   });
 
-  it("stops on malformed fresh task-list cursor state", () => {
-    const result = auditRecoveryState({
+  it("stops on malformed fresh task-list cursor state", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -353,8 +510,8 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
-  it("stops when the fresh task-list cursor path is missing", () => {
-    const result = auditRecoveryState({
+  it("stops when the fresh task-list cursor path is missing", async () => {
+    const result = await runAudit({
       seed: seed(),
       recover: {
         active: ok(active()),
@@ -377,8 +534,8 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
-  it("audits integration task cursors when the seed captured one", () => {
-    const result = auditRecoveryState({
+  it("audits integration task cursors when the seed captured one", async () => {
+    const result = await runAudit({
       seed: seed({
         sessionType: "integration",
         currentWorkflow: "integrate-work-unit Step 4",
@@ -409,8 +566,8 @@ describe("auditRecoveryState", () => {
     ]);
   });
 
-  it("allows cursorless integration recovery when no task-list checkbox is open", () => {
-    const result = auditRecoveryState({
+  it("allows cursorless integration recovery when no task-list checkbox is open", async () => {
+    const result = await runAudit({
       seed: seed({
         sessionType: "integration",
         currentWorkflow: "integrate-work-unit Step 4",
@@ -434,8 +591,8 @@ describe("auditRecoveryState", () => {
     expect(result.taskCursor).toBeNull();
   });
 
-  it("stops cursorless integration recovery when the fresh cursor probe fails", () => {
-    const result = auditRecoveryState({
+  it("stops cursorless integration recovery when the fresh cursor probe fails", async () => {
+    const result = await runAudit({
       seed: seed({
         sessionType: "integration",
         currentWorkflow: "integrate-work-unit Step 4",
@@ -468,8 +625,8 @@ describe("auditRecoveryState", () => {
     ]));
   });
 
-  it("stops cursorless integration recovery when the fresh cursor probe is absent", () => {
-    const result = auditRecoveryState({
+  it("stops cursorless integration recovery when the fresh cursor probe is absent", async () => {
+    const result = await runAudit({
       seed: seed({
         sessionType: "integration",
         currentWorkflow: "integrate-work-unit Step 4",
@@ -496,7 +653,7 @@ describe("auditRecoveryState", () => {
     ]));
   });
 
-  it("stops cursorless integration recovery on malformed or missing fresh cursor state", () => {
+  it("stops cursorless integration recovery on malformed or missing fresh cursor state", async () => {
     for (const taskCursor of [
       ok({
         status: "malformed",
@@ -510,7 +667,7 @@ describe("auditRecoveryState", () => {
         path: ".arc/active/tasks-missing.md",
       } satisfies TaskListCursorFileResult),
     ]) {
-      const result = auditRecoveryState({
+      const result = await runAudit({
         seed: seed({
           sessionType: "integration",
           currentWorkflow: "integrate-work-unit Step 4",
@@ -533,8 +690,8 @@ describe("auditRecoveryState", () => {
     }
   });
 
-  it("stops for planning recovery because Current Workflow is soft after compaction", () => {
-    const result = auditRecoveryState({
+  it("stops for planning recovery because Current Workflow is soft after compaction", async () => {
+    const result = await runAudit({
       seed: seed({
         sessionType: "planning",
         taskCursor: null,
