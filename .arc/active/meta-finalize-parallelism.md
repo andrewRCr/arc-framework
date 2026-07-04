@@ -1,24 +1,22 @@
 # Metadata: finalize-parallelism
 
-| **State**  | **Owner** | **Branch**                  | **Class** | **Priority** |
-| ---------- | --------- | --------------------------- | --------- | ------------ |
-| `Planning` | `andrew`  | `plan/finalize-parallelism` | `Heavy`   | `P1`         |
+| **State** | **Owner** | **Branch**                  | **Class** | **Priority** |
+| --------- | --------- | --------------------------- | --------- | ------------ |
+| `Active`  | `andrew`  | `feat/finalize-parallelism` | `Heavy`   | `P1`         |
 
 - **Cohort:** `agile-parallelism`
-- **Depends On:** `concurrent-work-doctrine`, `merge-safety-mechanism`, `async-merge-lifecycle`,
-  `worktree-default-start`, `single-owner-wu-model`, `partial-push-marker`, `stale-state-detect-and-pull`,
-  `state-ref-write-safety`, `out-of-wu-entry`, `lifecycle-closeout`
+- **Depends On:** [none]
 
 - **Origin:** [internal]
 - **Design:** `spec-finalize-parallelism.md`
 - **Task List:** `tasks-finalize-parallelism.md`
 
-- **Current Workflow:** `generate-tasks`
+- **Current Workflow:** [none]
 - **Last Completed:** [none]
-- **Next Task:** [none]
+- **Next Task:** Task 1.1 — Finalize the shared-mutable-surface matrix
 - **Blockers:** [none]
 
-- **Next Action:** Task list finalized — ready to activate
+- **Next Action:** Begin Task 1.1 (Phase 1 seam audit — finalize the shared-mutable-surface matrix)
 
 - **PR URL:** [none]
 - **Completed:** [none]
