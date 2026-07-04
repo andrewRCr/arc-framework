@@ -16,7 +16,7 @@ const featuresPath = resolve(hookRoot, "codex-cli/features.config.toml");
 const markerScriptPath = resolve(hookRoot, "common/codex-recovery-marker.mjs");
 const clearScriptPath = resolve(hookRoot, "common/clear-codex-recovery-pending.mjs");
 const seedScriptPath = resolve(hookRoot, "common/pre-compact-seed.mjs");
-const postCompactScriptPath = resolve(hookRoot, "common/post-compact-recover.mjs");
+const postToolUseScriptPath = resolve(hookRoot, "common/post-tool-use-recover.mjs");
 const userPromptScriptPath = resolve(hookRoot, "common/user-prompt-recover.mjs");
 
 interface CommandHook {
@@ -28,14 +28,15 @@ interface CommandHook {
 }
 
 interface MatcherGroup {
-  matcher: string;
+  matcher?: string;
   hooks: CommandHook[];
 }
 
 interface CodexHooksFragment {
   hooks: {
     PreCompact: MatcherGroup[];
-    PostCompact: MatcherGroup[];
+    PostCompact?: MatcherGroup[];
+    PostToolUse: MatcherGroup[];
     UserPromptSubmit: MatcherGroup[];
     SessionStart?: MatcherGroup[];
   };
@@ -52,6 +53,18 @@ interface HookOutput {
   };
 }
 
+interface PendingMarker {
+  schemaVersion: number;
+  kind: string;
+  scope: { kind: string; id: string };
+  codexThreadId: string | null;
+  emittedAt: string;
+  fallback: boolean;
+  reason: string | null;
+  seedPath: string | null;
+  notifiedAt: string | null;
+}
+
 function readJson<T>(path: string): T {
   return JSON.parse(readFileSync(path, "utf8")) as T;
 }
@@ -63,12 +76,6 @@ function runHookScript(
   args: string[] = [],
 ): HookOutput {
   return JSON.parse(runHookScriptRaw(path, cwd, env, args)) as HookOutput;
-}
-
-function runPostCompactScript(cwd?: string, env: NodeJS.ProcessEnv = {}): HookOutput {
-  const output = runHookScript(postCompactScriptPath, cwd, env);
-  expect(Object.keys(output).sort()).toEqual(["continue", "stopReason", "systemMessage"].sort());
-  return output;
 }
 
 function runHookScriptRaw(
@@ -85,6 +92,7 @@ function runHookScriptRaw(
       ...process.env,
       ARC_HOOK_ARC_COMMAND: "arc",
       ARC_HOOK_STALE_BUILD_COMMAND: "",
+      ARC_HOOK_HARNESS: "",
       CLAUDE_PROJECT_DIR: "",
       CODEX_THREAD_ID: "",
       ...envOverrides,
@@ -111,32 +119,48 @@ function recoveryFileSuffix(value: string): string {
   return suffix;
 }
 
-function writeSeedHandoff(root: string, env: NodeJS.ProcessEnv = {}): string {
+function markerFileNameFor(env: NodeJS.ProcessEnv = {}): string {
   const threadId = env.CODEX_THREAD_ID?.trim();
   const rawSuffix = threadId && threadId.length > 0 ? threadId : `ppid-${process.pid}`;
-  const suffix = recoveryFileSuffix(rawSuffix);
-  const scope = threadId && threadId.length > 0
-    ? { kind: "thread", id: threadId }
-    : { kind: "process", id: String(process.pid) };
-  const handoffPath = join(
-    root,
-    ".arc",
-    "user",
-    ".internal",
-    `codex-compaction-recovery-seed-${suffix}.json`,
-  );
+  return `codex-compaction-recovery-pending-${recoveryFileSuffix(rawSuffix)}.json`;
+}
 
-  mkdirSync(dirname(handoffPath), { recursive: true });
-  writeFileSync(handoffPath, `${JSON.stringify({
-    schemaVersion: 1,
-    kind: "codex-compaction-recovery-seed",
-    scope,
-    codexThreadId: threadId && threadId.length > 0 ? threadId : null,
-    hookParentPid: process.pid,
-    emittedAt: new Date().toISOString(),
-    seedPath: ".arc/user/andrew/.internal/compaction-seed.json",
-  }, null, 2)}\n`);
-  return handoffPath;
+function identityMarkerPath(root: string, env: NodeJS.ProcessEnv = {}): string {
+  return join(root, ".arc", "user", "andrew", ".internal", markerFileNameFor(env));
+}
+
+function fallbackMarkerPath(root: string, env: NodeJS.ProcessEnv = {}): string {
+  return join(root, ".arc", "user", ".internal", markerFileNameFor(env));
+}
+
+function writeSuccessFakeArc(root: string, identity = "andrew"): string {
+  const fakeArcPath = join(root, "fake-arc.mjs");
+  writeFileSync(fakeArcPath, [
+    `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+      identity: { identity },
+      compactionSeedWrite: {
+        status: "written",
+        path: join(root, ".arc", "user", identity, ".internal", "compaction-seed.json"),
+      },
+    })}\n`)});`,
+  ].join("\n"));
+  return fakeArcPath;
+}
+
+function runSeedSuccess(root: string, env: NodeJS.ProcessEnv = {}): void {
+  runHookScriptRaw(seedScriptPath, root, {
+    ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+    ARC_HOOK_HARNESS: "codex-cli",
+    ...env,
+  });
+}
+
+function runSeedFailure(root: string, env: NodeJS.ProcessEnv = {}): void {
+  runHookScriptRaw(seedScriptPath, root, {
+    ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
+    ARC_HOOK_HARNESS: "codex-cli",
+    ...env,
+  });
 }
 
 function withTempArcProject<T>(fn: (root: string) => T): T {
@@ -161,15 +185,18 @@ describe("Codex CLI compaction recovery hook recipe", () => {
       "system/.internal/harness-hooks/common/codex-recovery-marker.mjs",
       "system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
       "system/.internal/harness-hooks/common/pre-compact-seed.mjs",
-      "system/.internal/harness-hooks/common/post-compact-recover.mjs",
+      "system/.internal/harness-hooks/common/post-tool-use-recover.mjs",
       "system/.internal/harness-hooks/common/user-prompt-recover.mjs",
     ]));
+    expect(recipe.include_files).not.toContain(
+      "system/.internal/harness-hooks/common/post-compact-recover.mjs",
+    );
     expect(existsSync(hooksPath)).toBe(true);
     expect(existsSync(featuresPath)).toBe(true);
     expect(existsSync(markerScriptPath)).toBe(true);
     expect(existsSync(clearScriptPath)).toBe(true);
     expect(existsSync(seedScriptPath)).toBe(true);
-    expect(existsSync(postCompactScriptPath)).toBe(true);
+    expect(existsSync(postToolUseScriptPath)).toBe(true);
     expect(existsSync(userPromptScriptPath)).toBe(true);
   });
 
@@ -200,12 +227,12 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
 
     const hook = preCompact!.hooks[0]!;
-    expect(hook.command).not.toContain("ARC_HOOK_HARNESS");
+    expect(hook.command).toContain("ARC_HOOK_HARNESS=codex-cli");
     expect(hook.command).toContain("git rev-parse --show-toplevel");
     expect(hook.command).toContain("cd \"$repo_root\"");
     expect(hook.command).toContain(".arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs");
     expect(hook.command).toContain("|| exit 0");
-    expect(hook.commandWindows).not.toContain("ARC_HOOK_HARNESS");
+    expect(hook.commandWindows).toContain("ARC_HOOK_HARNESS=codex-cli");
     expect(hook.commandWindows).toContain("git rev-parse --show-toplevel");
     expect(hook.commandWindows).toContain("cd /d");
     expect(hook.commandWindows).toContain(".arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs");
@@ -214,11 +241,54 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     const seedScript = readFileSync(seedScriptPath, "utf8");
     expect(seedScript).toContain("ARC_HOOK_ARC_COMMAND");
     expect(seedScript).toContain("status --session-init --write-compaction-seed --json");
-    expect(seedScript).toContain("writeSeedHandoff");
+    expect(seedScript).toContain("writePendingMarker");
+    expect(seedScript).toContain("writeFallbackPendingMarker");
+    expect(seedScript).toContain("reapExpiredRecoveryArtifacts");
+    expect(seedScript).toContain("drainStdin");
     expect(seedScript).toContain("ARC_HOOK_STALE_BUILD_COMMAND");
     expect(seedScript).toContain("timeout: 15_000");
     expect(seedScript).toContain("stdio: [\"ignore\", \"pipe\", \"pipe\"]");
     expect(seedScript).toContain("process.exit(0)");
+  });
+
+  it("routes recovery through PostToolUse injection with a UserPromptSubmit backstop", () => {
+    const fragment = readJson<CodexHooksFragment>(hooksPath);
+
+    expect(fragment.hooks.PostCompact).toBeUndefined();
+
+    expect(fragment.hooks.PostToolUse).toHaveLength(1);
+    const [postToolUseGroup] = fragment.hooks.PostToolUse;
+    expect(postToolUseGroup?.matcher).toBeUndefined();
+    const postToolUseHook = postToolUseGroup?.hooks[0];
+    expect(postToolUseHook).toMatchObject({ type: "command", timeout: 30 });
+    expect(postToolUseHook?.command).toContain(
+      ".arc/system/.internal/harness-hooks/common/post-tool-use-recover.mjs",
+    );
+    expect(postToolUseHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\post-tool-use-recover.mjs",
+    );
+
+    expect(fragment.hooks.UserPromptSubmit).toHaveLength(1);
+    expect(fragment.hooks.UserPromptSubmit[0]?.matcher).toBeUndefined();
+    const userPromptHook = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
+    expect(userPromptHook).toMatchObject({ type: "command", timeout: 30 });
+    expect(userPromptHook?.command).toContain(".arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs");
+    expect(userPromptHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs",
+    );
+
+    expect(fragment.hooks.SessionStart).toHaveLength(1);
+    const [sessionStartGroup] = fragment.hooks.SessionStart ?? [];
+    expect(sessionStartGroup?.matcher).toBe("clear");
+    const sessionStartHook = sessionStartGroup?.hooks[0];
+    expect(sessionStartHook?.command).toContain(
+      ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
+    );
+    expect(sessionStartHook?.command).toContain("|| exit 0");
+    expect(sessionStartHook?.commandWindows).toContain(
+      ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs",
+    );
+    expect(sessionStartHook?.commandWindows).toContain("|| exit /b 0");
   });
 
   it("retries the PreCompact seed write after an explicitly configured stale-build repair", () => {
@@ -247,81 +317,72 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         `writeFileSync(${JSON.stringify(statePath)}, JSON.stringify({ built: true }));`,
       ].join("\n"));
 
+      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
         ARC_HOOK_STALE_BUILD_COMMAND: nodeScriptCommand(fakeBuildPath),
-        CODEX_THREAD_ID: "thread-a",
+        ARC_HOOK_HARNESS: "codex-cli",
       });
 
-      expect(existsSync(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(true);
+      const marker = readJson<PendingMarker>(identityMarkerPath(root, env));
+      expect(marker.kind).toBe("codex-compaction-recovery-pending");
+      expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
+      expect(marker.notifiedAt).toBeNull();
     });
   });
 
-  it("resolves hook marker state from CLAUDE_PROJECT_DIR when process cwd differs", () => {
+  it("writes markers only for the Codex harness", () => {
+    withTempArcProject((root) => {
+      runSeedSuccess(root, { CODEX_THREAD_ID: "thread-a", ARC_HOOK_HARNESS: "claude-code" });
+      expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+      expect(existsSync(fallbackMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+    });
+
     withTempArcProject((root) => {
       const outside = mkdtempSync(join(tmpdir(), "arc-codex-outside-"));
-      const fakeArcPath = join(root, "fake-arc.mjs");
-      writeFileSync(fakeArcPath, [
-        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
-          identity: { identity: "andrew" },
-          compactionSeedWrite: {
-            status: "written",
-            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
-          },
-        })}\n`)});`,
-      ].join("\n"));
-
       try {
+        // CLAUDE_PROJECT_DIR present with no explicit harness reads as Claude Code.
         runHookScriptRaw(seedScriptPath, outside, {
-          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
           CLAUDE_PROJECT_DIR: root,
           CODEX_THREAD_ID: "thread-a",
         });
+        expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
+        expect(existsSync(fallbackMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
 
-        expect(existsSync(join(
-          root,
-          ".arc",
-          "user",
-          ".internal",
-          "codex-compaction-recovery-seed-thread-a.json",
-        ))).toBe(true);
-        expect(existsSync(join(
-          outside,
-          ".arc",
-          "user",
-          ".internal",
-          "codex-compaction-recovery-seed-thread-a.json",
-        ))).toBe(false);
+        // An explicit harness declaration outranks the CLAUDE_PROJECT_DIR tell,
+        // and marker state resolves against the project dir, not the cwd.
+        runHookScriptRaw(seedScriptPath, outside, {
+          ARC_HOOK_ARC_COMMAND: nodeScriptCommand(writeSuccessFakeArc(root)),
+          ARC_HOOK_HARNESS: "codex-cli",
+          CLAUDE_PROJECT_DIR: root,
+          CODEX_THREAD_ID: "thread-a",
+        });
+        expect(existsSync(identityMarkerPath(root, { CODEX_THREAD_ID: "thread-a" }))).toBe(true);
+        expect(existsSync(identityMarkerPath(outside, { CODEX_THREAD_ID: "thread-a" }))).toBe(false);
       } finally {
         rmSync(outside, { recursive: true, force: true });
       }
     });
   });
 
-  it("replaces a prior seed handoff with failure details when the PreCompact seed command fails", () => {
+  it("writes a fallback marker when the PreCompact seed command fails", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
+      runSeedFailure(root, env);
 
-      runHookScriptRaw(seedScriptPath, root, {
-        ...env,
-        ARC_HOOK_ARC_COMMAND: `${shellArg(process.execPath)} -e ${shellArg("process.exit(1);")}`,
-      });
-
-      expect(readJson<{ kind: string; reason: string }>(handoffPath)).toMatchObject({
-        kind: "codex-compaction-recovery-seed-failure",
-        reason: "seed command exited 1",
-      });
+      const marker = readJson<PendingMarker>(fallbackMarkerPath(root, env));
+      expect(marker.kind).toBe("codex-compaction-recovery-pending");
+      expect(marker.fallback).toBe(true);
+      expect(marker.seedPath).toBeNull();
+      expect(marker.reason).toBe("seed command exited 1");
+      expect(marker.notifiedAt).toBeNull();
+      expect(existsSync(identityMarkerPath(root, env))).toBe(false);
     });
   });
 
-  it("writes failure details when seed writing is skipped", () => {
+  it("writes a fallback marker when seed writing is skipped", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
@@ -333,25 +394,20 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
+      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        CODEX_THREAD_ID: "thread-a",
+        ARC_HOOK_HARNESS: "codex-cli",
       });
 
-      expect(readJson<{ kind: string; reason: string }>(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toMatchObject({
-        kind: "codex-compaction-recovery-seed-failure",
-        reason: "seed write skipped (identity-missing)",
-      });
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+        "seed write skipped (identity-missing)",
+      );
     });
   });
 
-  it("writes failure details for invalid emitted seed paths", () => {
+  it("writes a fallback marker for invalid emitted seed paths", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
@@ -364,25 +420,128 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
+      const env = { CODEX_THREAD_ID: "thread-a" };
       runHookScriptRaw(seedScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        CODEX_THREAD_ID: "thread-a",
+        ARC_HOOK_HARNESS: "codex-cli",
       });
 
-      expect(readJson<{ kind: string; reason: string }>(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toMatchObject({
-        kind: "codex-compaction-recovery-seed-failure",
-        reason: "seed command reported an unexpected seed path",
-      });
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+        "seed command reported an unexpected seed path",
+      );
     });
   });
 
-  it("preserves seed-write failure details in fallback recovery instructions", () => {
+  it("does not trim identity when validating emitted seed paths", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "andrew " },
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
+      ].join("\n"));
+
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runHookScriptRaw(seedScriptPath, root, {
+        ...env,
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+        ARC_HOOK_HARNESS: "codex-cli",
+      });
+
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+        "seed command reported a written seed for an unsafe identity",
+      );
+    });
+  });
+
+  it("rejects control-character identities when validating emitted seed paths", () => {
+    withTempArcProject((root) => {
+      const fakeArcPath = join(root, "fake-arc.mjs");
+      writeFileSync(fakeArcPath, [
+        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
+          identity: { identity: "bad\nname" },
+          compactionSeedWrite: {
+            status: "written",
+            path: join(root, ".arc", "user", "bad\nname", ".internal", "compaction-seed.json"),
+          },
+        })}\n`)});`,
+      ].join("\n"));
+
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runHookScriptRaw(seedScriptPath, root, {
+        ...env,
+        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
+        ARC_HOOK_HARNESS: "codex-cli",
+      });
+
+      expect(readJson<PendingMarker>(fallbackMarkerPath(root, env)).reason).toBe(
+        "seed command reported a written seed for an unsafe identity",
+      );
+    });
+  });
+
+  it("injects recovery context at the first tool boundary and notifies once", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedSuccess(root, env);
+      const markerPath = identityMarkerPath(root, env);
+      expect(existsSync(markerPath)).toBe(true);
+
+      const output = runHookScript(postToolUseScriptPath, root, env);
+      // Codex 0.142.5 rejects extra top-level fields (suppressOutput) on
+      // PostToolUse output, so the payload carries hookSpecificOutput only.
+      expect(Object.keys(output)).toEqual(["hookSpecificOutput"]);
+      expect(output.hookSpecificOutput).toMatchObject({ hookEventName: "PostToolUse" });
+      const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
+      expect(additionalContext).toContain("=== ARC post-compaction recovery (agent instructions) ===");
+      expect(additionalContext).toContain("session-recover.md");
+      expect(additionalContext).toContain("2. Audit command: arc recover audit --json.");
+      expect(additionalContext).toContain(
+        "re-verify them against the recovered ARC context",
+      );
+      expect(additionalContext).toContain("clear-codex-recovery-pending.mjs");
+      expect(additionalContext).toContain("--marker");
+      expect(additionalContext).toContain(markerPath);
+      expect(additionalContext).not.toContain("Seed issue");
+
+      expect(readJson<PendingMarker>(markerPath).notifiedAt).not.toBeNull();
+      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+
+      const backstop = runHookScript(userPromptScriptPath, root, env);
+      expect(backstop.suppressOutput).toBe(true);
+      expect(backstop.hookSpecificOutput).toMatchObject({ hookEventName: "UserPromptSubmit" });
+      expect(backstop.hookSpecificOutput?.additionalContext).toContain(markerPath);
+
+      expect(runHookScriptRaw(postToolUseScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
+
+      expect(runHookScriptRaw(clearScriptPath, root, env)).toBe("");
+      expect(existsSync(markerPath)).toBe(false);
+      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
+    });
+  });
+
+  it("re-arms notification when a later compaction rewrites the marker", () => {
+    withTempArcProject((root) => {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedSuccess(root, env);
+      runHookScript(postToolUseScriptPath, root, env);
+      expect(runHookScriptRaw(postToolUseScriptPath, root, env)).toBe("");
+
+      runSeedSuccess(root, env);
+      expect(readJson<PendingMarker>(identityMarkerPath(root, env)).notifiedAt).toBeNull();
+      const output = runHookScript(postToolUseScriptPath, root, env);
+      expect(output.hookSpecificOutput?.hookEventName).toBe("PostToolUse");
+    });
+  });
+
+  it("preserves seed-write failure details in injected recovery instructions", () => {
     withTempArcProject((root) => {
       const fakeArcPath = join(root, "fake-arc.mjs");
       writeFileSync(fakeArcPath, [
@@ -396,35 +555,23 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         })}\n`)});`,
       ].join("\n"));
 
-      const env = {
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runHookScriptRaw(seedScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        CODEX_THREAD_ID: "thread-a",
-      };
-      runHookScriptRaw(seedScriptPath, root, env);
-
-      const output = runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
-      expect(output.systemMessage).toContain("ARC compaction seed write failed before compaction");
-      expect(output.systemMessage).toContain("seed-invalid");
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const marker = readJson<{ fallback: boolean; reason: string; seedPath: null }>(fallbackMarkerPath);
-      expect(marker).toMatchObject({
-        fallback: true,
-        seedPath: null,
+        ARC_HOOK_HARNESS: "codex-cli",
       });
+
+      const marker = readJson<PendingMarker>(fallbackMarkerPath(root, env));
+      expect(marker.fallback).toBe(true);
+      expect(marker.seedPath).toBeNull();
       expect(marker.reason).toContain("seed-invalid");
 
-      const userPromptOutput = runHookScript(userPromptScriptPath, root, {
+      const output = runHookScript(postToolUseScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: "npx arc",
-        CODEX_THREAD_ID: "thread-a",
       });
-      const additionalContext = userPromptOutput.hookSpecificOutput?.additionalContext ?? "";
+      const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("Seed issue detected");
       expect(additionalContext).toContain("npx arc status --session-init --write-compaction-seed --json");
       expect(additionalContext).toContain("npx arc recover audit --json");
@@ -432,131 +579,12 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
-  it("stops after PostCompact and injects recovery context on the next user prompt", () => {
-    const fragment = readJson<CodexHooksFragment>(hooksPath);
-
-    expect(fragment.hooks.PostCompact).toHaveLength(1);
-    const [postCompactGroup] = fragment.hooks.PostCompact;
-    expect(postCompactGroup?.matcher).toBe("manual|auto");
-    expect(fragment.hooks.SessionStart).toHaveLength(1);
-    const [sessionStartGroup] = fragment.hooks.SessionStart ?? [];
-    expect(sessionStartGroup?.matcher).toBe("clear");
-    expect(fragment.hooks.UserPromptSubmit).toHaveLength(1);
-    expect(fragment.hooks.UserPromptSubmit[0]?.matcher).toBeUndefined();
-
-    const postCompactHook = postCompactGroup?.hooks[0];
-    expect(postCompactHook).toMatchObject({
-      type: "command",
-      timeout: 30,
-      statusMessage: "Stopping for ARC recovery",
-    });
-    expect(postCompactHook?.command).toContain(".arc/system/.internal/harness-hooks/common/post-compact-recover.mjs");
-    expect(postCompactHook?.commandWindows).toContain(
-      ".arc\\system\\.internal\\harness-hooks\\common\\post-compact-recover.mjs",
-    );
-
-    const sessionStartHook = sessionStartGroup?.hooks[0];
-    expect(sessionStartHook).toMatchObject({
-      type: "command",
-      timeout: 30,
-    });
-    expect(sessionStartHook?.command).toContain(
-      ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs",
-    );
-    expect(sessionStartHook?.command).toContain("|| exit 0");
-    expect(sessionStartHook?.commandWindows).toContain(
-      ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs",
-    );
-    expect(sessionStartHook?.commandWindows).toContain("|| exit /b 0");
-
-    const userPromptHook = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
-    expect(userPromptHook).toMatchObject({
-      type: "command",
-      timeout: 30,
-    });
-    expect(userPromptHook?.command).toContain(".arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs");
-    expect(userPromptHook?.commandWindows).toContain(
-      ".arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs",
-    );
-
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      writeSeedHandoff(root, env);
-      const markerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-
-      const postCompactOutput = runPostCompactScript(root, env);
-      expect(postCompactOutput.continue).toBe(false);
-      expect(postCompactOutput.stopReason).toContain("ARC recovery required");
-      expect(postCompactOutput.systemMessage).toContain("=== ARC compaction recovery ===");
-      expect(postCompactOutput.systemMessage).toContain("ARC paused after compaction");
-      expect(postCompactOutput.systemMessage).toContain("ARC session context");
-      expect(postCompactOutput.systemMessage).toContain("Send \"continue\" to the agent");
-      expect(postCompactOutput.systemMessage).toContain(markerPath);
-      expect(postCompactOutput.systemMessage).not.toContain("Marker issue:");
-      expect(existsSync(markerPath)).toBe(true);
-      expect(existsSync(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toBe(false);
-
-      const marker = readJson<{
-        kind: string;
-        seedPath: string;
-        codexThreadId: string;
-        scope: { kind: string; id: string };
-      }>(markerPath);
-      expect(marker.kind).toBe("codex-compaction-recovery-pending");
-      expect(marker.codexThreadId).toBe("thread-a");
-      expect(marker.scope).toEqual({ kind: "thread", id: "thread-a" });
-      expect(marker.seedPath).toBe(".arc/user/andrew/.internal/compaction-seed.json");
-
-      expect(runHookScriptRaw(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
-
-      const userPromptOutput = runHookScript(userPromptScriptPath, root, env);
-      expect(userPromptOutput.suppressOutput).toBe(true);
-      expect(userPromptOutput.hookSpecificOutput).toMatchObject({
-        hookEventName: "UserPromptSubmit",
-      });
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(
-        "=== ARC post-compaction recovery (agent instructions) ===",
-      );
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("session-recover.md");
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("2. Audit command: arc recover audit --json.");
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("clear-codex-recovery-pending.mjs");
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain("--marker");
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(markerPath);
-
-      expect(() => runHookScriptRaw(clearScriptPath, root, env, ["--marker"])).toThrow(
-        "Missing value for --marker",
-      );
-      expect(existsSync(markerPath)).toBe(true);
-
-      expect(runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" })).toBe("");
-      expect(existsSync(markerPath)).toBe(true);
-
-      expect(runHookScriptRaw(clearScriptPath, root, { CODEX_THREAD_ID: "thread-b" }, ["--marker", markerPath]))
-        .toBe("");
-      expect(existsSync(markerPath)).toBe(false);
-      expect(runHookScriptRaw(userPromptScriptPath, root, env)).toBe("");
-    });
-  });
-
   it("keeps recovery filenames collision-free for unsafe thread ids", () => {
     withTempArcProject((root) => {
       const slashThread = { CODEX_THREAD_ID: "a/b" };
       const underscoreThread = { CODEX_THREAD_ID: "a_b" };
-      writeSeedHandoff(root, slashThread);
-      writeSeedHandoff(root, underscoreThread);
+      runSeedSuccess(root, slashThread);
+      runSeedSuccess(root, underscoreThread);
 
       const slashMarkerPath = join(
         root,
@@ -574,18 +602,14 @@ describe("Codex CLI compaction recovery hook recipe", () => {
         ".internal",
         "codex-compaction-recovery-pending-a_b.json",
       );
-
-      runPostCompactScript(root, slashThread);
-      runPostCompactScript(root, underscoreThread);
-
       expect(existsSync(slashMarkerPath)).toBe(true);
       expect(existsSync(underscoreMarkerPath)).toBe(true);
-      expect(readJson<{ codexThreadId: string }>(slashMarkerPath).codexThreadId).toBe("a/b");
-      expect(readJson<{ codexThreadId: string }>(underscoreMarkerPath).codexThreadId).toBe("a_b");
+      expect(readJson<PendingMarker>(slashMarkerPath).codexThreadId).toBe("a/b");
+      expect(readJson<PendingMarker>(underscoreMarkerPath).codexThreadId).toBe("a_b");
 
-      const slashPrompt = runHookScript(userPromptScriptPath, root, slashThread);
-      expect(slashPrompt.hookSpecificOutput?.additionalContext).toContain(slashMarkerPath);
-      expect(slashPrompt.hookSpecificOutput?.additionalContext).not.toContain(underscoreMarkerPath);
+      const slashOutput = runHookScript(postToolUseScriptPath, root, slashThread);
+      expect(slashOutput.hookSpecificOutput?.additionalContext).toContain(slashMarkerPath);
+      expect(slashOutput.hookSpecificOutput?.additionalContext).not.toContain(underscoreMarkerPath);
     });
   });
 
@@ -609,7 +633,7 @@ describe("Codex CLI compaction recovery hook recipe", () => {
   });
 
   it("keeps marker-clear recovery instructions platform-specific", () => {
-    const content = readFileSync(userPromptScriptPath, "utf8");
+    const content = readFileSync(markerScriptPath, "utf8");
 
     expect(content).toContain('process.platform === "win32"');
     expect(content).toContain('for /f "delims=" %i');
@@ -621,383 +645,36 @@ describe("Codex CLI compaction recovery hook recipe", () => {
 
   it("uses process-scoped markers instead of a global fallback when no thread id is available", () => {
     withTempArcProject((root) => {
-      writeSeedHandoff(root);
-      const markerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        `codex-compaction-recovery-pending-ppid-${process.pid}.json`,
-      );
-      const legacyGlobalMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending.json",
-      );
-
-      const postCompactOutput = runPostCompactScript(root);
-      expect(postCompactOutput.continue).toBe(false);
+      runSeedSuccess(root);
+      const markerPath = identityMarkerPath(root);
+      expect(markerPath).toContain(`ppid-${process.pid}`);
       expect(existsSync(markerPath)).toBe(true);
-      expect(existsSync(legacyGlobalMarkerPath)).toBe(false);
 
-      const userPromptOutput = runHookScript(userPromptScriptPath, root);
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(markerPath);
-    });
-  });
-
-  it("writes a fallback marker after PostCompact when the seed handoff is missing", () => {
-    withTempArcProject((root) => {
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
-
-      expect(output.continue).toBe(false);
-      expect(output.stopReason).toContain("ARC recovery required");
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(output.systemMessage).toContain("Marker issue:");
-      expect(output.systemMessage).toContain("codex-compaction-recovery-seed-thread-a.json");
-      expect(output.systemMessage).toContain(fallbackMarkerPath);
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-
-      const marker = readJson<{
-        fallback: boolean;
-        reason: string;
-        seedPath: null;
-      }>(fallbackMarkerPath);
-      expect(marker.fallback).toBe(true);
-      expect(marker.reason).toContain("codex-compaction-recovery-seed-thread-a.json");
-      expect(marker.seedPath).toBeNull();
-
-      const userPromptOutput = runHookScript(userPromptScriptPath, root, { CODEX_THREAD_ID: "thread-a" });
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(fallbackMarkerPath);
+      const output = runHookScript(postToolUseScriptPath, root);
+      expect(output.hookSpecificOutput?.additionalContext).toContain(markerPath);
     });
   });
 
   it("clears all same-scope pending markers when recovery sees more than one", () => {
     withTempArcProject((root) => {
       const env = { CODEX_THREAD_ID: "thread-a" };
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      mkdirSync(dirname(fallbackMarkerPath), { recursive: true });
-      writeFileSync(fallbackMarkerPath, `${JSON.stringify({
-        schemaVersion: 1,
-        kind: "codex-compaction-recovery-pending",
-        scope: { kind: "thread", id: "thread-a" },
-        codexThreadId: "thread-a",
-        hookParentPid: process.pid,
-        emittedAt: new Date().toISOString(),
-        fallback: true,
-        seedPath: null,
-        seedHandoffPath: null,
-      }, null, 2)}\n`);
+      runSeedFailure(root, env);
+      runSeedSuccess(root, env);
+      const globalMarkerPath = fallbackMarkerPath(root, env);
+      const scopedMarkerPath = identityMarkerPath(root, env);
+      expect(existsSync(globalMarkerPath)).toBe(true);
+      expect(existsSync(scopedMarkerPath)).toBe(true);
 
-      writeSeedHandoff(root, env);
-      runPostCompactScript(root, env);
-      const scopedMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-
-      const userPromptOutput = runHookScript(userPromptScriptPath, root, env);
-      const additionalContext = userPromptOutput.hookSpecificOutput?.additionalContext ?? "";
+      const output = runHookScript(userPromptScriptPath, root, env);
+      const additionalContext = output.hookSpecificOutput?.additionalContext ?? "";
       expect(additionalContext).toContain("clear the markers");
       expect(additionalContext.match(/--marker/gu)).toHaveLength(2);
-      expect(additionalContext).toContain(fallbackMarkerPath);
+      expect(additionalContext).toContain(globalMarkerPath);
       expect(additionalContext).toContain(scopedMarkerPath);
 
       expect(runHookScriptRaw(clearScriptPath, root, env)).toBe("");
-      expect(existsSync(fallbackMarkerPath)).toBe(false);
+      expect(existsSync(globalMarkerPath)).toBe(false);
       expect(existsSync(scopedMarkerPath)).toBe(false);
-    });
-  });
-
-  it("does not trim identity when validating emitted seed paths", () => {
-    withTempArcProject((root) => {
-      const fakeArcPath = join(root, "fake-arc.mjs");
-      writeFileSync(fakeArcPath, [
-        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
-          identity: { identity: "andrew " },
-          compactionSeedWrite: {
-            status: "written",
-            path: join(root, ".arc", "user", "andrew", ".internal", "compaction-seed.json"),
-          },
-        })}\n`)});`,
-      ].join("\n"));
-
-      runHookScriptRaw(seedScriptPath, root, {
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        CODEX_THREAD_ID: "thread-a",
-      });
-
-      expect(readJson<{ kind: string; reason: string }>(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toMatchObject({
-        kind: "codex-compaction-recovery-seed-failure",
-        reason: "seed command reported a written seed for an unsafe identity",
-      });
-    });
-  });
-
-  it("rejects control-character identities when validating emitted seed paths", () => {
-    withTempArcProject((root) => {
-      const fakeArcPath = join(root, "fake-arc.mjs");
-      writeFileSync(fakeArcPath, [
-        `process.stdout.write(${JSON.stringify(`${JSON.stringify({
-          identity: { identity: "bad\nname" },
-          compactionSeedWrite: {
-            status: "written",
-            path: join(root, ".arc", "user", "bad\nname", ".internal", "compaction-seed.json"),
-          },
-        })}\n`)});`,
-      ].join("\n"));
-
-      runHookScriptRaw(seedScriptPath, root, {
-        ARC_HOOK_ARC_COMMAND: nodeScriptCommand(fakeArcPath),
-        CODEX_THREAD_ID: "thread-a",
-      });
-
-      expect(readJson<{ kind: string; reason: string }>(join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-seed-thread-a.json",
-      ))).toMatchObject({
-        kind: "codex-compaction-recovery-seed-failure",
-        reason: "seed command reported a written seed for an unsafe identity",
-      });
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff body has the wrong scope", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        scope: { kind: "thread", id: "thread-b" },
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const identityMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(output.systemMessage).toContain("Marker issue:");
-      expect(output.systemMessage).not.toContain("bad\nname");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(existsSync(identityMarkerPath)).toBe(false);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Mismatched ARC recovery seed handoff scope",
-      );
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff schema is unsupported", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        schemaVersion: 999,
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const identityMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(existsSync(identityMarkerPath)).toBe(false);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Invalid ARC recovery seed handoff",
-      );
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff path is not discoverable", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        seedPath: ".arc/user/andrew/nested/.internal/compaction-seed.json",
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const identityMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "andrew",
-        "nested",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(existsSync(identityMarkerPath)).toBe(false);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Invalid ARC compaction seed path",
-      );
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff uses a reserved identity segment", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        seedPath: ".arc/user/.internal/.internal/compaction-seed.json",
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const nestedMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(existsSync(nestedMarkerPath)).toBe(false);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Invalid ARC compaction seed path",
-      );
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff uses a control-character identity segment", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        seedPath: ".arc/user/bad\nname/.internal/compaction-seed.json",
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const identityMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        "bad\nname",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(existsSync(identityMarkerPath)).toBe(false);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Invalid ARC compaction seed path",
-      );
-    });
-  });
-
-  it("writes a fallback marker when the seed handoff is future dated", () => {
-    withTempArcProject((root) => {
-      const env = { CODEX_THREAD_ID: "thread-a" };
-      const handoffPath = writeSeedHandoff(root, env);
-      const handoff = readJson<Record<string, unknown>>(handoffPath);
-      writeFileSync(handoffPath, `${JSON.stringify({
-        ...handoff,
-        emittedAt: new Date(Date.now() + 60_000).toISOString(),
-      }, null, 2)}\n`);
-
-      const fallbackMarkerPath = join(
-        root,
-        ".arc",
-        "user",
-        ".internal",
-        "codex-compaction-recovery-pending-thread-a.json",
-      );
-      const output = runPostCompactScript(root, env);
-
-      expect(output.systemMessage).toContain("report the seed issue");
-      expect(existsSync(fallbackMarkerPath)).toBe(true);
-      expect(readJson<{ reason: string }>(fallbackMarkerPath).reason).toContain(
-        "Stale ARC recovery seed handoff",
-      );
     });
   });
 
@@ -1019,17 +696,56 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     });
   });
 
+  it("reaps expired recovery artifacts while keeping live markers", () => {
+    withTempArcProject((root) => {
+      const expiredEmittedAt = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+      const legacyHandoffPath = join(
+        root,
+        ".arc",
+        "user",
+        ".internal",
+        "codex-compaction-recovery-seed-ppid-99999.json",
+      );
+      const deadScopeMarkerPath = join(
+        root,
+        ".arc",
+        "user",
+        "andrew",
+        ".internal",
+        "codex-compaction-recovery-pending-ppid-88888.json",
+      );
+      mkdirSync(dirname(legacyHandoffPath), { recursive: true });
+      writeFileSync(legacyHandoffPath, `${JSON.stringify({
+        schemaVersion: 1,
+        kind: "codex-compaction-recovery-seed",
+        emittedAt: expiredEmittedAt,
+      })}\n`);
+      writeFileSync(deadScopeMarkerPath, `${JSON.stringify({
+        schemaVersion: 1,
+        kind: "codex-compaction-recovery-pending",
+        emittedAt: expiredEmittedAt,
+      })}\n`);
+
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedSuccess(root, env);
+
+      expect(existsSync(legacyHandoffPath)).toBe(false);
+      expect(existsSync(deadScopeMarkerPath)).toBe(false);
+      expect(existsSync(identityMarkerPath(root, env))).toBe(true);
+    });
+  });
+
   it("uses ARC_HOOK_ARC_COMMAND in injected recovery instructions", () => {
     withTempArcProject((root) => {
-      writeSeedHandoff(root, { CODEX_THREAD_ID: "thread-a" });
-      runPostCompactScript(root, { CODEX_THREAD_ID: "thread-a" });
+      const env = { CODEX_THREAD_ID: "thread-a" };
+      runSeedSuccess(root, env);
 
-      const userPromptOutput = runHookScript(userPromptScriptPath, root, {
+      const output = runHookScript(postToolUseScriptPath, root, {
+        ...env,
         ARC_HOOK_ARC_COMMAND: "npx arc",
-        CODEX_THREAD_ID: "thread-a",
       });
 
-      expect(userPromptOutput.hookSpecificOutput?.additionalContext).toContain(
+      expect(output.hookSpecificOutput?.additionalContext).toContain(
         "2. Audit command: npx arc recover audit --json.",
       );
     });

@@ -123,9 +123,10 @@ developer. If a user-visible recovery note is useful, keep it to one terse statu
 ARC post-compaction session recovery complete.
 ```
 
-If recovery was injected from Codex's pending-marker workaround, clear the current thread's marker
-only after the recovery load set is rehydrated and the verdict is ready. Use the exact marker path
-from the injected recovery instructions.
+If recovery was injected from Codex's pending-marker channel (a mid-turn tool-boundary injection, or
+the user-prompt backstop), clear the current thread's marker only after the recovery load set is
+rehydrated and the verdict is ready. Use the exact marker path from the injected recovery
+instructions.
 
 On POSIX shells:
 

@@ -988,10 +988,12 @@ Two reset paths matter:
   `session-recover` or the `arc-recover` fallback, then continue inside the same ARC session.
 
 For supported harnesses, install the opt-in compaction-recovery hook recipe during
-[initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and require
-recovery only after a `compact` event; `clear` remains deliberately unhooked for recovery. Codex may
-run a cleanup-only clear hook to remove a stale pending marker. If hooks are not installed, run the
-manual fallback when compaction erases ARC operating context.
+[initial setup][setup-workflow]. The hooks write a machine-local seed before compaction and inject
+the recovery requirement after a `compact` event — immediately on Claude Code, and at the first tool
+boundary after compaction (with a user-prompt backstop) on Codex, where a thread-scoped pending
+marker carries the requirement until recovery clears it. `clear` remains deliberately unhooked for
+recovery; Codex may run a cleanup-only clear hook to remove a stale pending marker. If hooks are not
+installed, run the manual fallback when compaction erases ARC operating context.
 
 Recovery restores ARC's operating context. It does not reload on-demand context that was pulled
 mid-task before compaction. The recovery load set is ARC-owned context only; repository-root harness

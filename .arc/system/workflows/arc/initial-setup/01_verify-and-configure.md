@@ -187,17 +187,20 @@ Install discipline:
 - Idempotency is exact-entry based: if the ARC matcher group and command handler already exist, do
   not duplicate them. Preserve all non-ARC hook groups and handlers.
 - The installed events are harness-specific: Claude Code installs only `PreCompact(manual|auto)` and
-  `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`,
-  `PostCompact(manual|auto)`, `UserPromptSubmit`, and cleanup-only `SessionStart(clear)`; Codex
-  `PostCompact` writes a thread-scoped pending marker and hard-stops, then the next prompt in that
-  Codex thread injects recovery context. Recovery restores ARC session context; repository instruction
+  `SessionStart(compact)`. Codex CLI installs `PreCompact(manual|auto)`, `PostToolUse`,
+  `UserPromptSubmit`, and cleanup-only `SessionStart(clear)`; Codex `PreCompact` writes a
+  thread-scoped pending marker beside the seed, the first tool boundary after compaction injects
+  recovery context mid-turn (`PostToolUse`), and `UserPromptSubmit` re-injects at each prompt until
+  recovery clears the marker. Recovery restores ARC session context; repository instruction
   files such as `AGENTS.md` and `CLAUDE.md` remain harness-managed and outside ARC's recovery load set.
   Do not add Codex `SessionStart(compact)` or a catch-all `SessionStart` matcher, and do not make
   `SessionStart(clear)` inject recovery.
 - After writing, re-read the target files and report one line:
   `ARC post-compaction session-recovery hooks installed for <harness>.`
 - Ask the user to review/trust the new hook definitions in the harness UI when the harness requires
-  it (Codex uses `/hooks`; Claude Code exposes hook review through its hook settings flow).
+  it (Codex uses `/hooks`; Claude Code exposes hook review through its hook settings flow). Codex
+  silently skips untrusted or modified hook definitions — including in non-interactive runs — so any
+  later change to an installed hook entry needs a re-trust before it fires again.
 - Rollback by restoring the timestamped backup, or by removing only the ARC recipe entries. For
   Codex, remove `[features].hooks` only if this install created that key.
 

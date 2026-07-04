@@ -5,17 +5,30 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 
 const markerFileBaseName = "codex-compaction-recovery-pending";
-const seedHandoffFileBaseName = "codex-compaction-recovery-seed";
+const legacySeedHandoffBaseName = "codex-compaction-recovery-seed";
 const seedFileName = "compaction-seed.json";
-const recoveryPayloadSchemaVersion = 1;
-const seedHandoffMaxAgeMs = 10 * 60 * 1000;
-const seedHandoffKind = "codex-compaction-recovery-seed";
-const seedFailureKind = "codex-compaction-recovery-seed-failure";
+const recoveryPayloadSchemaVersion = 2;
+const recoveryArtifactMaxAgeMs = 7 * 24 * 60 * 60 * 1000;
+
+const posixClearScriptPath = ".arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs";
+const windowsClearScriptPath = ".arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs";
+
+// Hook payloads (PostToolUse carries full tool output) can exceed the pipe
+// buffer; exiting without draining stdin breaks the harness's write and the
+// hook is reported failed. Every hook entrypoint drains before exiting.
+export function drainStdin() {
+  try {
+    readFileSync(0);
+  } catch {
+    // A closed or TTY stdin has nothing to drain.
+  }
+}
 
 export function resolveRepoRoot() {
   const cwd = hookProjectDir();
@@ -111,10 +124,6 @@ function markerFileName(scope) {
   return `${markerFileBaseName}-${fileSafeSuffix(scope.suffix)}.json`;
 }
 
-function seedHandoffFileName(scope) {
-  return `${seedHandoffFileBaseName}-${fileSafeSuffix(scope.suffix)}.json`;
-}
-
 function normalizeSeedPath(root, seedPath) {
   const relativeSeedPath = isAbsolute(seedPath) ? relative(root, seedPath) : seedPath;
   const normalized = relativeSeedPath.replaceAll("\\", "/");
@@ -149,100 +158,11 @@ function hasControlCharacter(value) {
   return false;
 }
 
-function markerDirForSeed(root, seedPath) {
-  return join(root, dirname(normalizeSeedPath(root, seedPath)));
-}
-
-export function writeSeedHandoff(seedPath) {
+export function writePendingMarker(seedPath) {
   const root = resolveRepoRoot();
   const scope = currentScope();
-  const handoffDir = globalInternalDir(root);
-  const handoffPath = join(handoffDir, seedHandoffFileName(scope));
   const normalizedSeedPath = normalizeSeedPath(root, seedPath);
-
-  mkdirSync(handoffDir, { recursive: true });
-  writeFileSync(handoffPath, `${JSON.stringify({
-    schemaVersion: recoveryPayloadSchemaVersion,
-    kind: seedHandoffKind,
-    scope: {
-      kind: scope.kind,
-      id: scope.id,
-    },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
-    emittedAt: new Date().toISOString(),
-    seedPath: normalizedSeedPath,
-  }, null, 2)}\n`);
-
-  return { root, handoffPath, seedPath: normalizedSeedPath };
-}
-
-export function writeSeedHandoffFailure(reason = null) {
-  const root = resolveRepoRoot();
-  const scope = currentScope();
-  const handoffDir = globalInternalDir(root);
-  const handoffPath = join(handoffDir, seedHandoffFileName(scope));
-
-  mkdirSync(handoffDir, { recursive: true });
-  writeFileSync(handoffPath, `${JSON.stringify({
-    schemaVersion: recoveryPayloadSchemaVersion,
-    kind: seedFailureKind,
-    scope: {
-      kind: scope.kind,
-      id: scope.id,
-    },
-    codexThreadId: scope.codexThreadId,
-    hookParentPid: scope.hookParentPid,
-    emittedAt: new Date().toISOString(),
-    reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
-  }, null, 2)}\n`);
-
-  return { root, handoffPath };
-}
-
-export function clearSeedHandoff() {
-  const root = resolveRepoRoot();
-  const scope = currentScope();
-  const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
-  rmSync(handoffPath, { force: true });
-  return { root, handoffPath };
-}
-
-function readSeedHandoff(root, scope) {
-  const handoffPath = join(globalInternalDir(root), seedHandoffFileName(scope));
-  const handoff = JSON.parse(readFileSync(handoffPath, "utf8"));
-  const kind = handoff?.kind;
-  if (
-    handoff?.schemaVersion !== recoveryPayloadSchemaVersion
-    || (kind !== seedHandoffKind && kind !== seedFailureKind)
-  ) {
-    throw new Error(`Invalid ARC recovery seed handoff: ${handoffPath}`);
-  }
-  if (handoff.scope?.kind !== scope.kind || handoff.scope?.id !== scope.id) {
-    throw new Error(`Mismatched ARC recovery seed handoff scope: ${handoffPath}`);
-  }
-  const emittedAtMs = typeof handoff.emittedAt === "string" ? Date.parse(handoff.emittedAt) : NaN;
-  const handoffAgeMs = Date.now() - emittedAtMs;
-  if (!Number.isFinite(emittedAtMs) || handoffAgeMs < 0 || handoffAgeMs > seedHandoffMaxAgeMs) {
-    throw new Error(`Stale ARC recovery seed handoff: ${handoffPath}`);
-  }
-  if (kind === seedFailureKind) {
-    const reason = typeof handoff.reason === "string" && handoff.reason.trim().length > 0
-      ? `: ${singleLine(handoff.reason)}`
-      : "";
-    throw new Error(`ARC compaction seed write failed before compaction${reason}`);
-  }
-  return {
-    seedPath: normalizeSeedPath(root, handoff.seedPath),
-    handoffPath,
-  };
-}
-
-export function writePendingMarker() {
-  const root = resolveRepoRoot();
-  const scope = currentScope();
-  const seed = readSeedHandoff(root, scope);
-  const markerDir = markerDirForSeed(root, seed.seedPath);
+  const markerDir = join(root, dirname(normalizedSeedPath));
   const markerPath = join(markerDir, markerFileName(scope));
 
   mkdirSync(markerDir, { recursive: true });
@@ -256,14 +176,11 @@ export function writePendingMarker() {
     codexThreadId: scope.codexThreadId,
     hookParentPid: scope.hookParentPid,
     emittedAt: new Date().toISOString(),
-    seedPath: seed.seedPath,
-    seedHandoffPath: relative(root, seed.handoffPath),
+    fallback: false,
+    reason: null,
+    seedPath: normalizedSeedPath,
+    notifiedAt: null,
   }, null, 2)}\n`);
-  try {
-    rmSync(seed.handoffPath, { force: true });
-  } catch {
-    // Marker creation succeeded; stale handoff cleanup is best-effort.
-  }
 
   return { root, markerPath };
 }
@@ -288,7 +205,7 @@ export function writeFallbackPendingMarker(reason = null) {
     fallback: true,
     reason: typeof reason === "string" && reason.trim().length > 0 ? singleLine(reason) : null,
     seedPath: null,
-    seedHandoffPath: null,
+    notifiedAt: null,
   }, null, 2)}\n`);
 
   return { root, markerPath };
@@ -316,12 +233,14 @@ export function findPendingMarkers() {
       let seedPath = null;
       let fallback = false;
       let reason = null;
+      let notifiedAt = null;
       try {
         const marker = JSON.parse(readFileSync(markerPath, "utf8"));
         emittedAt = typeof marker.emittedAt === "string" ? marker.emittedAt : null;
         seedPath = typeof marker.seedPath === "string" ? marker.seedPath : null;
         fallback = marker.fallback === true;
         reason = typeof marker.reason === "string" ? singleLine(marker.reason) : null;
+        notifiedAt = typeof marker.notifiedAt === "string" ? marker.notifiedAt : null;
         scopeMatches = marker.scope === undefined
           || (marker.scope.kind === scope.kind && marker.scope.id === scope.id);
       } catch {
@@ -330,11 +249,24 @@ export function findPendingMarkers() {
 
       if (!scopeMatches) continue;
 
-      markers.push({ markerPath, emittedAt, seedPath, fallback, reason });
+      markers.push({ markerPath, emittedAt, seedPath, fallback, reason, notifiedAt });
     }
   }
 
   return { root, markers };
+}
+
+export function markMarkersNotified(markers) {
+  const notifiedAt = new Date().toISOString();
+  for (const marker of markers) {
+    try {
+      const payload = JSON.parse(readFileSync(marker.markerPath, "utf8"));
+      payload.notifiedAt = notifiedAt;
+      writeFileSync(marker.markerPath, `${JSON.stringify(payload, null, 2)}\n`);
+    } catch {
+      // Notification bookkeeping is best-effort; an unmarked marker re-notifies, never blocks.
+    }
+  }
 }
 
 export function clearPendingMarkers(options = {}) {
@@ -350,6 +282,122 @@ export function clearPendingMarkers(options = {}) {
   }
 
   return removed;
+}
+
+export function reapExpiredRecoveryArtifacts(maxAgeMs = recoveryArtifactMaxAgeMs) {
+  const root = resolveRepoRoot();
+  const now = Date.now();
+  const removed = [];
+
+  for (const dir of internalDirs(root)) {
+    if (!existsSync(dir)) {
+      continue;
+    }
+
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isFile() || !isRecoveryArtifactFileName(entry.name)) {
+        continue;
+      }
+
+      const artifactPath = join(dir, entry.name);
+      if (now - artifactTimestampMs(artifactPath) <= maxAgeMs) {
+        continue;
+      }
+      try {
+        rmSync(artifactPath, { force: true });
+        removed.push(artifactPath);
+      } catch {
+        // Reaping is best-effort hygiene; a survivor is retried at the next sweep.
+      }
+    }
+  }
+
+  return removed;
+}
+
+function artifactTimestampMs(artifactPath) {
+  try {
+    const payload = JSON.parse(readFileSync(artifactPath, "utf8"));
+    const emittedAtMs = typeof payload.emittedAt === "string" ? Date.parse(payload.emittedAt) : NaN;
+    if (Number.isFinite(emittedAtMs)) {
+      return emittedAtMs;
+    }
+  } catch {
+    // Malformed artifacts age by mtime below.
+  }
+  try {
+    return statSync(artifactPath).mtimeMs;
+  } catch {
+    return Date.now();
+  }
+}
+
+function isRecoveryArtifactFileName(fileName) {
+  if (!fileName.endsWith(".json")) {
+    return false;
+  }
+  return fileName.startsWith(`${markerFileBaseName}-`)
+    || fileName.startsWith(`${legacySeedHandoffBaseName}-`);
+}
+
+export function buildRecoveryInstructions({ markers, arcCommand }) {
+  const clearCommands = markers.map(({ markerPath }) =>
+    `   ${markerClearCommand(` --marker ${quoteMarkerPath(markerPath)}`)}`,
+  );
+  const seedIssueMarkers = markers.filter((marker) => marker.seedPath === null || marker.fallback === true);
+  const seedIssueLines = seedIssueMarkers.length === 0
+    ? []
+    : [
+      "Seed issue marker(s):",
+      ...seedIssueMarkers.map((marker) => `- ${marker.markerPath}: ${seedIssueReason(marker)}`),
+    ];
+  const auditInstruction = seedIssueMarkers.length === 0
+    ? `2. Audit command: ${arcCommand} recover audit --json.`
+    : `2. Seed issue detected: if the current worktree is the intended compacted state, first run ${arcCommand} status --session-init --write-compaction-seed --json, then run ${arcCommand} recover audit --json.`;
+
+  return [
+    "=== ARC post-compaction recovery (agent instructions) ===",
+    "Before project work resumes:",
+    "1. Follow .arc/system/workflows/arc/session-lifecycle/session-recover.md.",
+    auditInstruction,
+    "3. Use recovered ARC context for procedure/state; use the compacted harness summary only for the volatile work locus.",
+    "4. If any actions landed between compaction and this notice, re-verify them against the recovered ARC context before continuing.",
+    `5. If ready after load-set rehydration, clear ${markers.length === 1 ? "the marker" : "the markers"}:`,
+    ...clearCommands,
+    "6. If stopped, leave the marker and report the structured stop reasons.",
+    ...seedIssueLines,
+  ].join("\n");
+}
+
+function seedIssueReason(marker) {
+  const reason = typeof marker.reason === "string" ? singleLine(marker.reason) : "";
+  return reason.length > 0 ? reason : "compaction seed unavailable";
+}
+
+function shellQuote(value) {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
+
+function quoteMarkerPath(value) {
+  return process.platform === "win32" ? windowsQuote(value) : shellQuote(value);
+}
+
+function markerClearCommand(markerArg) {
+  if (process.platform === "win32") {
+    return [
+      `for /f "delims=" %i in ('git rev-parse --show-toplevel') do node "%i\\${windowsClearScriptPath}"`,
+      markerArg,
+    ].join("");
+  }
+
+  return `node "$(git rev-parse --show-toplevel)/${posixClearScriptPath}"${markerArg}`;
+}
+
+function windowsQuote(value) {
+  return `"${value
+    .replaceAll("^", "^^")
+    .replaceAll("%", "^%")
+    .replaceAll('"', '""')}"`;
 }
 
 function validateMarkerPath(root, markerPath) {

@@ -1,15 +1,21 @@
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 
-import { clearSeedHandoff, writeSeedHandoff, writeSeedHandoffFailure } from "./codex-recovery-marker.mjs";
+import {
+  drainStdin,
+  reapExpiredRecoveryArtifacts,
+  writeFallbackPendingMarker,
+  writePendingMarker,
+} from "./codex-recovery-marker.mjs";
 
+drainStdin();
 const cwd = process.env.CLAUDE_PROJECT_DIR || process.cwd();
 const arcCommand = process.env.ARC_HOOK_ARC_COMMAND?.trim() || "arc";
 const staleBuildCommand = process.env.ARC_HOOK_STALE_BUILD_COMMAND?.trim() || "";
 const env = { ...process.env };
 
 try {
-  clearSeedHandoff();
+  reapExpiredRecoveryArtifacts();
   let result = runSeedCommand();
   if (shouldRetryAfterBuild(result)) {
     const build = spawnSync(staleBuildCommand, {
@@ -26,12 +32,26 @@ try {
     }
   }
 
-  writeHandoffFromResult(result);
+  if (isCodexHarness()) {
+    writeMarkerFromResult(result);
+  }
 } catch {
   // PreCompact must never block compaction; recovery will surface seed failures.
 }
 
 process.exit(0);
+
+// The pending marker feeds Codex's PostToolUse / UserPromptSubmit recovery
+// injection; Claude Code injects via SessionStart(compact) and must not mint
+// markers nothing consumes. ARC_HOOK_HARNESS is authoritative when set;
+// otherwise CLAUDE_PROJECT_DIR (set by Claude Code for its hooks) is the tell.
+function isCodexHarness() {
+  const harness = process.env.ARC_HOOK_HARNESS?.trim().toLowerCase();
+  if (harness) {
+    return harness !== "claude-code";
+  }
+  return !process.env.CLAUDE_PROJECT_DIR?.trim();
+}
 
 function runSeedCommand() {
   return spawnSync(`${arcCommand} status --session-init --write-compaction-seed --json`, {
@@ -54,13 +74,13 @@ function shouldRetryAfterBuild(result) {
   return `${stderr}\n${stdout}`.includes("arc dev build is stale");
 }
 
-function writeHandoffFromResult(result) {
+function writeMarkerFromResult(result) {
   if (result.status !== 0) {
-    writeSeedHandoffFailure(seedCommandFailureMessage(result));
+    writeFallbackPendingMarker(seedCommandFailureMessage(result));
     return;
   }
   if (typeof result.stdout !== "string") {
-    writeSeedHandoffFailure("seed command produced no JSON envelope");
+    writeFallbackPendingMarker("seed command produced no JSON envelope");
     return;
   }
 
@@ -68,7 +88,7 @@ function writeHandoffFromResult(result) {
   try {
     envelope = JSON.parse(result.stdout);
   } catch (err) {
-    writeSeedHandoffFailure(`seed command produced malformed JSON: ${errorMessage(err)}`);
+    writeFallbackPendingMarker(`seed command produced malformed JSON: ${errorMessage(err)}`);
     return;
   }
 
@@ -80,11 +100,11 @@ function writeHandoffFromResult(result) {
     && expectedPath !== null
     && samePath(write.path, expectedPath)
   ) {
-    writeSeedHandoff(write.path);
+    writePendingMarker(write.path);
     return;
   }
 
-  writeSeedHandoffFailure(seedWriteFailureMessage(write, expectedPath));
+  writeFallbackPendingMarker(seedWriteFailureMessage(write, expectedPath));
 }
 
 function expectedSeedPath(envelope) {
