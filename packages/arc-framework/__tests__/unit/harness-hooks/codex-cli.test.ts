@@ -291,6 +291,36 @@ describe("Codex CLI compaction recovery hook recipe", () => {
     expect(sessionStartHook?.commandWindows).toContain("|| exit /b 0");
   });
 
+  it("resolves every hook script from the primary worktree and surfaces genuine failures", () => {
+    const fragment = readJson<CodexHooksFragment>(hooksPath);
+    const pre = fragment.hooks.PreCompact[0]?.hooks[0];
+    const ptu = fragment.hooks.PostToolUse[0]?.hooks[0];
+    const clear = (fragment.hooks.SessionStart ?? [])[0]?.hooks[0];
+    const ups = fragment.hooks.UserPromptSubmit[0]?.hooks[0];
+
+    // Every hook resolves its script from the primary worktree (git-common-dir parent),
+    // not the running worktree — so a branch-version-skewed worktree runs the canonical
+    // current script instead of failing on a script its own checkout lacks.
+    for (const hook of [pre, ptu, clear, ups]) {
+      expect(hook?.command).toContain("--path-format=absolute --git-common-dir");
+      expect(hook?.commandWindows).toContain("--path-format=absolute --git-common-dir");
+    }
+
+    // Recovery-injection hooks must NOT swallow failures: a genuinely-owed recovery that
+    // cannot run surfaces (the script is always present via primary resolution, so the only
+    // failure left is a real install breakage worth surfacing).
+    expect(ptu?.command).not.toContain("|| exit 0");
+    expect(ptu?.commandWindows).not.toContain("|| exit /b 0");
+    expect(ups?.command).not.toContain("|| exit 0");
+    expect(ups?.commandWindows).not.toContain("|| exit /b 0");
+
+    // Harness-blocking hooks keep the guard: they must never block compaction or session start.
+    expect(pre?.command).toContain("|| exit 0");
+    expect(pre?.commandWindows).toContain("|| exit /b 0");
+    expect(clear?.command).toContain("|| exit 0");
+    expect(clear?.commandWindows).toContain("|| exit /b 0");
+  });
+
   it("retries the PreCompact seed write after an explicitly configured stale-build repair", () => {
     withTempArcProject((root) => {
       const statePath = join(root, "build-state.json");

@@ -6,8 +6,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && cd \"$repo_root\" && ARC_HOOK_HARNESS=codex-cli node \"$repo_root/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do (cd /d \"%i\" && set \"ARC_HOOK_HARNESS=codex-cli\" && node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\") || exit /b 0",
+            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && primary=\"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")\" && cd \"$repo_root\" && ARC_HOOK_HARNESS=codex-cli node \"$primary/.arc/system/.internal/harness-hooks/common/pre-compact-seed.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do for /f \"delims=\" %j in ('git rev-parse --path-format=absolute --git-common-dir') do (cd /d \"%i\" && set \"ARC_HOOK_HARNESS=codex-cli\" && node \"%j\\..\\.arc\\system\\.internal\\harness-hooks\\common\\pre-compact-seed.mjs\") || exit /b 0",
             "timeout": 30,
             "statusMessage": "Writing ARC compaction seed"
           }
@@ -19,8 +19,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/post-tool-use-recover.mjs\"",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\post-tool-use-recover.mjs\"",
+            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.arc/system/.internal/harness-hooks/common/post-tool-use-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --path-format=absolute --git-common-dir') do node \"%i\\..\\.arc\\system\\.internal\\harness-hooks\\common\\post-tool-use-recover.mjs\"",
             "timeout": 30
           }
         ]
@@ -32,8 +32,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "repo_root=\"$(git rev-parse --show-toplevel)\" && node \"$repo_root/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\" || exit 0",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs\" || exit /b 0",
+            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.arc/system/.internal/harness-hooks/common/clear-codex-recovery-pending.mjs\" || exit 0",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --path-format=absolute --git-common-dir') do node \"%i\\..\\.arc\\system\\.internal\\harness-hooks\\common\\clear-codex-recovery-pending.mjs\" || exit /b 0",
             "timeout": 30
           }
         ]
@@ -44,8 +44,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$(git rev-parse --show-toplevel)/.arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs\"",
-            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --show-toplevel') do node \"%i\\.arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs\"",
+            "command": "node \"$(dirname \"$(git rev-parse --path-format=absolute --git-common-dir)\")/.arc/system/.internal/harness-hooks/common/user-prompt-recover.mjs\"",
+            "commandWindows": "for /f \"delims=\" %i in ('git rev-parse --path-format=absolute --git-common-dir') do node \"%i\\..\\.arc\\system\\.internal\\harness-hooks\\common\\user-prompt-recover.mjs\"",
             "timeout": 30
           }
         ]
